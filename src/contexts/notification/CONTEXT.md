@@ -16,7 +16,7 @@ Produces user-facing in-app and email notifications about domain events. Subscri
 | Urgent             | Priority that triggers immediate email delivery (see Q9 urgent types).                                                                                                                       |
 | Normal             | Priority batched into the daily digest.                                                                                                                                                      |
 | Digest             | Daily job that sends all `pending` normal-priority emails per org.                                                                                                                           |
-| Channel preference | Per-user/per-type toggle for in-app and email channels (default: both on).                                                                                                                   |
+| Channel preference | Sparse per-user/per-category channel policy. Defaults are versioned: every category is on in-app; mandatory/urgent email is on, other email is opt-in.                                       |
 
 ## Relationships
 
@@ -39,7 +39,7 @@ Produces user-facing in-app and email notifications about domain events. Subscri
 - `type`, `resourceType`, and `status` MUST be in their allowed sets (constructor + row mapper enforce).
 - Email state machine: a queue entry moves `pending → sent` (success) or `pending/failed → failed` (retry); enforced at DB level by repo WHERE clauses.
 - Urgent priority is derived from type, never set by callers.
-- Preferences are sparse — a missing preference row means both channels enabled.
+- Preferences are sparse and resolve through the versioned category/channel default policy; they never imply “both on” globally.
 
 ## Events produced
 
@@ -47,19 +47,20 @@ This context produces **no domain events**. It consumes events and materializes 
 
 ## Events consumed
 
-| `_tag`                        | Source | Handler action                                                                                                                  |
-| ----------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| `inbox.inbox_item.created`    | inbox  | Enqueue `review.created` (review) or `feedback.created` (feedback) to assigned managers; `resourceId` = inboxItemId (ADR 0022). |
-| `inbox.inbox_item.assigned`   | inbox  | Enqueue `inbox.assigned` notification to assignee.                                                                              |
-| `inbox.inbox_item.escalated`  | inbox  | Enqueue urgent `inbox.escalated` to managers/staff.                                                                             |
-| `inbox.inbox_note.added`      | inbox  | Enqueue `inbox_note.added` to assigned managers/staff.                                                                          |
-| `review.reply.submitted`      | review | Enqueue urgent `reply.pending_approval` to AccountAdmins.                                                                       |
-| `review.reply.approved`       | review | Enqueue `reply.approved` to reply author.                                                                                       |
-| `review.reply.rejected`       | review | Enqueue `reply.rejected` to reply author.                                                                                       |
-| `review.reply.published`      | review | Enqueue `reply.published` to reply author.                                                                                      |
-| `review.reply.publish_failed` | review | Enqueue urgent `reply.publish_failed` to reply author.                                                                          |
-| `goal.completed`              | goal   | Enqueue `goal.completed` to assigned managers/staff.                                                                            |
-| `badge.awarded`               | badge  | Enqueue `badge.awarded` to assigned managers/staff.                                                                             |
+| `_tag`                                | Source | Handler action                                                                                                                  |
+| ------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------- |
+| `inbox.inbox_item.created`            | inbox  | Enqueue `review.created` (review) or `feedback.created` (feedback) to assigned managers; `resourceId` = inboxItemId (ADR 0022). |
+| `inbox.inbox_item.assigned`           | inbox  | Enqueue `inbox.assigned` notification to assignee.                                                                              |
+| `inbox.inbox_item.escalated`          | inbox  | Enqueue urgent `inbox.escalated` to managers/staff.                                                                             |
+| `inbox.inbox_note.added`              | inbox  | Enqueue `inbox_note.added` to assigned managers/staff.                                                                          |
+| `review.reply.submitted`              | review | Enqueue urgent `reply.pending_approval` to AccountAdmins.                                                                       |
+| `review.reply.approved`               | review | Enqueue `reply.approved` to reply author.                                                                                       |
+| `review.reply.rejected`               | review | Enqueue `reply.rejected` to reply author.                                                                                       |
+| `review.reply.published`              | review | Enqueue `reply.published` to reply author.                                                                                      |
+| `review.reply.publish_failed`         | review | Enqueue urgent `reply.publish_failed` to reply author.                                                                          |
+| `goal.completed`                      | goal   | Enqueue `goal.completed` to assigned managers/staff.                                                                            |
+| `badge.awarded`                       | badge  | Enqueue `badge.awarded` to assigned managers/staff.                                                                             |
+| `portal.responsibility_became_needed` | portal | Enqueue urgent, content-free `portal.responsibility_needed` to current AccountAdmins only; link to Portal settings.             |
 
 ## Architecture layers
 
@@ -75,6 +76,8 @@ infrastructure/
                     reconcile-missing-notifications)
   outbox-consumers.ts        durable at-least-once consumer for
                              `inbox.inbox_item.created`
+  portal-outbox-consumers.ts portal.write-gated durable consumer for
+                             `portal.responsibility_became_needed`
   inbox-notification-fanout.ts  the ONE inbox-item → insert-notification jobs
                              path, shared by the bus handler, the durable
                              consumer and the reconciliation sweep
@@ -149,7 +152,7 @@ Notifications are personal (scoped to the caller's `userId`); all three roles ma
 
 `emitAfterCommit` (`shared/outbox/commit.ts`) is best-effort: it catches and warns, so a throw in the inbox or notification handler left a committed review with **no** notification and nothing retrying. Two things now close that:
 
-1. **`infrastructure/outbox-consumers.ts`** registers `notification.on-inbox-item-created` with the outbox dispatcher — the at-least-once path. It is fenced three ways: the dispatcher's receipt pre-check, a deterministic per-recipient BullMQ job id (`<eventId>-<userId>`) that a redelivery collapses onto, and the notification insert's own convergence (the partial unique index `notifications_unread_resource_unique` plus `onConflictDoUpdate`). The bus handler derives the SAME job id from the same event id (the outbox row id **is** the domain event id — `insertOutboxRow` sets `id: event.eventId`), so once the dispatcher is enabled the dual path cannot double-notify.
+1. **`infrastructure/outbox-consumers.ts`** registers `notification.on-inbox-item-created` and `notification.on-portal-responsibility-needed` with the outbox dispatcher. Both use receipt fencing and deterministic per-recipient BullMQ job ids (`<eventId>-<userId>`), backed by the notification unread-row uniqueness rule. The portal recovery fact is identifier-only and is written in the same transaction that creates the responsibility-needed state, so a crash cannot commit one without the other.
 2. **`reconcile-missing-notifications`** heals what either path drops, and works regardless of the flags.
 
 To make the durable path actually deliver, an operator sets **`OUTBOX_DISPATCHER_ENABLED=true`** (with `REDIS_URL` set — `worker/index.ts` starts the relay + dispatcher only when both hold). The `DURABLE_CUTOVER_INBOX*` flags do **not** gate this consumer: they govern the four `review.*` inbox projection families, not `inbox.inbox_item.created`. Flipping the dispatcher is an ops decision with blast radius across every context's consumers, which is why nothing here changes its default.

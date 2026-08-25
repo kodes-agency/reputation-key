@@ -266,6 +266,8 @@ function job(
 const ACTIVITY_HANDLERS = 'src/contexts/activity/infrastructure/event-handlers/index.ts'
 const NOTIFICATION_HANDLERS =
   'src/contexts/notification/infrastructure/event-handlers/index.ts'
+const NOTIFICATION_PORTAL_HANDLERS =
+  'src/contexts/notification/infrastructure/event-handlers/portal-event-handlers.ts'
 const INBOX_HANDLERS = 'src/contexts/inbox/infrastructure/event-handlers/index.ts'
 const METRIC_HANDLERS = 'src/contexts/metric/infrastructure/event-handlers/index.ts'
 const METRIC_OUTBOX = 'src/contexts/metric/infrastructure/outbox-consumers.ts'
@@ -286,6 +288,8 @@ const PROPERTY_RETENTION_OUTBOX =
 const INTEGRATION_IMPORT_OUTBOX =
   'src/contexts/integration/infrastructure/outbox-consumers.ts'
 const NOTIFICATION_OUTBOX = 'src/contexts/notification/infrastructure/outbox-consumers.ts'
+const NOTIFICATION_PORTAL_OUTBOX =
+  'src/contexts/notification/infrastructure/portal-outbox-consumers.ts'
 
 // ── Event families ──────────────────────────────────────────────────
 
@@ -1005,6 +1009,29 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     consumers: [],
     disposition: 'denied_dark',
   }),
+  ev(
+    'portal.responsibility_became_needed',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.write',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [
+        bus('notification.portal-event-handlers', NOTIFICATION_PORTAL_HANDLERS),
+        durable(
+          'notification.on-portal-responsibility-needed',
+          NOTIFICATION_PORTAL_OUTBOX,
+        ),
+      ],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'identifier-only transition fact; one content-free recovery alert per AccountAdmin, with deterministic queue deduplication',
+    },
+  ),
   ev('portal.content_review.completed', PORTAL_EVENTS, {
     stateOwner: 'portal',
     capability: 'portal.write',

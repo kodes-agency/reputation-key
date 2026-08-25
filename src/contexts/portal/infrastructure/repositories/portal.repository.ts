@@ -10,6 +10,7 @@ import {
   portalLinkCategories,
   portalLinks,
   portalGroupMembers,
+  portalResponsibleManagers,
 } from '#/shared/db/schema/portal.schema'
 import type {
   PortalRepository,
@@ -27,6 +28,7 @@ import {
 } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import { isPubliclyAvailable } from '../../domain/portal-publication'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 
 /** Mutable set-values type for Drizzle .set() — strips readonly from Portal fields. */
 type SetValues = {
@@ -165,12 +167,44 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
     })
   },
 
-  insert: async (orgId, portal) => {
+  insert: async (
+    orgId,
+    portal,
+    initialResponsibleManagerId,
+    responsibilityNeededEvent,
+  ) => {
     return trace('portal.insert', async () => {
       if (portal.organizationId !== orgId) {
         throw portalError('forbidden', 'Tenant mismatch on portal insert')
       }
-      await db.insert(portals).values(portalToRow(portal))
+      await db.transaction(async (tx) => {
+        await tx.insert(portals).values(portalToRow(portal))
+        if (initialResponsibleManagerId) {
+          await tx.insert(portalResponsibleManagers).values({
+            organizationId: orgId,
+            propertyId: portal.propertyId,
+            portalId: portal.id,
+            userId: initialResponsibleManagerId,
+            effectiveFrom: portal.createdAt,
+            createdBy: initialResponsibleManagerId,
+          })
+        }
+        if (responsibilityNeededEvent) {
+          if (
+            responsibilityNeededEvent.organizationId !== orgId ||
+            responsibilityNeededEvent.propertyId !== portal.propertyId ||
+            responsibilityNeededEvent.portalId !== portal.id
+          ) {
+            throw portalError(
+              'forbidden',
+              'Tenant or resource mismatch on portal recovery event',
+            )
+          }
+          await insertOutboxRow(tx, responsibilityNeededEvent, {
+            recordedAt: portal.createdAt,
+          })
+        }
+      })
     })
   },
 

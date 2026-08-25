@@ -82,6 +82,7 @@ import { createPropertyGrantHolderLookup } from './infrastructure/adapters/grant
 import { writePolicyDecision } from './infrastructure/repositories/policy-decision-audit.repository'
 import type { RoutingDecision } from '#/shared/routing/processing-router'
 import { isOwnerToken } from '#/shared/domain/roles'
+import { createManagerMembershipRepository } from './infrastructure/repositories/manager-membership.repository'
 
 /** Callback invoked after an invitation is accepted.
  * The composition root provides the implementation that creates
@@ -172,6 +173,7 @@ type OperatorAuditEntry = Readonly<{
 }>
 
 export const buildIdentityContext = (deps: IdentityContextDeps) => {
+  const managerMembershipRepo = createManagerMembershipRepository(deps.db)
   // BQC-3.5: every identity state mutation + fact commits atomically here.
   const commandStore = createAtomicIdentityCommandStore(deps.db, deps.events)
 
@@ -408,7 +410,9 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   } as const
 
   return {
-    publicApi: {} as const,
+    publicApi: {
+      listActiveManagers: managerMembershipRepo.listActiveManagers,
+    } as const,
     internal: {
       repos: {} as const,
       useCases,

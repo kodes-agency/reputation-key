@@ -4,6 +4,7 @@
 
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { IdentityPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalPublicApi } from './application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
@@ -14,6 +15,7 @@ import { createLinkResolverPort } from './infrastructure/repositories/link-resol
 import { createS3StorageAdapter } from './infrastructure/adapters/s3-storage.adapter'
 import { createPortalTokenRepository } from './infrastructure/repositories/portal-token.repository'
 import { createPortalScopeRepository } from './infrastructure/repositories/portal-scope.repository'
+import { createPortalResponsibleManagerRepository } from './infrastructure/repositories/portal-responsible-manager.repository'
 import type { StoragePort } from './application/ports/storage.port'
 import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-codec'
 import { createPortal } from './application/use-cases/create-portal'
@@ -44,9 +46,14 @@ import { rotatePortalToken } from './application/use-cases/rotate-portal-token'
 import { revokePortalTokens } from './application/use-cases/revoke-portal-tokens'
 import { resolvePublicPortalToken } from './application/use-cases/resolve-public-portal-token'
 import { completeContentReview } from './application/use-cases/complete-content-review'
+import {
+  listPortalResponsibleManagers,
+  updatePortalResponsibleManagers,
+} from './application/use-cases/portal-responsible-managers'
 import { createPortalWorkflowFactStore } from './infrastructure/portal-workflow-fact-store'
 import { decidePublicExecution } from '#/shared/auth/execution-policy'
-import { portalId, portalGroupId } from '#/shared/domain/ids'
+import { portalId, portalGroupId, userId } from '#/shared/domain/ids'
+import { listEligiblePortalManagers } from './application/portal-manager-eligibility'
 import type { Queue } from 'bullmq'
 
 type PortalContextDeps = Readonly<{
@@ -56,6 +63,7 @@ type PortalContextDeps = Readonly<{
   clock: () => Date
   propertyApi: PropertyPublicApi
   staffPublicApi: StaffPublicApi
+  identityPublicApi: IdentityPublicApi
   baseUrl: string
   idGen: () => string
   tokenHashSecret: string
@@ -80,6 +88,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalGroupRepo = createPortalGroupRepository(deps.db)
   const portalTokenRepo = createPortalTokenRepository(deps.db)
   const portalScopeRepo = createPortalScopeRepository(deps.db)
+  const portalResponsibleManagerRepo = createPortalResponsibleManagerRepository(deps.db)
   const portalTokenCodec = createPortalTokenCodec({ secret: deps.tokenHashSecret })
   const linkResolver = createLinkResolverPort(deps.db)
   const portalWorkflowFactStore = createPortalWorkflowFactStore(deps.db, deps.events)
@@ -103,6 +112,21 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     resolvePortalCategoryManagementScope: portalScopeRepo.resolveCategory,
     resolvePortalLinkManagementScope: portalScopeRepo.resolveLink,
     listPortalManagementPropertyIds: portalScopeRepo.listPortalPropertyIds,
+    listPortalResponsibleManagers: listPortalResponsibleManagers({
+      portalRepo,
+      managerRepo: portalResponsibleManagerRepo,
+      identityPublicApi: deps.identityPublicApi,
+      staffPublicApi: deps.staffPublicApi,
+      clock: deps.clock,
+    }),
+    updatePortalResponsibleManagers: updatePortalResponsibleManagers({
+      portalRepo,
+      managerRepo: portalResponsibleManagerRepo,
+      identityPublicApi: deps.identityPublicApi,
+      staffPublicApi: deps.staffPublicApi,
+      clock: deps.clock,
+      events: deps.events,
+    }),
     completeContentReview: completeContentReview({
       portalRepo,
       staffPublicApi: deps.staffPublicApi,
@@ -114,6 +138,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       propertyApi: deps.propertyApi,
       staffPublicApi: deps.staffPublicApi,
+      identityPublicApi: deps.identityPublicApi,
       events: deps.events,
       idGen: portalIdGen,
       clock: deps.clock,
@@ -306,6 +331,18 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       return outcome.status === 'found'
         ? { status: 'found', result: outcome.data }
         : { status: 'unavailable' }
+    },
+    getResponsibleManagerUserIds: async (orgId, pid) => {
+      const portal = await portalRepo.findById(orgId, pid)
+      if (!portal) return []
+      const [assignments, eligible] = await Promise.all([
+        portalResponsibleManagerRepo.listActive(orgId, pid),
+        listEligiblePortalManagers(deps, orgId, portal.propertyId),
+      ])
+      const eligibleIds = new Set(eligible.map((manager) => manager.userId))
+      return assignments
+        .filter((assignment) => eligibleIds.has(assignment.userId))
+        .map((assignment) => userId(assignment.userId))
     },
   }
 

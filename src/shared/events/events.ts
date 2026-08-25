@@ -46,6 +46,7 @@ export type {
   PortalCreated,
   PortalUpdated,
   PortalDeleted,
+  PortalResponsibilityNeeded,
   PortalGroupCreated,
   PortalGroupUpdated,
   PortalGroupDeleted,

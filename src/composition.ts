@@ -1153,6 +1153,7 @@ export function createContainer(options?: {
     clock,
     propertyApi: property.publicApi,
     staffPublicApi: staff.publicApi,
+    identityPublicApi: identity.publicApi,
     baseUrl: env.BETTER_AUTH_URL ?? 'http://localhost:3000',
     idGen: () => crypto.randomUUID(),
     tokenHashSecret: env.PORTAL_TOKEN_HASH_SECRET,

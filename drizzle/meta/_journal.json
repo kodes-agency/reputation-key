@@ -652,6 +652,13 @@
       "when": 1787659321491,
       "tag": "0092_staff-participant-authority-expand",
       "breakpoints": true
+    },
+    {
+      "idx": 93,
+      "version": "7",
+      "when": 1787660576803,
+      "tag": "0093_portal-responsible-managers",
+      "breakpoints": true
     }
   ]
 }

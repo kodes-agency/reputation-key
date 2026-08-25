@@ -538,6 +538,13 @@ const portalDeletedSchema = z.object({
   propertyId: z.string(),
 })
 
+const portalResponsibilityNeededSchema = z.object({
+  portalId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  occurredAt: z.string().datetime(),
+})
+
 const portalTokenIssuedSchema = z.object({
   portalId: z.string(),
   organizationId: z.string(),
@@ -865,6 +872,11 @@ export function registerAllEventSchemas(): void {
     type: 'portal.deleted',
     version: EVENT_VERSION,
     schema: portalDeletedSchema,
+  })
+  registerEventSchema({
+    type: 'portal.responsibility_became_needed',
+    version: EVENT_VERSION,
+    schema: portalResponsibilityNeededSchema,
   })
   registerEventSchema({
     type: 'portal.content_review.completed',

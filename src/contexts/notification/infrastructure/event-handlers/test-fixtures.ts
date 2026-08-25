@@ -297,12 +297,15 @@ export const buildReplyRejectedEvent = (
 type ExpectedNotificationJobData = {
   userId: UserId
   type: NotificationType
-  resourceType: 'inbox_item' | 'reply' | 'goal' | 'badge'
+  resourceType: 'inbox_item' | 'reply' | 'goal' | 'badge' | 'portal'
   resourceId: string
   payload: NotificationPayload
 }
 
-export const buildExpectedJob = (data: ExpectedNotificationJobData) => ({
+export const buildExpectedJob = (
+  data: ExpectedNotificationJobData,
+  opts?: Readonly<Record<string, unknown>>,
+) => ({
   name: INSERT_NOTIFICATION_JOB_NAME,
   data: {
     ...data,
@@ -310,6 +313,7 @@ export const buildExpectedJob = (data: ExpectedNotificationJobData) => ({
     propertyId: NOTIF_TEST_IDS.propId,
     eventId: NOTIF_TEST_IDS.eventId,
   },
+  ...(opts ? { opts } : {}),
 })
 
 // ── Shared event-handler assertions / stubs ─────────────────────────

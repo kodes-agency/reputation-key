@@ -173,6 +173,7 @@ const EXPECTED_USE_CASE_KEYS = [
   'listPortalGroups',
   'listPortalLinks',
   'listPortalManagementPropertyIds',
+  'listPortalResponsibleManagers',
   'listPortals',
   'listProperties',
   'listRecognitionScopes',
@@ -244,6 +245,7 @@ const EXPECTED_USE_CASE_KEYS = [
   'updatePortal',
   'updatePortalGroup',
   'updatePortalResponsibilities',
+  'updatePortalResponsibleManagers',
   'updateProperty',
   'updateTeam',
 ]

@@ -38,6 +38,15 @@ export const portals = pgTable(
     publicationState: varchar('publication_state', { length: 20 })
       .notNull()
       .default('draft'),
+    // Immutable provenance. Existing pre-expand rows remain null rather than
+    // guessing ownership from access grants or legacy Team data.
+    createdBy: varchar('created_by', { length: 255 }),
+    responsibleManagerRevision: integer('responsible_manager_revision')
+      .notNull()
+      .default(1),
+    responsibilityNeededSince: timestamp('responsibility_needed_since', {
+      withTimezone: true,
+    }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),
@@ -61,6 +70,43 @@ export const portals = pgTable(
     publicationStateCheck: check(
       'portals_publication_state_valid',
       sql`${t.publicationState} IN ('draft', 'published', 'disabled', 'archived')`,
+    ),
+    responsibleManagerRevisionCheck: check(
+      'portals_responsible_manager_revision_positive',
+      sql`${t.responsibleManagerRevision} >= 1`,
+    ),
+  }),
+)
+
+// ── portal_responsible_managers ───────────────────────────────────
+
+export const portalResponsibleManagers = pgTable(
+  'portal_responsible_managers',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    userId: varchar('user_id', { length: 255 }).notNull(),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull(),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }),
+    createdBy: varchar('created_by', { length: 255 }).notNull(),
+    endReason: varchar('end_reason', { length: 500 }),
+  },
+  (t) => ({
+    orgPortalIdx: index('prm_org_portal_idx').on(t.organizationId, t.portalId),
+    orgUserIdx: index('prm_org_user_idx').on(t.organizationId, t.userId),
+    uniqueActiveManager: uniqueIndex('prm_unique_active_manager')
+      .on(t.organizationId, t.portalId, t.userId)
+      .where(sql`effective_to IS NULL`),
+    portalTenantFk: foreignKey({
+      name: 'prm_portal_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
+    }).onDelete('restrict'),
+    intervalCheck: check(
+      'prm_interval_valid',
+      sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`,
     ),
   }),
 )

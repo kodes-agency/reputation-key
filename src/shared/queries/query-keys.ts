@@ -158,6 +158,8 @@ export const portalKeys = {
   list: (propertyId: string) => [...portalKeys.all, 'list', propertyId] as const,
   detail: (portalId: string) => [...portalKeys.all, 'detail', portalId] as const,
   links: (portalId: string) => [...portalKeys.detail(portalId), 'links'] as const,
+  responsibleManagers: (portalId: string) =>
+    [...portalKeys.detail(portalId), 'responsible-managers'] as const,
   groups: (propertyId: string) => [...portalKeys.all, 'groups', propertyId] as const,
 }
 

@@ -114,7 +114,7 @@ export async function handleNotificationInboxItemCreated(
     propertyId: payload.propertyId ?? facts.propertyId,
     sourceType: payload.sourceType ?? facts.sourceType,
     eventId: event.eventId,
-    correlationId: event.correlationId,
+    correlationId: event.correlationId ?? null,
     // Relay delivery is at-least-once and the receipt is written after the
     // enqueue; the deterministic id makes the redelivery in that window a
     // no-op instead of a second notification job.
@@ -160,7 +160,6 @@ export function registerNotificationConsumers(deps: NotificationConsumerDeps): v
     module: 'notification.outbox-consumers',
     handler: (event) => handleNotificationInboxItemCreated(deps, event),
   })
-
   getLogger().info(
     'Notification consumers registered with outbox dispatcher (1 consumer)',
   )

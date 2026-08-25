@@ -21,6 +21,8 @@ import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-it
 import { createRecognitionLookupAdapter } from './infrastructure/adapters/recognition-lookup.adapter'
 import { registerNotificationHandlers } from './infrastructure/event-handlers'
 import { registerNotificationConsumers } from './infrastructure/outbox-consumers'
+import { registerPortalNotificationConsumers } from './infrastructure/portal-outbox-consumers'
+import { registerPortalNotificationHandlers } from './infrastructure/event-handlers/portal-event-handlers'
 import { createNotificationGapRepository } from './infrastructure/repositories/notification-gap.repository'
 import {
   createReconcileMissingNotificationsHandler,
@@ -114,6 +116,12 @@ export const buildNotificationContext = (input: BuildInput) => {
       inboxItemLookup,
       recognitionLookup,
       clock: input.clock,
+      logger: input.logger,
+    })
+    registerPortalNotificationHandlers({
+      events: input.events,
+      queue: policyQueue,
+      userLookup,
       logger: input.logger,
     })
   }
@@ -293,9 +301,16 @@ export const buildNotificationContext = (input: BuildInput) => {
        */
       registerOutboxConsumers: () => {
         if (!fanoutDeps) return
+        const receipts = createOutboxRepository(input.db)
         registerNotificationConsumers({
           ...fanoutDeps,
-          receipts: createOutboxRepository(input.db),
+          receipts,
+        })
+        registerPortalNotificationConsumers({
+          queue: fanoutDeps.queue,
+          userLookup,
+          logger: input.logger,
+          receipts,
         })
       },
       /**

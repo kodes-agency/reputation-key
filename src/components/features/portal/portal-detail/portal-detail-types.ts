@@ -53,6 +53,33 @@ export type PortalDetailResources = Readonly<{
     data: { portalId: string; key: string }
   }) => Promise<{ heroImageUrl: string }>
   getPortalAnalytics: typeof getPortalAnalyticsFn
+  responsibleManagers?: PortalResponsibleManagerState
+  responsibleManagerMembers?: readonly ResponsibleManagerMember[]
+  updateResponsibleManagersMutation?: Action<{
+    data: {
+      portalId: string
+      managerUserIds: string[]
+      expectedRevision: number
+    }
+  }>
+}>
+
+export type PortalResponsibleManagerState = Readonly<{
+  assignments: readonly Readonly<{ userId: string }>[]
+  eligibleManagers: readonly Readonly<{
+    userId: string
+    role: 'AccountAdmin' | 'PropertyManager'
+  }>[]
+  revision: number
+  responsibilityNeeded: boolean
+  responsibilityNeededSince: string | Date | null
+}>
+
+export type ResponsibleManagerMember = Readonly<{
+  userId: string
+  name: string
+  email: string
+  role: string | null
 }>
 
 export type PortalDetailPageProps = PortalDetailResources &

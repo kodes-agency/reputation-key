@@ -11,20 +11,21 @@ export type { CreatePortalInput }
 import { normalizeSlug } from '../../domain/rules'
 import { buildPortal } from '../../domain/constructors'
 import { portalError } from '../../domain/errors'
-import { portalCreated } from '../../domain/events'
+import { portalCreated, portalResponsibilityNeeded } from '../../domain/events'
 import { propertyId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { IdentityPublicApi } from '#/contexts/identity/application/public-api'
 import { assertNewPortalPropertyAccess } from '../load-accessible-portal'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
+import { isEligiblePortalManager } from '../portal-manager-eligibility'
 
 export type CreatePortalDeps = Readonly<{
   portalRepo: PortalRepository
   propertyApi: PropertyPublicApi
   staffPublicApi: StaffPublicApi
+  identityPublicApi: IdentityPublicApi
   events: EventBus
   idGen: () => PortalId
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 export const createPortal =
@@ -50,6 +51,13 @@ export const createPortal =
       throw portalError('slug_taken', 'a portal with this slug already exists')
     }
 
+    const creatorIsEligible = await isEligiblePortalManager(
+      deps,
+      ctx.organizationId,
+      propertyId(input.propertyId),
+      ctx.userId,
+    )
+
     // 4. Build domain object
     const portalResult = buildPortal({
       id: deps.idGen(),
@@ -61,6 +69,8 @@ export const createPortal =
       providedSlug: input.slug,
       description: input.description,
       theme: input.theme,
+      createdBy: ctx.userId,
+      hasInitialResponsibleManager: creatorIsEligible,
       now: deps.clock(),
     })
 
@@ -70,21 +80,33 @@ export const createPortal =
 
     const portal = portalResult.value
 
+    const createdEvent = portalCreated({
+      portalId: portal.id,
+      organizationId: portal.organizationId,
+      name: portal.name,
+      slug: portal.slug,
+      occurredAt: portal.createdAt,
+    })
+    const responsibilityNeededEvent = creatorIsEligible
+      ? null
+      : portalResponsibilityNeeded({
+          portalId: portal.id,
+          organizationId: portal.organizationId,
+          propertyId: portal.propertyId,
+          occurredAt: portal.createdAt,
+        })
+
     // 5. Persist
-    await deps.portalRepo.insert(ctx.organizationId, portal)
+    await deps.portalRepo.insert(
+      ctx.organizationId,
+      portal,
+      creatorIsEligible ? ctx.userId : null,
+      responsibilityNeededEvent,
+    )
 
     // 6. Emit event
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      portalCreated({
-        portalId: portal.id,
-        organizationId: portal.organizationId,
-        name: portal.name,
-        slug: portal.slug,
-        occurredAt: portal.createdAt,
-      }),
-    )
+    await deps.events.emit(createdEvent)
+    if (responsibilityNeededEvent) await deps.events.emit(responsibilityNeededEvent)
 
     // 7. Return
     return portal

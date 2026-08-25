@@ -60,6 +60,9 @@ type SettingsPanelProps = Pick<
   | 'completeReviewMutation'
   | 'requestUploadUrl'
   | 'finalizeUpload'
+  | 'responsibleManagers'
+  | 'responsibleManagerMembers'
+  | 'updateResponsibleManagersMutation'
 > &
   ThemeDraft
 
@@ -72,6 +75,9 @@ function SettingsPanel({
   theme,
   onThemeChange,
   formRef,
+  responsibleManagers,
+  responsibleManagerMembers,
+  updateResponsibleManagersMutation,
 }: SettingsPanelProps) {
   return (
     <PortalSettings
@@ -83,6 +89,9 @@ function SettingsPanel({
       requestUploadUrl={requestUploadUrl}
       finalizeUpload={finalizeUpload}
       formRef={formRef}
+      responsibleManagers={responsibleManagers}
+      responsibleManagerMembers={responsibleManagerMembers}
+      updateResponsibleManagersMutation={updateResponsibleManagersMutation}
     />
   )
 }

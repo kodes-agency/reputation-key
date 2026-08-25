@@ -280,7 +280,9 @@ function discoverConsumers(): ReadonlyArray<DiscoveredConsumer> {
   const files = walk(join(ROOT, 'src/contexts')).filter((f) => !f.endsWith('.test.ts'))
   for (const abs of files) {
     const file = rel(abs)
-    if (/\/infrastructure\/event-handlers\/index\.ts$/.test(file)) {
+    if (
+      /\/infrastructure\/event-handlers\/(?:index|[^/]+-event-handlers)\.ts$/.test(file)
+    ) {
       const tags = [...read(abs).matchAll(/\.on\(\s*'([^']+)'/g)].map((m) => m[1])
       out.push({ file, tags, durable: false })
     } else if (/outbox-consumers\.ts$/.test(file)) {

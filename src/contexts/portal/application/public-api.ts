@@ -11,6 +11,7 @@ export type {
   PortalConfigurationCompletenessRecorded,
   PortalContentReviewCompleted,
   PortalDeleted,
+  PortalResponsibilityNeeded,
   PortalEvent,
   PortalGroupDeleted,
 } from '../domain/events'
@@ -88,6 +89,11 @@ export type PortalPublicApi = Readonly<{
    * Every unavailable posture deliberately collapses to one outcome.
    */
   findPublicPortalByToken: (rawToken: string) => Promise<PublicPortalByTokenOutcome>
+  /** Current assigned managers, revalidated against role/access/participation. */
+  getResponsibleManagerUserIds: (
+    orgId: OrganizationId,
+    portalId: PortalId,
+  ) => Promise<ReadonlyArray<import('#/shared/domain/ids').UserId>>
 }>
 
 /** Minimal portal group info for cross-context consumers. */

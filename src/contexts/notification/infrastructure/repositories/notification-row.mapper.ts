@@ -36,6 +36,7 @@ const VALID_RESOURCE_TYPES: readonly NotificationResourceType[] = [
   'reply',
   'goal',
   'badge',
+  'portal',
 ]
 
 export const notificationFromRow = (row: NotificationRow): Notification => ({

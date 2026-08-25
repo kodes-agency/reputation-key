@@ -18,7 +18,7 @@ import type {
   PortalLinkId,
 } from '#/shared/domain/ids'
 import type { PortalError } from './errors'
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import { propertyId, teamId, userId } from '#/shared/domain/ids'
 import {
   normalizeSlug,
@@ -45,6 +45,8 @@ export type BuildPortalInput = Readonly<{
   description?: string | null
   theme?: Partial<PortalTheme>
   publicationState?: Portal['publicationState']
+  createdBy?: UserId | null
+  hasInitialResponsibleManager?: boolean
   now: Date
 }>
 
@@ -74,6 +76,10 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
       heroImageUrl: null,
       theme: validTheme,
       publicationState: input.publicationState ?? 'draft',
+      createdBy: input.createdBy ?? null,
+      responsibleManagerRevision: 1,
+      responsibilityNeededSince:
+        input.hasInitialResponsibleManager === true ? null : input.now,
       createdAt: input.now,
       updatedAt: input.now,
       deletedAt: null,

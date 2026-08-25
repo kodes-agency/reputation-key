@@ -27,6 +27,7 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'inbox.escalated': 'urgent_operational',
   'inbox.assigned': 'workflow_collaboration',
   'inbox_note.added': 'workflow_collaboration',
+  'portal.responsibility_needed': 'urgent_operational',
   // Recognition, NOT a digest: `digest_summary` defaulted to
   // {in_app:false, email:false}, so a goal completion classified as a digest
   // was DROPPED entirely for any tenant without preference rows — nothing was

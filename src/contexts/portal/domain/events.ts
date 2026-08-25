@@ -47,6 +47,22 @@ export type PortalDeleted = Readonly<{
   occurredAt: Date
 }>
 
+/**
+ * Recovery fact raised on the transition from one-or-more eligible responsible
+ * managers to none, and when a newly-created portal has no eligible default.
+ * Identifier-only by design: consumers resolve any display data through an
+ * authorized read, and the recovery notification intentionally needs none.
+ */
+export type PortalResponsibilityNeeded = Readonly<{
+  _tag: 'portal.responsibility_became_needed'
+  eventId: string
+  correlationId: string | null
+  portalId: PortalId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  occurredAt: Date
+}>
+
 export type PortalTokenIssued = Readonly<{
   _tag: 'portal.token.issued'
   eventId: string
@@ -216,6 +232,7 @@ export type PortalEvent =
   | PortalCreated
   | PortalUpdated
   | PortalDeleted
+  | PortalResponsibilityNeeded
   | PortalTokenIssued
   | PortalTokenRotated
   | PortalTokenRevoked
@@ -276,6 +293,18 @@ export const portalDeleted = (
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'portal.deleted',
+    eventId: newEventId(),
+    correlationId: null,
+    ...args,
+  }
+}
+
+export const portalResponsibilityNeeded = (
+  args: Omit<PortalResponsibilityNeeded, '_tag' | 'eventId' | 'correlationId'>,
+): PortalResponsibilityNeeded => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  return {
+    _tag: 'portal.responsibility_became_needed',
     eventId: newEventId(),
     correlationId: null,
     ...args,

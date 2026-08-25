@@ -62,10 +62,15 @@ describe('renderNotification — invariants across every type', () => {
   it.each(NOTIFICATION_TYPES)('%s renders completely with a full payload', (type) => {
     const r = renderNotification(type, FULL)
 
-    // Where the property name lands is per-type: review/reply copy leads with
-    // the property, while goal/badge copy leads with the goal or badge name and
-    // carries the property in the body. Assert it surfaces SOMEWHERE.
-    expect([r.title, r.body, r.summary].join(' ')).toContain('Riverside Hotel')
+    const visibleCopy = [r.title, r.body, r.summary].join(' ')
+    // Recovery alerts are deliberately content-free: even if an unexpected
+    // producer supplies render metadata, this template must ignore it. Other
+    // types use the property name to sharpen their operational context.
+    if (type === 'portal.responsibility_needed') {
+      expect(visibleCopy).not.toContain('Riverside Hotel')
+    } else {
+      expect(visibleCopy).toContain('Riverside Hotel')
+    }
     for (const field of [r.title, r.body, r.actionLabel, r.summary]) {
       expect(field).not.toMatch(/undefined|null|NaN/)
       expect(field).not.toMatch(/\s{2,}/)
@@ -226,12 +231,26 @@ describe('notificationLink', () => {
     })
   })
 
+  it('renders a gentle portal responsibility recovery prompt without content', () => {
+    expect(renderNotification('portal.responsibility_needed', {})).toEqual({
+      title: 'Portal needs a responsible manager',
+      body: 'Choose an eligible manager so portal updates reach the right people.',
+      actionLabel: 'Choose manager',
+      summary: 'responsible manager needed',
+    })
+    expect(notificationLink('portal', 'portal-1', 'prop-1')).toEqual({
+      path: '/properties/prop-1/portals/portal-1',
+      search: { tab: 'settings' },
+    })
+  })
+
   it('covers every resource type', () => {
     const types: ReadonlyArray<Parameters<typeof notificationLink>[0]> = [
       'inbox_item',
       'reply',
       'goal',
       'badge',
+      'portal',
     ]
     for (const t of types) {
       expect(notificationLink(t, 'r', 'p').path).toMatch(/^\//)

@@ -1550,6 +1550,25 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'scoped via authoritative portalId before recording workflow facts' },
     ),
     sf('listPortals', `${PORTAL}/portals.ts`, 'portal.read', 'portal.read', 'property'),
+    sf(
+      'listPortalResponsibleManagers',
+      `${PORTAL}/portal-responsible-managers.ts`,
+      'portal.read',
+      'portal.read',
+      'property',
+      { notes: 'scoped via authoritative portalId' },
+    ),
+    sf(
+      'updatePortalResponsibleManagers',
+      `${PORTAL}/portal-responsible-managers.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      {
+        notes:
+          'scoped via authoritative portalId; role/access/participation eligibility and CAS revalidated in the use case',
+      },
+    ),
     sf('getPortal', `${PORTAL}/portals.ts`, 'portal.read', 'portal.read', 'property', {
       notes: 'scoped via portalId',
     }),
@@ -2636,6 +2655,18 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   consumer(
+    'notification.portal-outbox-consumers',
+    'src/contexts/notification/infrastructure/portal-outbox-consumers.ts',
+    'system:notification.insert',
+    'portal.write',
+    'property',
+    ['portal.responsibility_became_needed'],
+    {
+      notes:
+        'portal-gated durable AccountAdmin recovery fan-out; identifier-only payload, receipt fencing, deterministic per-recipient job ids',
+    },
+  ),
+  consumer(
     'integration.property-import-dispatch',
     'src/contexts/integration/infrastructure/outbox-consumers.ts',
     'system:property.import_v2',
@@ -2818,6 +2849,15 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'badge.awarded',
     ],
     { notes: 'each handler enqueues insert-notification' },
+  ),
+  consumer(
+    'notification.portal-event-handlers',
+    'src/contexts/notification/infrastructure/event-handlers/portal-event-handlers.ts',
+    'system:notification.insert',
+    'portal.write',
+    'property',
+    ['portal.responsibility_became_needed'],
+    { notes: 'portal-gated fast path for the content-free recovery alert' },
   ),
   consumer(
     'review.event-handlers',

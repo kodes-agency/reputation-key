@@ -35,8 +35,13 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
       'link_not_found',
       () => 404,
     )
-    .with('slug_taken', () => 409)
-    .with('upload_failed', 'token_unavailable', () => 422)
+    .with('slug_taken', 'revision_conflict', () => 409)
+    .with(
+      'upload_failed',
+      'token_unavailable',
+      'responsible_manager_ineligible',
+      () => 422,
+    )
     .with('group_not_found', 'portal_not_in_group', () => 404)
     .with('group_name_taken', 'portal_already_grouped', () => 409)
     .with('portal_inactive', () => 410)

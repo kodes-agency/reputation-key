@@ -203,6 +203,13 @@ const renderNoteAdded = (p: NotificationPayload): RenderedNotification => ({
   summary: facts(p.propertyName ?? '', reviewNoun(p), 'new note'),
 })
 
+const renderPortalResponsibilityNeeded = (): RenderedNotification => ({
+  title: 'Portal needs a responsible manager',
+  body: 'Choose an eligible manager so portal updates reach the right people.',
+  actionLabel: 'Choose manager',
+  summary: 'responsible manager needed',
+})
+
 const renderGoalCompleted = (p: NotificationPayload): RenderedNotification => ({
   title:
     p.goalName === undefined
@@ -245,6 +252,7 @@ const RENDERERS: Record<
   'inbox.escalated': renderInboxEscalated,
   'inbox.assigned': renderInboxAssigned,
   'inbox_note.added': renderNoteAdded,
+  'portal.responsibility_needed': renderPortalResponsibilityNeeded,
   'goal.completed': renderGoalCompleted,
   'badge.awarded': renderBadgeAwarded,
 }
@@ -299,5 +307,10 @@ export const notificationLink = (
       return { path: `/properties/${propertyId}`, search: {} }
     case 'badge':
       return { path: '/settings/recognition', search: {} }
+    case 'portal':
+      return {
+        path: `/properties/${propertyId}/portals/${resourceId}`,
+        search: { tab: 'settings' },
+      }
   }
 }

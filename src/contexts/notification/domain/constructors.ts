@@ -38,6 +38,7 @@ const ALLOWED_RESOURCE_TYPES: ReadonlySet<NotificationResourceType> = new Set([
   'reply',
   'goal',
   'badge',
+  'portal',
 ])
 
 // ── Create notification ─────────────────────────────────────────────

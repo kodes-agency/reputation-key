@@ -33,6 +33,8 @@ export const NOTIFICATION_TYPES = [
   'inbox.escalated',
   'inbox.assigned',
   'inbox_note.added',
+  // Portal operations
+  'portal.responsibility_needed',
   // Goal events
   'goal.completed',
   // Badge events
@@ -69,7 +71,8 @@ export type EmailQueueStatus =
   | 'suppressed'
   | 'cancelled'
 export type DeliveryErrorClass = 'transient' | 'permanent' | 'suppressed'
-export type NotificationResourceType = 'inbox_item' | 'reply' | 'goal' | 'badge'
+export type NotificationResourceType =
+  'inbox_item' | 'reply' | 'goal' | 'badge' | 'portal'
 
 // ── In-app notification ─────────────────────────────────────────────
 
@@ -165,6 +168,7 @@ export const URGENT_TYPES: ReadonlySet<NotificationType> = new Set([
   'reply.pending_approval',
   'reply.publish_failed',
   'inbox.escalated',
+  'portal.responsibility_needed',
 ])
 
 export const isUrgent = (type: NotificationType): boolean => URGENT_TYPES.has(type)

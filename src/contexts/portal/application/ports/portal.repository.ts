@@ -3,7 +3,13 @@
 // Every method takes organizationId as the first parameter (tenant isolation).
 
 import type { Portal, PortalId } from '../../domain/types'
-import type { OrganizationId, PropertyId, PortalGroupId } from '#/shared/domain/ids'
+import type {
+  OrganizationId,
+  PropertyId,
+  PortalGroupId,
+  UserId,
+} from '#/shared/domain/ids'
+import type { PortalResponsibilityNeeded } from '../../domain/events'
 
 export type PublicPortalResult = Readonly<{
   portal: Readonly<{
@@ -47,7 +53,12 @@ export type PortalRepository = Readonly<{
     slug: string,
     excludeId?: PortalId,
   ) => Promise<boolean>
-  insert: (orgId: OrganizationId, portal: Portal) => Promise<void>
+  insert: (
+    orgId: OrganizationId,
+    portal: Portal,
+    initialResponsibleManagerId?: UserId | null,
+    responsibilityNeededEvent?: PortalResponsibilityNeeded | null,
+  ) => Promise<void>
   update: (
     orgId: OrganizationId,
     id: PortalId,

@@ -17,13 +17,23 @@ import {
 const FIXED_ID = portalId('portal-00000000-0000-0000-0000-000000000001')
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
-const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
+const staffApiMock = (
+  accessible: ReadonlyArray<PropertyId> | null,
+  participates = true,
+): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
   countAssignmentsByTeam: async () => 0,
+  findActiveParticipation: async () => (participates ? ({} as never) : null),
 })
 
-const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
+const setup = (
+  accessible: ReadonlyArray<PropertyId> | null = [
+    propertyId('a0000000-0000-0000-0000-000000000001'),
+  ],
+  participates = true,
+  managerRole: 'AccountAdmin' | 'PropertyManager' = 'PropertyManager',
+) => {
   const portalRepo = createInMemoryPortalRepo()
   const events = createCapturingEventBus()
   const deps = {
@@ -39,7 +49,15 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
       findIdsByGoogleConnection: async () => [],
       clearGoogleConnectionRef: async () => {},
     },
-    staffPublicApi: staffApiMock(accessible),
+    staffPublicApi: staffApiMock(accessible, participates),
+    identityPublicApi: {
+      listActiveManagers: async () => [
+        {
+          userId: 'user-00000000-0000-0000-0000-000000000001',
+          role: managerRole,
+        },
+      ],
+    },
     events,
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
@@ -61,11 +79,13 @@ describe('createPortal', () => {
     expect(portal.slug).toBe('my-portal')
     expect(portal.theme.primaryColor).toBe('#6366F1')
     expect(portal.publicationState).toBe('draft')
+    expect(portal.createdBy).toBe(ctx.userId)
+    expect(portal.responsibilityNeededSince).toBeNull()
     expect(portalRepo.all()).toHaveLength(1)
   })
 
   it('creates a portal with custom slug and theme', async () => {
-    const { useCase } = setup()
+    const { useCase } = setup(null, true, 'AccountAdmin')
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     const portal = await useCase(
@@ -194,5 +214,39 @@ describe('createPortal', () => {
 
     expect(portal.name).toBe('Test')
     expect(portalRepo.all()).toHaveLength(1)
+  })
+
+  it('creates a visible responsibility-needed state when the creator is not eligible', async () => {
+    const { useCase, events } = setup(
+      [propertyId('a0000000-0000-0000-0000-000000000001')],
+      false,
+    )
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    const portal = await useCase(
+      { name: 'Needs owner', propertyId: 'a0000000-0000-0000-0000-000000000001' },
+      ctx,
+    )
+
+    expect(portal.responsibilityNeededSince).toEqual(FIXED_TIME)
+    expect(events.capturedByTag('portal.responsibility_became_needed')).toEqual([
+      expect.objectContaining({
+        portalId: FIXED_ID,
+        organizationId: ctx.organizationId,
+        propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
+        occurredAt: FIXED_TIME,
+      }),
+    ])
+  })
+
+  it('does not raise a recovery alert when the creator becomes the default manager', async () => {
+    const { useCase, events } = setup()
+
+    await useCase(
+      { name: 'Owned', propertyId: 'a0000000-0000-0000-0000-000000000001' },
+      buildTestAuthContext({ role: 'PropertyManager' }),
+    )
+
+    expect(events.capturedByTag('portal.responsibility_became_needed')).toHaveLength(0)
   })
 })

@@ -8,6 +8,7 @@ function createPortalApiStub(
   return {
     resolvePortalContext: async () => null,
     getPortalInfo: async () => null,
+    getResponsibleManagerUserIds: async () => [],
     findPublicPortalByToken,
   }
 }

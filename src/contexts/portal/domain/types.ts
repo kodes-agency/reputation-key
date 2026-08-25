@@ -41,6 +41,9 @@ export type Portal = Readonly<{
   heroImageUrl: string | null
   theme: PortalTheme
   publicationState: PortalPublicationState
+  readonly createdBy: UserId | null
+  readonly responsibleManagerRevision: number
+  readonly responsibilityNeededSince: Date | null
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null

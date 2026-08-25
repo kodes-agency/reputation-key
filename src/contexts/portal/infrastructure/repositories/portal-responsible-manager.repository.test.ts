@@ -1,0 +1,190 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { Pool } from 'pg'
+import { getEnv } from '#/shared/config/env'
+import { getDb } from '#/shared/db'
+import { buildTestPortal } from '#/shared/testing/fixtures'
+import { organizationId, propertyId, userId } from '#/shared/domain/ids'
+import { createPortalRepository } from './portal.repository'
+import { createPortalResponsibleManagerRepository } from './portal-responsible-manager.repository'
+import { portalResponsibilityNeeded } from '../../domain/events'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+
+const ORG = 'org-portal-responsible-manager'
+const PROPERTY = 'c9000000-0000-4000-8000-000000000001'
+const PORTAL = 'c9000000-0000-4000-8000-000000000002'
+const START = new Date('2026-08-25T10:00:00.000Z')
+const CHANGE = new Date('2026-08-25T11:00:00.000Z')
+const UNASSIGNED = new Date('2026-08-25T12:00:00.000Z')
+let pool: Pool
+
+beforeAll(async () => {
+  clearEventSchemas()
+  registerAllEventSchemas()
+  pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+  await pool.query(
+    `INSERT INTO organization (id, name, slug, "createdAt")
+     VALUES ($1, $1, $1, NOW()) ON CONFLICT (id) DO NOTHING`,
+    [ORG],
+  )
+  await pool.query(
+    `INSERT INTO properties
+       (id, organization_id, name, slug, timezone, created_at, updated_at)
+     VALUES ($1, $2, 'Responsible Property', 'portal-responsible-manager', 'UTC', NOW(), NOW())
+     ON CONFLICT (id) DO NOTHING`,
+    [PROPERTY, ORG],
+  )
+})
+
+afterAll(async () => {
+  await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM portal_responsible_managers WHERE organization_id = $1', [
+    ORG,
+  ])
+  await pool.query('DELETE FROM portals WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM properties WHERE id = $1', [PROPERTY])
+  await pool.query('DELETE FROM organization WHERE id = $1', [ORG])
+  await pool.end()
+  clearEventSchemas()
+})
+
+beforeEach(async () => {
+  await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM portal_responsible_managers WHERE organization_id = $1', [
+    ORG,
+  ])
+  await pool.query('DELETE FROM portals WHERE organization_id = $1', [ORG])
+})
+
+const recoveryEvent = (at: Date) =>
+  portalResponsibilityNeeded({
+    portalId: portal().id,
+    organizationId: organizationId(ORG),
+    propertyId: propertyId(PROPERTY),
+    occurredAt: at,
+  })
+
+const portal = () =>
+  buildTestPortal({
+    id: PORTAL,
+    organizationId: organizationId(ORG),
+    propertyId: propertyId(PROPERTY),
+    entityId: propertyId(PROPERTY),
+    publicationState: 'draft',
+    createdBy: userId('admin-1'),
+    responsibleManagerRevision: 1,
+    responsibilityNeededSince: null,
+    createdAt: START,
+    updatedAt: START,
+  })
+
+describe('portal responsible manager repository', () => {
+  it('persists the eligible creator default atomically with the portal', async () => {
+    const db = getDb()
+    await createPortalRepository(db).insert(
+      organizationId(ORG),
+      portal(),
+      userId('admin-1'),
+    )
+
+    const assignments = await createPortalResponsibleManagerRepository(db).listActive(
+      ORG,
+      PORTAL,
+    )
+    expect(assignments).toEqual([
+      expect.objectContaining({
+        portalId: PORTAL,
+        userId: 'admin-1',
+        effectiveFrom: START,
+        createdBy: 'admin-1',
+      }),
+    ])
+  })
+
+  it('preserves unchanged intervals, supports multiple managers, and exposes unowned state', async () => {
+    const db = getDb()
+    await createPortalRepository(db).insert(
+      organizationId(ORG),
+      portal(),
+      userId('admin-1'),
+    )
+    const repo = createPortalResponsibleManagerRepository(db)
+    const [original] = await repo.listActive(ORG, PORTAL)
+
+    const expanded = await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      managerUserIds: ['admin-1', 'manager-1'],
+      expectedRevision: 1,
+      actorId: 'admin-1',
+      at: CHANGE,
+      responsibilityNeededEvent: recoveryEvent(CHANGE),
+    })
+    expect(expanded.revision).toBe(2)
+    expect(expanded.assignments).toEqual([
+      expect.objectContaining({
+        id: original.id,
+        userId: 'admin-1',
+        effectiveFrom: START,
+      }),
+      expect.objectContaining({ userId: 'manager-1', effectiveFrom: CHANGE }),
+    ])
+
+    await expect(
+      repo.replace({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        portalId: PORTAL,
+        managerUserIds: ['admin-1'],
+        expectedRevision: 1,
+        actorId: 'admin-1',
+        at: UNASSIGNED,
+        responsibilityNeededEvent: recoveryEvent(UNASSIGNED),
+      }),
+    ).rejects.toMatchObject({ _tag: 'PortalError', code: 'revision_conflict' })
+
+    const unassigned = await repo.replace({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      managerUserIds: [],
+      expectedRevision: 2,
+      actorId: 'admin-1',
+      at: UNASSIGNED,
+      responsibilityNeededEvent: recoveryEvent(UNASSIGNED),
+    })
+    expect(unassigned).toMatchObject({
+      assignments: [],
+      revision: 3,
+      becameResponsibilityNeeded: true,
+    })
+    const row = await pool.query(
+      `SELECT responsible_manager_revision, responsibility_needed_since
+       FROM portals WHERE id = $1`,
+      [PORTAL],
+    )
+    expect(row.rows[0].responsible_manager_revision).toBe(3)
+    expect(new Date(row.rows[0].responsibility_needed_since)).toEqual(UNASSIGNED)
+    const outbox = await pool.query(
+      `SELECT event_type, organization_id, property_id, source_aggregate_id, payload
+       FROM outbox_events WHERE organization_id = $1`,
+      [ORG],
+    )
+    expect(outbox.rows).toEqual([
+      expect.objectContaining({
+        event_type: 'portal.responsibility_became_needed',
+        organization_id: ORG,
+        property_id: PROPERTY,
+        // The shared outbox adapter currently groups portal facts at property
+        // scope when both ids are present; the payload retains the portal id.
+        source_aggregate_id: PROPERTY,
+      }),
+    ])
+    expect(outbox.rows[0].payload).toMatchObject({
+      portalId: PORTAL,
+      organizationId: ORG,
+      propertyId: PROPERTY,
+    })
+  })
+})

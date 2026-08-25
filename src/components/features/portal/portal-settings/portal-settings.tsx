@@ -8,6 +8,7 @@ import { ThemePresetSelector } from './theme-preset-selector'
 import { ContentReviewCard } from './content-review-card'
 import { PortalPublicationRow } from './portal-publication-row'
 import { saveStatusMessage } from './portal-settings-rules'
+import { ResponsibleManagersCard } from './responsible-managers-card'
 import { Button } from '#/components/ui/button'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { Action } from '#/components/hooks/use-action'
@@ -19,6 +20,10 @@ import type {
   PortalThemeDraft,
   UpdatePortalVariables,
 } from '../shared/types'
+import type {
+  PortalResponsibleManagerState,
+  ResponsibleManagerMember,
+} from '../portal-detail/portal-detail-types'
 
 type Props = Readonly<{
   portal: PortalData
@@ -33,6 +38,15 @@ type Props = Readonly<{
     heroImageUrl: string
   }>
   formRef: React.RefObject<FormLike | null>
+  responsibleManagers?: PortalResponsibleManagerState
+  responsibleManagerMembers?: readonly ResponsibleManagerMember[]
+  updateResponsibleManagersMutation?: Action<{
+    data: {
+      portalId: string
+      managerUserIds: string[]
+      expectedRevision: number
+    }
+  }>
 }>
 
 export function PortalSettings({
@@ -44,6 +58,9 @@ export function PortalSettings({
   requestUploadUrl,
   finalizeUpload,
   formRef,
+  responsibleManagers,
+  responsibleManagerMembers,
+  updateResponsibleManagersMutation,
 }: Props) {
   const { can } = usePermissions()
   const canManage = can('portal.update')
@@ -67,6 +84,18 @@ export function PortalSettings({
       </div>
 
       <PortalPublicationRow portal={portal} mutation={mutation} canManage={canManage} />
+
+      {responsibleManagers &&
+        responsibleManagerMembers &&
+        updateResponsibleManagersMutation && (
+          <ResponsibleManagersCard
+            portalId={portal.id}
+            state={responsibleManagers}
+            members={responsibleManagerMembers}
+            updateAction={updateResponsibleManagersMutation}
+            disabled={!canEdit}
+          />
+        )}
 
       <EditPortalForm
         portal={portal}

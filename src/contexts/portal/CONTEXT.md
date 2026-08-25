@@ -14,6 +14,9 @@ Portal page management — creation, configuration, theming, link management, im
 - **Smart Routing** — Layout emphasis strategy for low ratings. Controls feedback form positioning.
 - **Portal Group** — A named collection of portals within a property. Used for goal scoping and leaderboard ranking. One portal belongs to at most one group. Metrics are always aggregated from member portals at query time (no pre-computed group metrics).
 - **Ungrouped Portal** — A portal not assigned to any portal group. Still individually targetable by goals and rankable on leaderboards.
+- **Portal Creator** — Immutable provenance for who created a portal. Creation does not permanently confer notification responsibility.
+- **Portal Responsible Manager** — An effective-dated AccountAdmin or eligible PropertyManager assigned to receive and manage that portal's workflow notifications. Multiple managers are supported; assignment does not grant access or staff-performance attribution.
+- **Responsibility Needed** — Visible recovery state when a non-archived portal has no assigned responsible manager. It is not an implicit AccountAdmin assignment.
 - **Soft Delete** — Portals and portal groups are soft-deleted (marked `deletedAt`), not hard-deleted, to preserve referential integrity.
 
 ## Relationships
@@ -23,6 +26,7 @@ Portal page management — creation, configuration, theming, link management, im
 - Portal → Portal Group (optional, via `portal_group_members`). One portal belongs to at most one group.
 - Portal Group → Property (required `propertyId`). One property has many groups.
 - Portal has many PortalLinkCategories, each with many PortalLinks.
+- Portal has zero or more effective-dated Portal Responsible Managers (`portal_responsible_managers`).
 - Guest context **depends on** `PortalPublicApi` for resolving portal context and public portal data.
 - Goal context **subscribes to** `portal.deleted` events to cancel portal-scoped goals.
 - Goal context **subscribes to** `portal_group.deleted` events to cancel portal-group-scoped goals.
@@ -39,12 +43,17 @@ Portal page management — creation, configuration, theming, link management, im
 - A portal group belongs to exactly one property.
 - A portal cannot enter `published` without at least one link — a published portal with no destinations renders as an empty guest page.
 - Soft-deleting a portal revokes its active/rotating portal tokens; a deleted portal never has a live token.
+- The eligible creator is the initial Portal Responsible Manager. AccountAdmins are organization-wide eligible; PropertyManagers require both current property access and active participation for that property.
+- Responsible-manager assignment never grants property access, portal access, or staff attribution.
+- Responsible-manager updates preserve unchanged effective-dated intervals and use `responsibleManagerRevision` compare-and-swap; stale writes fail with `revision_conflict`.
+- Losing the last manager sets `responsibilityNeededSince` and atomically records one identifier-only recovery fact. Adding any manager clears the state; nobody is auto-promoted.
 
 ## Events produced
 
 - **`portal.created`** — portalId, organizationId, name, slug, occurredAt.
 - **`portal.updated`** — portalId, organizationId, name, slug, occurredAt.
 - **`portal.deleted`** — portalId, organizationId, occurredAt.
+- **`portal.responsibility_became_needed`** — portalId, organizationId, propertyId, occurredAt. Identifier-only, atomically recorded with the unowned transition; Notification sends one content-free recovery alert to each current AccountAdmin.
 - **`portal.token.issued`** — portalId, organizationId, propertyId, tokenIdentifier, version, occurredAt.
 - **`portal.token.rotated`** — portalId, organizationId, propertyId, previousVersion, version, gracePeriodEnds, occurredAt.
 - **`portal.token.revoked`** — portalId, organizationId, propertyId, occurredAt. Identifier-only audit fact; no consumers.
@@ -90,16 +99,19 @@ portal/
                        list-portal-groups.ts, get-portal-group.ts,
                        add-portal-to-group.ts, remove-portal-from-group.ts,
                        issue-portal-token.ts, rotate-portal-token.ts, revoke-portal-tokens.ts,
-                       resolve-public-portal-token.ts, complete-content-review.ts
+                       resolve-public-portal-token.ts, complete-content-review.ts,
+                       portal-responsible-managers.ts
     public-api.ts      re-exports port types, PortalPublicApi, PortalGroupPublicApi, event types/constructors
   infrastructure/
     repositories/      portal.repository.ts, portal-group.repository.ts, portal-link.repository.ts,
                        portal-token.repository.ts, portal-scope.repository.ts,
+                       portal-responsible-manager.repository.ts,
                        link-resolver.repository.ts (Drizzle)
     adapters/          s3-storage.adapter.ts
     mappers/           portal.mapper.ts, portal-group.mapper.ts, portal-link.mapper.ts
     jobs/              process-image.job.ts
   server/              portals.ts, portal-groups.ts, portal-links.ts,
+                       portal-responsible-managers.ts,
                        portal-link-categories.ts, property-scope.ts
   build.ts             composition root
 ```
@@ -126,15 +138,18 @@ portal/
 - **`issuePortalToken`** / **`rotatePortalToken`** / **`revokePortalTokens`** — Portal token lifecycle for public QR links.
 - **`resolvePublicPortalToken`** — Resolve a public token to its portal, honouring rotation grace periods.
 - **`completeContentReview`** — Record a completed portal content review and emit the derived workflow facts.
+- **`listPortalResponsibleManagers`** — Return current assignments, currently eligible candidates, responsibility-needed state, and the CAS revision.
+- **`updatePortalResponsibleManagers`** — Replace the manager set after revalidating every selected manager; supports multiple or zero and preserves effective-dated history.
 
 ## Public API
 
 Exported from `application/public-api.ts`:
 
 - Types: `StoragePort`, `LinkResolverPort`, `PortalContextResult`, `PublicPortalBySlugResult`, `PortalPublicApi`
+- `PortalPublicApi.getResponsibleManagerUserIds` returns only current assignments that remain role/access/participation eligible at read/delivery time.
 - Types: `PortalGroupPublicApi` (exposes `findGroupForPortal`), `PortalTokenStatus` (token existence/metadata for management surfaces — never token material)
 - Functions: `isValidExternalUrl` (https-only link-destination guard, used by the public redirect route)
-- Event types: `PortalDeleted`, `PortalEvent`, `PortalGroupDeleted`
+- Event types: `PortalDeleted`, `PortalResponsibilityNeeded`, `PortalEvent`, `PortalGroupDeleted`
 - Event constructors: `portalDeleted`, `portalGroupDeleted`
 
 ## Server functions
@@ -142,6 +157,7 @@ Exported from `application/public-api.ts`:
 - **`portals.ts`** — CRUD, read, image-upload, and portal-token server functions for portals (create/update/list/get/delete portal, request/finalize upload, issue/rotate/revoke token).
 - **`portal-links.ts`** — CRUD server functions for portal links and link categories.
 - **`portal-groups.ts`** — CRUD server functions for portal groups and portal membership management.
+- **`portal-responsible-managers.ts`** — scoped list/update endpoints for responsible-manager assignments and CAS conflict handling.
 - **`portal-link-categories.ts`** — Server functions for portal link category CRUD operations.
 
 ## Permissions

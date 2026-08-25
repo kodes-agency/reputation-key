@@ -36,3 +36,12 @@ export type {
   InvitationRecord,
   OrganizationRecord,
 } from './ports/identity.port'
+
+export type ManagerMembership = Readonly<{
+  userId: string
+  role: 'AccountAdmin' | 'PropertyManager'
+}>
+
+export type IdentityPublicApi = Readonly<{
+  listActiveManagers: (organizationId: string) => Promise<readonly ManagerMembership[]>
+}>

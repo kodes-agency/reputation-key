@@ -33,7 +33,7 @@ import { PortalBadgeSection } from '#/components/features/badges/portal-badge-se
 import type { Action } from '#/components/hooks/use-action'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { useServerFn } from '@tanstack/react-start'
-import { portalKeys, badgeKeys } from '#/shared/queries/query-keys'
+import { portalKeys, badgeKeys, identityKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
@@ -45,6 +45,11 @@ import type { BadgeAwardWithTarget } from '#/contexts/badge/application/public-a
 import type { Portal, PortalTokenStatus } from '#/contexts/portal/application/public-api'
 import type { UpdatePortalVariables } from '#/components/features/portal/shared/types'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
+import {
+  listPortalResponsibleManagers,
+  updatePortalResponsibleManagers,
+} from '#/contexts/portal/server/portal-responsible-managers'
+import { listMembers } from '#/contexts/identity/server/organizations'
 
 type PortalQueryResult = Readonly<{
   portal: Portal | null
@@ -78,6 +83,19 @@ const portalLinksQuery = (portalId: string) =>
     queryFn: () => listPortalLinks({ data: { portalId } }),
     staleTime: 30_000,
   })
+
+const responsibleManagersQuery = (portalId: string) =>
+  queryOptions({
+    queryKey: portalKeys.responsibleManagers(portalId),
+    queryFn: () => listPortalResponsibleManagers({ data: { portalId } }),
+    staleTime: 30_000,
+  })
+
+const membersQuery = queryOptions({
+  queryKey: identityKeys.members(),
+  queryFn: () => listMembers(),
+  staleTime: 30_000,
+})
 
 const portalBadgesQuery = (propertyId: string, portalId: string) =>
   queryOptions({
@@ -159,6 +177,8 @@ export const Route = createFileRoute(
       context.queryClient.ensureQueryData(
         portalBadgesQuery(params.propertyId, params.portalId),
       ),
+      context.queryClient.ensureQueryData(responsibleManagersQuery(params.portalId)),
+      context.queryClient.ensureQueryData(membersQuery),
     ])
     return {
       portal,
@@ -271,6 +291,10 @@ function PortalDetailRoute() {
   const { data: linksData } = useSuspenseQuery(portalLinksQuery(portalId))
   const { data: badges } = useSuspenseQuery(portalBadgesQuery(propertyId, portalId))
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
+  const { data: responsibleManagers } = useSuspenseQuery(
+    responsibleManagersQuery(portalId),
+  )
+  const { data: membersData } = useSuspenseQuery(membersQuery)
   const { portal, tokenStatus } = portalData
   const { categories, links } = linksData
   const { property } = propData
@@ -297,6 +321,16 @@ function PortalDetailRoute() {
       badgeKeys.target({ propertyId, targetType: 'portal', targetId: portalId }),
     ],
   })
+  const updateResponsibleManagersMutation = useActionMutation(
+    updatePortalResponsibleManagers,
+    {
+      successMessage: 'Responsible managers updated',
+      invalidateKeys: [
+        portalKeys.detail(portalId),
+        portalKeys.responsibleManagers(portalId),
+      ],
+    },
+  )
   const requestUploadUrlFn = useServerFn(requestUploadUrl)
   const finalizeUploadFn = useServerFn(finalizeUpload)
 
@@ -333,6 +367,9 @@ function PortalDetailRoute() {
         finalizeUpload={finalizeUploadFn}
         getPortalAnalytics={getPortalAnalyticsFn}
         completeReviewMutation={completeReviewMutation}
+        responsibleManagers={responsibleManagers}
+        responsibleManagerMembers={membersData.members}
+        updateResponsibleManagersMutation={updateResponsibleManagersMutation}
       />
       <PortalBadgeSection badges={badges as BadgeAwardWithTarget[]} />
     </PageShell>

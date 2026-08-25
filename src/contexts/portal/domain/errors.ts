@@ -26,6 +26,8 @@ export type PortalErrorCode =
   | 'portal_has_no_links'
   | 'token_unavailable'
   | 'upload_failed'
+  | 'responsible_manager_ineligible'
+  | 'revision_conflict'
 
 export type PortalError = Readonly<{
   _tag: 'PortalError'
