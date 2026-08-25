@@ -5,6 +5,7 @@ import type {
   GuestRatingSubmitted,
 } from '../../domain/events'
 import type { GuestResponse } from '../../domain/guest-response'
+import type { GuestResponseIntegrityDecision } from '../../domain/guest-response-integrity'
 
 /** Content-minimal facts committed with a submitted Guest Response. */
 export type GuestSubmissionFact = GuestRatingSubmitted | GuestFeedbackSubmitted
@@ -25,6 +26,16 @@ export type GuestResponseCommandStore = Readonly<{
   commitCorrected(
     previous: GuestResponse,
     response: GuestResponse,
+    facts: ReadonlyArray<GuestMutationFact>,
+  ): Promise<'applied' | 'conflict'>
+  /**
+   * Compare-and-set a reasoned integrity decision with any rating eligibility
+   * correction it causes. The numeric response is never deleted by this path.
+   */
+  commitIntegrityChanged(
+    previous: GuestResponse,
+    response: GuestResponse,
+    decision: GuestResponseIntegrityDecision,
     facts: ReadonlyArray<GuestMutationFact>,
   ): Promise<'applied' | 'conflict'>
   /** Add the one eligible private-feedback fact without consuming rating correction. */

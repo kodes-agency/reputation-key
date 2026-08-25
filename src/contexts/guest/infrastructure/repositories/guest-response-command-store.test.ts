@@ -18,6 +18,7 @@ import {
   guestRatingSubmitted,
 } from '../../domain/events'
 import type { GuestResponse } from '../../domain/guest-response'
+import { changeGuestResponseIntegrity } from '../../domain/guest-response-integrity'
 import type { GuestSubmissionFact } from '../../application/ports/guest-response-command-store.port'
 import { createAtomicGuestResponseCommandStore } from '../guest-response-command-store'
 import { createGuestResponseRepository } from './guest-response.repository'
@@ -41,6 +42,10 @@ function response(): GuestResponse {
     sessionId: SESSION,
     sessionExpiresAt: new Date('2026-08-26T12:00:00.000Z'),
     status: 'submitted',
+    integrityOutcome: 'accepted',
+    integrityReasonCode: 'initial_submission',
+    integrityRevision: 1,
+    integrityAssessedAt: NOW,
     rating: 2,
     category: null,
     text: 'Please contact the front desk.',
@@ -191,6 +196,22 @@ describe.sequential('atomic Guest response submission', () => {
       private_feedback_threshold: 3,
     })
     expect(new Date(String(snapshots.rows[0]!.captured_at))).toEqual(NOW)
+    const integrity = await db.execute(sql`
+      SELECT revision, previous_outcome, outcome, reason_code, source, actor_id,
+             decided_at
+      FROM guest_response_integrity_decisions
+      WHERE response_id = ${RESPONSE}
+    `)
+    expect(integrity.rows).toHaveLength(1)
+    expect(integrity.rows[0]).toMatchObject({
+      revision: 1,
+      previous_outcome: null,
+      outcome: 'accepted',
+      reason_code: 'initial_submission',
+      source: 'system',
+      actor_id: 'guest.gateway',
+    })
+    expect(new Date(String(integrity.rows[0]!.decided_at))).toEqual(NOW)
     expect(outbox.rows.map((row) => row.event_type)).toEqual([
       'guest.feedback.submitted',
       'guest.rating.submitted',
@@ -246,6 +267,94 @@ describe.sequential('atomic Guest response submission', () => {
     `)
     expect(outbox.rows).toHaveLength(2)
     expect(events.capturedEvents).toHaveLength(0)
+  })
+
+  it('atomically audits eligibility changes and their correction facts', async () => {
+    const events = createCapturingEventBus()
+    const store = createAtomicGuestResponseCommandStore(db, events)
+    const [originalRating, originalFeedback] = facts()
+    await store.commitSubmitted(response(), [originalRating, originalFeedback])
+    const persisted = {
+      ...response(),
+      ratingSourceEventId: originalRating.eventId,
+      feedbackSourceEventId: originalFeedback.eventId,
+    }
+    const reviewedAt = new Date('2026-08-25T12:10:00.000Z')
+    const excluded = changeGuestResponseIntegrity(
+      persisted,
+      {
+        outcome: 'under_review',
+        reasonCode: 'traffic_velocity_anomaly',
+        source: 'automatic',
+        actorId: 'guest-integrity-v1',
+      },
+      reviewedAt,
+    )
+    if ('code' in excluded) throw new Error(excluded.code)
+    const retraction = guestRatingRetracted({
+      ratingId: ratingId(RESPONSE),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      supersedesSourceEventId: originalRating.eventId,
+      occurredAt: reviewedAt,
+    })
+
+    await expect(
+      store.commitIntegrityChanged(persisted, excluded.response, excluded.decision, [
+        retraction,
+      ]),
+    ).resolves.toBe('applied')
+    await expect(
+      store.commitIntegrityChanged(persisted, excluded.response, excluded.decision, [
+        retraction,
+      ]),
+    ).resolves.toBe('conflict')
+
+    const excludedRow = await db.execute(sql`
+      SELECT rating, integrity_outcome, integrity_reason_code,
+             integrity_revision, rating_source_event_id
+      FROM guest_responses WHERE id = ${RESPONSE}
+    `)
+    expect(excludedRow.rows).toEqual([
+      {
+        rating: 2,
+        integrity_outcome: 'under_review',
+        integrity_reason_code: 'traffic_velocity_anomaly',
+        integrity_revision: 2,
+        rating_source_event_id: null,
+      },
+    ])
+    const decisions = await db.execute(sql`
+      SELECT revision, previous_outcome, outcome, reason_code, source, actor_id
+      FROM guest_response_integrity_decisions
+      WHERE response_id = ${RESPONSE}
+      ORDER BY revision
+    `)
+    expect(decisions.rows).toEqual([
+      {
+        revision: 1,
+        previous_outcome: null,
+        outcome: 'accepted',
+        reason_code: 'initial_submission',
+        source: 'system',
+        actor_id: 'guest.gateway',
+      },
+      {
+        revision: 2,
+        previous_outcome: 'accepted',
+        outcome: 'under_review',
+        reason_code: 'traffic_velocity_anomaly',
+        source: 'automatic',
+        actor_id: 'guest-integrity-v1',
+      },
+    ])
+    const outbox = await db.execute(sql`
+      SELECT event_type FROM outbox_events
+      WHERE organization_id = ${ORG} AND event_type = 'guest.rating.retracted'
+    `)
+    expect(outbox.rows).toHaveLength(1)
+    expect(events.capturedByTag('guest.rating.retracted')).toHaveLength(1)
   })
 
   it('denies stale reads and expires each storage class independently', async () => {

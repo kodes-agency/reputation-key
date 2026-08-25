@@ -240,6 +240,41 @@ function harness(clock: () => Date = () => new Date('2026-08-09T12:00:00Z')) {
       for (const fact of facts) await events.emit(fact)
       return 'applied' as const
     },
+    commitIntegrityChanged: async (
+      previous: GuestResponse,
+      response: GuestResponse,
+      _decision: Parameters<
+        import('../ports/guest-response-command-store.port').GuestResponseCommandStore['commitIntegrityChanged']
+      >[2],
+      facts: Parameters<
+        import('../ports/guest-response-command-store.port').GuestResponseCommandStore['commitIntegrityChanged']
+      >[3],
+    ) => {
+      const index = repo.responses.findIndex(
+        (row) =>
+          row.id === previous.id &&
+          row.integrityOutcome === previous.integrityOutcome &&
+          row.integrityRevision === previous.integrityRevision &&
+          row.ratingSourceEventId === previous.ratingSourceEventId,
+      )
+      if (index < 0) return 'conflict' as const
+      const ratingFact = facts.find(
+        (fact) =>
+          fact._tag === 'guest.rating.submitted' ||
+          fact._tag === 'guest.rating.retracted',
+      )
+      repo.responses[index] = {
+        ...response,
+        ratingSourceEventId:
+          ratingFact?._tag === 'guest.rating.submitted'
+            ? ratingFact.eventId
+            : ratingFact?._tag === 'guest.rating.retracted'
+              ? null
+              : response.ratingSourceEventId,
+      }
+      for (const fact of facts) await events.emit(fact)
+      return 'applied' as const
+    },
     commitFeedbackAdded: async (
       response: GuestResponse,
       fact: Parameters<
@@ -543,7 +578,7 @@ describe('guest response lifecycle', () => {
   })
 
   it('treats legacy manager delete as moderation and preserves the numeric rating', async () => {
-    const { lifecycle, repo } = harness()
+    const { lifecycle, repo, events } = harness()
     await lifecycle.submit(scope, '00000000-0000-4000-8000-000000000003', {
       rating: 1,
       responseConsent: true,
@@ -560,6 +595,66 @@ describe('guest response lifecycle', () => {
     await expect(
       repo.findSnippetForOrg(scope.organizationId, responseId),
     ).resolves.toEqual({ comment: null, ratingValue: 1 })
+    expect(repo.responses[0]).toMatchObject({ integrityOutcome: 'accepted' })
+    expect(events.capturedByTag('guest.rating.retracted')).toHaveLength(0)
+  })
+
+  it('excludes an anomaly from metrics, preserves its rating, and restores the corrected value', async () => {
+    let now = new Date('2026-08-09T12:00:00.000Z')
+    const { lifecycle, repo, events } = harness(() => now)
+    const sessionId = '00000000-0000-4000-8000-000000000003'
+    await lifecycle.submit(scope, sessionId, { rating: 2, responseConsent: true })
+    const responseId = repo.responses[0]!.id
+    const original = events.capturedByTag('guest.rating.submitted')[0]!
+
+    now = new Date('2026-08-09T12:10:00.000Z')
+    await expect(
+      lifecycle.changeIntegrity(scope, responseId, {
+        outcome: 'under_review',
+        reasonCode: 'traffic_velocity_anomaly',
+        source: 'automatic',
+        actorId: 'guest-integrity-v1',
+      }),
+    ).resolves.toMatchObject({
+      revision: 2,
+      previousOutcome: 'accepted',
+      outcome: 'under_review',
+    })
+    expect(repo.responses[0]).toMatchObject({
+      rating: 2,
+      integrityOutcome: 'under_review',
+      ratingSourceEventId: null,
+    })
+    expect(events.capturedByTag('guest.rating.retracted')).toMatchObject([
+      { supersedesSourceEventId: original.eventId },
+    ])
+
+    now = new Date('2026-08-09T12:20:00.000Z')
+    await lifecycle.correct(scope, sessionId, { rating: 4 })
+    expect(repo.responses[0]).toMatchObject({
+      rating: 4,
+      integrityOutcome: 'under_review',
+      ratingSourceEventId: null,
+    })
+    expect(events.capturedByTag('guest.rating.submitted')).toHaveLength(1)
+
+    now = new Date('2026-08-09T12:30:00.000Z')
+    await lifecycle.changeIntegrity(scope, responseId, {
+      outcome: 'accepted',
+      reasonCode: 'reviewer_restored',
+      source: 'reviewer',
+      actorId: 'reviewer-1',
+    })
+    expect(repo.responses[0]).toMatchObject({
+      rating: 4,
+      integrityOutcome: 'accepted',
+      integrityRevision: 3,
+    })
+    expect(events.capturedByTag('guest.rating.submitted')).toHaveLength(2)
+    expect(events.capturedByTag('guest.rating.submitted')[1]).toMatchObject({
+      value: 4,
+      supersedesSourceEventId: null,
+    })
   })
 
   // The domain rejection short-circuits the repo compare-and-set, so a replayed

@@ -8,6 +8,8 @@
 // After the private rating, Google Review Action visibility/order/prominence is
 // invariant across all five values. Eligible feedback is additive and follows it.
 
+import type { GuestResponseIntegrityOutcome } from './guest-response-integrity'
+
 export type GuestResponseStatus =
   'pending' | 'submitted' | 'corrected' | 'moderated' | 'deleted' | 'expired'
 
@@ -34,6 +36,11 @@ export interface GuestResponse {
   readonly sessionId: string | null
   readonly sessionExpiresAt: Date | null
   readonly status: GuestResponseStatus
+  /** Metric eligibility is independent from content moderation/lifecycle status. */
+  readonly integrityOutcome: GuestResponseIntegrityOutcome
+  readonly integrityReasonCode: string
+  readonly integrityRevision: number
+  readonly integrityAssessedAt: Date
   readonly rating: number | null
   readonly category: string | null
   readonly text: string | null
@@ -104,6 +111,10 @@ export function createResponse(params: {
     sessionId: params.sessionId,
     sessionExpiresAt: params.sessionExpiresAt,
     status: 'pending',
+    integrityOutcome: 'accepted',
+    integrityReasonCode: 'initial_submission',
+    integrityRevision: 1,
+    integrityAssessedAt: params.experienceSnapshot.capturedAt,
     rating: null,
     category: null,
     text: null,

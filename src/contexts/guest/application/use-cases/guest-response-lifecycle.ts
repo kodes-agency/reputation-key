@@ -28,6 +28,11 @@ import {
   type ResponseError,
 } from '../../domain/guest-response'
 import {
+  changeGuestResponseIntegrity,
+  isRatingMetricEligible,
+  type GuestResponseIntegrityOutcome,
+} from '../../domain/guest-response-integrity'
+import {
   guestFeedbackRetracted,
   guestFeedbackSubmitted,
   guestRatingRetracted,
@@ -284,12 +289,12 @@ export function guestResponseLifecycle(
       propertyId: propertyId(response.propertyId),
     }
     const occurredAt = response.submittedAt ?? deps.clock()
-    if (response.rating !== null && response.responseConsent) {
+    if (isRatingMetricEligible(response)) {
       facts.push(
         guestRatingSubmitted({
           ratingId: ratingId(response.id),
           ...scopeIds,
-          value: response.rating,
+          value: response.rating!,
           occurredAt,
         }),
       )
@@ -318,7 +323,7 @@ export function guestResponseLifecycle(
       propertyId: propertyId(corrected.propertyId),
     }
     const occurredAt = corrected.correctedAt ?? deps.clock()
-    const nextRatingShared = corrected.rating !== null && corrected.responseConsent
+    const nextRatingShared = isRatingMetricEligible(corrected)
     if (
       nextRatingShared &&
       (previous.rating !== corrected.rating || !previous.ratingSourceEventId)
@@ -397,11 +402,46 @@ export function guestResponseLifecycle(
     return facts
   }
 
+  const integrityFacts = (
+    previous: GuestResponse,
+    changed: GuestResponse,
+  ): GuestMutationFact[] => {
+    const wasEligible = isRatingMetricEligible(previous)
+    const isEligible = isRatingMetricEligible(changed)
+    if (wasEligible === isEligible) return []
+    const scopeIds = {
+      organizationId: organizationId(changed.organizationId),
+      portalId: portalId(changed.portalId),
+      propertyId: propertyId(changed.propertyId),
+    }
+    if (wasEligible) {
+      if (!previous.ratingSourceEventId) {
+        throw new GuestResponseLifecycleError('response_unavailable')
+      }
+      return [
+        guestRatingRetracted({
+          ratingId: ratingId(changed.id),
+          ...scopeIds,
+          supersedesSourceEventId: previous.ratingSourceEventId,
+          occurredAt: changed.integrityAssessedAt,
+        }),
+      ]
+    }
+    return [
+      guestRatingSubmitted({
+        ratingId: ratingId(changed.id),
+        ...scopeIds,
+        value: changed.rating!,
+        supersedesSourceEventId: previous.ratingSourceEventId,
+        occurredAt: changed.integrityAssessedAt,
+      }),
+    ]
+  }
+
   const requireKnownFactLineage = (response: GuestResponse): void => {
     if (
-      (response.rating !== null &&
-        response.responseConsent &&
-        !response.ratingSourceEventId) ||
+      (isRatingMetricEligible(response) && !response.ratingSourceEventId) ||
+      (response.integrityOutcome !== 'accepted' && response.ratingSourceEventId) ||
       (response.text !== null && response.textConsent && !response.feedbackSourceEventId)
     ) {
       // Never turn an unresolved historical fact into an additive correction or
@@ -558,6 +598,39 @@ export function guestResponseLifecycle(
         throw new GuestResponseLifecycleError('already_submitted')
       }
       return toView(corrected, deps.clock())
+    },
+
+    /**
+     * Internal integrity control. Delivery layers must keep this unavailable to
+     * Property managers: their moderation path may hide text/media only.
+     */
+    changeIntegrity: async (
+      scope: GuestResponseScope,
+      responseId: string,
+      input: Readonly<{
+        outcome: GuestResponseIntegrityOutcome
+        reasonCode: string
+        source: 'automatic' | 'reviewer'
+        actorId: string
+      }>,
+    ) => {
+      const current = await deps.repo.findById(scope, responseId)
+      if (!current) throw new GuestResponseLifecycleError('response_not_found')
+      requireKnownFactLineage(current)
+      const changed = changeGuestResponseIntegrity(current, input, deps.clock())
+      if ('code' in changed) throw new GuestResponseLifecycleError(changed.code)
+      const facts = integrityFacts(current, changed.response)
+      if (
+        (await deps.commandStore.commitIntegrityChanged(
+          current,
+          changed.response,
+          changed.decision,
+          facts,
+        )) !== 'applied'
+      ) {
+        throw new GuestResponseLifecycleError('response_unavailable')
+      }
+      return changed.decision
     },
 
     withdraw: async (

@@ -101,6 +101,18 @@ export const guestResponses = pgTable(
     propertyId: uuid('property_id').notNull(),
     portalId: uuid('portal_id').notNull(),
     status: varchar('status', { length: 20 }).notNull().default('pending'),
+    integrityOutcome: varchar('integrity_outcome', { length: 32 })
+      .notNull()
+      .default('accepted'),
+    integrityReasonCode: varchar('integrity_reason_code', { length: 100 })
+      .notNull()
+      .default('legacy_included'),
+    integrityRevision: integer('integrity_revision').notNull().default(1),
+    integrityAssessedAt: timestamp('integrity_assessed_at', {
+      withTimezone: true,
+    })
+      .notNull()
+      .defaultNow(),
     rating: integer('rating'),
     categoryId: uuid('category_id'),
     responseConsent: boolean('response_consent').notNull().default(false),
@@ -134,6 +146,12 @@ export const guestResponses = pgTable(
       t.portalId,
       t.status,
     ),
+    portalIntegrityIdx: index('guest_responses_portal_integrity_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.portalId,
+      t.integrityOutcome,
+    ),
     portalTenantFk: foreignKey({
       name: 'guest_responses_portal_tenant_fk',
       columns: [t.organizationId, t.portalId],
@@ -147,6 +165,18 @@ export const guestResponses = pgTable(
     statusCheck: check(
       'guest_responses_status_valid',
       sql`${t.status} IN ('pending', 'submitted', 'corrected', 'moderated', 'deleted', 'expired')`,
+    ),
+    integrityOutcomeCheck: check(
+      'guest_responses_integrity_outcome_valid',
+      sql`${t.integrityOutcome} IN ('accepted', 'filtered_automatically', 'under_review')`,
+    ),
+    integrityReasonCheck: check(
+      'guest_responses_integrity_reason_valid',
+      sql`${t.integrityReasonCode} ~ '^[a-z0-9]+(_[a-z0-9]+)*$'`,
+    ),
+    integrityRevisionCheck: check(
+      'guest_responses_integrity_revision_valid',
+      sql`${t.integrityRevision} >= 1`,
     ),
     ratingCheck: check(
       'guest_responses_rating_valid',
@@ -163,6 +193,76 @@ export const guestResponses = pgTable(
     feedbackWithdrawalCheck: check(
       'guest_responses_feedback_withdrawal_valid',
       sql`${t.feedbackWithdrawnAt} IS NULL OR (${t.feedbackSubmittedAt} IS NOT NULL AND ${t.textConsent} = false AND ${t.feedbackSourceEventId} IS NULL)`,
+    ),
+  }),
+)
+
+/**
+ * Append-only explanation of every response-integrity decision. This table
+ * deliberately contains no rating value, feedback text, session, or network
+ * pseudonym: reviewers can audit eligibility without gaining guest content.
+ */
+export const guestResponseIntegrityDecisions = pgTable(
+  'guest_response_integrity_decisions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    responseId: uuid('response_id').notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    revision: integer('revision').notNull(),
+    previousOutcome: varchar('previous_outcome', { length: 32 }),
+    outcome: varchar('outcome', { length: 32 }).notNull(),
+    reasonCode: varchar('reason_code', { length: 100 }).notNull(),
+    source: varchar('source', { length: 20 }).notNull(),
+    actorId: varchar('actor_id', { length: 255 }).notNull(),
+    decidedAt: timestamp('decided_at', { withTimezone: true }).notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (t) => ({
+    responseRevisionKey: uniqueIndex(
+      'guest_response_integrity_decisions_response_revision_key',
+    ).on(t.responseId, t.revision),
+    scopeOutcomeIdx: index('guest_response_integrity_decisions_scope_outcome_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.portalId,
+      t.outcome,
+      t.decidedAt,
+    ),
+    responseScopeFk: foreignKey({
+      name: 'guest_response_integrity_decisions_response_scope_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId, t.responseId],
+      foreignColumns: [
+        guestResponses.organizationId,
+        guestResponses.propertyId,
+        guestResponses.portalId,
+        guestResponses.id,
+      ],
+    }).onDelete('cascade'),
+    revisionCheck: check(
+      'guest_response_integrity_decisions_revision_valid',
+      sql`${t.revision} >= 1`,
+    ),
+    initialRevisionCheck: check(
+      'guest_response_integrity_decisions_initial_revision_valid',
+      sql`(${t.revision} = 1 AND ${t.previousOutcome} IS NULL) OR (${t.revision} > 1 AND ${t.previousOutcome} IS NOT NULL)`,
+    ),
+    previousOutcomeCheck: check(
+      'guest_response_integrity_decisions_previous_outcome_valid',
+      sql`${t.previousOutcome} IS NULL OR ${t.previousOutcome} IN ('accepted', 'filtered_automatically', 'under_review')`,
+    ),
+    outcomeCheck: check(
+      'guest_response_integrity_decisions_outcome_valid',
+      sql`${t.outcome} IN ('accepted', 'filtered_automatically', 'under_review')`,
+    ),
+    reasonCheck: check(
+      'guest_response_integrity_decisions_reason_valid',
+      sql`${t.reasonCode} ~ '^[a-z0-9]+(_[a-z0-9]+)*$'`,
+    ),
+    sourceCheck: check(
+      'guest_response_integrity_decisions_source_valid',
+      sql`${t.source} IN ('system', 'automatic', 'reviewer', 'migration')`,
     ),
   }),
 )

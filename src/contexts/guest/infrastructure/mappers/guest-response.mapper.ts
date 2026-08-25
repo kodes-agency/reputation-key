@@ -5,6 +5,7 @@ import {
   guestResponses,
 } from '#/shared/db/schema/guest.schema'
 import type { GuestResponse, GuestResponseStatus } from '../../domain/guest-response'
+import type { GuestResponseIntegrityOutcome } from '../../domain/guest-response-integrity'
 
 type ResponseRow = typeof guestResponses.$inferSelect
 type ResponseInsert = typeof guestResponses.$inferInsert
@@ -26,6 +27,10 @@ export function guestResponseFromRow(
     sessionId: binding?.sessionId ?? null,
     sessionExpiresAt: binding?.expiresAt ?? null,
     status: row.status as GuestResponseStatus,
+    integrityOutcome: row.integrityOutcome as GuestResponseIntegrityOutcome,
+    integrityReasonCode: row.integrityReasonCode,
+    integrityRevision: row.integrityRevision,
+    integrityAssessedAt: row.integrityAssessedAt,
     rating: row.rating,
     category: row.categoryId,
     text: feedback?.body ?? null,
@@ -66,6 +71,10 @@ export function guestResponseToInsertRow(response: GuestResponse): ResponseInser
     propertyId: response.propertyId,
     portalId: response.portalId,
     status: response.status,
+    integrityOutcome: response.integrityOutcome,
+    integrityReasonCode: response.integrityReasonCode,
+    integrityRevision: response.integrityRevision,
+    integrityAssessedAt: response.integrityAssessedAt,
     rating: response.rating,
     categoryId: response.category,
     responseConsent: response.responseConsent,

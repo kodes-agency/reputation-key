@@ -41,6 +41,12 @@ describe('GuestResponse', () => {
       expect(r.status).toBe('pending')
       expect(r.rating).toBeNull()
       expect(r.text).toBeNull()
+      expect(r).toMatchObject({
+        integrityOutcome: 'accepted',
+        integrityReasonCode: 'initial_submission',
+        integrityRevision: 1,
+        integrityAssessedAt: NOW,
+      })
     })
   })
 
