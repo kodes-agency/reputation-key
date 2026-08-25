@@ -108,6 +108,7 @@ export type SystemAction =
   | 'system:goal.reconcile'
   | 'system:goal.spawn'
   | 'system:goal.progress'
+  | 'system:goal.maintain'
   | 'system:badge.reconcile'
   | 'system:badge.evaluate'
   | 'system:leaderboard.reconcile'
@@ -2539,6 +2540,17 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     { notes: 'incremental rollup' },
   ),
   job(
+    'goal-program.maintain',
+    'src/contexts/goal/infrastructure/jobs/goal-program-maintenance.job.ts',
+    'system:goal.maintain',
+    'goal.use',
+    'tenant_cross',
+    {
+      notes:
+        'canonical monthly Goal Program lifecycle; discovers operational programs, then freshly authorizes every property before activation, next-month materialization, or governed result reconciliation',
+    },
+  ),
+  job(
     'retention-sweep',
     'src/shared/jobs/retention-sweep.job.ts',
     'system:retention.sweep',
@@ -3031,6 +3043,16 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     'tenant_cross',
     { notes: 'cron 5 * * * * (hourly)' },
+  ),
+  schedule(
+    'goal-program.maintain-recurring',
+    'system:goal.maintain',
+    'goal.use',
+    'tenant_cross',
+    {
+      notes:
+        'hourly; database constraints and idempotent inserts fence duplicate activation, period materialization, and two-pass reconciliation',
+    },
   ),
   schedule(
     'leaderboard.reconcile-recurring',

@@ -1807,6 +1807,22 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     { timeoutMs: 300_000, notes: 'incremental rollup; 5m bounds a stalled refresh' },
   ),
   job(
+    'goal-program.maintain',
+    'src/contexts/goal/infrastructure/jobs/goal-program-maintenance.job.ts',
+    {
+      queue: 'background',
+      capability: 'goal.use',
+      action: 'system:goal.maintain',
+      schedule: 'every:3600000',
+      registration: 'enabled',
+    },
+    {
+      timeoutMs: 300_000,
+      notes:
+        'canonical monthly Goal Program lifecycle; property-local boundaries and DB idempotency fence the hourly tenant-cross sweep, while each discovered property is freshly authorized',
+    },
+  ),
+  job(
     'retention-sweep',
     'src/shared/jobs/retention-sweep.job.ts',
     {

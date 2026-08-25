@@ -277,6 +277,19 @@ export function createGoalProgramRepository(db: Database): GoalProgramRepository
       return hydrateBundles(db, rows)
     },
 
+    async listOperational() {
+      const rows = await db
+        .select()
+        .from(goalPrograms)
+        .where(inArray(goalPrograms.status, ['scheduled', 'active']))
+        .orderBy(
+          asc(goalPrograms.organizationId),
+          asc(goalPrograms.propertyId),
+          asc(goalPrograms.id),
+        )
+      return hydrateBundles(db, rows)
+    },
+
     async changeStatus(input) {
       return db.transaction(async (tx) => {
         const [row] = await tx
@@ -410,6 +423,101 @@ export function createGoalProgramRepository(db: Database): GoalProgramRepository
       })
     },
 
+    async activate(input) {
+      return db.transaction(async (tx) => {
+        const [row] = await tx
+          .update(goalPrograms)
+          .set({ status: 'active', statusReason: null, updatedAt: input.at })
+          .where(
+            and(
+              eq(goalPrograms.organizationId, input.bundle.program.organizationId),
+              eq(goalPrograms.propertyId, input.bundle.program.propertyId),
+              eq(goalPrograms.id, input.bundle.program.id),
+              eq(goalPrograms.currentVersion, input.bundle.version.version),
+              eq(goalPrograms.status, 'scheduled'),
+            ),
+          )
+          .returning()
+        if (!row) return null
+        if (input.results.length > 0) {
+          await tx
+            .insert(goalMonthlyResults)
+            .values(input.results.map(resultValues))
+            .onConflictDoNothing()
+        }
+        await tx.insert(auditLogs).values({
+          organizationId: row.organizationId,
+          userId: 'system',
+          action: 'goal.program.activated',
+          resourceType: 'goal_program',
+          resourceId: row.id,
+          details: {
+            propertyId: row.propertyId,
+            programVersionId: input.bundle.version.id,
+            resultCount: input.results.length,
+          },
+        })
+        await tx.insert(outboxEvents).values({
+          id: input.outboxEventId,
+          eventType: 'goal.program.activated',
+          eventVersion: 1,
+          organizationId: row.organizationId,
+          propertyId: row.propertyId,
+          sourceContext: 'goal',
+          sourceAggregateId: row.id,
+          payload: {
+            programId: row.id,
+            programVersionId: input.bundle.version.id,
+            resultCount: input.results.length,
+          },
+        })
+        return mapProgram(row)
+      })
+    },
+
+    async appendResults(input) {
+      if (input.results.length === 0) return 0
+      return db.transaction(async (tx) => {
+        const [head] = await tx
+          .update(goalPrograms)
+          .set({ updatedAt: input.at })
+          .where(
+            and(
+              eq(goalPrograms.organizationId, input.program.organizationId),
+              eq(goalPrograms.propertyId, input.program.propertyId),
+              eq(goalPrograms.id, input.program.id),
+              eq(goalPrograms.status, 'active'),
+              eq(goalPrograms.currentVersion, input.version.version),
+            ),
+          )
+          .returning({ id: goalPrograms.id })
+        if (!head) return 0
+        const inserted = await tx
+          .insert(goalMonthlyResults)
+          .values(input.results.map(resultValues))
+          .onConflictDoNothing()
+          .returning({ id: goalMonthlyResults.id })
+        if (inserted.length === 0) return 0
+        await tx.insert(outboxEvents).values({
+          id: input.outboxEventId,
+          eventType: 'goal.monthly_results.scheduled',
+          eventVersion: 1,
+          organizationId: input.program.organizationId,
+          propertyId: input.program.propertyId,
+          sourceContext: 'goal',
+          sourceAggregateId: input.program.id,
+          payload: {
+            programId: input.program.id,
+            programVersionId: input.version.id,
+            resultCount: inserted.length,
+            periodStart: input.results[0]?.periodStart.toISOString() ?? null,
+            periodEnd: input.results[0]?.periodEnd.toISOString() ?? null,
+          },
+        })
+        return inserted.length
+      })
+    },
+
     async listDueResults(now) {
       const rows = await db
         .select()
@@ -425,6 +533,26 @@ export function createGoalProgramRepository(db: Database): GoalProgramRepository
         )
         .orderBy(asc(goalMonthlyResults.periodEnd), asc(goalMonthlyResults.id))
       return rows.map(mapResult)
+    },
+
+    async getDueResult(organizationId, propertyId, resultId, now) {
+      const [row] = await db
+        .select()
+        .from(goalMonthlyResults)
+        .where(
+          and(
+            eq(goalMonthlyResults.organizationId, organizationId),
+            eq(goalMonthlyResults.propertyId, propertyId),
+            eq(goalMonthlyResults.id, resultId),
+            or(
+              eq(goalMonthlyResults.status, 'open'),
+              eq(goalMonthlyResults.status, 'reconciling'),
+            ),
+            lte(goalMonthlyResults.periodEnd, now),
+          ),
+        )
+        .limit(1)
+      return row ? mapResult(row) : null
     },
 
     async getAssignment(organizationId, propertyId, assignmentId) {

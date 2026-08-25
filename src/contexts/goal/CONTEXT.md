@@ -109,7 +109,7 @@ goal/
     repositories/      goal.repository.ts, goal-program.repository.ts (Drizzle)
     mappers/           goal.mapper.ts
     event-handlers/    on-metric-recorded.ts, on-portal-deleted.ts, on-portal-group-deleted.ts
-    jobs/              spawn-recurring-instances.job.ts, reconcile-goal-progress.job.ts
+    jobs/              goal-program-maintenance.job.ts plus legacy lifecycle jobs
   server/              goals.ts, staff-goals.ts, staff-goals.test.ts, goals.test.ts
   ui/                  helpers.ts (pure UI helper functions)
   build.ts             composition root
@@ -214,9 +214,16 @@ New reusable components live under `src/components/goals/` (GoalProgressRing, Go
 
 ## Background jobs
 
+- **goal-program.maintain** — canonical, hourly, `goal.use`-gated tenant-cross
+  lifecycle sweep.
+  It activates due Programs only after the configured metric source is ready,
+  keeps one future full Property-local month materialized, and performs the
+  two-pass governed reconciliation/close flow. The dispatch gate authorizes
+  enumeration and the service freshly authorizes each discovered Property;
+  repository constraints and compare-and-set writes make repeat/overlap safe.
 - **spawn-recurring-instances** — creates child Goal instances from recurring templates at each period boundary.
 - **reconcile-goal-progress** — recomputes progress from raw metric readings for all active goals (computedSource = `reconciliation`).
 
-The two jobs above are legacy-only. Canonical scheduling/reconciliation must use
+The last two jobs above are legacy-only. Canonical scheduling/reconciliation uses
 the Goal Program service and the governed `MetricPublicApi.queryGoalMetric`
 reader; it must not reconstruct results from raw readings or mutable metric keys.

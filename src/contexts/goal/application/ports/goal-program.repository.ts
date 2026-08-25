@@ -93,6 +93,7 @@ export type GoalProgramRepository = Readonly<{
     programId: string,
   ): Promise<GoalProgramBundle | null>
   list(organizationId: string, propertyId: string): Promise<readonly GoalProgramBundle[]>
+  listOperational(): Promise<readonly GoalProgramBundle[]>
   changeStatus(
     input: Readonly<{
       organizationId: string
@@ -117,7 +118,30 @@ export type GoalProgramRepository = Readonly<{
       outboxEventId: string
     }>,
   ): Promise<void>
+  activate(
+    input: Readonly<{
+      bundle: GoalProgramBundle
+      results: readonly GoalMonthlyResult[]
+      at: Date
+      outboxEventId: string
+    }>,
+  ): Promise<GoalProgram | null>
+  appendResults(
+    input: Readonly<{
+      program: GoalProgram
+      version: GoalProgramVersion
+      results: readonly GoalMonthlyResult[]
+      at: Date
+      outboxEventId: string
+    }>,
+  ): Promise<number>
   listDueResults(now: Date): Promise<readonly GoalMonthlyResult[]>
+  getDueResult(
+    organizationId: string,
+    propertyId: string,
+    resultId: string,
+    now: Date,
+  ): Promise<GoalMonthlyResult | null>
   getAssignment(
     organizationId: string,
     propertyId: string,

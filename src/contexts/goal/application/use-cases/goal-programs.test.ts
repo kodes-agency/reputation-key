@@ -69,9 +69,49 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
     }),
     get: vi.fn(async () => created),
     list: vi.fn(async () => (created ? [created] : [])),
+    listOperational: vi.fn(async () => (created ? [created] : [])),
     changeStatus: vi.fn(async () => null),
     revise: vi.fn(async () => undefined),
-    listDueResults: vi.fn(async () => [...results.values()]),
+    activate: vi.fn(async ({ bundle, results: newResults, at }) => {
+      const program = {
+        ...bundle.program,
+        status: 'active' as const,
+        statusReason: null,
+        updatedAt: at,
+      }
+      created = {
+        ...bundle,
+        program,
+        results: [...bundle.results, ...newResults],
+      }
+      for (const result of newResults) results.set(result.id, result)
+      return program
+    }),
+    appendResults: vi.fn(async ({ results: newResults }) => {
+      for (const result of newResults) results.set(result.id, result)
+      if (created) created = { ...created, results: [...created.results, ...newResults] }
+      return newResults.length
+    }),
+    listDueResults: vi.fn(async (at) =>
+      [...results.values()].filter(
+        (result) =>
+          result.periodEnd <= at &&
+          (result.status === 'open' || result.status === 'reconciling'),
+      ),
+    ),
+    getDueResult: vi.fn(async (organizationId, propertyId, resultId, at) => {
+      const result = results.get(resultId)
+      if (
+        !result ||
+        result.organizationId !== organizationId ||
+        result.propertyId !== propertyId ||
+        result.periodEnd > at ||
+        (result.status !== 'open' && result.status !== 'reconciling')
+      ) {
+        return null
+      }
+      return result
+    }),
     getAssignment: vi.fn(async (_org, _property, assignmentId) => {
       return (
         created?.assignments.find((candidate) => candidate.id === assignmentId) ?? null
@@ -301,6 +341,55 @@ describe('canonical Goal Program service', () => {
         actor,
       ),
     ).rejects.toMatchObject({ code: 'metric_unavailable' })
+  })
+
+  it('activates due programs and idempotently keeps one future month scheduled', async () => {
+    const { service, repository, setNow } = setup(new Date('2026-03-15T12:00:00.000Z'))
+    await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'April ratings',
+        metric: 'portal_rating_count',
+        targetValue: 25,
+        subjects: [
+          { kind: 'portal', portalId: 'portal-1' },
+          { kind: 'portal', portalId: 'portal-2' },
+        ],
+      },
+      actor,
+    )
+    setNow(new Date('2026-04-01T00:00:00.000Z'))
+
+    await expect(service.maintain()).resolves.toMatchObject({
+      inspected: 1,
+      activated: 1,
+      scheduledResults: 2,
+      unavailable: 0,
+      failed: 0,
+    })
+    expect(repository.activate).toHaveBeenCalledOnce()
+    expect(repository.appendResults).toHaveBeenCalledOnce()
+  })
+
+  it('fails the job after partial infrastructure failure so BullMQ can retry it', async () => {
+    const { service, repository, setNow } = setup(new Date('2026-03-15T12:00:00.000Z'))
+    await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'April ratings',
+        metric: 'portal_rating_count',
+        targetValue: 25,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    setNow(new Date('2026-04-01T00:00:00.000Z'))
+    vi.mocked(repository.appendResults).mockRejectedValueOnce(new Error('db down'))
+
+    await expect(service.maintain()).rejects.toMatchObject({
+      name: 'GoalProgramMaintenanceError',
+      stats: { inspected: 1, failed: 1 },
+    })
   })
 
   it('moves a due result through reconciling before immutable closure', async () => {

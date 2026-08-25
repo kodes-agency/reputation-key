@@ -51,6 +51,7 @@ import { JOB_NAME as AI_BACKFILL_ADVANCE_JOB_NAME } from '#/shared/jobs/ai-revie
 import { JOB_NAME as RECONCILE_AMBIGUOUS_JOB_NAME } from '#/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job'
 import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
 import { SCHEDULE_PROPERTY_TRENDS_JOB_NAME } from '#/contexts/ai/infrastructure/jobs/schedule-property-trends.job'
+import { GOAL_PROGRAM_MAINTENANCE_JOB_NAME } from '#/contexts/goal/infrastructure/jobs/goal-program-maintenance.job'
 import type { Worker } from 'bullmq'
 
 // Worker entry wires 10+ job schedules — complexity is inherent to the
@@ -504,7 +505,8 @@ async function main() {
       every?: number
       pattern?: string
       label: string
-      capability: 'leaderboard.use' | 'notification.send_email' | 'ai.detect_trends'
+      capability:
+        'leaderboard.use' | 'notification.send_email' | 'ai.detect_trends' | 'goal.use'
     }>
     const capabilitySchedules: CapabilitySchedule[] = [
       {
@@ -512,6 +514,15 @@ async function main() {
         every: 60 * 1000,
         label: 'minutely',
         capability: 'ai.detect_trends',
+      },
+      // Property-local monthly boundaries and the 24-hour close delay need no
+      // finer than hourly resolution. Repository CAS/uniqueness constraints
+      // make overlapping or repeated firings converge.
+      {
+        jobName: GOAL_PROGRAM_MAINTENANCE_JOB_NAME,
+        every: 60 * 60 * 1000,
+        label: 'hourly',
+        capability: 'goal.use',
       },
       // Recognition refresh is staggered from metric rollups.
       {

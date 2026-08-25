@@ -152,6 +152,14 @@ describe.sequential('Goal Program repository (integration)', () => {
     await expect(repository.get(organizationId, propertyId, programId)).resolves.toEqual(
       bundle,
     )
+    await expect(
+      repository.activate({
+        bundle,
+        results: [],
+        at: new Date('2026-02-01T00:00:00.000Z'),
+        outboxEventId: randomUUID(),
+      }),
+    ).resolves.toMatchObject({ status: 'active', statusReason: null })
 
     const nextAt = new Date('2026-02-20T12:00:00.000Z')
     const nextVersion: GoalProgramVersion = {
@@ -188,9 +196,35 @@ describe.sequential('Goal Program repository (integration)', () => {
 
     const revised = await repository.get(organizationId, propertyId, programId)
     expect(revised).toMatchObject({
-      program: { currentVersion: 2 },
+      program: { currentVersion: 2, status: 'active' },
       version: { id: nextVersion.id, targetValue: 40 },
     })
+
+    const aprilResult = result(
+      nextAssignment,
+      new Date('2026-04-01T00:00:00.000Z'),
+      new Date('2026-05-01T00:00:00.000Z'),
+      nextAt,
+    )
+    if (!revised) throw new Error('expected revised Goal Program')
+    await expect(
+      repository.appendResults({
+        program: revised.program,
+        version: revised.version,
+        results: [aprilResult],
+        at: nextAt,
+        outboxEventId: randomUUID(),
+      }),
+    ).resolves.toBe(1)
+    await expect(
+      repository.appendResults({
+        program: revised.program,
+        version: revised.version,
+        results: [aprilResult],
+        at: nextAt,
+        outboxEventId: randomUUID(),
+      }),
+    ).resolves.toBe(0)
     const temporal = await lease.pool.query<{
       version_to: Date
       assignment_to: Date

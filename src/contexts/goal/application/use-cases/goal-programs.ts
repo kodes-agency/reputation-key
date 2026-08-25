@@ -73,6 +73,29 @@ export class GoalProgramError extends Error {
   }
 }
 
+export type GoalProgramMaintenanceStats = Readonly<{
+  inspected: number
+  activated: number
+  scheduledResults: number
+  reconciled: number
+  closed: number
+  denied: number
+  unavailable: number
+  failed: number
+}>
+
+/**
+ * Makes partial maintenance failures visible to BullMQ so its governed retry
+ * and quarantine policy can act. The stats are identifier-free and safe to
+ * report; individual tenant/program identifiers never cross this boundary.
+ */
+export class GoalProgramMaintenanceError extends Error {
+  constructor(readonly stats: GoalProgramMaintenanceStats) {
+    super(`Goal Program maintenance had ${stats.failed} failed operation(s)`)
+    this.name = 'GoalProgramMaintenanceError'
+  }
+}
+
 function requireManager(actor: GoalActor): void {
   if (actor.role !== 'AccountAdmin' && actor.role !== 'PropertyManager') {
     throw new GoalProgramError('forbidden')
@@ -214,7 +237,7 @@ async function resolveMetricVersion(deps: GoalProgramDependencies, metric: GoalM
 }
 
 export function createGoalProgramService(deps: GoalProgramDependencies) {
-  return {
+  const serviceMethods = {
     create: async (
       input: Readonly<{
         propertyId: string
@@ -527,14 +550,19 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         resultId: string
       }>,
     ): Promise<GoalMonthlyResult> => {
-      const due = await deps.repository.listDueResults(deps.now())
-      const result = due.find(
-        (candidate) =>
-          candidate.id === input.resultId &&
-          candidate.organizationId === input.organizationId &&
-          candidate.propertyId === input.propertyId,
+      const result = await deps.repository.getDueResult(
+        input.organizationId,
+        input.propertyId,
+        input.resultId,
+        deps.now(),
       )
       if (!result) throw new GoalProgramError('not_found')
+      await deps.policy.authorize({
+        actor: 'system',
+        organizationId: result.organizationId,
+        propertyId: result.propertyId,
+        action: 'goal.update',
+      })
       const [program, assignment, version] = await Promise.all([
         deps.repository.get(result.organizationId, result.propertyId, result.programId),
         deps.repository.getAssignment(
@@ -587,7 +615,165 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       if (!updated) throw new GoalProgramError('revision_conflict')
       return updated
     },
+
+    maintain: async (): Promise<GoalProgramMaintenanceStats> => {
+      const now = deps.now()
+      const operational = await deps.repository.listOperational()
+      let activated = 0
+      let scheduledResults = 0
+      let reconciled = 0
+      let closed = 0
+      let denied = 0
+      let unavailable = 0
+      let failed = 0
+
+      for (const original of operational) {
+        let bundle = original
+        try {
+          await deps.policy.authorize({
+            actor: 'system',
+            organizationId: bundle.program.organizationId,
+            propertyId: bundle.program.propertyId,
+            action: 'goal.update',
+          })
+        } catch (error) {
+          if (error instanceof GoalProgramError && error.code === 'forbidden') {
+            denied++
+            continue
+          }
+          throw error
+        }
+
+        try {
+          if (
+            bundle.program.status === 'scheduled' &&
+            bundle.version.effectiveFrom <= now
+          ) {
+            const assignment = bundle.assignments[0]
+            if (!assignment) {
+              unavailable++
+              continue
+            }
+            const period = bundle.results[0]
+              ? {
+                  start: bundle.results[0].periodStart,
+                  end: bundle.results[0].periodEnd,
+                }
+              : firstFullMonthlyPeriodAtOrAfter(now, bundle.version.propertyTimezone)
+            if (period.start > now) continue
+            const readiness = await deps.metrics.queryGoalMetric({
+              organizationId: toOrganizationId(bundle.program.organizationId),
+              propertyId: toPropertyId(bundle.program.propertyId),
+              definitionVersionId: bundle.version.metricDefinitionVersionId,
+              subject: metricSubject(assignment.subject),
+              periodStart: period.start,
+              periodEnd: period.end,
+            })
+            if (
+              readiness.reason === 'metric_source_not_active' ||
+              readiness.state === 'unavailable' ||
+              readiness.state === 'quarantined'
+            ) {
+              unavailable++
+              continue
+            }
+            const newResults =
+              bundle.results.length === 0
+                ? bundle.assignments.map((candidate) =>
+                    openResultFor(
+                      candidate,
+                      period,
+                      bundle.version.propertyTimezone,
+                      deps.id(),
+                      now,
+                    ),
+                  )
+                : []
+            const active = await deps.repository.activate({
+              bundle,
+              results: newResults,
+              at: now,
+              outboxEventId: deps.id(),
+            })
+            if (!active) continue
+            activated++
+            bundle = {
+              ...bundle,
+              program: active,
+              results: [...bundle.results, ...newResults],
+            }
+          }
+
+          if (bundle.program.status !== 'active' || bundle.results.length === 0) {
+            continue
+          }
+          const latest = bundle.results.reduce((candidate, result) =>
+            result.periodEnd > candidate.periodEnd ? result : candidate,
+          )
+          if (now < latest.periodStart) continue
+          const nextPeriod = firstFullMonthlyPeriodAtOrAfter(
+            latest.periodEnd,
+            bundle.version.propertyTimezone,
+          )
+          const eligibleAssignments = bundle.assignments.filter(
+            (assignment) =>
+              assignment.effectiveFrom <= nextPeriod.start &&
+              (assignment.effectiveTo === null ||
+                assignment.effectiveTo >= nextPeriod.end),
+          )
+          const nextResults = eligibleAssignments.map((assignment) =>
+            openResultFor(
+              assignment,
+              nextPeriod,
+              bundle.version.propertyTimezone,
+              deps.id(),
+              now,
+            ),
+          )
+          scheduledResults += await deps.repository.appendResults({
+            program: bundle.program,
+            version: bundle.version,
+            results: nextResults,
+            at: now,
+            outboxEventId: deps.id(),
+          })
+        } catch {
+          failed++
+        }
+      }
+
+      const due = await deps.repository.listDueResults(now)
+      for (const result of due) {
+        try {
+          const updated = await serviceMethods.reconcileResult({
+            organizationId: result.organizationId,
+            propertyId: result.propertyId,
+            resultId: result.id,
+          })
+          reconciled++
+          if (updated.status === 'closed') closed++
+        } catch (error) {
+          if (error instanceof GoalProgramError && error.code === 'forbidden') denied++
+          else failed++
+        }
+      }
+
+      const stats = {
+        inspected: operational.length,
+        activated,
+        scheduledResults,
+        reconciled,
+        closed,
+        denied,
+        unavailable,
+        failed,
+      }
+      if (failed > 0) throw new GoalProgramMaintenanceError(stats)
+      return stats
+    },
   }
+
+  return serviceMethods
 }
 
 export type GoalProgramService = ReturnType<typeof createGoalProgramService>

@@ -84,6 +84,11 @@ import {
   createSchedulePropertyTrendsJobHandler,
   SCHEDULE_PROPERTY_TRENDS_JOB_NAME,
 } from '#/contexts/ai/infrastructure/jobs/schedule-property-trends.job'
+import {
+  createGoalProgramMaintenanceHandler,
+  GOAL_PROGRAM_MAINTENANCE_JOB_NAME,
+} from '#/contexts/goal/infrastructure/jobs/goal-program-maintenance.job'
+import { GoalProgramError } from '#/contexts/goal/application/use-cases/goal-programs'
 
 // BQC-5.5: the ops queue read handles are composition-owned (container.opsQueues)
 // — the per-module getOpsQueues() duplicate is gone. The health-check job
@@ -450,6 +455,33 @@ export async function bootstrap(
     container.jobRegistry.register(jobName, handler)
     logger.info({ job: jobName }, 'registered metric rollup refresh job handler')
   }
+
+  // ── Canonical monthly Goal Program maintenance ───────────────────
+  // The dispatch gate authorizes this tenant-cross enumeration. The service
+  // then re-authorizes every discovered property immediately before reading
+  // its governed Metric source or mutating its Goal Program lifecycle.
+  const authorizeGoalProgramScope = createScheduledScopeAuthorizer('system:goal.maintain')
+  const goalPrograms = container.useCases.createGoalProgramService({
+    authorize: async (request) => {
+      if (request.actor !== 'system') throw new GoalProgramError('forbidden')
+      const allowed = await authorizeGoalProgramScope(
+        request.organizationId,
+        request.propertyId,
+      )
+      if (!allowed) throw new GoalProgramError('forbidden')
+    },
+  })
+  registerCapabilityGatedJob(
+    GOAL_PROGRAM_MAINTENANCE_JOB_NAME,
+    'goal.use',
+    async (job) => {
+      await createGoalProgramMaintenanceHandler(goalPrograms)(job)
+    },
+  )
+  logger.info(
+    { job: GOAL_PROGRAM_MAINTENANCE_JOB_NAME },
+    'registered canonical Goal Program maintenance job handler',
+  )
 
   // ── Retention sweep (BQC-1.6: bounded, evidence-backed, daily) ──────
   const { createRetentionSweepHandler, JOB_NAME: RETENTION_SWEEP_JOB_NAME } =
