@@ -16,6 +16,32 @@ const meta: Meta<typeof Button> = {
 export default meta
 type Story = StoryObj<typeof Button>
 
+function resolvedTokenColor(token: string) {
+  const probe = document.createElement('span')
+  probe.style.color = `var(${token})`
+  document.body.append(probe)
+  const color = getComputedStyle(probe).color
+  probe.remove()
+  return color
+}
+
+function resolvedTokenBackground(token: string) {
+  const probe = document.createElement('span')
+  probe.style.backgroundColor = `var(${token})`
+  document.body.append(probe)
+  const color = getComputedStyle(probe).backgroundColor
+  probe.remove()
+  return color
+}
+
+function expectLightAccentPair(element: HTMLElement) {
+  expect(document.documentElement).toHaveClass('light')
+  expect(getComputedStyle(element).backgroundColor).toBe(
+    resolvedTokenBackground('--accent-muted'),
+  )
+  expect(getComputedStyle(element).color).toBe(resolvedTokenColor('--text-primary'))
+}
+
 export const Default: Story = {}
 
 export const Destructive: Story = { args: { variant: 'destructive' } }
@@ -23,6 +49,24 @@ export const Outline: Story = { args: { variant: 'outline' } }
 export const Secondary: Story = { args: { variant: 'secondary' } }
 export const Ghost: Story = { args: { variant: 'ghost' } }
 export const Link: Story = { args: { variant: 'link' } }
+
+export const LightAccentPair: Story = {
+  parameters: { theme: 'light' },
+  render: () => (
+    <div
+      className="rounded-md px-4 py-2"
+      style={{
+        backgroundColor: 'var(--accent-muted)',
+        color: 'var(--accent-foreground)',
+      }}
+    >
+      Accent interaction state
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    expectLightAccentPair(within(canvasElement).getByText('Accent interaction state'))
+  },
+}
 
 export const ExtraSmall: Story = { args: { size: 'xs' } }
 export const Small: Story = { args: { size: 'sm' } }
