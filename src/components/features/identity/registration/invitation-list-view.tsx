@@ -1,36 +1,24 @@
-import { Skeleton } from '#/components/ui/skeleton'
-import { AuthCard, ErrorBanner } from '#/components/layout/auth-layout'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { AuthCard } from '#/components/layout/auth-layout'
 import { InvitationCard } from './invitation-card'
 import type { PendingInvitation } from './shared-types'
 
 type Props = Readonly<{
   invitations: ReadonlyArray<PendingInvitation>
-  loading: boolean
-  error: string | null
+  error: unknown
   onAccept: (id: string) => void
   accepting: boolean
 }>
 
-export function InvitationListView({
-  invitations,
-  loading,
-  error,
-  onAccept,
-  accepting,
-}: Props) {
+export function InvitationListView({ invitations, error, onAccept, accepting }: Props) {
   return (
     <AuthCard
       title="Pending invitations"
       description="You have pending invitations to join organizations"
     >
-      {error && <ErrorBanner message={error} />}
+      <FormErrorBanner error={error} />
 
-      {loading ? (
-        <div className="flex flex-col gap-3">
-          <Skeleton className="h-16 w-full" />
-          <Skeleton className="h-16 w-full" />
-        </div>
-      ) : invitations.length === 0 ? (
+      {invitations.length === 0 ? (
         <p className="text-center text-sm text-muted-foreground">
           No pending invitations.
         </p>
