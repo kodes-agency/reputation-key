@@ -1,4 +1,4 @@
-// Organization settings form — edit organization identity and billing information
+// Organization settings form — edit beta organization identity.
 // Per conventions: receives organization data and onSubmit callback, uses TanStack Form + Zod schema.
 // Shows warning when slug changes (breaks guest URLs).
 
@@ -15,7 +15,6 @@ import {
   CardDescription,
 } from '#/components/ui/card'
 import { OrgIdentityCard } from './org-identity-card'
-import { OrgBillingCard } from './org-billing-card'
 import { updateOrgSettingsSchema } from '#/contexts/identity/application/dto/update-org-settings.dto'
 import type { UpdateOrgSettingsInput } from '#/contexts/identity/application/dto/update-org-settings.dto'
 
@@ -26,11 +25,6 @@ type Props = Readonly<{
     name: string
     slug: string
     contactEmail: string | null
-    billingCompanyName: string | null
-    billingAddress: string | null
-    billingCity: string | null
-    billingPostalCode: string | null
-    billingCountry: string | null
   }
   onSubmit: (values: UpdateOrgSettingsInput) => Promise<void>
   isPending: boolean
@@ -50,11 +44,6 @@ export function OrganizationSettingsForm({
       name: organization.name,
       slug: organization.slug,
       contactEmail: organization.contactEmail ?? '',
-      billingCompanyName: organization.billingCompanyName ?? '',
-      billingAddress: organization.billingAddress ?? '',
-      billingCity: organization.billingCity ?? '',
-      billingPostalCode: organization.billingPostalCode ?? '',
-      billingCountry: organization.billingCountry ?? '',
     } as UpdateOrgSettingsInput,
     validators: {
       onSubmit: updateOrgSettingsSchema,
@@ -95,17 +84,6 @@ export function OrganizationSettingsForm({
               />
             )}
           </form.Subscribe>
-        </CardContent>
-      </Card>
-
-      {/* Billing Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Billing</CardTitle>
-          <CardDescription>Billing address and company information.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <OrgBillingCard form={form} />
         </CardContent>
       </Card>
 

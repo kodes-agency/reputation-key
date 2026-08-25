@@ -61,11 +61,6 @@ export type AuthRouteContext = Readonly<{
     name: string
     slug: string
     contactEmail: string | null
-    billingCompanyName: string | null
-    billingAddress: string | null
-    billingCity: string | null
-    billingPostalCode: string | null
-    billingCountry: string | null
   } | null
 }>
 
@@ -90,11 +85,6 @@ export const Route = createFileRoute('/_authenticated')({
       name: string
       slug: string
       contactEmail: string | null
-      billingCompanyName: string | null
-      billingAddress: string | null
-      billingCity: string | null
-      billingPostalCode: string | null
-      billingCountry: string | null
     } | null = null
 
     // Resolved in parallel with the organization lookup: it reads the tenant
@@ -133,11 +123,6 @@ export const Route = createFileRoute('/_authenticated')({
           name: org.organization.name,
           slug: org.organization.slug,
           contactEmail: org.organization.contactEmail,
-          billingCompanyName: org.organization.billingCompanyName,
-          billingAddress: org.organization.billingAddress,
-          billingCity: org.organization.billingCity,
-          billingPostalCode: org.organization.billingPostalCode,
-          billingCountry: org.organization.billingCountry,
         }
       }
     } catch (e) {

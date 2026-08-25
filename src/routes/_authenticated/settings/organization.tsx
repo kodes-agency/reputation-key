@@ -84,7 +84,7 @@ function OrganizationSettingsRoute() {
     <>
       <PageHeader
         title="Organization"
-        description="Manage your organization's identity and billing."
+        description="Manage your organization's identity and response settings."
         breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Organization' }]}
       />
       {organization ? (

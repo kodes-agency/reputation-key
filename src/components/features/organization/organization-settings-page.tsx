@@ -20,11 +20,6 @@ type OrgData = Readonly<{
   slug: string
   logo: string | null
   contactEmail: string | null
-  billingCompanyName: string | null
-  billingAddress: string | null
-  billingCity: string | null
-  billingPostalCode: string | null
-  billingCountry: string | null
 }>
 type Props = Readonly<{
   organization: OrgData
