@@ -51,7 +51,16 @@ export const Route = createFileRoute('/_authenticated/dashboard')({
     if (!can(role, 'dashboard.fleet_read')) throw redirect({ to: '/home' })
   },
   loader: async ({ context }) => {
-    await context.queryClient.ensureInfiniteQueryData(fleetQuery)
+    const { properties } = await context.queryClient.ensureQueryData(propertiesQuery)
+    if (properties.length === 1) {
+      throw redirect({
+        to: '/properties/$propertyId',
+        params: { propertyId: properties[0].id },
+      })
+    }
+    if (properties.length > 1) {
+      await context.queryClient.ensureInfiniteQueryData(fleetQuery)
+    }
   },
   // Fleet data is operational; refresh on revisit or after invalidate().
   staleTime: 60_000,
@@ -67,7 +76,6 @@ function DashboardError({ error }: { error: Error }) {
 function DashboardRoute() {
   const { data: propsData } = useSuspenseQuery(propertiesQuery)
   const properties = propsData.properties
-  const fleet = useSuspenseInfiniteQuery(fleetQuery)
   const navigate = useNavigate()
 
   // Single property → land directly on that property's deep-dive.
@@ -83,6 +91,12 @@ function DashboardRoute() {
 
   if (properties.length === 0) return <FleetOverviewEmpty />
   if (properties.length === 1) return null
+
+  return <FleetDashboard />
+}
+
+function FleetDashboard() {
+  const fleet = useSuspenseInfiniteQuery(fleetQuery)
 
   const pages = fleet.data.pages
   // Totals are org-wide and identical on every page — they come from the
