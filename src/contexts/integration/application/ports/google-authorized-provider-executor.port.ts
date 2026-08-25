@@ -52,6 +52,8 @@ export type GoogleProviderAuthorityAdmissionCode =
 export type GoogleProviderAdmissionCode =
   | GoogleProviderGatewayAdmissionCode
   | GoogleProviderAuthorityAdmissionCode
+  | 'wrong_cell'
+  | 'cell_unavailable'
   | 'runtime_unavailable'
 
 export type GoogleProviderExecutionResult =

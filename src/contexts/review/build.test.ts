@@ -128,6 +128,7 @@ describe('sync enqueue routing stamp (BQC-4.2)', () => {
       ...SYNC_EXECUTION,
       routing: {
         subject: { kind: 'property', propertyId: 'prop-1' },
+        cell: 'us',
         region: 'us',
         workloadClass: 'review.sync',
         routingPolicyVersion: 2,
@@ -223,6 +224,7 @@ describe('publish enqueue routing stamp (BQC-4.2)', () => {
       propertyId: 'prop-9',
       routing: {
         subject: { kind: 'property', propertyId: 'prop-9' },
+        cell: 'us',
         region: 'us',
         workloadClass: 'reply.publish',
         routingPolicyVersion: 2,

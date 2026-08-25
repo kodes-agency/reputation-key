@@ -50,6 +50,7 @@ import {
   hasPermissionCapability,
 } from './capability-for-permission'
 import { throwContextError } from './server-errors'
+import type { DataCellExecutionDecision } from '#/shared/routing/data-cell-execution-fence'
 
 /** Bump when decision semantics change. Recorded on every decision + audit row. */
 export const EXECUTION_POLICY_VERSION = 'beta-local-2'
@@ -71,6 +72,8 @@ export type PolicyDenyReason =
   | 'principal_org_mismatch'
   | 'unsupported_principal'
   | 'operator_not_registered'
+  | 'wrong_cell'
+  | 'cell_unavailable'
   | 'policy_unavailable'
 
 export type ExecutionDecision = Readonly<{
@@ -222,6 +225,12 @@ export type ExecutionPolicyDeps = Readonly<{
    * operator principal denies as operator_not_registered.
    */
   isRegisteredOperator?: (operatorId: string) => boolean
+  /**
+   * REG-01: fresh, content-free Property Data Cell admission. Composition
+   * binds the one process-local fence; absent preserves isolated policy unit
+   * tests, while every production web/operator runtime supplies it.
+   */
+  admitPropertyExecution?: (propertyId: string) => Promise<DataCellExecutionDecision>
 }>
 
 export type ExecutionPolicy = Readonly<{
@@ -332,6 +341,27 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
       : null
   }
 
+  async function propertyCellDecision(
+    request: DecisionRequest,
+    capability: Capability | null | undefined,
+  ): Promise<ExecutionDecision | null> {
+    if (!request.propertyId || !deps.admitPropertyExecution) return null
+    try {
+      const decision = await deps.admitPropertyExecution(request.propertyId)
+      if (decision.kind === 'allow') return null
+      return finish(
+        deps,
+        pendingAudits,
+        request,
+        capability,
+        false,
+        decision.reason === 'wrong_cell' ? 'wrong_cell' : 'cell_unavailable',
+      )
+    } catch {
+      return finish(deps, pendingAudits, request, capability, false, 'cell_unavailable')
+    }
+  }
+
   async function propertyScopeDecision(
     request: DecisionRequest,
     ctx: AuthContext,
@@ -399,6 +429,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
       capabilityDecision(request, ctx, capability) ??
       permissionDecision(request, ctx, capability) ??
       (await propertyScopeDecision(request, ctx, capability)) ??
+      (await propertyCellDecision(request, capability)) ??
       (await consentDecision(request, ctx, capability))
     return deny ?? finish(deps, pendingAudits, request, capability, true, 'allowed')
   }
@@ -486,6 +517,7 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
     }
     const deny =
       operatorCapabilityDecision(request, operatorId) ??
+      (await propertyCellDecision(request, request.capability ?? null)) ??
       (await operatorConsentDecision(request))
     return (
       deny ??
@@ -530,6 +562,8 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
               )
             }
           }
+          const cellDeny = await propertyCellDecision(request, request.capability ?? null)
+          if (cellDeny) return cellDeny
           if (
             request.requiredPublicConsents?.some(
               (consent) => request.consentAssertions?.[consent] !== true,
@@ -682,10 +716,16 @@ export async function requireExecutionAllowed(input: {
     correlationId: input.correlationId,
   })
   if (!decision.allowed) {
+    const status =
+      decision.reason === 'wrong_cell'
+        ? 421
+        : decision.reason === 'cell_unavailable'
+          ? 503
+          : 403
     throwContextError(
       'AuthError',
       { code: decision.reason, message: `Authorization denied: ${decision.reason}` },
-      403,
+      status,
     )
   }
 }

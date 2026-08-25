@@ -12,6 +12,7 @@ import { propertyError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
 import { propertyId, type GoogleConnectionId } from '#/shared/domain/ids'
 import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
+import type { Property } from '../../domain/types'
 
 /** Mutable set-values type for Drizzle .set() — strips readonly from Property fields.
  *  Single source (BQC-5.9 E22) — the command store imports it so the update
@@ -46,182 +47,223 @@ export type PropertySetValues = {
   sourceEpoch?: number
 }
 
-export const createPropertyRepository = (db: Database): PropertyRepository => ({
-  findById: async (orgId, id) => {
-    return trace('property.findById', async () => {
-      const rows = await db
-        .select()
-        .from(properties)
-        .where(and(...baseWhere(properties, orgId), eq(properties.id, id)))
-        .limit(1)
-      return rows[0] ? propertyFromRow(rows[0]) : null
-    })
-  },
+export const createPropertyRepository = (
+  db: Database,
+  options: Readonly<{ localCell?: DataCellId }> = {},
+): PropertyRepository => {
+  const cellWhere = () =>
+    options.localCell ? [eq(properties.dataCellId, options.localCell)] : []
+  const assertLocalAssignment = (property: Property): void => {
+    if (options.localCell && property.dataCellId !== options.localCell) {
+      throw propertyError('forbidden', 'Property Data Cell does not match repository')
+    }
+  }
 
-  findByIds: async (orgId, ids) => {
-    return trace('property.findByIds', async () => {
-      if (ids.length === 0) return []
-      const rows = await db
-        .select()
-        .from(properties)
-        .where(and(...baseWhere(properties, orgId), inArray(properties.id, [...ids])))
-      return rows.map(propertyFromRow)
-    })
-  },
+  return {
+    findById: async (orgId, id) => {
+      return trace('property.findById', async () => {
+        const rows = await db
+          .select()
+          .from(properties)
+          .where(
+            and(...baseWhere(properties, orgId), ...cellWhere(), eq(properties.id, id)),
+          )
+          .limit(1)
+        return rows[0] ? propertyFromRow(rows[0]) : null
+      })
+    },
 
-  list: async (orgId) => {
-    return trace('property.list', async () => {
-      const rows = await db
-        .select()
-        .from(properties)
-        .where(and(...baseWhere(properties, orgId)))
-      return rows.map(propertyFromRow)
-    })
-  },
+    findByIds: async (orgId, ids) => {
+      return trace('property.findByIds', async () => {
+        if (ids.length === 0) return []
+        const rows = await db
+          .select()
+          .from(properties)
+          .where(
+            and(
+              ...baseWhere(properties, orgId),
+              ...cellWhere(),
+              inArray(properties.id, [...ids]),
+            ),
+          )
+        return rows.map(propertyFromRow)
+      })
+    },
 
-  slugExists: async (orgId, slug, excludeId) => {
-    return trace('property.slugExists', async () => {
-      const conditions = [...baseWhere(properties, orgId), eq(properties.slug, slug)]
-      if (excludeId) {
-        conditions.push(not(eq(properties.id, excludeId)))
-      }
+    list: async (orgId) => {
+      return trace('property.list', async () => {
+        const rows = await db
+          .select()
+          .from(properties)
+          .where(and(...baseWhere(properties, orgId), ...cellWhere()))
+        return rows.map(propertyFromRow)
+      })
+    },
 
-      const rows = await db
-        .select({ id: properties.id })
-        .from(properties)
-        .where(and(...conditions))
-        .limit(1)
-      return rows.length > 0
-    })
-  },
+    slugExists: async (orgId, slug, excludeId) => {
+      return trace('property.slugExists', async () => {
+        const conditions = [
+          ...baseWhere(properties, orgId),
+          ...cellWhere(),
+          eq(properties.slug, slug),
+        ]
+        if (excludeId) {
+          conditions.push(not(eq(properties.id, excludeId)))
+        }
 
-  insert: async (orgId, property) => {
-    return trace('property.insert', async () => {
-      // Tenant guard — the use case constructs the property with ctx.organizationId,
-      // but the repo is the last line of defense against cross-tenant writes.
-      if (property.organizationId !== orgId) {
-        throw propertyError('forbidden', 'Tenant mismatch on property insert')
-      }
-      await db.insert(properties).values(propertyToRow(property))
-    })
-  },
+        const rows = await db
+          .select({ id: properties.id })
+          .from(properties)
+          .where(and(...conditions))
+          .limit(1)
+        return rows.length > 0
+      })
+    },
 
-  update: async (orgId, id, patch) => {
-    return trace('property.update', async () => {
-      const setValues: PropertySetValues = {}
-      if (patch.updatedAt !== undefined) setValues.updatedAt = patch.updatedAt
-      if (patch.name !== undefined) setValues.name = patch.name
-      if (patch.slug !== undefined) setValues.slug = patch.slug
-      if (patch.timezone !== undefined) setValues.timezone = patch.timezone
-      if (patch.defaultReplyLanguage !== undefined)
-        setValues.defaultReplyLanguage = patch.defaultReplyLanguage
-      if (patch.gbpLocationId !== undefined) setValues.gbpLocationId = patch.gbpLocationId
-      // BQR-3.5 processing profile fields
-      if (patch.countryCode !== undefined) setValues.countryCode = patch.countryCode
-      if (patch.countrySource !== undefined) setValues.countrySource = patch.countrySource
-      if (patch.timezoneSource !== undefined)
-        setValues.timezoneSource = patch.timezoneSource
-      if (patch.timezoneResolvedAt !== undefined)
-        setValues.timezoneResolvedAt = patch.timezoneResolvedAt
-      if (patch.processingRegion !== undefined)
-        setValues.processingRegion = patch.processingRegion
-      if (patch.dataCellId !== undefined) setValues.dataCellId = patch.dataCellId
-      if (patch.processingRegionSource !== undefined)
-        setValues.processingRegionSource = patch.processingRegionSource
-      if (patch.routingPolicyVersion !== undefined)
-        setValues.routingPolicyVersion = patch.routingPolicyVersion
-      if (patch.processingRegionResolvedAt !== undefined)
-        setValues.processingRegionResolvedAt = patch.processingRegionResolvedAt
-      if (patch.sourceEpoch !== undefined) setValues.sourceEpoch = patch.sourceEpoch
+    insert: async (orgId, property) => {
+      return trace('property.insert', async () => {
+        // Tenant guard — the use case constructs the property with ctx.organizationId,
+        // but the repo is the last line of defense against cross-tenant writes.
+        if (property.organizationId !== orgId) {
+          throw propertyError('forbidden', 'Tenant mismatch on property insert')
+        }
+        assertLocalAssignment(property)
+        await db.insert(properties).values(propertyToRow(property))
+      })
+    },
 
-      await db
-        .update(properties)
-        .set(setValues)
-        .where(and(...baseWhere(properties, orgId), eq(properties.id, id)))
-    })
-  },
+    update: async (orgId, id, patch) => {
+      return trace('property.update', async () => {
+        const setValues: PropertySetValues = {}
+        if (patch.updatedAt !== undefined) setValues.updatedAt = patch.updatedAt
+        if (patch.name !== undefined) setValues.name = patch.name
+        if (patch.slug !== undefined) setValues.slug = patch.slug
+        if (patch.timezone !== undefined) setValues.timezone = patch.timezone
+        if (patch.defaultReplyLanguage !== undefined)
+          setValues.defaultReplyLanguage = patch.defaultReplyLanguage
+        if (patch.gbpLocationId !== undefined)
+          setValues.gbpLocationId = patch.gbpLocationId
+        // BQR-3.5 processing profile fields
+        if (patch.countryCode !== undefined) setValues.countryCode = patch.countryCode
+        if (patch.countrySource !== undefined)
+          setValues.countrySource = patch.countrySource
+        if (patch.timezoneSource !== undefined)
+          setValues.timezoneSource = patch.timezoneSource
+        if (patch.timezoneResolvedAt !== undefined)
+          setValues.timezoneResolvedAt = patch.timezoneResolvedAt
+        if (patch.processingRegion !== undefined)
+          setValues.processingRegion = patch.processingRegion
+        if (patch.dataCellId !== undefined) setValues.dataCellId = patch.dataCellId
+        if (patch.processingRegionSource !== undefined)
+          setValues.processingRegionSource = patch.processingRegionSource
+        if (patch.routingPolicyVersion !== undefined)
+          setValues.routingPolicyVersion = patch.routingPolicyVersion
+        if (patch.processingRegionResolvedAt !== undefined)
+          setValues.processingRegionResolvedAt = patch.processingRegionResolvedAt
+        if (patch.sourceEpoch !== undefined) setValues.sourceEpoch = patch.sourceEpoch
 
-  hardDelete: async (orgId, id) => {
-    return trace('property.hardDelete', async () => {
-      await db
-        .delete(properties)
-        .where(and(...baseWhere(properties, orgId), eq(properties.id, id)))
-    })
-  },
+        await db
+          .update(properties)
+          .set(setValues)
+          .where(
+            and(...baseWhere(properties, orgId), ...cellWhere(), eq(properties.id, id)),
+          )
+      })
+    },
 
-  /** Cross-tenant only for the JWT-verified GBP webhook handler. */
-  findByGbpLocationId: async (gbpLocationId, orgId) => {
-    return trace('property.findByGbpLocationId', async () => {
-      const conditions = [
-        eq(properties.gbpLocationId, gbpLocationId),
-        isNull(properties.deletedAt),
-      ]
-      if (orgId) {
-        conditions.push(eq(properties.organizationId, orgId as string))
-      }
-      const rows = await db
-        .select()
-        .from(properties)
-        .where(and(...conditions))
-        .limit(1)
-      return rows[0] ? propertyFromRow(rows[0]) : null
-    })
-  },
-  /** ⚠️ CROSS-TENANT by design — public-facing guest portal resolution. */
-  findBySlug: async (slug) => {
-    return trace('property.findBySlug', async () => {
-      const rows = await db
-        .select()
-        .from(properties)
-        .where(and(eq(properties.slug, slug), isNull(properties.deletedAt)))
-        .limit(1)
-      return rows[0] ? propertyFromRow(rows[0]) : null
-    })
-  },
+    hardDelete: async (orgId, id) => {
+      return trace('property.hardDelete', async () => {
+        await db
+          .delete(properties)
+          .where(
+            and(...baseWhere(properties, orgId), ...cellWhere(), eq(properties.id, id)),
+          )
+      })
+    },
 
-  findIdsByGoogleConnection: async (connectionId: GoogleConnectionId, orgId) => {
-    return trace('property.findIdsByGoogleConnection', async () => {
-      const rows = await db
-        .select({ id: properties.id })
-        .from(properties)
-        .where(
-          and(
-            ...baseWhere(properties, orgId),
-            eq(properties.googleConnectionId, connectionId as string),
-          ),
-        )
-      return rows.map((r) => propertyId(r.id))
-    })
-  },
+    /** Cross-tenant only for the JWT-verified GBP webhook handler. */
+    findByGbpLocationId: async (gbpLocationId, orgId) => {
+      return trace('property.findByGbpLocationId', async () => {
+        const conditions = [
+          eq(properties.gbpLocationId, gbpLocationId),
+          isNull(properties.deletedAt),
+          ...cellWhere(),
+        ]
+        if (orgId) {
+          conditions.push(eq(properties.organizationId, orgId as string))
+        }
+        const rows = await db
+          .select()
+          .from(properties)
+          .where(and(...conditions))
+          .limit(1)
+        return rows[0] ? propertyFromRow(rows[0]) : null
+      })
+    },
+    /** ⚠️ CROSS-TENANT by design — public-facing guest portal resolution. */
+    findBySlug: async (slug) => {
+      return trace('property.findBySlug', async () => {
+        const rows = await db
+          .select()
+          .from(properties)
+          .where(
+            and(eq(properties.slug, slug), isNull(properties.deletedAt), ...cellWhere()),
+          )
+          .limit(1)
+        return rows[0] ? propertyFromRow(rows[0]) : null
+      })
+    },
 
-  clearGoogleConnectionRef: async (orgId, propertyIds) => {
-    return trace('property.clearGoogleConnectionRef', async () => {
-      if (propertyIds.length === 0) return
-      await db
-        .update(properties)
-        .set({ googleConnectionId: null })
-        .where(
-          and(
-            ...baseWhere(properties, orgId),
-            inArray(properties.id, propertyIds as readonly string[]),
-          ),
-        )
-    })
-  },
+    findIdsByGoogleConnection: async (connectionId: GoogleConnectionId, orgId) => {
+      return trace('property.findIdsByGoogleConnection', async () => {
+        const rows = await db
+          .select({ id: properties.id })
+          .from(properties)
+          .where(
+            and(
+              ...baseWhere(properties, orgId),
+              ...cellWhere(),
+              eq(properties.googleConnectionId, connectionId as string),
+            ),
+          )
+        return rows.map((r) => propertyId(r.id))
+      })
+    },
 
-  insertAndReturn: async (orgId, property) => {
-    return trace('property.insertAndReturn', async () => {
-      if (property.organizationId !== orgId) {
-        throw propertyError('forbidden', 'Tenant mismatch on property insert')
-      }
-      const [inserted] = await db
-        .insert(properties)
-        .values(propertyToRow(property))
-        .returning()
-      if (!inserted) {
-        throw propertyError('property_not_found', 'Failed to retrieve inserted property')
-      }
-      return propertyFromRow(inserted)
-    })
-  },
-})
+    clearGoogleConnectionRef: async (orgId, propertyIds) => {
+      return trace('property.clearGoogleConnectionRef', async () => {
+        if (propertyIds.length === 0) return
+        await db
+          .update(properties)
+          .set({ googleConnectionId: null })
+          .where(
+            and(
+              ...baseWhere(properties, orgId),
+              ...cellWhere(),
+              inArray(properties.id, propertyIds as readonly string[]),
+            ),
+          )
+      })
+    },
+
+    insertAndReturn: async (orgId, property) => {
+      return trace('property.insertAndReturn', async () => {
+        if (property.organizationId !== orgId) {
+          throw propertyError('forbidden', 'Tenant mismatch on property insert')
+        }
+        assertLocalAssignment(property)
+        const [inserted] = await db
+          .insert(properties)
+          .values(propertyToRow(property))
+          .returning()
+        if (!inserted) {
+          throw propertyError(
+            'property_not_found',
+            'Failed to retrieve inserted property',
+          )
+        }
+        return propertyFromRow(inserted)
+      })
+    },
+  }
+}

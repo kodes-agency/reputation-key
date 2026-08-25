@@ -379,7 +379,6 @@ describe('(b) database unavailable at dispatch (BQC-4.6)', () => {
       loadPropertyRouting: async () => {
         throw dbDown
       },
-      cell: 'us',
     })
     // The gate's direct-quarantine path must NOT fire for a transient throw.
     const gateQuarantine = vi.fn(async (_job: Job, _policyReason: string) => {})
@@ -747,7 +746,6 @@ describe('(e) resume/reconcile in-cell (BQC-4.6)', () => {
           throw new Error('connect ECONNREFUSED 127.0.0.1:5432 — database unreachable')
         return { processingRegion: 'us', routingPolicyVersion: 2 }
       },
-      cell: 'us',
     })
     const { dispatch, handler } = gatedSyncDispatch(QUEUE_E, QUAR_E, router)
     const worker = createJobWorker(QUEUE_E, dispatch, 1, q(QUAR_E))
@@ -844,7 +842,6 @@ describe('(f) denied region property (BQC-4.6 repeat)', () => {
     // The REAL production wiring: drizzle adapter → ProcessingRouter.
     const router = createProcessingRouter({
       loadPropertyRouting: createPropertyRoutingLoader({ db }),
-      cell: 'us',
     })
     const { dispatch, handler } = gatedSyncDispatch(QUEUE_F, QUAR_F, router)
 

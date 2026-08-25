@@ -33,6 +33,7 @@ import {
 import { buildConsumerEvent } from './envelope'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
+import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 
 export type OutboxRelay = Readonly<{
   /** Poll once: claim, publish, mark. Called on a schedule. */
@@ -50,6 +51,8 @@ export type RelayConfig = Readonly<{
   relayId: string
   /** Optional lifecycle fence evaluated immediately before queue publication. */
   admitEvent?: (event: UnpublishedEvent) => Promise<boolean>
+  /** REG-01: immutable process cell stamped onto every new queue envelope. */
+  dataCellId?: DataCellId
 }>
 
 /** Renew the lease on the unprocessed remainder after this many publishes. */
@@ -121,7 +124,7 @@ export function createOutboxRelay(
       // BQC-3.7: no payload validation here — the dispatcher validates (and
       // quarantines poison via 3.6 UnrecoverableError). The envelope carries
       // the stored payload plus envelope-grade metadata from the row.
-      const envelope = buildConsumerEvent(event)
+      const envelope = buildConsumerEvent(event, cfg.dataCellId)
 
       // Use the event UUID as the BullMQ job ID for deduplication.
       // If the job already exists (re-publish after a crash), BullMQ

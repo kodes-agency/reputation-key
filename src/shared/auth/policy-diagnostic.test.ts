@@ -34,7 +34,6 @@ const setup = (rows: Readonly<Record<string, RegionRow>>) => {
           }
         : null
     },
-    cell: 'us',
   })
   const resolveRouting = vi.fn((propertyId: string) =>
     router.resolve({ kind: 'property', propertyId: propertyId }, 'review.sync'),

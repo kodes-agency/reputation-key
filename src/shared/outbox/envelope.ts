@@ -13,6 +13,7 @@
 // Job name remains eventType; job ID remains the outbox event UUID (dedup).
 
 import type { UnpublishedEvent } from './infrastructure/outbox-repository'
+import { dataCellById, type DataCellId } from '#/shared/domain/data-cell-catalogue'
 
 /**
  * Durable job payload delivered on the domain-events queue.
@@ -44,8 +45,10 @@ export type ConsumerEvent = Readonly<{
    * event family versions its aggregate (see event-job-catalogue ordering).
    */
   sourceAggregateVersion?: string | number | null
-  /** BQC-3.7: processing region. Const 'unscoped' — BQC-4 owns re-scoping. */
-  region?: 'unscoped'
+  /** REG-01: process-local cell stamped by the relay; optional for old jobs. */
+  dataCellId?: DataCellId
+  /** Compatibility field; new envelopes carry the same stable cell id. */
+  region?: 'unscoped' | DataCellId
 }>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -58,7 +61,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * single validation authority at consume time (BQC-3.7 — no relay-side
  * validation).
  */
-export function buildConsumerEvent(event: UnpublishedEvent): ConsumerEvent {
+export function buildConsumerEvent(
+  event: UnpublishedEvent,
+  dataCellId?: DataCellId,
+): ConsumerEvent {
   const payload = isRecord(event.payload) ? event.payload : {}
   return {
     eventId: event.id,
@@ -79,7 +85,8 @@ export function buildConsumerEvent(event: UnpublishedEvent): ConsumerEvent {
       typeof payload.sourceAggregateVersion === 'number'
         ? payload.sourceAggregateVersion
         : null,
-    region: 'unscoped',
+    ...(dataCellId ? { dataCellId } : {}),
+    region: dataCellId ?? 'unscoped',
   }
 }
 
@@ -90,6 +97,7 @@ type OptionalEnvelopeFields = Pick<
   | 'correlationId'
   | 'causationId'
   | 'sourceAggregateVersion'
+  | 'dataCellId'
   | 'region'
 >
 
@@ -106,6 +114,7 @@ function parseOptionalFields(
     correlationId,
     causationId,
     sourceAggregateVersion,
+    dataCellId,
     region,
   } = data
   if (occurredAt !== undefined && typeof occurredAt !== 'string') return null
@@ -129,7 +138,16 @@ function parseOptionalFields(
     typeof sourceAggregateVersion !== 'number'
   )
     return null
-  if (region !== undefined && region !== 'unscoped') return null
+  const parsedCell =
+    typeof dataCellId === 'string' ? dataCellById(dataCellId)?.id : undefined
+  if (dataCellId !== undefined && !parsedCell) return null
+  if (
+    region !== undefined &&
+    region !== 'unscoped' &&
+    (typeof region !== 'string' || !dataCellById(region))
+  )
+    return null
+  if (parsedCell && region !== undefined && region !== parsedCell) return null
 
   return {
     occurredAt: occurredAt as string | undefined,
@@ -137,7 +155,8 @@ function parseOptionalFields(
     correlationId: (correlationId ?? null) as string | null,
     causationId: (causationId ?? null) as string | null,
     sourceAggregateVersion: (sourceAggregateVersion ?? null) as string | number | null,
-    region: 'unscoped',
+    ...(parsedCell ? { dataCellId: parsedCell } : {}),
+    region: (region ?? 'unscoped') as 'unscoped' | DataCellId,
   }
 }
 

@@ -33,7 +33,10 @@ import { registerPropertyRetentionConsumer } from './infrastructure/outbox-consu
 import { createRegionMoveRepository } from './infrastructure/repositories/region-move.repository'
 import { propertyId } from '#/shared/domain/ids'
 import { randomUUID } from 'crypto'
-import { ACCEPTING_DATA_CELL_IDS } from '#/shared/domain/data-cell-catalogue'
+import {
+  ACCEPTING_DATA_CELL_IDS,
+  type DataCellId,
+} from '#/shared/domain/data-cell-catalogue'
 
 /**
  * BQC-4.5 region-move wiring. approvedCells defaults to the catalogue's
@@ -52,6 +55,8 @@ type PropertyContextDeps = Readonly<{
   repo: PropertyRepository
   events: EventBus
   clock: () => Date
+  /** REG-01: process-local repository/command-store cell fence. */
+  localCell: DataCellId
   staffPublicApi: StaffPublicApi
   regionMove: RegionMoveContextDeps
   /** BQC-1.7: bounded lifecycle purge before the FK-cascading hard delete.
@@ -87,13 +92,18 @@ type PropertyContextDeps = Readonly<{
 export const buildPropertyContext = (deps: PropertyContextDeps) => {
   const idGen = () => propertyId(randomUUID())
   // BQC-3.5: every property state mutation + fact commits atomically here.
-  const commandStore = createAtomicPropertyCommandStore(deps.db, deps.events)
+  const commandStore = createAtomicPropertyCommandStore(
+    deps.db,
+    deps.events,
+    deps.localCell,
+  )
   // BQC-4.5: the region move store (region_moves, migration 0016) + the
   // guarded authority swap on properties.
   const regionMoveStore = createRegionMoveRepository(deps.db)
   const bindingApi: PropertyGoogleBindingPublicApi = createPropertyGoogleBindingStore(
     deps.db,
     deps.events,
+    deps.localCell,
   )
 
   const useCases = {

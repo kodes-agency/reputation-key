@@ -35,6 +35,7 @@ import { registerInvitedUser } from './application/use-cases/register-invited-us
 import { updateOrganization } from './application/use-cases/update-organization'
 import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
 import { getLogger } from '#/shared/observability/logger'
+import type { DataCellExecutionDecision } from '#/shared/routing/data-cell-execution-fence'
 import { initPersistedCapabilityPolicyStore } from './infrastructure/policy-store-init'
 import { createPolicyAdminOps } from './application/use-cases/policy-admin'
 import {
@@ -143,6 +144,8 @@ type IdentityContextDeps = Readonly<{
     resolveRouting: (propertyId: string) => Promise<RoutingDecision>
     /** The deployment's processing cell (PROCESSING_CELL). */
     cell: string
+    /** Fresh process-local Property Data Cell admission for every policy boundary. */
+    admitPropertyExecution: (propertyId: string) => Promise<DataCellExecutionDecision>
     /** The cell's logical provider reference (CELL_TARGETS) — never a URL. */
     providerRef: string | null
   }>
@@ -180,6 +183,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   const policyStore = initPersistedCapabilityPolicyStore({
     db: deps.db,
     env: deps.policy.env,
+    admitPropertyExecution: deps.policy.admitPropertyExecution,
   })
   const merchantAiAuthorization = createMerchantAiAuthorization({
     store: createMerchantAiAuthorizationStore(deps.db, deps.events),

@@ -179,6 +179,8 @@ function realDeps(env: RestoreVerifyDeps['env']): RestoreVerifyDeps {
 const ISOLATED_ENV = {
   RESTORE_MODE: 'isolated',
   DATABASE_URL: 'postgresql://u:p@localhost:5432/restored',
+  PROCESSING_CELL: 'us',
+  RESTORE_SOURCE_CELL: 'us',
 } as const
 
 describe('ops:restore-verify (BQC-7.8, integration)', () => {

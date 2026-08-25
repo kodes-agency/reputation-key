@@ -31,7 +31,10 @@ import {
 } from '../application/ports/property-google-binding.port'
 import { propertyGoogleBindingChanged } from '../domain/events'
 import { propertyToRow } from './mappers/property.mapper'
-import { resolvePersistedDataCellId } from '#/shared/domain/data-cell-catalogue'
+import {
+  resolvePersistedDataCellId,
+  type DataCellId,
+} from '#/shared/domain/data-cell-catalogue'
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
@@ -192,7 +195,9 @@ function assertBindingProfile(input: {
 export function createPropertyGoogleBindingStore(
   db: Database,
   events: EventBus,
+  localCell?: DataCellId,
 ): PropertyGoogleBindingStore {
+  const cellWhere = () => (localCell ? [eq(properties.dataCellId, localCell)] : [])
   const readReceipt: PropertyGoogleBindingStore['readReceipt'] = async (
     organizationIdValue,
     idempotencyKey,
@@ -222,6 +227,7 @@ export function createPropertyGoogleBindingStore(
           and(
             eq(properties.organizationId, organizationIdValue),
             eq(properties.id, propertyIdValue),
+            ...cellWhere(),
           ),
         )
         .limit(1)
@@ -243,6 +249,7 @@ export function createPropertyGoogleBindingStore(
         .where(
           and(
             eq(properties.organizationId, organizationIdValue),
+            ...cellWhere(),
             inArray(properties.gbpLocationId, locationIds),
             isNull(properties.deletedAt),
           ),
@@ -259,6 +266,7 @@ export function createPropertyGoogleBindingStore(
           and(
             eq(properties.organizationId, organizationIdValue),
             eq(properties.id, propertyIdValue),
+            ...cellWhere(),
           ),
         )
         .limit(1)
@@ -277,7 +285,8 @@ export function createPropertyGoogleBindingStore(
       if (existingReceipt) return replayReceipt(existingReceipt, 'imported')
       if (
         input.property.organizationId !== input.organizationId ||
-        input.property.deletedAt !== null
+        input.property.deletedAt !== null ||
+        (localCell !== undefined && input.property.dataCellId !== localCell)
       ) {
         deny('invalid_binding')
       }
@@ -405,6 +414,7 @@ export function createPropertyGoogleBindingStore(
                 and(
                   eq(properties.organizationId, input.organizationId),
                   eq(properties.id, input.propertyId),
+                  ...cellWhere(),
                 ),
               )
               .for('update')
@@ -441,6 +451,7 @@ export function createPropertyGoogleBindingStore(
                 and(
                   eq(properties.organizationId, input.organizationId),
                   eq(properties.id, input.propertyId),
+                  ...cellWhere(),
                   eq(properties.sourceEpoch, input.expectedSourceEpoch),
                   eq(properties.profileVersion, input.expectedProfileVersion),
                 ),
@@ -507,6 +518,7 @@ export function createPropertyGoogleBindingStore(
               and(
                 eq(properties.organizationId, input.organizationId),
                 eq(properties.id, input.propertyId),
+                ...cellWhere(),
               ),
             )
             .for('update')
@@ -533,6 +545,7 @@ export function createPropertyGoogleBindingStore(
               and(
                 eq(properties.organizationId, input.organizationId),
                 eq(properties.id, input.propertyId),
+                ...cellWhere(),
                 eq(properties.sourceEpoch, input.expectedSourceEpoch),
                 eq(properties.profileVersion, input.expectedProfileVersion),
               ),
@@ -566,6 +579,7 @@ export function createPropertyGoogleBindingStore(
               and(
                 eq(properties.organizationId, input.organizationId),
                 eq(properties.id, input.propertyId),
+                ...cellWhere(),
               ),
             )
             .for('update')
@@ -599,6 +613,7 @@ export function createPropertyGoogleBindingStore(
               and(
                 eq(properties.organizationId, input.organizationId),
                 eq(properties.id, input.propertyId),
+                ...cellWhere(),
                 eq(properties.sourceEpoch, input.expectedSourceEpoch),
                 eq(properties.profileVersion, input.expectedProfileVersion),
               ),

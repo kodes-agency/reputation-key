@@ -82,6 +82,7 @@ function fakeJob(over: Record<string, unknown> = {}): Job {
 function stampedEnvelope(over: Partial<RoutingEnvelope> = {}): RoutingEnvelope {
   return {
     subject: { kind: 'property', propertyId: 'prop-1' },
+    cell: 'us',
     region: 'us',
     workloadClass: 'review.sync',
     routingPolicyVersion: 2,
@@ -97,6 +98,7 @@ function setup(decision: DelayedDecision = ALLOW) {
   registry.register('sync-property-reviews', handler)
   registry.register('publish-reply', handler)
   registry.register('import-gbp-property-item-v2', handler)
+  registry.register('process-image', handler)
   registry.register('health-check', handler)
   const resolveMock = vi.fn(async (): Promise<RoutingDecision> => US_TARGET)
   const router: ProcessingRouter = { resolve: resolveMock }
@@ -144,6 +146,29 @@ describe('dispatch routing gate (BQC-4.2)', () => {
     expect(resolveMock).toHaveBeenCalledWith(
       { kind: 'import_item', organizationId: 'org-1', itemId: 'item-1' },
       'property.import',
+    )
+    expect(handler).toHaveBeenCalledWith(job)
+    expect(quarantine).not.toHaveBeenCalled()
+  })
+
+  it('routes portal object-storage work through its owning Property cell', async () => {
+    const { registry, handler, resolveMock, quarantine, routing } = setup()
+    const dispatch = createGatedJobHandler('default', registry, undefined, routing)
+    const job = fakeJob({
+      name: 'process-image',
+      data: {
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+        portalId: 'portal-1',
+        key: 'portals/org-1/portal-1/hero/object-1',
+      },
+    })
+
+    await dispatch(job)
+
+    expect(resolveMock).toHaveBeenCalledWith(
+      { kind: 'property', propertyId: 'prop-1' },
+      'portal.media',
     )
     expect(handler).toHaveBeenCalledWith(job)
     expect(quarantine).not.toHaveBeenCalled()

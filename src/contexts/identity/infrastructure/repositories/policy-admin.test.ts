@@ -70,7 +70,6 @@ const ops = createPolicyAdminOps({
     resolveRouting: (propertyId) =>
       createProcessingRouter({
         loadPropertyRouting: createPropertyRoutingLoader({ db }),
-        cell: 'us',
       }).resolve({ kind: 'property', propertyId: propertyId }, 'review.sync'),
     cell: 'us',
     providerRef: providerRefForCell('us') ?? null,

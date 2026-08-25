@@ -23,6 +23,8 @@ import { closePool } from '../../src/shared/db/pool'
 import { getEnv } from '../../src/shared/config/env'
 import { initPersistedCapabilityPolicyStore } from '../../src/contexts/identity/infrastructure/policy-store-init'
 import { getExecutionPolicy } from '../../src/shared/auth/execution-policy'
+import { createPropertyRoutingLoader } from '../../src/contexts/property/infrastructure/property-routing.adapter'
+import { createDataCellExecutionFence } from '../../src/shared/routing/data-cell-execution-fence'
 import {
   runOperatorCommand as runCore,
   type OperatorAction,
@@ -40,7 +42,16 @@ export type OperatorBoot = Readonly<{
 /** Boot the minimal operator policy runtime (capability store + both policies). */
 export async function bootOperatorRuntime(): Promise<OperatorBoot> {
   const db = getDb()
-  const handle = initPersistedCapabilityPolicyStore({ db, env: getEnv() })
+  const env = getEnv()
+  const dataCellExecutionFence = createDataCellExecutionFence({
+    localCell: env.PROCESSING_CELL,
+    loadPropertyRouting: createPropertyRoutingLoader({ db }),
+  })
+  const handle = initPersistedCapabilityPolicyStore({
+    db,
+    env,
+    admitPropertyExecution: dataCellExecutionFence.decideProperty,
+  })
   // Strong read: operator decisions see persisted tenant state (suspensions,
   // allowlists), not just the env seed the bootstrap window runs on.
   await handle.refresh()

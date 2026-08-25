@@ -146,7 +146,6 @@ async function main() {
     router: createProcessingRouter({
       loadPropertyRouting: createPropertyRoutingLoader({ db: container.db }),
       loadImportItemRouting: createImportItemRoutingLoader({ db: container.db }),
-      cell: processingCell,
     }),
     cell: processingCell,
     quarantine: async (job, policyReason) => {
@@ -579,9 +578,13 @@ async function main() {
     domainEventsQueue = createJobQueue('domain-events')
 
     if (domainEventsQueue) {
-      const relay = createOutboxRelay(container.outboxRepo, domainEventsQueue)
+      const relay = createOutboxRelay(container.outboxRepo, domainEventsQueue, {
+        dataCellId: env.PROCESSING_CELL,
+      })
       stopRelay = relay.start(5_000)
-      const dispatchHandler = createDispatcherHandler(container.outboxRepo)
+      const dispatchHandler = createDispatcherHandler(container.outboxRepo, {
+        localCell: env.PROCESSING_CELL,
+      })
       domainEventsWorker = createJobWorker(
         'domain-events',
         dispatchHandler,

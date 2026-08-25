@@ -52,6 +52,13 @@ describe('buildConsumerEvent', () => {
     expect(envelope.propertyId).toBeNull()
   })
 
+  it('stamps and parses the relay process Data Cell without tenant content', () => {
+    const envelope = buildConsumerEvent(unpublished, 'us')
+    expect(envelope.dataCellId).toBe('us')
+    expect(envelope.region).toBe('us')
+    expect(parseConsumerEvent(envelope)).toEqual(envelope)
+  })
+
   it('lifts occurredAt/correlationId/causationId/aggregateVersion from the payload', () => {
     const envelope = buildConsumerEvent({
       ...unpublished,
@@ -126,6 +133,10 @@ describe('parseConsumerEvent', () => {
     expect(parseConsumerEvent({ ...built, causationId: {} })).toBeNull()
     expect(parseConsumerEvent({ ...built, sourceAggregateVersion: {} })).toBeNull()
     expect(parseConsumerEvent({ ...built, occurredAt: 42 })).toBeNull()
+    expect(parseConsumerEvent({ ...built, dataCellId: 'eu' })).toBeNull()
+    expect(
+      parseConsumerEvent({ ...built, dataCellId: 'us', region: 'europe' }),
+    ).toBeNull()
   })
 
   it('accepts explicit null metadata', () => {

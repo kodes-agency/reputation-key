@@ -521,6 +521,16 @@ async function enforceJobRouting(
       'stale routing envelope — re-resolved at dispatch',
     )
   }
+  if (envelope && envelope.cell !== decision.cell) {
+    logger.info(
+      {
+        jobName: job.name,
+        stampedCell: envelope.cell,
+        resolvedCell: decision.cell,
+      },
+      'routing envelope cell drift — fresh dispatch decision retained',
+    )
+  }
   return true
 }
 

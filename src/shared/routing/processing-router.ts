@@ -100,6 +100,8 @@ export type ProcessingSubject =
 
 export type RoutingEnvelope = Readonly<{
   subject: ProcessingSubject
+  /** Enqueue-time target for telemetry; dispatch always re-resolves. */
+  cell: DataCellId
   region: string
   workloadClass: WorkloadClass
   routingPolicyVersion: number
@@ -128,8 +130,6 @@ export type ProcessingRouterDeps = Readonly<{
     organizationId: string,
     itemId: string,
   ) => Promise<ImportItemRoutingRecord | null>
-  /** The worker's declared cell (env PROCESSING_CELL, default 'us'). */
-  cell: string
 }>
 
 export type ProcessingRouter = Readonly<{
@@ -172,6 +172,7 @@ const JOB_WORKLOAD_CLASSES: Readonly<Record<string, WorkloadClass>> = {
   'sync-property-reviews': 'review.sync',
   'publish-reply': 'reply.publish',
   'import-gbp-property-item-v2': 'property.import',
+  'process-image': 'portal.media',
 }
 
 /** The workload class routed for a job name, or undefined when it does not route. */

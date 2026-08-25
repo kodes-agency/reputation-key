@@ -88,7 +88,6 @@ describe('createPropertyRoutingLoader (BQC-4.2)', () => {
 describe('ProcessingRouter over the production adapter (BQC-4.2)', () => {
   const router = createProcessingRouter({
     loadPropertyRouting: createPropertyRoutingLoader({ db }),
-    cell: 'us',
   })
 
   it('resolves the us property to the us cell target', async () => {

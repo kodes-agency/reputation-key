@@ -161,6 +161,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       if (decision.kind !== 'target') return undefined
       return {
         subject,
+        cell: decision.cell,
         region: decision.region,
         workloadClass,
         routingPolicyVersion: decision.routingPolicyVersion,

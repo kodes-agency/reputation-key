@@ -26,6 +26,8 @@ import {
 const ISOLATED_ENV = {
   RESTORE_MODE: 'isolated',
   DATABASE_URL: 'postgresql://u:p@localhost:5432/restored',
+  PROCESSING_CELL: 'us',
+  RESTORE_SOURCE_CELL: 'us',
 } as const
 
 function memoryIO(): OperatorIO & { outLines: string[]; errLines: string[] } {
@@ -138,11 +140,28 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
       env: {
         RESTORE_MODE: 'isolated',
         DATABASE_URL: 'postgresql://u:p@db.prod.example/x',
+        PROCESSING_CELL: 'us',
+        RESTORE_SOURCE_CELL: 'us',
       },
     })
     const code = await runRestoreVerifyAction(ctxFor(false), deps, io)
     expect(code).toBe(1)
     expect(io.errLines.join('\n')).toMatch(/not an isolated/)
+    expect(deps.purgeExpired).not.toHaveBeenCalled()
+  })
+
+  it('REFUSES a backup from another Data Cell before reading or purging rows', async () => {
+    const io = memoryIO()
+    const deps = depsFor({
+      env: {
+        ...ISOLATED_ENV,
+        RESTORE_SOURCE_CELL: 'europe',
+      },
+    })
+    const code = await runRestoreVerifyAction(ctxFor(false), deps, io)
+    expect(code).toBe(1)
+    expect(io.errLines.join('\n')).toMatch(/exactly match PROCESSING_CELL/)
+    expect(deps.countExpired).not.toHaveBeenCalled()
     expect(deps.purgeExpired).not.toHaveBeenCalled()
   })
 

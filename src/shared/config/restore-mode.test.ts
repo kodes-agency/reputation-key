@@ -8,6 +8,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   assertRestoreModeCompatible,
+  isRestoreCellCompatible,
   isIsolatedRestoreTarget,
   isRestoreIsolated,
   RESTORE_ISOLATED_LOG_LINE,
@@ -36,23 +37,69 @@ describe('assertRestoreModeCompatible (BQC-7.8)', () => {
   it('lets the WEB process boot in restore-isolated mode (the drill shape)', () => {
     expect(() =>
       assertRestoreModeCompatible({ RESTORE_MODE: 'isolated' }, 'web'),
+    ).toThrow(/Data Cell/)
+    expect(() =>
+      assertRestoreModeCompatible(
+        {
+          RESTORE_MODE: 'isolated',
+          PROCESSING_CELL: 'us',
+          RESTORE_SOURCE_CELL: 'us',
+        },
+        'web',
+      ),
     ).not.toThrow()
   })
 
   it('refuses WORKER boot in restore-isolated mode with the loud line', () => {
     expect(() =>
-      assertRestoreModeCompatible({ RESTORE_MODE: 'isolated' }, 'worker'),
+      assertRestoreModeCompatible(
+        {
+          RESTORE_MODE: 'isolated',
+          PROCESSING_CELL: 'us',
+          RESTORE_SOURCE_CELL: 'us',
+        },
+        'worker',
+      ),
     ).toThrow(/RESTORE MODE ISOLATED/)
     expect(() =>
-      assertRestoreModeCompatible({ RESTORE_MODE: 'isolated' }, 'worker'),
+      assertRestoreModeCompatible(
+        {
+          RESTORE_MODE: 'isolated',
+          PROCESSING_CELL: 'us',
+          RESTORE_SOURCE_CELL: 'us',
+        },
+        'worker',
+      ),
     ).toThrow(/worker refuses to boot/)
   })
 
   it('never throws the refusal outside restore-isolated mode', () => {
     expect(() =>
-      assertRestoreModeCompatible({ RESTORE_MODE: 'isolated' }, 'web'),
+      assertRestoreModeCompatible(
+        {
+          RESTORE_MODE: 'isolated',
+          PROCESSING_CELL: 'us',
+          RESTORE_SOURCE_CELL: 'us',
+        },
+        'web',
+      ),
     ).not.toThrow()
     expect(RESTORE_ISOLATED_LOG_LINE).toContain('RESTORE MODE ISOLATED')
+  })
+})
+
+describe('restore Data Cell binding (REG-01)', () => {
+  it('accepts only an explicit exact source/target match', () => {
+    expect(
+      isRestoreCellCompatible({ PROCESSING_CELL: 'us', RESTORE_SOURCE_CELL: 'us' }),
+    ).toBe(true)
+    expect(
+      isRestoreCellCompatible({
+        PROCESSING_CELL: 'us',
+        RESTORE_SOURCE_CELL: 'europe',
+      }),
+    ).toBe(false)
+    expect(isRestoreCellCompatible({ PROCESSING_CELL: 'us' })).toBe(false)
   })
 })
 

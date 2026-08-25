@@ -30,6 +30,8 @@
 /** Structural env shape the restore-mode checks read (parsed Env fits). */
 export type RestoreModeEnv = Readonly<{
   RESTORE_MODE?: string
+  PROCESSING_CELL?: string
+  RESTORE_SOURCE_CELL?: string
 }>
 
 /**
@@ -46,6 +48,15 @@ export function isRestoreIsolated(env: RestoreModeEnv): boolean {
 
 export type RestoreProcessKind = 'web' | 'worker'
 
+/** Exact backup/source-to-target cell binding; absent is denied in restore mode. */
+export function isRestoreCellCompatible(env: RestoreModeEnv): boolean {
+  return (
+    typeof env.PROCESSING_CELL === 'string' &&
+    typeof env.RESTORE_SOURCE_CELL === 'string' &&
+    env.PROCESSING_CELL === env.RESTORE_SOURCE_CELL
+  )
+}
+
 /**
  * Refuse an incompatible process boot. No-op outside restore-isolated mode.
  * The web process is the supported drill shape (capabilities deny at the
@@ -57,6 +68,11 @@ export function assertRestoreModeCompatible(
   processKind: RestoreProcessKind,
 ): void {
   if (!isRestoreIsolated(env)) return
+  if (!isRestoreCellCompatible(env)) {
+    throw new Error(
+      '[RESTORE MODE] backup Data Cell does not match PROCESSING_CELL — restore refused',
+    )
+  }
   if (processKind === 'worker') {
     throw new Error(
       `[RESTORE MODE] ${RESTORE_ISOLATED_LOG_LINE} — worker refuses to boot: ` +

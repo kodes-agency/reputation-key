@@ -31,7 +31,7 @@ const US_PROPERTY: PropertyRoutingRecord = {
 describe('ProcessingRouter.resolve (BQC-4.2)', () => {
   it('resolves a us-region property to the us cell target with queue + policy version', async () => {
     const loadPropertyRouting = stubLoader({ 'prop-1': US_PROPERTY })
-    const router = createProcessingRouter({ loadPropertyRouting, cell: 'us' })
+    const router = createProcessingRouter({ loadPropertyRouting })
 
     const decision = await router.resolve(
       { kind: 'property', propertyId: 'prop-1' },
@@ -54,13 +54,13 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
   it('gives every property-scoped workload class an explicit catalogue queue', async () => {
     const router = createProcessingRouter({
       loadPropertyRouting: stubLoader({ 'prop-1': US_PROPERTY }),
-      cell: 'us',
     })
 
     for (const workloadClass of [
       'review.sync',
       'reply.publish',
       'property.import',
+      'portal.media',
     ] as const) {
       const decision = await router.resolve(
         { kind: 'property', propertyId: 'prop-1' },
@@ -77,7 +77,6 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
         loadPropertyRouting: stubLoader({
           'prop-1': { processingRegion: region, routingPolicyVersion: 1 },
         }),
-        cell: 'us',
       })
 
       const decision = await router.resolve(
@@ -98,7 +97,6 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
       loadPropertyRouting: stubLoader({
         'prop-1': { processingRegion: 'us', routingPolicyVersion: 999 },
       }),
-      cell: 'us',
     })
     await expect(
       router.resolve({ kind: 'property', propertyId: 'prop-1' }, 'review.sync'),
@@ -114,7 +112,6 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
           routingPolicyVersion: 2,
         },
       }),
-      cell: 'us',
     })
 
     await expect(
@@ -133,7 +130,6 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
         loadPropertyRouting: stubLoader({
           'prop-1': { processingRegion: region, routingPolicyVersion: 1 },
         }),
-        cell: 'us',
       })
 
       const decision = await router.resolve(
@@ -155,7 +151,6 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
         loadPropertyRouting: stubLoader({
           'prop-1': { processingRegion: region, routingPolicyVersion: 1 },
         }),
-        cell: 'us',
       })
 
       const decision = await router.resolve(
@@ -174,7 +169,6 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
   it('blocks a missing property with property_missing', async () => {
     const router = createProcessingRouter({
       loadPropertyRouting: stubLoader({}),
-      cell: 'us',
     })
 
     const decision = await router.resolve(
@@ -189,12 +183,9 @@ describe('ProcessingRouter.resolve (BQC-4.2)', () => {
     })
   })
 
-  it('targets the approved cell from the routing decision, not from the worker cell declaration', async () => {
-    // A worker declaring another cell still gets 'us' targets — the mismatch
-    // is the wrong-cell case the dispatch gate quarantines (ADR 0048).
+  it('is location-independent and returns the approved target cell', async () => {
     const router = createProcessingRouter({
       loadPropertyRouting: stubLoader({ 'prop-1': US_PROPERTY }),
-      cell: 'europe',
     })
 
     const decision = await router.resolve(
@@ -216,7 +207,6 @@ describe('ProcessingRouter import-item routing', () => {
     const router = createProcessingRouter({
       loadPropertyRouting,
       loadImportItemRouting,
-      cell: 'us',
     })
 
     const decision = await router.resolve(
@@ -236,7 +226,6 @@ describe('ProcessingRouter import-item routing', () => {
   it('fails closed when the import-item loader is absent', async () => {
     const router = createProcessingRouter({
       loadPropertyRouting: stubLoader({}),
-      cell: 'us',
     })
 
     await expect(
@@ -259,7 +248,6 @@ describe('ProcessingRouter import-item routing', () => {
     const router = createProcessingRouter({
       loadPropertyRouting: stubLoader({}),
       loadImportItemRouting,
-      cell: 'us',
     })
 
     await expect(
@@ -281,6 +269,7 @@ describe('workloadClassForJob (BQC-4.2)', () => {
     expect(workloadClassForJob('sync-property-reviews')).toBe('review.sync')
     expect(workloadClassForJob('publish-reply')).toBe('reply.publish')
     expect(workloadClassForJob('import-gbp-property-item-v2')).toBe('property.import')
+    expect(workloadClassForJob('process-image')).toBe('portal.media')
   })
 
   it('does not route the legacy org fan-out or tenant-cross sweeps', () => {
@@ -310,7 +299,6 @@ describe('providerRefForCell (BQC-4.3)', () => {
       loadPropertyRouting: stubLoader({
         'prop-1': { processingRegion: 'ap-southeast-2', routingPolicyVersion: 1 },
       }),
-      cell: 'us',
     })
 
     const decision = await router.resolve(

@@ -5,7 +5,8 @@ export const DATA_CELL_CATALOGUE_POLICY_VERSION = 2
 export const DATA_CELL_IDS = ['us', 'europe', 'global'] as const
 export type DataCellId = (typeof DATA_CELL_IDS)[number]
 export type DataCellState = 'provisioning' | 'accepting' | 'draining' | 'denied'
-export type DataCellWorkload = 'review.sync' | 'reply.publish' | 'property.import'
+export type DataCellWorkload =
+  'review.sync' | 'reply.publish' | 'property.import' | 'portal.media'
 
 export type DataCellDefinition = Readonly<{
   id: DataCellId
@@ -94,6 +95,7 @@ const ALL_WORKLOADS = Object.freeze([
   'review.sync',
   'reply.publish',
   'property.import',
+  'portal.media',
 ] as const satisfies readonly DataCellWorkload[])
 
 const RESOURCE_REFS = Object.freeze({

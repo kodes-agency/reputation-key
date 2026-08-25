@@ -33,6 +33,7 @@ import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import { gateDispatcherConsumer } from '#/shared/jobs/delayed-execution-gate'
 import { durableConsumersFor } from '#/shared/governance/event-job-catalogue'
+import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
 
 // ── Consumer registration ───────────────────────────────────────────
 
@@ -215,7 +216,10 @@ async function invokeConsumer(
  * Create a dispatcher handler for the BullMQ 'domain-events' worker.
  * This function is passed to createJobWorker as the handler.
  */
-export function createDispatcherHandler(repo: OutboxRepository) {
+export function createDispatcherHandler(
+  repo: OutboxRepository,
+  options: Readonly<{ localCell?: DataCellId }> = {},
+) {
   const logger = getLogger()
 
   return async (job: Job) => {
@@ -250,6 +254,28 @@ export function createDispatcherHandler(repo: OutboxRepository) {
       // Prefer envelope eventId; fall back to BullMQ job ID (relay sets jobId = event UUID)
       const eventId = event.eventId || jobId
       const eventType = event.eventType
+
+      // REG-01: newly relayed envelopes carry their source cell. A job
+      // injected or delivered to another cell is terminally quarantined
+      // before schema reads, receipts, or consumer effects. Missing is
+      // accepted only for the documented pre-REG-01 in-flight shape.
+      if (
+        options.localCell &&
+        event.dataCellId !== undefined &&
+        event.dataCellId !== options.localCell
+      ) {
+        logger.error(
+          {
+            eventType,
+            localCell: options.localCell,
+            targetCell: event.dataCellId,
+          },
+          'Outbox envelope delivered to the wrong Data Cell — unrecoverable',
+        )
+        throw new UnrecoverableError(
+          `outbox wrong_cell (${eventType}): target=${event.dataCellId}, local=${options.localCell}`,
+        )
+      }
 
       // Validate payload against the schema registry
       try {

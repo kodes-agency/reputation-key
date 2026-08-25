@@ -15,6 +15,7 @@ const DATA: GoogleImportV2ItemJobData = {
       organizationId: 'org-1',
       itemId: '10000000-0000-4000-8000-000000000001',
     },
+    cell: 'us',
     region: 'us',
     workloadClass: 'property.import',
     routingPolicyVersion: 2,

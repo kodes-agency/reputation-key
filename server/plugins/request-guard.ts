@@ -12,6 +12,11 @@ import { definePlugin } from 'nitro'
 import { getEnv } from '#/shared/config/env'
 import { createRequestGuardPlugin } from '#/shared/security/request-guard'
 
+const env = getEnv()
+
 export default definePlugin(
-  createRequestGuardPlugin({ bodyLimitBytes: getEnv().REQUEST_BODY_LIMIT_BYTES }),
+  createRequestGuardPlugin({
+    bodyLimitBytes: env.REQUEST_BODY_LIMIT_BYTES,
+    localCell: env.PROCESSING_CELL,
+  }),
 )

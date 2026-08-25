@@ -112,6 +112,7 @@ import { createPropertyRegionLoader } from '#/contexts/property/infrastructure/p
 import { createProcessingRouter } from '#/shared/routing/processing-router'
 import { providerRefForCell } from '#/shared/routing/processing-router'
 import type { ProviderEndpoints } from '#/shared/routing/processing-router'
+import { createDataCellExecutionFence } from '#/shared/routing/data-cell-execution-fence'
 import { buildIntegrationContext } from '#/contexts/integration/build'
 import { createImportItemRoutingLoader } from '#/contexts/integration/infrastructure/import-item-routing.adapter'
 import { createOAuthStateHandleService } from '#/contexts/integration/application/oauth-state-handle'
@@ -649,10 +650,14 @@ export function createContainer(options?: {
 
   // BQC-4.2: the ONE routing decision model — shared by the review context
   // (enqueue envelope stamping) and the BQC-4.4 operator region diagnostic.
+  const loadPropertyRouting = createPropertyRoutingLoader({ db })
+  const dataCellExecutionFence = createDataCellExecutionFence({
+    localCell: env.PROCESSING_CELL,
+    loadPropertyRouting,
+  })
   const processingRouter = createProcessingRouter({
-    loadPropertyRouting: createPropertyRoutingLoader({ db }),
+    loadPropertyRouting,
     loadImportItemRouting: createImportItemRoutingLoader({ db }),
-    cell: env.PROCESSING_CELL,
   })
 
   // PRE17A A4: Create outbox repository and register event schemas.
@@ -720,6 +725,7 @@ export function createContainer(options?: {
       resolveRouting: (pid) =>
         processingRouter.resolve({ kind: 'property', propertyId: pid }, 'review.sync'),
       cell: env.PROCESSING_CELL,
+      admitPropertyExecution: dataCellExecutionFence.decideProperty,
       providerRef: providerRefForCell(env.PROCESSING_CELL) ?? null,
     },
     cancelGoogleImportsForUser: (orgId, userIdValue) => {
@@ -1032,6 +1038,7 @@ export function createContainer(options?: {
     )
     googleAuthorizedProviderExecutor = createGoogleAuthorizedProviderExecutor({
       bindCredential,
+      admitPropertyExecution: dataCellExecutionFence.decideProperty,
       routeTarget:
         env.GOOGLE_PROVIDER_ENDPOINT_PROFILE === 'local-sandbox'
           ? {
@@ -1093,9 +1100,10 @@ export function createContainer(options?: {
 
   const property = buildPropertyContext({
     db,
-    repo: createPropertyRepository(db),
+    repo: createPropertyRepository(db, { localCell: env.PROCESSING_CELL }),
     events: eventBus,
     clock,
+    localCell: env.PROCESSING_CELL,
     staffPublicApi: staff.publicApi,
     sourceContentPurge,
     provisionPropertyCapabilities:
@@ -1499,6 +1507,7 @@ export function createContainer(options?: {
     clock,
     opsQueues,
     operationsSnapshot,
+    dataCellExecutionFence,
     ai: ai.internal,
     // BQC-7.4: the alert dispatch port — composition-owned so the
     // health-check job (and any future evaluation point) shares the ONE

@@ -1,4 +1,5 @@
 import { z } from 'zod/v4'
+import { DATA_CELL_IDS } from '#/shared/domain/data-cell-catalogue'
 
 const baseEnvSchema = z.object({
   // Server
@@ -297,10 +298,11 @@ const baseEnvSchema = z.object({
   // routing. Default 1 MiB — the largest legitimate payloads (portal image
   // uploads go through presigned S3 URLs, not this server).
   REQUEST_BODY_LIMIT_BYTES: z.coerce.number().int().min(1).default(1_048_576),
-  // BQC-4.2 / ADR 0048: the processing cell this process belongs to. 'us' is
-  // the only APPROVED beta cell; a worker declaring any other cell
-  // quarantines every routed job it receives (wrong-cell, fail closed).
-  PROCESSING_CELL: z.string().min(1).default('us'),
+  // REG-01: the stable Data Cell this process belongs to. Catalogue admission,
+  // not this variable, decides whether that cell may accept work. Unknown cell
+  // names fail environment parsing; known wrong-cell work fails at the shared
+  // execution, repository, queue, provider, and storage boundaries.
+  PROCESSING_CELL: z.enum(DATA_CELL_IDS).default('us'),
   // BQC-7.1: worker graceful-shutdown drain budget (ms). BullMQ worker.close()
   // resolves only when in-flight jobs finish — a hung job would otherwise hang
   // the deploy window until the platform's SIGKILL. On budget expiry the
@@ -315,6 +317,10 @@ const baseEnvSchema = z.object({
   // (no schedules/consumers/relay). Cutover = unset this and redeploy.
   // See docs/operations/backup-and-lifecycle.md.
   RESTORE_MODE: z.literal('isolated').optional(),
+  // REG-01: immutable logical cell recorded by the backup/restore selection.
+  // Required in restore-isolated mode and must equal PROCESSING_CELL; a backup
+  // from another cell may only be inspected in a separately declared target.
+  RESTORE_SOURCE_CELL: z.enum(DATA_CELL_IDS).optional(),
   // BQC-7.8: dead-letter quarantine entry TTL (days). The quarantine queue
   // has no consumer by design — without a TTL, redacted envelopes accumulate
   // forever. The quarantine-ttl-sweep job (daily) removes entries older than
@@ -357,6 +363,22 @@ const envSchema = baseEnvSchema.superRefine((env, context) => {
       code: 'custom',
       path: ['BETTER_AUTH_URL'],
       message: 'Production BETTER_AUTH_URL must use HTTPS',
+    })
+  }
+  if (env.RESTORE_MODE === 'isolated' && !env.RESTORE_SOURCE_CELL) {
+    context.addIssue({
+      code: 'custom',
+      path: ['RESTORE_SOURCE_CELL'],
+      message: 'Restore-isolated mode requires the backup source Data Cell',
+    })
+  } else if (
+    env.RESTORE_MODE === 'isolated' &&
+    env.RESTORE_SOURCE_CELL !== env.PROCESSING_CELL
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['RESTORE_SOURCE_CELL'],
+      message: 'Restore source Data Cell must match PROCESSING_CELL',
     })
   }
 })

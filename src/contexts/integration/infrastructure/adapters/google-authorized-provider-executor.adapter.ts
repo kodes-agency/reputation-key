@@ -12,6 +12,7 @@ import type {
   GoogleProviderExecutionResult,
 } from '../../application/ports/google-authorized-provider-executor.port'
 import type { GoogleContentAuthorityDenyCode } from '#/shared/auth/google-content-authority'
+import type { DataCellExecutionDecision } from '#/shared/routing/data-cell-execution-fence'
 
 /**
  * Total map from the content authority's own deny union onto the closed set the
@@ -101,6 +102,8 @@ export function createGoogleAuthorizedProviderExecutor(
     bindCredential: (credential: string) => string
     admit: GoogleProviderPermitAdmitter
     gateway: GoogleEgressGatewayClient
+    /** REG-01 defense in depth immediately before any provider permit/effect. */
+    admitPropertyExecution?: (propertyId: string) => Promise<DataCellExecutionDecision>
     routeTarget?: GoogleProviderRouteTarget
     logger?: Readonly<{
       warn(fields: Readonly<Record<string, unknown>>, message: string): void
@@ -111,6 +114,49 @@ export function createGoogleAuthorizedProviderExecutor(
     execute: async (descriptor, options) => {
       if (options.signal?.aborted) {
         return { ok: false, code: 'deadline_exceeded', retryAfterMs: 0 }
+      }
+      if (options.authorization.propertyId && deps.admitPropertyExecution) {
+        let cellDecision: DataCellExecutionDecision
+        try {
+          cellDecision = await deps.admitPropertyExecution(
+            options.authorization.propertyId,
+          )
+        } catch {
+          deps.logger?.warn(
+            {
+              routeKey: descriptor.routeKey,
+              stage: 'data-cell',
+              code: 'cell_unavailable',
+            },
+            'Google provider execution rejected',
+          )
+          return {
+            ok: false,
+            code: 'admission_denied',
+            admissionCode: 'cell_unavailable',
+            retryAfterMs: 0,
+          }
+        }
+        if (cellDecision.kind === 'deny') {
+          const admissionCode =
+            cellDecision.reason === 'wrong_cell'
+              ? ('wrong_cell' as const)
+              : ('cell_unavailable' as const)
+          deps.logger?.warn(
+            {
+              routeKey: descriptor.routeKey,
+              stage: 'data-cell',
+              code: admissionCode,
+            },
+            'Google provider execution rejected',
+          )
+          return {
+            ok: false,
+            code: 'admission_denied',
+            admissionCode,
+            retryAfterMs: 0,
+          }
+        }
       }
       let admission: GoogleProviderAdmissionMetadata
       try {

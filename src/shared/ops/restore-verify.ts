@@ -29,6 +29,7 @@
 
 import {
   isIsolatedRestoreTarget,
+  isRestoreCellCompatible,
   isRestoreIsolated,
   RESTORE_ISOLATED_LOG_LINE,
 } from '#/shared/config/restore-mode'
@@ -63,7 +64,12 @@ export type RestoreVerifyEvidenceRow = Readonly<{
 
 export type RestoreVerifyDeps = Readonly<{
   /** The command's own env (RESTORE_MODE + DATABASE_URL are gate-checked). */
-  env: Readonly<{ RESTORE_MODE?: string; DATABASE_URL: string }>
+  env: Readonly<{
+    RESTORE_MODE?: string
+    DATABASE_URL: string
+    PROCESSING_CELL?: string
+    RESTORE_SOURCE_CELL?: string
+  }>
   /** Count of expired-content rows currently eligible for the purge. */
   countExpired: () => Promise<number>
   /** Run the source-policy purge in-process (bounded, evidence-writing). */
@@ -98,6 +104,14 @@ export async function runRestoreVerifyAction(
       'REFUSED: RESTORE_MODE=isolated is required — restore-verify runs only ' +
         'inside the isolated restore drill. Set RESTORE_MODE=isolated on the ' +
         'restored environment (worker stays down; web capabilities deny) and re-run.',
+    )
+    return 1
+  }
+
+  if (!isRestoreCellCompatible(deps.env)) {
+    io.err(
+      'REFUSED: RESTORE_SOURCE_CELL must exactly match PROCESSING_CELL — ' +
+        'a backup may never be verified or cut over in another Data Cell.',
     )
     return 1
   }

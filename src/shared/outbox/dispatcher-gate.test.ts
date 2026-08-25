@@ -353,6 +353,30 @@ describe('dispatcher corrections (BQC-3.6)', () => {
     await expect(createDispatcherHandler(repo)(job)).rejects.toThrow(UnrecoverableError)
   })
 
+  it('rejects a queue-injected envelope stamped by another Data Cell', async () => {
+    const repo = makeRepo()
+    const handler = vi.fn(async () => ({ status: 'applied' as const }))
+    registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-wrong-cell',
+      module: TEST_MODULE,
+      handler,
+    })
+
+    await expect(
+      createDispatcherHandler(repo, { localCell: 'us' })(
+        fakeJob(makeEnvelope({ dataCellId: 'europe', region: 'europe' })),
+      ),
+    ).rejects.toThrow(UnrecoverableError)
+
+    expect(handler).not.toHaveBeenCalled()
+    expect(repo.hasReceipt).not.toHaveBeenCalled()
+    expect(loggerMocks.error).toHaveBeenCalledWith(
+      expect.objectContaining({ localCell: 'us', targetCell: 'europe' }),
+      expect.stringMatching(/wrong Data Cell/i),
+    )
+  })
+
   it('schema validation failure throws UnrecoverableError with a content-free reason', async () => {
     const repo = makeRepo()
     registerConsumer({
