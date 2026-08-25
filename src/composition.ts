@@ -1123,7 +1123,6 @@ export function createContainer(options?: {
   const guest = buildGuestContext({
     db,
     events: eventBus,
-    outboxRepo,
     clock,
     portalApi: portal.publicApi.portal,
     logger,

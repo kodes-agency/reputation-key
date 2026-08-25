@@ -3,38 +3,38 @@ import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { scanEventId, organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import type { ScanEvent } from '../../domain/types'
-import type { GuestInteractionRepository } from '../ports/guest-interaction.repository'
+import type { GuestObservationStore } from '../ports/guest-observation-store.port'
 
-function createInMemoryGuestRepo() {
+function observationHarness(options?: { fail?: boolean }) {
   const scans: ScanEvent[] = []
-  const repo: GuestInteractionRepository = {
-    recordScan: async (scan: ScanEvent) => {
+  const events = createCapturingEventBus()
+  const store: GuestObservationStore = {
+    commitScan: async (scan, fact) => {
+      if (options?.fail) throw new Error('DB down')
+      if (
+        scans.some(
+          (candidate) =>
+            candidate.organizationId === scan.organizationId &&
+            candidate.portalId === scan.portalId &&
+            candidate.sessionId === scan.sessionId,
+        )
+      ) {
+        return 'duplicate'
+      }
       scans.push(scan)
+      await events.emit(fact)
+      return 'applied'
     },
-    insertRating: async () => {},
-    insertFeedback: async () => {},
-    hasRated: async () => false,
-    hasRatedByIpWithin: async () => false,
-    getLatestScanBySession: async (orgId, sessionId) =>
-      [...scans]
-        .reverse()
-        .find((scan) => scan.organizationId === orgId && scan.sessionId === sessionId) ??
-      null,
-    findFeedbackById: async () => null,
-    findRatingById: async () => null,
-    findFeedbackSnippetsByIds: async () => [],
-    findEligibleFeedbackIds: async () => [],
+    commitReviewLinkClick: async () => 'applied',
   }
-  return { ...repo, scans }
+  return { store, scans, events }
 }
 
 describe('recordScan', () => {
-  it('records scan and emits event', async () => {
-    const repo = createInMemoryGuestRepo()
-    const bus = createCapturingEventBus()
+  it('commits the scan and fact through one store operation', async () => {
+    const harness = observationHarness()
     const useCase = recordScan({
-      guestRepo: repo,
-      events: bus,
+      observationStore: harness.store,
       idGen: () => scanEventId('scan-1'),
       clock: () => new Date('2026-05-01T12:00:00Z'),
       logger: createMockLogger(),
@@ -49,19 +49,16 @@ describe('recordScan', () => {
       ipHash: 'hash123',
     })
 
-    expect(repo.scans.length).toBe(1)
-    expect(repo.scans[0].source).toBe('qr')
-    expect(bus.capturedEvents).toHaveLength(1)
-    expect(bus.capturedEvents[0]._tag).toBe('guest.scan.recorded')
+    expect(harness.scans).toHaveLength(1)
+    expect(harness.scans[0]!.source).toBe('qr')
+    expect(harness.events.capturedByTag('guest.scan.recorded')).toHaveLength(1)
   })
 
-  it('records at most one scan per guest session so a refresh cannot inflate portal.scan', async () => {
-    const repo = createInMemoryGuestRepo()
-    const bus = createCapturingEventBus()
+  it('records at most one scan per Portal-scoped guest session', async () => {
+    const harness = observationHarness()
     const useCase = recordScan({
-      guestRepo: repo,
-      events: bus,
-      idGen: () => scanEventId('scan-1'),
+      observationStore: harness.store,
+      idGen: () => scanEventId(crypto.randomUUID()),
       clock: () => new Date('2026-05-01T12:00:00Z'),
       logger: createMockLogger(),
     })
@@ -77,29 +74,14 @@ describe('recordScan', () => {
     await useCase(input)
     await useCase(input)
 
-    expect(repo.scans).toHaveLength(1)
-    expect(bus.capturedEvents).toHaveLength(1)
+    expect(harness.scans).toHaveLength(1)
+    expect(harness.events.capturedByTag('guest.scan.recorded')).toHaveLength(1)
   })
 
-  it('silently fails on repo error', async () => {
-    const bus = createCapturingEventBus()
-    const failingRepo = {
-      recordScan: async () => {
-        throw new Error('DB down')
-      },
-      insertRating: async () => {},
-      insertFeedback: async () => {},
-      hasRated: async () => false,
-      hasRatedByIpWithin: async () => false,
-      getLatestScanBySession: async () => null,
-      findFeedbackById: async () => null,
-      findRatingById: async () => null,
-      findFeedbackSnippetsByIds: async () => [],
-      findEligibleFeedbackIds: async () => [],
-    }
+  it('keeps the public render path available when observation persistence fails', async () => {
+    const harness = observationHarness({ fail: true })
     const useCase = recordScan({
-      guestRepo: failingRepo,
-      events: bus,
+      observationStore: harness.store,
       idGen: () => scanEventId('scan-1'),
       clock: () => new Date('2026-05-01T12:00:00Z'),
       logger: createMockLogger(),
@@ -116,6 +98,7 @@ describe('recordScan', () => {
       }),
     ).resolves.toBeUndefined()
 
-    expect(bus.capturedEvents).toHaveLength(0)
+    expect(harness.scans).toHaveLength(0)
+    expect(harness.events.capturedEvents).toHaveLength(0)
   })
 })

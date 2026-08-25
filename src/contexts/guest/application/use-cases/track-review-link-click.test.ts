@@ -2,12 +2,20 @@ import { trackReviewLinkClick } from './track-review-link-click'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { organizationId, portalId, propertyId, portalLinkId } from '#/shared/domain/ids'
+import type { GuestObservationStore } from '../ports/guest-observation-store.port'
 
 describe('trackReviewLinkClick', () => {
-  it('emits review-link.clicked event', async () => {
-    const bus = createCapturingEventBus()
+  it('commits the durable observation before its fast-path event', async () => {
+    const events = createCapturingEventBus()
+    const store: GuestObservationStore = {
+      commitScan: async () => 'applied',
+      commitReviewLinkClick: async (fact) => {
+        await events.emit(fact)
+        return 'applied'
+      },
+    }
     const useCase = trackReviewLinkClick({
-      events: bus,
+      observationStore: store,
       clock: () => new Date('2026-05-01T12:00:00Z'),
       logger: createMockLogger(),
     })
@@ -19,21 +27,18 @@ describe('trackReviewLinkClick', () => {
       propertyId: propertyId('prop-1'),
     })
 
-    expect(bus.capturedEvents).toHaveLength(1)
-    expect(bus.capturedEvents[0]._tag).toBe('guest.review_link.clicked')
+    expect(events.capturedByTag('guest.review_link.clicked')).toHaveLength(1)
   })
 
-  it('silently fails when event emit throws', async () => {
-    const throwingBus = {
-      emit: () => {
-        throw new Error('event bus failure')
+  it('keeps approved navigation available when observation persistence fails', async () => {
+    const store: GuestObservationStore = {
+      commitScan: async () => 'applied',
+      commitReviewLinkClick: async () => {
+        throw new Error('observation unavailable')
       },
-      on: () => {},
-      off: () => {},
     }
     const useCase = trackReviewLinkClick({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      events: throwingBus as any,
+      observationStore: store,
       clock: () => new Date('2026-05-01T12:00:00Z'),
       logger: createMockLogger(),
     })

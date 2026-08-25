@@ -12,17 +12,9 @@ const responseLifecycle = readFileSync(
 )
 
 describe('Guest durable fact wiring', () => {
-  it('forwards the outbox repository to scan and link producers', () => {
-    const scanWiring = build.match(/recordScan:\s*recordScan\(\{(?<body>[\s\S]*?)\}\),/)
-    const clickWirings = [
-      ...build.matchAll(/trackReviewLinkClick\(\{(?<body>[\s\S]*?)\}\)/g),
-    ]
-
-    expect(scanWiring?.groups?.body).toContain('outboxRepo: deps.outboxRepo')
-    expect(clickWirings).toHaveLength(2)
-    for (const wiring of clickWirings) {
-      expect(wiring.groups?.body).toContain('outboxRepo: deps.outboxRepo')
-    }
+  it('routes scan and link observations through the atomic observation store', () => {
+    expect(build).toContain('createAtomicGuestObservationStore')
+    expect(build.match(/observationStore:\s*guestObservationStore/g)).toHaveLength(3)
   })
 
   it('commits response state and facts through the atomic Guest command store', () => {
@@ -31,6 +23,11 @@ describe('Guest durable fact wiring', () => {
       /guestResponseLifecycle\(\{[\s\S]*?commandStore:\s*guestResponseCommandStore/,
     )
     expect(responseLifecycle).toContain('commandStore.commitSubmitted')
+    expect(responseLifecycle).not.toContain('emitAndRecord')
+  })
+
+  it('contains no split post-commit outbox writes in the Guest context', () => {
+    expect(build).not.toContain('outboxRepo')
     expect(responseLifecycle).not.toContain('emitAndRecord')
   })
 })

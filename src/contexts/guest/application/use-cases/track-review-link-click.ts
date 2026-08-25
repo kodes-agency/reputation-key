@@ -1,4 +1,4 @@
-import type { EventBus } from '#/shared/events/event-bus'
+import type { GuestObservationStore } from '../ports/guest-observation-store.port'
 import type {
   OrganizationId,
   PortalId,
@@ -7,13 +7,11 @@ import type {
 } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { guestReviewLinkClicked } from '../../domain/events'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type TrackReviewLinkClickDeps = Readonly<{
-  events: EventBus
+  observationStore: GuestObservationStore
   clock: () => Date
   logger: LoggerPort
-  outboxRepo?: OutboxRepository
 }>
 
 export type TrackReviewLinkClickInput = Readonly<{
@@ -28,9 +26,7 @@ export const trackReviewLinkClick =
   async (input: TrackReviewLinkClickInput): Promise<void> => {
     try {
       const now = deps.clock()
-      await emitAndRecord(
-        deps.events,
-        deps.outboxRepo,
+      await deps.observationStore.commitReviewLinkClick(
         guestReviewLinkClicked({
           linkId: input.linkId,
           organizationId: input.organizationId,

@@ -1200,7 +1200,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       projectionOwner: 'metric',
       notes:
-        'identifier-only v1 schema and durable metric consumer; producer uses best-effort emitAndRecord after the scan write, so source/outbox atomicity remains an ARC-01 command-store migration',
+        'identifier-only v1 schema; session-deduplicated scan row and fact commit atomically through GuestObservationStore; durable metric consumer is recovery authority',
     },
   ),
   ev(
@@ -1265,7 +1265,7 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       projectionOwner: 'metric',
       notes:
-        'identifier-only v1 schema and durable metric consumer; the click fact has no separate source row and emitAndRecord remains best-effort',
+        'identifier-only v1 schema; the outbox row is the canonical observation and commits before best-effort bus acceleration',
     },
   ),
 ]

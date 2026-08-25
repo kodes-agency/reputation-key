@@ -5,6 +5,7 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createGuestInteractionRepository } from './infrastructure/repositories/guest-interaction.repository'
 import { createGuestResponseRepository } from './infrastructure/repositories/guest-response.repository'
 import { createAtomicGuestResponseCommandStore } from './infrastructure/guest-response-command-store'
+import { createAtomicGuestObservationStore } from './infrastructure/guest-observation-store'
 import { createPortalContextResolver } from './infrastructure/resolvers/portal-context-resolver'
 import { createPublicPortalLookup } from './infrastructure/resolvers/public-portal-lookup'
 import { recordScan } from './application/use-cases/record-scan'
@@ -21,7 +22,6 @@ import { randomUUID } from 'crypto'
 type GuestContextDeps = Readonly<{
   db: Database
   events: EventBus
-  outboxRepo?: import('#/shared/outbox').OutboxRepository
   clock: () => Date
   portalApi: PortalPublicApi
   logger: LoggerPort
@@ -37,6 +37,7 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     deps.db,
     deps.events,
   )
+  const guestObservationStore = createAtomicGuestObservationStore(deps.db, deps.events)
   const sessionSecret =
     deps.sessionSecret ??
     (process.env.NODE_ENV === 'production' ? null : 'dev-test-guest-session-secret')
@@ -60,26 +61,22 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
 
   const useCases = {
     recordScan: recordScan({
-      guestRepo,
-      events: deps.events,
+      observationStore: guestObservationStore,
       idGen: () => scanEventId(randomUUID()),
       clock: deps.clock,
       logger: deps.logger,
-      outboxRepo: deps.outboxRepo,
     }),
     trackReviewLinkClick: trackReviewLinkClick({
-      events: deps.events,
+      observationStore: guestObservationStore,
       clock: deps.clock,
       logger: deps.logger,
-      outboxRepo: deps.outboxRepo,
     }),
     resolveLinkAndTrack: resolveLinkAndTrack({
       publicPortalLookup,
       trackClick: trackReviewLinkClick({
-        events: deps.events,
+        observationStore: guestObservationStore,
         clock: deps.clock,
         logger: deps.logger,
-        outboxRepo: deps.outboxRepo,
       }),
     }),
     resolvePortalContext: resolvePortalContext({
@@ -100,6 +97,7 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
         guestRepo,
         guestResponseRepo,
         guestResponseCommandStore,
+        guestObservationStore,
         portalContextResolver,
       },
       useCases,
