@@ -35,17 +35,19 @@
 //
 // Usage:
 //   pnpm release:beta --manifest <manifest.json> --signature-bundle <bundle.json>
-//     --manifest-sha256 <digest> --cell <us|europe|global>
+//     --manifest-sha256 <digest> --people-cutover-evidence <evidence.json>
+//     --cell <us|europe|global>
 //   add --apply --operator <id> --reason "<text>" to execute
 //   add --verify-only to prove an already-promoted cell
 //   flags: --app-url <url> --deploy-timeout <seconds>
 //
 // Verification, always run after a settled --apply and by --verify-only:
-//   1. RELEASE_SHA + RELEASE_MANIFEST_SHA256 from every service (blocking),
-//   2. active Railway image digest from every service (blocking),
-//   3. GET /api/health with every readiness boolean true (blocking when a URL
+//   1. current people-authority parity matches audited cutover evidence,
+//   2. RELEASE_SHA + RELEASE_MANIFEST_SHA256 from every service (blocking),
+//   3. active Railway image digest from every service (blocking),
+//   4. GET /api/health with every readiness boolean true (blocking when a URL
 //      is known: --app-url or BETA_APP_URL),
-//   4. every ai_execution_control_heads row enabled/accepting (blocking when
+//   5. every ai_execution_control_heads row enabled/accepting (blocking when
 //      DATABASE_URL is set; skipped, printed, otherwise).
 
 import { spawnSync } from 'node:child_process'
@@ -66,6 +68,12 @@ import {
   type PromotionManifest,
   type RailwayApplicationService,
 } from '../../src/shared/release/promotion-manifest'
+import {
+  parsePeopleCutoverEvidence,
+  type PeopleCutoverEvidence,
+} from '../../src/shared/release/people-cutover-evidence'
+import { getDb } from '../../src/shared/db'
+import { verifyPeopleCutoverPromotionReadiness } from '../../src/contexts/team/infrastructure/repositories/reconcile-people-team.repository'
 
 const COMMAND_NAME = 'release:beta'
 const ALL_SERVICES = Object.freeze(
@@ -88,6 +96,7 @@ const OWN_VALUE_FLAGS = [
   '--manifest',
   '--signature-bundle',
   '--manifest-sha256',
+  '--people-cutover-evidence',
   '--cell',
 ] as const
 const OWN_BOOLEAN_FLAGS = ['--verify-only'] as const
@@ -115,6 +124,7 @@ type Options = {
   readonly manifestPath: string
   readonly signatureBundlePath: string
   readonly manifestSha256: string
+  readonly peopleCutoverEvidencePath: string
   readonly cell: DataCellId
   readonly environment: `cell-${DataCellId}`
 }
@@ -156,9 +166,16 @@ function parseOptions(args: readonly string[]): Options | string {
   const manifestPath = flagValue(args, '--manifest')
   const signatureBundlePath = flagValue(args, '--signature-bundle')
   const manifestSha256 = flagValue(args, '--manifest-sha256')
+  const peopleCutoverEvidencePath = flagValue(args, '--people-cutover-evidence')
   const cell = flagValue(args, '--cell')
-  if (!manifestPath || !signatureBundlePath || !manifestSha256 || !cell) {
-    return '--manifest, --signature-bundle, --manifest-sha256, and --cell are required'
+  if (
+    !manifestPath ||
+    !signatureBundlePath ||
+    !manifestSha256 ||
+    !peopleCutoverEvidencePath ||
+    !cell
+  ) {
+    return '--manifest, --signature-bundle, --manifest-sha256, --people-cutover-evidence, and --cell are required'
   }
   if (!/^[0-9a-f]{64}$/u.test(manifestSha256)) {
     return '--manifest-sha256 must be a lowercase sha256'
@@ -178,6 +195,7 @@ function parseOptions(args: readonly string[]): Options | string {
     manifestPath: resolve(manifestPath),
     signatureBundlePath: resolve(signatureBundlePath),
     manifestSha256,
+    peopleCutoverEvidencePath: resolve(peopleCutoverEvidencePath),
     cell: dataCell,
     environment: `cell-${dataCell}`,
   }
@@ -489,6 +507,29 @@ async function verifyAiHeads(databaseUrl: string): Promise<readonly string[]> {
   }
 }
 
+async function verifyPeopleCutover(
+  evidence: PeopleCutoverEvidence,
+): Promise<readonly string[]> {
+  try {
+    const readiness = await verifyPeopleCutoverPromotionReadiness(getDb(), evidence)
+    const counts = readiness.parity.counts
+    out(
+      `  participations ${String(counts.matchedParticipations)}/${String(counts.expectedParticipations)}; ` +
+        `memberships ${String(counts.matchedMemberships)}/${String(counts.expectedMemberships)}; ` +
+        `responsibilities ${String(counts.matchedResponsibilities)}/${String(counts.expectedResponsibilities)}; ` +
+        `portal groups ${String(counts.matchedGroupMemberships)}/${String(counts.expectedGroupMemberships)}`,
+    )
+    out(
+      `  anomalies=${String(counts.anomalies)} missingMappings=${String(counts.missingMappings)} fingerprint=${readiness.parity.fingerprintSha256}`,
+    )
+    return readiness.failures
+  } catch (error) {
+    return [
+      `people authority cutover check: ${error instanceof Error ? error.message : String(error)}`,
+    ]
+  }
+}
+
 function activeDeploymentRow(
   service: RailwayApplicationService,
   environment: string,
@@ -544,6 +585,7 @@ async function verify(
   manifest: PromotionManifest,
   manifestSha256: string,
   options: Options,
+  peopleCutoverEvidence: PeopleCutoverEvidence,
 ): Promise<readonly string[]> {
   const failures: string[] = []
   const plan = deployPlan(manifest, manifestSha256)
@@ -569,9 +611,14 @@ async function verify(
   out('')
   const databaseUrl = process.env.DATABASE_URL
   if (databaseUrl) {
+    out('people authority cutover:')
+    failures.push(...(await verifyPeopleCutover(peopleCutoverEvidence)))
+    out('')
     out('ai_execution_control_heads:')
     failures.push(...(await verifyAiHeads(databaseUrl)))
   } else {
+    failures.push('people authority cutover check requires DATABASE_URL')
+    out('failed: people authority cutover check (DATABASE_URL unset)')
     out('skipped: ai head check (DATABASE_URL unset)')
   }
 
@@ -651,11 +698,20 @@ function verifyManifestSignature(options: Options): void {
 async function deployAndVerify(
   manifest: PromotionManifest,
   options: Options,
+  peopleCutoverEvidence: PeopleCutoverEvidence,
 ): Promise<number> {
   const plan = deployPlan(manifest, options.manifestSha256)
   out(
     `APPLY — environment ${options.environment}, revision ${manifest.releaseSha}, manifest ${options.manifestSha256}`,
   )
+
+  out('')
+  out('preflight: people authority cutover parity + audited evidence')
+  const peopleCutoverFailures = await verifyPeopleCutover(peopleCutoverEvidence)
+  if (peopleCutoverFailures.length > 0) {
+    return report(peopleCutoverFailures, false)
+  }
+  out('  clear — legacy people relationships match canonical readers')
 
   out('')
   out('preflight: legacy image-identity overrides')
@@ -718,7 +774,10 @@ async function deployAndVerify(
     if (settlement.length > 0) return report(settlement, false)
   }
 
-  return report(await verify(manifest, options.manifestSha256, options), true)
+  return report(
+    await verify(manifest, options.manifestSha256, options, peopleCutoverEvidence),
+    true,
+  )
 }
 
 function printPlan(manifest: PromotionManifest, options: Options): number {
@@ -728,6 +787,7 @@ function printPlan(manifest: PromotionManifest, options: Options): number {
   )
   out('Re-run with --apply --operator <id> --reason "<text>" to execute.')
   out('No Railway command has been invoked. Apply will verify the Sigstore bundle.')
+  out(`People cutover evidence: ${options.peopleCutoverEvidencePath}`)
   for (const [index, entry] of plan.entries()) {
     out('')
     out(`${String(index + 1)}. ${entry.service}`)
@@ -757,11 +817,32 @@ export async function runDeployBetaCli(args: readonly string[]): Promise<number>
     return 1
   }
   const manifest = loaded
+  let peopleCutoverContent: string
+  try {
+    peopleCutoverContent = readFileSync(options.peopleCutoverEvidencePath, 'utf8')
+  } catch (error) {
+    process.stderr.write(
+      `could not read people cutover evidence: ${error instanceof Error ? error.message : String(error)}\n`,
+    )
+    return 1
+  }
+  const parsedPeopleCutover = parsePeopleCutoverEvidence(peopleCutoverContent)
+  if (!parsedPeopleCutover.ok) {
+    process.stderr.write(
+      `invalid people cutover evidence:\n${parsedPeopleCutover.errors.join('\n')}\n`,
+    )
+    return 1
+  }
+  const peopleCutoverEvidence = parsedPeopleCutover.evidence
+  out(`people cutover evidence sha256=${parsedPeopleCutover.digest}`)
 
   if (options.verifyOnly) {
     verifyManifestSignature(options)
     out(`verify-only — environment ${options.environment}`)
-    return report(await verify(manifest, options.manifestSha256, options), false)
+    return report(
+      await verify(manifest, options.manifestSha256, options, peopleCutoverEvidence),
+      false,
+    )
   }
 
   if (!options.apply) return printPlan(manifest, options)
@@ -797,9 +878,9 @@ export async function runDeployBetaCli(args: readonly string[]): Promise<number>
       name: COMMAND_NAME,
       scope: 'global',
       mutation: true,
-      usage: `pnpm ${COMMAND_NAME} --manifest <manifest.json> --signature-bundle <bundle.json> --manifest-sha256 <digest> --cell <us|europe|global> --apply --operator <id> --reason "<text>" [--app-url <url>] [--deploy-timeout <seconds>]`,
+      usage: `pnpm ${COMMAND_NAME} --manifest <manifest.json> --signature-bundle <bundle.json> --manifest-sha256 <digest> --people-cutover-evidence <evidence.json> --cell <us|europe|global> --apply --operator <id> --reason "<text>" [--app-url <url>] [--deploy-timeout <seconds>]`,
     },
-    async () => deployAndVerify(manifest, options),
+    async () => deployAndVerify(manifest, options, peopleCutoverEvidence),
     harnessArgv(args),
   )
   return result.exitCode

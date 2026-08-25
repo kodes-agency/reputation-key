@@ -1401,7 +1401,6 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       notes: 'scoped via teamId',
     }),
     sf('listMyTeam', `${TEAM}/teams.ts`, 'team.read', 'team.use', 'property', {
-      canonicalOnly: true,
       notes:
         'hard-denied by team.use before scope discovery; per-scope authorization remains for any future deliberate reactivation',
     }),
@@ -3052,7 +3051,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'ops:reconcile-people-team — report/apply legacy assignment to participation/team reconciliation; ambiguous mappings remain findings',
+        'ops:reconcile-people-team — report/apply legacy assignment reconciliation; --apply verifies canonical participation/membership/responsibility parity and writes one immutable audited evidence artifact; anomalies remain blocking findings',
     },
   ),
   ops(
@@ -3785,7 +3784,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'release:beta — deploys one revision to every google-closed-beta service (release identity per service class, ADR 0051), waits for every deployment to settle, then verifies it; --apply runs through the operator harness (named operator + reason + audited decision)',
+        'release:beta — before any Railway mutation, recomputes global people-authority parity and matches it to audited cutover evidence; then deploys one signed revision to every service, waits for settlement, and verifies it; --apply runs through the operator harness',
     },
   ),
   // ── package.json-only commands (CLI tools, no repo script file) ───

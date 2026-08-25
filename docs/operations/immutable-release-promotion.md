@@ -86,6 +86,27 @@ MANIFEST_SHA256="$(cut -d' ' -f1 promotion-manifest.json.sha256)"
 Do not edit or reformat the manifest. Canonical encoding is part of its signed
 identity and the parser rejects an equivalent but differently encoded file.
 
+Before planning a cell promotion, connect `DATABASE_URL` to that cell and create
+its people-authority cutover artifact. Report first, resolve every anomaly, then
+apply. The apply command refuses to overwrite an existing path and emits no
+passing artifact unless every legacy relationship is visible through the
+canonical effective-dated model:
+
+```bash
+PEOPLE_EVIDENCE="docs/release-evidence/beta/<release-id>/raw/people-cutover-us.json"
+pnpm ops:reconcile-people-team --operator <registered-operator>
+pnpm ops:reconcile-people-team \
+  --operator <registered-operator> \
+  --reason "<change-record and reconciliation reason>" \
+  --apply \
+  --evidence "$PEOPLE_EVIDENCE"
+```
+
+Use a separate artifact and database connection for every cell. An
+organization-scoped artifact is useful for repair but cannot authorize a
+release. The artifact contains counts, a source fingerprint, and the named
+operator/correlation identifiers—no names, review content, or feedback.
+
 ## Dry-run and apply one Data Cell
 
 The same artifacts may be promoted to `us`, `europe`, and `global`; the cell is
@@ -97,6 +118,7 @@ pnpm release:beta \
   --manifest promotion-manifest.json \
   --signature-bundle promotion-manifest.sigstore.json \
   --manifest-sha256 "$MANIFEST_SHA256" \
+  --people-cutover-evidence "$PEOPLE_EVIDENCE" \
   --cell us
 ```
 
@@ -113,15 +135,18 @@ pnpm release:beta \
   --manifest promotion-manifest.json \
   --signature-bundle promotion-manifest.sigstore.json \
   --manifest-sha256 "$MANIFEST_SHA256" \
+  --people-cutover-evidence "$PEOPLE_EVIDENCE" \
   --cell us \
   --apply \
   --operator <registered-operator> \
   --reason "<change-record and reason>"
 ```
 
-Before its first mutation, apply verifies the canonical SHA and Sigstore
-identity and reads all seven service environments to reject legacy identity
-overrides. It writes only `RELEASE_SHA` and `RELEASE_MANIFEST_SHA256`, with
+Before its first mutation, apply recomputes global people-authority parity,
+requires an exact fingerprint/count match, verifies that the artifact's
+correlation belongs to an allowed named-operator decision in this database,
+verifies the canonical SHA and Sigstore identity, and reads all seven service
+environments to reject legacy identity overrides. It writes only `RELEASE_SHA` and `RELEASE_MANIFEST_SHA256`, with
 intermediate deploys disabled, then connects the exact image source.
 
 `web` deploys first and alone because its IaC-owned pre-deploy command is the
@@ -136,6 +161,7 @@ After settlement, the command requires:
 - no legacy source-revision override;
 - every active deployment at the manifest's exact digest and `SUCCESS`;
 - `/api/health` with database, Redis, migration, and policy readiness;
+- current global people-authority parity matching the audited artifact;
 - every AI execution-control head enabled and accepting when `DATABASE_URL` is
   available.
 
@@ -152,6 +178,7 @@ pnpm release:beta \
   --manifest promotion-manifest.json \
   --signature-bundle promotion-manifest.sigstore.json \
   --manifest-sha256 "$MANIFEST_SHA256" \
+  --people-cutover-evidence "$PEOPLE_EVIDENCE" \
   --cell us \
   --verify-only
 ```

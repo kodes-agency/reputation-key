@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { deployPlan } from '../../../scripts/release/deploy-beta'
+import { deployPlan, runDeployBetaCli } from '../../../scripts/release/deploy-beta'
 import {
   PROMOTED_IMAGE_ROLES,
   PROMOTION_MANIFEST_VERSION,
@@ -132,6 +132,40 @@ describe('promotion manifest', () => {
     )
     expect(source).not.toMatch(/railway(?:\(\[|\s+)['"]?up\b/u)
     expect(source).toContain("'source',\n    'connect'")
+  })
+
+  it('requires people cutover evidence as part of every promotion plan', async () => {
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    try {
+      const code = await runDeployBetaCli([
+        '--manifest',
+        '/tmp/manifest.json',
+        '--signature-bundle',
+        '/tmp/manifest.sigstore.json',
+        '--manifest-sha256',
+        digest('c'),
+        '--cell',
+        'us',
+      ])
+      expect(code).toBe(2)
+      expect(stderr.mock.calls.flat().join('')).toContain('--people-cutover-evidence')
+    } finally {
+      stderr.mockRestore()
+    }
+  })
+
+  it('checks live people parity before the first Railway mutation', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'scripts/release/deploy-beta.ts'),
+      'utf8',
+    )
+    const parityPreflight = source.indexOf(
+      "out('preflight: people authority cutover parity + audited evidence')",
+    )
+    const firstDeployment = source.indexOf('deployService(providerRedis')
+
+    expect(parityPreflight).toBeGreaterThan(0)
+    expect(firstDeployment).toBeGreaterThan(parityPreflight)
   })
 
   it('pins keyless verification to the producing workflow identity and issuer', () => {

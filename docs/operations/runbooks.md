@@ -36,6 +36,7 @@ The commands:
 - `ops:rebuild-projection --org <id> [--property <id>]` — repair the inbox projection (bounded, dry-run report first). §5
 - `ops:reconcile-publication <replyId> | --all-ambiguous` — reconcile ambiguous Google reply publication (provider re-read; never a send). §6
 - `ops:reconcile-regions [--org <id>]` / `ops:reconcile-grants [--org <id> ...]` — report-first reconciliations (conflicts/anomalies never auto-converted). §12
+- `ops:reconcile-people-team [--org <id>]` — reconcile retired Staff assignments into canonical participation, Team-quarantine, Portal responsibility, and Portal Group intervals. `--apply` requires `--evidence <new-json-path>`, verifies post-apply parity, and writes an artifact only when every mapping is exact. A release artifact must come from a global (no `--org`) run. §12
 - `ops:suspend-property` / `ops:restore-property --org <id> --property <id> --ticket <ref>` — suspend/restore property processing. §10
 - `ops:inspect region|policy ...` — read-only routing/policy decision explanation. §12
 - `ops:disconnect-connection <connectionId> --org <id>` — revoke Google connection credentials (destructive; reconnect completes rotation). §2/§10
@@ -55,7 +56,8 @@ The commands:
 the `ops:*` harness until `--apply`:
 
 - `pnpm release:beta --manifest <file> --signature-bundle <file>
---manifest-sha256 <sha256> --cell <us|europe|global>` — validate one
+--manifest-sha256 <sha256> --people-cutover-evidence <file>
+--cell <us|europe|global>` — validate one
   canonical CI promotion manifest and print the exact ordered Data Cell plan.
   Dry-run invokes no Railway command.
 - Add `--apply --operator <id> --reason "<text>"` for the audited
@@ -64,12 +66,14 @@ the `ops:*` harness until `--apply`:
   `policy_decision_audit`. There is no unaudited promotion bypass; emergency
   releases still require a named operator, reason, durable decision row, and
   signature verification.
-- Promotion never uploads or rebuilds a working tree. It verifies the Sigstore
-  bundle, rejects legacy revision-variable overrides, attaches each exact
+- Promotion never uploads or rebuilds a working tree. Before its first Railway
+  mutation, it recomputes global people-authority parity and requires the same
+  fingerprint/counts plus the named operator's matching decision audit in the
+  supplied artifact. It then verifies the Sigstore bundle, rejects legacy revision-variable overrides, attaches each exact
   `repo@sha256:...` image, and deploys `web` first so its IaC-owned migration
   command settles before the other five services.
-- Add `--verify-only` to read back the manifest digest, source revision, active
-  image digest, health, and AI heads without deploying. A mismatch on any
+- Add `--verify-only` to read back people parity, the manifest digest, source
+  revision, active image digest, health, and AI heads without deploying. A mismatch on any
   service is blocking.
 
 The authoritative procedure, prerequisites, rollback boundary, and evidence

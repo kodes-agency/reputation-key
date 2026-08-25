@@ -41,20 +41,20 @@ pnpm dev
 
 ## Scripts
 
-| Command             | Description                                                                     |
-| ------------------- | ------------------------------------------------------------------------------- |
-| `pnpm dev`          | Start dev server on :3000                                                       |
-| `pnpm build`        | Build web app                                                                   |
-| `pnpm build:worker` | Build worker                                                                    |
-| `pnpm start`        | Run built web server                                                            |
-| `pnpm start:worker` | Run built worker                                                                |
-| `pnpm test`         | Run unit tests                                                                  |
-| `pnpm test:e2e`     | Run Playwright E2E tests                                                        |
-| `pnpm typecheck`    | TypeScript check (src/services/e2e + the release scripts project)               |
-| `pnpm lint`         | ESLint + filename/component-boundary checks                                     |
-| `pnpm lint:ci`      | `lint` + test-quality + Google/AI artifact gates                                |
-| `pnpm format`       | Prettier format                                                                 |
-| `pnpm release:beta` | Deploy + verify the closed beta (dry run; `--apply` needs an operator + reason) |
+| Command             | Description                                                                                                           |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`          | Start dev server on :3000                                                                                             |
+| `pnpm build`        | Build web app                                                                                                         |
+| `pnpm build:worker` | Build worker                                                                                                          |
+| `pnpm start`        | Run built web server                                                                                                  |
+| `pnpm start:worker` | Run built worker                                                                                                      |
+| `pnpm test`         | Run unit tests                                                                                                        |
+| `pnpm test:e2e`     | Run Playwright E2E tests                                                                                              |
+| `pnpm typecheck`    | TypeScript check (src/services/e2e + the release scripts project)                                                     |
+| `pnpm lint`         | ESLint + filename/component-boundary checks                                                                           |
+| `pnpm lint:ci`      | `lint` + test-quality + Google/AI artifact gates                                                                      |
+| `pnpm format`       | Prettier format                                                                                                       |
+| `pnpm release:beta` | Deploy + verify the closed beta (requires audited people-cutover evidence; `--apply` also needs an operator + reason) |
 
 ### Git hooks
 

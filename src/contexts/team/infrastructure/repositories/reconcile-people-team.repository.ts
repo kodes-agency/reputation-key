@@ -1,5 +1,11 @@
+import { createHash } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type {
+  PeopleCutoverCounts,
+  PeopleCutoverEvidence,
+  PeopleCutoverScope,
+} from '#/shared/release/people-cutover-evidence'
 
 export type PeopleReconcileScope = Readonly<{ organizationIds?: readonly string[] }>
 
@@ -47,6 +53,37 @@ export type PeopleReconcileApplyResult = Readonly<{
   leadsPromoted: number
   responsibilitiesCreated: number
   groupMembershipsCreated: number
+}>
+
+export type PeopleReconcileParityIssueKind =
+  | PeopleReconcileAnomalyKind
+  | 'missing_participation'
+  | 'missing_team_membership'
+  | 'missing_portal_responsibility'
+  | 'missing_portal_group_membership'
+
+export type PeopleReconcileParityIssue = Readonly<{
+  kind: PeopleReconcileParityIssueKind
+  organizationId: string
+  propertyId: string
+  userId: string | null
+  sourceId: string
+  detail: string
+}>
+
+export type PeopleReconcileParity = Readonly<{
+  checkedAt: Date
+  scope: PeopleCutoverScope
+  exact: boolean
+  fingerprintSha256: string
+  counts: PeopleCutoverCounts
+  issueRows: readonly PeopleReconcileParityIssue[]
+}>
+
+export type PeopleCutoverPromotionReadiness = Readonly<{
+  ready: boolean
+  parity: PeopleReconcileParity
+  failures: readonly string[]
 }>
 
 type LegacyAssignment = Readonly<{
@@ -119,6 +156,35 @@ type GroupMembershipPlan = Readonly<{
   portalId: string
   portalGroupId: string
   effectiveFrom: Date
+}>
+
+type CurrentParticipation = Readonly<{
+  organization_id: string
+  property_id: string
+  user_id: string
+}>
+
+type CurrentMembership = Readonly<{
+  organization_id: string
+  property_id: string
+  user_id: string
+  team_id: string
+  role: 'member' | 'lead'
+}>
+
+type CurrentResponsibility = Readonly<{
+  organization_id: string
+  property_id: string
+  user_id: string
+  portal_id: string
+  kind: 'primary' | 'supporting'
+}>
+
+type CurrentGroupMembership = Readonly<{
+  organization_id: string
+  property_id: string
+  portal_id: string
+  portal_group_id: string
 }>
 
 type Analysis = Readonly<{
@@ -207,6 +273,29 @@ async function loadGroupMemberships(
 
 const personKey = (organizationId: string, propertyId: string, userId: string) =>
   `${organizationId}\u0000${propertyId}\u0000${userId}`
+
+const membershipKey = (
+  organizationId: string,
+  propertyId: string,
+  userId: string,
+  teamId: string,
+  role: string,
+) => `${personKey(organizationId, propertyId, userId)}\u0000${teamId}\u0000${role}`
+
+const responsibilityKey = (
+  organizationId: string,
+  propertyId: string,
+  userId: string,
+  portalId: string,
+  kind: string,
+) => `${personKey(organizationId, propertyId, userId)}\u0000${portalId}\u0000${kind}`
+
+const groupMembershipKey = (
+  organizationId: string,
+  propertyId: string,
+  portalId: string,
+  portalGroupId: string,
+) => `${organizationId}\u0000${propertyId}\u0000${portalId}\u0000${portalGroupId}`
 
 async function analyze(db: Database, scope?: PeopleReconcileScope): Promise<Analysis> {
   const [assignments, leads, legacyGroups] = await Promise.all([
@@ -498,6 +587,351 @@ export async function buildPeopleReconcileReport(
     }))
     .sort((a, b) => a.organizationId.localeCompare(b.organizationId))
   return { generatedAt: new Date(), organizations, anomalyRows: analysis.anomalies }
+}
+
+function normalizedScope(scope?: PeopleReconcileScope): PeopleCutoverScope {
+  const organizationIds = [...new Set(scope?.organizationIds ?? [])].sort()
+  return organizationIds.length === 0
+    ? { kind: 'global', organizationIds: [] }
+    : { kind: 'organizations', organizationIds }
+}
+
+async function loadCurrentPeopleMappings(
+  db: Database,
+  scope?: PeopleReconcileScope,
+): Promise<
+  Readonly<{
+    participations: readonly CurrentParticipation[]
+    memberships: readonly CurrentMembership[]
+    responsibilities: readonly CurrentResponsibility[]
+    groupMemberships: readonly CurrentGroupMembership[]
+  }>
+> {
+  const [participations, memberships, responsibilities, groupMemberships] =
+    await Promise.all([
+      db.execute(sql`
+        SELECT sp.organization_id, sp.property_id, sp.user_id
+        FROM staff_participations sp
+        WHERE sp.status = 'active'
+        ${scopeFilter(scope, 'sp')}
+      `),
+      db.execute(sql`
+        SELECT tm.organization_id, tm.property_id, sp.user_id, tm.team_id, tm.role
+        FROM team_memberships tm
+        JOIN staff_participations sp
+          ON sp.organization_id = tm.organization_id
+         AND sp.property_id = tm.property_id
+         AND sp.id = tm.staff_participation_id
+        WHERE tm.effective_to IS NULL AND sp.status = 'active'
+        ${scopeFilter(scope, 'tm')}
+      `),
+      db.execute(sql`
+        SELECT pr.organization_id, pr.property_id, sp.user_id, pr.portal_id, pr.kind
+        FROM portal_responsibilities pr
+        JOIN staff_participations sp
+          ON sp.organization_id = pr.organization_id
+         AND sp.property_id = pr.property_id
+         AND sp.id = pr.staff_participation_id
+        WHERE pr.effective_to IS NULL AND sp.status = 'active'
+        ${scopeFilter(scope, 'pr')}
+      `),
+      db.execute(sql`
+        SELECT pgm.organization_id, pgm.property_id, pgm.portal_id,
+               pgm.portal_group_id
+        FROM portal_group_memberships pgm
+        WHERE pgm.effective_to IS NULL
+        ${scopeFilter(scope, 'pgm')}
+      `),
+    ])
+
+  return {
+    participations: participations.rows as unknown as readonly CurrentParticipation[],
+    memberships: memberships.rows as unknown as readonly CurrentMembership[],
+    responsibilities:
+      responsibilities.rows as unknown as readonly CurrentResponsibility[],
+    groupMemberships:
+      groupMemberships.rows as unknown as readonly CurrentGroupMembership[],
+  }
+}
+
+function parityFingerprint(analysis: Analysis, scope: PeopleCutoverScope): string {
+  const compareJson = (left: unknown, right: unknown): number => {
+    const leftJson = JSON.stringify(left)
+    const rightJson = JSON.stringify(right)
+    return leftJson < rightJson ? -1 : leftJson > rightJson ? 1 : 0
+  }
+  const stable = {
+    version: 'repkey-people-parity-1',
+    scope,
+    legacyAssignments: analysis.assignments
+      .map((row) => [
+        row.id,
+        row.organization_id,
+        row.property_id,
+        row.user_id,
+        row.team_id,
+        row.portal_id,
+      ])
+      .sort(compareJson),
+    participations: analysis.participations
+      .map((row) => personKey(row.organizationId, row.propertyId, row.userId))
+      .sort(),
+    memberships: analysis.memberships
+      .map((row) =>
+        membershipKey(
+          row.participation.organizationId,
+          row.participation.propertyId,
+          row.participation.userId,
+          row.teamId,
+          row.role,
+        ),
+      )
+      .sort(),
+    responsibilities: analysis.responsibilities
+      .map((row) =>
+        responsibilityKey(
+          row.participation.organizationId,
+          row.participation.propertyId,
+          row.participation.userId,
+          row.portalId,
+          'supporting',
+        ),
+      )
+      .sort(),
+    groupMemberships: analysis.groupMemberships
+      .map((row) =>
+        groupMembershipKey(
+          row.organizationId,
+          row.propertyId,
+          row.portalId,
+          row.portalGroupId,
+        ),
+      )
+      .sort(),
+    anomalies: analysis.anomalies
+      .map((row) => [row.kind, row.sourceId])
+      .sort(compareJson),
+  }
+  return createHash('sha256').update(JSON.stringify(stable), 'utf8').digest('hex')
+}
+
+/**
+ * Compare every clean legacy relationship with the canonical effective-dated
+ * model. Extra canonical rows are allowed: after cutover, the new model is the
+ * authority and can contain relationships that never existed in the retired
+ * table. Missing expected rows and every legacy anomaly fail the gate.
+ */
+export async function verifyPeopleReconciliationParity(
+  db: Database,
+  scope?: PeopleReconcileScope,
+): Promise<PeopleReconcileParity> {
+  const [analysis, current] = await Promise.all([
+    analyze(db, scope),
+    loadCurrentPeopleMappings(db, scope),
+  ])
+  const issueRows: PeopleReconcileParityIssue[] = [...analysis.anomalies]
+  const participationKeys = new Set(
+    current.participations.map((row) =>
+      personKey(row.organization_id, row.property_id, row.user_id),
+    ),
+  )
+  const membershipKeys = new Set(
+    current.memberships.map((row) =>
+      membershipKey(
+        row.organization_id,
+        row.property_id,
+        row.user_id,
+        row.team_id,
+        row.role,
+      ),
+    ),
+  )
+  const responsibilityKeys = new Set(
+    current.responsibilities.map((row) =>
+      responsibilityKey(
+        row.organization_id,
+        row.property_id,
+        row.user_id,
+        row.portal_id,
+        row.kind,
+      ),
+    ),
+  )
+  const groupMembershipKeys = new Set(
+    current.groupMemberships.map((row) =>
+      groupMembershipKey(
+        row.organization_id,
+        row.property_id,
+        row.portal_id,
+        row.portal_group_id,
+      ),
+    ),
+  )
+
+  let matchedParticipations = 0
+  for (const expected of analysis.participations) {
+    const key = personKey(expected.organizationId, expected.propertyId, expected.userId)
+    if (participationKeys.has(key)) {
+      matchedParticipations += 1
+      continue
+    }
+    issueRows.push({
+      kind: 'missing_participation',
+      organizationId: expected.organizationId,
+      propertyId: expected.propertyId,
+      userId: expected.userId,
+      sourceId: key,
+      detail: 'clean legacy person has no active Staff participation',
+    })
+  }
+
+  let matchedMemberships = 0
+  for (const expected of analysis.memberships) {
+    const key = membershipKey(
+      expected.participation.organizationId,
+      expected.participation.propertyId,
+      expected.participation.userId,
+      expected.teamId,
+      expected.role,
+    )
+    if (membershipKeys.has(key)) {
+      matchedMemberships += 1
+      continue
+    }
+    issueRows.push({
+      kind: 'missing_team_membership',
+      organizationId: expected.participation.organizationId,
+      propertyId: expected.participation.propertyId,
+      userId: expected.participation.userId,
+      sourceId: key,
+      detail: `clean legacy Team relationship has no active ${expected.role} membership`,
+    })
+  }
+
+  let matchedResponsibilities = 0
+  for (const expected of analysis.responsibilities) {
+    const key = responsibilityKey(
+      expected.participation.organizationId,
+      expected.participation.propertyId,
+      expected.participation.userId,
+      expected.portalId,
+      'supporting',
+    )
+    if (responsibilityKeys.has(key)) {
+      matchedResponsibilities += 1
+      continue
+    }
+    issueRows.push({
+      kind: 'missing_portal_responsibility',
+      organizationId: expected.participation.organizationId,
+      propertyId: expected.participation.propertyId,
+      userId: expected.participation.userId,
+      sourceId: key,
+      detail: 'clean legacy Portal assignment has no active supporting responsibility',
+    })
+  }
+
+  let matchedGroupMemberships = 0
+  for (const expected of analysis.groupMemberships) {
+    const key = groupMembershipKey(
+      expected.organizationId,
+      expected.propertyId,
+      expected.portalId,
+      expected.portalGroupId,
+    )
+    if (groupMembershipKeys.has(key)) {
+      matchedGroupMemberships += 1
+      continue
+    }
+    issueRows.push({
+      kind: 'missing_portal_group_membership',
+      organizationId: expected.organizationId,
+      propertyId: expected.propertyId,
+      userId: null,
+      sourceId: key,
+      detail: 'clean legacy Portal Group relationship has no active effective interval',
+    })
+  }
+
+  const missingMappings = issueRows.length - analysis.anomalies.length
+  const counts: PeopleCutoverCounts = {
+    legacyAssignments: analysis.assignments.length,
+    expectedParticipations: analysis.participations.length,
+    matchedParticipations,
+    expectedMemberships: analysis.memberships.length,
+    matchedMemberships,
+    expectedResponsibilities: analysis.responsibilities.length,
+    matchedResponsibilities,
+    expectedGroupMemberships: analysis.groupMemberships.length,
+    matchedGroupMemberships,
+    anomalies: analysis.anomalies.length,
+    missingMappings,
+  }
+  const parityScope = normalizedScope(scope)
+  return {
+    checkedAt: new Date(),
+    scope: parityScope,
+    exact: issueRows.length === 0,
+    fingerprintSha256: parityFingerprint(analysis, parityScope),
+    counts,
+    issueRows,
+  }
+}
+
+/**
+ * Promotion requires both current global parity and the exact artifact emitted
+ * by an allowed operator invocation. The live fingerprint makes stale files
+ * harmless; the policy audit makes an untraceable hand-authored file fail.
+ */
+export async function verifyPeopleCutoverPromotionReadiness(
+  db: Database,
+  evidence: PeopleCutoverEvidence,
+  scope?: PeopleReconcileScope,
+): Promise<PeopleCutoverPromotionReadiness> {
+  const parity = await verifyPeopleReconciliationParity(db, scope)
+  const failures: string[] = []
+  if (!parity.exact) {
+    failures.push(
+      ...parity.issueRows.map(
+        (row) =>
+          `${row.kind}: org=${row.organizationId} property=${row.propertyId} source=${row.sourceId}`,
+      ),
+    )
+  }
+  if (JSON.stringify(evidence.scope) !== JSON.stringify(parity.scope)) {
+    failures.push(
+      'people cutover evidence scope does not match the requested database scope',
+    )
+  }
+  if (evidence.fingerprintSha256 !== parity.fingerprintSha256) {
+    failures.push(
+      'people cutover evidence fingerprint does not match current database state',
+    )
+  }
+  const countFields = Object.keys(evidence.counts) as (keyof PeopleCutoverCounts)[]
+  if (countFields.some((field) => evidence.counts[field] !== parity.counts[field])) {
+    failures.push('people cutover evidence counts do not match current database parity')
+  }
+
+  const audit = await db.execute(sql`
+    SELECT occurred_at
+    FROM policy_decision_audit
+    WHERE correlation_id = ${evidence.operator.correlationId}
+      AND actor_type = 'operator'
+      AND actor_id = ${evidence.operator.id}
+      AND action = 'system:ops'
+      AND execution_kind = 'operator'
+      AND decision = 'allow'
+      AND reason NOT IN ('read', 'dry-run')
+      AND occurred_at >= ${new Date(new Date(evidence.checkedAt).getTime() - 15 * 60_000)}
+      AND occurred_at <= ${new Date(new Date(evidence.checkedAt).getTime() + 15 * 60_000)}
+    LIMIT 1
+  `)
+  if (audit.rows.length === 0) {
+    failures.push('people cutover evidence has no matching audited operator decision')
+  }
+
+  return { ready: failures.length === 0, parity, failures }
 }
 
 export async function applyPeopleReconciliation(
