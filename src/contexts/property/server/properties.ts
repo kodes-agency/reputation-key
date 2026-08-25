@@ -21,7 +21,7 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 // ── createProperty ─────────────────────────────────────────────────
 
 export const createProperty = createServerFn({ method: 'POST' })
-  .inputValidator(createPropertyInputSchema)
+  .validator(createPropertyInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -48,7 +48,7 @@ export const createProperty = createServerFn({ method: 'POST' })
 // ── updateProperty ─────────────────────────────────────────────────
 
 export const updateProperty = createServerFn({ method: 'POST' })
-  .inputValidator(updatePropertyInputSchema)
+  .validator(updatePropertyInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

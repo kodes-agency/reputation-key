@@ -22,7 +22,7 @@ import {
 import type { BadgeAwardWithTarget } from '../application/public-api'
 
 export const getStaffVisibleBadges = createServerFn({ method: 'GET' })
-  .inputValidator(getStaffVisibleBadgesSchema)
+  .validator(getStaffVisibleBadgesSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -50,7 +50,7 @@ export const getStaffVisibleBadges = createServerFn({ method: 'GET' })
   )
 
 export const getVisibleTargetBadges = createServerFn({ method: 'GET' })
-  .inputValidator(getVisibleTargetBadgesSchema)
+  .validator(getVisibleTargetBadgesSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -113,7 +113,7 @@ export const getVisibleTargetBadges = createServerFn({ method: 'GET' })
   )
 
 export const setOrganizationBadgeEnablement = createServerFn({ method: 'POST' })
-  .inputValidator(setOrganizationBadgeEnablementSchema)
+  .validator(setOrganizationBadgeEnablementSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

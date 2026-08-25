@@ -20,7 +20,7 @@ import {
 // Uses the use case through the composition root.
 
 export const inviteMember = createServerFn({ method: 'POST' })
-  .inputValidator(inviteMemberInputSchema)
+  .validator(inviteMemberInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -45,7 +45,7 @@ export const inviteMember = createServerFn({ method: 'POST' })
 // Uses the use case through the composition root.
 
 export const updateMemberRole = createServerFn({ method: 'POST' })
-  .inputValidator(updateMemberRoleInputSchema)
+  .validator(updateMemberRoleInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -73,7 +73,7 @@ export const updateMemberRole = createServerFn({ method: 'POST' })
 // Uses the use case through the composition root.
 
 export const removeMember = createServerFn({ method: 'POST' })
-  .inputValidator(removeMemberInputSchema)
+  .validator(removeMemberInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

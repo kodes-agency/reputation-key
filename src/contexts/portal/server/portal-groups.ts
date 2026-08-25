@@ -77,7 +77,7 @@ async function authorizePortalGroupMembership(
 // ── createPortalGroup ─────────────────────────────────────────────
 
 export const createPortalGroup = createServerFn({ method: 'POST' })
-  .inputValidator(createPortalGroupInputSchema)
+  .validator(createPortalGroupInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -108,7 +108,7 @@ export const createPortalGroup = createServerFn({ method: 'POST' })
 // ── updatePortalGroup ─────────────────────────────────────────────
 
 export const updatePortalGroup = createServerFn({ method: 'POST' })
-  .inputValidator(updatePortalGroupInputSchema)
+  .validator(updatePortalGroupInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -138,7 +138,7 @@ const listPortalGroupsSchema = z.object({
 })
 
 export const listPortalGroups = createServerFn({ method: 'GET' })
-  .inputValidator(listPortalGroupsSchema)
+  .validator(listPortalGroupsSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -173,7 +173,7 @@ const portalGroupIdSchema = z.object({
 })
 
 export const getPortalGroup = createServerFn({ method: 'GET' })
-  .inputValidator(portalGroupIdSchema)
+  .validator(portalGroupIdSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -199,7 +199,7 @@ export const getPortalGroup = createServerFn({ method: 'GET' })
 // ── softDeletePortalGroup ─────────────────────────────────────────
 
 export const softDeletePortalGroup = createServerFn({ method: 'POST' })
-  .inputValidator(portalGroupIdSchema)
+  .validator(portalGroupIdSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -230,7 +230,7 @@ const portalGroupMemberSchema = z.object({
 })
 
 export const addPortalToGroup = createServerFn({ method: 'POST' })
-  .inputValidator(portalGroupMemberSchema)
+  .validator(portalGroupMemberSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -256,7 +256,7 @@ export const addPortalToGroup = createServerFn({ method: 'POST' })
 // ── removePortalFromGroup ─────────────────────────────────────────
 
 export const removePortalFromGroup = createServerFn({ method: 'POST' })
-  .inputValidator(portalGroupMemberSchema)
+  .validator(portalGroupMemberSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

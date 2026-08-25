@@ -32,7 +32,7 @@ const createOrganizationSchema = z.object({
 })
 
 export const createOrganizationFn = createServerFn({ method: 'POST' })
-  .inputValidator(createOrganizationSchema)
+  .validator(createOrganizationSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

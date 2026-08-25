@@ -26,7 +26,7 @@ const getStaffDashboardDataDto = z.object({
 })
 
 export const getStaffDashboardDataFn = createServerFn({ method: 'GET' })
-  .inputValidator(getStaffDashboardDataDto)
+  .validator(getStaffDashboardDataDto)
   .handler(
     tracedHandler(
       async ({ data }) => {

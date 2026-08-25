@@ -14,7 +14,7 @@ import { handleAuthError } from './auth-settings.helpers'
 // ── Change password ────────────────────────────────────────────────
 
 export const changePasswordFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       currentPassword: z.string().min(1),
       newPassword: z.string().min(8),
@@ -63,7 +63,7 @@ const updateProfileSchema = z.object({
 })
 
 export const updateProfileFn = createServerFn({ method: 'POST' })
-  .inputValidator(updateProfileSchema)
+  .validator(updateProfileSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -98,7 +98,7 @@ const updateUserImageSchema = z.object({
 })
 
 export const updateUserImageFn = createServerFn({ method: 'POST' })
-  .inputValidator(updateUserImageSchema)
+  .validator(updateUserImageSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

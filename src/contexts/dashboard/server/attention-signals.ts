@@ -26,7 +26,7 @@ const getAttentionSignalsDto = z.object({
 })
 
 export const getAttentionSignalsFn = createServerFn({ method: 'GET' })
-  .inputValidator(getAttentionSignalsDto)
+  .validator(getAttentionSignalsDto)
   .handler(
     tracedHandler(
       async ({ data }) => {

@@ -52,7 +52,7 @@ export const getRegistrationGate = createServerFn({ method: 'GET' }).handler(
 // ── Register user only (no organization) ────────────────────────────
 // Used by invited members joining an existing org via /join.
 export const registerMember = createServerFn({ method: 'POST' })
-  .inputValidator(registerMemberInputSchema)
+  .validator(registerMemberInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -88,7 +88,7 @@ export const registerMember = createServerFn({ method: 'POST' })
 
 // ── Register user + create organization ────────────────────────────
 export const registerUserAndOrg = createServerFn({ method: 'POST' })
-  .inputValidator(registerUserInputSchema)
+  .validator(registerUserInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -123,7 +123,7 @@ export const registerUserAndOrg = createServerFn({ method: 'POST' })
 // Direct delegation: no use case because this is pure delegation to better-auth.
 
 export const signInUser = createServerFn({ method: 'POST' })
-  .inputValidator(signInInputSchema)
+  .validator(signInInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -200,7 +200,7 @@ export const signInUser = createServerFn({ method: 'POST' })
 // ── Set active organization ────────────────────────────────────────
 
 export const setActiveOrganization = createServerFn({ method: 'POST' })
-  .inputValidator(setActiveOrgInputSchema)
+  .validator(setActiveOrgInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

@@ -24,7 +24,7 @@ import { isPropertyError } from '../domain/errors'
 // ── requestRegionMove (BQC-4.5) ──────────────────────────────────────
 
 export const requestRegionMoveFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       propertyId: z.string().min(1),
       toRegion: z.string().min(1),

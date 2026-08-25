@@ -136,7 +136,7 @@ const completeContentReviewSchema = z.object({
 // ── createPortal ───────────────────────────────────────────────────
 
 export const createPortal = createServerFn({ method: 'POST' })
-  .inputValidator(createPortalInputSchema)
+  .validator(createPortalInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -167,7 +167,7 @@ export const createPortal = createServerFn({ method: 'POST' })
 // ── updatePortal ───────────────────────────────────────────────────
 
 export const updatePortal = createServerFn({ method: 'POST' })
-  .inputValidator(updatePortalInputSchema)
+  .validator(updatePortalInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -193,7 +193,7 @@ export const updatePortal = createServerFn({ method: 'POST' })
 // ── listPortals ────────────────────────────────────────────────────
 
 export const listPortals = createServerFn({ method: 'GET' })
-  .inputValidator(listPortalsSchema)
+  .validator(listPortalsSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -233,7 +233,7 @@ export const listPortals = createServerFn({ method: 'GET' })
 // ── getPortal ──────────────────────────────────────────────────────
 
 export const getPortal = createServerFn({ method: 'GET' })
-  .inputValidator(portalIdSchema)
+  .validator(portalIdSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -261,7 +261,7 @@ export const getPortal = createServerFn({ method: 'GET' })
 // ── deletePortal (soft-delete) ─────────────────────────────────────
 
 export const deletePortal = createServerFn({ method: 'POST' })
-  .inputValidator(portalIdSchema)
+  .validator(portalIdSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -300,7 +300,7 @@ const finalizeUploadSchema = z.object({
 // ── requestUploadUrl ───────────────────────────────────────────────
 
 export const requestUploadUrl = createServerFn({ method: 'POST' })
-  .inputValidator(requestUploadSchema)
+  .validator(requestUploadSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -340,7 +340,7 @@ export const requestUploadUrl = createServerFn({ method: 'POST' })
 // ── finalizeUpload ─────────────────────────────────────────────────
 
 export const finalizeUpload = createServerFn({ method: 'POST' })
-  .inputValidator(finalizeUploadSchema)
+  .validator(finalizeUploadSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -385,7 +385,7 @@ const revokePortalTokensSchema = z.object({
 })
 
 export const issuePortalToken = createServerFn({ method: 'POST' })
-  .inputValidator(issuePortalTokenSchema)
+  .validator(issuePortalTokenSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -407,7 +407,7 @@ export const issuePortalToken = createServerFn({ method: 'POST' })
   )
 
 export const rotatePortalToken = createServerFn({ method: 'POST' })
-  .inputValidator(portalIdSchema)
+  .validator(portalIdSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -429,7 +429,7 @@ export const rotatePortalToken = createServerFn({ method: 'POST' })
   )
 
 export const revokePortalTokens = createServerFn({ method: 'POST' })
-  .inputValidator(revokePortalTokensSchema)
+  .validator(revokePortalTokensSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -451,7 +451,7 @@ export const revokePortalTokens = createServerFn({ method: 'POST' })
   )
 
 export const completeContentReview = createServerFn({ method: 'POST' })
-  .inputValidator(completeContentReviewSchema)
+  .validator(completeContentReviewSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

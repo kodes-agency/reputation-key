@@ -18,7 +18,7 @@ import { assignInboxItemDto, addInboxNoteDto } from '../application/dto/inbox.dt
 // ── assignInboxItem ────────────────────────────────────────────────
 
 export const assignInboxItemFn = createServerFn({ method: 'POST' })
-  .inputValidator(assignInboxItemDto)
+  .validator(assignInboxItemDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -50,7 +50,7 @@ export const assignInboxItemFn = createServerFn({ method: 'POST' })
 // ── addInboxNote ───────────────────────────────────────────────────
 
 export const addInboxNoteFn = createServerFn({ method: 'POST' })
-  .inputValidator(addInboxNoteDto)
+  .validator(addInboxNoteDto)
   .handler(
     tracedHandler(
       async ({ data }) => {

@@ -22,7 +22,7 @@ import {
 // ── updateInboxStatus ──────────────────────────────────────────────
 
 export const updateInboxStatusFn = createServerFn({ method: 'POST' })
-  .inputValidator(updateStatusDto)
+  .validator(updateStatusDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -52,7 +52,7 @@ export const updateInboxStatusFn = createServerFn({ method: 'POST' })
 // ── bulkUpdateInboxStatus ──────────────────────────────────────────
 
 export const bulkUpdateInboxStatusFn = createServerFn({ method: 'POST' })
-  .inputValidator(bulkUpdateStatusDto)
+  .validator(bulkUpdateStatusDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -82,7 +82,7 @@ export const bulkUpdateInboxStatusFn = createServerFn({ method: 'POST' })
 // ── escalateInboxItem ──────────────────────────────────────────────
 
 export const escalateInboxItemFn = createServerFn({ method: 'POST' })
-  .inputValidator(escalateInboxItemDto)
+  .validator(escalateInboxItemDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -109,7 +109,7 @@ export const escalateInboxItemFn = createServerFn({ method: 'POST' })
 // ── resolveEscalation ──────────────────────────────────────────────
 
 export const resolveEscalationFn = createServerFn({ method: 'POST' })
-  .inputValidator(resolveEscalationDto)
+  .validator(resolveEscalationDto)
   .handler(
     tracedHandler(
       async ({ data }) => {

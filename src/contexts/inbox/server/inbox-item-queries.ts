@@ -17,7 +17,7 @@ import { getInboxItemDetailDto, getInboxNotesDto } from '../application/dto/inbo
 // ── getInboxItemDetail ─────────────────────────────────────────────
 
 export const getInboxItemDetailFn = createServerFn({ method: 'GET' })
-  .inputValidator(getInboxItemDetailDto)
+  .validator(getInboxItemDetailDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -46,7 +46,7 @@ export const getInboxItemDetailFn = createServerFn({ method: 'GET' })
 // ── getInboxNotes ──────────────────────────────────────────────────
 
 export const getInboxNotesFn = createServerFn({ method: 'GET' })
-  .inputValidator(getInboxNotesDto)
+  .validator(getInboxNotesDto)
   .handler(
     tracedHandler(
       async ({ data }) => {

@@ -24,7 +24,7 @@ import { acceptInvitationInputSchema } from '../application/dto/invitation.dto'
 // require authentication — not tenant context.
 
 export const acceptInvitation = createServerFn({ method: 'POST' })
-  .inputValidator(acceptInvitationInputSchema)
+  .validator(acceptInvitationInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -55,7 +55,7 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
 // Requires authenticated tenant context — only org members can cancel invitations.
 
 export const cancelInvitation = createServerFn({ method: 'POST' })
-  .inputValidator(acceptInvitationInputSchema)
+  .validator(acceptInvitationInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -82,7 +82,7 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
 // ── Resend invitation ──────────────────────────────────────────────
 
 export const resendInvitation = createServerFn({ method: 'POST' })
-  .inputValidator(acceptInvitationInputSchema)
+  .validator(acceptInvitationInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

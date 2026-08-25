@@ -53,7 +53,7 @@ const recordScanSchema = z.object({
 })
 
 export const recordScanFn = createServerFn({ method: 'POST' })
-  .inputValidator(recordScanSchema)
+  .validator(recordScanSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -146,7 +146,7 @@ const formAvailability = (decision: ExecutionDecision): GuestResponseFormAvailab
       : 'permission_denied'
 
 export const getPublicPortal = createServerFn({ method: 'GET' })
-  .inputValidator(publicPortalSchema)
+  .validator(publicPortalSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -226,7 +226,7 @@ const resolveLinkSchema = z.object({
 })
 
 export const resolvePublicPortalLink = createServerFn({ method: 'GET' })
-  .inputValidator(resolveLinkSchema)
+  .validator(resolveLinkSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

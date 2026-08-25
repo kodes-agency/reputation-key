@@ -48,7 +48,7 @@ async function authorizePortalCategoryScopes(
 // ── Category CRUD ──────────────────────────────────────────────────
 
 export const createLinkCategory = createServerFn({ method: 'POST' })
-  .inputValidator(createLinkCategoryInputSchema)
+  .validator(createLinkCategoryInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -76,7 +76,7 @@ export const createLinkCategory = createServerFn({ method: 'POST' })
   )
 
 export const updateLinkCategory = createServerFn({ method: 'POST' })
-  .inputValidator(updateLinkCategoryInputSchema)
+  .validator(updateLinkCategoryInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -104,7 +104,7 @@ export const updateLinkCategory = createServerFn({ method: 'POST' })
   )
 
 export const deleteLinkCategory = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ categoryId: z.string().min(1) }))
+  .validator(z.object({ categoryId: z.string().min(1) }))
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -132,7 +132,7 @@ export const deleteLinkCategory = createServerFn({ method: 'POST' })
   )
 
 export const reorderCategories = createServerFn({ method: 'POST' })
-  .inputValidator(reorderCategoriesInputSchema)
+  .validator(reorderCategoriesInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

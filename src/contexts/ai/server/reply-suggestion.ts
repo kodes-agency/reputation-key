@@ -28,7 +28,7 @@ const generateReplySuggestionDto = z
   .strict()
 
 export const generateReplySuggestionFn = createServerFn({ method: 'POST' })
-  .inputValidator(generateReplySuggestionDto)
+  .validator(generateReplySuggestionDto)
   .handler(
     tracedHandler(
       async ({ data }) => {

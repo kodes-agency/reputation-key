@@ -11,7 +11,7 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 const getPropertyAiTrendDto = z.object({ propertyId: z.uuid() })
 
 export const getPropertyAiTrendFn = createServerFn({ method: 'GET' })
-  .inputValidator(getPropertyAiTrendDto)
+  .validator(getPropertyAiTrendDto)
   .handler(
     tracedHandler(
       async ({ data }) => {

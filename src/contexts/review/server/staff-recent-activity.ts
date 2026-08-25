@@ -18,7 +18,7 @@ const staffRecentActivitySchema = z.object({
 })
 
 export const getStaffRecentActivity = createServerFn({ method: 'GET' })
-  .inputValidator(staffRecentActivitySchema)
+  .validator(staffRecentActivitySchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

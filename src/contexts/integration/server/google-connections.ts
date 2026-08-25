@@ -42,7 +42,7 @@ export const listGoogleConnections = createServerFn({ method: 'GET' }).handler(
 // ── disconnectGoogle ────────────────────────────────────────────────
 
 export const disconnectGoogle = createServerFn({ method: 'POST' })
-  .inputValidator(disconnectGoogleInputSchema)
+  .validator(disconnectGoogleInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -68,7 +68,7 @@ export const disconnectGoogle = createServerFn({ method: 'POST' })
 // ── updateConnectionVisibility ──────────────────────────────────────
 
 export const updateConnectionVisibility = createServerFn({ method: 'POST' })
-  .inputValidator(updateConnectionVisibilityInputSchema)
+  .validator(updateConnectionVisibilityInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

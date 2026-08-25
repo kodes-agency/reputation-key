@@ -15,7 +15,7 @@ type Props = Readonly<{
 }>
 
 /**
- * A server function whose `.inputValidator` schema rejects the payload throws a
+ * A server function whose `.validator` schema rejects the payload throws a
  * ZodError, and seroval hands the client an Error whose `.message` is the raw
  * `JSON.stringify(issues)` dump. Rendering that verbatim showed users
  * `[{"origin":"string","code":"too_small",...}]`. Parse it back into

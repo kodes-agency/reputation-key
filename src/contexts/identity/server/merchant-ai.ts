@@ -53,7 +53,7 @@ async function managementContext(propertyId: string) {
 }
 
 export const getMerchantAiAuthorizationFn = createServerFn({ method: 'GET' })
-  .inputValidator(propertyInputSchema)
+  .validator(propertyInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -77,7 +77,7 @@ export const getMerchantAiAuthorizationFn = createServerFn({ method: 'GET' })
   )
 
 export const enableMerchantAiFn = createServerFn({ method: 'POST' })
-  .inputValidator(commandSchema)
+  .validator(commandSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -103,7 +103,7 @@ export const enableMerchantAiFn = createServerFn({ method: 'POST' })
   )
 
 export const changeMerchantAiCapabilitiesFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     commandSchema.extend({
       capabilities: z.array(capabilitySchema).min(1).max(3),
     }),
@@ -134,7 +134,7 @@ export const changeMerchantAiCapabilitiesFn = createServerFn({ method: 'POST' })
   )
 
 export const revokeMerchantAiFn = createServerFn({ method: 'POST' })
-  .inputValidator(commandSchema)
+  .validator(commandSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

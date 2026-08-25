@@ -51,7 +51,7 @@ async function authorizePortalLinkScopes(
 // ── Link CRUD ──────────────────────────────────────────────────────
 
 export const createLink = createServerFn({ method: 'POST' })
-  .inputValidator(createLinkInputSchema)
+  .validator(createLinkInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -83,7 +83,7 @@ export const createLink = createServerFn({ method: 'POST' })
   )
 
 export const updateLink = createServerFn({ method: 'POST' })
-  .inputValidator(updateLinkInputSchema)
+  .validator(updateLinkInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -111,7 +111,7 @@ export const updateLink = createServerFn({ method: 'POST' })
   )
 
 export const deleteLink = createServerFn({ method: 'POST' })
-  .inputValidator(z.object({ linkId: z.string().min(1) }))
+  .validator(z.object({ linkId: z.string().min(1) }))
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -139,7 +139,7 @@ export const deleteLink = createServerFn({ method: 'POST' })
   )
 
 export const reorderLinks = createServerFn({ method: 'POST' })
-  .inputValidator(reorderLinksInputSchema)
+  .validator(reorderLinksInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -177,7 +177,7 @@ export const reorderLinks = createServerFn({ method: 'POST' })
 // ── List (read) ────────────────────────────────────────────────────
 
 export const listPortalLinks = createServerFn({ method: 'GET' })
-  .inputValidator(z.object({ portalId: z.string().min(1) }))
+  .validator(z.object({ portalId: z.string().min(1) }))
   .handler(
     tracedHandler(
       async ({ data }) => {

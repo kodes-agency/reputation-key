@@ -17,7 +17,7 @@ const listStaffPortalsSchema = z.object({
 })
 
 export const listStaffPortals = createServerFn({ method: 'GET' })
-  .inputValidator(listStaffPortalsSchema)
+  .validator(listStaffPortalsSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

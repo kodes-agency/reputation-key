@@ -23,7 +23,7 @@ export type ListStaffGoalsInput = z.infer<typeof listStaffGoalsSchema>
 // ── Server function ─────────────────────────────────────────────────
 
 export const listStaffGoals = createServerFn({ method: 'GET' })
-  .inputValidator(listStaffGoalsSchema)
+  .validator(listStaffGoalsSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

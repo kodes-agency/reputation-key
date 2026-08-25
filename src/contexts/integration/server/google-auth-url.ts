@@ -20,7 +20,7 @@ const getAuthUrlInputSchema = z.object({
 // ── getGoogleAuthUrl ────────────────────────────────────────────────
 
 export const getGoogleAuthUrl = createServerFn({ method: 'GET' })
-  .inputValidator(getAuthUrlInputSchema)
+  .validator(getAuthUrlInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

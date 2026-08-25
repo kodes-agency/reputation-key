@@ -182,7 +182,7 @@ async function withGoalProgramService<T>(
 }
 
 export const createGoalProgram = createServerFn({ method: 'POST' })
-  .inputValidator(createGoalProgramSchema)
+  .validator(createGoalProgramSchema)
   .handler(
     tracedHandler(
       async ({ data }) =>
@@ -193,7 +193,7 @@ export const createGoalProgram = createServerFn({ method: 'POST' })
   )
 
 export const reviseGoalProgram = createServerFn({ method: 'POST' })
-  .inputValidator(reviseGoalProgramSchema)
+  .validator(reviseGoalProgramSchema)
   .handler(
     tracedHandler(
       async ({ data }) =>
@@ -204,7 +204,7 @@ export const reviseGoalProgram = createServerFn({ method: 'POST' })
   )
 
 export const changeGoalProgramStatus = createServerFn({ method: 'POST' })
-  .inputValidator(changeGoalProgramStatusSchema)
+  .validator(changeGoalProgramStatusSchema)
   .handler(
     tracedHandler(
       async ({ data }) =>
@@ -215,7 +215,7 @@ export const changeGoalProgramStatus = createServerFn({ method: 'POST' })
   )
 
 export const getGoalProgram = createServerFn({ method: 'GET' })
-  .inputValidator(goalProgramIdentitySchema)
+  .validator(goalProgramIdentitySchema)
   .handler(
     tracedHandler(
       async ({ data }) =>
@@ -231,7 +231,7 @@ export const getGoalProgram = createServerFn({ method: 'GET' })
   )
 
 export const listGoalPrograms = createServerFn({ method: 'GET' })
-  .inputValidator(listGoalProgramsSchema)
+  .validator(listGoalProgramsSchema)
   .handler(
     tracedHandler(
       async ({ data }) =>

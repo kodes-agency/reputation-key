@@ -41,7 +41,7 @@ function rethrow(error: unknown): never {
 }
 
 export const createStaffParticipation = createServerFn({ method: 'POST' })
-  .inputValidator(createInput)
+  .validator(createInput)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -67,7 +67,7 @@ export const createStaffParticipation = createServerFn({ method: 'POST' })
   )
 
 export const listStaffParticipations = createServerFn({ method: 'GET' })
-  .inputValidator(listInput)
+  .validator(listInput)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -89,7 +89,7 @@ export const listStaffParticipations = createServerFn({ method: 'GET' })
   )
 
 export const archiveStaffParticipation = createServerFn({ method: 'POST' })
-  .inputValidator(archiveInput)
+  .validator(archiveInput)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -111,7 +111,7 @@ export const archiveStaffParticipation = createServerFn({ method: 'POST' })
   )
 
 export const updatePortalResponsibilities = createServerFn({ method: 'POST' })
-  .inputValidator(responsibilitiesInput)
+  .validator(responsibilitiesInput)
   .handler(
     tracedHandler(
       async ({ data }) => {

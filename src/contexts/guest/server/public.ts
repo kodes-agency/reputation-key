@@ -256,7 +256,7 @@ function decoyView(
 }
 
 export const submitGuestResponseFn = createServerFn({ method: 'POST' })
-  .inputValidator(ratingMutationSchema)
+  .validator(ratingMutationSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -316,7 +316,7 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
   )
 
 export const correctGuestResponseFn = createServerFn({ method: 'POST' })
-  .inputValidator(ratingMutationSchema)
+  .validator(ratingMutationSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -356,7 +356,7 @@ export const correctGuestResponseFn = createServerFn({ method: 'POST' })
  * nor correction, and its independent binding simply expires on schedule.
  */
 export const startNewGuestResponseFn = createServerFn({ method: 'POST' })
-  .inputValidator(baseMutationSchema)
+  .validator(baseMutationSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -396,7 +396,7 @@ export const startNewGuestResponseFn = createServerFn({ method: 'POST' })
   )
 
 export const submitPrivateFeedbackFn = createServerFn({ method: 'POST' })
-  .inputValidator(privateFeedbackMutationSchema)
+  .validator(privateFeedbackMutationSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -444,7 +444,7 @@ export const submitPrivateFeedbackFn = createServerFn({ method: 'POST' })
   )
 
 export const withdrawPrivateFeedbackFn = createServerFn({ method: 'POST' })
-  .inputValidator(baseMutationSchema)
+  .validator(baseMutationSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -486,7 +486,7 @@ export const withdrawPrivateFeedbackFn = createServerFn({ method: 'POST' })
  * session's durable private rating; observation failure never blocks navigation.
  */
 export const selectGoogleReviewFn = createServerFn({ method: 'POST' })
-  .inputValidator(baseMutationSchema)
+  .validator(baseMutationSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -543,7 +543,7 @@ export const selectGoogleReviewFn = createServerFn({ method: 'POST' })
  * fallback; only this origin/CSRF/session-bound mutation may create analytics.
  */
 export const selectSecondaryLinkFn = createServerFn({ method: 'POST' })
-  .inputValidator(secondaryLinkMutationSchema)
+  .validator(secondaryLinkMutationSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -598,7 +598,7 @@ export const selectSecondaryLinkFn = createServerFn({ method: 'POST' })
   )
 
 export const withdrawGuestResponseFn = createServerFn({ method: 'POST' })
-  .inputValidator(baseMutationSchema)
+  .validator(baseMutationSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -641,7 +641,7 @@ const moderationSchema = z.object({
 // collecting guest responses also lost the ability to moderate the ones it had
 // already collected. portal.guest_response stays on the public-facing paths.
 export const moderateGuestResponseFn = createServerFn({ method: 'POST' })
-  .inputValidator(moderationSchema)
+  .validator(moderationSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

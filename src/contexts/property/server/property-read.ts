@@ -45,7 +45,7 @@ export const listProperties = createServerFn({ method: 'GET' }).handler(
 // ── getProperty ────────────────────────────────────────────────────
 
 export const getProperty = createServerFn({ method: 'GET' })
-  .inputValidator(propertyIdSchema)
+  .validator(propertyIdSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -75,7 +75,7 @@ export const getProperty = createServerFn({ method: 'GET' })
 // ── deleteProperty ──────────────────────────────────────────────────
 
 export const deleteProperty = createServerFn({ method: 'POST' })
-  .inputValidator(propertyIdSchema)
+  .validator(propertyIdSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

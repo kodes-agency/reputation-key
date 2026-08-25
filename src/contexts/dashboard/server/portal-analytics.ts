@@ -19,7 +19,7 @@ import { assertDashboardPropertyAccessible } from './assert-property-access'
 import { resolvePropertyPeriod } from './resolve-property-period'
 
 export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
-  .inputValidator(getPortalAnalyticsDto)
+  .validator(getPortalAnalyticsDto)
   .handler(
     tracedHandler(
       async ({ data }) => {

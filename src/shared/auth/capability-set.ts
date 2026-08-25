@@ -49,7 +49,7 @@ export const EMPTY_CAPABILITY_SET: CapabilitySet = {
 
 /** Plain-data server boundary read by the `_authenticated` route context. */
 export const getCapabilitySet = createServerFn({ method: 'GET' })
-  .inputValidator((data: CapabilitySetInput) => data)
+  .validator((data: CapabilitySetInput) => data)
   .handler(async ({ data }): Promise<CapabilitySet> => {
     const headers = await headersFromContext()
     const ctx = await resolveTenantContext(headers)

@@ -41,7 +41,7 @@ import {
 // ── Create custom role ────────────────────────────────────────────
 
 export const createCustomRole = createServerFn({ method: 'POST' })
-  .inputValidator(createCustomRoleInputSchema)
+  .validator(createCustomRoleInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -64,7 +64,7 @@ export const createCustomRole = createServerFn({ method: 'POST' })
   )
 
 export const updateCustomRole = createServerFn({ method: 'POST' })
-  .inputValidator(updateCustomRoleInputSchema)
+  .validator(updateCustomRoleInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -85,7 +85,7 @@ export const updateCustomRole = createServerFn({ method: 'POST' })
   )
 
 export const deleteCustomRole = createServerFn({ method: 'POST' })
-  .inputValidator(deleteCustomRoleInputSchema)
+  .validator(deleteCustomRoleInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

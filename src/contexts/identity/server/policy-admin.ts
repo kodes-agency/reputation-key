@@ -68,7 +68,7 @@ export const getPolicyStateFn = createServerFn({ method: 'GET' }).handler(
 // ── setOrgCapability ─────────────────────────────────────────────────
 
 export const setOrgCapabilityFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       capability: z
         .string()
@@ -109,7 +109,7 @@ export const setOrgCapabilityFn = createServerFn({ method: 'POST' })
 // ── setPropertyCapability ────────────────────────────────────────────
 
 export const setPropertyCapabilityFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       propertyId: z.string().min(1),
       capability: z
@@ -155,7 +155,7 @@ export const setPropertyCapabilityFn = createServerFn({ method: 'POST' })
 // ── setOrgSuspension ─────────────────────────────────────────────────
 
 export const setOrgSuspensionFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({ suspend: z.boolean(), reason: reasonSchema, ticketRef: ticketSchema }),
   )
   .handler(
@@ -188,7 +188,7 @@ export const setOrgSuspensionFn = createServerFn({ method: 'POST' })
 // ── setPropertySuspension ────────────────────────────────────────────
 
 export const setPropertySuspensionFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       propertyId: z.string().min(1),
       suspend: z.boolean(),
@@ -230,7 +230,7 @@ export const setPropertySuspensionFn = createServerFn({ method: 'POST' })
 // ── grantPropertyAccess ──────────────────────────────────────────────
 
 export const grantPropertyAccessFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       userId: z.string().min(1),
       propertyId: z.string().min(1),
@@ -275,7 +275,7 @@ export const grantPropertyAccessFn = createServerFn({ method: 'POST' })
 // ── revokePropertyAccess ─────────────────────────────────────────────
 
 export const revokePropertyAccessFn = createServerFn({ method: 'POST' })
-  .inputValidator(
+  .validator(
     z.object({
       userId: z.string().min(1),
       propertyId: z.string().min(1),
@@ -316,7 +316,7 @@ export const revokePropertyAccessFn = createServerFn({ method: 'POST' })
 // ── explainPolicyDecision (read-only diagnostic) ─────────────────────
 
 export const explainPolicyDecisionFn = createServerFn({ method: 'GET' })
-  .inputValidator(
+  .validator(
     z.object({
       action: z.string(),
       propertyId: z.string().optional(),
@@ -360,7 +360,7 @@ export const explainPolicyDecisionFn = createServerFn({ method: 'GET' })
 // outcome (see policy-admin use case).
 
 export const getRegionDiagnosticFn = createServerFn({ method: 'GET' })
-  .inputValidator(
+  .validator(
     z.object({
       propertyId: z.string().min(1),
     }),

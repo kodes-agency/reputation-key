@@ -18,7 +18,7 @@ function disableProviderContentCaching(): void {
 }
 
 export const getPropertyGooglePerformance = createServerFn({ method: 'GET' })
-  .inputValidator(getPropertyGooglePerformanceInputSchema)
+  .validator(getPropertyGooglePerformanceInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -52,7 +52,7 @@ export const getPropertyGooglePerformance = createServerFn({ method: 'GET' })
 export const renewPropertyGooglePerformanceLease = createServerFn({
   method: 'POST',
 })
-  .inputValidator(renewPropertyGooglePerformanceLeaseInputSchema)
+  .validator(renewPropertyGooglePerformanceLeaseInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

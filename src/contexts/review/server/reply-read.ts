@@ -71,7 +71,7 @@ export const rejectReplyDto = z.object({
 // ── getReply ─────────────────────────────────────────────────────────
 
 export const getReplyFn = createServerFn({ method: 'GET' })
-  .inputValidator(reviewIdDto)
+  .validator(reviewIdDto)
   .handler(
     tracedHandler(
       async ({ data }) => {

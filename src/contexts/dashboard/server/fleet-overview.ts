@@ -28,7 +28,7 @@ const getFleetOverviewDto = z.object({
 })
 
 export const getFleetOverviewFn = createServerFn({ method: 'GET' })
-  .inputValidator(getFleetOverviewDto)
+  .validator(getFleetOverviewDto)
   .handler(
     tracedHandler(
       async ({ data }) => {

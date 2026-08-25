@@ -24,7 +24,7 @@ import { decodeInboxCursor } from '../application/inbox-cursor'
 // ── getInboxItems ──────────────────────────────────────────────────
 
 export const getInboxItemsFn = createServerFn({ method: 'GET' })
-  .inputValidator(getInboxItemsDto)
+  .validator(getInboxItemsDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -86,7 +86,7 @@ export const getInboxItemsFn = createServerFn({ method: 'GET' })
 // ── getLastVisitCount ──────────────────────────────────────────────
 
 export const getLastVisitCountFn = createServerFn({ method: 'GET' })
-  .inputValidator(getLastVisitCountDto)
+  .validator(getLastVisitCountDto)
   .handler(
     tracedHandler(
       async () => {
@@ -110,7 +110,7 @@ export const getLastVisitCountFn = createServerFn({ method: 'GET' })
 // ── stampLastInboxView ─────────────────────────────────────────────
 
 export const stampLastInboxViewFn = createServerFn({ method: 'POST' })
-  .inputValidator(stampLastInboxViewDto)
+  .validator(stampLastInboxViewDto)
   .handler(
     tracedHandler(
       async () => {
@@ -134,7 +134,7 @@ export const stampLastInboxViewFn = createServerFn({ method: 'POST' })
 // ── getInboxFolderCounts ──────────────────────────────────────────
 
 export const getInboxFolderCountsFn = createServerFn({ method: 'GET' })
-  .inputValidator(getInboxFolderCountsDto)
+  .validator(getInboxFolderCountsDto)
   .handler(
     tracedHandler(
       async ({ data }) => {

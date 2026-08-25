@@ -37,7 +37,7 @@ function hideReplyWorkflowForStaff(
 }
 
 export const getDashboardDataFn = createServerFn({ method: 'GET' })
-  .inputValidator(getDashboardDataDto)
+  .validator(getDashboardDataDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -94,7 +94,7 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
 
 /** Property page projection: Dashboard and attention share one KPI snapshot. */
 export const getPropertyOverviewFn = createServerFn({ method: 'GET' })
-  .inputValidator(getDashboardDataDto)
+  .validator(getDashboardDataDto)
   .handler(
     tracedHandler(
       async ({ data }) => {

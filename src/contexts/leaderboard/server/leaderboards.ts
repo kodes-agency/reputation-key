@@ -13,7 +13,7 @@ import {
 } from '../application/dto/leaderboard.dto'
 
 export const getRecognitionBoard = createServerFn({ method: 'GET' })
-  .inputValidator(getRecognitionBoardSchema)
+  .validator(getRecognitionBoardSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -42,7 +42,7 @@ export const getRecognitionBoard = createServerFn({ method: 'GET' })
   )
 
 export const getRecognitionSettings = createServerFn({ method: 'GET' })
-  .inputValidator(getRecognitionSettingsSchema)
+  .validator(getRecognitionSettingsSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -76,7 +76,7 @@ export const getRecognitionSettings = createServerFn({ method: 'GET' })
   )
 
 export const activateRecognition = createServerFn({ method: 'POST' })
-  .inputValidator(activateRecognitionSchema)
+  .validator(activateRecognitionSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -111,7 +111,7 @@ export const activateRecognition = createServerFn({ method: 'POST' })
   )
 
 export const deactivateRecognition = createServerFn({ method: 'POST' })
-  .inputValidator(deactivateRecognitionSchema)
+  .validator(deactivateRecognitionSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

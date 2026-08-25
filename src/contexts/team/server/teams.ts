@@ -139,7 +139,7 @@ async function resolveAuthorizedMyTeamScopes(
 // ── createTeam ──────────────────────────────────────────────────────
 
 export const createTeam = createServerFn({ method: 'POST' })
-  .inputValidator(createTeamInputSchema)
+  .validator(createTeamInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -168,7 +168,7 @@ export const createTeam = createServerFn({ method: 'POST' })
 // ── updateTeam ──────────────────────────────────────────────────────
 
 export const updateTeam = createServerFn({ method: 'POST' })
-  .inputValidator(updateTeamInputSchema)
+  .validator(updateTeamInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -193,7 +193,7 @@ export const updateTeam = createServerFn({ method: 'POST' })
 // ── listTeams ───────────────────────────────────────────────────────
 
 export const listTeams = createServerFn({ method: 'GET' })
-  .inputValidator(propertyIdSchema)
+  .validator(propertyIdSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -225,7 +225,7 @@ export const listTeams = createServerFn({ method: 'GET' })
 // ── deleteTeam (soft-delete) ────────────────────────────────────────
 
 export const deleteTeam = createServerFn({ method: 'POST' })
-  .inputValidator(teamIdSchema)
+  .validator(teamIdSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -248,7 +248,7 @@ export const deleteTeam = createServerFn({ method: 'POST' })
   )
 
 export const listTeamMemberships = createServerFn({ method: 'GET' })
-  .inputValidator(teamIdSchema)
+  .validator(teamIdSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -268,7 +268,7 @@ export const listTeamMemberships = createServerFn({ method: 'GET' })
   )
 
 export const addTeamMember = createServerFn({ method: 'POST' })
-  .inputValidator(membershipInputSchema)
+  .validator(membershipInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -289,7 +289,7 @@ export const addTeamMember = createServerFn({ method: 'POST' })
   )
 
 export const removeTeamMember = createServerFn({ method: 'POST' })
-  .inputValidator(removeMembershipInputSchema)
+  .validator(removeMembershipInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -310,7 +310,7 @@ export const removeTeamMember = createServerFn({ method: 'POST' })
   )
 
 export const setTeamLead = createServerFn({ method: 'POST' })
-  .inputValidator(membershipInputSchema)
+  .validator(membershipInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -331,7 +331,7 @@ export const setTeamLead = createServerFn({ method: 'POST' })
   )
 
 export const clearTeamLead = createServerFn({ method: 'POST' })
-  .inputValidator(clearLeadInputSchema)
+  .validator(clearLeadInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -352,7 +352,7 @@ export const clearTeamLead = createServerFn({ method: 'POST' })
   )
 
 export const listMyTeam = createServerFn({ method: 'GET' })
-  .inputValidator(emptyInputSchema)
+  .validator(emptyInputSchema)
   .handler(
     tracedHandler(
       async () => {

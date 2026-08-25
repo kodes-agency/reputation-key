@@ -34,7 +34,7 @@ export const updateOrganizationInputSchema = z
   .strict()
 
 export const updateOrganization = createServerFn({ method: 'POST' })
-  .inputValidator(updateOrganizationInputSchema)
+  .validator(updateOrganizationInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

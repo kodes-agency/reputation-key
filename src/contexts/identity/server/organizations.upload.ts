@@ -26,7 +26,7 @@ const requestOrgLogoUploadSchema = z.object({
 })
 
 export const requestOrgLogoUpload = createServerFn({ method: 'POST' })
-  .inputValidator(requestOrgLogoUploadSchema)
+  .validator(requestOrgLogoUploadSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -55,7 +55,7 @@ const finalizeOrgLogoUploadSchema = z.object({
 })
 
 export const finalizeOrgLogoUpload = createServerFn({ method: 'POST' })
-  .inputValidator(finalizeOrgLogoUploadSchema)
+  .validator(finalizeOrgLogoUploadSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -94,7 +94,7 @@ const requestAvatarUploadSchema = z.object({
 })
 
 export const requestAvatarUpload = createServerFn({ method: 'POST' })
-  .inputValidator(requestAvatarUploadSchema)
+  .validator(requestAvatarUploadSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -123,7 +123,7 @@ const finalizeAvatarUploadSchema = z.object({
 })
 
 export const finalizeAvatarUpload = createServerFn({ method: 'POST' })
-  .inputValidator(finalizeAvatarUploadSchema)
+  .validator(finalizeAvatarUploadSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {

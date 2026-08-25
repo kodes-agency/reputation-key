@@ -59,14 +59,14 @@ vi.mock('@tanstack/react-start', () => ({
   createServerFn: (options?: { method?: string }) => {
     let validator: StandardValidator | null = null
     const builder = {
-      inputValidator(next: StandardValidator) {
+      validator(next: StandardValidator) {
         validator = next
         return builder
       },
       handler(fn: (ctx: { data: unknown }) => Promise<unknown>) {
         seam.method = options?.method ?? 'GET'
         return async (opts: { data: unknown }) => {
-          if (validator === null) throw new Error('server fn declared no inputValidator')
+          if (validator === null) throw new Error('server fn declared no validator')
           // Mirrors execValidator: validation precedes the handler, and a failure
           // surfaces as a plain Error the handler never sees.
           const parsed = await validator['~standard'].validate(opts.data)

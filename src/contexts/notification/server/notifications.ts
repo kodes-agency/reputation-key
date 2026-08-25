@@ -63,7 +63,7 @@ const getNotificationsDto = z.object({
 })
 
 export const getNotificationsFn = createServerFn({ method: 'GET' })
-  .inputValidator(getNotificationsDto)
+  .validator(getNotificationsDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -95,7 +95,7 @@ const markNotificationReadDto = z.object({
 })
 
 export const markNotificationReadFn = createServerFn({ method: 'POST' })
-  .inputValidator(markNotificationReadDto)
+  .validator(markNotificationReadDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -136,7 +136,7 @@ const markNotificationUnreadDto = z.object({
  * never surfaces a unique-violation as a 500.
  */
 export const markNotificationUnreadFn = createServerFn({ method: 'POST' })
-  .inputValidator(markNotificationUnreadDto)
+  .validator(markNotificationUnreadDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -209,7 +209,7 @@ const dismissNotificationDto = z.object({
 })
 
 export const dismissNotificationFn = createServerFn({ method: 'POST' })
-  .inputValidator(dismissNotificationDto)
+  .validator(dismissNotificationDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -282,7 +282,7 @@ const updateNotificationPreferenceDto = z.object({
 
 /** @public Consumed by the notification preferences settings route. */
 export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
-  .inputValidator(updateNotificationPreferenceDto)
+  .validator(updateNotificationPreferenceDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -325,7 +325,7 @@ const muteNotificationCategoryDto = z.object({
 
 /** @public Used by notification rows to disable only their in-app category. */
 export const muteNotificationCategoryFn = createServerFn({ method: 'POST' })
-  .inputValidator(muteNotificationCategoryDto)
+  .validator(muteNotificationCategoryDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -405,7 +405,7 @@ export const getNotificationUserSettingsFn = createServerFn({ method: 'GET' }).h
 )
 
 export const updateNotificationUserSettingsFn = createServerFn({ method: 'POST' })
-  .inputValidator(notificationUserSettingsDto)
+  .validator(notificationUserSettingsDto)
   .handler(
     tracedHandler(
       async ({ data }) => {

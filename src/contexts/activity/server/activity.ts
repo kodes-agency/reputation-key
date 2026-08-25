@@ -40,7 +40,7 @@ const getActivityTimelineDto = z.object({
 })
 
 export const getActivityTimelineFn = createServerFn({ method: 'GET' })
-  .inputValidator(getActivityTimelineDto)
+  .validator(getActivityTimelineDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -75,7 +75,7 @@ const getOrgActivityDto = z.object({
 })
 
 export const getOrgActivityFn = createServerFn({ method: 'GET' })
-  .inputValidator(getOrgActivityDto)
+  .validator(getOrgActivityDto)
   .handler(
     tracedHandler(
       async ({ data }) => {

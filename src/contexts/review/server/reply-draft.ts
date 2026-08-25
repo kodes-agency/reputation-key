@@ -15,7 +15,7 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 // ── draftReply ───────────────────────────────────────────────────────
 
 export const draftReplyFn = createServerFn({ method: 'POST' })
-  .inputValidator(draftReplyDto)
+  .validator(draftReplyDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -50,7 +50,7 @@ export const draftReplyFn = createServerFn({ method: 'POST' })
 // ── submitReply ──────────────────────────────────────────────────────
 
 export const submitReplyFn = createServerFn({ method: 'POST' })
-  .inputValidator(reviewIdDto)
+  .validator(reviewIdDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -74,7 +74,7 @@ export const submitReplyFn = createServerFn({ method: 'POST' })
 // ── approveReply ─────────────────────────────────────────────────────
 
 export const approveReplyFn = createServerFn({ method: 'POST' })
-  .inputValidator(reviewIdDto)
+  .validator(reviewIdDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -101,7 +101,7 @@ export const approveReplyFn = createServerFn({ method: 'POST' })
 // duplicate is possible). Mirrors approveReplyFn's permission and error shape.
 
 export const editPublishedReplyFn = createServerFn({ method: 'POST' })
-  .inputValidator(draftReplyDto)
+  .validator(draftReplyDto)
   .handler(
     tracedHandler(
       async ({ data }) => {

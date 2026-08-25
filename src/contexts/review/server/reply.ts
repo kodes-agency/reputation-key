@@ -15,7 +15,7 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 // ── rejectReply ──────────────────────────────────────────────────────
 
 export const rejectReplyFn = createServerFn({ method: 'POST' })
-  .inputValidator(rejectReplyDto)
+  .validator(rejectReplyDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -42,7 +42,7 @@ export const rejectReplyFn = createServerFn({ method: 'POST' })
 // ── deleteReply ──────────────────────────────────────────────────────
 
 export const deleteReplyFn = createServerFn({ method: 'POST' })
-  .inputValidator(reviewIdDto)
+  .validator(reviewIdDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -67,7 +67,7 @@ export const deleteReplyFn = createServerFn({ method: 'POST' })
 // ── retryPublish ─────────────────────────────────────────────────────
 
 export const retryPublishFn = createServerFn({ method: 'POST' })
-  .inputValidator(reviewIdDto)
+  .validator(reviewIdDto)
   .handler(
     tracedHandler(
       async ({ data }) => {
