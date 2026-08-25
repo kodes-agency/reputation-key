@@ -17,7 +17,7 @@ import type {
   PortalResponsibilitySelection,
   StaffParticipationView,
   UpdatePortalResponsibilitiesMutationInput,
-} from '#/components/features/team/shared/types'
+} from '#/components/features/staff/types'
 
 export const peopleSearchSchema = z.object({
   tab: z.enum(['staff', 'directory']).optional(),

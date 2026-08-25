@@ -5,9 +5,9 @@
 // ADR 0016), defaulting to the first property when none is selected, so nav is
 // usable even on first render.
 //
-// The Team nav entry is conditional on `hasTeam`; the org switcher renders only
-// when an activeOrganization is present; the property switcher renders only
-// when more than one property is available. Stories vary each axis.
+// The org switcher renders only when an activeOrganization is present; the
+// property switcher renders only when more than one property is available.
+// Stories vary each axis and assert that deferred Team navigation stays absent.
 //
 // setActiveOrganization is a prop (Phase-1 fn-as-prop channel) wrapped by
 // useAction inside the component; the story passes a plain matching callable.
@@ -51,46 +51,24 @@ const meta: Meta<typeof StaffSidebar> = {
 export default meta
 type Story = StoryObj<typeof StaffSidebar>
 
-// Staff role, two orgs + two properties, team membership → full nav including
-// Team, plus both switchers.
+// Staff role, two organizations and two properties: beta navigation plus both
+// switchers.
 export const AsStaff: Story = {
   args: {
     organizations,
     properties,
     activeOrganization: organizations[0],
     setActiveOrganization,
-    hasTeam: true,
   },
   decorators: [withRole('Staff')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // Org switcher shows the active organization.
     expect(await canvas.findByText(/acme group/i)).toBeInTheDocument()
-    // Core nav + conditional Team entry render.
+    // Beta Staff navigation renders without deferred product surfaces.
     expect(canvas.getByText(/^home$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^progress$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^leaderboard$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^team$/i)).toBeInTheDocument()
-  },
-}
-
-// No team membership → the Team nav entry is omitted; the rest of the nav and
-// both switchers still render.
-export const NoTeam: Story = {
-  args: {
-    organizations,
-    properties,
-    activeOrganization: organizations[0],
-    setActiveOrganization,
-    hasTeam: false,
-  },
-  decorators: [withRole('Staff')],
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(await canvas.findByText(/^home$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^progress$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^leaderboard$/i)).toBeInTheDocument()
-    // Team entry must NOT render without a team.
     expect(canvas.queryByText(/^team$/i)).toBeNull()
   },
 }
@@ -102,13 +80,12 @@ export const NoOrganization: Story = {
     properties,
     activeOrganization: null,
     setActiveOrganization,
-    hasTeam: true,
   },
   decorators: [withRole('Staff')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/^home$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^team$/i)).toBeInTheDocument()
+    expect(canvas.queryByText(/^team$/i)).toBeNull()
   },
 }
 
@@ -119,7 +96,6 @@ export const SingleProperty: Story = {
     properties: [properties[0]],
     activeOrganization: organizations[0],
     setActiveOrganization,
-    hasTeam: true,
   },
   decorators: [withRole('Staff')],
   play: async ({ canvasElement }) => {

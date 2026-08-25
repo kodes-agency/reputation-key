@@ -7,8 +7,6 @@ const server = vi.hoisted(() => ({
   })),
   listMembers: vi.fn(async () => ({ members: [] })),
   listPortals: vi.fn(async () => ({ portals: [] })),
-  listTeams: vi.fn(async () => ({ teams: [] })),
-  listTeamMemberships: vi.fn(async () => ({ memberships: [] })),
 }))
 
 vi.mock('#/contexts/staff/server/staff-participations', () => ({
@@ -16,12 +14,6 @@ vi.mock('#/contexts/staff/server/staff-participations', () => ({
   createStaffParticipation: vi.fn(),
   listStaffParticipations: server.listStaffParticipations,
   updatePortalResponsibilities: vi.fn(),
-}))
-vi.mock('#/contexts/team/server/teams', () => ({
-  createTeam: vi.fn(),
-  deleteTeam: vi.fn(),
-  listTeams: server.listTeams,
-  listTeamMemberships: server.listTeamMemberships,
 }))
 vi.mock('#/contexts/identity/server/organizations', () => ({
   listMembers: server.listMembers,
@@ -52,8 +44,6 @@ describe('People route beta contract', () => {
     expect(server.listStaffParticipations).toHaveBeenCalledOnce()
     expect(server.listMembers).toHaveBeenCalledOnce()
     expect(server.listPortals).toHaveBeenCalledOnce()
-    expect(server.listTeams).not.toHaveBeenCalled()
-    expect(server.listTeamMemberships).not.toHaveBeenCalled()
     expect(result).not.toHaveProperty('teams')
     expect(result).not.toHaveProperty('memberships')
   })

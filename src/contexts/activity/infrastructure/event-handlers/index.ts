@@ -19,9 +19,6 @@ import { onReplyUpdated } from './on-reply-updated'
 import { onReplySubmitted } from './on-reply-submitted'
 import { onReplyApproved } from './on-reply-approved'
 import { onReplyRejected } from './on-reply-rejected'
-import { onTeamCreated } from './on-team-created'
-import { onTeamUpdated } from './on-team-updated'
-import { onTeamDeleted } from './on-team-deleted'
 import { onStaffAssigned } from './on-staff-assigned'
 import { onStaffUnassigned } from './on-staff-unassigned'
 import { onMemberInvited } from './on-member-invited'
@@ -106,17 +103,6 @@ export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): vo
     consumer: 'activity.event-handlers',
   })
   deps.events.on('review.reply.rejected', onReplyRejected(deps), {
-    consumer: 'activity.event-handlers',
-  })
-
-  // ── Team events (user-management audit) ──
-  deps.events.on('team.created', onTeamCreated({ queue: deps.queue }), {
-    consumer: 'activity.event-handlers',
-  })
-  deps.events.on('team.updated', onTeamUpdated({ queue: deps.queue }), {
-    consumer: 'activity.event-handlers',
-  })
-  deps.events.on('team.deleted', onTeamDeleted({ queue: deps.queue }), {
     consumer: 'activity.event-handlers',
   })
 

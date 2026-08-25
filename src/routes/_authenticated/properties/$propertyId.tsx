@@ -32,8 +32,8 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
   },
   staleTime: 60_000,
   loader: async ({ context, params: { propertyId } }) => {
-    // Property detail is cached via Query (propertyQuery); staff/teams are
-    // fetched by their own child routes (people/teams) via useSuspenseQuery.
+    // Property detail is cached via Query (propertyQuery); Staff participation
+    // is fetched by the People child route via useSuspenseQuery.
     const result = await context.queryClient.ensureQueryData(propertyQuery(propertyId))
     return { property: result.property }
   },

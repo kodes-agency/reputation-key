@@ -208,7 +208,6 @@ function AuthenticatedLayout() {
           properties={properties}
           activeOrganization={ctx.activeOrganization}
           setActiveOrganization={setActiveOrganizationFn}
-          hasTeam={false}
         />
       )}
       {/*

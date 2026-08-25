@@ -25,7 +25,7 @@ import type {
   PortalResponsibilitySelection,
   StaffParticipationView,
   UpdatePortalResponsibilitiesMutationInput,
-} from '#/components/features/team/shared/types'
+} from '#/components/features/staff/types'
 
 interface StaffTabProps {
   propertyId: string

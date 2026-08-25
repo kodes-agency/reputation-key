@@ -7,7 +7,7 @@ import { StaffParticipationRow } from './staff-participation-row'
 import type {
   ArchiveStaffParticipationMutationInput,
   StaffParticipationView,
-} from '#/components/features/team/shared/types'
+} from '#/components/features/staff/types'
 
 type Props = Readonly<{
   participations: ReadonlyArray<StaffParticipationView>

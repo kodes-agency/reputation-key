@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
-import type { CreateStaffParticipationMutationInput } from '#/components/features/team/shared/types'
+import type { CreateStaffParticipationMutationInput } from '#/components/features/staff/types'
 import { StaffParticipationForm } from './staff-participation-form'
 
 const idle = { isPending: false, error: null, isSuccess: false, data: null }

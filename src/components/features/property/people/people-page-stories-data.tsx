@@ -4,7 +4,7 @@ import type {
   ArchiveStaffParticipationMutationInput,
   CreateStaffParticipationMutationInput,
   UpdatePortalResponsibilitiesMutationInput,
-} from '#/components/features/team/shared/types'
+} from '#/components/features/staff/types'
 import { PeoplePage } from './people-page'
 
 type Props = ComponentProps<typeof PeoplePage>

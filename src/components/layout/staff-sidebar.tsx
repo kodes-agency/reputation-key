@@ -27,7 +27,6 @@ type Props = Readonly<{
   properties: ReadonlyArray<{ id: string; name: string; slug: string }>
   activeOrganization: { id: string; name: string } | null
   setActiveOrganization: (input: { data: { organizationId: string } }) => Promise<void>
-  hasTeam: boolean
 }>
 
 function useActiveSection(): string {
@@ -37,7 +36,6 @@ function useActiveSection(): string {
       if (path === '/home' || path === '/') return 'home'
       if (path.startsWith('/progress')) return 'progress'
       if (path.startsWith('/leaderboard')) return 'leaderboard'
-      if (path.startsWith('/team')) return 'team'
       if (path.startsWith('/settings')) return 'settings'
       return 'home'
     },
@@ -49,7 +47,6 @@ export function StaffSidebar({
   properties,
   activeOrganization,
   setActiveOrganization,
-  hasTeam,
 }: Props) {
   const activeSection = useActiveSection()
   const navigate = useNavigate()
@@ -122,7 +119,7 @@ export function StaffSidebar({
         <SidebarContent>
           <SidebarGroup>
             <SidebarGroupContent>
-              <StaffNavItems activeSection={activeSection} hasTeam={hasTeam} />
+              <StaffNavItems activeSection={activeSection} />
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>

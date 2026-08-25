@@ -80,11 +80,6 @@ describe('owner role (AccountAdmin)', () => {
     'property.admin',
     'property.import_gbp_v2',
     'property.read_gbp_performance',
-    'team.create',
-    'team.update',
-    'team.delete',
-    'team.read',
-    'team.membership.manage',
     'staff.manage',
     'staff.read',
     'ac.create',
@@ -120,6 +115,18 @@ describe('owner role (AccountAdmin)', () => {
       expect(can('AccountAdmin', permission)).toBe(true)
     }
   })
+
+  it('does not grant quarantined Team permissions', () => {
+    for (const permission of [
+      'team.create',
+      'team.update',
+      'team.delete',
+      'team.read',
+      'team.membership.manage',
+    ] satisfies Permission[]) {
+      expect(can('AccountAdmin', permission)).toBe(false)
+    }
+  })
 })
 
 describe('admin role (PropertyManager)', () => {
@@ -136,10 +143,6 @@ describe('admin role (PropertyManager)', () => {
     'property.admin',
     'property.import_gbp_v2',
     'property.read_gbp_performance',
-    'team.create',
-    'team.update',
-    'team.read',
-    'team.membership.manage',
     'staff.manage',
     'staff.read',
     'portal.create',
@@ -171,7 +174,11 @@ describe('admin role (PropertyManager)', () => {
     'member.update',
     'member.delete',
     'property.delete',
+    'team.create',
+    'team.update',
     'team.delete',
+    'team.read',
+    'team.membership.manage',
     'ac.create',
     'ac.read',
     'ac.update',
@@ -230,14 +237,12 @@ describe('memberRole (Staff)', () => {
     expect(can('Staff', 'property.import_gbp_v2')).toBe(false)
   })
 
-  it('cannot manage teams', () => {
+  it('has no Team permissions', () => {
     expect(can('Staff', 'team.create')).toBe(false)
     expect(can('Staff', 'team.update')).toBe(false)
     expect(can('Staff', 'team.delete')).toBe(false)
-  })
-
-  it('can manage non-lead membership through the scoped command boundary', () => {
-    expect(can('Staff', 'team.membership.manage')).toBe(true)
+    expect(can('Staff', 'team.read')).toBe(false)
+    expect(can('Staff', 'team.membership.manage')).toBe(false)
   })
 
   it('cannot manage staff participation lifecycle', () => {

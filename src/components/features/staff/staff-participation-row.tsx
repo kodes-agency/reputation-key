@@ -17,7 +17,7 @@ import { TableCell, TableRow } from '#/components/ui/table'
 import type {
   ArchiveStaffParticipationMutationInput,
   StaffParticipationView,
-} from '#/components/features/team/shared/types'
+} from '#/components/features/staff/types'
 
 type Props = Readonly<{
   participation: StaffParticipationView

@@ -1,4 +1,4 @@
-import { Home, TrendingUp, Trophy, Users } from 'lucide-react'
+import { Home, TrendingUp, Trophy } from 'lucide-react'
 import { SidebarMenu } from '#/components/ui/sidebar'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import type { Capabilities } from '#/shared/hooks/useCapabilities'
@@ -7,7 +7,6 @@ import type { Capability } from '#/shared/auth/beta-capabilities'
 
 type Props = Readonly<{
   activeSection: string
-  hasTeam: boolean
 }>
 
 /**
@@ -42,14 +41,6 @@ const staffNavItems: ReadonlyArray<StaffNavItem> = [
   },
 ]
 
-// `/team` is only reachable for a staff member who belongs to one, so it trails
-// the always-present entries rather than living in the list above. Both arrays
-// are module constants — neither render path allocates.
-const staffNavItemsWithTeam: ReadonlyArray<StaffNavItem> = [
-  ...staffNavItems,
-  { key: 'team', label: 'Team', icon: Users, href: '/team', capability: 'team.use' },
-]
-
 function StaffNavRow({
   item,
   activeSection,
@@ -75,13 +66,12 @@ function StaffNavRow({
   )
 }
 
-export function StaffNavItems({ activeSection, hasTeam }: Props) {
+export function StaffNavItems({ activeSection }: Props) {
   const { has } = useCapabilities()
-  const items = hasTeam ? staffNavItemsWithTeam : staffNavItems
 
   return (
     <SidebarMenu>
-      {items.map((item) => (
+      {staffNavItems.map((item) => (
         <StaffNavRow key={item.key} item={item} activeSection={activeSection} has={has} />
       ))}
     </SidebarMenu>

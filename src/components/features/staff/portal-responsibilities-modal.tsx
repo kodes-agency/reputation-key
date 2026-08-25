@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '#/components/ui/select'
 import { PortalSelector, type PortalOption } from './portal-selector'
-import type { UpdatePortalResponsibilitiesMutationInput } from '#/components/features/team/shared/types'
+import type { UpdatePortalResponsibilitiesMutationInput } from '#/components/features/staff/types'
 
 type Props = Readonly<{
   staffParticipationId: string

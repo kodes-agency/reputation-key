@@ -23,7 +23,6 @@ import { Route as AuthenticatedLeaderboardRouteImport } from './routes/_authenti
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedProgressRouteImport } from './routes/_authenticated/progress'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
-import { Route as AuthenticatedTeamRouteImport } from './routes/_authenticated/team'
 import { Route as PTokenRouteImport } from './routes/p/$token'
 import { Route as AuthenticatedInboxIndexRouteImport } from './routes/_authenticated/inbox/index'
 import { Route as AuthenticatedPropertiesIndexRouteImport } from './routes/_authenticated/properties/index'
@@ -59,10 +58,6 @@ import { Route as AuthenticatedPropertiesPropertyIdGoalsNewRouteImport } from '.
 import { Route as AuthenticatedPropertiesPropertyIdPortalsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/portals/index'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteImport } from './routes/_authenticated/properties/$propertyId/portals/$portalId'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsNewRouteImport } from './routes/_authenticated/properties/$propertyId/portals/new'
-import { Route as AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/teams/index'
-import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId'
-import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId/index'
-import { Route as AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRouteImport } from './routes/_authenticated/properties/$propertyId/teams/$teamId/members'
 import { Route as ApiPublicPTokenClickLinkIdRouteImport } from './routes/api/public/p/$token/click/$linkId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -134,11 +129,6 @@ const AuthenticatedProgressRoute = AuthenticatedProgressRouteImport.update({
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedTeamRoute = AuthenticatedTeamRouteImport.update({
-  id: '/team',
-  path: '/team',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const PTokenRoute = PTokenRouteImport.update({
@@ -340,30 +330,6 @@ const AuthenticatedPropertiesPropertyIdPortalsNewRoute =
     path: '/portals/new',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
-const AuthenticatedPropertiesPropertyIdTeamsIndexRoute =
-  AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport.update({
-    id: '/teams/',
-    path: '/teams/',
-    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
-  } as any)
-const AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute =
-  AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteImport.update({
-    id: '/teams/$teamId',
-    path: '/teams/$teamId',
-    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
-  } as any)
-const AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute =
-  AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute,
-  } as any)
-const AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute =
-  AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRouteImport.update({
-    id: '/members',
-    path: '/members',
-    getParentRoute: () => AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute,
-  } as any)
 const ApiPublicPTokenClickLinkIdRoute =
   ApiPublicPTokenClickLinkIdRouteImport.update({
     id: '/api/public/p/$token/click/$linkId',
@@ -385,7 +351,6 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/progress': typeof AuthenticatedProgressRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
-  '/team': typeof AuthenticatedTeamRoute
   '/p/$token': typeof PTokenRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/settings/ai': typeof AuthenticatedSettingsAiRoute
@@ -419,13 +384,9 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
   '/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
-  '/properties/$propertyId/teams/$teamId': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteWithChildren
   '/properties/$propertyId/goals/': typeof AuthenticatedPropertiesPropertyIdGoalsIndexRoute
   '/properties/$propertyId/portals/': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
-  '/properties/$propertyId/teams/': typeof AuthenticatedPropertiesPropertyIdTeamsIndexRoute
-  '/properties/$propertyId/teams/$teamId/members': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute
   '/api/public/p/$token/click/$linkId': typeof ApiPublicPTokenClickLinkIdRoute
-  '/properties/$propertyId/teams/$teamId/': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -440,7 +401,6 @@ export interface FileRoutesByTo {
   '/leaderboard': typeof AuthenticatedLeaderboardRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/progress': typeof AuthenticatedProgressRoute
-  '/team': typeof AuthenticatedTeamRoute
   '/p/$token': typeof PTokenRoute
   '/settings/ai': typeof AuthenticatedSettingsAiRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
@@ -474,10 +434,7 @@ export interface FileRoutesByTo {
   '/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   '/properties/$propertyId/goals': typeof AuthenticatedPropertiesPropertyIdGoalsIndexRoute
   '/properties/$propertyId/portals': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
-  '/properties/$propertyId/teams': typeof AuthenticatedPropertiesPropertyIdTeamsIndexRoute
-  '/properties/$propertyId/teams/$teamId/members': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute
   '/api/public/p/$token/click/$linkId': typeof ApiPublicPTokenClickLinkIdRoute
-  '/properties/$propertyId/teams/$teamId': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -495,7 +452,6 @@ export interface FileRoutesById {
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/progress': typeof AuthenticatedProgressRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
-  '/_authenticated/team': typeof AuthenticatedTeamRoute
   '/p/$token': typeof PTokenRoute
   '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/_authenticated/settings/ai': typeof AuthenticatedSettingsAiRoute
@@ -529,13 +485,9 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/_authenticated/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
   '/_authenticated/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
-  '/_authenticated/properties/$propertyId/teams/$teamId': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteWithChildren
   '/_authenticated/properties/$propertyId/goals/': typeof AuthenticatedPropertiesPropertyIdGoalsIndexRoute
   '/_authenticated/properties/$propertyId/portals/': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
-  '/_authenticated/properties/$propertyId/teams/': typeof AuthenticatedPropertiesPropertyIdTeamsIndexRoute
-  '/_authenticated/properties/$propertyId/teams/$teamId/members': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute
   '/api/public/p/$token/click/$linkId': typeof ApiPublicPTokenClickLinkIdRoute
-  '/_authenticated/properties/$propertyId/teams/$teamId/': typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -553,7 +505,6 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/progress'
     | '/settings'
-    | '/team'
     | '/p/$token'
     | '/properties/$propertyId'
     | '/settings/ai'
@@ -587,13 +538,9 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/goals/new'
     | '/properties/$propertyId/portals/$portalId'
     | '/properties/$propertyId/portals/new'
-    | '/properties/$propertyId/teams/$teamId'
     | '/properties/$propertyId/goals/'
     | '/properties/$propertyId/portals/'
-    | '/properties/$propertyId/teams/'
-    | '/properties/$propertyId/teams/$teamId/members'
     | '/api/public/p/$token/click/$linkId'
-    | '/properties/$propertyId/teams/$teamId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -608,7 +555,6 @@ export interface FileRouteTypes {
     | '/leaderboard'
     | '/notifications'
     | '/progress'
-    | '/team'
     | '/p/$token'
     | '/settings/ai'
     | '/settings/integrations'
@@ -642,10 +588,7 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/portals/new'
     | '/properties/$propertyId/goals'
     | '/properties/$propertyId/portals'
-    | '/properties/$propertyId/teams'
-    | '/properties/$propertyId/teams/$teamId/members'
     | '/api/public/p/$token/click/$linkId'
-    | '/properties/$propertyId/teams/$teamId'
   id:
     | '__root__'
     | '/'
@@ -662,7 +605,6 @@ export interface FileRouteTypes {
     | '/_authenticated/notifications'
     | '/_authenticated/progress'
     | '/_authenticated/settings'
-    | '/_authenticated/team'
     | '/p/$token'
     | '/_authenticated/properties/$propertyId'
     | '/_authenticated/settings/ai'
@@ -696,13 +638,9 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId/goals/new'
     | '/_authenticated/properties/$propertyId/portals/$portalId'
     | '/_authenticated/properties/$propertyId/portals/new'
-    | '/_authenticated/properties/$propertyId/teams/$teamId'
     | '/_authenticated/properties/$propertyId/goals/'
     | '/_authenticated/properties/$propertyId/portals/'
-    | '/_authenticated/properties/$propertyId/teams/'
-    | '/_authenticated/properties/$propertyId/teams/$teamId/members'
     | '/api/public/p/$token/click/$linkId'
-    | '/_authenticated/properties/$propertyId/teams/$teamId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -825,13 +763,6 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/team': {
-      id: '/_authenticated/team'
-      path: '/team'
-      fullPath: '/team'
-      preLoaderRoute: typeof AuthenticatedTeamRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/p/$token': {
@@ -1079,34 +1010,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsNewRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
     }
-    '/_authenticated/properties/$propertyId/teams/': {
-      id: '/_authenticated/properties/$propertyId/teams/'
-      path: '/teams'
-      fullPath: '/properties/$propertyId/teams/'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdTeamsIndexRouteImport
-      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
-    }
-    '/_authenticated/properties/$propertyId/teams/$teamId': {
-      id: '/_authenticated/properties/$propertyId/teams/$teamId'
-      path: '/teams/$teamId'
-      fullPath: '/properties/$propertyId/teams/$teamId'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteImport
-      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
-    }
-    '/_authenticated/properties/$propertyId/teams/$teamId/': {
-      id: '/_authenticated/properties/$propertyId/teams/$teamId/'
-      path: '/'
-      fullPath: '/properties/$propertyId/teams/$teamId/'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRouteImport
-      parentRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute
-    }
-    '/_authenticated/properties/$propertyId/teams/$teamId/members': {
-      id: '/_authenticated/properties/$propertyId/teams/$teamId/members'
-      path: '/members'
-      fullPath: '/properties/$propertyId/teams/$teamId/members'
-      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRouteImport
-      parentRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute
-    }
     '/api/public/p/$token/click/$linkId': {
       id: '/api/public/p/$token/click/$linkId'
       path: '/api/public/p/$token/click/$linkId'
@@ -1172,24 +1075,6 @@ const AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren =
     AuthenticatedPropertiesPropertyIdGoalsRouteChildren,
   )
 
-interface AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteChildren {
-  AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute
-  AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute
-}
-
-const AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteChildren: AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteChildren =
-  {
-    AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute:
-      AuthenticatedPropertiesPropertyIdTeamsTeamIdMembersRoute,
-    AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute:
-      AuthenticatedPropertiesPropertyIdTeamsTeamIdIndexRoute,
-  }
-
-const AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteWithChildren =
-  AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute._addFileChildren(
-    AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteChildren,
-  )
-
 interface AuthenticatedPropertiesPropertyIdRouteChildren {
   AuthenticatedPropertiesPropertyIdGoalsRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren
   AuthenticatedPropertiesPropertyIdPeopleRoute: typeof AuthenticatedPropertiesPropertyIdPeopleRoute
@@ -1197,9 +1082,7 @@ interface AuthenticatedPropertiesPropertyIdRouteChildren {
   AuthenticatedPropertiesPropertyIdIndexRoute: typeof AuthenticatedPropertiesPropertyIdIndexRoute
   AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
   AuthenticatedPropertiesPropertyIdPortalsNewRoute: typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
-  AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute: typeof AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteWithChildren
   AuthenticatedPropertiesPropertyIdPortalsIndexRoute: typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
-  AuthenticatedPropertiesPropertyIdTeamsIndexRoute: typeof AuthenticatedPropertiesPropertyIdTeamsIndexRoute
 }
 
 const AuthenticatedPropertiesPropertyIdRouteChildren: AuthenticatedPropertiesPropertyIdRouteChildren =
@@ -1216,12 +1099,8 @@ const AuthenticatedPropertiesPropertyIdRouteChildren: AuthenticatedPropertiesPro
       AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute,
     AuthenticatedPropertiesPropertyIdPortalsNewRoute:
       AuthenticatedPropertiesPropertyIdPortalsNewRoute,
-    AuthenticatedPropertiesPropertyIdTeamsTeamIdRoute:
-      AuthenticatedPropertiesPropertyIdTeamsTeamIdRouteWithChildren,
     AuthenticatedPropertiesPropertyIdPortalsIndexRoute:
       AuthenticatedPropertiesPropertyIdPortalsIndexRoute,
-    AuthenticatedPropertiesPropertyIdTeamsIndexRoute:
-      AuthenticatedPropertiesPropertyIdTeamsIndexRoute,
   }
 
 const AuthenticatedPropertiesPropertyIdRouteWithChildren =
@@ -1236,7 +1115,6 @@ interface AuthenticatedRouteChildren {
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedProgressRoute: typeof AuthenticatedProgressRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
-  AuthenticatedTeamRoute: typeof AuthenticatedTeamRoute
   AuthenticatedPropertiesPropertyIdRoute: typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   AuthenticatedInboxIndexRoute: typeof AuthenticatedInboxIndexRoute
   AuthenticatedPropertiesIndexRoute: typeof AuthenticatedPropertiesIndexRoute
@@ -1251,7 +1129,6 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedProgressRoute: AuthenticatedProgressRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRouteWithChildren,
-  AuthenticatedTeamRoute: AuthenticatedTeamRoute,
   AuthenticatedPropertiesPropertyIdRoute:
     AuthenticatedPropertiesPropertyIdRouteWithChildren,
   AuthenticatedInboxIndexRoute: AuthenticatedInboxIndexRoute,

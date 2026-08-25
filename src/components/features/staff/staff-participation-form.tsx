@@ -9,7 +9,7 @@ import { MemberSelector } from './member-selector'
 import type {
   CreateStaffParticipationMutationInput,
   MemberOption,
-} from '#/components/features/team/shared/types'
+} from '#/components/features/staff/types'
 
 const formSchema = z.object({
   userIds: z.array(z.string()).min(1, 'Select at least one staff member'),

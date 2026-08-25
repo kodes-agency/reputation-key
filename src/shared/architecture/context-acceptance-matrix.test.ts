@@ -36,8 +36,8 @@
 //                                                                                         NEW sole-writer scans (this file)
 //   10 Staff        enabled/limited  participation interface contains no authorization    NEW no-authZ scan (this file)
 //                                     decision
-//   11 Team         default-deny     no enabled-context coupling; deterministic domain;   dark-context-matrix, dark-capability-enforcement
-//                                     no registered active jobs/events
+//   11 Team         quarantined      no route/navigation/UI/consumer reachability;         NEW quarantine surface pin (this file),
+//                                     retained reconciliation data; hard-denied capability dark-context-matrix, dark-capability-enforcement
 //   12 Portal       default-deny     independent read/write/upload policy; no direct      portal-capability-taxonomy.test.ts,
 //                                     BullMQ construction from application; public        dark-context-matrix
 //                                     edge denied
@@ -79,18 +79,24 @@ process.env.GOOGLE_CLIENT_SECRET ||= 'ci-placeholder'
 
 const ROOT = process.cwd()
 
-/** Recursively list production .ts files under dir (tests excluded). */
-function walkSource(dir: string): string[] {
+function walkFiles(dir: string): string[] {
   const out: string[] = []
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry)
     if (statSync(full).isDirectory()) {
-      out.push(...walkSource(full))
-    } else if (entry.endsWith('.ts') && !entry.endsWith('.test.ts')) {
+      out.push(...walkFiles(full))
+    } else {
       out.push(full)
     }
   }
   return out
+}
+
+/** Recursively list production .ts files under dir (tests excluded). */
+function walkSource(dir: string): string[] {
+  return walkFiles(dir).filter(
+    (file) => file.endsWith('.ts') && !file.endsWith('.test.ts'),
+  )
 }
 
 function rel(path: string): string {
@@ -328,9 +334,53 @@ describe('row 10 — Staff (enabled/limited): participation interface carries no
   })
 })
 
-describe('row 11 — Team (controlled beta): scoped authorization and persisted cohort policy', () => {
-  it('team.use remains a declared controlled-beta capability', () => {
-    expect(strippedSource('src/shared/auth/beta-capabilities.ts')).toContain(`'team.use'`)
+describe('row 11 — Team (quarantined): no executable beta product surface', () => {
+  const REMOVED_TEAM_SURFACES = [
+    'src/routes/_authenticated/team.tsx',
+    'src/routes/_authenticated/properties/$propertyId/teams/index.tsx',
+    'src/routes/_authenticated/properties/$propertyId/teams/$teamId.tsx',
+    'src/routes/_authenticated/properties/$propertyId/teams/$teamId/index.tsx',
+    'src/routes/_authenticated/properties/$propertyId/teams/$teamId/members.tsx',
+  ]
+
+  it('has no route, navigation, UI bundle, or active consumer reachability', () => {
+    const existing = REMOVED_TEAM_SURFACES.filter((path) => existsSync(join(ROOT, path)))
+    expect(existing, `reachable Team surfaces:\n${existing.join('\n')}`).toEqual([])
+
+    const navigation = [
+      strippedSource('src/components/layout/staff-nav-items.tsx'),
+      strippedSource('src/components/layout/staff-sidebar.tsx'),
+    ].join('\n')
+    expect(navigation).not.toMatch(/['"]\/team(?:['"/])/)
+
+    const teamUiFiles = existsSync(join(ROOT, 'src/components/features/team'))
+      ? walkFiles(join(ROOT, 'src/components/features/team'))
+      : []
+    expect(
+      teamUiFiles.map(rel),
+      `bundled Team UI:\n${teamUiFiles.map(rel).join('\n')}`,
+    ).toEqual([])
+
+    const activityHandlers = strippedSource(
+      'src/contexts/activity/infrastructure/event-handlers/index.ts',
+    )
+    expect(activityHandlers).not.toMatch(/team\.(?:created|updated|deleted)/)
+    expect(activityHandlers).not.toMatch(/onTeam(?:Created|Updated|Deleted)/)
+  })
+
+  it('retains reconciliation evidence behind an unconditionally blocked capability', () => {
+    expect(
+      existsSync(
+        join(
+          ROOT,
+          'src/contexts/team/infrastructure/repositories/reconcile-people-team.repository.ts',
+        ),
+      ),
+    ).toBe(true)
+
+    const capabilities = strippedSource('src/shared/auth/beta-capabilities.ts')
+    expect(capabilities).toContain(`'team.use'`)
+    expect(capabilities).toMatch(/BLOCKED_CAPABILITIES[\s\S]*'team\.use'/)
   })
 })
 

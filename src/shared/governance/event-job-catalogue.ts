@@ -918,10 +918,13 @@ const TEAM_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+      consumers: [],
       disposition: 'denied_dark',
     },
-    { notes: 'dark context (team.use); activity audit consumer stays enabled' },
+    {
+      notes:
+        'quarantined producer retained for reconciliation history; no runtime consumer',
+    },
   ),
   ev('team.updated', TEAM_EVENTS, {
     stateOwner: 'team',
@@ -929,7 +932,7 @@ const TEAM_ROWS: ReadonlyArray<EventFamilyRow> = [
     action: 'none',
     schemaRegistered: true,
     recordedInOutbox: true,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+    consumers: [],
     disposition: 'denied_dark',
   }),
   ev('team.deleted', TEAM_EVENTS, {
@@ -938,7 +941,7 @@ const TEAM_ROWS: ReadonlyArray<EventFamilyRow> = [
     action: 'none',
     schemaRegistered: true,
     recordedInOutbox: true,
-    consumers: [bus('activity.event-handlers', ACTIVITY_HANDLERS)],
+    consumers: [],
     disposition: 'denied_dark',
   }),
 ]

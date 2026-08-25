@@ -1,17 +1,9 @@
-/** Client-safe view models shared by People and Team UI. */
+/** Client-safe view and command models for Staff participation UI. */
 
 export type MemberOption = Readonly<{
   userId: string
   name: string
   email: string
-}>
-
-export type TeamSummary = Readonly<{
-  id: string
-  organizationId: string
-  propertyId: string
-  name: string
-  description: string | null
 }>
 
 export type StaffParticipationView = Readonly<{
@@ -23,31 +15,6 @@ export type StaffParticipationView = Readonly<{
   status: string
   startedAt: string | Date
   endedAt: string | Date | null
-}>
-
-export type TeamMembershipView = Readonly<{
-  id: string
-  organizationId: string
-  propertyId: string
-  teamId: string
-  staffParticipationId: string
-  userId: string
-  displayName: string
-  role: 'member' | 'lead'
-  effectiveFrom: string | Date
-  effectiveTo: string | Date | null
-}>
-
-export type CreateTeamMutationInput = Readonly<{
-  propertyId: string
-  name: string
-  description?: string
-}>
-
-export type UpdateTeamMutationInput = Readonly<{
-  teamId: string
-  name: string
-  description: string | null
 }>
 
 export type CreateStaffParticipationMutationInput = Readonly<{
