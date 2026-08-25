@@ -1,8 +1,8 @@
 // Storybook stories for SettingsSidebar — the ONLY sidebar that gates its own
 // items off usePermissions(). `organization.update`, `member.list`,
-// `badge.manage`, `ai.manage`, and `integration.manage` each conditionally render a nav
+// `ai.manage` and `integration.manage` each conditionally render a nav
 // entry, so the visible nav changes with the signed-in role:
-//   - AccountAdmin (owner) / PropertyManager (admin): all 9 items render —
+//   - AccountAdmin (owner) / PropertyManager (admin): all beta items render —
 //     both roles hold every gated statement.
 //   - Staff (member): only Profile, Security, Preferences, Notifications — the
 //     four always-on entries.
@@ -35,7 +35,7 @@ const meta: Meta<typeof SettingsSidebar> = {
 export default meta
 type Story = StoryObj<typeof SettingsSidebar>
 
-// Owner role → every gated item (Organization, Members, Recognition,
+// Owner role → every gated beta item (Organization, Members,
 // Integrations) renders alongside the four always-on entries.
 export const AsAccountAdmin: Story = {
   decorators: [withRole('AccountAdmin')],
@@ -47,14 +47,14 @@ export const AsAccountAdmin: Story = {
     expect(canvas.getByText(/^notifications$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^organization$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^members$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^recognition$/i)).toBeInTheDocument()
+    expect(canvas.queryByText(/^recognition$/i)).toBeNull()
     expect(canvas.getByText(/^ai & replies$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^integrations$/i)).toBeInTheDocument()
   },
 }
 
-// PropertyManager holds the same gated statements as the owner (organization
-// update, member list, badge manage, integration manage), so the nav is
+// PropertyManager holds the same beta-gated statements as the owner (organization
+// update, member list, AI manage, integration manage), so the nav is
 // identical to AsAccountAdmin. "Back to app" → /properties.
 export const AsPropertyManager: Story = {
   decorators: [withRole('PropertyManager')],
@@ -62,14 +62,14 @@ export const AsPropertyManager: Story = {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/^organization$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^members$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^recognition$/i)).toBeInTheDocument()
+    expect(canvas.queryByText(/^recognition$/i)).toBeNull()
     expect(canvas.getByText(/^ai & replies$/i)).toBeInTheDocument()
     expect(canvas.getByText(/^integrations$/i)).toBeInTheDocument()
   },
 }
 
-// Staff lacks organization.update / member.list / badge.manage /
-// integration.manage → the gated entries are absent. Only Profile, Security,
+// Staff lacks organization.update / member.list / ai.manage / integration.manage,
+// so the gated entries are absent. Only Profile, Security,
 // Preferences, Notifications render. "Back to app" → /.
 export const AsStaff: Story = {
   decorators: [withRole('Staff')],

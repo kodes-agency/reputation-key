@@ -7,7 +7,6 @@ import {
   Building2,
   ArrowLeft,
   Bell,
-  Award,
   Plug,
   BrainCircuit,
 } from 'lucide-react'
@@ -74,16 +73,6 @@ export function SettingsSidebar() {
       icon: Bell,
       href: '/settings/notifications',
     },
-    ...(can('badge.manage')
-      ? [
-          {
-            key: 'recognition',
-            label: 'Recognition',
-            icon: Award,
-            href: '/settings/recognition',
-          },
-        ]
-      : []),
     ...(can('ai.manage')
       ? [
           {
