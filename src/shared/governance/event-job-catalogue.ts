@@ -1001,7 +1001,7 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('portal.content_review.completed', PORTAL_EVENTS, {
     stateOwner: 'portal',
     capability: 'portal.write',
-    action: 'system:metric.record',
+    action: 'system:metric.record_portal_workflow',
     schemaRegistered: true,
     recordedInOutbox: true,
     consumers: [
@@ -1013,7 +1013,7 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('portal.configuration_completeness.recorded', PORTAL_EVENTS, {
     stateOwner: 'portal',
     capability: 'portal.write',
-    action: 'system:metric.record',
+    action: 'system:metric.record_portal_workflow',
     schemaRegistered: true,
     recordedInOutbox: true,
     consumers: [
@@ -1025,7 +1025,7 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('portal.approved_destination_ratio.recorded', PORTAL_EVENTS, {
     stateOwner: 'portal',
     capability: 'portal.write',
-    action: 'system:metric.record',
+    action: 'system:metric.record_portal_workflow',
     schemaRegistered: true,
     recordedInOutbox: true,
     consumers: [

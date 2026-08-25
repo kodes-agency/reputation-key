@@ -97,6 +97,8 @@ export type SystemAction =
   | 'system:reply.publish'
   | 'system:metric.refresh'
   | 'system:metric.record'
+  | 'system:metric.record_guest_analytics'
+  | 'system:metric.record_portal_workflow'
   | 'system:retention.sweep'
   | 'system:quarantine.ttl'
   | 'system:ai.execution_reap'
@@ -2804,7 +2806,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   consumer(
     'metric.portal-workflow',
     'src/contexts/metric/infrastructure/outbox-consumers.ts',
-    'system:metric.record',
+    'system:metric.record_portal_workflow',
     'portal.write',
     'organization',
     [
@@ -2817,7 +2819,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   consumer(
     'metric.guest-analytics',
     'src/contexts/metric/infrastructure/guest-outbox-consumers.ts',
-    'system:metric.record',
+    'system:metric.record_guest_analytics',
     'portal.read',
     'organization',
     [

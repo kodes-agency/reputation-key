@@ -71,6 +71,7 @@ const REQUIRED_EVENT_FIELDS: ReadonlyArray<
   { relation: 'event:review.created', field: 'externalId' },
   { relation: 'event:review.updated', field: 'externalId' },
   { relation: 'event:identity.member.invited', field: 'email' },
+  { relation: 'event:guest.rating.submitted', field: 'value' },
 ]
 
 function allSchemaTables(): ReadonlyArray<{ name: string; columns: string[] }> {

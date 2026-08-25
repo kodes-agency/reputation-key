@@ -76,8 +76,20 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     ).toThrow(/health-chek/)
   })
 
-  it('contains no stale denied or blocked rows after controlled-beta promotion', () => {
-    expect(JOB_FAMILY_ROWS.filter((row) => row.registration !== 'enabled')).toEqual([])
+  it('contains only the explicit issuance-bound image-processing containment', () => {
+    expect(
+      JOB_FAMILY_ROWS.filter((row) => row.registration !== 'enabled').map((row) => ({
+        jobName: row.jobName,
+        capability: row.capability,
+        registration: row.registration,
+      })),
+    ).toEqual([
+      {
+        jobName: 'process-image',
+        capability: 'portal.upload',
+        registration: 'blocked_capability',
+      },
+    ])
   })
 
   it('skips durable-consumer validation when the dispatcher is disabled (logs info)', () => {
