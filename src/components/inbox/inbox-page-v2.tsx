@@ -56,6 +56,7 @@ export function InboxPageV2({
   properties,
   onNavigate,
   inboxFns,
+  recordInboxVisit = false,
   onPropertyChange,
   activePropertyId,
 }: {
@@ -64,17 +65,19 @@ export function InboxPageV2({
   properties?: ReadonlyArray<{ id: string; name: string }>
   onNavigate: InboxPageNav
   inboxFns: InboxServerFns
+  /** True only for the Organization-wide /inbox route. */
+  recordInboxVisit?: boolean
   /** Override for the property-switcher dropdown. */
   onPropertyChange?: (propertyId: string | undefined) => void
   /** Active property — from route param on /reviews, from search on /inbox. */
   activePropertyId?: string
 }) {
-  const effectivePropertyId = activePropertyId ?? search.propertyId
   const s = useInboxPage(
     ctx.activeOrganization?.id,
-    { ...search, propertyId: effectivePropertyId },
+    { ...search, propertyId: activePropertyId ?? search.propertyId },
     onNavigate,
     inboxFns,
+    recordInboxVisit,
   )
   const listRef = useRef<HTMLDivElement>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -193,7 +196,7 @@ export function InboxPageV2({
         style={CLIP_PANEL_CONTENT}
       >
         <InboxSidebar
-          propertyId={effectivePropertyId}
+          propertyId={activePropertyId ?? search.propertyId}
           properties={properties}
           onPropertyChange={handlePropertyChange}
           getInboxFolderCounts={inboxFns.getInboxFolderCounts}

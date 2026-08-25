@@ -128,6 +128,7 @@ export function useInboxState(
     items,
     totalCount,
     nextCursor,
+    hasLoadedSuccessfully: query.isSuccess && query.isFetchedAfterMount,
     isLoading: query.isPending,
     error: query.error ? 'Failed to load inbox. Try again.' : null,
     selectedIds,

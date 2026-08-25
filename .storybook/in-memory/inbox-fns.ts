@@ -30,6 +30,7 @@ import type {
   getInboxItemDetailFn,
   getInboxNotesFn,
   getInboxFolderCountsFn,
+  stampLastInboxViewFn,
   updateInboxStatusFn,
   escalateInboxItemFn,
   resolveEscalationFn,
@@ -108,6 +109,12 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
         {},
         ctx,
       )) as unknown as typeof getInboxFolderCountsFn,
+
+    stampLastInboxView: (async () =>
+      container.useCases.stampLastInboxView(
+        {},
+        ctx,
+      )) as unknown as typeof stampLastInboxViewFn,
 
     updateInboxStatus: (async ({ data }: { data: z.infer<typeof updateStatusDto> }) =>
       container.useCases.updateInboxStatus(

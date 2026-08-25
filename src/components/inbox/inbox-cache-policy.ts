@@ -55,6 +55,11 @@ function invalidateActivityAfterLag(qc: QueryClient, id: string): void {
 // ── The policy ──────────────────────────────────────────────────
 
 export const inboxCachePolicy = {
+  /** The server confirmed a successful Inbox visit watermark. */
+  async onInboxVisited(qc: QueryClient): Promise<void> {
+    await qc.invalidateQueries({ queryKey: inboxKeys.lastVisitCount() })
+  },
+
   /**
    * A status mutation succeeded (mark-read / escalate / archive / resolve).
    * detail(id) is a PREFIX of notes + activity → one invalidate refreshes all

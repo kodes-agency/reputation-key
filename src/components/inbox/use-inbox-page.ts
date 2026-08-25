@@ -1,5 +1,6 @@
 // Inbox page state hook — extracted from inbox-page-v2 for line-limit compliance.
-import { useMemo, useCallback } from 'react'
+import { useMemo, useCallback, useEffect, useRef } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useIsMobile } from '#/components/hooks/use-mobile'
 import { useInboxDetail } from '#/components/inbox/use-inbox-detail'
 import { useInboxState } from '#/components/inbox/use-inbox-state'
@@ -11,6 +12,7 @@ import type { InboxServerFns } from './types'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import { INBOX_BULK_LIMIT } from '#/contexts/inbox/application/public-api'
 import { toggleInboxSelection } from './inbox-selection'
+import { inboxCachePolicy } from './inbox-cache-policy'
 
 export type InboxPageNav = (o: {
   to: '.'
@@ -22,7 +24,10 @@ export function useInboxPage(
   search: InboxSearchParams,
   onNavigate: InboxPageNav,
   inboxFns: InboxServerFns,
+  recordInboxVisit: boolean,
 ) {
+  const queryClient = useQueryClient()
+  const stampedOrganization = useRef<string | null>(null)
   const { itemId: _, folder, ...rest } = search
   const isMobile = useIsMobile()
   const filters: InboxFilterValues = useMemo(
@@ -56,6 +61,7 @@ export function useInboxPage(
   const {
     items,
     nextCursor,
+    hasLoadedSuccessfully,
     totalCount,
     isLoading,
     error,
@@ -69,6 +75,24 @@ export function useInboxPage(
     closeDetail,
     handleBulkDone,
   } = useInboxState(orgId, filters, search.itemId, onNavigate, inboxFns.getInboxItems)
+
+  const { mutate: stampInboxVisit } = useMutation({
+    mutationFn: () => inboxFns.stampLastInboxView({ data: {} }),
+    onSuccess: () => inboxCachePolicy.onInboxVisited(queryClient),
+  })
+
+  useEffect(() => {
+    if (
+      !recordInboxVisit ||
+      !orgId ||
+      !hasLoadedSuccessfully ||
+      stampedOrganization.current === orgId
+    ) {
+      return
+    }
+    stampedOrganization.current = orgId
+    stampInboxVisit()
+  }, [hasLoadedSuccessfully, orgId, recordInboxVisit, stampInboxVisit])
 
   // Stable reference — only recomputes when a different item is selected,
   // NOT when the same item's status/fields update (detail panel uses detailState.currentItem).

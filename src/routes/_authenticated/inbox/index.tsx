@@ -33,6 +33,7 @@ function InboxRoute() {
       search={search}
       properties={propsData.properties}
       inboxFns={inboxFns}
+      recordInboxVisit
       onNavigate={(opts) =>
         navigate({
           to: opts.to,

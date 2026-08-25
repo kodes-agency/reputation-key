@@ -4,7 +4,7 @@
 // detail-only fns are wired but only fire on item selection. Demonstrates the
 // Phase-1 prop channel end-to-end: a route-shaped fn bundle, no server/RPC.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, screen, userEvent, within } from 'storybook/test'
+import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import { useState } from 'react'
 import type { getInboxItemsFn } from '#/contexts/inbox/server/inbox'
 import { InboxPageV2 } from './inbox-page-v2'
@@ -80,11 +80,13 @@ function InboxPageHarness({
   properties: props,
   inboxFns,
   initialSearch = {},
+  recordInboxVisit = true,
 }: {
   ctx: InboxCtx
   properties?: ReadonlyArray<{ id: string; name: string }>
   inboxFns: InboxServerFns
   initialSearch?: InboxSearchParams
+  recordInboxVisit?: boolean
 }) {
   const [search, setSearch] = useState<InboxSearchParams>(initialSearch)
   const onNavigate: InboxPageNav = (o) =>
@@ -96,6 +98,7 @@ function InboxPageHarness({
       properties={props}
       onNavigate={onNavigate}
       inboxFns={inboxFns}
+      recordInboxVisit={recordInboxVisit}
     />
   )
 }
@@ -351,6 +354,69 @@ export const EmptyList: Story = {
       inboxFns={makeInboxFns(emptyContainer)}
     />
   ),
+}
+
+const visitContainer = createInboxContainer()
+visitContainer.seed([
+  makeInboxItem({ id: 'visit-1', sourceType: 'review', status: 'open', rating: 5 }),
+])
+
+export const SuccessfulLoadStampsVisit: Story = {
+  render: () => (
+    <InboxPageHarness
+      ctx={orgCtx}
+      properties={properties}
+      inboxFns={makeInboxFns(visitContainer)}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await canvas.findByRole('button', { name: /Open review from Jane Doe/i })
+    await waitFor(async () => {
+      await expect(visitContainer.readLastInboxView()).resolves.not.toBeNull()
+    })
+  },
+}
+
+const failedVisitContainer = createInboxContainer()
+const failedVisitFns: InboxServerFns = {
+  ...makeInboxFns(failedVisitContainer),
+  getInboxItems: (async () => {
+    throw new Error('Inbox unavailable')
+  }) as unknown as typeof getInboxItemsFn,
+}
+
+export const FailedLoadPreservesVisitWatermark: Story = {
+  render: () => (
+    <InboxPageHarness ctx={orgCtx} properties={properties} inboxFns={failedVisitFns} />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await canvas.findByText('Failed to load inbox. Try again.')
+    await expect(failedVisitContainer.readLastInboxView()).resolves.toBeNull()
+  },
+}
+
+const propertyVisitContainer = createInboxContainer()
+propertyVisitContainer.seed([
+  makeInboxItem({ id: 'property-visit-1', sourceType: 'review', status: 'open' }),
+])
+
+export const PropertyScopedLoadPreservesOrganizationWatermark: Story = {
+  render: () => (
+    <InboxPageHarness
+      ctx={orgCtx}
+      properties={properties}
+      inboxFns={makeInboxFns(propertyVisitContainer)}
+      initialSearch={{ propertyId: String(inboxTestIds.PROP) }}
+      recordInboxVisit={false}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await canvas.findByRole('button', { name: /Open review from Jane Doe/i })
+    await expect(propertyVisitContainer.readLastInboxView()).resolves.toBeNull()
+  },
 }
 
 // getInboxItems never resolves → the list stays in its loading (skeleton) state.

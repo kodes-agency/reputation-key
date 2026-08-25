@@ -147,6 +147,9 @@ export function createInboxContainer() {
 
   return {
     useCases,
+    readLastInboxView() {
+      return inboxViewRepo.getLastInboxView(ORG, USER)
+    },
     seed(items: ReadonlyArray<InboxItem>) {
       inboxRepo.items.push(...items)
     },

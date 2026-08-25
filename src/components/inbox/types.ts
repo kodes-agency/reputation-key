@@ -14,6 +14,7 @@ import type {
   getInboxItemDetailFn,
   getInboxNotesFn,
   getInboxFolderCountsFn,
+  stampLastInboxViewFn,
   updateInboxStatusFn,
   escalateInboxItemFn,
   resolveEscalationFn,
@@ -29,6 +30,7 @@ export type InboxServerFns = Readonly<{
   getInboxNotes: typeof getInboxNotesFn
   getActivityTimeline: typeof getActivityTimelineFn
   getInboxFolderCounts: typeof getInboxFolderCountsFn
+  stampLastInboxView: typeof stampLastInboxViewFn
   updateInboxStatus: typeof updateInboxStatusFn
   escalateInboxItem: typeof escalateInboxItemFn
   resolveEscalation: typeof resolveEscalationFn

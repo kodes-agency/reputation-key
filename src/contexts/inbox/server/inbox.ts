@@ -2,6 +2,7 @@
 export {
   getInboxItemsFn,
   getLastVisitCountFn,
+  stampLastInboxViewFn,
   getInboxFolderCountsFn,
 } from './inbox-queries'
 export {
