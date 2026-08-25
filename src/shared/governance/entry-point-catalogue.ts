@@ -120,6 +120,7 @@ export type SystemAction =
   | 'system:notification.delivery_event'
   | 'system:notification.reconcile'
   | 'system:inbox.update'
+  | 'system:inbox.project_guest_feedback'
   | 'system:ai.trend'
   | 'system:ai.trend_schedule'
   // operator commands
@@ -2678,7 +2679,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   consumer(
     'inbox.guest-feedback',
     'src/contexts/inbox/infrastructure/guest-feedback-outbox-consumers.ts',
-    'system:inbox.update',
+    'system:inbox.project_guest_feedback',
     'portal.read',
     'organization',
     ['guest.feedback.submitted'],
@@ -3836,6 +3837,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'Promotes a digest-bound beta-local manifest only after all five role approvals validate',
+    },
+  ),
+  ops(
+    'scripts/release/create-promotion-manifest.ts',
+    'scripts/release/create-promotion-manifest.ts',
+    'none',
+    {
+      notes:
+        'release:create-promotion-manifest — verifies the exact trusted repository/workflow identity and emits the immutable, digest-bound multi-service promotion manifest',
     },
   ),
   ops(

@@ -1,5 +1,6 @@
 import { z } from 'zod/v4'
 import { DATA_CELL_IDS } from '#/shared/domain/data-cell-catalogue'
+import { isRailwayPitrDatabaseUrl } from '#/shared/config/restore-mode'
 
 const baseEnvSchema = z.object({
   // Server
@@ -334,8 +335,14 @@ const baseEnvSchema = z.object({
   // REG-04: exact Railway PITR sibling selected by the operator. Railway
   // creates `<source>-restored-YYYYMMDD-HHMM`; restore commands bind this
   // name to DATABASE_URL's private Railway hostname and refuse public/source
-  // targets. Not needed for loopback drills.
+  // targets. Loopback drills must also name their explicit disposable target.
   RESTORE_DATABASE_SERVICE_NAME: z.string().min(1).optional(),
+  // REG-04: permanent serving attestation for a Railway PITR sibling. The
+  // isolated verifier prints this exact recovery run/generation pair. Once
+  // RESTORE_MODE is removed, web and worker boot query the sibling database
+  // and refuse traffic/effects unless the pair names its latest recovery run.
+  RECOVERY_CUTOVER_RUN_ID: z.uuid().optional(),
+  RECOVERY_CUTOVER_GENERATION: z.coerce.number().int().min(1).optional(),
   // Railway-provided deployment identity. Optional for local/dev; the restore
   // target guard requires all three for a non-loopback PITR verifier.
   RAILWAY_PROJECT_ID: z.string().min(1).optional(),
@@ -399,6 +406,29 @@ const envSchema = baseEnvSchema.superRefine((env, context) => {
       code: 'custom',
       path: ['RESTORE_SOURCE_CELL'],
       message: 'Restore source Data Cell must match PROCESSING_CELL',
+    })
+  }
+  if (
+    (env.RECOVERY_CUTOVER_RUN_ID === undefined) !==
+    (env.RECOVERY_CUTOVER_GENERATION === undefined)
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['RECOVERY_CUTOVER_RUN_ID'],
+      message: 'Recovery cutover run ID and generation must be configured together',
+    })
+  }
+  if (
+    env.RESTORE_MODE !== 'isolated' &&
+    isRailwayPitrDatabaseUrl(env.DATABASE_URL) &&
+    (env.RECOVERY_CUTOVER_RUN_ID === undefined ||
+      env.RECOVERY_CUTOVER_GENERATION === undefined)
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['RECOVERY_CUTOVER_RUN_ID'],
+      message:
+        'A Railway PITR sibling may serve only with its recovery cutover run ID and generation',
     })
   }
 })

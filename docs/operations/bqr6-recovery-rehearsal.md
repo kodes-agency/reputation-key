@@ -39,7 +39,7 @@ Prove that a beta release candidate can be restored without exceeding RPO/RTO, a
 2. Tunnel to that sibling, run target preflight, apply migration parity, and run `ops:restore-verify` dry-run.
 3. Run `ops:restore-verify --apply`; require a cell recovery generation, zero overdue retention/import backlog, zero restored authority, and proof that recovery-fenced outbox rows cannot publish.
 4. Boot a no-domain signed-image web verifier in isolated mode. The worker refuses to boot; target admission and capabilities fail closed. Verify tenant isolation and critical reads.
-5. Switch all cell consumers to the sibling plus fresh Redis while routing/effects remain stopped. UNSET `RESTORE_MODE`, redeploy web + worker, and verify `/api/health/ready` → 200 before resuming traffic.
+5. Switch all cell consumers to the sibling plus fresh Redis while routing/effects remain stopped. Configure the `RECOVERY_CUTOVER_RUN_ID` and `RECOVERY_CUTOVER_GENERATION` printed by verification, UNSET `RESTORE_MODE`, redeploy web + worker, and verify `/api/health/ready` → 200 before resuming traffic. Normal PITR sibling boot must refuse a missing or stale tuple.
 6. Reauthorize providers and reconcile/rebuild as new work; never redrive recovery-fenced outbox rows or restore BullMQ state.
 
 ### 4. Measure

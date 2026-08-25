@@ -85,6 +85,7 @@ import { handleAiReviewEvent } from '../outbox-consumers'
 import { createBackfillReviewAnalysis } from '../../application/use-cases/backfill-review-analysis'
 import { createReviewAnalysisBackfillAdapter } from './ai-review-analysis-backfill.adapter'
 import { createPropertyGrantHolderLookup } from '#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
 const ORGANIZATION_ID = organizationId('ai-reanalyze-delivery-test-org')
 const PROPERTY_ID = propertyId('7c000000-0000-4000-8000-000000000001')
@@ -521,6 +522,7 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
   }
 
   beforeAll(async () => {
+    registerAllEventSchemas()
     stubProcessVersions({
       node: AI_REVIEW_LANGUAGE_REGION_NODE_VERSION,
       icu: AI_REVIEW_LANGUAGE_ICU_VERSION,

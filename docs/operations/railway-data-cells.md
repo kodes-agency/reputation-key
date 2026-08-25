@@ -21,20 +21,26 @@ Every environment has the same names and graph:
 - `web` and singleton `worker`;
 - `Postgres` and queue/cache `Redis`;
 - private `object-store` bucket;
-- distinct `google-provider-redis` for short-lived provider material;
+- distinct, volume-free `google-provider-redis` service for short-lived
+  provider material;
 - `google-egress-gateway` and `google-execution-admission`;
 - `ai-egress-gateway` and `ai-execution-admission`.
 
-The provider Redis uses its TLS public endpoint because protected production
-composition requires a distinct TLS URL. The main queue/cache Redis continues
-to use Railway private networking. Bucket references use Railway's `BUCKET`,
+Provider Redis is a signed RepKey release image on private Railway networking,
+with no public TCP proxy or volume. It binds only TLS port 6380, disables RDB,
+AOF, and replication, uses bounded `noeviction` memory, disables the default
+user, and denies persistence/admin commands to its dedicated ACL identity. The
+environment-scoped `PROVIDER_EPHEMERAL_REDIS_URL` must be
+`rediss://<non-default-user>:<secret>@google-provider-redis.railway.internal:6380`;
+the private CA is supplied separately. The main queue/cache Redis continues to
+use Railway private networking. Bucket references use Railway's `BUCKET`,
 `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`, `REGION`, and `ENDPOINT` outputs. Railway
 buckets use virtual-hosted addressing, so `S3_FORCE_PATH_STYLE=false`.
 
-No application service source is declared in IaC. The graph owns resources,
+No runtime service source is declared in IaC. The graph owns resources,
 placement, variables, domains, build/deploy settings, and process boundaries.
 `REG-03` owns the exact immutable image digest through the signed release
-manifest. Adding a GitHub source or mutable image tag to the graph would restore
+manifest, including provider Redis. Adding a GitHub source or mutable image tag to the graph would restore
 per-cell rebuilding and is prohibited.
 
 ## Current live-state exception

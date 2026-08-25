@@ -22,6 +22,7 @@ export const PROVIDER_REDIS_FORBIDDEN_COMMANDS = [
   ['FLUSHALL'],
   ['FLUSHDB'],
   ['KEYS', '*'],
+  ['CLIENT', 'KILL', 'TYPE', 'NORMAL', 'SKIPME', 'YES'],
 ] as const
 
 export type ProviderRedisReadinessCode =

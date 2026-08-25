@@ -60,6 +60,6 @@ describe('AI durable domain facts', () => {
         ...fence,
         occurredAt: NOW,
       }),
-    ).toThrow()
+    ).toThrow(/safe integer/)
   })
 })

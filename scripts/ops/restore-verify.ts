@@ -20,7 +20,8 @@
 //
 // Requires DATABASE_URL (pointed at the ISOLATED restore target) and
 // RESTORE_MODE=isolated. Policy-evaluated + audited like every operator
-// command. Cutover afterwards = UNSET RESTORE_MODE + redeploy.
+// command. Cutover afterwards = pin the printed recovery run/generation,
+// UNSET RESTORE_MODE, and redeploy; normal PITR sibling boot re-verifies it.
 
 import { sql } from 'drizzle-orm'
 import { getContainer } from '../../src/composition'

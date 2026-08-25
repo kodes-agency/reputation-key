@@ -90,6 +90,8 @@ cutover mechanism. This procedure uses the PITR sibling described by
    backfills; and recovery-fences every unpublished outbox row. It then writes
    one durable, cell-scoped `recovery_runs` generation and proves zero
    remaining unfenced authority. Exact retries replay the same generation.
+   Record the command's printed `run=<uuid>` and recovery generation; these
+   are the only accepted serving attestation for the sibling.
 8. Re-run the dry run and require all counts to remain zero. Boot a temporary,
    no-public-domain web verifier from the exact signed web image with
    `RESTORE_MODE=isolated` and a service-scoped private sibling URL. Boot
@@ -99,9 +101,13 @@ cutover mechanism. This procedure uses the PITR sibling described by
 9. Provision fresh empty queue/provider Redis services; restored queues are
    never reused. Stage the sibling/fresh-Redis references for every Data Cell
    consumer while traffic and effects remain stopped. Do not redrive
-   recovery-fenced outbox rows. Deploy web, verify reads, deploy worker, then
-   **UNSET `RESTORE_MODE`** and remove the global capability stop only after
-   all consumers report the same release/config/database generation.
+   recovery-fenced outbox rows. Set `RECOVERY_CUTOVER_RUN_ID` and
+   `RECOVERY_CUTOVER_GENERATION` from step 7 on every sibling consumer. Deploy
+   web, verify reads, deploy worker, then **UNSET `RESTORE_MODE`** and remove
+   the global capability stop only after all consumers report the same
+   release/config/database generation. A web or worker process connected to a
+   Railway PITR sibling refuses normal boot unless that tuple still names the
+   latest completed recovery run in its exact Data Cell.
 10. Reauthorize fenced Google connections, rebuild projections, and reconcile
     current external provider state as new work. Confirm sessions require
     reauthentication, queues contain no restored jobs, source Postgres remains

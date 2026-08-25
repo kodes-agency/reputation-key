@@ -332,6 +332,9 @@ jobs:
       - name: Build worker image
         run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.worker -t repkey-worker:ci .
 
+      - name: Build provider-ephemeral Redis image
+        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.google-provider-redis -t repkey-google-provider-redis:ci .
+
       - name: Build AI execution admission image
         run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.ai-execution-admission -t repkey-ai-execution-admission:ci .
       - name: Build AI egress gateway image
@@ -347,6 +350,7 @@ jobs:
 
       - name: Smoke images (contract, non-root, prod-deps purity)
         run: |
+          sh scripts/ci/smoke-provider-redis-image.sh repkey-google-provider-redis:ci
           docker run --rm repkey-web:ci node -e "process.exit(0)"
           docker run --rm repkey-worker:ci node -e "process.exit(0)"
           docker run --rm --entrypoint node repkey-google-import-compatibility:ci -e "process.exit(0)"
@@ -406,7 +410,7 @@ jobs:
           test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{json .Config.Entrypoint}}')" = '["node","dist-google-import-compatibility/google-import-lifecycle.js"]'
           {
             echo "### Governed image digests"
-            for img in repkey-web:ci repkey-worker:ci repkey-google-import-compatibility:ci repkey-ai-execution-admission:ci repkey-ai-egress-gateway:ci repkey-google-execution-admission:ci repkey-google-egress-gateway:ci; do
+            for img in repkey-web:ci repkey-worker:ci repkey-google-provider-redis:ci repkey-google-import-compatibility:ci repkey-ai-execution-admission:ci repkey-ai-egress-gateway:ci repkey-google-execution-admission:ci repkey-google-egress-gateway:ci; do
               echo "\`$img@$(docker image inspect "$img" --format '{{.Id}}')\`"
             done
           } >> "$GITHUB_STEP_SUMMARY"
@@ -427,6 +431,13 @@ jobs:
           image: repkey-worker:ci
           format: spdx-json
           output-file: sbom-worker.spdx.json
+
+      - name: SBOM provider-ephemeral Redis image
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: repkey-google-provider-redis:ci
+          format: spdx-json
+          output-file: sbom-google-provider-redis.spdx.json
 
       - name: SBOM AI execution admission image
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
@@ -511,6 +522,15 @@ jobs:
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
         with:
           image: repkey-worker:ci
+          fail-build: true
+          severity-cutoff: high
+          grype-version: v0.116.1
+          cache-db: true
+
+      - name: Vulnerability scan provider-ephemeral Redis image (grype)
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: repkey-google-provider-redis:ci
           fail-build: true
           severity-cutoff: high
           grype-version: v0.116.1

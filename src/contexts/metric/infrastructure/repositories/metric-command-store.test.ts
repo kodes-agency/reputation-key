@@ -100,16 +100,25 @@ beforeAll(async () => {
   client.release()
   clearEventSchemas()
   registerAllEventSchemas()
+  await pool.query('DELETE FROM portals WHERE id = $1', [PORTAL_ID])
+  await pool.query('DELETE FROM properties WHERE id = $1', [PROP_ID])
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, $2, $3, NOW())
-     ON CONFLICT (id) DO NOTHING`,
+     ON CONFLICT (id) DO UPDATE SET
+       name = EXCLUDED.name,
+       slug = EXCLUDED.slug`,
     [ORG_ID, 'Metric Cmd Org', 'metriccmd-org'],
   )
   await pool.query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-     ON CONFLICT (id) DO NOTHING`,
+     ON CONFLICT (id) DO UPDATE SET
+       organization_id = EXCLUDED.organization_id,
+       name = EXCLUDED.name,
+       slug = EXCLUDED.slug,
+       timezone = EXCLUDED.timezone,
+       updated_at = EXCLUDED.updated_at`,
     [PROP_ID, ORG_ID, 'Metric Cmd Property', 'metriccmd-prop', 'UTC'],
   )
   await pool.query(

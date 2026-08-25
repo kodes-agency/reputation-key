@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
+import { createHash } from 'node:crypto'
 import { getCountries } from 'libphonenumber-js'
 import {
   DATA_CELL_CATALOGUE,
   DATA_CELL_CATALOGUE_POLICY_VERSION,
+  DATA_CELL_SUPPORTED_COUNTRY_COUNT,
+  DATA_CELL_SUPPORTED_COUNTRY_POLICY_SHA256,
   DATA_CELL_IDS,
   ACCEPTING_DATA_CELL_IDS,
   dataCellById,
@@ -19,6 +22,12 @@ describe('Data Cell catalogue', () => {
     )
     expect(new Set(countries).size).toBe(countries.length)
     expect([...countries].sort()).toEqual([...getCountries()].sort())
+    expect(countries).toHaveLength(DATA_CELL_SUPPORTED_COUNTRY_COUNT)
+    expect(
+      createHash('sha256')
+        .update([...countries].sort().join(','))
+        .digest('hex'),
+    ).toBe(DATA_CELL_SUPPORTED_COUNTRY_POLICY_SHA256)
   })
 
   it.each([

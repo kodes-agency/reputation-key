@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest'
 import {
   GOOGLE_GATEWAY_REQUIRED_ENVIRONMENT_NAMES,
   assertGoogleGatewayEnvironmentIsIsolated,
+  assertGoogleGatewayRequiredLocalEnvironment,
   assertGoogleGatewayRequiredEnvironment,
+  assertGoogleGatewayRequiredProductionEnvironment,
 } from './environment'
 
 function environment(): Record<string, string> {
@@ -41,6 +43,22 @@ describe('Google egress-gateway startup isolation', () => {
 
   it('accepts the production variable-only contract', () => {
     expect(() => assertGoogleGatewayRequiredEnvironment(environment())).not.toThrow()
+    expect(() =>
+      assertGoogleGatewayRequiredProductionEnvironment(environment()),
+    ).not.toThrow()
+  })
+
+  it('keeps the simulator contract local-only', () => {
+    const local = {
+      ...environment(),
+      GOOGLE_PROVIDER_ROUTE_PROFILE: 'local_sandbox',
+      GOOGLE_EXECUTION_ADMISSION_ORIGIN: 'https://google-execution-admission:8443',
+      GOOGLE_PROVIDER_SIMULATOR_ORIGIN: 'https://google-provider-simulator:8443',
+    }
+    expect(() => assertGoogleGatewayRequiredLocalEnvironment(local)).not.toThrow()
+    expect(() => assertGoogleGatewayRequiredProductionEnvironment(local)).toThrow(
+      'GOOGLE_PROVIDER_SIMULATOR_ORIGIN',
+    )
   })
 
   it('accepts one complete legacy path triplet only during cutover', () => {

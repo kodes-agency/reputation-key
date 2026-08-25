@@ -42,6 +42,7 @@ const OWNED_NAMES = Object.freeze([
   'DATABASE_URL',
   'GOOGLE_ADMISSION_DATABASE_CA_B64',
   'REDIS_URL',
+  'PROVIDER_REDIS_TLS_CA_PEM',
   'GOOGLE_EGRESS_GATEWAY_IDENTITY',
   'GOOGLE_ADMISSION_GRANT_HMAC_KEYS',
   'GOOGLE_INTERNAL_MTLS_CA_PATH',
@@ -55,7 +56,9 @@ const OWNED_NAMES = Object.freeze([
 ] as const)
 
 export const GOOGLE_ADMISSION_REQUIRED_ENVIRONMENT_NAMES = Object.freeze(
-  OWNED_NAMES.filter((name) => !name.endsWith('_PATH')),
+  OWNED_NAMES.filter(
+    (name) => !name.endsWith('_PATH') && name !== 'PROVIDER_REDIS_TLS_CA_PEM',
+  ),
 )
 const ALLOWED_NAMES = new Set<string>([...RUNTIME_METADATA_NAMES, ...OWNED_NAMES])
 
@@ -89,11 +92,17 @@ export function assertGoogleAdmissionRequiredEnvironment(
   const values = normalized(environment)
   assertGoogleAdmissionEnvironmentIsIsolated(values)
   for (const name of OWNED_NAMES.filter(
-    (name) => !name.startsWith('GOOGLE_INTERNAL_MTLS_'),
+    (name) =>
+      !name.startsWith('GOOGLE_INTERNAL_MTLS_') && name !== 'PROVIDER_REDIS_TLS_CA_PEM',
   )) {
     if (!values[name]) {
       throw new Error(`required Google admission setting is missing: ${name}`)
     }
+  }
+  if (values.REDIS_URL?.startsWith('rediss://') && !values.PROVIDER_REDIS_TLS_CA_PEM) {
+    throw new Error(
+      'required Google admission setting is missing: PROVIDER_REDIS_TLS_CA_PEM',
+    )
   }
   const base64Tls = [
     values.GOOGLE_INTERNAL_MTLS_CA_B64,

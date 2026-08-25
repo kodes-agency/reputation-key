@@ -423,13 +423,14 @@ describe('region move rehearsal (BQC-4.5, real PostgreSQL + Redis)', () => {
     expect(rows.rows[0]).toMatchObject({ country_code: 'US', processing_region: 'us' })
   })
 
-  it('(d2) without an active move a cross-region country edit throws region_locked and writes NO region_moves row', async () => {
+  it('(d2) without an active move a country correction preserves placement and creates no move', async () => {
     const { update } = stubbed()
 
-    await expect(
-      update({ propertyId: PROP_NO_MOVE, countryCode: 'DE' }, ctx),
-    ).rejects.toSatisfy((e) => isPropertyError(e) && e.code === 'region_locked')
+    const updated = await update({ propertyId: PROP_NO_MOVE, countryCode: 'DE' }, ctx)
 
+    expect(updated.countryCode).toBe('DE')
+    expect(updated.dataCellId).toBe('us')
+    expect(updated.processingRegion).toBe('us')
     expect(await moveRowsFor(PROP_NO_MOVE)).toHaveLength(0)
   })
 

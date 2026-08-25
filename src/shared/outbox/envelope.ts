@@ -45,8 +45,10 @@ export type ConsumerEvent = Readonly<{
    * event family versions its aggregate (see event-job-catalogue ordering).
    */
   sourceAggregateVersion?: string | number | null
-  /** REG-01: process-local cell stamped by the relay; optional for old jobs. */
+  /** REG-01: freshly resolved immutable Property cell; optional for old jobs. */
   dataCellId?: DataCellId
+  /** Routing policy version observed with dataCellId. */
+  routingPolicyVersion?: number
   /** Compatibility field; new envelopes carry the same stable cell id. */
   region?: 'unscoped' | DataCellId
 }>
@@ -63,7 +65,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  */
 export function buildConsumerEvent(
   event: UnpublishedEvent,
-  dataCellId?: DataCellId,
+  routing?: Readonly<{ dataCellId: DataCellId; routingPolicyVersion: number }>,
 ): ConsumerEvent {
   const payload = isRecord(event.payload) ? event.payload : {}
   return {
@@ -85,8 +87,13 @@ export function buildConsumerEvent(
       typeof payload.sourceAggregateVersion === 'number'
         ? payload.sourceAggregateVersion
         : null,
-    ...(dataCellId ? { dataCellId } : {}),
-    region: dataCellId ?? 'unscoped',
+    ...(routing
+      ? {
+          dataCellId: routing.dataCellId,
+          routingPolicyVersion: routing.routingPolicyVersion,
+        }
+      : {}),
+    region: routing?.dataCellId ?? 'unscoped',
   }
 }
 
@@ -98,6 +105,7 @@ type OptionalEnvelopeFields = Pick<
   | 'causationId'
   | 'sourceAggregateVersion'
   | 'dataCellId'
+  | 'routingPolicyVersion'
   | 'region'
 >
 
@@ -115,6 +123,7 @@ function parseOptionalFields(
     causationId,
     sourceAggregateVersion,
     dataCellId,
+    routingPolicyVersion,
     region,
   } = data
   if (occurredAt !== undefined && typeof occurredAt !== 'string') return null
@@ -142,6 +151,18 @@ function parseOptionalFields(
     typeof dataCellId === 'string' ? dataCellById(dataCellId)?.id : undefined
   if (dataCellId !== undefined && !parsedCell) return null
   if (
+    routingPolicyVersion !== undefined &&
+    (typeof routingPolicyVersion !== 'number' ||
+      !Number.isSafeInteger(routingPolicyVersion) ||
+      routingPolicyVersion < 1)
+  )
+    return null
+  // REG-01 expand compatibility: the immediately preceding relay version
+  // stamped dataCellId without a policy version. Keep accepting that bounded
+  // in-flight shape so a rolling deploy does not poison its queue. New
+  // envelopes always carry both; a version without a cell is never valid.
+  if (parsedCell === undefined && routingPolicyVersion !== undefined) return null
+  if (
     region !== undefined &&
     region !== 'unscoped' &&
     (typeof region !== 'string' || !dataCellById(region))
@@ -156,6 +177,7 @@ function parseOptionalFields(
     causationId: (causationId ?? null) as string | null,
     sourceAggregateVersion: (sourceAggregateVersion ?? null) as string | number | null,
     ...(parsedCell ? { dataCellId: parsedCell } : {}),
+    ...(routingPolicyVersion !== undefined ? { routingPolicyVersion } : {}),
     region: (region ?? 'unscoped') as 'unscoped' | DataCellId,
   }
 }

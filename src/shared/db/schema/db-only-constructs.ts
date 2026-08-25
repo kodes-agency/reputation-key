@@ -49,8 +49,8 @@ export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
     name: 'guard_property_data_cell_assignment_v1',
     kind: 'function',
     owner: 'property',
-    source: 'drizzle/0089_property-data-cell-expand.sql',
-    reason: `${NO_TRIGGER_DSL}; makes the canonical Property Data Cell assignment immutable except at an audited operator-move activation or rollback state.`,
+    source: 'drizzle/0091_property-data-cell-rolling-writes.sql',
+    reason: `${NO_TRIGGER_DSL}; makes the canonical Property Data Cell assignment immutable except at an audited operator-move activation or rollback state, including rolling legacy writers.`,
   },
   {
     name: 'properties_data_cell_assignment_guard',
@@ -58,6 +58,13 @@ export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
     owner: 'property',
     source: 'drizzle/0089_property-data-cell-expand.sql',
     reason: NO_TRIGGER_DSL,
+  },
+  {
+    name: 'properties_data_cell_assignment_insert',
+    kind: 'trigger',
+    owner: 'property',
+    source: 'drizzle/0091_property-data-cell-rolling-writes.sql',
+    reason: `${NO_TRIGGER_DSL}; dual-writes the canonical assignment for legacy replicas during the expand rollout.`,
   },
   {
     name: 'organization_role_org_role_lower_unique',

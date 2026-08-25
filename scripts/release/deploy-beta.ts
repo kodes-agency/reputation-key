@@ -1,7 +1,7 @@
 // release:beta — promote ONE signed, digest-pinned CI release manifest into one
 // Railway Data Cell, wait for every deployment to settle, then prove it.
 //
-// Why this exists: the procedure used to be ~16 hand-typed commands across six
+// Why this exists: the procedure used to be many hand-typed commands across
 // services with two different variable contracts. Typing `RELEASE_SHA` alone —
 // what the earlier runbook said — produced a FAILED web deploy and a crashed
 // worker on 2026-08-21. The contract is now code.
@@ -10,8 +10,9 @@
 // never rebuilds and never writes SOURCE_REVISION: Railway receives the exact
 // registry digest recorded in the manifest plus RELEASE_SHA as runtime truth.
 //
-// Deploy order is load-bearing: `web` runs the migrations in its IaC-owned
-// preDeployCommand, so it goes first and alone.
+// Deploy order is load-bearing: provider Redis is brought up first; `web`
+// then runs the migrations in its IaC-owned preDeployCommand before workers
+// or effect services receive the candidate.
 //
 // THREE things this script refuses to lie about:
 //
@@ -29,19 +30,19 @@
 // harness (scripts/ops/operator-command.ts), so it needs --operator <id> (in
 // OPS_OPERATOR_IDENTITIES), --reason <text>, and a reachable DATABASE_URL to
 // land the policy_decision_audit row — the same contract every ops:* mutation
-// follows. --skip-audit exists for the incident case where the database is
-// unreachable; it prints an UNAUDITED banner and is documented as such.
+// follows. There is deliberately no unaudited bypass: an emergency promotion
+// still needs a named operator, reason, and durable policy-decision evidence.
 //
 // Usage:
 //   pnpm release:beta --manifest <manifest.json> --signature-bundle <bundle.json>
 //     --manifest-sha256 <digest> --cell <us|europe|global>
 //   add --apply --operator <id> --reason "<text>" to execute
 //   add --verify-only to prove an already-promoted cell
-//   flags: --app-url <url> --deploy-timeout <seconds> --skip-audit
+//   flags: --app-url <url> --deploy-timeout <seconds>
 //
 // Verification, always run after a settled --apply and by --verify-only:
-//   1. RELEASE_SHA + RELEASE_MANIFEST_SHA256 from all six services (blocking),
-//   2. active Railway image digest from all six services (blocking),
+//   1. RELEASE_SHA + RELEASE_MANIFEST_SHA256 from every service (blocking),
+//   2. active Railway image digest from every service (blocking),
 //   3. GET /api/health with every readiness boolean true (blocking when a URL
 //      is known: --app-url or BETA_APP_URL),
 //   4. every ai_execution_control_heads row enabled/accepting (blocking when
@@ -89,7 +90,7 @@ const OWN_VALUE_FLAGS = [
   '--manifest-sha256',
   '--cell',
 ] as const
-const OWN_BOOLEAN_FLAGS = ['--verify-only', '--skip-audit'] as const
+const OWN_BOOLEAN_FLAGS = ['--verify-only'] as const
 
 export type ServicePlan = {
   readonly service: RailwayApplicationService
@@ -109,7 +110,6 @@ type HeadRow = {
 type Options = {
   readonly apply: boolean
   readonly verifyOnly: boolean
-  readonly skipAudit: boolean
   readonly appUrl: string | undefined
   readonly deployTimeoutMs: number
   readonly manifestPath: string
@@ -170,7 +170,6 @@ function parseOptions(args: readonly string[]): Options | string {
   const options: Options = {
     apply: args.includes('--apply'),
     verifyOnly: args.includes('--verify-only'),
-    skipAudit: args.includes('--skip-audit'),
     appUrl:
       flagValue(args, '--app-url') ??
       process.env.BETA_APP_URL ??
@@ -589,8 +588,8 @@ function report(failures: readonly string[], settled: boolean): number {
   if (failures.length === 0) {
     out(
       settled
-        ? 'verified: every deployment SUCCESS, one revision across all six services, health green, AI heads accepting'
-        : 'verified: one revision across all six services, health green, AI heads accepting (no deploy in this run)',
+        ? `verified: every deployment SUCCESS, one revision across all ${String(ALL_SERVICES.length)} services, health green, AI heads accepting`
+        : `verified: one revision across all ${String(ALL_SERVICES.length)} services, health green, AI heads accepting (no deploy in this run)`,
     )
     return 0
   }
@@ -634,12 +633,11 @@ function assertSafeCosignVersion(): void {
   }
 }
 
-function verifyManifestSignature(manifest: PromotionManifest, options: Options): void {
+function verifyManifestSignature(options: Options): void {
   assertSafeCosignVersion()
   const args = sigstoreManifestVerificationArgs({
     manifestPath: options.manifestPath,
     bundlePath: options.signatureBundlePath,
-    workflowIdentity: manifest.ci.workflowIdentity,
   })
   const result = spawnSync('cosign', [...args], { encoding: 'utf8' })
   if (result.error || result.status !== 0) {
@@ -667,17 +665,34 @@ async function deployAndVerify(
   }
   out('  clear — promoted image metadata is the sole source identity')
 
-  // Web owns the pre-deploy database migration. Let Railway finish that
-  // deployment (including its /api/health/started activation check) before a
-  // worker or gateway can start running code that depends on the new schema.
-  const [web, ...remaining] = plan
-  if (!web || web.service !== 'web') {
-    throw new Error('release plan must start with web')
+  // Provider Redis is independent of the schema and must be ready before an
+  // enabled Google path can reach the new web. Web then owns the pre-deploy
+  // migration and finishes readiness before workers/effect services advance.
+  const [providerRedis, web, ...remaining] = plan
+  if (
+    !providerRedis ||
+    providerRedis.service !== 'google-provider-redis' ||
+    !web ||
+    web.service !== 'web'
+  ) {
+    throw new Error('release plan must start with provider Redis, then web')
   }
 
   out('')
   out(
-    `1/${String(plan.length)} ${web.service}: ${web.imageReference} ${web.variables.join(' ')}`,
+    `1/${String(plan.length)} ${providerRedis.service}: ${providerRedis.imageReference} ${providerRedis.variables.join(' ')}`,
+  )
+  const providerSettlement = await awaitSettlement(
+    [deployService(providerRedis, options.environment)],
+    [providerRedis],
+    options.environment,
+    options.deployTimeoutMs,
+  )
+  if (providerSettlement.length > 0) return report(providerSettlement, false)
+
+  out('')
+  out(
+    `2/${String(plan.length)} ${web.service}: ${web.imageReference} ${web.variables.join(' ')}`,
   )
   const webSettlement = await awaitSettlement(
     [deployService(web, options.environment)],
@@ -692,7 +707,7 @@ async function deployAndVerify(
   for (const [index, entry] of remaining.entries()) {
     out('')
     out(
-      `${String(index + 2)}/${String(plan.length)} ${entry.service}: ${entry.imageReference} ${entry.variables.join(' ')}`,
+      `${String(index + 3)}/${String(plan.length)} ${entry.service}: ${entry.imageReference} ${entry.variables.join(' ')}`,
     )
     const settlement = await awaitSettlement(
       [deployService(entry, options.environment)],
@@ -744,7 +759,7 @@ export async function runDeployBetaCli(args: readonly string[]): Promise<number>
   const manifest = loaded
 
   if (options.verifyOnly) {
-    verifyManifestSignature(manifest, options)
+    verifyManifestSignature(options)
     out(`verify-only — environment ${options.environment}`)
     return report(await verify(manifest, options.manifestSha256, options), false)
   }
@@ -757,31 +772,20 @@ export async function runDeployBetaCli(args: readonly string[]): Promise<number>
   // because the harness boots the policy runtime (full env schema +
   // DATABASE_URL) before it parses argv, so a forgotten --reason would surface
   // as an env error.
-  const missing = options.skipAudit
-    ? []
-    : ['--operator', '--reason'].filter((flag) => !flagValue(args, flag))
+  const missing = ['--operator', '--reason'].filter((flag) => !flagValue(args, flag))
   if (missing.length > 0) {
     process.stderr.write(
       `${COMMAND_NAME} --apply is an audited operator action and needs ${missing.join(' and ')}.\n` +
         `Usage: pnpm ${COMMAND_NAME} --apply --operator <id> --reason "<text>"\n` +
         'The operator must be listed in OPS_OPERATOR_IDENTITIES and DATABASE_URL must be reachable\n' +
-        'so the decision lands in policy_decision_audit (--skip-audit for the incident case).\n',
+        'so the decision lands in policy_decision_audit.\n',
     )
     return 2
   }
 
-  // Signature verification is never bypassable, including emergency
-  // --skip-audit. It is the authority for source and image provenance.
-  verifyManifestSignature(manifest, options)
-
-  if (options.skipAudit) {
-    out('')
-    out('════ UNAUDITED DEPLOY (--skip-audit) ════')
-    out('No named operator, no policy_decision_audit row. Incident use only —')
-    out('record the deploy in the incident log by hand.')
-    out('')
-    return deployAndVerify(manifest, options)
-  }
+  // Signature verification is never bypassable. It is the authority for
+  // source and image provenance.
+  verifyManifestSignature(options)
 
   // Audited path: same contract as every ops:* mutation — named operator from
   // OPS_OPERATOR_IDENTITIES, --reason, and one audited ExecutionPolicy decision
@@ -793,7 +797,7 @@ export async function runDeployBetaCli(args: readonly string[]): Promise<number>
       name: COMMAND_NAME,
       scope: 'global',
       mutation: true,
-      usage: `pnpm ${COMMAND_NAME} --manifest <manifest.json> --signature-bundle <bundle.json> --manifest-sha256 <digest> --cell <us|europe|global> --apply --operator <id> --reason "<text>" [--app-url <url>] [--deploy-timeout <seconds>] [--skip-audit]`,
+      usage: `pnpm ${COMMAND_NAME} --manifest <manifest.json> --signature-bundle <bundle.json> --manifest-sha256 <digest> --cell <us|europe|global> --apply --operator <id> --reason "<text>" [--app-url <url>] [--deploy-timeout <seconds>]`,
     },
     async () => deployAndVerify(manifest, options),
     harnessArgv(args),

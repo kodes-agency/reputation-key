@@ -7,6 +7,7 @@ export function createProviderEphemeralRedis(url: string, ca?: string): Redis {
     commandTimeout: 2_000,
     maxRetriesPerRequest: 1,
     enableAutoPipelining: false,
+    disableClientInfo: true,
     ...(ca ? { tls: { ca } } : {}),
   })
 }

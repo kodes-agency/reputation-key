@@ -87,6 +87,8 @@ const ZERO_RECOVERY = {
   googleRevokePermitsFenced: 0,
   legacyImportJobsCanceled: 0,
   legacyImportEffectLeasesReleased: 0,
+  googleImportV2ParentsFenced: 0,
+  googleImportV2ItemsFenced: 0,
   aiIssuedPermitsReleased: 0,
   aiConsumedPermitsMadeAmbiguous: 0,
   aiOperationsFenced: 0,
@@ -219,6 +221,7 @@ const ISOLATED_ENV = {
   RESTORE_POINT_AT: new Date(NOW - 1_000).toISOString(),
   RELEASE_SHA: 'a'.repeat(40),
   RELEASE_MANIFEST_SHA256: 'b'.repeat(64),
+  RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',
 } as const
 
 describe('ops:restore-verify (BQC-7.8, integration)', () => {

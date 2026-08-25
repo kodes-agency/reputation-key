@@ -143,8 +143,20 @@ export function buildRailwayProject(ctx: RailwayContext): ProjectDefinition {
   const cell = resolveCellTopology(ctx.environmentName ?? ctx.environment)
   const database = postgres('Postgres', { region: cell.serviceRegion })
   const queueRedis = redis('Redis', { region: cell.serviceRegion })
-  const providerRedis = redis('google-provider-redis', {
-    region: cell.serviceRegion,
+  // ADR-0050: provider material cannot use Railway's persistence-oriented
+  // managed Redis template. This digest-promoted service has no volume or
+  // public TCP proxy and boots TLS/non-default-ACL/non-persistent Redis from
+  // the same signed candidate as the application services.
+  const providerRedis = service('google-provider-redis', {
+    deploy: servingDeploy(cell.serviceRegion, 30),
+    env: {
+      PROVIDER_EPHEMERAL_REDIS_URL: ctx.shared.PROVIDER_EPHEMERAL_REDIS_URL,
+      PROVIDER_REDIS_TLS_CA_PEM: ctx.shared.PROVIDER_REDIS_TLS_CA_PEM,
+      PROVIDER_REDIS_TLS_CERT_PEM: ctx.shared.PROVIDER_REDIS_TLS_CERT_PEM,
+      PROVIDER_REDIS_TLS_KEY_PEM: ctx.shared.PROVIDER_REDIS_TLS_KEY_PEM,
+      RELEASE_SHA: ctx.shared.RELEASE_SHA,
+      RELEASE_MANIFEST_SHA256: ctx.shared.RELEASE_MANIFEST_SHA256,
+    },
   })
   const objectStore = bucket('object-store', { region: cell.bucketRegion })
 
@@ -152,8 +164,11 @@ export function buildRailwayProject(ctx: RailwayContext): ProjectDefinition {
     NODE_ENV: 'production',
     DATABASE_URL: database.env.DATABASE_URL,
     REDIS_URL: queueRedis.env.REDIS_URL,
-    // Provider Content/authorization storage is a separate TLS connection.
-    PROVIDER_EPHEMERAL_REDIS_URL: providerRedis.env.REDIS_PUBLIC_URL,
+    // Provider Content/authorization storage is private TLS with a dedicated
+    // non-default ACL identity. The shared URL is environment-scoped and
+    // names only google-provider-redis.railway.internal:6380.
+    PROVIDER_EPHEMERAL_REDIS_URL: ctx.shared.PROVIDER_EPHEMERAL_REDIS_URL,
+    PROVIDER_EPHEMERAL_REDIS_CA_PEM: ctx.shared.PROVIDER_REDIS_TLS_CA_PEM,
     PROCESSING_CELL: cell.cellId,
     GOOGLE_PROVIDER_ENDPOINT_PROFILE: 'production-fixed',
     AWS_S3_ACCESS_KEY: ref(objectStore, 'ACCESS_KEY_ID'),
@@ -169,7 +184,9 @@ export function buildRailwayProject(ctx: RailwayContext): ProjectDefinition {
     deploy: {
       ...servingDeploy(cell.serviceRegion, 30),
       preDeployCommand: ['node dist-worker/migrate-deploy.js'],
-      healthcheckPath: '/api/health/started',
+      // Promotion must not advance to worker/effect services until the serving
+      // tier proves DB, queue Redis, migration, and policy readiness.
+      healthcheckPath: '/api/health/ready',
       healthcheckTimeout: 30,
     },
     domains: [cell.publicDomain],
@@ -199,7 +216,8 @@ export function buildRailwayProject(ctx: RailwayContext): ProjectDefinition {
       PORT: '8443',
       DATABASE_URL: ctx.shared.GOOGLE_ADMISSION_DATABASE_URL,
       GOOGLE_ADMISSION_DATABASE_CA_B64: ctx.shared.GOOGLE_ADMISSION_DATABASE_CA_B64,
-      REDIS_URL: providerRedis.env.REDIS_PUBLIC_URL,
+      REDIS_URL: ctx.shared.PROVIDER_EPHEMERAL_REDIS_URL,
+      PROVIDER_REDIS_TLS_CA_PEM: ctx.shared.PROVIDER_REDIS_TLS_CA_PEM,
       GOOGLE_EGRESS_GATEWAY_IDENTITY: 'spiffe://repkey.internal/google-egress-gateway',
       GOOGLE_ADMISSION_GRANT_HMAC_KEYS: ctx.shared.GOOGLE_ADMISSION_GRANT_HMAC_KEYS,
       GOOGLE_INTERNAL_MTLS_CA_B64: ctx.shared.GOOGLE_INTERNAL_MTLS_CA_B64,

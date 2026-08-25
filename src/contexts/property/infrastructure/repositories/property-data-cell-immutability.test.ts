@@ -7,6 +7,7 @@ const ORG = 'org-data-cell-immutability'
 const ASSIGNED = 'dc000000-0000-4000-8000-000000000001'
 const UNASSIGNED = 'dc000000-0000-4000-8000-000000000002'
 const MOVE = 'dc000000-0000-4000-8000-000000000003'
+const LEGACY_INSERT = 'dc000000-0000-4000-8000-000000000004'
 
 async function clearFixtures(): Promise<void> {
   await db.execute(sql`DELETE FROM region_moves WHERE organization_id = ${ORG}`)
@@ -65,6 +66,36 @@ afterAll(async () => {
 })
 
 describe.sequential('Property Data Cell assignment guard', () => {
+  it('dual-writes the canonical assignment for a rolling legacy insert', async () => {
+    await db.execute(sql`
+      INSERT INTO properties (
+        id, organization_id, name, slug, timezone, country_code,
+        processing_region, routing_policy_version
+      ) VALUES (
+        ${LEGACY_INSERT}, ${ORG}, 'Legacy insert', 'data-cell-legacy-insert',
+        'UTC', 'US', 'us', 2
+      )
+    `)
+
+    await expect(assignment(LEGACY_INSERT)).resolves.toEqual({
+      data_cell_id: 'us',
+      processing_region: 'us',
+    })
+  })
+
+  it('dual-writes when a rolling legacy update resolves an unassigned row', async () => {
+    await db.execute(sql`
+      UPDATE properties
+      SET processing_region = 'us'
+      WHERE id = ${UNASSIGNED}
+    `)
+
+    await expect(assignment(UNASSIGNED)).resolves.toEqual({
+      data_cell_id: 'us',
+      processing_region: 'us',
+    })
+  })
+
   it('allows one initial assignment for an unresolved expand-phase row', async () => {
     await db.execute(sql`
       UPDATE properties

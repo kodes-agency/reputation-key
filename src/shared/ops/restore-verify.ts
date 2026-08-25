@@ -278,9 +278,14 @@ export async function runRestoreVerifyAction(
   io.out('  1. Verify reads against the restored instance (boot smoke, spot-checks)')
   io.out('  2. Reauthorize every fenced Google connection before provider work')
   io.out('  3. Use a fresh Redis; never restore or reuse the pre-incident job queues')
-  io.out('  4. UNSET RESTORE_MODE and redeploy web + worker to resume normal service')
   io.out(
-    '  5. Rebuild projections/reconcile external state; do not redrive fenced outbox rows',
+    `  4. Set RECOVERY_CUTOVER_RUN_ID=${recoveryResult.id} and RECOVERY_CUTOVER_GENERATION=${String(recoveryResult.generation)} on every restored-database consumer`,
+  )
+  io.out(
+    '  5. UNSET RESTORE_MODE and redeploy; web + worker refuse boot unless that tuple is the latest recovery run',
+  )
+  io.out(
+    '  6. Rebuild projections/reconcile external state; do not redrive fenced outbox rows',
   )
   return 0
 }

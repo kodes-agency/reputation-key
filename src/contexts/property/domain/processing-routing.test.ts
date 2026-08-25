@@ -132,7 +132,9 @@ describe('assertRegionResolved', () => {
   it.each(['europe', 'global'])(
     'fails closed while the known %s cell is provisioning',
     (region) => {
-      expect(() => assertRegionResolved({ dataCellId: region })).toThrow()
+      expect(() => assertRegionResolved({ dataCellId: region })).toThrow(
+        /accepting Data Cell/,
+      )
     },
   )
 

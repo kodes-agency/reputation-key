@@ -49,7 +49,7 @@ Do not dispatch or apply until all of these are true:
 5. The approved beta evidence manifest and Google/provider approval evidence
    are immutable and their lowercase SHA-256 values are recorded.
 6. `.railway/railway.ts` has been applied to the target non-production
-   `cell-*` environment, the six serving services exist, and no service has a
+   `cell-*` environment, the seven serving services exist, and no service has a
    GitHub/local source or legacy source-revision override.
 7. The operator workstation has Railway CLI 5.43.3 or newer, Node from
    `.nvmrc`, pnpm, and patched Cosign 3.1.3 or newer. The deploy command refuses
@@ -100,7 +100,7 @@ pnpm release:beta \
   --cell us
 ```
 
-Dry-run parses the complete contract and prints the six exact image references
+Dry-run parses the complete contract and prints the seven exact image references
 without invoking Railway or needing application secrets. Review the target
 `cell-us`, revision, manifest SHA, images, and order.
 
@@ -120,7 +120,7 @@ pnpm release:beta \
 ```
 
 Before its first mutation, apply verifies the canonical SHA and Sigstore
-identity and reads all six service environments to reject legacy identity
+identity and reads all seven service environments to reject legacy identity
 overrides. It writes only `RELEASE_SHA` and `RELEASE_MANIFEST_SHA256`, with
 intermediate deploys disabled, then connects the exact image source.
 
@@ -132,17 +132,16 @@ This is an explicit partial-promotion incident, never a successful rollout.
 
 After settlement, the command requires:
 
-- one expected release SHA and manifest SHA on all six services;
+- one expected release SHA and manifest SHA on all seven services;
 - no legacy source-revision override;
 - every active deployment at the manifest's exact digest and `SUCCESS`;
 - `/api/health` with database, Redis, migration, and policy readiness;
 - every AI execution-control head enabled and accepting when `DATABASE_URL` is
   available.
 
-`--skip-audit` exists only for an incident where the audit database is
-unreachable. It prints an unaudited warning and still verifies the signed
-manifest. It cannot waive tenant isolation, the image digest, provenance, or
-signature controls.
+There is no unaudited promotion bypass. Emergency releases still require the
+normal named operator, reason, durable policy-decision row, and signed-manifest
+verification.
 
 ## Independent read-back
 

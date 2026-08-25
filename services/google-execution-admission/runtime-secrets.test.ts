@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  GOOGLE_ADMISSION_OPTIONAL_RUNTIME_SECRET_NAMES,
   GOOGLE_ADMISSION_RUNTIME_SECRET_NAMES,
   consumeGoogleAdmissionRuntimeSecrets,
 } from './runtime-secrets'
@@ -13,6 +14,7 @@ function environment(): Record<string, string | undefined> {
 describe('Google admission runtime secret environment', () => {
   it('limits boot secrets to one callback and clears both source and aggregate', () => {
     const input = environment()
+    input.PROVIDER_REDIS_TLS_CA_PEM = 'private-ca'
     input.RELEASE_SHA = 'a'.repeat(40)
     let retained: Record<string, string> | undefined
     const values = consumeGoogleAdmissionRuntimeSecrets(input, (secrets) => {
@@ -26,10 +28,14 @@ describe('Google admission runtime secret environment', () => {
     expect(GOOGLE_ADMISSION_RUNTIME_SECRET_NAMES.every((name) => !(name in input))).toBe(
       true,
     )
+    expect(
+      GOOGLE_ADMISSION_OPTIONAL_RUNTIME_SECRET_NAMES.every((name) => !(name in input)),
+    ).toBe(true)
     expect(input.RELEASE_SHA).toBe('a'.repeat(40))
-    expect(Object.values(retained!)).toEqual(
-      GOOGLE_ADMISSION_RUNTIME_SECRET_NAMES.map(() => ''),
-    )
+    expect(Object.values(retained!)).toEqual([
+      ...GOOGLE_ADMISSION_RUNTIME_SECRET_NAMES.map(() => ''),
+      '',
+    ])
   })
 
   it('clears every secret when derivation fails', () => {

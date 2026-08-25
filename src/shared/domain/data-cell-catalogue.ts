@@ -1,6 +1,15 @@
 import { getCountries, type CountryCode } from 'libphonenumber-js'
 
 export const DATA_CELL_CATALOGUE_POLICY_VERSION = 2
+/**
+ * Review anchor for the exact ISO calling-country set approved by policy v2.
+ * CI hashes libphonenumber's sorted set against this value, so upgrading the
+ * dependency cannot silently change Property placement. Any intentional set
+ * change must update this digest and the catalogue policy version together.
+ */
+export const DATA_CELL_SUPPORTED_COUNTRY_COUNT = 245
+export const DATA_CELL_SUPPORTED_COUNTRY_POLICY_SHA256 =
+  'f760bd6add5b111943f2983a4d5c50a1bf8d17f3e34cb347bdb06a2ac3ca21b7'
 
 export const DATA_CELL_IDS = ['us', 'europe', 'global'] as const
 export type DataCellId = (typeof DATA_CELL_IDS)[number]

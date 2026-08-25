@@ -26,6 +26,8 @@ export type RecoveryFenceCounts = Readonly<{
   googleRevokePermitsFenced: number
   legacyImportJobsCanceled: number
   legacyImportEffectLeasesReleased: number
+  googleImportV2ParentsFenced: number
+  googleImportV2ItemsFenced: number
   aiIssuedPermitsReleased: number
   aiConsumedPermitsMadeAmbiguous: number
   aiOperationsFenced: number
@@ -34,9 +36,10 @@ export type RecoveryFenceCounts = Readonly<{
 }>
 
 /**
- * Durable proof for an isolated-restore recovery fence. Re-running the same
- * source-manifest/restore-point tuple returns this row; a distinct restore
- * rotates the monotonic per-cell generation.
+ * Durable, convergent proof for an isolated-restore recovery fence. Re-running
+ * the same source-manifest/restore-point tuple re-scans and fences any authority
+ * that appeared after the previous pass, accumulating content-free counts in
+ * this row. A distinct restore rotates the monotonic per-cell generation.
  */
 export const recoveryRuns = pgTable(
   'recovery_runs',

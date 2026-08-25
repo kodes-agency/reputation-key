@@ -61,8 +61,8 @@ the `ops:*` harness until `--apply`:
 - Add `--apply --operator <id> --reason "<text>"` for the audited
   path: it runs through the same harness as every `ops:*` mutation, so the
   operator must be in `OPS_OPERATOR_IDENTITIES` and the decision lands in
-  `policy_decision_audit`. `--skip-audit` exists for the incident case where
-  the database is unreachable; it prints an UNAUDITED banner but never bypasses
+  `policy_decision_audit`. There is no unaudited promotion bypass; emergency
+  releases still require a named operator, reason, durable decision row, and
   signature verification.
 - Promotion never uploads or rebuilds a working tree. It verifies the Sigstore
   bundle, rejects legacy revision-variable overrides, attaches each exact
@@ -314,7 +314,7 @@ surface dark); network-level restriction of the ops surface is platform-owned
 **Impact:** P0 for migration failure or data loss. P1 for saturation.
 **Diagnostics:** Check `pg_stat_activity` for connection count. Check the Railway console (Postgres service metrics) for compute/storage. Check migration logs.
 **Containment:** Reduce worker concurrency. Pause non-critical jobs. If the predeploy migration failed: the deploy is already blocked (Railway `preDeployCommand` exited non-zero) — the previous containers keep serving; do NOT hand-roll partial schema state.
-**Recovery:** Saturation → tune pool sizes, add indexes. Migration → forward recovery only: the trio (`scripts/migrate-deploy.ts`, advisory-locked, idempotent) leaves no half-applied state beyond its idempotent steps — fix the failing migration/sidecar SQL forward and redeploy; the rerun converges (see the script header + src/shared/db/CONTEXT.md "Deploy apply order"). Never roll the schema back mid-flight. Restore → follow [backup-and-lifecycle.md](backup-and-lifecycle.md) §1 exactly: contain one Data Cell → Railway PITR to its generated sibling service → exact-target preflight through a Railway tunnel → migration parity → dry-run inventory → destructive retention/recovery fence → isolated signed-image read verification → fresh Redis and controlled connection cutover. Railway leaves the live source serving; volume restore is not this procedure. Restore variables are verifier-service/process scoped, never shared. Restore is the only database rollback path, reserved for data loss.
+**Recovery:** Saturation → tune pool sizes, add indexes. Migration → forward recovery only: the trio (`scripts/migrate-deploy.ts`, advisory-locked, idempotent) leaves no half-applied state beyond its idempotent steps — fix the failing migration/sidecar SQL forward and redeploy; the rerun converges (see the script header + src/shared/db/CONTEXT.md "Deploy apply order"). Never roll the schema back mid-flight. Restore → follow [backup-and-lifecycle.md](backup-and-lifecycle.md) §1 exactly: contain one Data Cell → Railway PITR to its generated sibling service → exact-target preflight through a Railway tunnel → migration parity → dry-run inventory → destructive retention/recovery fence → isolated signed-image read verification → fresh Redis and controlled connection cutover with the verified recovery run/generation pinned. Railway leaves the live source serving; volume restore is not this procedure. Restore-only variables are verifier-service/process scoped; the cutover run/generation remains on every sibling consumer as its permanent boot attestation. Restore is the only database rollback path, reserved for data loss.
 **Verification:** Connection count under budget. Migration journal consistent. Restore has one replayable `recovery_runs` generation, zero overdue retention/Google-import backlog, zero unfenced restored authority, no claimable fenced outbox rows, critical reads/tenant isolation green, fresh empty queues, and no duplicate external effect before cutover.
 **Escalation:** P0 — page Bozhidar Denev for migration/restore. Railway support if platform issue.
 

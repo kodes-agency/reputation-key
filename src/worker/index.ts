@@ -7,6 +7,9 @@ import { getLogger } from '#/shared/observability/logger'
 import { runCapabilityBootGuard } from '#/shared/auth/capability-boot-guard'
 import { assertProductionSecrets } from '#/shared/config/production-secrets'
 import { assertReleaseIdentity } from '#/shared/config/release-identity'
+import { getDb } from '#/shared/db'
+import { assertRecoveryCutoverAttestation } from '#/shared/config/recovery-cutover-attestation'
+import { createRecoveryCutoverRunReader } from '#/shared/db/recovery/recovery-cutover-run-reader'
 import {
   assertRestoreModeCompatible,
   isRestoreIsolated,
@@ -80,6 +83,7 @@ async function main() {
     logger.warn(RESTORE_ISOLATED_LOG_LINE)
   }
   assertRestoreModeCompatible(env, 'worker')
+  await assertRecoveryCutoverAttestation(createRecoveryCutoverRunReader(getDb()), env)
 
   // Build the dependency container
   const container = createContainer({ enableJobs: true })
@@ -579,7 +583,21 @@ async function main() {
 
     if (domainEventsQueue) {
       const relay = createOutboxRelay(container.outboxRepo, domainEventsQueue, {
-        dataCellId: env.PROCESSING_CELL,
+        // REG-01: a Property-scoped fact is admitted against CURRENT routing
+        // immediately before queue publication. Organization/global facts are
+        // cell-local by database placement and carry no Property to resolve.
+        admitEvent: async (event) => {
+          if (!event.propertyId) return true
+          const decision = await container.dataCellExecutionFence.decideProperty(
+            event.propertyId,
+          )
+          return decision.kind === 'allow'
+            ? {
+                dataCellId: decision.cell,
+                routingPolicyVersion: decision.routingPolicyVersion,
+              }
+            : false
+        },
       })
       stopRelay = relay.start(5_000)
       const dispatchHandler = createDispatcherHandler(container.outboxRepo, {

@@ -260,6 +260,20 @@ describe('retention sweep job (BQC-1.6)', () => {
 })
 
 describe('retention rule registry (BQC-3.7)', () => {
+  it('redacts canonical private-feedback text at its row deadline', () => {
+    expect(
+      RETENTION_RULES.find((rule) => rule.subject === 'guest_responses.private_text'),
+    ).toMatchObject({
+      table: 'guest_responses',
+      keyColumns: ['id'],
+      tsColumn: 'retention_deadline',
+      olderThanMs: 0,
+      extraWhere: 'response_text IS NOT NULL',
+      operation: 'redact',
+      redactColumns: ['response_text'],
+    })
+  })
+
   it('redacts every legacy guest abuse pseudonym after seven days', () => {
     for (const table of ['scan_events', 'ratings', 'feedback']) {
       expect(

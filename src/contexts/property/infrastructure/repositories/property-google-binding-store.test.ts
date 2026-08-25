@@ -231,7 +231,7 @@ describe.sequential('Property Google binding store', () => {
         timezone: 'America/New_York',
         profileSource: 'tenant_confirmed',
         profileConfirmedAt: CONFIRMED_AT,
-        processingRegion: 'unresolved',
+        processingRegion: null,
         lifecycleState: 'active',
         deletedAt: null,
       },

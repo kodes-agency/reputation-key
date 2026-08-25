@@ -87,6 +87,7 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
     const expectedServices = [
       'web',
       'worker',
+      'google-provider-redis',
       'google-execution-admission',
       'google-egress-gateway',
       'ai-execution-admission',
@@ -99,7 +100,7 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
       // immutable image digest, so the graph must not reintroduce Git builds.
       expect(node.source).toBeUndefined()
     }
-    for (const name of ['Postgres', 'Redis', 'google-provider-redis']) {
+    for (const name of ['Postgres', 'Redis']) {
       expect(
         (resource(definition, 'database', name) as DatabaseNode).deploy
           ?.multiRegionConfig,
@@ -108,6 +109,21 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
     expect(
       (resource(definition, 'bucket', 'object-store') as BucketNode).config?.region,
     ).toBe(topology.bucketRegion)
+    const providerRedis = resource(
+      definition,
+      'service',
+      'google-provider-redis',
+    ) as ServiceNode
+    expect(providerRedis.volumeAttachments).toBeUndefined()
+    expect(providerRedis.networking?.tcpProxies).toBeUndefined()
+    expect(variableNames(providerRedis)).toEqual([
+      'PROVIDER_EPHEMERAL_REDIS_URL',
+      'PROVIDER_REDIS_TLS_CA_PEM',
+      'PROVIDER_REDIS_TLS_CERT_PEM',
+      'PROVIDER_REDIS_TLS_KEY_PEM',
+      'RELEASE_MANIFEST_SHA256',
+      'RELEASE_SHA',
+    ])
   })
 
   it('pins the cell identity, domain, database, cache, and bucket references', () => {
@@ -129,9 +145,12 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
       output: 'DATABASE_URL',
     })
     expect(web.variables?.PROVIDER_EPHEMERAL_REDIS_URL).toMatchObject({
-      type: 'reference',
-      resource: 'database.google-provider-redis',
-      output: 'REDIS_PUBLIC_URL',
+      type: 'sharedReference',
+      name: 'PROVIDER_EPHEMERAL_REDIS_URL',
+    })
+    expect(web.variables?.PROVIDER_EPHEMERAL_REDIS_CA_PEM).toMatchObject({
+      type: 'sharedReference',
+      name: 'PROVIDER_REDIS_TLS_CA_PEM',
     })
     expect(web.variables?.AWS_S3_BUCKET_NAME).toMatchObject({
       type: 'reference',
@@ -172,11 +191,27 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
       'google-egress-gateway',
     ) as ServiceNode
     const aiGateway = resource(definition, 'service', 'ai-egress-gateway') as ServiceNode
+    const providerRedis = resource(
+      definition,
+      'service',
+      'google-provider-redis',
+    ) as ServiceNode
+    expect(variableNames(providerRedis)).toEqual(
+      [
+        'PROVIDER_EPHEMERAL_REDIS_URL',
+        'PROVIDER_REDIS_TLS_CA_PEM',
+        'PROVIDER_REDIS_TLS_CERT_PEM',
+        'PROVIDER_REDIS_TLS_KEY_PEM',
+        'RELEASE_MANIFEST_SHA256',
+        'RELEASE_SHA',
+      ].sort(),
+    )
     expect(variableNames(googleAdmission)).toEqual(
       [
         ...GOOGLE_ADMISSION_REQUIRED_ENVIRONMENT_NAMES.filter(
           (name) => name !== 'IMAGE_SOURCE_REVISION',
         ),
+        'PROVIDER_REDIS_TLS_CA_PEM',
         'RELEASE_MANIFEST_SHA256',
       ].sort(),
     )
@@ -202,6 +237,7 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
     for (const name of [
       'web',
       'worker',
+      'google-provider-redis',
       'google-execution-admission',
       'google-egress-gateway',
       'ai-execution-admission',
@@ -214,7 +250,7 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
     }
     expect(web.deploy).toMatchObject({
       preDeployCommand: ['node dist-worker/migrate-deploy.js'],
-      healthcheckPath: '/api/health/started',
+      healthcheckPath: '/api/health/ready',
       healthcheckTimeout: 30,
       numReplicas: 1,
       restartPolicyType: 'ON_FAILURE',

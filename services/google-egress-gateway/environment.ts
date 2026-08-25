@@ -37,7 +37,7 @@ const RUNTIME_METADATA_NAMES = Object.freeze([
   'RELEASE_MANIFEST_SHA256',
 ] as const)
 
-const OWNED_NAMES = Object.freeze([
+const BASE_OWNED_NAMES = [
   'HOST',
   'PORT',
   'GOOGLE_EXECUTION_ADMISSION_ORIGIN',
@@ -45,7 +45,6 @@ const OWNED_NAMES = Object.freeze([
   'GOOGLE_EGRESS_GATEWAY_IDENTITY',
   'GOOGLE_EGRESS_ALLOWED_CALLER_IDENTITIES',
   'GOOGLE_PROVIDER_ROUTE_PROFILE',
-  'GOOGLE_PROVIDER_SIMULATOR_ORIGIN',
   'GOOGLE_ADMISSION_GRANT_HMAC_KEYS',
   'GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS',
   'GOOGLE_INTERNAL_MTLS_CA_PATH',
@@ -56,43 +55,60 @@ const OWNED_NAMES = Object.freeze([
   'GOOGLE_INTERNAL_MTLS_KEY_B64',
   'RELEASE_SHA',
   'IMAGE_SOURCE_REVISION',
-] as const)
+] as const
 
 export const GOOGLE_GATEWAY_REQUIRED_ENVIRONMENT_NAMES = Object.freeze(
-  OWNED_NAMES.filter(
-    (name) => !name.endsWith('_PATH') && name !== 'GOOGLE_PROVIDER_SIMULATOR_ORIGIN',
-  ),
+  BASE_OWNED_NAMES.filter((name) => !name.endsWith('_PATH')),
 )
 
-const ALLOWED_NAMES = new Set<string>([...RUNTIME_METADATA_NAMES, ...OWNED_NAMES])
+const PRODUCTION_ALLOWED_NAMES = new Set<string>([
+  ...RUNTIME_METADATA_NAMES,
+  ...BASE_OWNED_NAMES,
+])
 
-export function assertGoogleGatewayEnvironmentIsIsolated(
+function assertEnvironmentIsIsolatedAgainst(
   environment: Readonly<Record<string, string | undefined>>,
+  allowedNames: ReadonlySet<string>,
 ): void {
   const canonicalNames = new Set<string>()
   for (const [name, value] of Object.entries(environment)) {
     if (value === undefined) continue
     const canonical = name.toUpperCase()
-    if (name !== canonical || canonicalNames.has(canonical) || !ALLOWED_NAMES.has(name)) {
+    if (name !== canonical || canonicalNames.has(canonical) || !allowedNames.has(name)) {
       throw new Error(`Google gateway environment contains forbidden variable ${name}`)
     }
     canonicalNames.add(canonical)
   }
 }
 
-export function assertGoogleGatewayRequiredEnvironment(
+export function assertGoogleGatewayEnvironmentIsIsolated(
   environment: Readonly<Record<string, string | undefined>>,
 ): void {
-  const values: Readonly<Record<string, string | undefined>> = {
+  assertEnvironmentIsIsolatedAgainst(
+    environment,
+    new Set<string>([
+      ...RUNTIME_METADATA_NAMES,
+      ...BASE_OWNED_NAMES,
+      'GOOGLE_PROVIDER_SIMULATOR_ORIGIN',
+    ]),
+  )
+}
+
+function valuesWithDefaults(
+  environment: Readonly<Record<string, string | undefined>>,
+): Readonly<Record<string, string | undefined>> {
+  return {
     ...environment,
     HOST: environment.HOST ?? '0.0.0.0',
     PORT: environment.PORT ?? '8443',
   }
-  assertGoogleGatewayEnvironmentIsIsolated(values)
-  for (const name of OWNED_NAMES.filter(
-    (name) =>
-      !name.startsWith('GOOGLE_INTERNAL_MTLS_') &&
-      name !== 'GOOGLE_PROVIDER_SIMULATOR_ORIGIN',
+}
+
+function assertCommonRequiredEnvironment(
+  values: Readonly<Record<string, string | undefined>>,
+): void {
+  for (const name of BASE_OWNED_NAMES.filter(
+    (name) => !name.startsWith('GOOGLE_INTERNAL_MTLS_'),
   )) {
     if (!values[name]) {
       throw new Error(`required Google gateway setting is missing: ${name}`)
@@ -125,22 +141,6 @@ export function assertGoogleGatewayRequiredEnvironment(
   ) {
     throw new Error('Google gateway private route is invalid')
   }
-  if (values.GOOGLE_PROVIDER_ROUTE_PROFILE === 'production') {
-    if (
-      values.GOOGLE_EXECUTION_ADMISSION_ORIGIN !==
-        'https://google-execution-admission.railway.internal:8443' ||
-      values.GOOGLE_PROVIDER_SIMULATOR_ORIGIN !== undefined
-    ) {
-      throw new Error('Google production gateway private route is invalid')
-    }
-  } else if (
-    values.GOOGLE_PROVIDER_ROUTE_PROFILE !== 'local_sandbox' ||
-    values.GOOGLE_EXECUTION_ADMISSION_ORIGIN !==
-      'https://google-execution-admission:8443' ||
-    !values.GOOGLE_PROVIDER_SIMULATOR_ORIGIN
-  ) {
-    throw new Error('Google gateway route profile is invalid')
-  }
   if (
     !/^[a-f0-9]{40}$/u.test(values.RELEASE_SHA ?? '') ||
     !/^[a-f0-9]{40}$/u.test(values.IMAGE_SOURCE_REVISION ?? '')
@@ -152,4 +152,58 @@ export function assertGoogleGatewayRequiredEnvironment(
     RELEASE_SHA: values.RELEASE_SHA,
     IMAGE_SOURCE_REVISION: values.IMAGE_SOURCE_REVISION,
   })
+}
+
+/** Production-only validator imported by the promoted gateway entry point. */
+export function assertGoogleGatewayRequiredProductionEnvironment(
+  environment: Readonly<Record<string, string | undefined>>,
+): void {
+  const values = valuesWithDefaults(environment)
+  assertEnvironmentIsIsolatedAgainst(values, PRODUCTION_ALLOWED_NAMES)
+  assertCommonRequiredEnvironment(values)
+  if (
+    values.GOOGLE_PROVIDER_ROUTE_PROFILE !== 'production' ||
+    values.GOOGLE_EXECUTION_ADMISSION_ORIGIN !==
+      'https://google-execution-admission.railway.internal:8443'
+  ) {
+    throw new Error('Google production gateway private route is invalid')
+  }
+}
+
+/** Local-only validator; production bundling removes this entire export. */
+export function assertGoogleGatewayRequiredLocalEnvironment(
+  environment: Readonly<Record<string, string | undefined>>,
+): void {
+  const values = valuesWithDefaults(environment)
+  assertGoogleGatewayEnvironmentIsIsolated(values)
+  assertCommonRequiredEnvironment(values)
+  if (
+    values.GOOGLE_PROVIDER_ROUTE_PROFILE !== 'local_sandbox' ||
+    values.GOOGLE_EXECUTION_ADMISSION_ORIGIN !==
+      'https://google-execution-admission:8443' ||
+    !values.GOOGLE_PROVIDER_SIMULATOR_ORIGIN
+  ) {
+    throw new Error('Google gateway route profile is invalid')
+  }
+}
+
+/** Source/test convenience validator for both explicit route profiles. */
+export function assertGoogleGatewayRequiredEnvironment(
+  environment: Readonly<Record<string, string | undefined>>,
+): void {
+  if (environment.GOOGLE_PROVIDER_ROUTE_PROFILE === 'local_sandbox') {
+    assertGoogleGatewayRequiredLocalEnvironment(environment)
+    return
+  }
+  const values = valuesWithDefaults(environment)
+  assertGoogleGatewayEnvironmentIsIsolated(values)
+  assertCommonRequiredEnvironment(values)
+  if (
+    values.GOOGLE_PROVIDER_ROUTE_PROFILE !== 'production' ||
+    values.GOOGLE_EXECUTION_ADMISSION_ORIGIN !==
+      'https://google-execution-admission.railway.internal:8443' ||
+    values.GOOGLE_PROVIDER_SIMULATOR_ORIGIN !== undefined
+  ) {
+    throw new Error('Google production gateway private route is invalid')
+  }
 }

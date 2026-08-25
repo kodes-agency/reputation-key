@@ -10,6 +10,8 @@ import {
   promotedImageReference,
   promotionManifestSha256,
   sigstoreManifestVerificationArgs,
+  TRUSTED_RELEASE_REPOSITORY,
+  TRUSTED_RELEASE_WORKFLOW_IDENTITY,
   type PromotionManifest,
 } from './promotion-manifest'
 
@@ -22,10 +24,9 @@ function manifest(): PromotionManifest {
     version: PROMOTION_MANIFEST_VERSION,
     releaseSha,
     createdAt: '2026-08-25T08:00:00.000Z',
-    source: { repository: 'repkey/reputation-key', ref: 'refs/heads/main' },
+    source: { repository: TRUSTED_RELEASE_REPOSITORY, ref: 'refs/heads/main' },
     ci: {
-      workflowIdentity:
-        'https://github.com/repkey/reputation-key/.github/workflows/release-images.yml@refs/heads/main',
+      workflowIdentity: TRUSTED_RELEASE_WORKFLOW_IDENTITY,
       runId: '1234',
       runAttempt: 1,
     },
@@ -100,12 +101,13 @@ describe('promotion manifest', () => {
     )
   })
 
-  it('builds one exact-image plan for all six Railway runtime services', () => {
+  it('builds one exact-image plan for every Railway runtime service', () => {
     const candidate = manifest()
     const manifestDigest = digest('c')
     const plan = deployPlan(candidate, manifestDigest)
 
     expect(plan.map((entry) => entry.service)).toEqual([
+      'google-provider-redis',
       'web',
       'worker',
       'google-execution-admission',
@@ -113,7 +115,7 @@ describe('promotion manifest', () => {
       'ai-execution-admission',
       'ai-egress-gateway',
     ])
-    expect(plan).toHaveLength(6)
+    expect(plan).toHaveLength(7)
     for (const entry of plan) {
       expect(entry.imageReference.endsWith(`@${entry.imageDigest}`)).toBe(true)
       expect(entry.variables).toEqual([
@@ -137,17 +139,29 @@ describe('promotion manifest', () => {
       sigstoreManifestVerificationArgs({
         manifestPath: '/release/manifest.json',
         bundlePath: '/release/manifest.sigstore.json',
-        workflowIdentity: manifest().ci.workflowIdentity,
       }),
     ).toEqual([
       'verify-blob',
       '--bundle',
       '/release/manifest.sigstore.json',
       '--certificate-identity',
-      manifest().ci.workflowIdentity,
+      TRUSTED_RELEASE_WORKFLOW_IDENTITY,
       '--certificate-oidc-issuer',
       'https://token.actions.githubusercontent.com',
       '/release/manifest.json',
     ])
+  })
+
+  it('rejects a manifest that asks the deployer to trust another workflow', () => {
+    const candidate = structuredClone(manifest()) as unknown as {
+      ci: { workflowIdentity: string }
+    }
+    candidate.ci.workflowIdentity =
+      'https://github.com/attacker/repository/.github/workflows/release-images.yml@refs/heads/main'
+    expect(
+      parsePromotionManifest(
+        canonicalPromotionManifest(candidate as unknown as PromotionManifest),
+      ),
+    ).toMatchObject({ ok: false })
   })
 })

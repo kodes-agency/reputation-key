@@ -1,0 +1,16 @@
+# Dedicated, disposable provider-control Redis. It is intentionally not a
+# Railway managed database: the application contract requires private TLS,
+# a non-default ACL user, persistence/replication disabled, bounded memory,
+# and denied persistence/admin commands. This image is built, scanned, signed,
+# and promoted with the rest of the release candidate.
+FROM redis:7.4.7-alpine@sha256:02f2cc4882f8bf87c79a220ac958f58c700bdec0dfb9b9ea61b62fb0e8f1bfcf
+
+ARG SOURCE_REVISION
+ENV IMAGE_SOURCE_REVISION=$SOURCE_REVISION
+LABEL org.opencontainers.image.source="https://github.com/kodes-agency/reputation-key" \
+      org.opencontainers.image.revision="$SOURCE_REVISION" \
+      org.opencontainers.image.title="RepKey provider-ephemeral Redis"
+
+COPY --chmod=0555 services/google-provider-redis/entrypoint.sh /usr/local/bin/repkey-provider-redis
+
+ENTRYPOINT ["/usr/local/bin/repkey-provider-redis"]

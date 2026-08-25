@@ -254,7 +254,7 @@ describe('updateProperty', () => {
     expect(updated.processingRegionResolvedAt).toEqual(FIXED_TIME)
   })
 
-  it('rejects country change that would alter a resolved region (BQR-3.5)', async () => {
+  it('corrects country without changing immutable Data Cell placement', async () => {
     const { useCase, propertyRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const prop = buildTestProperty({
@@ -264,12 +264,12 @@ describe('updateProperty', () => {
     })
     propertyRepo.seed([prop])
 
-    await expect(
-      useCase({ propertyId: prop.id, countryCode: 'DE' }, ctx),
-    ).rejects.toSatisfy(
-      (e: unknown) =>
-        isPropertyError(e) && (e as { code: string }).code === 'region_locked',
-    )
+    const updated = await useCase({ propertyId: prop.id, countryCode: 'DE' }, ctx)
+
+    expect(updated.countryCode).toBe('DE')
+    expect(updated.processingRegion).toBe('us')
+    expect(updated.dataCellId).toBe('us')
+    expect(updated.processingRegionResolvedAt).toEqual(FIXED_TIME)
   })
 
   it('allows country correction within the same resolved region (BQR-3.5)', async () => {

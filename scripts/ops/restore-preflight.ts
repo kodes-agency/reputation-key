@@ -81,7 +81,7 @@ async function main(): Promise<void> {
         '     — enforces retention, invalidates restored authority, fences unpublished effects, and proves zero backlog',
       )
       io.out(
-        '  5. Cut over only after verification (UNSET RESTORE_MODE + redeploy) — restore is the ONLY rollback path, reserved for data loss',
+        '  5. Cut over only after verification (pin recovery run/generation, UNSET RESTORE_MODE, redeploy) — restore is the ONLY rollback path, reserved for data loss',
       )
       io.out('')
     },

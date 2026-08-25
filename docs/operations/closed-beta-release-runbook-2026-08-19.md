@@ -213,11 +213,11 @@ the two Google services, and the two AI services.
 
 **`--apply` refuses unless all three hold:**
 
-| Refusal                                  | Why                                                                                                                                                                                                                                                   |
-| ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| dirty working tree                       | `railway up` uploads the WORKING TREE, so HEAD must describe what ships                                                                                                                                                                               |
-| HEAD is not an ancestor of `origin/main` | a release must be reviewed, CI-exercised, merged code (`--force` overrides, loudly)                                                                                                                                                                   |
-| no `--operator` / `--reason`             | `--apply` runs through the operator harness: named operator from `OPS_OPERATOR_IDENTITIES`, one audited `policy_decision_audit` row, same contract as every `ops:*` mutation (`--skip-audit` for the incident case where the database is unreachable) |
+| Refusal                                  | Why                                                                                                                                                                                                        |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| dirty working tree                       | `railway up` uploads the WORKING TREE, so HEAD must describe what ships                                                                                                                                    |
+| HEAD is not an ancestor of `origin/main` | a release must be reviewed, CI-exercised, merged code (`--force` overrides, loudly)                                                                                                                        |
+| no `--operator` / `--reason`             | `--apply` runs through the operator harness: named operator from `OPS_OPERATOR_IDENTITIES`, one audited `policy_decision_audit` row, same contract as every `ops:*` mutation; there is no unaudited bypass |
 
 **Then it waits.** `railway up --detach` returns before the build exists, and
 the service variables are written _before_ it — so a read-back taken right

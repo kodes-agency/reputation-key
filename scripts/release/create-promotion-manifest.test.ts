@@ -47,9 +47,9 @@ describe('createPromotionManifest', () => {
       testEvidenceSha256: digest('2'),
       providerApprovalEvidenceSha256: digest('3'),
       releaseSha,
-      repository: 'repkey/reputation-key',
+      repository: 'kodes-agency/reputation-key',
       workflowIdentity:
-        'https://github.com/repkey/reputation-key/.github/workflows/release-images.yml@refs/heads/main',
+        'https://github.com/kodes-agency/reputation-key/.github/workflows/release-images.yml@refs/heads/main',
       runId: '12345',
       runAttempt: 1,
       createdAt: '2026-08-25T08:00:00.000Z',
@@ -72,9 +72,9 @@ describe('createPromotionManifest', () => {
         testEvidenceSha256: digest('2'),
         providerApprovalEvidenceSha256: digest('3'),
         releaseSha,
-        repository: 'repkey/reputation-key',
+        repository: 'kodes-agency/reputation-key',
         workflowIdentity:
-          'https://github.com/repkey/reputation-key/.github/workflows/release-images.yml@refs/heads/main',
+          'https://github.com/kodes-agency/reputation-key/.github/workflows/release-images.yml@refs/heads/main',
         runId: '12345',
         runAttempt: 1,
         createdAt: '2026-08-25T08:00:00.000Z',

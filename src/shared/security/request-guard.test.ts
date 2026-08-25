@@ -145,13 +145,14 @@ describe('createRequestGuardPlugin', () => {
     const event = {
       req: new Request('https://eu.reputationkey.app/api/x'),
     }
-    expect(() => h3.config.onRequest!(event)).toThrow()
+    let thrown: unknown
     try {
       h3.config.onRequest!(event)
-    } catch (thrown) {
-      expect(thrown).toBeInstanceOf(Response)
-      expect((thrown as Response).status).toBe(421)
+    } catch (error) {
+      thrown = error
     }
+    expect(thrown).toBeInstanceOf(Response)
+    expect((thrown as Response).status).toBe(421)
     expect(previous).not.toHaveBeenCalled()
   })
 

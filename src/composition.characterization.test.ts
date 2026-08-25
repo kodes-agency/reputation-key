@@ -43,6 +43,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'badgePublicApi',
   'cache',
   'clock',
+  'dataCellExecutionFence',
   'db',
   'eventBus',
   'goalRepo',

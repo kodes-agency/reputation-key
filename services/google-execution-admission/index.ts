@@ -1,6 +1,10 @@
 import { randomBytes } from 'node:crypto'
 import { Pool } from 'pg'
 import Redis from 'ioredis'
+import {
+  validateProviderEphemeralRedisUrls,
+  verifyProviderEphemeralRedisRuntime,
+} from '../../src/shared/provider-ephemeral/runtime-verification'
 import { createVersionedHmacKeyring } from '../../src/shared/security/versioned-hmac-keyring'
 import {
   GOOGLE_QUOTA_POLICIES,
@@ -46,6 +50,15 @@ function portFromEnv(): number {
 const { databaseTls, grantKeyring, pool, redis } = consumeGoogleAdmissionRuntimeSecrets(
   process.env,
   (secrets) => {
+    if (process.env.NODE_ENV === 'production') {
+      const redisUrlFailure = validateProviderEphemeralRedisUrls(
+        secrets.REDIS_URL,
+        undefined,
+      )
+      if (redisUrlFailure) {
+        throw new Error(`Google admission Redis denied: ${redisUrlFailure.code}`)
+      }
+    }
     const databaseTls = loadGoogleAdmissionDatabaseTlsConfiguration({
       connectionString: secrets.DATABASE_URL,
       caBase64: secrets.GOOGLE_ADMISSION_DATABASE_CA_B64,
@@ -70,6 +83,10 @@ const { databaseTls, grantKeyring, pool, redis } = consumeGoogleAdmissionRuntime
           maxRetriesPerRequest: 1,
           connectTimeout: 5_000,
           commandTimeout: 5_000,
+          disableClientInfo: true,
+          ...(secrets.PROVIDER_REDIS_TLS_CA_PEM
+            ? { tls: { ca: secrets.PROVIDER_REDIS_TLS_CA_PEM } }
+            : {}),
         }),
       }
     } catch (error) {
@@ -86,6 +103,12 @@ redis.on('error', () => {
   process.stderr.write('execution_admission_redis_error\n')
 })
 await redis.connect()
+if (process.env.NODE_ENV === 'production') {
+  const readiness = await verifyProviderEphemeralRedisRuntime(redis)
+  if (!readiness.ok) {
+    throw new Error(`Google admission Redis denied: ${readiness.code}`)
+  }
+}
 
 const gatewayIdentity = assertGoogleEgressGatewayIdentity(
   requiredEnv('GOOGLE_EGRESS_GATEWAY_IDENTITY'),

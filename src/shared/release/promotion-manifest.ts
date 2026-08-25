@@ -3,9 +3,13 @@ import { z } from 'zod/v4'
 import { DATA_CELL_IDS } from '#/shared/domain/data-cell-catalogue'
 
 export const PROMOTION_MANIFEST_VERSION = 'repkey-promotion-manifest-1' as const
+export const TRUSTED_RELEASE_REPOSITORY = 'kodes-agency/reputation-key' as const
+export const TRUSTED_RELEASE_WORKFLOW_IDENTITY =
+  `https://github.com/${TRUSTED_RELEASE_REPOSITORY}/.github/workflows/release-images.yml@refs/heads/main` as const
 
 export const PROMOTED_IMAGE_ROLES = [
   'web',
+  'googleProviderRedis',
   'worker',
   'googleExecutionAdmission',
   'googleEgressGateway',
@@ -16,6 +20,7 @@ export const PROMOTED_IMAGE_ROLES = [
 export type PromotedImageRole = (typeof PROMOTED_IMAGE_ROLES)[number]
 
 export const RAILWAY_SERVICE_IMAGE_ROLES = Object.freeze({
+  'google-provider-redis': 'googleProviderRedis',
   web: 'web',
   worker: 'worker',
   'google-execution-admission': 'googleExecutionAdmission',
@@ -60,17 +65,13 @@ const promotionManifestSchema = z
     createdAt: z.iso.datetime({ offset: false }),
     source: z
       .object({
-        repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
+        repository: z.literal(TRUSTED_RELEASE_REPOSITORY),
         ref: z.literal('refs/heads/main'),
       })
       .strict(),
     ci: z
       .object({
-        workflowIdentity: z
-          .string()
-          .regex(
-            /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/\.github\/workflows\/[A-Za-z0-9_.-]+@refs\/heads\/main$/,
-          ),
+        workflowIdentity: z.literal(TRUSTED_RELEASE_WORKFLOW_IDENTITY),
         runId: z.string().regex(/^[1-9][0-9]*$/),
         runAttempt: z.number().int().min(1),
       })
@@ -106,15 +107,6 @@ const promotionManifestSchema = z
           message: 'image source revision must equal release SHA',
         })
       }
-    }
-    const expectedIdentity =
-      `https://github.com/${manifest.source.repository}/.github/workflows/` as const
-    if (!manifest.ci.workflowIdentity.startsWith(expectedIdentity)) {
-      context.addIssue({
-        code: 'custom',
-        path: ['ci', 'workflowIdentity'],
-        message: 'workflow identity must belong to the source repository',
-      })
     }
   })
 
@@ -195,7 +187,6 @@ export function sigstoreManifestVerificationArgs(
   input: Readonly<{
     manifestPath: string
     bundlePath: string
-    workflowIdentity: string
   }>,
 ): readonly string[] {
   return Object.freeze([
@@ -203,7 +194,7 @@ export function sigstoreManifestVerificationArgs(
     '--bundle',
     input.bundlePath,
     '--certificate-identity',
-    input.workflowIdentity,
+    TRUSTED_RELEASE_WORKFLOW_IDENTITY,
     '--certificate-oidc-issuer',
     'https://token.actions.githubusercontent.com',
     input.manifestPath,

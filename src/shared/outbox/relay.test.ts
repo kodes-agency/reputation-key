@@ -131,6 +131,24 @@ describe('outbox relay (BQC-3.7)', () => {
     expect(state.markedPublished).toEqual(['evt-admitted'])
   })
 
+  it('publishes fresh Property routing evidence instead of relabeling from process config', async () => {
+    const propertyEvent = { ...makeEvent('evt-property'), propertyId: 'property-1' }
+    const { repo } = makeRepo([propertyEvent])
+    const { queue, added } = makeQueue()
+
+    const relay = createOutboxRelay(repo, queue, {
+      relayId: 'relay-test-1',
+      admitEvent: async () => ({ dataCellId: 'us', routingPolicyVersion: 2 }),
+    })
+    await relay.poll()
+
+    expect(added[0]?.data).toMatchObject({
+      dataCellId: 'us',
+      region: 'us',
+      routingPolicyVersion: 2,
+    })
+  })
+
   it('renews the lease for the unprocessed remainder every 10 published events', async () => {
     const events = Array.from({ length: 25 }, (_, i) => makeEvent(`evt-${i}`))
     const { repo, state } = makeRepo(events)

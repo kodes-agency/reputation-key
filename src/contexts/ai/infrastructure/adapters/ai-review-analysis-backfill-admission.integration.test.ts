@@ -62,6 +62,7 @@ import { createPostgresAiAdmissionAuthority } from '../../../../../services/ai-e
 import { createBackfillReviewAnalysis } from '../../application/use-cases/backfill-review-analysis'
 import { createReviewAnalysisBackfillAdapter } from './ai-review-analysis-backfill.adapter'
 import { createPropertyGrantHolderLookup } from '#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
 const NOW = new Date('2026-08-22T09:00:00.000Z')
 const CONTENT_EXPIRES_AT = new Date(Date.now() + 365 * 86_400_000)
@@ -547,6 +548,7 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
   }
 
   beforeAll(async () => {
+    registerAllEventSchemas()
     await clear()
     await clearCanary()
     // Control activation is global and needs no org fixture, so it happens once.

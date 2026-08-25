@@ -45,6 +45,7 @@ describe('assertRestoreModeCompatible (BQC-7.8)', () => {
           DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
           PROCESSING_CELL: 'us',
           RESTORE_SOURCE_CELL: 'us',
+          RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',
         },
         'web',
       ),
@@ -59,6 +60,7 @@ describe('assertRestoreModeCompatible (BQC-7.8)', () => {
           DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
           PROCESSING_CELL: 'us',
           RESTORE_SOURCE_CELL: 'us',
+          RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',
         },
         'worker',
       ),
@@ -70,6 +72,7 @@ describe('assertRestoreModeCompatible (BQC-7.8)', () => {
           DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
           PROCESSING_CELL: 'us',
           RESTORE_SOURCE_CELL: 'us',
+          RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',
         },
         'worker',
       ),
@@ -84,6 +87,7 @@ describe('assertRestoreModeCompatible (BQC-7.8)', () => {
           DATABASE_URL: 'postgresql://u:p@localhost:5432/db',
           PROCESSING_CELL: 'us',
           RESTORE_SOURCE_CELL: 'us',
+          RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',
         },
         'web',
       ),
@@ -122,10 +126,14 @@ describe('restore Data Cell binding (REG-01)', () => {
 })
 
 describe('isIsolatedRestoreTarget (BQC-7.8)', () => {
-  it('accepts exact loopback targets for local drills', () => {
-    expect(isIsolatedRestoreTarget('postgresql://u:p@localhost:5432/db')).toBe(true)
-    expect(isIsolatedRestoreTarget('postgresql://u:p@127.0.0.1:5432/db')).toBe(true)
-    expect(isIsolatedRestoreTarget('postgresql://u:p@[::1]:5432/db')).toBe(true)
+  it('accepts exact loopback targets only when bound to a PITR sibling name', () => {
+    const pitr = {
+      RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',
+    }
+    expect(isIsolatedRestoreTarget('postgresql://u:p@localhost:5432/db')).toBe(false)
+    expect(isIsolatedRestoreTarget('postgresql://u:p@localhost:5432/db', pitr)).toBe(true)
+    expect(isIsolatedRestoreTarget('postgresql://u:p@127.0.0.1:5432/db', pitr)).toBe(true)
+    expect(isIsolatedRestoreTarget('postgresql://u:p@[::1]:5432/db', pitr)).toBe(true)
     expect(
       isIsolatedRestoreTarget('postgresql://u:p@localhost:5432/db', {
         RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',

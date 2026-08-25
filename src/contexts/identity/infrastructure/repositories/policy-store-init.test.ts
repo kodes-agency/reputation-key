@@ -59,24 +59,24 @@ describe('persisted policy store — end-to-end (BQC-2.2)', () => {
       await handle.refresh()
 
       // Non-core capability: denied without a DB allowlist row…
-      let decision = checkBetaCapability(ctx, 'team.use')
+      let decision = checkBetaCapability(ctx, 'portal.read')
       expect(decision.allowed).toBe(false)
       expect(decision.reason).toBe('org_not_allowlisted')
 
       // …allowed after the row is written and the store refreshes.
-      await addOrganizationCapability(db, ORG, 'team.use', 'op-test')
+      await addOrganizationCapability(db, ORG, 'portal.read', 'op-test')
       await handle.refresh()
-      decision = checkBetaCapability(ctx, 'team.use')
+      decision = checkBetaCapability(ctx, 'portal.read')
       expect(decision.allowed).toBe(true)
 
       // Suspension is NOT visible before the refresh (the measured bound)…
       await setOrganizationPolicy(db, { organizationId: ORG, suspendedAt: new Date() })
-      decision = checkBetaCapability(ctx, 'team.use')
+      decision = checkBetaCapability(ctx, 'portal.read')
       expect(decision.allowed).toBe(true) // stale snapshot — bound = refresh interval
 
       // …and denies after it.
       await handle.refresh()
-      decision = checkBetaCapability(ctx, 'team.use')
+      decision = checkBetaCapability(ctx, 'portal.read')
       expect(decision.allowed).toBe(false)
       expect(decision.reason).toBe('org_suspended')
     } finally {

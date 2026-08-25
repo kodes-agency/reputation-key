@@ -5,8 +5,15 @@ export const GOOGLE_ADMISSION_RUNTIME_SECRET_NAMES = Object.freeze([
   'GOOGLE_ADMISSION_GRANT_HMAC_KEYS',
 ] as const)
 
+export const GOOGLE_ADMISSION_OPTIONAL_RUNTIME_SECRET_NAMES = Object.freeze([
+  'PROVIDER_REDIS_TLS_CA_PEM',
+] as const)
+
 type RuntimeSecretName = (typeof GOOGLE_ADMISSION_RUNTIME_SECRET_NAMES)[number]
-export type GoogleAdmissionRuntimeSecrets = Record<RuntimeSecretName, string>
+type OptionalRuntimeSecretName =
+  (typeof GOOGLE_ADMISSION_OPTIONAL_RUNTIME_SECRET_NAMES)[number]
+export type GoogleAdmissionRuntimeSecrets = Record<RuntimeSecretName, string> &
+  Partial<Record<OptionalRuntimeSecretName, string>>
 
 export function consumeGoogleAdmissionRuntimeSecrets<Result>(
   environment: Record<string, string | undefined>,
@@ -21,9 +28,16 @@ export function consumeGoogleAdmissionRuntimeSecrets<Result>(
       }
       consumed[name] = value
     }
+    for (const name of GOOGLE_ADMISSION_OPTIONAL_RUNTIME_SECRET_NAMES) {
+      const value = environment[name]
+      if (typeof value === 'string' && value.length > 0) consumed[name] = value
+    }
     return consumer(consumed)
   } finally {
-    for (const name of GOOGLE_ADMISSION_RUNTIME_SECRET_NAMES) {
+    for (const name of [
+      ...GOOGLE_ADMISSION_RUNTIME_SECRET_NAMES,
+      ...GOOGLE_ADMISSION_OPTIONAL_RUNTIME_SECRET_NAMES,
+    ]) {
       delete environment[name]
       if (name in consumed) consumed[name] = ''
     }

@@ -23,6 +23,8 @@ const ZERO_COUNTS: RecoveryFenceCounts = Object.freeze({
   googleRevokePermitsFenced: 0,
   legacyImportJobsCanceled: 0,
   legacyImportEffectLeasesReleased: 0,
+  googleImportV2ParentsFenced: 0,
+  googleImportV2ItemsFenced: 0,
   aiIssuedPermitsReleased: 0,
   aiConsumedPermitsMadeAmbiguous: 0,
   aiOperationsFenced: 0,
@@ -30,15 +32,30 @@ const ZERO_COUNTS: RecoveryFenceCounts = Object.freeze({
   regionMovesBlocking: 0,
 })
 
-type CountRow = Readonly<Record<keyof RecoveryFenceCounts, number | string>>
+type CountRow = Readonly<Partial<Record<keyof RecoveryFenceCounts, number | string>>>
 
 function countsFromRow(row: CountRow | undefined): RecoveryFenceCounts {
   if (!row) throw new Error('recovery fence inventory returned no row')
   return Object.fromEntries(
-    Object.keys(ZERO_COUNTS).map((key) => [
-      key,
-      Number(row[key as keyof RecoveryFenceCounts]),
-    ]),
+    Object.keys(ZERO_COUNTS).map((key) => {
+      const value = Number(row[key as keyof RecoveryFenceCounts] ?? 0)
+      if (!Number.isSafeInteger(value) || value < 0) {
+        throw new Error(`recovery fence count ${key} is invalid`)
+      }
+      return [key, value]
+    }),
+  ) as RecoveryFenceCounts
+}
+
+function addCounts(
+  accumulated: RecoveryFenceCounts,
+  delta: RecoveryFenceCounts,
+): RecoveryFenceCounts {
+  return Object.fromEntries(
+    Object.keys(ZERO_COUNTS).map((key) => {
+      const countKey = key as keyof RecoveryFenceCounts
+      return [key, accumulated[countKey] + delta[countKey]]
+    }),
   ) as RecoveryFenceCounts
 }
 
@@ -78,6 +95,18 @@ export async function inspectRecoveryFence(
         WHERE status IN ('queued', 'in_progress')) AS "legacyImportJobsCanceled",
       (SELECT count(*)::int FROM legacy_import_effect_leases
         WHERE state = 'active') AS "legacyImportEffectLeasesReleased",
+      (SELECT count(*)::int FROM gbp_import_requests request
+        WHERE request.status IN ('queued', 'processing')
+           OR EXISTS (
+             SELECT 1 FROM gbp_import_request_items item
+             WHERE item.organization_id = request.organization_id
+               AND item.import_job_id = request.id
+               AND (item.status IN ('pending', 'processing')
+                 OR item.outcome_code = 'temporarily_unavailable')
+           )) AS "googleImportV2ParentsFenced",
+      (SELECT count(*)::int FROM gbp_import_request_items
+        WHERE status IN ('pending', 'processing')
+           OR outcome_code = 'temporarily_unavailable') AS "googleImportV2ItemsFenced",
       (SELECT count(*)::int FROM ai_execution_permits
         WHERE state = 'issued') AS "aiIssuedPermitsReleased",
       (SELECT count(*)::int FROM ai_execution_permits
@@ -116,9 +145,9 @@ function resultFromRow(
 
 /**
  * Atomically rotate the recovery generation and fence every restored
- * authentication/external-effect authority. The source tuple is idempotent;
- * a transaction-scoped advisory lock serializes distinct restore attempts in
- * one Data Cell.
+ * authentication/external-effect authority. The source tuple is convergent:
+ * a replay re-scans under the same run and accumulates evidence. A
+ * transaction-scoped advisory lock serializes attempts in one Data Cell.
  */
 export async function applyRecoveryFence(
   db: Database,
@@ -139,13 +168,13 @@ export async function applyRecoveryFence(
       LIMIT 1
     `)
     const existingRow = existing.rows[0] as RecoveryRunDriverRow | undefined
-    if (existingRow) {
-      if (existingRow.source_release_sha !== input.sourceReleaseSha) {
-        throw new Error(
-          'recovery source release conflicts with the existing manifest/restore-point evidence',
-        )
-      }
-      return resultFromRow(existingRow, true)
+    if (
+      existingRow?.source_release_sha !== undefined &&
+      existingRow.source_release_sha !== input.sourceReleaseSha
+    ) {
+      throw new Error(
+        'recovery source release conflicts with the existing manifest/restore-point evidence',
+      )
     }
 
     const activeMoves = await tx.execute(sql`
@@ -167,32 +196,38 @@ export async function applyRecoveryFence(
       (activeAiOperations.rows[0] as { count?: number | string } | undefined)?.count ?? 0,
     )
 
-    const generationResult = await tx.execute(sql`
-      SELECT COALESCE(MAX(generation), 0)::int + 1 AS generation
-      FROM recovery_runs
-      WHERE data_cell_id = ${input.dataCellId}
-    `)
-    const generation = Number(
-      (generationResult.rows[0] as { generation?: number | string } | undefined)
-        ?.generation,
-    )
-    if (!Number.isSafeInteger(generation) || generation < 1) {
-      throw new Error('could not allocate recovery generation')
-    }
-
-    const inserted = await tx.execute(sql`
-      INSERT INTO recovery_runs (
-        data_cell_id, generation, source_release_sha, source_manifest_sha256,
-        restore_point_at, operator_id, correlation_id, counts, completed_at
-      ) VALUES (
-        ${input.dataCellId}, ${generation}, ${input.sourceReleaseSha},
-        ${input.sourceManifestSha256}, ${input.restorePointAt}, ${input.operatorId},
-        ${input.correlationId}, ${JSON.stringify(ZERO_COUNTS)}::jsonb, clock_timestamp()
+    let runId: string
+    if (existingRow) {
+      runId = existingRow.id
+    } else {
+      const generationResult = await tx.execute(sql`
+        SELECT COALESCE(MAX(generation), 0)::int + 1 AS generation
+        FROM recovery_runs
+        WHERE data_cell_id = ${input.dataCellId}
+      `)
+      const generation = Number(
+        (generationResult.rows[0] as { generation?: number | string } | undefined)
+          ?.generation,
       )
-      RETURNING id
-    `)
-    const runId = (inserted.rows[0] as { id?: string } | undefined)?.id
-    if (!runId) throw new Error('could not create recovery run')
+      if (!Number.isSafeInteger(generation) || generation < 1) {
+        throw new Error('could not allocate recovery generation')
+      }
+
+      const inserted = await tx.execute(sql`
+        INSERT INTO recovery_runs (
+          data_cell_id, generation, source_release_sha, source_manifest_sha256,
+          restore_point_at, operator_id, correlation_id, counts, completed_at
+        ) VALUES (
+          ${input.dataCellId}, ${generation}, ${input.sourceReleaseSha},
+          ${input.sourceManifestSha256}, ${input.restorePointAt}, ${input.operatorId},
+          ${input.correlationId}, ${JSON.stringify(ZERO_COUNTS)}::jsonb, clock_timestamp()
+        )
+        RETURNING id
+      `)
+      const insertedRunId = (inserted.rows[0] as { id?: string } | undefined)?.id
+      if (!insertedRunId) throw new Error('could not create recovery run')
+      runId = insertedRunId
+    }
 
     const sessions = await tx.execute(sql`DELETE FROM session RETURNING id`)
     const verificationTokens = await tx.execute(
@@ -302,9 +337,128 @@ export async function applyRecoveryFence(
       RETURNING id
     `)
 
+    // V2 imports carry both a claim/effect authority and enough protected
+    // routing material to resume provider work. Reconcile a still-valid
+    // Property receipt when the effect committed before the restore point;
+    // otherwise cancel the item and erase every claim/authorization handle.
+    // Parent counters are then reduced set-wise under the same transaction.
+    await tx.execute(sql`DROP TABLE IF EXISTS pg_temp.recovery_google_import_v2_parents`)
+    await tx.execute(sql`
+      CREATE TEMP TABLE recovery_google_import_v2_parents ON COMMIT DROP AS
+      SELECT request.organization_id, request.id
+      FROM gbp_import_requests request
+      WHERE request.status IN ('queued', 'processing')
+         OR EXISTS (
+           SELECT 1 FROM gbp_import_request_items item
+           WHERE item.organization_id = request.organization_id
+             AND item.import_job_id = request.id
+             AND (item.status IN ('pending', 'processing')
+               OR item.outcome_code = 'temporarily_unavailable')
+         )
+    `)
+    const googleImportV2Items = await tx.execute(sql`
+      WITH authority AS (
+        SELECT item.organization_id, item.id,
+               CASE
+                 WHEN receipt.tombstone OR receipt.outcome = 'property_deleted'
+                   THEN 'property_deleted'
+                 WHEN receipt.outcome IN ('imported', 'relinked') THEN receipt.outcome
+                 ELSE 'authorization_changed'
+               END AS outcome
+        FROM gbp_import_request_items item
+        LEFT JOIN property_operation_receipts receipt
+          ON receipt.organization_id = item.organization_id
+         AND receipt.idempotency_key = item.id
+         AND receipt.expires_at > clock_timestamp()
+        WHERE item.status IN ('pending', 'processing')
+           OR item.outcome_code = 'temporarily_unavailable'
+      )
+      UPDATE gbp_import_request_items item
+      SET status = CASE
+            WHEN authority.outcome = 'imported' THEN 'imported'::google_import_v2_item_status
+            WHEN authority.outcome = 'relinked' THEN 'relinked'::google_import_v2_item_status
+            ELSE 'cancelled'::google_import_v2_item_status
+          END,
+          outcome_code = authority.outcome::google_import_v2_outcome,
+          connection_id = NULL,
+          existing_property_id = NULL,
+          destination_property_id = NULL,
+          provider_account_suffix = NULL,
+          provider_location_suffix = NULL,
+          expected_connection_lifecycle_version = NULL,
+          expected_connection_access_version = NULL,
+          expected_credential_generation = NULL,
+          approval_binding_id = NULL,
+          expected_execution_policy_version = NULL,
+          expected_google_content_policy_version = NULL,
+          expected_emergency_kill_version = NULL,
+          expected_actor_role = NULL,
+          expected_permission_digest = NULL,
+          expected_source_epoch = NULL,
+          expected_profile_version = NULL,
+          claim_fence = NULL,
+          claim_lease_expires_at = NULL,
+          first_terminal_at = COALESCE(item.first_terminal_at, clock_timestamp()),
+          updated_at = clock_timestamp()
+      FROM authority
+      WHERE item.organization_id = authority.organization_id
+        AND item.id = authority.id
+      RETURNING item.id
+    `)
+    const googleImportV2Parents = await tx.execute(sql`
+      WITH reduced AS (
+        SELECT parent.organization_id, parent.id,
+               count(*)::int AS total_count,
+               count(*) FILTER (WHERE item.status = 'imported')::int AS imported_count,
+               count(*) FILTER (WHERE item.status = 'relinked')::int AS relinked_count,
+               count(*) FILTER (WHERE item.status = 'already_exists')::int AS already_exists_count,
+               count(*) FILTER (WHERE item.status = 'region_unavailable')::int AS region_unavailable_count,
+               count(*) FILTER (WHERE item.status = 'failed')::int AS failed_count,
+               count(*) FILTER (WHERE item.status = 'cancelled')::int AS cancelled_count,
+               bool_and(item.status IN ('imported', 'relinked')) AS all_success,
+               bool_or(item.status IN ('imported', 'relinked', 'already_exists', 'region_unavailable')) AS has_positive,
+               bool_and(item.status = 'cancelled') AS all_cancelled,
+               bool_or(item.status = 'failed') AS has_failure
+        FROM recovery_google_import_v2_parents candidate
+        JOIN gbp_import_requests parent
+          ON parent.organization_id = candidate.organization_id
+         AND parent.id = candidate.id
+        JOIN gbp_import_request_items item
+          ON item.organization_id = parent.organization_id
+         AND item.import_job_id = parent.id
+        GROUP BY parent.organization_id, parent.id
+      )
+      UPDATE gbp_import_requests parent
+      SET status = CASE
+            WHEN reduced.all_success THEN 'completed'::google_import_v2_parent_status
+            WHEN NOT reduced.has_positive AND reduced.all_cancelled
+              THEN 'cancelled'::google_import_v2_parent_status
+            WHEN NOT reduced.has_positive AND reduced.has_failure
+              THEN 'failed'::google_import_v2_parent_status
+            ELSE 'completed_with_issues'::google_import_v2_parent_status
+          END,
+          processed_count = reduced.total_count,
+          pending_count = 0,
+          processing_count = 0,
+          imported_count = reduced.imported_count,
+          relinked_count = reduced.relinked_count,
+          already_exists_count = reduced.already_exists_count,
+          region_unavailable_count = reduced.region_unavailable_count,
+          failed_count = reduced.failed_count,
+          cancelled_count = reduced.cancelled_count,
+          first_terminal_at = COALESCE(parent.first_terminal_at, statement_timestamp()),
+          purge_at = COALESCE(parent.first_terminal_at, statement_timestamp()) + interval '30 days',
+          updated_at = clock_timestamp()
+      FROM reduced
+      WHERE parent.organization_id = reduced.organization_id
+        AND parent.id = reduced.id
+      RETURNING parent.id
+    `)
+
     // A consumed AI permit has an unknown provider outcome. Force its lease
     // expired and use the admission plane's own authoritative reaper so cost,
     // settlement, circuit, attempt, and operation state stay atomic.
+    await tx.execute(sql`DROP TABLE IF EXISTS pg_temp.recovery_issued_ai_permits`)
     await tx.execute(sql`
       UPDATE ai_execution_permits
       SET concurrency_expires_at = clock_timestamp() - interval '1 second'
@@ -325,6 +479,7 @@ export async function applyRecoveryFence(
     // Issued means the provider never received a grant. Release the reserved
     // maximum cost and cancel the corresponding attempt/operation without
     // manufacturing a provider settlement.
+    await tx.execute(sql`DROP TABLE IF EXISTS pg_temp.recovery_pending_ai_operations`)
     await tx.execute(sql`
       CREATE TEMP TABLE recovery_issued_ai_permits ON COMMIT DROP AS
       SELECT permit.id, permit.operation_id
@@ -500,7 +655,7 @@ export async function applyRecoveryFence(
       RETURNING id
     `)
 
-    const counts: RecoveryFenceCounts = {
+    const deltaCounts: RecoveryFenceCounts = {
       sessionsInvalidated: sessions.rows.length,
       verificationTokensInvalidated: verificationTokens.rows.length,
       invitationsCanceled: invitations.rows.length,
@@ -515,12 +670,17 @@ export async function applyRecoveryFence(
       googleRevokePermitsFenced: googleRevokes.rows.length,
       legacyImportJobsCanceled: legacyImportJobs.rows.length,
       legacyImportEffectLeasesReleased: legacyImportLeases.rows.length,
+      googleImportV2ParentsFenced: googleImportV2Parents.rows.length,
+      googleImportV2ItemsFenced: googleImportV2Items.rows.length,
       aiIssuedPermitsReleased: aiIssued.rows.length,
       aiConsumedPermitsMadeAmbiguous: aiConsumed,
       aiOperationsFenced: activeAiOperationCount,
       aiBackfillRunsStalled: aiBackfills.rows.length,
       regionMovesBlocking: 0,
     }
+    const counts = existingRow
+      ? addCounts(countsFromRow(existingRow.counts as unknown as CountRow), deltaCounts)
+      : deltaCounts
     const completed = await tx.execute(sql`
       UPDATE recovery_runs
       SET counts = ${JSON.stringify(counts)}::jsonb,
@@ -530,6 +690,6 @@ export async function applyRecoveryFence(
     `)
     const row = completed.rows[0] as RecoveryRunDriverRow | undefined
     if (!row) throw new Error('could not complete recovery run')
-    return resultFromRow(row, false)
+    return resultFromRow(row, existingRow !== undefined)
   })
 }

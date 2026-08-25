@@ -47,6 +47,19 @@ const AUDIT_EVIDENCE_RETENTION_MS = 365 * DAY_MS
  * instead. Documented in docs/operations/backup-and-lifecycle.md.
  */
 export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
+  {
+    // Canonical private-feedback text has its own row-level deadline. Preserve
+    // the content-free rating/correction facts used by mandatory analytics,
+    // but do not retain guest-authored text past the agreed lifecycle.
+    subject: 'guest_responses.private_text',
+    table: 'guest_responses',
+    keyColumns: ['id'],
+    tsColumn: 'retention_deadline',
+    olderThanMs: 0,
+    extraWhere: 'response_text IS NOT NULL',
+    operation: 'redact',
+    redactColumns: ['response_text'],
+  },
   ...(['scan_events', 'ratings', 'feedback'] as const).map((table): RetentionRule => ({
     subject: `${table}.abuse_pseudonym`,
     table,

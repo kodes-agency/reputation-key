@@ -29,20 +29,20 @@ const setup = (extra: Partial<Parameters<typeof createProperty>[0]> = {}) => {
 }
 
 describe('createProperty', () => {
-  it('creates a property with defaults when optional fields are omitted', async () => {
+  it('creates a cell-assigned property with defaults when optional fields are omitted', async () => {
     const { useCase, propertyRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     const property = await useCase(
-      { name: 'Grand Hotel', timezone: 'America/New_York' },
+      { name: 'Grand Hotel', timezone: 'America/New_York', countryCode: 'US' },
       ctx,
     )
 
     expect(property.slug).toBe('grand-hotel')
     expect(property.timezone).toBe('America/New_York')
     expect(property.gbpLocationId).toBeNull()
-    expect(property.processingRegion).toBe('unresolved')
-    expect(property.dataCellId).toBeNull()
+    expect(property.processingRegion).toBe('us')
+    expect(property.dataCellId).toBe('us')
     expect(propertyRepo.all()).toHaveLength(1)
   })
 
@@ -62,28 +62,23 @@ describe('createProperty', () => {
     expect(property.processingRegionResolvedAt).toEqual(FIXED_TIME)
   })
 
-  // BQC-4.1 / ADR 0048: the resolution state is explicit on the created
-  // property — a property born without a country is unresolved and NOT
-  // processable (sync/import fail closed on it until reconciliation).
-  it('is born unresolved and non-processing when no country is given (BQC-4.1)', async () => {
+  it('refuses a country that cannot produce an immutable assignment', async () => {
     const { useCase } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
-    const property = await useCase(
-      { name: 'No Country Hotel', timezone: 'America/New_York' },
-      ctx,
+    await expect(
+      useCase(
+        {
+          name: 'Unknown Country Hotel',
+          timezone: 'America/New_York',
+          countryCode: 'ZZ',
+        },
+        ctx,
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) =>
+        isPropertyError(error) && (error as { code: string }).code === 'invalid_country',
     )
-
-    expect(property.processingRegion).toBe('unresolved')
-    expect(property.dataCellId).toBeNull()
-    expect(property.processingRegionResolvedAt).toBeNull()
-    try {
-      assertRegionResolved(property)
-      expect.unreachable('unresolved property must not be processable')
-    } catch (e) {
-      expect(isPropertyError(e)).toBe(true)
-      expect((e as { code: string }).code).toBe('region_unresolved')
-    }
   })
 
   it('is born processable when the country resolves into the approved cell (BQC-4.1)', async () => {
@@ -107,6 +102,7 @@ describe('createProperty', () => {
         name: 'Grand Hotel',
         slug: 'custom-slug',
         timezone: 'UTC',
+        countryCode: 'US',
       },
       ctx,
     )
@@ -120,7 +116,9 @@ describe('createProperty', () => {
     const { useCase } = setup()
     const ctx = buildTestAuthContext({ role: 'Staff' })
 
-    await expect(useCase({ name: 'Test', timezone: 'UTC' }, ctx)).rejects.toSatisfy(
+    await expect(
+      useCase({ name: 'Test', timezone: 'UTC', countryCode: 'US' }, ctx),
+    ).rejects.toSatisfy(
       (e: unknown) => isPropertyError(e) && (e as { code: string }).code === 'forbidden',
     )
   })
@@ -138,7 +136,7 @@ describe('createProperty', () => {
 
     // The use case will try to create with FIXED_ID and slug 'grand-hotel'
     await expect(
-      useCase({ name: 'Grand Hotel', timezone: 'UTC' }, ctx),
+      useCase({ name: 'Grand Hotel', timezone: 'UTC', countryCode: 'US' }, ctx),
     ).rejects.toSatisfy(
       (e: unknown) => isPropertyError(e) && (e as { code: string }).code === 'slug_taken',
     )
@@ -161,7 +159,7 @@ describe('createProperty', () => {
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     await expect(
-      useCase({ name: 'Test', timezone: 'Invalid/Zone' }, ctx),
+      useCase({ name: 'Test', timezone: 'Invalid/Zone', countryCode: 'US' }, ctx),
     ).rejects.toSatisfy(
       (e: unknown) =>
         isPropertyError(e) && (e as { code: string }).code === 'invalid_timezone',
@@ -172,7 +170,9 @@ describe('createProperty', () => {
     const { useCase } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
-    await expect(useCase({ name: '', timezone: 'UTC' }, ctx)).rejects.toSatisfy(
+    await expect(
+      useCase({ name: '', timezone: 'UTC', countryCode: 'US' }, ctx),
+    ).rejects.toSatisfy(
       (e: unknown) =>
         isPropertyError(e) && (e as { code: string }).code === 'invalid_name',
     )
@@ -196,7 +196,10 @@ describe('createProperty', () => {
     })
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
-    const property = await useCase({ name: 'Grand Hotel', timezone: 'UTC' }, ctx)
+    const property = await useCase(
+      { name: 'Grand Hotel', timezone: 'UTC', countryCode: 'US' },
+      ctx,
+    )
 
     expect(calls).toEqual([
       {
@@ -222,7 +225,10 @@ describe('createProperty', () => {
     })
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
-    const property = await useCase({ name: 'Grand Hotel', timezone: 'UTC' }, ctx)
+    const property = await useCase(
+      { name: 'Grand Hotel', timezone: 'UTC', countryCode: 'US' },
+      ctx,
+    )
 
     expect(property.slug).toBe('grand-hotel')
     expect(propertyRepo.all()).toHaveLength(1)
@@ -236,7 +242,7 @@ describe('createProperty', () => {
     const { useCase, propertyRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
-    await useCase({ name: 'Grand Hotel', timezone: 'UTC' }, ctx)
+    await useCase({ name: 'Grand Hotel', timezone: 'UTC', countryCode: 'US' }, ctx)
 
     expect(propertyRepo.all()).toHaveLength(1)
   })

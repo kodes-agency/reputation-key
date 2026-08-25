@@ -52,9 +52,13 @@ describe('buildConsumerEvent', () => {
     expect(envelope.propertyId).toBeNull()
   })
 
-  it('stamps and parses the relay process Data Cell without tenant content', () => {
-    const envelope = buildConsumerEvent(unpublished, 'us')
+  it('carries and parses freshly resolved Property routing evidence', () => {
+    const envelope = buildConsumerEvent(unpublished, {
+      dataCellId: 'us',
+      routingPolicyVersion: 2,
+    })
     expect(envelope.dataCellId).toBe('us')
+    expect(envelope.routingPolicyVersion).toBe(2)
     expect(envelope.region).toBe('us')
     expect(parseConsumerEvent(envelope)).toEqual(envelope)
   })
@@ -135,8 +139,26 @@ describe('parseConsumerEvent', () => {
     expect(parseConsumerEvent({ ...built, occurredAt: 42 })).toBeNull()
     expect(parseConsumerEvent({ ...built, dataCellId: 'eu' })).toBeNull()
     expect(
+      parseConsumerEvent({
+        ...built,
+        dataCellId: 'us',
+        region: 'us',
+        routingPolicyVersion: 0,
+      }),
+    ).toBeNull()
+    expect(parseConsumerEvent({ ...built, routingPolicyVersion: 2 })).toBeNull()
+    expect(
       parseConsumerEvent({ ...built, dataCellId: 'us', region: 'europe' }),
     ).toBeNull()
+  })
+
+  it('accepts the bounded pre-policy-version Data Cell stamp during rolling deploy', () => {
+    const built = buildConsumerEvent(unpublished)
+    expect(parseConsumerEvent({ ...built, dataCellId: 'us', region: 'us' })).toEqual({
+      ...built,
+      dataCellId: 'us',
+      region: 'us',
+    })
   })
 
   it('accepts explicit null metadata', () => {

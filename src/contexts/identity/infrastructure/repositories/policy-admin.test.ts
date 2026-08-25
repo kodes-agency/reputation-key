@@ -154,22 +154,22 @@ describe('policy administration (BQC-2.7)', () => {
   it('allowlist: non-core capability can be enabled/disabled with reason + audit', async () => {
     await ops.setOrgCapability({
       organizationId: ORG,
-      capability: 'team.use',
+      capability: 'portal.read',
       enabled: true,
-      reason: 'pilot team evaluation',
+      reason: 'pilot portal evaluation',
       actorUserId: ADMIN,
       now: NOW,
     })
     let snapshot = await loadPolicySnapshot(db)
     expect(
       snapshot.orgCapabilities.some(
-        (c) => c.organizationId === ORG && c.capability === 'team.use',
+        (c) => c.organizationId === ORG && c.capability === 'portal.read',
       ),
     ).toBe(true)
 
     await ops.setOrgCapability({
       organizationId: ORG,
-      capability: 'team.use',
+      capability: 'portal.read',
       enabled: false,
       reason: 'pilot ended',
       actorUserId: ADMIN,
@@ -178,7 +178,7 @@ describe('policy administration (BQC-2.7)', () => {
     snapshot = await loadPolicySnapshot(db)
     expect(
       snapshot.orgCapabilities.some(
-        (c) => c.organizationId === ORG && c.capability === 'team.use',
+        (c) => c.organizationId === ORG && c.capability === 'portal.read',
       ),
     ).toBe(false)
   })
@@ -271,7 +271,7 @@ describe('policy administration (BQC-2.7)', () => {
     await expect(
       ops.setOrgCapability({
         organizationId: ORG,
-        capability: 'team.use',
+        capability: 'portal.read',
         enabled: true,
         reason: '',
         actorUserId: ADMIN,
@@ -418,7 +418,7 @@ describe('policy administration (BQC-2.7)', () => {
       expect(row.decision).toBe('allow')
     }
     const actions = rows.map((r) => `${r.action}:${r.reason}`)
-    expect(actions).toContain('policy.allowlist.set:pilot team evaluation')
+    expect(actions).toContain('policy.allowlist.set:pilot portal evaluation')
     expect(actions).toContain('policy.org.suspend:billing hold (OPS-100)')
     expect(actions).toContain('policy.property.suspend:quality review (OPS-101)')
     expect(actions).toContain('policy.grant:covering for holiday (OPS-200)')

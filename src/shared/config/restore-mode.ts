@@ -22,8 +22,9 @@
 //     attested local target or the exact private hostname of a Railway PITR
 //     sibling (isIsolatedRestoreTarget).
 //
-// Cutover back to serving = UNSET RESTORE_MODE (and redeploy); the web
-// process then evaluates capabilities from the normal policy stores again.
+// Cutover back to serving = configure the verified recovery run/generation,
+// UNSET RESTORE_MODE, and redeploy. A Railway PITR sibling then refuses web
+// and worker boot unless that tuple is its latest durable recovery run.
 //
 // RESTORE_MODE is parsed by the env schema (src/shared/config/env.ts): the
 // only accepted non-empty value is 'isolated' — anything else fails boot.
@@ -93,8 +94,8 @@ export function assertRestoreModeCompatible(
     throw new Error(
       `[RESTORE MODE] ${RESTORE_ISOLATED_LOG_LINE} — worker refuses to boot: ` +
         'the restore drill is web + ops commands only (no schedules, no BullMQ ' +
-        'consumers, no outbox relay, no external effects). Unset RESTORE_MODE ' +
-        'to resume normal service.',
+        'consumers, no outbox relay, no external effects). Configure the verified ' +
+        'recovery cutover run/generation, then unset RESTORE_MODE to resume.',
     )
   }
 }
@@ -103,6 +104,32 @@ const RAILWAY_PITR_SERVICE_NAME = /^[a-z0-9][a-z0-9-]*-restored-[0-9]{8}-[0-9]{4
 
 function nonEmpty(value: string | undefined): value is string {
   return typeof value === 'string' && value.trim().length > 0
+}
+
+/** True only for Railway's generated PITR sibling service-name shape. */
+export function isRailwayPitrServiceName(value: string | undefined): value is string {
+  return nonEmpty(value) && RAILWAY_PITR_SERVICE_NAME.test(value)
+}
+
+/**
+ * Detect a runtime connected to a Railway PITR sibling by its private DNS.
+ * This remains true after RESTORE_MODE is removed for cutover, allowing boot
+ * to require the durable recovery-run attestation before effects can resume.
+ */
+export function isRailwayPitrDatabaseUrl(databaseUrl: string | undefined): boolean {
+  if (!nonEmpty(databaseUrl)) return false
+  try {
+    const parsed = new URL(databaseUrl)
+    if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
+      return false
+    }
+    const suffix = '.railway.internal'
+    const host = parsed.hostname.toLowerCase()
+    if (!host.endsWith(suffix)) return false
+    return isRailwayPitrServiceName(host.slice(0, -suffix.length))
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -129,10 +156,10 @@ export function isIsolatedRestoreTarget(
     }
     const host = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase()
     if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
-      return (
-        env.RESTORE_DATABASE_SERVICE_NAME === undefined ||
-        RAILWAY_PITR_SERVICE_NAME.test(env.RESTORE_DATABASE_SERVICE_NAME)
-      )
+      // Loopback proves only where the TCP tunnel terminates, not which
+      // database is on its far side. Bind local/tunnel drills to the exact
+      // PITR sibling name too; otherwise a tunnel to live Postgres would pass.
+      return isRailwayPitrServiceName(env.RESTORE_DATABASE_SERVICE_NAME)
     }
 
     if (
@@ -148,7 +175,7 @@ export function isIsolatedRestoreTarget(
     if (!cell || env.RAILWAY_ENVIRONMENT_NAME !== cell.railway.environment) {
       return false
     }
-    if (!RAILWAY_PITR_SERVICE_NAME.test(env.RESTORE_DATABASE_SERVICE_NAME)) {
+    if (!isRailwayPitrServiceName(env.RESTORE_DATABASE_SERVICE_NAME)) {
       return false
     }
 
