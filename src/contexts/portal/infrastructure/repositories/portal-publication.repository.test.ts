@@ -21,7 +21,10 @@ const RESPONSE = 'f5200000-0000-4000-8000-000000000001'
 const NOW = new Date('2026-08-26T13:00:00.000Z')
 const TOKEN_DIGEST = {
   tokenIdentifier: 'publicationkey01',
-  tokenHash: 'c'.repeat(64),
+  // Unique to this integration suite: portal-token repository tests run in a
+  // separate worker against the same local database and the production index
+  // correctly makes this digest globally unique.
+  tokenHash: 'c1'.repeat(32),
   tokenKeyVersion: 1,
 } as const
 
