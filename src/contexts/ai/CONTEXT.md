@@ -147,3 +147,8 @@ capability is release-ready. The comprehensive program status ledger is the
 completion authority; live provider/cell drills, exhaustive enrollment,
 material-revision integration, and full lifecycle/recovery evidence remain
 required until their packages are evidence-complete.
+
+`ops:ai-reanalyze --batch-size` is a ticketed operator pilot/repair control, not
+the activation path for first-enablement completeness. First enablement still
+needs a separate exhaustive eligible-source enrollment trigger and durable
+caught-up evidence; completing a capped operator run proves neither condition.

@@ -155,8 +155,12 @@ export type ReviewAnalysisBackfillRun = Readonly<{
   reviewAnalysisEpoch: number
   /** `H` — the watermark this run repositioned to when it opened. */
   analysisStartSequence: number
-  /** The pinned, ordered candidate set. Never recomputed. */
-  reviewIds: ReadonlyArray<ReviewId>
+  /**
+   * Count of immutable relational membership rows pinned when the run opened.
+   * The run head deliberately carries no candidate array: recovery reads only
+   * the exact next ordinal and therefore stays bounded however large the run.
+   */
+  requestedReviewCount: number
   emittedReviewCount: number
   skippedReviewCount: number
   recoveredReviewCount: number
@@ -226,12 +230,20 @@ export type ReviewAnalysisBackfillSession = Readonly<{
       sourceEpoch: number
       reviewAnalysisEpoch: number
       analysisStartSequence: number
-      reviewIds: ReadonlyArray<ReviewId>
+      /** Deterministic order written as immutable relational membership rows. */
+      orderedReviewIds: ReadonlyArray<ReviewId>
       reasonCode: string
       correlationId: string
       occurredAt: Date
     }>,
   ) => Promise<string>
+  /**
+   * Canonical run membership at one zero-based ordinal. Returns null only when
+   * the durable set is corrupt; callers must stop rather than recompute it.
+   */
+  readRunMember: (
+    input: Readonly<{ runId: string; ordinal: number }>,
+  ) => Promise<ReviewId | null>
   /**
    * One pinned candidate re-read at the moment its turn comes, under the
    * property lock, or null when it is no longer eligible. Eligibility is

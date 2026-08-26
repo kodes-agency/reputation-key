@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import { organizationId, propertyId, reviewId, type ReviewId } from '#/shared/domain/ids'
 import type {
   PropertyAuthorityLookup,
   ReviewAnalysisBackfillCandidate,
@@ -95,6 +95,7 @@ function harness(
     analysisSequence: number
     sourceRevision: number
   }> = []
+  let openedReviewIds: ReadonlyArray<ReviewId> = []
 
   const session: ReviewAnalysisBackfillSession = {
     readContext: async () => context,
@@ -127,10 +128,12 @@ function harness(
     // The run is the unit under test in advance-review-analysis-backfill.test.ts;
     // here it only has to accept what the command writes.
     readActiveRun: async () => overrides.activeRun ?? null,
-    openRun: async () => {
+    openRun: async ({ orderedReviewIds }) => {
       state.runsOpened += 1
+      openedReviewIds = orderedReviewIds
       return RUN_ID
     },
+    readRunMember: async ({ ordinal }) => openedReviewIds[ordinal] ?? null,
     readEligibleCandidate: async (reviewId) =>
       pool.find((candidate) => candidate.reviewId === reviewId) ?? null,
     readOutcomeState: async () => null,
@@ -263,7 +266,7 @@ describe('backfillReviewAnalysis — contiguity', () => {
         sourceEpoch: 3,
         reviewAnalysisEpoch: 3,
         analysisStartSequence: 10,
-        reviewIds: [],
+        requestedReviewCount: 2,
         emittedReviewCount: 1,
         skippedReviewCount: 0,
         recoveredReviewCount: 0,

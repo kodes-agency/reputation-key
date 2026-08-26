@@ -15,7 +15,10 @@
 // Cost: every backfilled review is a real provider call. Dry-run is the
 // default and prints the exact review count and the sequence range that would
 // be emitted; `--apply` additionally requires `--ticket` and the typed
-// confirmation `--yes ops:ai-reanalyze`. `--batch-size` caps a pilot run.
+// confirmation `--yes ops:ai-reanalyze`. `--batch-size` caps an operator pilot
+// or repair run only. This command is NOT first-enablement enrollment: product
+// activation still owes an independently triggered exhaustive eligible-source
+// enrollment and a caught-up proof before the capability can be called ready.
 
 import { createHash } from 'node:crypto'
 import { getDb } from '../../src/shared/db'

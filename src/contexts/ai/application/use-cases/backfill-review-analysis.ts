@@ -326,11 +326,17 @@ export function createBackfillReviewAnalysis(
         sourceEpoch: context.propertySourceEpoch,
         reviewAnalysisEpoch: repositioned.reviewAnalysisEpoch,
         analysisStartSequence: repositioned.analysisStartSequence,
-        reviewIds: candidates.map((candidate) => candidate.reviewId),
+        orderedReviewIds: candidates.map((candidate) => candidate.reviewId),
         reasonCode: input.reasonCode,
         correlationId: input.correlationId,
         occurredAt: input.occurredAt,
       })
+      const firstMember = await session.readRunMember({ runId, ordinal: 0 })
+      if (firstMember !== candidates[0]!.reviewId) {
+        throw new Error(
+          `Review analysis backfill membership changed while opening run ${runId}`,
+        )
+      }
       // ONE event, never N. `storeAnalysis` refuses unless
       // `review_ai_analysis_heads.head_sequence` still equals the sequence being
       // stored, so allocating the whole run up front makes every sequence but
@@ -339,7 +345,7 @@ export function createBackfillReviewAnalysis(
       // the next item once this one has settled, inside the epoch just opened.
       const firstAnalysisSequence = await emitRunItem(session, {
         runId,
-        reviewId: candidates[0]!.reviewId,
+        reviewId: firstMember,
         sourceEpoch: context.propertySourceEpoch,
         sourceRevision: candidates[0]!.sourceRevision,
         correlationId: input.correlationId,

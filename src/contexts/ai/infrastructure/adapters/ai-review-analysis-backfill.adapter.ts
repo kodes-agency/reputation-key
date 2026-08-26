@@ -336,7 +336,7 @@ function createSession(
     async readActiveRun() {
       const result = await tx.execute(sql`
         SELECT id, source_epoch, review_analysis_epoch, analysis_start_sequence,
-               review_ids, emitted_review_count, skipped_review_count,
+               requested_review_count, emitted_review_count, skipped_review_count,
                recovered_review_count, current_analysis_sequence,
                current_review_id, current_emitted_at, correlation_id
         FROM ai_review_analysis_backfill_runs
@@ -359,7 +359,10 @@ function createSession(
           row.analysis_start_sequence,
           'run analysis_start_sequence',
         ),
-        reviewIds: (row.review_ids as ReadonlyArray<string>).map(toReviewId),
+        requestedReviewCount: safeInteger(
+          row.requested_review_count,
+          'requested_review_count',
+        ),
         emittedReviewCount: safeInteger(row.emitted_review_count, 'emitted_review_count'),
         skippedReviewCount: safeInteger(row.skipped_review_count, 'skipped_review_count'),
         recoveredReviewCount: safeInteger(
@@ -386,21 +389,78 @@ function createSession(
 
     async openRun(input) {
       const runId = randomUUID()
+      const orderedReviewIds = input.orderedReviewIds.map(String)
+      if (orderedReviewIds.length === 0) {
+        throw new Error('Review analysis backfill cannot open an empty run')
+      }
+      if (new Set(orderedReviewIds).size !== orderedReviewIds.length) {
+        throw new Error('Review analysis backfill membership contains a duplicate review')
+      }
+      // Expand-phase dual write: canonical rows are written explicitly below,
+      // while the retained array remains readable by an old worker during a
+      // rolling deploy/rollback. The transaction-local marker tells 0119's
+      // old-binary mirror not to insert the same canonical rows a second time.
       await tx.execute(sql`
-        INSERT INTO ai_review_analysis_backfill_runs (
-          id, organization_id, property_id, source_epoch, review_analysis_epoch,
-          analysis_start_sequence, review_ids, requested_review_count,
-          state, reason_code, correlation_id, created_at, updated_at
-        ) VALUES (
-          ${runId}::uuid, ${organizationId}, ${propertyId}::uuid,
-          ${input.sourceEpoch}, ${input.reviewAnalysisEpoch},
-          ${input.analysisStartSequence},
-          ${sql.param(input.reviewIds.map(String))}::uuid[],
-          ${input.reviewIds.length}, 'running', ${input.reasonCode},
-          ${input.correlationId}::uuid, ${input.occurredAt}, ${input.occurredAt}
+        SELECT set_config(
+          'repkey.ai_review_backfill_membership_writer',
+          'canonical-v1',
+          true
         )
       `)
+      const opened = await tx.execute(sql`
+        WITH opened_run AS (
+          INSERT INTO ai_review_analysis_backfill_runs (
+            id, organization_id, property_id, source_epoch, review_analysis_epoch,
+            analysis_start_sequence, review_ids, requested_review_count,
+            state, reason_code, correlation_id, created_at, updated_at
+          ) VALUES (
+            ${runId}::uuid, ${organizationId}, ${propertyId}::uuid,
+            ${input.sourceEpoch}, ${input.reviewAnalysisEpoch},
+            ${input.analysisStartSequence},
+            ${sql.param(orderedReviewIds)}::uuid[],
+            ${orderedReviewIds.length}, 'running', ${input.reasonCode},
+            ${input.correlationId}::uuid, ${input.occurredAt}, ${input.occurredAt}
+          )
+          RETURNING id, organization_id, property_id
+        ), inserted_memberships AS (
+          INSERT INTO ai_review_analysis_backfill_run_memberships (
+            run_id, organization_id, property_id, ordinal, review_id, created_at
+          )
+          SELECT opened_run.id, opened_run.organization_id, opened_run.property_id,
+                 pinned.ordinality - 1, pinned.review_id, ${input.occurredAt}
+          FROM opened_run
+          CROSS JOIN LATERAL unnest(${sql.param(orderedReviewIds)}::uuid[])
+            WITH ORDINALITY AS pinned(review_id, ordinality)
+          RETURNING run_id
+        )
+        SELECT count(*)::bigint AS inserted_count FROM inserted_memberships
+      `)
+      const insertedCount = safeInteger(
+        (opened.rows[0] as Readonly<Record<string, unknown>> | undefined)?.inserted_count,
+        'inserted membership count',
+      )
+      if (insertedCount !== orderedReviewIds.length) {
+        throw new Error(
+          `Review analysis backfill wrote ${insertedCount} of ${orderedReviewIds.length} memberships`,
+        )
+      }
       return runId
+    },
+
+    async readRunMember(input) {
+      if (!Number.isSafeInteger(input.ordinal) || input.ordinal < 0) {
+        throw new Error('Review analysis backfill membership ordinal is invalid')
+      }
+      const result = await tx.execute(sql`
+        SELECT review_id
+        FROM ai_review_analysis_backfill_run_memberships
+        WHERE run_id = ${input.runId}::uuid
+          AND organization_id = ${organizationId}
+          AND property_id = ${propertyId}::uuid
+          AND ordinal = ${input.ordinal}
+      `)
+      const row = result.rows[0] as Readonly<Record<string, unknown>> | undefined
+      return row ? toReviewId(String(row.review_id)) : null
     },
 
     async readEligibleCandidate(reviewId) {

@@ -125,6 +125,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'aiProviderDeploymentCapabilities',
       'aiProviderDeploymentProfiles',
       'aiReadBarrierHeads',
+      'aiReviewAnalysisBackfillRunMemberships',
       'aiReviewAnalysisBackfillRuns',
       'aiReviewEventCursors',
       'aiRoutingPolicies',

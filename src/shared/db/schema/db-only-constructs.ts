@@ -46,6 +46,34 @@ const NO_TRIGGER_DSL = 'drizzle-orm 0.45 has no CREATE FUNCTION/TRIGGER DSL'
 
 export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
   {
+    name: 'mirror_legacy_ai_review_backfill_memberships_v1',
+    kind: 'function',
+    owner: 'ai',
+    source: 'drizzle/0119_ai_review_backfill_relational_membership.sql',
+    reason: `${NO_TRIGGER_DSL}; expand-phase mirror for old binaries that still insert the retained review_ids compatibility array.`,
+  },
+  {
+    name: 'ai_review_backfill_legacy_membership_mirror',
+    kind: 'trigger',
+    owner: 'ai',
+    source: 'drizzle/0119_ai_review_backfill_relational_membership.sql',
+    reason: `${NO_TRIGGER_DSL}; atomically creates canonical membership for old-binary run inserts during rolling deployment.`,
+  },
+  {
+    name: 'guard_ai_review_backfill_membership_v1',
+    kind: 'function',
+    owner: 'ai',
+    source: 'drizzle/0119_ai_review_backfill_relational_membership.sql',
+    reason: `${NO_TRIGGER_DSL}; admits rows only while a run is opening, rejects rewrites/direct deletes, and preserves owning-run lifecycle cascades.`,
+  },
+  {
+    name: 'ai_review_backfill_membership_immutable',
+    kind: 'trigger',
+    owner: 'ai',
+    source: 'drizzle/0119_ai_review_backfill_relational_membership.sql',
+    reason: `${NO_TRIGGER_DSL}; relational run membership is immutable after the opening transaction.`,
+  },
+  {
     name: 'reject_inbox_handling_cycle_update_v1',
     kind: 'function',
     owner: 'inbox',

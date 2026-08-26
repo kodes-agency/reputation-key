@@ -1920,10 +1920,10 @@ export const aiPropertyTrendOutcomes = pgTable(
  * have ONE review in flight: `storeAnalysis` requires
  * `review_ai_analysis_heads.head_sequence` to still equal the sequence being
  * stored, so allocating `H+1 … H+N` up front makes every sequence but the last
- * unstorable. The run drives the batch one review at a time instead — and
- * because it is a row rather than a fan-out, the whole batch lands inside the
- * ONE `review_analysis_epoch` it opened, which is what the epoch-keyed
- * aggregates and the epoch-pinned read path require.
+ * unstorable. The run head drives its immutable ordered membership one review
+ * at a time instead of allocating an independent job fan-out, so the whole set
+ * lands inside the ONE `review_analysis_epoch` it opened, which is what the
+ * epoch-keyed aggregates and the epoch-pinned read path require.
  */
 export const aiReviewAnalysisBackfillRuns = pgTable(
   'ai_review_analysis_backfill_runs',
@@ -1937,11 +1937,12 @@ export const aiReviewAnalysisBackfillRuns = pgTable(
       mode: 'number',
     }).notNull(),
     /**
-     * The run's candidate set, PINNED and ordered at open. No predicate over
-     * `reviews.analysis_sequence` can name it: a stored sequence is only the
-     * sequence of a review's LAST analysis event, never a membership marker.
+     * Expand-only compatibility storage for old workers during rolling deploy
+     * or rollback. New code dual-writes this copy but never reads it; canonical
+     * authority is relational and contraction requires independently proven
+     * old-binary retirement.
      */
-    reviewIds: uuid('review_ids').array().notNull(),
+    legacyReviewIdsCompatibility: uuid('review_ids').array().notNull(),
     requestedReviewCount: integer('requested_review_count').notNull(),
     emittedReviewCount: integer('emitted_review_count').default(0).notNull(),
     /** Pinned reviews no longer eligible when their turn came; no sequence spent. */
@@ -1985,8 +1986,9 @@ export const aiReviewAnalysisBackfillRuns = pgTable(
     ),
     check(
       'ai_review_analysis_backfill_runs_counts_valid',
-      sql`${t.requestedReviewCount} BETWEEN 1 AND 10000
-        AND cardinality(${t.reviewIds}) = ${t.requestedReviewCount}
+      sql`${t.requestedReviewCount} BETWEEN 1 AND 2147483647
+        AND (cardinality(${t.legacyReviewIdsCompatibility}) = 0
+          OR cardinality(${t.legacyReviewIdsCompatibility}) = ${t.requestedReviewCount})
         AND ${t.emittedReviewCount} >= 0
         AND ${t.skippedReviewCount} >= 0
         AND ${t.emittedReviewCount} + ${t.skippedReviewCount} <= ${t.requestedReviewCount}
@@ -2008,8 +2010,61 @@ export const aiReviewAnalysisBackfillRuns = pgTable(
     uniqueIndex('ai_review_analysis_backfill_runs_one_active_idx')
       .on(t.organizationId, t.propertyId)
       .where(sql`${t.state} = 'running'`),
+    uniqueIndex('ai_review_analysis_backfill_runs_scope_idx').on(
+      t.id,
+      t.organizationId,
+      t.propertyId,
+    ),
     index('ai_review_analysis_backfill_runs_running_idx')
       .on(t.createdAt)
       .where(sql`${t.state} = 'running'`),
+  ],
+)
+
+/**
+ * Immutable, ordered authority for membership of one review-analysis backfill
+ * run. Recovery reads one ordinal at a time; it never re-evaluates eligibility
+ * to reconstruct the set and never loads a run-sized array into memory.
+ *
+ * `review_id` intentionally has no Review foreign key. A source row disappearing
+ * after enrollment must leave the pinned identity intact so the run can record
+ * a deterministic skip when that ordinal comes due.
+ */
+export const aiReviewAnalysisBackfillRunMemberships = pgTable(
+  'ai_review_analysis_backfill_run_memberships',
+  {
+    runId: uuid('run_id').notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    /** Zero-based position in the deterministic `(reviewed_at, id)` ordering. */
+    ordinal: bigint('ordinal', { mode: 'number' }).notNull(),
+    reviewId: uuid('review_id').notNull(),
+    createdAt: timestamptz('created_at').defaultNow().notNull(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [t.runId, t.ordinal],
+      name: 'ai_review_backfill_memberships_pk',
+    }),
+    foreignKey({
+      columns: [t.runId, t.organizationId, t.propertyId],
+      foreignColumns: [
+        aiReviewAnalysisBackfillRuns.id,
+        aiReviewAnalysisBackfillRuns.organizationId,
+        aiReviewAnalysisBackfillRuns.propertyId,
+      ],
+      name: 'ai_review_backfill_memberships_run_scope_fk',
+    }).onDelete('cascade'),
+    uniqueIndex('ai_review_backfill_memberships_review_idx').on(t.runId, t.reviewId),
+    check(
+      'ai_review_backfill_memberships_ordinal_safe',
+      sql`${t.ordinal} BETWEEN 0 AND '9007199254740991'::bigint`,
+    ),
+    index('ai_review_backfill_memberships_scope_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.runId,
+      t.ordinal,
+    ),
   ],
 )

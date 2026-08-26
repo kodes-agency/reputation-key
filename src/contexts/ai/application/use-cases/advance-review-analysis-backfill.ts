@@ -300,7 +300,7 @@ export function createAdvanceReviewAnalysisBackfill(
       }
 
       const nextIndex = run.emittedReviewCount + run.skippedReviewCount
-      if (nextIndex >= run.reviewIds.length) {
+      if (nextIndex >= run.requestedReviewCount) {
         await session.closeRun({
           runId: run.id,
           state: 'completed',
@@ -311,7 +311,24 @@ export function createAdvanceReviewAnalysisBackfill(
       }
 
       const occurredAt = new Date(dependencies.nowEpochMillis())
-      const candidate = await session.readEligibleCandidate(run.reviewIds[nextIndex]!)
+      const nextReviewId = await session.readRunMember({
+        runId: run.id,
+        ordinal: nextIndex,
+      })
+      if (nextReviewId === null) {
+        // Membership is immutable and requestedReviewCount was committed with
+        // it. A missing ordinal is storage corruption, never permission to
+        // rebuild from today's eligible Reviews (which could silently change
+        // the run after a restart).
+        await session.closeRun({
+          runId: run.id,
+          state: 'stalled',
+          terminalReason: 'run_membership_missing',
+          occurredAt,
+        })
+        return { outcome: 'stalled' as const }
+      }
+      const candidate = await session.readEligibleCandidate(nextReviewId)
       if (candidate === null) {
         // Expired, repointed or deleted since the run pinned it. Spending a
         // sequence on it would only produce a terminal settle with no analysis,
