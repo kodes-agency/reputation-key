@@ -577,7 +577,7 @@
     {
       "id": "ACT-01",
       "status": "partial",
-      "summary": "Recent Activity is documented and retained as a bounded 90-day product projection. The unused home-grown row-hash model has been removed, production comments/runtime messages avoid audit-log/trail claims, new projections accept only the exact 23 active action/resource pairs, and production/domain/UI code now uses the canonical RecentActivityEntry/createRecentActivityEntry names. Deprecated compatibility aliases and physical identifiers remain. Executable guards cover the integrity and language boundaries; historical reconciliation, projection recovery, and separate restricted Operational Action History remain incomplete.",
+      "summary": "Recent Activity is documented and retained as a bounded 90-day product projection. The unused home-grown row-hash model and deprecated ActivityLog/createActivityLog domain aliases have been removed; production comments/runtime messages avoid audit-log/trail claims; new projections accept only the exact 23 active action/resource pairs; and the public interface now exports only canonical RecentActivityEntry. Physical storage/job/read identifiers remain for a separately governed migration. Executable guards cover the integrity, language, and alias boundaries; historical reconciliation, projection recovery, and separate restricted Operational Action History remain incomplete.",
       "codeEvidence": [
         "src/contexts/activity/CONTEXT.md",
         "src/contexts/activity/domain/types.ts",
@@ -593,10 +593,10 @@
       "testEvidence": [
         "Activity retention and selected projection tests",
         "Integrity-claim regression rejects local AuditRecord/hash-chain implementations and audit-log/trail production vocabulary",
-        "Focused Activity matrix: 10 files / 56 tests passed, including all 23 governed event kinds and rejection of legacy/unsupported combinations; focused lint, full application typecheck, and diff checks passed"
+        "Focused Activity matrix: 11 files / 61 tests passed, including all 23 governed event kinds, rejection of legacy/unsupported combinations, and absence of deprecated domain aliases; focused lint, formatting, and diff checks passed"
       ],
       "remaining": [
-        "Reconcile broader historical enum rows, remove the deprecated ActivityLog/createActivityLog aliases after their compatibility window, and migrate the physical activity_log/job plus getOrgActivity identifiers; add durable projection receipts/rebuild states and owned expiry/redaction evidence; introduce restricted Operational Action History and implement its access/legal-hold/export/redaction controls."
+        "Reconcile broader historical enum rows and migrate the physical activity_log/job plus getOrgActivity identifiers; add durable projection receipts/rebuild states and owned expiry/redaction evidence; introduce restricted Operational Action History and implement its access/legal-hold/export/redaction controls."
       ],
       "externalBlockers": [
         "Operational-history retention and legal-hold policy requires counsel approval."
@@ -726,15 +726,18 @@
     {
       "id": "EXP-01",
       "status": "partial",
-      "summary": "Dormant surfaces are mostly hidden, and the remaining legacy Recognition reads have been removed from active Staff Home and Portal Detail paths under an executable guard. There is still no persistent resumable role-aware setup checklist or complete no-access/waiting/deferred journey.",
+      "summary": "Dormant surfaces are mostly hidden, and legacy Recognition reads/settings/displays have been removed from active Staff Home, Portal Detail, and settings ownership under executable guards. Billing is no longer a Better Auth input or returned field, is absent from Identity records and update allowlists, and remains only as explicitly non-returned/non-input compatibility storage pending governed erasure. There is still no persistent resumable role-aware setup checklist or complete no-access/waiting/deferred journey.",
       "codeEvidence": [
         "Organization settings and unavailable-route surfaces",
-        "Billing removal and Team/Recognition/Bulk Close gates",
+        "src/shared/auth/org-schema.ts",
+        "src/contexts/identity/application/ports/identity.port.ts",
+        "src/contexts/identity/application/organization-update-patch.ts",
         "src/shared/architecture/legacy-recognition-active-surfaces.test.ts"
       ],
       "testEvidence": [
         "Unavailable-route and selected role-gating tests",
-        "Recognition darkness matrix: 5 files / 60 tests passed; Staff Home browser stories: 1 file / 5 states passed"
+        "Recognition darkness matrix: 5 files / 60 tests passed; Staff Home browser stories: 1 file / 5 states passed",
+        "Billing runtime contraction: 5 focused files / 21 tests and complete Identity context 59 files / 359 tests passed; Better Auth schema migration authority reported up to date"
       ],
       "remaining": [
         "Build durable historical milestones plus current health, implement AccountAdmin/PropertyManager/Staff state journeys, disposition existing billing data, and prove every dormant route/job/server path denied."
@@ -810,7 +813,7 @@
     {
       "id": "GOV-01",
       "status": "partial",
-      "summary": "One executable authority now pins Node/pnpm, 41 core packages and CLIs, 11 GitHub Actions, all external Docker bases, runtime contracts, and an owned expiring exception; remaining conformance belongs to feature owners and release evidence.",
+      "summary": "One executable authority pins Node/pnpm, 41 core packages and CLIs, 11 GitHub Actions, all external Docker bases, runtime contracts, and an owned expiring exception. Better Auth organization extensions now use the documented input/returned controls to keep dormant compatibility columns out of writes and responses while preserving schema-management parity; the Identity boundary independently strips them. Remaining conformance belongs to feature owners and release evidence.",
       "codeEvidence": [
         "security/technology-stack.json",
         "scripts/ci/check-technology-stack.ts",
@@ -822,14 +825,17 @@
         "src/shared/jobs/redis-runtime.ts",
         "src/shared/jobs/queue.ts",
         "src/shared/jobs/worker.ts",
-        "src/shared/db/pool.ts"
+        "src/shared/db/pool.ts",
+        "src/shared/auth/org-schema.ts",
+        "src/contexts/identity/infrastructure/adapters/better-auth-schemas.ts"
       ],
       "testEvidence": [
         "Technology-stack checker with independent negative fixtures",
         "Built-ESM pino-pretty resolution proof",
         "BullMQ/Redis topology, compatibility, retry, error-handler, and scheduler suites",
         "PostgreSQL acquisition-only retry and ambiguous-statement non-replay suite",
-        "Container inventory, action-pin, dependency, license, and Zod conformance gates"
+        "Container inventory, action-pin, dependency, license, and Zod conformance gates",
+        "Better Auth organization field controls and defensive response parsing: 2 focused files / 8 tests; repository auth migration authority reported schema up to date"
       ],
       "remaining": [
         "Complete CSRF, TanStack Query/Form/validator, React, Better Auth, Drizzle-extra, Zod migration, and settled error-contract changes in their owning packages; retain a clean hosted CI/all-image scan at the immutable candidate SHA."
@@ -864,18 +870,19 @@
     {
       "id": "CNV-01",
       "status": "partial",
-      "summary": "Team and post-core surfaces are quarantined, the unused Activity hash-chain abstraction has been removed, and new Recent Activity writes are fenced to an exact active vocabulary. A bidirectional 177-table data-fate authority now identifies every compatibility, quarantine, archive, and bounded-contraction row family without treating classification as deletion proof. Multiple false/unused/legacy islands and retained Activity legacy storage/API names still lack the required parity, release, restore, and contraction record.",
+      "summary": "Team and post-core surfaces are quarantined, the unused Activity hash-chain abstraction and deprecated ActivityLog/createActivityLog aliases have been removed, and new Recent Activity writes are fenced to an exact active vocabulary. A bidirectional data-fate authority identifies every compatibility, quarantine, archive, and bounded-contraction row family without treating classification as deletion proof. Dormant billing columns are explicitly retained only as non-input/non-returned compatibility storage pending approved erase. Multiple false/unused/legacy islands and retained Activity physical storage/job/read names still lack the required parity, release, restore, and contraction record.",
       "codeEvidence": [
         "Team quarantine",
         "src/shared/jobs/runtime.ts",
         "src/shared/projections/projection-contract.ts",
         "REUI.md",
         "src/contexts/activity/domain/integrity-claims.test.ts",
-        "src/shared/governance/data-fate-authority.ts"
+        "src/shared/governance/data-fate-authority.ts",
+        "src/shared/auth/org-schema.ts"
       ],
       "testEvidence": [
         "Darkness and boundary tests for selected quarantined surfaces",
-        "Activity false-integrity island deletion and bounded-new-vocabulary guards",
+        "Activity false-integrity island and deprecated-domain-alias deletion plus bounded-new-vocabulary guards",
         "src/shared/governance/data-fate-authority.test.ts (every Drizzle table catalogued exactly once)"
       ],
       "remaining": [
