@@ -5,6 +5,11 @@
 **Version:** 1.1-draft
 **Accountable owner:** Bozhidar Denev
 
+> **Do not publish this draft.** Product, retention, and deployment facts have
+> changed since it was written. Reconcile it with
+> [the 2026-08-26 engineering fact map](implementation-facts-2026-08-26.md),
+> live provider evidence, and counsel review first.
+
 ## Overview
 
 This notice describes how Reputation Key ("the Service") collects, uses, and protects personal data during the internal beta. The Service is operated by Kodes Agency.

@@ -5,6 +5,11 @@
 **Version:** 1.0-draft
 **Accountable owner:** Bozhidar Denev (product, privacy, security)
 
+> **Do not publish this draft.** Product, retention, and deployment facts have
+> changed since it was written. Reconcile it with
+> [the 2026-08-26 engineering fact map](implementation-facts-2026-08-26.md),
+> live provider evidence, and counsel review first.
+
 ## 1. Parties
 
 This agreement governs the internal beta of Reputation Key ("the Service") between Kodes Agency ("the Operator") and the internal team members designated as beta participants ("the Participants").

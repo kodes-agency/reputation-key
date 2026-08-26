@@ -4,6 +4,12 @@
 **Date:** 2026-07-14
 **Accountable owner:** Bozhidar Denev
 
+> **Do not publish this draft.** Product, retention, and deployment facts have
+> changed since it was written. Reconcile it with
+> [the 2026-08-26 engineering fact map](implementation-facts-2026-08-26.md), the
+> original written Google confirmation, live provider evidence, and counsel
+> review first.
+
 ## Overview
 
 This document discloses how Reputation Key accesses and uses Google Business Profile data during the internal beta, in accordance with Google's [API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy) and the [written response](../product-readiness-program-2026-07/google-business-profile-ai-policy-response-2026-07-14.md) received from Google on 2026-07-14.
@@ -92,7 +98,7 @@ The response explicitly does not permit:
 - Cross-property AI summarization.
 - Review solicitation gamification tied to Google review data.
 
-Full response: [`google-business-profile-ai-policy-response-2026-07-14.md`](../product-readiness-program-2026-07/google-business-business-profile-ai-policy-response-2026-07-14.md)
+Full response: [`google-business-profile-ai-policy-response-2026-07-14.md`](../product-readiness-program-2026-07/google-business-profile-ai-policy-response-2026-07-14.md)
 
 ---
 
