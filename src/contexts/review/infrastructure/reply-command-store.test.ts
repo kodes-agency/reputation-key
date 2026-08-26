@@ -38,6 +38,7 @@ import type { Reply } from '../domain/types'
 import {
   reviewExpired,
   reviewReplyApproved,
+  reviewReplyPublicationRequested,
   reviewReplyPublicationCancelled,
   reviewReplyPublished,
   reviewReplyPublishFailed,
@@ -91,6 +92,7 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     approvedAt: null,
     publishedAt: null,
     publicationState: null,
+    publicationCycle: 0,
     publicationAttempts: 0,
     publicationLastErrorClass: null,
     reconcileDueAt: null,
@@ -118,6 +120,7 @@ function makeRow(overrides: Record<string, unknown> = {}) {
     approvedAt: null,
     publishedAt: null,
     publicationState: null,
+    publicationCycle: 0,
     publicationAttempts: 0,
     publicationLastErrorClass: null,
     reconcileDueAt: null,
@@ -221,6 +224,17 @@ const submittedEvent = () =>
     propertyId: PROP_ID,
     organizationId: ORG_ID,
     userId: USER_ID,
+    occurredAt: NOW,
+  })
+
+const publicationRequestedEvent = (publicationCycle = 1) =>
+  reviewReplyPublicationRequested({
+    replyId: REPLY_ID,
+    reviewId: REVIEW_ID,
+    propertyId: PROP_ID,
+    organizationId: ORG_ID,
+    userId: USER_ID,
+    publicationCycle,
     occurredAt: NOW,
   })
 
@@ -397,8 +411,9 @@ describe('createAtomicReplyCommandStore', () => {
   })
 
   describe('markPublicationAuthorized (BQC-3.8)', () => {
-    it('approval: commits status + authorized state + cycle reset + approved fact, one tx', async () => {
+    it('approval: commits state + lifecycle fact + durable publication intent in one tx', async () => {
       const order: string[] = []
+      const outboxRows: Array<Record<string, unknown>> = []
       const setPayloads: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
         order,
@@ -409,9 +424,11 @@ describe('createAtomicReplyCommandStore', () => {
               approvedAt: NOW,
               approvedBy: USER_ID,
               publicationState: 'authorized',
+              publicationCycle: 1,
             }),
           ],
         ],
+        outboxRows,
         setPayloads,
       })
       const events = makeEvents(order)
@@ -420,27 +437,48 @@ describe('createAtomicReplyCommandStore', () => {
       const result = await store.markPublicationAuthorized(
         makeReply({ status: 'pending_approval' }),
         { status: 'approved', approvedBy: USER_ID, approvedAt: NOW },
-        approvedEvent(),
+        {
+          lifecycleEvent: approvedEvent(),
+          publicationIntent: publicationRequestedEvent(1),
+        },
         NOW,
       )
 
       expect(result?.status).toBe('approved')
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual([
+        'tx.start',
+        'tx.state',
+        'tx.outbox',
+        'tx.outbox',
+        'tx.commit',
+        'emit',
+      ])
       expect(setPayloads[0]).toMatchObject({
         publicationState: 'authorized',
+        publicationCycle: 1,
         publicationAttempts: 0,
         publicationLastErrorClass: null,
         reconcileDueAt: null,
       })
+      expect(outboxRows.map((row) => row.eventType)).toEqual([
+        'review.reply.approved',
+        'review.reply.publication_requested',
+      ])
     })
 
-    it('retry re-authorization (publish_failed + terminal state): no fact, no emit', async () => {
+    it('retry re-authorization commits a durable intent without a lifecycle emit', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
         order,
         updateRowsQueue: [
-          [makeRow({ status: 'approved', publicationState: 'authorized' })],
+          [
+            makeRow({
+              status: 'approved',
+              publicationState: 'authorized',
+              publicationCycle: 1,
+            }),
+          ],
         ],
         outboxRows,
       })
@@ -454,13 +492,19 @@ describe('createAtomicReplyCommandStore', () => {
           publicationLastErrorClass: 'terminal_rejection',
         }),
         { status: 'approved' },
-        null,
+        {
+          lifecycleEvent: null,
+          publicationIntent: publicationRequestedEvent(1),
+        },
         NOW,
       )
 
       expect(result?.publicationState).toBe('authorized')
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
-      expect(outboxRows).toHaveLength(0)
+      expect(result?.publicationCycle).toBe(1)
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
+      expect(outboxRows.map((row) => row.eventType)).toEqual([
+        'review.reply.publication_requested',
+      ])
       expect(events.emit).not.toHaveBeenCalled()
     })
 
@@ -472,7 +516,10 @@ describe('createAtomicReplyCommandStore', () => {
       const result = await store.markPublicationAuthorized(
         makeReply({ status: 'published', publicationState: 'published' }),
         { status: 'approved' },
-        null,
+        {
+          lifecycleEvent: null,
+          publicationIntent: publicationRequestedEvent(1),
+        },
         NOW,
       )
 
@@ -489,7 +536,10 @@ describe('createAtomicReplyCommandStore', () => {
       const result = await store.markPublicationAuthorized(
         makeReply({ status: 'pending_approval' }),
         { status: 'approved' },
-        approvedEvent(),
+        {
+          lifecycleEvent: approvedEvent(),
+          publicationIntent: publicationRequestedEvent(1),
+        },
         NOW,
       )
 
@@ -521,6 +571,7 @@ describe('createAtomicReplyCommandStore', () => {
               status: 'approved',
               text: 'Improved public reply',
               publicationState: 'authorized',
+              publicationCycle: 1,
             }),
           ],
         ],
@@ -531,15 +582,28 @@ describe('createAtomicReplyCommandStore', () => {
 
       const result = await store.editPublishedReply(
         makeReply({ status: 'published', publicationState: 'published' }),
-        { text: 'Improved public reply', event: updatedEvent(), now: NOW },
+        {
+          text: 'Improved public reply',
+          lifecycleEvent: updatedEvent(),
+          publicationIntent: publicationRequestedEvent(1),
+          now: NOW,
+        },
       )
 
       expect(result?.status).toBe('approved')
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual([
+        'tx.start',
+        'tx.state',
+        'tx.outbox',
+        'tx.outbox',
+        'tx.commit',
+        'emit',
+      ])
       expect(setPayloads[0]).toMatchObject({
         text: 'Improved public reply',
         status: 'approved',
         publicationState: 'authorized',
+        publicationCycle: 1,
         publicationAttempts: 0,
         publicationLastErrorClass: null,
         reconcileDueAt: null,
@@ -553,7 +617,12 @@ describe('createAtomicReplyCommandStore', () => {
 
       const result = await store.editPublishedReply(
         makeReply({ status: 'approved', publicationState: 'authorized' }),
-        { text: 'New', event: updatedEvent(), now: NOW },
+        {
+          text: 'New',
+          lifecycleEvent: updatedEvent(),
+          publicationIntent: publicationRequestedEvent(1),
+          now: NOW,
+        },
       )
 
       expect(result).toBeNull()
@@ -1241,7 +1310,10 @@ describe('createSequentialReplyCommandStore', () => {
     const result = await store.markPublicationAuthorized(
       makeReply({ status: 'pending_approval' }),
       { status: 'approved' },
-      approvedEvent(),
+      {
+        lifecycleEvent: approvedEvent(),
+        publicationIntent: publicationRequestedEvent(1),
+      },
       NOW,
     )
 

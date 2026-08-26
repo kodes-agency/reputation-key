@@ -5,6 +5,7 @@
 import { reviewError } from './domain/errors'
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
+import type { OutboxRepository } from '#/shared/outbox'
 import type { Queue } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GoogleReviewApiPort } from './application/ports/google-review-api.port'
@@ -58,6 +59,7 @@ import { reviewId, replyId } from '#/shared/domain/ids'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
 import { registerReviewHandlers } from './infrastructure/event-handlers'
+import { registerReplyPublicationConsumers } from './infrastructure/outbox-consumers'
 import { createPublishReplyScopeResolver } from './infrastructure/jobs/publish-reply-scope-resolver'
 import { JOB_NAME as PUBLISH_REPLY_JOB_NAME } from './infrastructure/jobs/publish-reply.job'
 import type {
@@ -69,6 +71,7 @@ import type {
 export type ReviewContextBuildInput = Readonly<{
   db: Database
   events: EventBus
+  outboxRepo: OutboxRepository
   clock: () => Date
   googleReviewApi: GoogleReviewApiPort
   jobQueue: Queue | undefined
@@ -127,6 +130,8 @@ export type ReviewContextApi = Readonly<{
     aiReviewSource: ReturnType<typeof createAiReviewSource>
     /** Masked-inventory-verified derivation/rotation authority for Review writers. */
     providerSubjectKeys: ReviewProviderSubjectKeyService
+    /** Worker-only durable publication-intent recovery registration. */
+    registerOutboxConsumers: () => void
   }>
 }>
 
@@ -356,6 +361,12 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         readReplyStateRevision: reviewRepo.readReplyStateRevision,
       }),
       providerSubjectKeys,
+      registerOutboxConsumers: () =>
+        registerReplyPublicationConsumers({
+          replyRepo,
+          queue: replyQueue,
+          receipts: input.outboxRepo,
+        }),
     },
   }
 }

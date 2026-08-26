@@ -2797,6 +2797,18 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
 
 const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   consumer(
+    'review.outbox-consumers',
+    'src/contexts/review/infrastructure/outbox-consumers.ts',
+    'system:reply.publish',
+    'property.publish_reply',
+    'property',
+    ['review.reply.publication_requested'],
+    {
+      notes:
+        'durable identifier-only publication admission; reloads reply state and requires the exact committed publication cycle before enqueueing a deterministic reply+cycle job',
+    },
+  ),
+  consumer(
     'portal.outbox-consumers',
     'src/contexts/portal/infrastructure/outbox-consumers.ts',
     'system:image.process',

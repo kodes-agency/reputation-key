@@ -254,6 +254,7 @@ const approvedDetail: InboxItemDetailResult = {
     publishedAt: null,
     publicationState: null,
     publicationAttempts: 0,
+    publicationCycle: 0,
     publicationLastErrorClass: null,
     reconcileDueAt: null,
     createdAt: new Date('2026-08-19T07:10:00Z'),

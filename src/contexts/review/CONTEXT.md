@@ -43,6 +43,7 @@ is not the identity or history authority.
 - Serving reads deny provider content at its fetch-based hard expiry. REV-01 expand storage writes `review_source_contents`, `review_source_observations`, and `material_review_revisions` with the stable Review in one transaction. Confirmed deletion/expiry removes the current cache and redacts provider-controlled values from retained observations/revisions while preserving their controls, the stable Review, and manager-owned Replies/history. Recurring activation remains quarantined until the external shadow-parity/cutover audit is complete.
 - Provider-subject HMAC mappings, not erased Google identifiers, reconnect a re-observation to the same stable Review ID. A collision fails closed.
 - Reply text limited to 4096 characters (`MAX_REPLY_LENGTH`).
+- Every publish authorization advances an explicit, monotonically increasing `publicationCycle`. The reply state and that cycle's identifier-only `review.reply.publication_requested` intent are committed in one PostgreSQL transaction. Queue jobs carry the same cycle, and both the recovery consumer and publish worker reject an older cycle so a delayed fact can never admit or acknowledge newer work.
 
 ## Events produced
 
@@ -53,12 +54,14 @@ is not the identity or history authority.
 - **`review.reply.published`** — replyId, reviewId, propertyId, organizationId, userId (nullable), authorId, source, occurredAt. Emitted when a reply reaches published status (web: user-approved, import: Google sync mirror).
 - **`review.reply.submitted`** — replyId, reviewId, propertyId, organizationId, userId, source, occurredAt. Emitted when a draft reply is submitted for approval.
 - **`review.reply.approved`** — replyId, reviewId, propertyId, organizationId, userId, authorId, source, occurredAt. Emitted when a reply is approved.
+- **`review.reply.publication_requested`** — identifier-only durable intent containing reply/review/property/organization/user IDs plus the exact publication cycle. Approval, edit-and-republish, and a non-healing retry record it atomically with the authorized reply state. It is consumed by the worker recovery path and is not emitted on the in-process lifecycle bus.
 - **`review.reply.rejected`** — replyId, reviewId, propertyId, organizationId, userId, authorId, source, reason, occurredAt. Emitted when a reply is rejected during review.
 - **`review.reply.publish_failed`** — replyId, reviewId, propertyId, organizationId, authorId, occurredAt. Emitted when reply publishing fails after retry.
 
 ## Events consumed
 
 - **`property.created`** — Enqueues sync job for new property reviews (via `on-property-created` handler).
+- **`review.reply.publication_requested`** — The worker reloads the reply, checks scope, state, and exact cycle, then admits that cycle under the deterministic `reply-<replyId>-v<cycle>` queue identity. Missing, completed, cancelled, failed, or superseded intents settle as obsolete.
 
 ## Architecture layers
 
@@ -79,6 +82,7 @@ review/
     serving-stats.ts   governed aggregate serving reads (BQC-5.5; eligibility in SQL)
     mappers/           review.mapper.ts, reply.mapper.ts
     event-handlers/    on-property-created.ts, index.ts
+    outbox-consumers.ts durable cycle-fenced reply-publication admission
     jobs/              sync-property-reviews.job.ts, refresh-expiring-reviews.job.ts,
                        purge-expired-reviews.job.ts, publish-reply.job.ts
   server/              reply.ts, reply-draft.ts, reply-read.ts, staff-recent-activity.ts
@@ -90,11 +94,12 @@ review/
 - **`syncReviews`** — Fetches reviews from Google for a single location, upserts them, mirrors reply state. Bypasses domain constructors (trusted external data). Returns created/updated/failed counts.
 - **`draftReply`** — Create or update an internal reply in `draft` status. Requires PM+ role.
 - **`submitReply`** — Move draft reply to `pending_approval`. Validates state transition.
-- **`approveReply`** — Move reply to `approved`, enqueue publish job. Requires PM+ role.
+- **`approveReply`** — Atomically move reply to `approved`, advance its publication cycle, and record the durable publication intent; then attempt the direct low-latency queue admission. Requires PM+ role.
 - **`rejectReply`** — Move reply to `rejected` with optional reason. Requires PM+ role.
 - **`deleteReply`** — Hard-delete an internal reply. Only drafts/rejected can be deleted.
 - **`getReply`** — Retrieve a single reply by ID.
-- **`retryPublish`** — Retry publishing a `publish_failed` reply.
+- **`retryPublish`** — First preserve ambiguous-provider reconciliation; when no provider reply can heal the state, atomically return the reply to `approved`, advance its cycle, and record a new durable publication intent before attempting direct queue admission.
+- **`editPublishedReply`** — Atomically replace published text, return the reply to `approved`, advance its cycle, and record the updated lifecycle fact plus a new durable publication intent before attempting direct queue admission.
 - **`reconcileReplyPublication`** — BQC-3.3 operator recovery for an ambiguous publish outcome: re-reads provider state via the GBP sync read path; heals to `published` (atomic, durable fact) when Google shows the reply, else stays `publish_failed` (`still_failed`). Never calls the publish endpoint.
 
 ## Public API
@@ -103,8 +108,8 @@ Exported from `application/public-api.ts`:
 
 - Types: `GoogleReview`, `StarRating`, `ReviewQueuePort`, `SyncPropertyReviewsJobData`, `AddSyncJobOptions`, `GoogleReviewApiPort`, `StaffRecentReview`. Observation/material-history reads remain Review-internal and are exposed only on the context build's `internal.repos.observationRepo`.
 - BQC-5.5: `ReviewServingStats` — governed aggregate serving reads over review/reply content (ADR 0031 eligibility enforced at this owner, clock-injected). Composition wires the infrastructure implementation (`infrastructure/serving-stats.ts`) into the dashboard build; exposed on the build's `internal.servingStats`.
-- Event types: `ReviewCreated`, `ReviewUpdated`, `ReviewReplyPublished`, `ReviewReplySubmitted`, `ReviewReplyApproved`, `ReviewReplyRejected`, `ReviewReplyPublishFailed`, `ReviewExpired`, `ReviewEvent`
-- Event constructors: `reviewCreated`, `reviewUpdated`, `reviewReplyPublished`, `reviewReplySubmitted`, `reviewReplyApproved`, `reviewReplyRejected`, `reviewReplyPublishFailed`, `reviewExpired`
+- Event types: `ReviewCreated`, `ReviewUpdated`, `ReviewReplyPublished`, `ReviewReplySubmitted`, `ReviewReplyApproved`, `ReviewReplyPublicationRequested`, `ReviewReplyRejected`, `ReviewReplyPublishFailed`, `ReviewExpired`, `ReviewEvent`
+- Event constructors: `reviewCreated`, `reviewUpdated`, `reviewReplyPublished`, `reviewReplySubmitted`, `reviewReplyApproved`, `reviewReplyPublicationRequested`, `reviewReplyRejected`, `reviewReplyPublishFailed`, `reviewExpired`
 
 ## Server functions
 
@@ -120,4 +125,5 @@ Exported from `application/public-api.ts`:
 - **sync-property-reviews** — Fetches reviews from Google for a specific property/location. Triggered by `property.created` event or `refresh-expiring-reviews` job.
 - **refresh-expiring-reviews** — Finds reviews expiring within 5 days, enqueues sync jobs to refresh them. Runs daily.
 - **purge-expired-reviews** — quarantine handler only: drains leftover legacy jobs. The repository-owned erasure/re-observation transaction has real-PostgreSQL coverage, but recurring activation still requires the REV-01 external shadow-parity seal and checkpointed lifecycle cutover.
-- **publish-reply** — Publishes an approved reply to Google via API. Retries up to 3 times with exponential backoff; provider outcomes classified via the publication saga (terminal 4xx → `publish_failed` without retry burn; ambiguous final → `publish_failed` + reconcile).
+- **review.on-reply-publication-requested** — Durable worker consumer that independently recovers queue admission after a request-process interruption. It reloads the authoritative reply and only admits the intent's exact active cycle. Queue-add/receipt ambiguity is fenced by the deterministic reply+cycle BullMQ job ID.
+- **publish-reply** — Publishes an approved reply to Google via API. It requires the queued publication cycle to match the persisted cycle before claiming and again before acknowledging provider success. Retries up to 3 times with exponential backoff; provider outcomes classified via the publication saga (terminal 4xx → `publish_failed` without retry burn; ambiguous final → `publish_failed` + reconcile).

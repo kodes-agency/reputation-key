@@ -122,12 +122,27 @@ export function requiresManualReview(state: ReplyPublicationState): boolean {
  * This key ensures that retrying a crashed publication doesn't create
  * a duplicate reply on Google.
  *
- * Format: reply:{replyId}:{sourceVersion}
- * The sourceVersion changes if the reply text is edited, starting a new
- * publication workflow.
+ * Format: reply-{replyId}-v{publicationCycle}. BullMQ custom IDs avoid `:`;
+ * that separator is reserved by the queue's key format.
+ * Each manager authorization, edit-and-republish, or explicit retry advances
+ * the durable cycle even when the reply text is unchanged.
  */
-export function buildIdempotencyKey(replyId: string, sourceVersion: number): string {
-  return `reply:${replyId}:v${sourceVersion}`
+export function buildIdempotencyKey(replyId: string, publicationCycle: number): string {
+  return `reply-${replyId}-v${publicationCycle}`
+}
+
+/** Advance one durable publication authorization generation. */
+export function nextPublicationCycle(current: number): number {
+  if (
+    !Number.isSafeInteger(current) ||
+    current < 0 ||
+    current >= Number.MAX_SAFE_INTEGER
+  ) {
+    throw reviewError('invalid_transition', 'Reply publication cycle is invalid', {
+      current,
+    })
+  }
+  return current + 1
 }
 
 // ── BQC-3.3: provider outcome classification ─────────────────────────

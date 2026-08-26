@@ -1285,6 +1285,7 @@ export function createContainer(options?: {
   const review = buildReviewContext({
     db,
     events: eventBus,
+    outboxRepo,
     clock,
     staffPublicApi: staff.publicApi,
     googleReviewApi: integration.internal.googleReviewApi,
@@ -1765,6 +1766,7 @@ export function createContainer(options?: {
     // Worker-only durable consumer registration contributed by owning contexts.
     registerOutboxConsumers: () => {
       integration.internal.registerOutboxConsumers()
+      review.internal.registerOutboxConsumers()
       portal.internal.registerOutboxConsumers()
       property.internal.registerOutboxConsumers()
       inbox.internal.registerOutboxConsumers()

@@ -40,7 +40,11 @@ vi.mock('#/shared/observability/trace', () => ({
 }))
 
 const NOW = new Date('2026-07-17T00:00:00Z')
-const JOB_DATA = { replyId: 'reply-1', organizationId: 'org-1' }
+const JOB_DATA = {
+  replyId: 'reply-1',
+  organizationId: 'org-1',
+  publicationCycle: 1,
+}
 
 const approvedReply = {
   id: 'reply-1',
@@ -59,6 +63,7 @@ const approvedReply = {
   approvedAt: NOW,
   publishedAt: null,
   publicationState: 'authorized',
+  publicationCycle: 1,
   publicationAttempts: 0,
   publicationLastErrorClass: null,
   reconcileDueAt: null,
@@ -167,8 +172,8 @@ function makeDeps() {
   }
 }
 
-const makeJob = (attemptsMade = 0) =>
-  ({ id: 'job-1', data: JOB_DATA, attemptsMade }) as never
+const makeJob = (attemptsMade = 0, data = JOB_DATA) =>
+  ({ id: 'job-1', data, attemptsMade }) as never
 
 describe('publish-reply job handler', () => {
   it('runs without an in-handler capability gate (delegated to dispatch)', async () => {
@@ -216,6 +221,26 @@ describe('publish-reply job handler', () => {
     expect(deps.replyCommandStore.markPublicationSending).not.toHaveBeenCalled()
     expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
+  })
+
+  it('rejects a delayed job from an older publication cycle before claim or send', async () => {
+    const deps = makeDeps()
+    deps.replyRepo.findById.mockResolvedValue({
+      ...approvedReply,
+      publicationCycle: 2,
+    })
+    const handler = createPublishReplyHandler(deps as never)
+
+    await handler(
+      makeJob(0, {
+        replyId: 'reply-1',
+        organizationId: 'org-1',
+        publicationCycle: 1,
+      }),
+    )
+
+    expect(deps.replyCommandStore.markPublicationSending).not.toHaveBeenCalled()
+    expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
   })
 
   it('claim lost (cancelled or racing) → skips without the side effect or any mark', async () => {
@@ -406,6 +431,35 @@ describe('publish-reply job handler', () => {
 
     expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledTimes(1)
     expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
+  })
+
+  it('post-call cycle fence: a newer authorization cannot be acknowledged by the older send', async () => {
+    const deps = makeDeps()
+    deps.replyRepo.findById.mockResolvedValueOnce(approvedReply).mockResolvedValueOnce({
+      ...approvedReply,
+      publicationCycle: 2,
+    })
+    const handler = createPublishReplyHandler(deps as never)
+
+    await handler(makeJob())
+
+    expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
+  })
+
+  it('acknowledgement compare-and-set fences a cycle change after the post-call read', async () => {
+    const deps = makeDeps()
+    deps.replyCommandStore.markPublished.mockResolvedValueOnce(null as never)
+    const handler = createPublishReplyHandler(deps as never)
+
+    await expect(handler(makeJob())).resolves.toBeUndefined()
+
+    expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublished).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublished.mock.calls[0]![0]).toMatchObject({
+      publicationCycle: 1,
+      publicationState: 'sending',
+    })
   })
 
   it('§6 failure AFTER provider success BEFORE local ack: markPublished throws → rethrow → retry re-claims sending → upsert-idempotent second send → published once', async () => {

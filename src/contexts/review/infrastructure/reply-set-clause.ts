@@ -44,6 +44,8 @@ export function buildReplySetClause(
   // BQC-3.8: publication state machine fields.
   if (updates.publicationState !== undefined)
     setClause.publicationState = updates.publicationState
+  if (updates.publicationCycle !== undefined)
+    setClause.publicationCycle = updates.publicationCycle
   if (updates.publicationAttempts !== undefined)
     setClause.publicationAttempts = updates.publicationAttempts
   if (updates.publicationLastErrorClass !== undefined)

@@ -518,6 +518,7 @@ function makeReplyC(): Reply {
     approvedAt: NOW_C,
     publishedAt: null,
     publicationState: 'authorized',
+    publicationCycle: 1,
     publicationAttempts: 0,
     publicationLastErrorClass: null,
     reconcileDueAt: null,

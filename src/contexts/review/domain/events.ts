@@ -242,6 +242,43 @@ export const reviewReplyApproved = (
   }
 }
 
+/**
+ * Identifier-only durable command intent for one manager-authorized
+ * publication cycle. This is deliberately separate from lifecycle/audit
+ * facts: approval, edit-and-republish, and retry all produce the same worker
+ * recovery contract without carrying reply text (ADR 0030).
+ */
+export type ReviewReplyPublicationRequested = Readonly<{
+  _tag: 'review.reply.publication_requested'
+  eventId: string
+  replyId: ReplyId
+  reviewId: ReviewId
+  propertyId: PropertyId
+  organizationId: OrganizationId
+  userId: UserId
+  publicationCycle: number
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const reviewReplyPublicationRequested = (
+  args: Omit<ReviewReplyPublicationRequested, '_tag' | 'eventId' | 'correlationId'> & {
+    correlationId?: string | null
+  },
+): ReviewReplyPublicationRequested => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
+  assert(
+    Number.isSafeInteger(args.publicationCycle) && args.publicationCycle > 0,
+    'publicationCycle must be a positive safe integer',
+  )
+  return {
+    ...args,
+    _tag: 'review.reply.publication_requested',
+    eventId: newEventId(),
+    correlationId: args.correlationId ?? null,
+  }
+}
+
 export type ReviewReplyRejected = Readonly<{
   _tag: 'review.reply.rejected'
   eventId: string
@@ -359,6 +396,7 @@ export type ReviewEvent =
   | ReviewReplyPublished
   | ReviewReplySubmitted
   | ReviewReplyApproved
+  | ReviewReplyPublicationRequested
   | ReviewReplyRejected
   | ReviewReplyPublishFailed
   | ReviewReplyUpdated

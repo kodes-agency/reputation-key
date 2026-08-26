@@ -28,6 +28,8 @@ export type ConditionalReplyUpdate = Readonly<{
   publishedAt?: Date | null
   /** BQC-3.8: publication state machine fields (migration 0015). */
   publicationState?: PersistedPublicationState | null
+  /** RPL-01: monotonic approval/edit/retry cycle fence. */
+  publicationCycle?: number
   publicationAttempts?: number
   publicationLastErrorClass?: PublicationFailureClass | null
   reconcileDueAt?: Date | null

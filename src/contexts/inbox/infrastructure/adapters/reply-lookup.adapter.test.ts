@@ -36,6 +36,7 @@ function makeReply(overrides: Partial<ReplyView> = {}): ReplyView {
     publishedAt: NOW,
     publicationState: 'published',
     publicationAttempts: 1,
+    publicationCycle: 1,
     publicationLastErrorClass: null,
     reconcileDueAt: null,
     createdAt: NOW,

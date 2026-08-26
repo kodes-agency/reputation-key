@@ -74,6 +74,16 @@ const replyPublicationCancelledSchema = z.object({
   occurredAt: z.string().optional(),
 })
 
+const replyPublicationRequestedSchema = z.object({
+  replyId: z.string(),
+  reviewId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  userId: z.string(),
+  publicationCycle: z.number().int().positive().safe(),
+  occurredAt: z.string(),
+})
+
 // ── Inbox event schemas ─────────────────────────────────────────────
 
 const inboxItemCreatedSchema = z.object({
@@ -665,6 +675,11 @@ export function registerAllEventSchemas(): void {
     type: 'review.reply.approved',
     version: EVENT_VERSION,
     schema: replyEventSchema,
+  })
+  registerEventSchema({
+    type: 'review.reply.publication_requested',
+    version: EVENT_VERSION,
+    schema: replyPublicationRequestedSchema,
   })
   registerEventSchema({
     type: 'review.reply.rejected',

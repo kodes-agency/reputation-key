@@ -189,6 +189,7 @@ describe('transitionReply — BQC-3.8 AI-draft publication proof', () => {
       approvedAt: null,
       publishedAt: null,
       publicationState: null,
+      publicationCycle: 0,
       publicationAttempts: 0,
       publicationLastErrorClass: null,
       reconcileDueAt: null,

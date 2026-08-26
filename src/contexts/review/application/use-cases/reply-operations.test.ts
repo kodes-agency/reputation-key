@@ -105,6 +105,7 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     approvedAt: null,
     publishedAt: null,
     publicationState: null,
+    publicationCycle: 0,
     publicationAttempts: 0,
     publicationLastErrorClass: null,
     reconcileDueAt: null,
@@ -157,18 +158,19 @@ function makeReplyCommandStoreFake(
     rejectReply: transition,
     // BQC-3.8: authorize mirrors the production write — guarded status update
     // + the new publication-cycle fields — with the same domain pre-check.
-    markPublicationAuthorized: async (reply, updates, event, now) => {
+    markPublicationAuthorized: async (reply, updates, facts, now) => {
       if (!nextPublicationState(reply.publicationState, 'authorize')) return null
       return transition(
         reply,
         {
           ...updates,
           publicationState: 'authorized',
+          publicationCycle: facts.publicationIntent.publicationCycle,
           publicationAttempts: 0,
           publicationLastErrorClass: null,
           reconcileDueAt: null,
         },
-        event,
+        facts.lifecycleEvent,
         now,
       )
     },
@@ -195,11 +197,12 @@ function makeReplyCommandStoreFake(
           text: command.text,
           status: 'approved',
           publicationState: 'authorized',
+          publicationCycle: command.publicationIntent.publicationCycle,
           publicationAttempts: 0,
           publicationLastErrorClass: null,
           reconcileDueAt: null,
         },
-        command.event,
+        command.lifecycleEvent,
         command.now,
       )
     },
@@ -676,17 +679,19 @@ describe('approveReply', () => {
     const result = await approveReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(result.status).toBe('approved')
     expect(result.approvedBy).toBe(USER_ID)
+    expect(result.publicationCycle).toBe(1)
     expect(deps.queue.addPublishJob).toHaveBeenCalledWith(
       {
         replyId: REPLY_ID,
         organizationId: ORG_ID,
+        publicationCycle: 1,
         // Named attribution for user-triggered delayed work.
         initiator: { kind: 'user', id: USER_ID },
       },
       {
-        // BQC-3.3: saga idempotency key dedupes enqueue for the same approval
-        // cycle (sourceVersion = the approved reply's updatedAt).
-        idempotencyKey: buildIdempotencyKey(REPLY_ID, NOW.getTime()),
+        // RPL-01: the committed monotonic cycle is both the queue identity and
+        // the worker's stale-intent fence.
+        idempotencyKey: buildIdempotencyKey(REPLY_ID, 1),
       },
     )
   })
@@ -774,6 +779,7 @@ describe('editPublishedReply', () => {
     expect(result.status).toBe('approved')
     expect(result.text).toBe('Improved public reply')
     expect(result.publicationState).toBe('authorized')
+    expect(result.publicationCycle).toBe(1)
     expect(result.publicationAttempts).toBe(0)
     expect(result.publicationLastErrorClass).toBeNull()
     expect(result.reconcileDueAt).toBeNull()
@@ -790,9 +796,10 @@ describe('editPublishedReply', () => {
       {
         replyId: REPLY_ID,
         organizationId: ORG_ID,
+        publicationCycle: 1,
         initiator: { kind: 'user', id: USER_ID },
       },
-      { idempotencyKey: buildIdempotencyKey(REPLY_ID, NOW.getTime()) },
+      { idempotencyKey: buildIdempotencyKey(REPLY_ID, 1) },
     )
   })
 
@@ -1110,7 +1117,16 @@ describe('retryPublish', () => {
     const result = await retryPublish(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX)
     expect(result.status).toBe('approved')
     expect(result.publicationState).toBe('authorized')
-    expect(deps.queue.addPublishJob).toHaveBeenCalledTimes(1)
+    expect(result.publicationCycle).toBe(1)
+    expect(deps.queue.addPublishJob).toHaveBeenCalledWith(
+      {
+        replyId: REPLY_ID,
+        organizationId: ORG_ID,
+        publicationCycle: 1,
+        initiator: { kind: 'user', id: USER_ID },
+      },
+      { idempotencyKey: buildIdempotencyKey(REPLY_ID, 1) },
+    )
     // Non-ambiguous rows behave exactly as today — no provider re-read.
     expect(deps.googleReviewApi.getReview).not.toHaveBeenCalled()
   })

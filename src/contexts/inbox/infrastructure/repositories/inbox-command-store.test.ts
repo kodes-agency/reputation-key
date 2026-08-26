@@ -185,6 +185,7 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     publishedAt: new Date('2026-05-29T10:00:00.000Z'),
     publicationState: 'published',
     publicationAttempts: 0,
+    publicationCycle: 1,
     publicationLastErrorClass: null,
     reconcileDueAt: null,
     createdAt: NOW,

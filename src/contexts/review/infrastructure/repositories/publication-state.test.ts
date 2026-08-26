@@ -136,6 +136,7 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     approvedAt: NOW,
     publishedAt: null,
     publicationState: 'authorized',
+    publicationCycle: 1,
     publicationAttempts: 0,
     publicationLastErrorClass: null,
     reconcileDueAt: null,

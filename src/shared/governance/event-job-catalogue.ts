@@ -284,6 +284,7 @@ const BADGE_HANDLERS = 'src/contexts/badge/infrastructure/event-handlers/index.t
 const LEADERBOARD_HANDLERS =
   'src/contexts/leaderboard/infrastructure/event-handlers/index.ts'
 const REVIEW_HANDLERS = 'src/contexts/review/infrastructure/event-handlers/index.ts'
+const REVIEW_OUTBOX = 'src/contexts/review/infrastructure/outbox-consumers.ts'
 const INBOX_OUTBOX = 'src/contexts/inbox/infrastructure/outbox-consumers.ts'
 const INBOX_GUEST_FEEDBACK_OUTBOX =
   'src/contexts/inbox/infrastructure/guest-feedback-outbox-consumers.ts'
@@ -476,7 +477,25 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       repairCommand: 'reconcileReplyPublication',
       notes:
-        'atomic command-store outbox write (BQC-3.3); the committed approved fact is the publish recovery record until BQC-3.8',
+        'atomic command-store outbox write (BQC-3.3); the lifecycle fact is paired with an explicit cycle-fenced publication intent in the same transaction',
+    },
+  ),
+  ev(
+    'review.reply.publication_requested',
+    REVIEW_EVENTS,
+    {
+      stateOwner: 'review',
+      capability: 'property.publish_reply',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('review.on-reply-publication-requested', REVIEW_OUTBOX)],
+      disposition: 'enabled',
+    },
+    {
+      repairCommand: 'reconcileReplyPublication',
+      notes:
+        'identifier-only recovery intent committed with the authorized reply cycle; the worker reloads current state and only admits that exact cycle under a deterministic reply+cycle job id',
     },
   ),
   ev(
@@ -574,7 +593,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       repairCommand: 'reconcileReplyPublication',
       notes:
-        "edit-and-republish: a published reply's text was edited and re-entered the durable publication machine (published → approved, fresh cycle); atomic write + fact via ReplyCommandStore.editPublishedReply; the provider upsert (GBP) makes republish non-duplicating",
+        "edit-and-republish: a published reply's text was edited and re-entered the durable publication machine (published → approved, fresh cycle); atomic write + lifecycle fact + explicit cycle-fenced publication intent via ReplyCommandStore.editPublishedReply; the provider upsert (GBP) makes republish non-duplicating",
     },
   ),
 ]

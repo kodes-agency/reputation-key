@@ -43,8 +43,7 @@ import { replyId, organizationId } from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import { classifyPublicationFailure } from '../../domain/reply-publication-workflow'
-import { reviewReplyPublishFailed } from '../../domain/events'
-import { markReplyPublished } from '../../application/use-cases/reply-operations'
+import { reviewReplyPublished, reviewReplyPublishFailed } from '../../domain/events'
 
 const MAX_ATTEMPTS = 3
 
@@ -75,21 +74,6 @@ function buildPublishFailedEvent(review: Review, reply: Reply, occurredAt: Date)
 }
 
 export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
-  // No-op queue: mark operations must not re-enqueue a publish job (infinite loop).
-  const noopQueue = { addPublishJob: async () => {} }
-
-  const markDeps = {
-    replyRepo: deps.replyRepo,
-    reviewRepo: deps.reviewRepo,
-    queue: noopQueue,
-    commandStore: deps.replyCommandStore,
-    googleReviewApi: deps.googleReviewApi,
-    clock: deps.clock,
-    idGen: deps.idGen,
-    staffPublicApi: deps.staffPublicApi,
-  }
-  const doMarkPublished = markReplyPublished(markDeps)
-
   return async (job: Job<PublishReplyJobData>) => {
     return trace('job.publishReply', async () => {
       const logger = getLogger()
@@ -110,6 +94,21 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
 
       if (reply.status !== 'approved') {
         logger.warn({ status: reply.status }, 'Reply not in approved status, skipping')
+        return
+      }
+
+      // RPL-01: a durable intent or fast-path job may arrive after a later
+      // approval/edit/retry cycle has become current. The explicit monotonic
+      // cycle is the fence: stale work stops before it can claim the row or
+      // reach the provider. A missing value is accepted only for a bounded
+      // pre-RPL-01 job whose persisted row is still at legacy cycle zero.
+      const requestedCycle = job.data.publicationCycle
+      const jobCycle = requestedCycle ?? 0
+      if (
+        (requestedCycle === undefined && reply.publicationCycle !== 0) ||
+        (requestedCycle !== undefined && requestedCycle !== reply.publicationCycle)
+      ) {
+        logger.warn('Publication cycle superseded — skipping stale job')
         return
       }
 
@@ -166,8 +165,38 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
           )
           return
         }
+        if (current.publicationCycle !== jobCycle) {
+          logger.warn(
+            'Publication cycle changed during the Google call — NOT acknowledging the stale cycle',
+          )
+          return
+        }
 
-        await doMarkPublished({ replyId: rId, organizationId: orgId })
+        const now = deps.clock()
+        // Use the exact row claimed by THIS cycle. The store's status+cycle
+        // compare-and-set is the final fence between the post-call read above
+        // and this acknowledgement; a cancellation/re-authorization in that
+        // narrow window cannot make the old provider result publish cycle N+1.
+        const published = await deps.replyCommandStore.markPublished(
+          claimed,
+          { status: 'published', publishedAt: now },
+          reviewReplyPublished({
+            replyId: claimed.id,
+            reviewId: claimed.reviewId,
+            propertyId: review.propertyId,
+            organizationId: claimed.organizationId,
+            userId: null,
+            authorId: claimed.createdBy,
+            occurredAt: now,
+          }),
+          now,
+        )
+        if (!published) {
+          logger.warn(
+            'Publication acknowledgement lost the state/cycle fence — NOT marking a newer cycle',
+          )
+          return
+        }
         logger.info('Reply published to Google')
       } catch (err) {
         await handlePublishFailure(deps, job, claimed, review, err)

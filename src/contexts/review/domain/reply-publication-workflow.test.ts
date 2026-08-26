@@ -8,6 +8,7 @@ import {
   requiresManualReview,
   buildIdempotencyKey,
   classifyPublicationFailure,
+  nextPublicationCycle,
   nextPublicationState,
   AMBIGUOUS_RECONCILE_DELAY_MS,
 } from './reply-publication-workflow'
@@ -186,12 +187,13 @@ describe('reply-publication-workflow (B1.10)', () => {
   })
 
   describe('buildIdempotencyKey', () => {
-    it('includes reply ID and source version', () => {
+    it('includes reply ID and publication cycle', () => {
       const key = buildIdempotencyKey('reply-123', 2)
-      expect(key).toBe('reply:reply-123:v2')
+      expect(key).toBe('reply-reply-123-v2')
+      expect(key).not.toContain(':')
     })
 
-    it('changes when source version changes', () => {
+    it('changes when publication cycle changes', () => {
       const key1 = buildIdempotencyKey('reply-123', 1)
       const key2 = buildIdempotencyKey('reply-123', 2)
       expect(key1).not.toBe(key2)
@@ -202,6 +204,22 @@ describe('reply-publication-workflow (B1.10)', () => {
       const key2 = buildIdempotencyKey('reply-456', 1)
       expect(key1).not.toBe(key2)
     })
+  })
+
+  describe('nextPublicationCycle', () => {
+    it('advances the explicit authorization generation', () => {
+      expect(nextPublicationCycle(0)).toBe(1)
+      expect(nextPublicationCycle(41)).toBe(42)
+    })
+
+    it.each([-1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER])(
+      'rejects invalid or unadvanceable cycle %s',
+      (current) => {
+        expect(() => nextPublicationCycle(current)).toThrow(
+          'Reply publication cycle is invalid',
+        )
+      },
+    )
   })
 
   // BQC-3.3: provider outcome classification for the publish job.

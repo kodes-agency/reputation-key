@@ -36,6 +36,7 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     publishedAt: null,
     publicationState: null,
     publicationAttempts: 0,
+    publicationCycle: 0,
     publicationLastErrorClass: null,
     reconcileDueAt: null,
     createdAt: NOW,

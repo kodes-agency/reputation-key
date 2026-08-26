@@ -81,6 +81,7 @@ export type {
   ReviewSourceTransitioned,
   ReviewReplyPublished,
   ReviewReplyPublishFailed,
+  ReviewReplyPublicationRequested,
   ReviewReplyPublicationCancelled,
   ReviewReplyUpdated,
 } from '#/contexts/review/domain/events'

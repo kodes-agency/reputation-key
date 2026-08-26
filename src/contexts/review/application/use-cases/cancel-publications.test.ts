@@ -88,6 +88,7 @@ function makeReply(
     approvedAt: NOW,
     publishedAt: null,
     publicationState,
+    publicationCycle: 1,
     publicationAttempts: 1,
     publicationLastErrorClass: null,
     reconcileDueAt: null,

@@ -54,6 +54,8 @@ export type ReplyView = Readonly<{
   // BQC-3.8: publication state machine overlay (migration 0015).
   publicationState: ReplyPublicationState | null
   publicationAttempts: number
+  /** Exact durable publication authorization cycle; zero before first authorization. */
+  publicationCycle: number
   publicationLastErrorClass: ReplyPublicationFailureClass | null
   reconcileDueAt: Date | null
   createdAt: Date

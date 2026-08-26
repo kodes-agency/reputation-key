@@ -59,6 +59,14 @@ source content, recoverable archive, or bounded contraction. Migrations and
 operator tools remain governed executable surfaces and require catalogue and
 release evidence before a contraction is accepted.
 
-The current package ledger records remaining data-fate work. A capability being
-blocked is containment, not proof that its legacy rows or code have been safely
-contracted.
+`src/shared/governance/data-fate-authority.ts` names every exported Drizzle
+table and its owner, disposition, decision authority, and (for non-active
+data) exit criteria. Its bidirectional guard discovers `pgTable` exports from
+the schema directory, rejects missing and stale rows, and pins representative
+active, erasable, quarantined, compatibility, archive, and contraction
+decisions. This is classification authority, not proof that a required purge,
+reconciliation, export, restore, or contraction has already run.
+
+A capability being blocked is containment, not proof that its legacy rows or
+code have been safely contracted. The package ledger remains the authority for
+that implementation and release evidence.

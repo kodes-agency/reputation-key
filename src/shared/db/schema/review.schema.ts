@@ -834,6 +834,12 @@ export const replies = pgTable(
     // migration idiom — the allowed values are pinned by
     // PersistedPublicationState / PublicationFailureClass in the domain.
     publicationState: text('publication_state'),
+    // RPL-01: monotonic authorization generation. Every approval,
+    // edit-and-republish, or explicit retry advances it exactly once; durable
+    // intents and publish jobs carry the generation as their stale-work fence.
+    publicationCycle: bigint('publication_cycle', { mode: 'number' })
+      .notNull()
+      .default(0),
     publicationAttempts: integer('publication_attempts').notNull().default(0),
     publicationLastErrorClass: text('publication_last_error_class'),
     reconcileDueAt: timestamp('reconcile_due_at', { withTimezone: true }),
@@ -935,6 +941,10 @@ export const replies = pgTable(
     check(
       'replies_publication_last_error_class_check',
       sql`${t.publicationLastErrorClass} IN ('terminal_rejection', 'retryable', 'ambiguous')`,
+    ),
+    check(
+      'replies_publication_cycle_safe',
+      sql`${t.publicationCycle} BETWEEN 0 AND '9007199254740991'::bigint`,
     ),
     // Migration 0015: ambiguous-outcome reconciliation sweep lookup.
     index('replies_publication_reconcile_idx')

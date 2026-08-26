@@ -85,6 +85,7 @@ function setup(
   const api = buildReviewContext({
     db: (over.db ?? dbReturningProperty(null)) as never,
     events: createCapturingEventBus(),
+    outboxRepo: { insertReceipt: vi.fn() } as never,
     clock: () => new Date('2026-07-18T00:00:00Z'),
     googleReviewApi: {} as never,
     jobQueue,

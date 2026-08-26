@@ -26,12 +26,20 @@ import {
 import type { Reply, Review } from '../../domain/types'
 import {
   reviewExpired,
+  reviewReplyApproved,
+  reviewReplyPublicationRequested,
   reviewReplyPublished,
   reviewReplySubmitted,
 } from '../../domain/events'
 import { createReviewRepository } from './review.repository'
 import { createReplyRepository } from './reply.repository'
 import { createAtomicReplyCommandStore } from '../reply-command-store'
+import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { buildConsumerEvent } from '#/shared/outbox/envelope'
+import {
+  handleReplyPublicationRequested,
+  ON_REPLY_PUBLICATION_REQUESTED_CONSUMER,
+} from '../outbox-consumers'
 
 const ORG_A = organizationId('org-reply-cmd-aaaa-1111111111111111')
 const PROP_A = propertyId('2b000000-0000-0000-0000-000000000001')
@@ -121,6 +129,7 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     approvedAt: null,
     publishedAt: null,
     publicationState: null,
+    publicationCycle: 0,
     publicationAttempts: 0,
     publicationLastErrorClass: null,
     reconcileDueAt: null,
@@ -161,6 +170,151 @@ beforeEach(async () => {
 })
 
 describe.sequential('replyCommandStore (integration)', () => {
+  it('recovers the committed authorization after interruption before direct queue admission', async () => {
+    const db = getDb()
+    const reviewRepo = createReviewRepository(db)
+    const replyRepo = createReplyRepository(db)
+    const store = createAtomicReplyCommandStore(db, silentEvents)
+    const outboxRepo = createOutboxRepository(db)
+    const queued: Array<Readonly<{ data: unknown; options: unknown }>> = []
+
+    await reviewRepo.upsert(makeReview())
+    const pending = makeReply({
+      status: 'pending_approval',
+      submittedAt: NOW,
+    })
+    await replyRepo.upsert(pending)
+
+    const lifecycleEvent = reviewReplyApproved({
+      replyId: REPLY_A,
+      reviewId: REVIEW_A,
+      propertyId: PROP_A,
+      organizationId: ORG_A,
+      userId: USER_A,
+      authorId: USER_A,
+      occurredAt: NOW,
+    })
+    const publicationIntent = reviewReplyPublicationRequested({
+      replyId: REPLY_A,
+      reviewId: REVIEW_A,
+      propertyId: PROP_A,
+      organizationId: ORG_A,
+      userId: USER_A,
+      publicationCycle: 1,
+      occurredAt: NOW,
+    })
+
+    const authorized = await store.markPublicationAuthorized(
+      pending,
+      { status: 'approved', approvedBy: USER_A, approvedAt: NOW },
+      { lifecycleEvent, publicationIntent },
+      NOW,
+    )
+
+    // Deliberately omit the request-path queue call: this is the exact
+    // commit→direct-admission interruption boundary RPL-01 must recover.
+    expect(authorized).toMatchObject({
+      status: 'approved',
+      publicationState: 'authorized',
+      publicationCycle: 1,
+    })
+    const claimed = await outboxRepo.claimUnpublished(1_000, 'rpl-01-test', 30_000)
+    const committed = claimed.filter((row) => row.organizationId === ORG_A)
+    expect(committed.map((row) => row.eventType).sort()).toEqual([
+      'review.reply.approved',
+      'review.reply.publication_requested',
+    ])
+    const committedIntent = committed.find(
+      (row) => row.eventType === 'review.reply.publication_requested',
+    )
+    expect(committedIntent).toBeDefined()
+
+    const result = await handleReplyPublicationRequested(
+      {
+        replyRepo,
+        queue: {
+          addPublishJob: async (data, options) => {
+            queued.push({ data, options })
+          },
+        },
+        receipts: outboxRepo,
+      },
+      buildConsumerEvent(committedIntent!),
+    )
+
+    expect(result).toEqual({ status: 'applied' })
+    expect(queued).toEqual([
+      {
+        data: {
+          replyId: REPLY_A,
+          organizationId: ORG_A,
+          publicationCycle: 1,
+          initiator: { kind: 'user', id: USER_A },
+        },
+        options: { idempotencyKey: `reply-${REPLY_A}-v1` },
+      },
+    ])
+    await expect(
+      outboxRepo.hasReceipt(
+        publicationIntent.eventId,
+        ON_REPLY_PUBLICATION_REQUESTED_CONSUMER,
+      ),
+    ).resolves.toBe(true)
+  })
+
+  it('rolls back authorization and its lifecycle fact when the publication-intent insert fails', async () => {
+    const db = getDb()
+    const reviewRepo = createReviewRepository(db)
+    const replyRepo = createReplyRepository(db)
+    const store = createAtomicReplyCommandStore(db, silentEvents)
+
+    await reviewRepo.upsert(makeReview())
+    const pending = makeReply({ status: 'pending_approval', submittedAt: NOW })
+    await replyRepo.upsert(pending)
+
+    const lifecycleEvent = reviewReplyApproved({
+      replyId: REPLY_A,
+      reviewId: REVIEW_A,
+      propertyId: PROP_A,
+      organizationId: ORG_A,
+      userId: USER_A,
+      authorId: USER_A,
+      occurredAt: NOW,
+    })
+    const invalidIntent = unregisteredEvent(
+      reviewReplyPublicationRequested({
+        replyId: REPLY_A,
+        reviewId: REVIEW_A,
+        propertyId: PROP_A,
+        organizationId: ORG_A,
+        userId: USER_A,
+        publicationCycle: 1,
+        occurredAt: NOW,
+      }),
+    )
+
+    await expect(
+      store.markPublicationAuthorized(
+        pending,
+        { status: 'approved', approvedBy: USER_A, approvedAt: NOW },
+        { lifecycleEvent, publicationIntent: invalidIntent as never },
+        NOW,
+      ),
+    ).rejects.toThrow(
+      /Event type review\.reply\.ghost:v1 is not registered for the outbox/,
+    )
+
+    expect(await replyRepo.findById(REPLY_A, ORG_A)).toMatchObject({
+      status: 'pending_approval',
+      publicationCycle: 0,
+    })
+    const outbox = await pool.query(
+      'SELECT id FROM outbox_events WHERE organization_id = $1',
+      [ORG_A],
+    )
+    expect(outbox.rows).toHaveLength(0)
+  })
+
   it('rolls back the state write when the outbox insert fails (no state/outbox split)', async () => {
     const db = getDb()
     const reviewRepo = createReviewRepository(db)

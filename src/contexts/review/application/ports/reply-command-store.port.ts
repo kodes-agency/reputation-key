@@ -17,6 +17,7 @@ import type {
   ReviewExpired,
   ReviewReplyApproved,
   ReviewReplyPublicationCancelled,
+  ReviewReplyPublicationRequested,
   ReviewReplyPublished,
   ReviewReplyPublishFailed,
   ReviewReplyRejected,
@@ -28,7 +29,8 @@ import type { ConditionalReplyUpdate } from './reply.repository'
 /** The edit-and-republish write: new text + re-authorization in one command. */
 export type EditPublishedReplyCommand = Readonly<{
   text: string
-  event: ReviewReplyUpdated
+  lifecycleEvent: ReviewReplyUpdated
+  publicationIntent: ReviewReplyPublicationRequested
   now?: Date
 }>
 
@@ -59,6 +61,16 @@ export type CancelPublicationCommand = Readonly<{
   now?: Date
 }>
 
+/**
+ * Facts committed with one approval/edit/retry authorization. The lifecycle
+ * event remains the in-process notification/activity fact; publicationIntent
+ * is always durable and is consumed by the worker recovery path.
+ */
+export type PublicationAuthorizationFacts = Readonly<{
+  lifecycleEvent: ReviewReplyApproved | null
+  publicationIntent: ReviewReplyPublicationRequested
+}>
+
 export type ReplyCommandStore = Readonly<{
   /**
    * Guarded transition + review.reply.submitted fact, one transaction.
@@ -76,14 +88,14 @@ export type ReplyCommandStore = Readonly<{
   /**
    * BQC-3.8: the approve/retry authorization write. Guarded status update +
    * publication_state='authorized' with attempts/last-error/reconcile-due
-   * reset (a NEW publication cycle) + the review.reply.approved fact — one
-   * transaction. `event` is null on the retryPublish path (re-authorization
-   * emits no new fact, exactly as before).
+   * reset (a NEW monotonic publication cycle) + the optional
+   * review.reply.approved lifecycle fact + the required durable
+   * review.reply.publication_requested intent — one transaction.
    */
   markPublicationAuthorized(
     reply: Reply,
     updates: ConditionalReplyUpdate,
-    event: ReviewReplyApproved | null,
+    facts: PublicationAuthorizationFacts,
     now?: Date,
   ): Promise<Reply | null>
   /**

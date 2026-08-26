@@ -226,6 +226,7 @@ function makeApprovedReply(): Reply {
     approvedAt: new Date('2026-07-03T19:00:00.000Z'),
     publishedAt: null,
     publicationState: null,
+    publicationCycle: 0,
     publicationAttempts: 0,
     publicationLastErrorClass: null,
     reconcileDueAt: null,

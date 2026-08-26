@@ -31,7 +31,7 @@
     {
       "id": "FND-02",
       "status": "partial",
-      "summary": "The key Review/Inbox, Data Cell, and action-history contradictions now have accepted superseding ADRs and an exhaustive machine-checked ADR index. AI now has an explicit bounded-context document and supported public API authority; remaining context/root reconciliation and the complete route/job/consumer/schedule/data fate authority are unfinished.",
+      "summary": "The key Review/Inbox, Data Cell, and action-history contradictions now have accepted superseding ADRs and an exhaustive machine-checked ADR index. AI has an explicit bounded-context document and supported public API authority. Every one of the 177 exported Drizzle tables now has a machine-checked owner, lifecycle disposition, decision authority, and non-active exit criterion; executable-surface catalogues exist but their remaining dynamic reachability/classification gaps and context/root claim reconciliation are unfinished.",
       "codeEvidence": [
         "docs/adr/0052-beta-people-access-attribution-and-manager-responsibility.md",
         "docs/adr/README.md",
@@ -39,15 +39,18 @@
         "docs/adr/0055-stable-review-and-inbox-handling-cycles.md",
         "docs/adr/0056-operational-action-history-integrity-claims.md",
         "src/shared/auth/beta-capabilities.ts",
+        "src/shared/governance/data-fate-authority.ts",
+        "docs/architecture/beta-capability-fate-authority.md",
         "src/contexts/ai/CONTEXT.md",
         "src/contexts/ai/application/public-api.ts"
       ],
       "testEvidence": [
         "src/shared/governance/context-acceptance-matrix.test.ts",
-        "src/shared/governance/adr-index.test.ts"
+        "src/shared/governance/adr-index.test.ts",
+        "src/shared/governance/data-fate-authority.test.ts (177/177 persisted models; missing and stale rows fail)"
       ],
       "remaining": [
-        "Complete the route/job/consumer/schedule/data fate ledger, align remaining root and nearest-context claims, and normalize legacy ADR metadata where needed."
+        "Finish dynamic route/job/consumer/schedule reachability and mutation classification in FND-03, align remaining root and nearest-context claims, and normalize legacy ADR metadata where needed; then execute the purge/reconciliation/export/restore/contraction criteria named by each non-active data row."
       ],
       "externalBlockers": []
     },
@@ -678,14 +681,16 @@
     {
       "id": "LIF-01",
       "status": "partial",
-      "summary": "Suspension, retention, and recovery tools exist, but normal Property deletion remains destructive and Organization closure/export/privacy lifecycles are not implemented.",
+      "summary": "Suspension, retention, and recovery tools exist, and all 177 persisted models now have an explicit machine-checked lifecycle classification. Normal Property deletion remains destructive and Organization closure/export/privacy lifecycles are not implemented; classification is not execution evidence.",
       "codeEvidence": [
         "src/contexts/property/application/use-cases/soft-delete-property.ts",
         "src/components/property/delete-property-dialog.tsx",
-        "src/shared/retention/"
+        "src/shared/retention/",
+        "src/shared/governance/data-fate-authority.ts"
       ],
       "testEvidence": [
-        "Processing suspension, retention registry, report/apply, and recovery-fencing suites"
+        "Processing suspension, retention registry, report/apply, and recovery-fencing suites",
+        "src/shared/governance/data-fate-authority.test.ts"
       ],
       "remaining": [
         "Fence destructive normal deletion; implement archive/restore, support-mediated erase, Organization closure/cancellation, backup fences, context-owned export, Guest-contact/Participant privacy, and full retention reconciliation drills."
@@ -829,17 +834,19 @@
     {
       "id": "CNV-01",
       "status": "partial",
-      "summary": "Team and post-core surfaces are quarantined, the unused Activity hash-chain abstraction has been removed, and new Recent Activity writes are fenced to an exact active vocabulary. Multiple other false/unused/legacy islands and the retained Activity legacy storage/API names remain without the required reachability, data, parity, release, and restore deletion report.",
+      "summary": "Team and post-core surfaces are quarantined, the unused Activity hash-chain abstraction has been removed, and new Recent Activity writes are fenced to an exact active vocabulary. A bidirectional 177-table data-fate authority now identifies every compatibility, quarantine, archive, and bounded-contraction row family without treating classification as deletion proof. Multiple false/unused/legacy islands and retained Activity legacy storage/API names still lack the required parity, release, restore, and contraction record.",
       "codeEvidence": [
         "Team quarantine",
         "src/shared/jobs/runtime.ts",
         "src/shared/projections/projection-contract.ts",
         "REUI.md",
-        "src/contexts/activity/domain/integrity-claims.test.ts"
+        "src/contexts/activity/domain/integrity-claims.test.ts",
+        "src/shared/governance/data-fate-authority.ts"
       ],
       "testEvidence": [
         "Darkness and boundary tests for selected quarantined surfaces",
-        "Activity false-integrity island deletion and bounded-new-vocabulary guards"
+        "Activity false-integrity island deletion and bounded-new-vocabulary guards",
+        "src/shared/governance/data-fate-authority.test.ts (every Drizzle table catalogued exactly once)"
       ],
       "remaining": [
         "Complete replacement paths, prove zero reachability and data/FK disposition, delete false abstractions and stale artifacts in small reversible slices, and retain release/restore evidence for each contraction."

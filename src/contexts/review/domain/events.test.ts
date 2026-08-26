@@ -10,6 +10,7 @@ import {
   reviewCreated,
   reviewExpired,
   reviewReplyApproved,
+  reviewReplyPublicationRequested,
   reviewReplyPublicationCancelled,
   reviewReplyPublishFailed,
   reviewReplyPublished,
@@ -89,6 +90,11 @@ describe('review domain events', () => {
       authorId: userId('author-1'),
       source: 'import',
     })
+    const publicationRequested = reviewReplyPublicationRequested({
+      ...baseReply,
+      userId: userId('user-1'),
+      publicationCycle: 1,
+    })
     const rejected = reviewReplyRejected({
       ...baseReply,
       userId: userId('user-1'),
@@ -109,6 +115,10 @@ describe('review domain events', () => {
 
     expect(submitted).toMatchObject({ _tag: 'review.reply.submitted', source: 'web' })
     expect(approved).toMatchObject({ _tag: 'review.reply.approved', source: 'import' })
+    expect(publicationRequested).toMatchObject({
+      _tag: 'review.reply.publication_requested',
+      publicationCycle: 1,
+    })
     expect(rejected).toMatchObject({ _tag: 'review.reply.rejected', source: 'web' })
     expect(published).toMatchObject({ _tag: 'review.reply.published', source: 'web' })
     expect(failed._tag).toBe('review.reply.publish_failed')
@@ -117,6 +127,7 @@ describe('review domain events', () => {
     for (const event of [
       submitted,
       approved,
+      publicationRequested,
       rejected,
       published,
       failed,
@@ -126,6 +137,19 @@ describe('review domain events', () => {
       expectEnvelope(event)
     }
   })
+
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
+    'rejects invalid publication cycle %s',
+    (publicationCycle) => {
+      expect(() =>
+        reviewReplyPublicationRequested({
+          ...baseReply,
+          userId: userId('user-1'),
+          publicationCycle,
+        }),
+      ).toThrow('publicationCycle must be a positive safe integer')
+    },
+  )
 
   it.each([
     ['occurredAt', { occurredAt: '2026-08-16' }, 'occurredAt must be a Date'],

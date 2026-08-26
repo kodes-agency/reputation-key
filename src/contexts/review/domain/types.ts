@@ -100,6 +100,12 @@ export type Reply = Readonly<{
   // All four are null/0 when no publication workflow is active (drafts,
   // pre-0015 legacy rows). See domain/reply-publication-workflow.ts.
   publicationState: PersistedPublicationState | null
+  /**
+   * Monotonic authorization cycle. Queue jobs and durable publication intents
+   * carry this value so delivery from an older approval/edit/retry cycle can
+   * never claim the current reply. Zero is the pre-RPL-01 legacy generation.
+   */
+  publicationCycle: number
   publicationAttempts: number
   publicationLastErrorClass: PublicationFailureClass | null
   reconcileDueAt: Date | null

@@ -31,6 +31,7 @@ import { reviewError } from '../domain/errors'
 import { denyLegacyReviewDestruction } from '../application/review-lifecycle-safety'
 import {
   AMBIGUOUS_RECONCILE_DELAY_MS,
+  nextPublicationCycle,
   nextPublicationState,
   type PersistedPublicationState,
   type PublicationStateEvent,
@@ -42,6 +43,7 @@ import type {
   ReplyRepository,
 } from '../application/ports/reply.repository'
 import type { ReplyCommandStore } from '../application/ports/reply-command-store.port'
+import type { PublicationAuthorizationFacts } from '../application/ports/reply-command-store.port'
 
 async function assertAiDraftBinding(
   tx: Tx,
@@ -80,6 +82,7 @@ async function guardedReplyUpdate(
         eq(replies.id, reply.id),
         eq(replies.organizationId, reply.organizationId),
         inArray(replies.status, [reply.status]),
+        eq(replies.publicationCycle, reply.publicationCycle),
       ),
     )
     .returning()
@@ -108,6 +111,7 @@ async function guardedPublicationUpdate(
         eq(replies.id, reply.id),
         eq(replies.organizationId, reply.organizationId),
         eq(replies.status, expectedStatus),
+        eq(replies.publicationCycle, reply.publicationCycle),
         inArray(replies.publicationState, [...allowedStates]),
       ),
     )
@@ -125,6 +129,26 @@ function nextStateOrNull(
   event: PublicationStateEvent,
 ): PersistedPublicationState | null {
   return nextPublicationState(reply.publicationState, event)
+}
+
+function assertPublicationIntentMatchesCycle(
+  reply: Reply,
+  facts: Pick<PublicationAuthorizationFacts, 'publicationIntent'>,
+): number {
+  const nextCycle = nextPublicationCycle(reply.publicationCycle)
+  const intent = facts.publicationIntent
+  if (
+    intent.replyId !== reply.id ||
+    intent.reviewId !== reply.reviewId ||
+    intent.organizationId !== reply.organizationId ||
+    intent.publicationCycle !== nextCycle
+  ) {
+    throw reviewError(
+      'invalid_transition',
+      'Reply publication intent does not match the authorized cycle',
+    )
+  }
+  return nextCycle
 }
 
 export function createAtomicReplyCommandStore(
@@ -238,21 +262,35 @@ export function createAtomicReplyCommandStore(
     // BQC-3.8: authorize = approve/retry re-authorization (new publication
     // cycle): guarded status update + authorized state + cycle reset + the
     // approved fact when one is supplied — one transaction.
-    markPublicationAuthorized: (reply, updates, event, now) => {
+    markPublicationAuthorized: (reply, updates, facts, now) => {
       if (!nextStateOrNull(reply, 'authorize')) return Promise.resolve(null)
-      return transition(
-        'reply.commandStore.markPublicationAuthorized',
-        reply,
-        {
-          ...updates,
-          publicationState: 'authorized',
-          publicationAttempts: 0,
-          publicationLastErrorClass: null,
-          reconcileDueAt: null,
-        },
-        event,
-        now,
-      )
+      const publicationCycle = assertPublicationIntentMatchesCycle(reply, facts)
+      return trace('reply.commandStore.markPublicationAuthorized', async () => {
+        const saved = await db.transaction(async (tx) => {
+          if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
+          const row = await guardedReplyUpdate(
+            tx,
+            reply,
+            {
+              ...updates,
+              publicationState: 'authorized',
+              publicationCycle,
+              publicationAttempts: 0,
+              publicationLastErrorClass: null,
+              reconcileDueAt: null,
+            },
+            now,
+          )
+          if (!row) return null
+          if (facts.lifecycleEvent) await insertOutboxRow(tx, facts.lifecycleEvent)
+          await insertOutboxRow(tx, facts.publicationIntent)
+          return row
+        })
+        if (saved && facts.lifecycleEvent) {
+          await emitAfterCommit(events, facts.lifecycleEvent)
+        }
+        return saved
+      })
     },
 
     // BQC-3.8: claim. No fact — the claim is internal bookkeeping. The
@@ -331,20 +369,32 @@ export function createAtomicReplyCommandStore(
     // the race — no fact, no mutation, the caller surfaces invalid_transition).
     editPublishedReply: (reply, command) => {
       if (reply.status !== 'published') return Promise.resolve(null)
-      return transition(
-        'reply.commandStore.editPublishedReply',
-        reply,
-        {
-          text: command.text,
-          status: 'approved',
-          publicationState: 'authorized',
-          publicationAttempts: 0,
-          publicationLastErrorClass: null,
-          reconcileDueAt: null,
-        },
-        command.event,
-        command.now,
-      )
+      const publicationCycle = assertPublicationIntentMatchesCycle(reply, command)
+      return trace('reply.commandStore.editPublishedReply', async () => {
+        const saved = await db.transaction(async (tx) => {
+          if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
+          const row = await guardedReplyUpdate(
+            tx,
+            reply,
+            {
+              text: command.text,
+              status: 'approved',
+              publicationState: 'authorized',
+              publicationCycle,
+              publicationAttempts: 0,
+              publicationLastErrorClass: null,
+              reconcileDueAt: null,
+            },
+            command.now,
+          )
+          if (!row) return null
+          await insertOutboxRow(tx, command.lifecycleEvent)
+          await insertOutboxRow(tx, command.publicationIntent)
+          return row
+        })
+        if (saved) await emitAfterCommit(events, command.lifecycleEvent)
+        return saved
+      })
     },
 
     cancelPublications: async (commands) => {
@@ -497,20 +547,30 @@ export function createSequentialReplyCommandStore(deps: {
         now,
       ),
 
-    markPublicationAuthorized: (reply, updates, event, now) => {
+    markPublicationAuthorized: async (reply, updates, facts, now) => {
       if (!nextStateOrNull(reply, 'authorize')) return Promise.resolve(null)
-      return transition(
-        reply,
+      const publicationCycle = assertPublicationIntentMatchesCycle(reply, facts)
+      const saved = await deps.conditionalUpdate(
+        reply.id,
+        reply.organizationId,
+        [reply.status],
         {
           ...updates,
           publicationState: 'authorized',
+          publicationCycle,
           publicationAttempts: 0,
           publicationLastErrorClass: null,
           reconcileDueAt: null,
         },
-        event,
         now,
       )
+      if (!saved) return null
+      if (facts.lifecycleEvent && deps.recordOutbox) {
+        await deps.recordOutbox(facts.lifecycleEvent)
+      }
+      if (deps.recordOutbox) await deps.recordOutbox(facts.publicationIntent)
+      if (facts.lifecycleEvent) await emitAfterCommit(deps.events, facts.lifecycleEvent)
+      return saved
     },
 
     markPublicationSending: (reply, now) =>
@@ -568,19 +628,32 @@ export function createSequentialReplyCommandStore(deps: {
     // atomic store — the fake's conditionalUpdate enforces the TOCTOU guard).
     editPublishedReply: (reply, command) => {
       if (reply.status !== 'published') return Promise.resolve(null)
-      return transition(
-        reply,
-        {
-          text: command.text,
-          status: 'approved',
-          publicationState: 'authorized',
-          publicationAttempts: 0,
-          publicationLastErrorClass: null,
-          reconcileDueAt: null,
-        },
-        command.event,
-        command.now,
-      )
+      const publicationCycle = assertPublicationIntentMatchesCycle(reply, command)
+      return deps
+        .conditionalUpdate(
+          reply.id,
+          reply.organizationId,
+          [reply.status],
+          {
+            text: command.text,
+            status: 'approved',
+            publicationState: 'authorized',
+            publicationCycle,
+            publicationAttempts: 0,
+            publicationLastErrorClass: null,
+            reconcileDueAt: null,
+          },
+          command.now,
+        )
+        .then(async (saved) => {
+          if (!saved) return null
+          if (deps.recordOutbox) {
+            await deps.recordOutbox(command.lifecycleEvent)
+            await deps.recordOutbox(command.publicationIntent)
+          }
+          await emitAfterCommit(deps.events, command.lifecycleEvent)
+          return saved
+        })
     },
 
     cancelPublications: async (commands) => {

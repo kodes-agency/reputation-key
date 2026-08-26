@@ -398,6 +398,7 @@ export function createAiSuggestedDraftStore(
               approvedAt: null,
               publishedAt: null,
               publicationState: null,
+              publicationCycle: 0,
               publicationAttempts: 0,
               publicationLastErrorClass: null,
               reconcileDueAt: null,

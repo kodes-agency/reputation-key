@@ -42,6 +42,7 @@ const sampleRow: ReplyRow = {
   publishedAt,
   // BQC-3.8 (migration 0015): publication state machine overlay columns.
   publicationState: 'published',
+  publicationCycle: 2,
   publicationAttempts: 1,
   publicationLastErrorClass: null,
   reconcileDueAt: null,
@@ -89,6 +90,7 @@ describe('replyFromRow', () => {
       status: 'publish_failed',
       publishedAt: null,
       publicationState: 'ambiguous',
+      publicationCycle: 3,
       publicationAttempts: 3,
       publicationLastErrorClass: 'ambiguous',
       reconcileDueAt: due,

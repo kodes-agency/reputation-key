@@ -99,6 +99,23 @@ describe('BQR-2.2: outbox consumer registration', () => {
     expect(guestSrc).toContain("consumerName: 'inbox.on-guest-feedback-retracted'")
   })
 
+  it('worker composition wires the Review publication-intent recovery consumer', () => {
+    const compositionSrc = readFileSync(join(ROOT, 'src/composition.ts'), 'utf-8')
+    const reviewBuildSrc = readFileSync(
+      join(ROOT, 'src/contexts/review/build.ts'),
+      'utf-8',
+    )
+    const consumerSrc = readFileSync(
+      join(ROOT, 'src/contexts/review/infrastructure/outbox-consumers.ts'),
+      'utf-8',
+    )
+
+    expect(compositionSrc).toContain('review.internal.registerOutboxConsumers')
+    expect(reviewBuildSrc).toContain('registerReplyPublicationConsumers')
+    expect(consumerSrc).toContain("eventType: 'review.reply.publication_requested'")
+    expect(consumerSrc).toContain("consumerName: 'review.on-reply-publication-requested'")
+  })
+
   it('listRegisteredConsumers is empty after clear', () => {
     registerConsumer({
       eventType: 'x.y',

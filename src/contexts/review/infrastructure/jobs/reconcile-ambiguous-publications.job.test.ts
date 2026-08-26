@@ -49,6 +49,7 @@ function makeAmbiguousReply(id: string, reconcileDueAt: Date = DUE): Reply {
     approvedAt: NOW,
     publishedAt: null,
     publicationState: 'ambiguous',
+    publicationCycle: 1,
     publicationAttempts: 3,
     publicationLastErrorClass: 'ambiguous',
     reconcileDueAt,
