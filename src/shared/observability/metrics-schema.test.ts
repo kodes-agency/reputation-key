@@ -66,6 +66,13 @@ describe('label policy', () => {
       'locationName',
       'email',
       'token',
+      'password',
+      'password_hash',
+      'clientSecret',
+      'OPENAI_API_KEY',
+      'contactEmail',
+      'reviewText',
+      'DATABASE_URL',
     ]) {
       expect(isBannedLogKey(key), key).toBe(true)
     }

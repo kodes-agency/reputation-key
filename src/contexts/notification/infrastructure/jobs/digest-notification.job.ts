@@ -285,7 +285,7 @@ async function recordOutcomes(
   })
   if (!settled) {
     deps.logger.error(
-      { batchId: batch.id, state: batch.state },
+      { batchId: batch.id, digestState: batch.state },
       'Digest outcome was not persisted because the batch changed',
     )
   }

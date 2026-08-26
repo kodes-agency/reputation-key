@@ -20,6 +20,11 @@
 // correlation fields are requestId (per-trace) and correlationId (domain
 // events, ADR 0030 identifier-only by design).
 
+import {
+  SENSITIVE_OBSERVABILITY_FIELD_NAMES,
+  isSensitiveObservabilityField,
+} from '#/shared/observability/sensitive-field-policy'
+
 // ── Label policy ─────────────────────────────────────────────────
 
 /** Closed low-cardinality set — every value must be listed. */
@@ -658,7 +663,7 @@ export const APPROVED_CORRELATION_FIELDS = ['requestId', 'correlationId'] as con
  * sweep — a key lands here because a real call-site passed an identifier or
  * payload under it.
  */
-export const BANNED_LOG_KEYS = [
+const TENANT_IDENTIFIER_LOG_KEYS = [
   // Tenant/entity identifiers (and their in-code aliases)
   'organizationId',
   'orgId',
@@ -678,29 +683,24 @@ export const BANNED_LOG_KEYS = [
   'portalId',
   'staffAssignmentId',
   'invitationId',
-  'sessionId',
   'goalId',
   'notificationId',
   'notificationEmailId',
   'moveId',
   'resourceId',
   'id',
-  // Raw payloads / provider-derived content
+  // Generic payload containers are prohibited at log call-sites, but are not
+  // sensitive field names by themselves (Sentry breadcrumbs legitimately use
+  // `data` as a container whose children still require deep scrubbing).
   'jobData',
   'data',
   'input',
-  'text',
-  'body',
-  'locationName',
-  'gbpLocationName',
-  'businessName',
   'gbpAccountId',
-  'key',
-  // Credential / transport material
-  'email',
-  'token',
-  'cookie',
-  'headers',
+] as const
+
+export const BANNED_LOG_KEYS = [
+  ...TENANT_IDENTIFIER_LOG_KEYS,
+  ...SENSITIVE_OBSERVABILITY_FIELD_NAMES,
 ] as const
 
 export type BannedLogKey = (typeof BANNED_LOG_KEYS)[number]
@@ -708,5 +708,5 @@ export type BannedLogKey = (typeof BANNED_LOG_KEYS)[number]
 const BANNED_SET: ReadonlySet<string> = new Set(BANNED_LOG_KEYS)
 
 export function isBannedLogKey(key: string): boolean {
-  return BANNED_SET.has(key)
+  return BANNED_SET.has(key) || isSensitiveObservabilityField(key)
 }

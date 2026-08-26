@@ -52,6 +52,7 @@ Shared code is **used by 2+ modules** across the codebase. If only one context u
 ## Observability (`shared/observability/`)
 
 - **`logger.ts`** — pino logger via `getLogger()`. Use everywhere instead of `console.*`. Production emits structured JSON. Development resolves the optional, dev-only `pino-pretty` transport through Node's ESM-safe `createRequire(import.meta.url)` and falls back to structured output when it is unavailable.
+- **`sensitive-field-policy.ts`** — the normalized protected-field vocabulary shared by structured logs, telemetry/Sentry scrubbing, and the executable log/metric schema. Add sensitive spellings here rather than creating surface-specific lists.
 - **`traced-server-fn.ts`** — `tracedHandler()` wraps server function handlers with:
   - ALS-based request context with correlation IDs
   - Named request spans with timing (logs at debug level)

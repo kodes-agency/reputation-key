@@ -101,7 +101,7 @@ describe('resend delivery event handler (ADR 0046 r.6)', () => {
     await run(deps, 'email.bounced')
 
     expect(deps.logger.error).toHaveBeenCalledWith(
-      expect.objectContaining({ state: 'bounced', suppressed: 3 }),
+      expect.objectContaining({ deliveryState: 'bounced', suppressed: 3 }),
       expect.stringContaining('undeliverable'),
     )
   })
@@ -128,7 +128,7 @@ describe('resend delivery event handler (ADR 0046 r.6)', () => {
       reason: 'unknown_message',
     })
     expect(deps.logger.warn).toHaveBeenCalledWith(
-      expect.objectContaining({ state: 'delivered' }),
+      expect.objectContaining({ deliveryState: 'delivered' }),
       expect.stringContaining('matched no queue row'),
     )
     expect(deps.emailRepo.suppressRecipient).not.toHaveBeenCalled()

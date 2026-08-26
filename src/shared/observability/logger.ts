@@ -3,67 +3,9 @@ import { createRequire } from 'node:module'
 import pino from 'pino'
 import { getEnv } from '#/shared/config/env'
 import { getSpanAttrs } from '#/shared/observability/request-context'
+import { isSensitiveObservabilityField } from '#/shared/observability/sensitive-field-policy'
 
 const REDACTED = '[Redacted]'
-const SENSITIVE_FIELD = new Set([
-  'accesstoken',
-  'authorization',
-  'body',
-  'authorizationcode',
-  'codeverifier',
-  'cookie',
-  'encryptedaccesstoken',
-  'encryptedrefreshtoken',
-  'handle',
-  'idtoken',
-  'oauthstate',
-  'oauthstatehandle',
-  'opaquehandle',
-  'pagetoken',
-  'providerbody',
-  'providerresource',
-  'query',
-  'referrer',
-  'referer',
-  'refreshtoken',
-  'requestbody',
-  'responsebody',
-  'revoketoken',
-  'sessioncookie',
-  'sessionid',
-  'setcookie',
-  'state',
-  'token',
-  'url',
-  'uri',
-  'verifier',
-])
-const SENSITIVE_SUFFIX = [
-  'accesstoken',
-  'authorization',
-  'codeverifier',
-  'idtoken',
-  'handledigest',
-  'pagetoken',
-  'refreshtoken',
-  'providerurl',
-  'sessioncookie',
-  'sessionid',
-  'statehandle',
-  'tokendigest',
-] as const
-
-function normalizedField(key: string): string {
-  return key.toLowerCase().replaceAll(/[^a-z0-9]/g, '')
-}
-
-function isSensitiveField(key: string): boolean {
-  const normalized = normalizedField(key)
-  return (
-    SENSITIVE_FIELD.has(normalized) ||
-    SENSITIVE_SUFFIX.some((suffix) => normalized.endsWith(suffix))
-  )
-}
 
 function safeError(error: Error): Readonly<Record<string, unknown>> {
   const code =
@@ -101,7 +43,9 @@ export function sanitizeTelemetryValue(
     const copy: Record<string, unknown> = {}
     seen.set(value, copy)
     for (const [key, entry] of Object.entries(value)) {
-      copy[key] = isSensitiveField(key) ? REDACTED : sanitizeTelemetryValue(entry, seen)
+      copy[key] = isSensitiveObservabilityField(key)
+        ? REDACTED
+        : sanitizeTelemetryValue(entry, seen)
     }
     return copy
   }

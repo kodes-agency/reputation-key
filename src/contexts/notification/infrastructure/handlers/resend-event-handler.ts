@@ -91,7 +91,7 @@ export async function applyResendEvent(
     // rotated account) or the transition would go backwards. Both are worth a
     // line: a silent no-op here looks exactly like a working webhook.
     deps.logger.warn(
-      { eventType: input.type, state, correlationId },
+      { eventType: input.type, deliveryState: state, correlationId },
       'Resend event matched no queue row — unknown message or out-of-order transition',
     )
     return { applied: false, rows: 0, suppressed: 0, reason: 'unknown_message' }
@@ -99,7 +99,7 @@ export async function applyResendEvent(
 
   if (!SUPPRESSING_STATES[state]) {
     deps.logger.info(
-      { eventType: input.type, state, rows: moved.length, correlationId },
+      { eventType: input.type, deliveryState: state, rows: moved.length, correlationId },
       'Recorded email delivery state',
     )
     return { applied: true, rows: moved.length, suppressed: 0 }
@@ -123,7 +123,7 @@ export async function applyResendEvent(
   deps.logger.error(
     {
       eventType: input.type,
-      state,
+      deliveryState: state,
       rows: moved.length,
       suppressed,
       correlationId,

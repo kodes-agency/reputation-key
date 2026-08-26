@@ -51,6 +51,24 @@ describe('Google credential telemetry safety', () => {
     })
   })
 
+  it('redacts common credential and personal-data spellings from structured logs', () => {
+    const marker = 'marker-private-value'
+    const result = sanitizeTelemetryValue({
+      password: marker,
+      password_hash: marker,
+      clientSecret: marker,
+      OPENAI_API_KEY: marker,
+      contactEmail: marker,
+      reviewerName: marker,
+      reviewText: marker,
+      DATABASE_URL: `postgresql://user:${marker}@database/repkey`,
+      outcomeCode: 'provider_rejected',
+    })
+
+    expect(JSON.stringify(result)).not.toContain(marker)
+    expect(result).toMatchObject({ outcomeCode: 'provider_rejected' })
+  })
+
   it('serializes errors without retaining message, stack, or secret fields', () => {
     const error = Object.assign(new Error('refresh token marker-secret-value'), {
       code: 'oauth_failed',

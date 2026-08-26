@@ -94,7 +94,7 @@ export async function handleAuthRequest(
   // endsWith tolerates the configured better-auth base path prefix (e.g. /api/auth).
   if (BLOCKED_RAW_WRITE_ENDPOINTS.some((suffix) => pathname.endsWith(suffix))) {
     getLogger().warn(
-      { method: request.method, url: request.url },
+      { method: request.method, path: pathname },
       'auth.raw_write_endpoint_blocked: raw better-auth write endpoint refused; use the app-owned service',
     )
     return new Response(JSON.stringify({ message: 'Not found' }), {

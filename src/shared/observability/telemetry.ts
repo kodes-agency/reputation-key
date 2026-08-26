@@ -14,41 +14,9 @@
 
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
+import { isSensitiveObservabilityField } from '#/shared/observability/sensitive-field-policy'
 
 // ── PII scrubbing ──────────────────────────────────────────────────
-
-const PII_FIELD_NAMES = new Set([
-  'email',
-  'reviewerName',
-  'reviewer_name',
-  'text',
-  'reviewText',
-  'review_text',
-  'snippet',
-  'comment',
-  'noteText',
-  'note_text',
-  'rejectionReason',
-  'rejection_reason',
-  'accessToken',
-  'access_token',
-  'refreshToken',
-  'refresh_token',
-  'idToken',
-  'id_token',
-  'token',
-  'password',
-  'cookie',
-  'authorization',
-  'apiKey',
-  'api_key',
-  'ipAddress',
-  'ip_address',
-  'userAgent',
-  'user_agent',
-  'phoneNumber',
-  'phone_number',
-])
 
 const PII_URL_PATTERNS = [
   /\/reviews\/[a-f0-9-]+/gi,
@@ -74,29 +42,30 @@ interface SentryLike {
  */
 export function scrubSentryEvent(event: unknown): unknown {
   if (!event || typeof event !== 'object') return event
-  return deeplyScrub(event, new WeakSet<object>())
+  return deeplyScrub(event, new WeakMap<object, unknown>())
 }
 
-function deeplyScrub(obj: unknown, seen: WeakSet<object>): unknown {
+function deeplyScrub(obj: unknown, seen: WeakMap<object, unknown>): unknown {
   if (obj === null || obj === undefined) return obj
+  if (typeof obj === 'string') return scrubUrlPII(obj)
   if (typeof obj !== 'object') return obj
-  if (seen.has(obj as object)) return obj
-  seen.add(obj as object)
+  const existing = seen.get(obj)
+  if (existing) return existing
 
   if (Array.isArray(obj)) {
-    return obj.map((item) => deeplyScrub(item, seen))
+    const result: unknown[] = []
+    seen.set(obj, result)
+    for (const item of obj) result.push(deeplyScrub(item, seen))
+    return result
   }
 
   const result: Record<string, unknown> = {}
+  seen.set(obj, result)
   for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-    if (PII_FIELD_NAMES.has(key)) {
+    if (isSensitiveObservabilityField(key)) {
       result[key] = '[REDACTED]'
-    } else if (typeof value === 'string') {
-      result[key] = scrubUrlPII(value)
-    } else if (typeof value === 'object') {
-      result[key] = deeplyScrub(value, seen)
     } else {
-      result[key] = value
+      result[key] = deeplyScrub(value, seen)
     }
   }
   return result
@@ -134,10 +103,10 @@ export async function initObservability(): Promise<void> {
         beforeSend: (event) => scrubSentryEvent(event),
         beforeBreadcrumb: (crumb) => {
           if (crumb.data) {
-            crumb.data = deeplyScrub(crumb.data, new WeakSet<object>()) as Record<
-              string,
-              unknown
-            >
+            crumb.data = deeplyScrub(
+              crumb.data,
+              new WeakMap<object, unknown>(),
+            ) as Record<string, unknown>
           }
           return crumb
         },

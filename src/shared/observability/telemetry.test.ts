@@ -34,6 +34,21 @@ describe('telemetry PII scrubbing (B3.5)', () => {
     expect(context.accessToken).toBe('[REDACTED]')
   })
 
+  it('uses the same normalized credential and personal-data vocabulary as logs', () => {
+    const marker = 'marker-private-value'
+    const scrubbed = scrubSentryEvent({
+      password_hash: marker,
+      clientSecret: marker,
+      OPENAI_API_KEY: marker,
+      contactEmail: marker,
+      DATABASE_URL: `postgresql://user:${marker}@database/repkey`,
+      outcomeCode: 'provider_rejected',
+    }) as Record<string, unknown>
+
+    expect(JSON.stringify(scrubbed)).not.toContain(marker)
+    expect(scrubbed.outcomeCode).toBe('provider_rejected')
+  })
+
   it('redacts PII in URL strings', () => {
     const event = {
       url: '/api/reviews/550e8400-e29b-41d4-a716-446655440000/reply',
@@ -77,10 +92,15 @@ describe('telemetry PII scrubbing (B3.5)', () => {
   })
 
   it('handles circular references without crashing', () => {
-    const circular: Record<string, unknown> = { name: 'test' }
+    const circular: Record<string, unknown> = {
+      name: 'test',
+      clientSecret: 'marker-private-value',
+    }
     circular.self = circular
-    const scrubbed = scrubSentryEvent({ data: circular })
-    expect(scrubbed).toBeDefined()
+    const scrubbed = scrubSentryEvent(circular) as Record<string, unknown>
+
+    expect(scrubbed.clientSecret).toBe('[REDACTED]')
+    expect(scrubbed.self).toBe(scrubbed)
   })
 
   it('handles null and undefined', () => {
