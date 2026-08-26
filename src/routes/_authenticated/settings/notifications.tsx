@@ -10,6 +10,7 @@ import {
   updateNotificationUserSettingsFn,
 } from '#/contexts/notification/server/notifications'
 import { NotificationsSettingsPage } from '#/components/features/settings'
+import { notificationPropertyScopeKey } from '#/components/features/settings/notification-property-selection'
 import { notificationKeys } from '#/shared/queries/query-keys'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
 import { checkControlledRoute } from '#/shared/auth/controlled-route-check'
@@ -51,6 +52,26 @@ export const Route = createFileRoute('/_authenticated/settings/notifications')({
 function NotificationsSettings() {
   const context = authRoute.useRouteContext() as AuthRouteContext
   const organizationId = context.activeOrganization?.id ?? 'no-active-organization'
+  const { data: properties } = useSuspenseQuery(propertiesQuery)
+
+  return (
+    <>
+      <PageHeader
+        title="Notifications"
+        description="Control property-specific in-app and email delivery."
+        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Notifications' }]}
+      />
+      <NotificationSettingsPropertyScope
+        key={`${organizationId}:${notificationPropertyScopeKey(properties.properties)}`}
+        organizationId={organizationId}
+      />
+    </>
+  )
+}
+
+function NotificationSettingsPropertyScope({
+  organizationId,
+}: Readonly<{ organizationId: string }>) {
   const { data: preferences } = useSuspenseQuery(preferencesQuery(organizationId))
   const { data: userSettings } = useSuspenseQuery(userSettingsQuery(organizationId))
   const { data: properties } = useSuspenseQuery(propertiesQuery)
@@ -81,33 +102,26 @@ function NotificationsSettings() {
   })
 
   return (
-    <>
-      <PageHeader
-        title="Notifications"
-        description="Control property-specific in-app and email delivery."
-        breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Notifications' }]}
-      />
-      <div className="mt-6 min-w-0">
-        {propertyId ? (
-          <NotificationsSettingsPage
-            properties={properties.properties}
-            preferences={preferences}
-            userSettings={userSettings}
-            propertyId={propertyId}
-            // Strictly true only once the decision is known. Treating an
-            // in-flight or failed check as "allowed" is what rendered a whole
-            // column of controls that could only ever fail.
-            emailAllowed={emailCapability.data?.allowed === true}
-            setPropertyId={setPropertyId}
-            updatePreference={updatePreference}
-            updateUserSettings={updateUserSettings}
-          />
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            Add or request access to a property before configuring notifications.
-          </p>
-        )}
-      </div>
-    </>
+    <div className="mt-6 min-w-0">
+      {propertyId ? (
+        <NotificationsSettingsPage
+          properties={properties.properties}
+          preferences={preferences}
+          userSettings={userSettings}
+          propertyId={propertyId}
+          // Strictly true only once the decision is known. Treating an
+          // in-flight or failed check as "allowed" is what rendered a whole
+          // column of controls that could only ever fail.
+          emailAllowed={emailCapability.data?.allowed === true}
+          setPropertyId={setPropertyId}
+          updatePreference={updatePreference}
+          updateUserSettings={updateUserSettings}
+        />
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Add or request access to a property before configuring notifications.
+        </p>
+      )}
+    </div>
   )
 }

@@ -3,7 +3,7 @@ import { Target, ArrowRight } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { Card, CardContent } from '#/components/ui/card'
 import { EmptyState } from '#/components/ui/empty-state'
-import { ProgressBar } from '#/components/features/property/goals/progress-bar'
+import { GoalProgressBar } from '#/components/goals/goal-progress-bar'
 import {
   statusBadgeVariant,
   statusLabel,
@@ -52,7 +52,7 @@ export function StaffGoalSummary({ goals }: StaffGoalSummaryProps) {
                     {goalTypeLabel(goal.goalType)}
                   </Badge>
                 </div>
-                <ProgressBar
+                <GoalProgressBar
                   currentValue={progress?.currentValue ?? 0}
                   targetValue={goal.targetValue}
                   aggregation={goal.aggregationFunction}

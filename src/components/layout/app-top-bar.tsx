@@ -1,4 +1,5 @@
 import { useNavigate } from '@tanstack/react-router'
+import { useQueryClient } from '@tanstack/react-query'
 import { LogOut, Moon, Sun, Monitor } from 'lucide-react'
 import { SidebarTrigger } from '#/components/ui/sidebar'
 import { Button } from '#/components/ui/button'
@@ -15,6 +16,7 @@ import type { NotificationServerFns } from '#/components/features/notification/t
 import { useThemeMode } from '#/components/hooks/use-theme-mode'
 import { BetaFeedbackLauncher } from '#/components/features/beta-feedback/beta-feedback-launcher'
 import type { SubmitBetaFeedback } from '#/components/features/beta-feedback/beta-feedback-form-context'
+import { clearTenantCacheAfterSessionEnd } from '#/shared/queries/tenant-cache-transition'
 
 type Props = Readonly<{
   user: { id: string; name: string; email: string; image: string | null }
@@ -30,6 +32,7 @@ export function AppTopBar({
   submitBetaFeedback,
 }: Props) {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { mode, setMode } = useThemeMode()
 
   const ThemeIcon = mode === 'light' ? Sun : mode === 'dark' ? Moon : Monitor
@@ -93,8 +96,11 @@ export function AppTopBar({
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={async () => {
-              await authClient.signOut()
-              await navigate({ to: '/login' })
+              await clearTenantCacheAfterSessionEnd(
+                queryClient,
+                () => authClient.signOut(),
+                () => navigate({ to: '/login' }),
+              )
             }}
           >
             <LogOut className="size-4" />

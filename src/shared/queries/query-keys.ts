@@ -95,10 +95,10 @@ export const propertyKeys = {
 // ── Dashboard (fleet + per-property + staff) ─────────────────────────────
 export const dashboardKeys = {
   all: ['dashboard'] as const,
-  // Takes the range so an infinite cache entry exists per range. Existing
-  // `invalidateQueries({ queryKey: dashboardKeys.fleet() })` calls still match
-  // as a prefix.
-  fleet: (timeRange = '30d') => [...dashboardKeys.all, 'fleet', timeRange] as const,
+  fleets: () => [...dashboardKeys.all, 'fleet'] as const,
+  // Each range has its own infinite cache entry. Use `fleets()` when an
+  // operation genuinely invalidates every range rather than the visible one.
+  fleet: (timeRange = '30d') => [...dashboardKeys.fleets(), timeRange] as const,
   staff: (args: Readonly<Record<string, unknown>>) =>
     [...dashboardKeys.all, 'staff', args] as const,
   property: (args: Readonly<Record<string, unknown>>) =>
@@ -187,16 +187,6 @@ export const portalKeys = {
     [...portalKeys.forPropertyPortal(propertyId, portalId), 'analytics'] as const,
   analytics: (propertyId: string, portalId: string, timeRange: string) =>
     [...portalKeys.analyticsRoot(propertyId, portalId), timeRange] as const,
-}
-
-// ── Badges / recognition ─────────────────────────────────────────────────
-export const badgeKeys = {
-  all: ['badges'] as const,
-  staffVisible: (propertyId: string) =>
-    [...badgeKeys.all, 'staff-visible', propertyId] as const,
-  target: (args: Readonly<Record<string, unknown>>) =>
-    [...badgeKeys.all, 'target', args] as const,
-  orgDefinitions: () => [...badgeKeys.all, 'org-definitions'] as const,
 }
 
 // ── Integrations (Google connections + bounded import content) ───────────

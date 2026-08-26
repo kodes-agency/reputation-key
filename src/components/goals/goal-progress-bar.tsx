@@ -1,14 +1,14 @@
 import { cn } from '#/lib/utils'
 import {
   formatProgressLabel,
-  progressBarWidth,
   progressBarColor,
   progressBarColorClass,
+  progressBarWidth,
 } from '#/contexts/goal/ui/helpers'
+import type { GoalStatus } from '#/contexts/goal/application/public-api'
 import type { AggregationFunction } from '#/shared/domain/metric-keys'
-import type { GoalStatus } from '#/contexts/goal/application/dto/goal.dto'
 
-type ProgressBarProps = Readonly<{
+type Props = Readonly<{
   currentValue: number
   targetValue: number
   aggregation: AggregationFunction
@@ -16,13 +16,13 @@ type ProgressBarProps = Readonly<{
   className?: string
 }>
 
-export function ProgressBar({
+export function GoalProgressBar({
   currentValue,
   targetValue,
   aggregation,
   status,
   className,
-}: ProgressBarProps) {
+}: Props) {
   const width = progressBarWidth(currentValue, targetValue)
   const color = progressBarColor(status, currentValue, targetValue)
   const colorClass = progressBarColorClass(color)

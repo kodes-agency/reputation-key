@@ -35,6 +35,52 @@ type Props = Readonly<{
   finalizeOrgLogoUploadFn: typeof finalizeOrgLogoUpload
 }>
 
+type LogoEditorProps = Readonly<
+  Pick<
+    Props,
+    'updateOrganization' | 'requestOrgLogoUploadFn' | 'finalizeOrgLogoUploadFn'
+  > & { logo: string | null }
+>
+
+function OrganizationLogoEditor({
+  logo,
+  updateOrganization,
+  requestOrgLogoUploadFn,
+  finalizeOrgLogoUploadFn,
+}: LogoEditorProps) {
+  const [logoUrl, setLogoUrl] = useState(logo)
+  const requestUpload = useServerFn(requestOrgLogoUploadFn)
+  const finalizeUpload = useServerFn(finalizeOrgLogoUploadFn)
+
+  return (
+    <ImageUploadField
+      imageUrl={logoUrl}
+      onImageUrlChange={(url) => {
+        setLogoUrl(url)
+        // Only persist on remove (null) — upload persistence is handled by finalizeOrgLogoUpload
+        if (url === null) {
+          updateOrganization({ data: { logo: null } }).catch(() => {
+            toast.error('Failed to remove logo')
+            setLogoUrl(logo)
+          })
+        }
+      }}
+      onUpload={async (file, onProgress) => {
+        const { uploadUrl, key } = await requestUpload({
+          data: { contentType: file.type, fileSize: file.size },
+        })
+        await putFilePresigned(uploadUrl, file, onProgress)
+        const { logoUrl: url } = await finalizeUpload({ data: { key } })
+        return url
+      }}
+      variant="circle"
+      emptyLabel="Upload logo"
+      maxFileSize={5 * 1024 * 1024}
+      disabled={updateOrganization.isPending}
+    />
+  )
+}
+
 export function OrganizationSettingsPage({
   organization,
   responseSlaHours,
@@ -43,37 +89,15 @@ export function OrganizationSettingsPage({
   requestOrgLogoUploadFn,
   finalizeOrgLogoUploadFn,
 }: Props) {
-  const [logoUrl, setLogoUrl] = useState(organization.logo)
-  const requestUpload = useServerFn(requestOrgLogoUploadFn)
-  const finalizeUpload = useServerFn(finalizeOrgLogoUploadFn)
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
-        <ImageUploadField
-          imageUrl={logoUrl}
-          onImageUrlChange={(url) => {
-            setLogoUrl(url)
-            // Only persist on remove (null) — upload persistence is handled by finalizeOrgLogoUpload
-            if (url === null) {
-              updateOrganization({ data: { logo: null } }).catch(() => {
-                toast.error('Failed to remove logo')
-                setLogoUrl(organization.logo)
-              })
-            }
-          }}
-          onUpload={async (file, onProgress) => {
-            const { uploadUrl, key } = await requestUpload({
-              data: { contentType: file.type, fileSize: file.size },
-            })
-            await putFilePresigned(uploadUrl, file, onProgress)
-            const { logoUrl: url } = await finalizeUpload({ data: { key } })
-            return url
-          }}
-          variant="circle"
-          emptyLabel="Upload logo"
-          maxFileSize={5 * 1024 * 1024}
-          disabled={updateOrganization.isPending}
+        <OrganizationLogoEditor
+          key={organization.logo ?? 'no-logo'}
+          logo={organization.logo}
+          updateOrganization={updateOrganization}
+          requestOrgLogoUploadFn={requestOrgLogoUploadFn}
+          finalizeOrgLogoUploadFn={finalizeOrgLogoUploadFn}
         />
         <div>
           <h1 className="text-xl font-semibold tracking-tight display-title">
@@ -94,6 +118,7 @@ export function OrganizationSettingsPage({
         error={updateOrganization.error}
       />
       <ResponseSlaCard
+        key={responseSlaHours}
         responseSlaHours={responseSlaHours}
         updateSla={updateResponseSla}
       />

@@ -15,6 +15,7 @@ import { authClient } from '#/shared/auth/auth-client'
 import { Toaster } from '#/components/ui/sonner'
 import appCss from '#/styles.css?url'
 import { notificationFns } from '#/routes/-notification-fns'
+import { clearTenantCacheAfterSessionEnd } from '#/shared/queries/tenant-cache-transition'
 
 const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark'||stored==='auto')?stored:'auto';var prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;var resolved=mode==='auto'?(prefersDark?'dark':'light'):mode;var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(resolved);root.style.colorScheme=resolved;}catch(e){}})();`
 
@@ -73,7 +74,12 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         {showChrome ? (
           <>
             <Header
-              onSignOut={() => authClient.signOut()}
+              onSignOut={() => {
+                void clearTenantCacheAfterSessionEnd(
+                  router.options.context.queryClient,
+                  () => authClient.signOut(),
+                )
+              }}
               notificationFns={notificationFns}
             />
             <main>{children}</main>

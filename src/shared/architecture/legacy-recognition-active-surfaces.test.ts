@@ -133,6 +133,9 @@ describe('legacy recognition stays out of active beta surfaces', () => {
       importers: [],
       retainedModules: [],
     })
+    expect(
+      readFileSync(join(ROOT, 'src', 'shared', 'queries', 'query-keys.ts'), 'utf8'),
+    ).not.toContain('badgeKeys')
   })
 
   it('keeps dark Badge award producers disconnected from beta entry points', () => {

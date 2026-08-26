@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
   auditProductStateSources,
+  auditQueryKeyFactorySource,
+  loadProductStateLedger,
   type ProductStateLedger,
 } from './check-product-state-consistency'
 
 const EMPTY_LEDGER: ProductStateLedger = {
-  version: 1,
+  version: 2,
   scope: ['src/components', 'src/routes'],
+  queryKeyFactories: [],
   broadInvalidationExceptions: [],
   stateMirrorCandidates: [],
   classificationDefinitions: {
@@ -20,6 +23,61 @@ const EMPTY_LEDGER: ProductStateLedger = {
 }
 
 describe('product-state consistency audit', () => {
+  it('keeps every shared query-key factory member in an owned lifecycle policy', () => {
+    const source = {
+      path: 'src/shared/queries/query-keys.ts',
+      content: `
+        export const portalKeys = {
+          all: ['portals'] as const,
+          list: (propertyId: string) => [...portalKeys.all, 'list', propertyId] as const,
+        }
+      `,
+    }
+    const ledger: ProductStateLedger = {
+      ...EMPTY_LEDGER,
+      queryKeyFactories: [
+        {
+          id: 'portalKeys',
+          members: ['all'],
+          owner: 'Portal query lifecycle',
+          policy: 'The root owns tenant teardown; property lists include propertyId.',
+        },
+      ],
+    }
+
+    expect(auditQueryKeyFactorySource(source, ledger)).toMatchObject({
+      queryKeyFactoryMembers: [{ id: 'portalKeys.all' }, { id: 'portalKeys.list' }],
+      violations: ['unowned query-key factory member: portalKeys.list'],
+    })
+  })
+
+  it('rejects stale query-key lifecycle policy members', () => {
+    const ledger: ProductStateLedger = {
+      ...EMPTY_LEDGER,
+      queryKeyFactories: [
+        {
+          id: 'removedKeys',
+          members: ['all'],
+          owner: 'Removed query lifecycle',
+          policy: 'This row must not survive its factory.',
+        },
+      ],
+    }
+
+    expect(
+      auditQueryKeyFactorySource(
+        { path: 'src/shared/queries/query-keys.ts', content: '' },
+        ledger,
+      ).violations,
+    ).toEqual(['stale query-key factory policy: removedKeys.all'])
+  })
+
+  it('includes production shared-hook roots in the repository inventory', () => {
+    expect(loadProductStateLedger(process.cwd()).scope).toEqual(
+      expect.arrayContaining(['src/hooks', 'src/shared/hooks']),
+    )
+  })
+
   it('rejects literal query keys while accepting factory-owned keys', () => {
     const report = auditProductStateSources(
       [
@@ -39,6 +97,23 @@ describe('product-state consistency audit', () => {
     expect(report.violations).toEqual([
       'src/components/literal.tsx:1: literal queryKey arrays must use a shared hierarchical factory',
     ])
+  })
+
+  it('inventories shorthand queryKey options built outside the call', () => {
+    const report = auditProductStateSources(
+      [
+        {
+          path: 'src/components/factory-options.ts',
+          content: `
+            const queryKey = portalKeys.detail(portalId)
+            useQuery({ queryKey, queryFn: load })
+          `,
+        },
+      ],
+      EMPTY_LEDGER,
+    )
+
+    expect(report.queryKeySites).toHaveLength(1)
   })
 
   it('allows only explicitly owned broad auth-bootstrap invalidation', () => {

@@ -1,6 +1,140 @@
 {
-  "version": 1,
-  "scope": ["src/components", "src/routes"],
+  "version": 2,
+  "scope": ["src/components", "src/routes", "src/hooks", "src/shared/hooks"],
+  "queryKeyFactories": [
+    {
+      "id": "inboxKeys",
+      "members": [
+        "all",
+        "lists",
+        "list",
+        "counts",
+        "countsFor",
+        "lastVisitCount",
+        "details",
+        "detail",
+        "notes",
+        "activity"
+      ],
+      "owner": "Inbox query lifecycle",
+      "policy": "The active-tenant root separates filtered lists, property/all counts, last-visit count, and item details. Notes and activity descend from an item detail so item invalidation reaches its projections; filters and item ids remain part of the cache identity."
+    },
+    {
+      "id": "notificationKeys",
+      "members": [
+        "all",
+        "feed",
+        "count",
+        "lists",
+        "list",
+        "head",
+        "settings",
+        "preferences",
+        "userSettings",
+        "emailCapability"
+      ],
+      "owner": "Notification query lifecycle",
+      "policy": "Every live subtree includes organizationId. Feed and settings are disjoint because bell refreshes must not evict settings; list identity includes limit/filter, head refreshes only the first page, and the email capability adds propertyId because admission is property-scoped."
+    },
+    {
+      "id": "identityKeys",
+      "members": [
+        "all",
+        "activeOrg",
+        "responseSla",
+        "members",
+        "invitations",
+        "userInvitations",
+        "organizationInvitations"
+      ],
+      "owner": "Identity query lifecycle",
+      "policy": "Active-organization reads live under the identity root. Login, sign-out, and successful invitation acceptance clear the complete QueryClient at the confirmed session/tenant transition, so no unscoped identity or sibling context cache crosses tenants. Personal and organization invitation response shapes are disjoint siblings below the invitation prefix."
+    },
+    {
+      "id": "propertyKeys",
+      "members": ["all", "list", "detail", "responsibleManagers"],
+      "owner": "Property query lifecycle",
+      "policy": "The list is active-tenant data; globally unique propertyId scopes detail data, and responsible managers descend from that detail so property-level invalidation includes the assignment projection."
+    },
+    {
+      "id": "dashboardKeys",
+      "members": [
+        "all",
+        "fleets",
+        "fleet",
+        "staff",
+        "property",
+        "googlePerformance",
+        "googlePerformanceLease"
+      ],
+      "owner": "Dashboard query lifecycle",
+      "policy": "Fleet is a real prefix above range-specific infinite entries. Staff/property callers include their property and view filters in the argument object. Google performance is isolated by property, preset, catalogue version, and view epoch; an authorization lease adds leaseRef beneath that exact report."
+    },
+    {
+      "id": "aiKeys",
+      "members": ["all", "propertyTrend", "propertyAggregates"],
+      "owner": "AI read-model query lifecycle",
+      "policy": "Trend and aggregate projections are independent property-scoped siblings under the AI root; globally unique propertyId prevents cross-property reuse."
+    },
+    {
+      "id": "goalKeys",
+      "members": ["all", "staff", "list", "detail"],
+      "owner": "Goal query lifecycle",
+      "policy": "Staff goals include propertyId, governed list callers include property/model filters in the argument object, and a detail includes both propertyId and goalId so a goal id cannot alias another property. Goal writes currently invalidate the family root."
+    },
+    {
+      "id": "staffKeys",
+      "members": ["all", "participations", "portals"],
+      "owner": "Staff participation query lifecycle",
+      "policy": "Participation and accessible-portal projections are separate property-scoped siblings, allowing focused refresh while the family root remains available for full Staff teardown."
+    },
+    {
+      "id": "reviewKeys",
+      "members": ["all", "staffActivity"],
+      "owner": "Staff review-activity query lifecycle",
+      "policy": "The Staff activity projection is scoped by propertyId beneath the Review root; it cannot alias activity from another property."
+    },
+    {
+      "id": "portalKeys",
+      "members": [
+        "all",
+        "list",
+        "detail",
+        "links",
+        "responsibleManagers",
+        "publicationHistory",
+        "groups",
+        "goalSubjects",
+        "goalSubjectNames",
+        "forProperty",
+        "forPropertyPortal",
+        "analyticsRoot",
+        "analytics"
+      ],
+      "owner": "Portal query lifecycle",
+      "policy": "Property lists, groups, and goal-subject projections include propertyId. Detail descendants use globally unique portalId. Analytics additionally nests propertyId, portalId, and time range so property teardown, portal teardown, and range-specific reads each have a usable prefix."
+    },
+    {
+      "id": "integrationKeys",
+      "members": [
+        "all",
+        "connections",
+        "googleImportContent",
+        "googleImportAccounts",
+        "googleImportCandidates",
+        "googleImportLease",
+        "import"
+      ],
+      "owner": "Integration query lifecycle",
+      "policy": "Connection and import-job reads live under the Integration root. Volatile Google provider content has a dedicated eviction prefix and includes organizationId, connectionId, viewEpoch, accountRef where relevant, and leaseRef for authorization state so stale views cannot share provider content."
+    },
+    {
+      "id": "guestKeys",
+      "members": ["all", "publicPortal"],
+      "owner": "Guest public-portal query lifecycle",
+      "policy": "Public portal data is keyed by the complete validated route argument object, currently the public token, beneath a Guest-only root; token navigation therefore remounts and reads a distinct cache entry."
+    }
+  ],
   "broadInvalidationExceptions": [
     {
       "id": "src/routes/login.tsx:router.invalidate#1",
@@ -31,7 +165,7 @@
       "id": "src/components/features/identity/profile-settings-form.tsx:useState(avatarUrl)",
       "classification": "server_snapshot",
       "owner": "Profile avatar editor",
-      "policy": "Seed from the user image and update from the finalized upload or removal interaction; parent remount is the external refresh boundary."
+      "policy": "Seed from the user image and update from the finalized upload or removal interaction; the Profile route keys the page by user id and image, so a refreshed session image remounts the local snapshot."
     },
     {
       "id": "src/components/features/integration/google-import-manager/use-google-import-discovery-controller.ts:useState(step)",
@@ -67,13 +201,13 @@
       "id": "src/components/features/organization/organization-settings-page.tsx:useState(logoUrl)",
       "classification": "server_snapshot",
       "owner": "Organization logo editor",
-      "policy": "Seed from the active organization logo and update from confirmed upload/removal interactions; failed removal restores the input prop."
+      "policy": "OrganizationLogoEditor is keyed by the persisted logo, seeds its local upload/removal snapshot from that value, and restores it after failed removal; a changed server logo remounts only this editor, not the organization form."
     },
     {
       "id": "src/components/features/organization/response-sla-card.tsx:useState(value)",
       "classification": "server_draft",
       "owner": "Organization response-SLA form",
-      "policy": "Seed from the persisted SLA and preserve typed edits until save; parent lifecycle supplies reset semantics."
+      "policy": "Seed from the persisted SLA and keep typing local; OrganizationSettingsPage keys the card by responseSlaHours, and the browser story proves a changed server value remounts the draft instead of leaving stale input on screen."
     },
     {
       "id": "src/components/features/portal/link-tree/link-inline-form.tsx:useState(label)",
@@ -106,12 +240,6 @@
       "policy": "Seed from the group name and explicitly reset from the latest prop each time rename mode opens."
     },
     {
-      "id": "src/components/features/property/goals/goal-create-form.tsx:useState(s)",
-      "classification": "local_runtime",
-      "owner": "Legacy goal create form",
-      "policy": "The imported initial object is a client-only blank form model, not a server-result mirror."
-    },
-    {
       "id": "src/components/features/responsible-managers/use-responsible-manager-selection.ts:useState(selected)",
       "classification": "synchronized_prop_copy",
       "owner": "Responsible-manager selection hook",
@@ -121,13 +249,13 @@
       "id": "src/components/features/settings/merchant-ai-settings-page.tsx:useState(snapshot)",
       "classification": "server_snapshot",
       "owner": "Merchant AI authorization settings",
-      "policy": "Seed from the selected property's snapshot and replace with confirmed command results; property-change remount/reconciliation remains a semantic follow-up, not a proven invariant."
+      "policy": "Seed from the selected property's snapshot and replace with confirmed command results; the route keys MerchantAiSettingsPage by propertyId, so changing property creates a fresh snapshot owner."
     },
     {
       "id": "src/components/features/settings/merchant-ai-settings-page.tsx:useState(selectedCapabilities)",
       "classification": "server_draft",
       "owner": "Merchant AI authorization settings",
-      "policy": "Seed from the current authorization or notice defaults and retain local capability edits until a command result replaces them."
+      "policy": "Seed from the current authorization or notice defaults and retain local capability edits until a command result replaces them; the propertyId-keyed route remount prevents drafts crossing properties."
     },
     {
       "id": "src/components/features/settings/notifications-settings-page.tsx:useState(locale)",
@@ -145,13 +273,13 @@
       "id": "src/components/features/settings/quiet-hours-editor.tsx:useState(nextStart)",
       "classification": "server_draft",
       "owner": "Notification quiet-hours editor",
-      "policy": "Seed from persisted start time and keep input local until Save; the containing settings view owns remount/reset behavior."
+      "policy": "Seed from persisted start time and keep input local until Save; NotificationsCategoryRow keys the editor by category and persisted start/end, so a changed server window remounts the draft."
     },
     {
       "id": "src/components/features/settings/quiet-hours-editor.tsx:useState(nextEnd)",
       "classification": "server_draft",
       "owner": "Notification quiet-hours editor",
-      "policy": "Seed from persisted end time and keep input local until Save; the containing settings view owns remount/reset behavior."
+      "policy": "Seed from persisted end time and keep input local until Save; NotificationsCategoryRow keys the editor by category and persisted start/end, so a changed server window remounts the draft."
     },
     {
       "id": "src/components/features/staff/portal-responsibilities-modal.tsx:useState(primaryPortalId)",
@@ -163,19 +291,19 @@
       "id": "src/components/goals/goal-program-revision-dialog.tsx:useState(metric)",
       "classification": "server_draft",
       "owner": "Goal program revision dialog",
-      "policy": "Seed from the current goal version and preserve edits for the mounted dialog lifecycle."
+      "policy": "Seed from the current goal version and explicitly reset from the latest props whenever the dialog opens; edits remain local only while it is open."
     },
     {
       "id": "src/components/goals/goal-program-revision-dialog.tsx:useState(target)",
       "classification": "server_draft",
       "owner": "Goal program revision dialog",
-      "policy": "Seed from the current goal target and preserve edits for the mounted dialog lifecycle."
+      "policy": "Seed from the current goal target and explicitly reset from the latest props whenever the dialog opens; edits remain local only while it is open."
     },
     {
       "id": "src/components/goals/goal-program-revision-dialog.tsx:useState(subjects)",
       "classification": "server_draft",
       "owner": "Goal program revision dialog",
-      "policy": "Seed from current goal assignments and preserve edits for the mounted dialog lifecycle."
+      "policy": "Seed from current goal assignments and explicitly reset from the latest props whenever the dialog opens; edits remain local only while it is open."
     },
     {
       "id": "src/components/inbox/reply-editor-views.tsx:useState(text)",
@@ -217,7 +345,7 @@
       "id": "src/routes/_authenticated/settings/notifications.tsx:useState(propertyId)",
       "classification": "local_runtime",
       "owner": "Notification property selector",
-      "policy": "The first accessible property seeds a client selection; subsequent selection is user-owned and keys the capability query."
+      "policy": "The first accessible property seeds the selection and later choices are user-owned. NotificationSettingsPropertyScope is keyed by organizationId plus the sorted accessible-property ids, so access changes remount the selector before any capability read can retain a removed id."
     },
     {
       "id": "src/components/features/integration/google-import-manager/google-import-manager.tsx:useState(startError)",
@@ -294,9 +422,9 @@
     "local_runtime": "Local runtime/controller state caught by the conservative syntax heuristic; it is not treated as a server-state authority."
   },
   "limitations": [
-    "This executable inventory covers production TypeScript and TSX files under src/components and src/routes; it excludes tests, stories, contexts, workers, and external packages.",
+    "This executable inventory covers production TypeScript and TSX files under src/components, src/routes, src/hooks, and src/shared/hooks; it excludes tests, stories, context internals, workers, and external packages.",
     "The state-mirror inventory is a conservative syntax heuristic over non-literal useState initializers. Classification prevents silent new candidates but does not prove semantic completeness or correct synchronization behavior.",
-    "The query-key check rejects direct array literals assigned to queryKey and inventories all queryKey property assignments. It does not prove that every factory has ideal domain semantics or that every server read uses TanStack Query.",
+    "The query-key check rejects direct array literals assigned to queryKey, inventories every exported factory member against an owned scope/lifecycle policy, and inventories explicit and shorthand queryKey properties. It does not prove that every server read uses TanStack Query or that every mutation invalidates all semantically related sibling projections.",
     "The invalidation check detects zero-argument .invalidate() calls in scope. The login auth-bootstrap row is the only approved whole-router exception."
   ]
 }

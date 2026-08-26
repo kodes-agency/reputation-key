@@ -74,6 +74,14 @@ describe('volatile provider query keys', () => {
   })
 })
 
+describe('dashboard query keys', () => {
+  it('provides a real fleet prefix above range-specific cache entries', () => {
+    expect(dashboardKeys.fleets()).toEqual(['dashboard', 'fleet'])
+    expect(dashboardKeys.fleet()).toEqual(['dashboard', 'fleet', '30d'])
+    expect(dashboardKeys.fleet('90d').slice(0, -1)).toEqual(dashboardKeys.fleets())
+  })
+})
+
 describe('goal query keys', () => {
   it('isolates goal details by property as well as goal', () => {
     expect(goalKeys.detail('property-1', 'goal-1')).toEqual([

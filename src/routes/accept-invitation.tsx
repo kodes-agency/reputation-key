@@ -2,9 +2,10 @@
 // Fixed: auto-accept now uses useEffect instead of side-effect-in-render
 
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { getSession } from '#/shared/auth/auth.functions'
-import { identityKeys, propertyKeys } from '#/shared/queries/query-keys'
+import { identityKeys } from '#/shared/queries/query-keys'
+import { clearTenantCacheAfterTenantChange } from '#/shared/queries/tenant-cache-transition'
 import {
   listUserInvitations,
   acceptInvitation,
@@ -56,13 +57,10 @@ export const Route = createFileRoute('/accept-invitation')({
 function AcceptInvitationRoute() {
   const search = Route.useSearch() as { id?: string }
   const { data: invitations } = useSuspenseQuery(invitationsQuery)
+  const queryClient = useQueryClient()
   const acceptInvitationFn = useActionMutation(acceptInvitation, {
     successMessage: 'Invitation accepted',
-    invalidateKeys: [
-      identityKeys.activeOrg(),
-      propertyKeys.list(),
-      identityKeys.invitations(),
-    ],
+    onSuccess: () => clearTenantCacheAfterTenantChange(queryClient),
   })
 
   return (
