@@ -28,7 +28,6 @@ import {
 } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import { isPubliclyAvailable } from '../../domain/portal-publication'
-import { insertOutboxRow } from '#/shared/outbox/commit'
 
 /** Mutable set-values type for Drizzle .set() — strips readonly from Portal fields. */
 type SetValues = {
@@ -169,12 +168,7 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
     })
   },
 
-  insert: async (
-    orgId,
-    portal,
-    initialResponsibleManagerId,
-    responsibilityNeededEvent,
-  ) => {
+  insert: async (orgId, portal, initialResponsibleManagerId) => {
     return trace('portal.insert', async () => {
       if (portal.organizationId !== orgId) {
         throw portalError('forbidden', 'Tenant mismatch on portal insert')
@@ -189,21 +183,6 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
             userId: initialResponsibleManagerId,
             effectiveFrom: portal.createdAt,
             createdBy: initialResponsibleManagerId,
-          })
-        }
-        if (responsibilityNeededEvent) {
-          if (
-            responsibilityNeededEvent.organizationId !== orgId ||
-            responsibilityNeededEvent.propertyId !== portal.propertyId ||
-            responsibilityNeededEvent.portalId !== portal.id
-          ) {
-            throw portalError(
-              'forbidden',
-              'Tenant or resource mismatch on portal recovery event',
-            )
-          }
-          await insertOutboxRow(tx, responsibilityNeededEvent, {
-            recordedAt: portal.createdAt,
           })
         }
       })

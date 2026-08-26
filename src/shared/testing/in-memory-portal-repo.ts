@@ -48,12 +48,7 @@ export const createInMemoryPortalRepo = (): InMemoryPortalRepo => {
           (excludeId === undefined || p.id !== excludeId),
       ),
 
-    insert: async (
-      _orgId,
-      portal,
-      _initialResponsibleManagerId,
-      _responsibilityNeededEvent,
-    ) => {
+    insert: async (_orgId, portal, _initialResponsibleManagerId) => {
       store.set(portal.id, portal)
     },
 

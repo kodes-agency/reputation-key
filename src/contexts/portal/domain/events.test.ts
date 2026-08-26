@@ -22,8 +22,9 @@ describe('portal events', () => {
     const event = portalCreated({
       portalId: PORTAL_ID,
       organizationId: ORG_ID,
-      name: 'Test Portal',
-      slug: 'test',
+      propertyId: PROP_ID,
+      publicationState: 'draft',
+      sourceAggregateVersion: NOW.toISOString(),
       occurredAt: NOW,
     })
     expect(event.eventId).toBeDefined()
@@ -42,54 +43,6 @@ describe('portal events', () => {
   })
 
   it.each([
-    [
-      'portal creation with an empty name',
-      () =>
-        portalCreated({
-          portalId: PORTAL_ID,
-          organizationId: ORG_ID,
-          name: ' ',
-          slug: 'valid',
-          occurredAt: NOW,
-        }),
-      'name must be a non-empty string',
-    ],
-    [
-      'portal creation with an empty slug',
-      () =>
-        portalCreated({
-          portalId: PORTAL_ID,
-          organizationId: ORG_ID,
-          name: 'Valid',
-          slug: ' ',
-          occurredAt: NOW,
-        }),
-      'slug must be a non-empty string',
-    ],
-    [
-      'portal update with an empty name',
-      () =>
-        portalUpdated({
-          portalId: PORTAL_ID,
-          organizationId: ORG_ID,
-          name: ' ',
-          slug: 'valid',
-          occurredAt: NOW,
-        }),
-      'name must be a non-empty string',
-    ],
-    [
-      'portal update with an empty slug',
-      () =>
-        portalUpdated({
-          portalId: PORTAL_ID,
-          organizationId: ORG_ID,
-          name: 'Valid',
-          slug: ' ',
-          occurredAt: NOW,
-        }),
-      'slug must be a non-empty string',
-    ],
     [
       'portal-group creation with an empty name',
       () =>
@@ -116,6 +69,20 @@ describe('portal events', () => {
     ],
   ])('rejects %s', (_label, construct, message) => {
     expect(construct).toThrow(message)
+  })
+
+  it('rejects a Portal lifecycle fact whose aggregate version drifts from time', () => {
+    expect(() =>
+      portalUpdated({
+        portalId: PORTAL_ID,
+        organizationId: ORG_ID,
+        propertyId: PROP_ID,
+        previousPublicationState: 'draft',
+        publicationState: 'published',
+        sourceAggregateVersion: '2026-06-01T12:01:00.000Z',
+        occurredAt: NOW,
+      }),
+    ).toThrow('sourceAggregateVersion must equal occurredAt in ISO format')
   })
 
   it('emits token issuance, rotation, and revocation envelopes', () => {

@@ -50,12 +50,14 @@ Portal page management — creation, configuration, theming, link management, im
 - Responsible-manager assignment never grants property access, portal access, or staff attribution.
 - Responsible-manager updates preserve unchanged effective-dated intervals and use `responsibleManagerRevision` compare-and-swap; stale writes fail with `revision_conflict`.
 - Losing the last manager sets `responsibilityNeededSince` and atomically records one identifier-only recovery fact. Adding any manager clears the state; nobody is auto-promoted.
+- Core Portal creation, update/publication transition, and soft deletion use one Portal-owned command store. Authoritative Portal state, initial responsibility, live-token revocation on delete, and every required lifecycle outbox fact commit in the same PostgreSQL transaction. The in-process bus runs only after commit.
+- Portal lifecycle facts are identifier-only. They carry Property/Portal scope, publication-state codes where relevant, and `sourceAggregateVersion = updatedAt.toISOString()`; they never copy Portal name, slug, description, theme, or link content. The outbox event UUID is the replay uniqueness key and optimistic `updatedAt` fencing rejects stale commands.
 
 ## Events produced
 
-- **`portal.created`** — portalId, organizationId, name, slug, occurredAt.
-- **`portal.updated`** — portalId, organizationId, name, slug, occurredAt.
-- **`portal.deleted`** — portalId, organizationId, occurredAt.
+- **`portal.created`** — portalId, organizationId, propertyId, publicationState, sourceAggregateVersion, occurredAt.
+- **`portal.updated`** — portalId, organizationId, propertyId, previousPublicationState, publicationState, sourceAggregateVersion, occurredAt.
+- **`portal.deleted`** — portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
 - **`portal.responsibility_became_needed`** — portalId, organizationId, propertyId, occurredAt. Identifier-only, atomically recorded with the unowned transition; Notification sends one content-free recovery alert to each current AccountAdmin.
 - **`portal.token.issued`** — portalId, organizationId, propertyId, tokenIdentifier, version, occurredAt.
 - **`portal.token.rotated`** — portalId, organizationId, propertyId, previousVersion, version, gracePeriodEnds, occurredAt.
@@ -69,8 +71,9 @@ Portal page management — creation, configuration, theming, link management, im
 - **`portal_link_category.reordered`** — portalId, organizationId, occurredAt.
 - **`portal_link.created`** — portalId, linkId, categoryId, organizationId, occurredAt.
 - **`portal_link.reordered`** — portalId, categoryId, organizationId, occurredAt.
-  > **Subscriber status:** `portal.created`, `portal.updated`, and `portal.deleted` are
-  > reserved for future activity-audit handlers. The remaining link/category/group events
+  > **Subscriber status:** `portal.created` and `portal.updated` are durable lifecycle/audit
+  > facts with no product projection today. `portal.deleted` is durable and has the retained
+  > Goal cleanup subscriber. The remaining link/category/group events
   > (`portal_group.created`, `portal_group.updated`, `portal_group.portal_added`,
   > `portal_group.portal_removed`, `portal_link_category.created`,
   > `portal_link_category.reordered`, `portal_link.created`, `portal_link.reordered`) are
@@ -88,6 +91,7 @@ portal/
   domain/              types.ts, constructors.ts, events.ts, errors.ts, rules.ts
   application/
     ports/             portal.repository.ts, portal-group.repository.ts, portal-link.repository.ts,
+                       portal-command-store.port.ts,
                        portal-token.repository.ts, portal-token-codec.port.ts,
                        storage.port.ts, link-resolver.port.ts
     dto/               create-portal.dto.ts, update-portal.dto.ts,
@@ -106,6 +110,7 @@ portal/
                        portal-responsible-managers.ts
     public-api.ts      re-exports port types, PortalPublicApi, PortalGroupPublicApi, event types/constructors
   infrastructure/
+    portal-command-store.ts (atomic core lifecycle state + outbox facts)
     repositories/      portal.repository.ts, portal-group.repository.ts, portal-link.repository.ts,
                        portal-token.repository.ts, portal-scope.repository.ts,
                        portal-responsible-manager.repository.ts,
@@ -121,11 +126,11 @@ portal/
 
 ## Use cases
 
-- **`createPortal`** — Create a new portal for a property/entity. Validates property exists via PropertyPublicApi.
-- **`updatePortal`** — Update portal settings (name, slug, description, hero image, theme, Private Feedback Threshold, publication state). `heroImageUrl: null` clears the hero image. Rejects publication without a verified Property-owned Google review destination.
+- **`createPortal`** — Create a new portal for a property/entity. Validates property exists via PropertyPublicApi, then atomically commits the Portal, initial responsibility state, `portal.created`, and any responsibility-needed recovery fact.
+- **`updatePortal`** — Update portal settings (name, slug, description, hero image, theme, Private Feedback Threshold, publication state). `heroImageUrl: null` clears the hero image. Rejects publication without a verified Property-owned Google review destination. The patch and identifier-only `portal.updated` fact share one optimistic, version-fenced commit.
 - **`getPortal`** — Retrieve a single portal by ID, plus `tokenStatus` (C2): whether a public token still resolves (active, or rotating inside its grace window — same predicate as public token resolution), its version, issue time and grace end. Metadata only: the raw token and its digest are returned by issue/rotate alone.
 - **`listPortals`** — List portals for an org/property with filters.
-- **`softDeletePortal`** — Soft-delete a portal, revoke its portal tokens, emits `portal.deleted` (and `portal.token.revoked` when tokens were live).
+- **`softDeletePortal`** — Atomically soft-delete a Portal, revoke all live Portal tokens, and record `portal.deleted` plus `portal.token.revoked` when tokens were live. A fact conflict or stale Portal version rolls back the entire set.
 - **`createLink`** / **`updateLink`** / **`deleteLink`** — Manage portal links.
 - **`createLinkCategory`** / **`updateLinkCategory`** / **`deleteLinkCategory`** — Manage link categories.
 - **`reorderLinks`** / **`reorderCategories`** — Reorder items by sort key.

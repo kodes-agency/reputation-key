@@ -4,6 +4,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { softDeletePortal } from './soft-delete-portal'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -21,11 +22,15 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null, revokedCount
   const portalRepo = createInMemoryPortalRepo()
   const events = createCapturingEventBus()
   const revokeForPortal = vi.fn(async () => revokedCount)
+  const portalTokenRepo = { revokeForPortal } as unknown as PortalTokenRepository
   const deps = {
     portalRepo,
-    portalTokenRepo: { revokeForPortal } as unknown as PortalTokenRepository,
+    commandStore: createInMemoryPortalCommandStore({
+      portalRepo,
+      portalTokenRepo,
+      events,
+    }),
     staffPublicApi: staffApiMock(accessible),
-    events,
     clock: () => FIXED_TIME,
   }
   const useCase = softDeletePortal(deps)

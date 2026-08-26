@@ -54,6 +54,7 @@ import {
   updatePortalResponsibleManagers,
 } from './application/use-cases/portal-responsible-managers'
 import { createPortalWorkflowFactStore } from './infrastructure/portal-workflow-fact-store'
+import { createAtomicPortalCommandStore } from './infrastructure/portal-command-store'
 import { decidePublicExecution } from '#/shared/auth/execution-policy'
 import { portalId, portalGroupId, userId } from '#/shared/domain/ids'
 import { listEligiblePortalManagers } from './application/portal-manager-eligibility'
@@ -89,6 +90,7 @@ type PortalContextDeps = Readonly<{
 
 export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalRepo = createPortalRepository(deps.db)
+  const portalCommandStore = createAtomicPortalCommandStore(deps.db, deps.events)
   const portalLinkRepo = createPortalLinkRepository(deps.db)
   const portalGroupRepo = createPortalGroupRepository(deps.db)
   const portalTokenRepo = createPortalTokenRepository(deps.db)
@@ -141,18 +143,18 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     }),
     createPortal: createPortal({
       portalRepo,
+      commandStore: portalCommandStore,
       propertyApi: deps.propertyApi,
       staffPublicApi: deps.staffPublicApi,
       identityPublicApi: deps.identityPublicApi,
-      events: deps.events,
       idGen: portalIdGen,
       clock: deps.clock,
     }),
     updatePortal: updatePortal({
       portalRepo,
+      commandStore: portalCommandStore,
       propertyGoogleReviewDestinationApi: deps.propertyApi,
       staffPublicApi: deps.staffPublicApi,
-      events: deps.events,
       clock: deps.clock,
     }),
     getPortal: getPortal({
@@ -164,9 +166,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     listPortals: listPortals({ portalRepo, staffPublicApi: deps.staffPublicApi }),
     softDeletePortal: softDeletePortal({
       portalRepo,
-      portalTokenRepo,
+      commandStore: portalCommandStore,
       staffPublicApi: deps.staffPublicApi,
-      events: deps.events,
       clock: deps.clock,
     }),
     createLinkCategory: createLinkCategory({

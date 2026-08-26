@@ -13,6 +13,7 @@ import type {
   PropertyId,
 } from '#/shared/domain/ids'
 import { portalError } from './errors'
+import type { PortalPublicationState } from './portal-publication'
 
 // ── Portal events ──────────────────────────────────────────────────
 
@@ -22,8 +23,9 @@ export type PortalCreated = Readonly<{
   correlationId: string | null
   portalId: PortalId
   organizationId: OrganizationId
-  name: string
-  slug: string
+  propertyId: PropertyId
+  publicationState: PortalPublicationState
+  sourceAggregateVersion: string
   occurredAt: Date
 }>
 
@@ -33,8 +35,10 @@ export type PortalUpdated = Readonly<{
   correlationId: string | null
   portalId: PortalId
   organizationId: OrganizationId
-  name: string
-  slug: string
+  propertyId: PropertyId
+  previousPublicationState: PortalPublicationState
+  publicationState: PortalPublicationState
+  sourceAggregateVersion: string
   occurredAt: Date
 }>
 
@@ -44,6 +48,8 @@ export type PortalDeleted = Readonly<{
   correlationId: string | null
   portalId: PortalId
   organizationId: OrganizationId
+  propertyId: PropertyId
+  sourceAggregateVersion: string
   occurredAt: Date
 }>
 
@@ -251,16 +257,21 @@ export type PortalEvent =
 
 // ── Event constructors ─────────────────────────────────────────────
 
+function assertPortalLifecycleFact(args: {
+  occurredAt: Date
+  sourceAggregateVersion: string
+}): void {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(
+    args.sourceAggregateVersion === args.occurredAt.toISOString(),
+    'sourceAggregateVersion must equal occurredAt in ISO format',
+  )
+}
+
 export const portalCreated = (
   args: Omit<PortalCreated, '_tag' | 'eventId' | 'correlationId'>,
 ): PortalCreated => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  if (!args.name || args.name.trim().length === 0) {
-    throw portalError('invalid_name', 'name must be a non-empty string')
-  }
-  if (!args.slug || args.slug.trim().length === 0) {
-    throw portalError('invalid_slug', 'slug must be a non-empty string')
-  }
+  assertPortalLifecycleFact(args)
   return {
     _tag: 'portal.created',
     eventId: newEventId(),
@@ -272,13 +283,7 @@ export const portalCreated = (
 export const portalUpdated = (
   args: Omit<PortalUpdated, '_tag' | 'eventId' | 'correlationId'>,
 ): PortalUpdated => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  if (!args.name || args.name.trim().length === 0) {
-    throw portalError('invalid_name', 'name must be a non-empty string')
-  }
-  if (!args.slug || args.slug.trim().length === 0) {
-    throw portalError('invalid_slug', 'slug must be a non-empty string')
-  }
+  assertPortalLifecycleFact(args)
   return {
     _tag: 'portal.updated',
     eventId: newEventId(),
@@ -290,7 +295,7 @@ export const portalUpdated = (
 export const portalDeleted = (
   args: Omit<PortalDeleted, '_tag' | 'eventId' | 'correlationId'>,
 ): PortalDeleted => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assertPortalLifecycleFact(args)
   return {
     _tag: 'portal.deleted',
     eventId: newEventId(),

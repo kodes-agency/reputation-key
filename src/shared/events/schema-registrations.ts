@@ -555,11 +555,23 @@ const portalApprovedDestinationRatioRecordedSchema = portalWorkflowFactSchema.ex
   configuredDestinations: z.number().int().nonnegative(),
 })
 
-const portalDeletedSchema = z.object({
+const portalLifecycleFactSchema = z.object({
   portalId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
+  sourceAggregateVersion: z.iso.datetime(),
+  occurredAt: z.iso.datetime(),
 })
+
+const portalCreatedSchema = portalLifecycleFactSchema.extend({
+  publicationState: z.enum(['draft', 'published', 'disabled', 'archived']),
+})
+
+const portalUpdatedSchema = portalCreatedSchema.extend({
+  previousPublicationState: z.enum(['draft', 'published', 'disabled', 'archived']),
+})
+
+const portalDeletedSchema = portalLifecycleFactSchema
 
 const portalResponsibilityNeededSchema = z.object({
   portalId: z.string(),
@@ -901,6 +913,16 @@ export function registerAllEventSchemas(): void {
   })
 
   // Portal events
+  registerEventSchema({
+    type: 'portal.created',
+    version: EVENT_VERSION,
+    schema: portalCreatedSchema,
+  })
+  registerEventSchema({
+    type: 'portal.updated',
+    version: EVENT_VERSION,
+    schema: portalUpdatedSchema,
+  })
   registerEventSchema({
     type: 'portal.deleted',
     version: EVENT_VERSION,

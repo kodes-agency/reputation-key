@@ -29,8 +29,6 @@ const REGISTER: Readonly<Record<string, string>> = {
   // (on-reply-rejected) and notification email bodies copy it.
   'ReviewReplyRejected.reason': 'BQC-1 gap: protected content on the bus',
   // By-design non-sensitive display names (no PII, no review content).
-  'PortalCreated.name': 'by-design non-sensitive display name',
-  'PortalUpdated.name': 'by-design non-sensitive display name',
   'PortalGroupCreated.name': 'by-design non-sensitive display name',
   'PortalGroupUpdated.name': 'by-design non-sensitive display name',
   'TeamCreated.name': 'by-design non-sensitive display name',

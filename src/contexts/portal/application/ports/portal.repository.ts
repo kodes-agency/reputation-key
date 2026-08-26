@@ -9,7 +9,6 @@ import type {
   PortalGroupId,
   UserId,
 } from '#/shared/domain/ids'
-import type { PortalResponsibilityNeeded } from '../../domain/events'
 
 export type PublicPortalRepositoryResult = Readonly<{
   portal: Readonly<{
@@ -54,11 +53,11 @@ export type PortalRepository = Readonly<{
     slug: string,
     excludeId?: PortalId,
   ) => Promise<boolean>
+  /** Local/test insertion only; active application creation uses PortalCommandStore. */
   insert: (
     orgId: OrganizationId,
     portal: Portal,
     initialResponsibleManagerId?: UserId | null,
-    responsibilityNeededEvent?: PortalResponsibilityNeeded | null,
   ) => Promise<void>
   update: (
     orgId: OrganizationId,

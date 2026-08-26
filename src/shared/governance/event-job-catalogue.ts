@@ -30,8 +30,9 @@
 //     Correctness rests on state-idempotent consumers (projections converge
 //     to the same state) + receipt fencing (eventId+consumerName), not on
 //     order.
-//   - Aggregate-version fencing is NOT implemented: no event family versions
-//     its aggregate today (envelope.sourceAggregateVersion is always null).
+//   - Aggregate-version fencing is implemented only by families that stamp
+//     sourceAggregateVersion (Portal lifecycle facts use the committed
+//     updatedAt instant). Every other family remains unfenced today.
 //     When a family needs strict per-aggregate sequencing, add version
 //     fencing at the consumer; do NOT rely on enqueue order.
 //
@@ -1020,24 +1021,40 @@ const STAFF_ROWS: ReadonlyArray<EventFamilyRow> = [
 ]
 
 const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
-  ev('portal.created', PORTAL_EVENTS, {
-    stateOwner: 'portal',
-    capability: 'portal.read',
-    action: 'none',
-    schemaRegistered: false,
-    recordedInOutbox: false,
-    consumers: [],
-    disposition: 'denied_dark',
-  }),
-  ev('portal.updated', PORTAL_EVENTS, {
-    stateOwner: 'portal',
-    capability: 'portal.read',
-    action: 'none',
-    schemaRegistered: false,
-    recordedInOutbox: false,
-    consumers: [],
-    disposition: 'denied_dark',
-  }),
+  ev(
+    'portal.created',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.read',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'identifier-only Portal lifecycle fact; state, initial responsibility, and required fact set commit atomically',
+    },
+  ),
+  ev(
+    'portal.updated',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.read',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'identifier-only version-fenced lifecycle fact; Portal patch and fact commit atomically',
+    },
+  ),
   ev(
     'portal.responsibility_became_needed',
     PORTAL_EVENTS,
@@ -1109,7 +1126,10 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
       consumers: [bus('goal.event-handlers', GOAL_HANDLERS)],
       disposition: 'denied_dark',
     },
-    { notes: 'goal cleanup consumer is itself dark' },
+    {
+      notes:
+        'Portal soft-delete, live-token revocation, and their identifier-only facts commit atomically; goal cleanup consumer is itself dark',
+    },
   ),
   ev(
     'portal.token.issued',

@@ -3,7 +3,6 @@
 
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { Portal, PortalId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreatePortalInput } from '../dto/create-portal.dto'
@@ -17,13 +16,14 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { IdentityPublicApi } from '#/contexts/identity/application/public-api'
 import { assertNewPortalPropertyAccess } from '../load-accessible-portal'
 import { isEligiblePortalManager } from '../portal-manager-eligibility'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
 
 export type CreatePortalDeps = Readonly<{
   portalRepo: PortalRepository
   propertyApi: PropertyPublicApi
   staffPublicApi: StaffPublicApi
   identityPublicApi: IdentityPublicApi
-  events: EventBus
+  commandStore: PortalCommandStore
   idGen: () => PortalId
   clock: () => Date
 }>
@@ -84,8 +84,9 @@ export const createPortal =
     const createdEvent = portalCreated({
       portalId: portal.id,
       organizationId: portal.organizationId,
-      name: portal.name,
-      slug: portal.slug,
+      propertyId: portal.propertyId,
+      publicationState: portal.publicationState,
+      sourceAggregateVersion: portal.updatedAt.toISOString(),
       occurredAt: portal.createdAt,
     })
     const responsibilityNeededEvent = creatorIsEligible
@@ -97,17 +98,14 @@ export const createPortal =
           occurredAt: portal.createdAt,
         })
 
-    // 5. Persist
-    await deps.portalRepo.insert(
-      ctx.organizationId,
+    // 5 + 6. Commit authoritative state and every required durable fact.
+    await deps.commandStore.createPortal({
+      organizationId: ctx.organizationId,
       portal,
-      creatorIsEligible ? ctx.userId : null,
-      responsibilityNeededEvent,
-    )
-
-    // 6. Emit event
-    await deps.events.emit(createdEvent)
-    if (responsibilityNeededEvent) await deps.events.emit(responsibilityNeededEvent)
+      initialResponsibleManagerId: creatorIsEligible ? ctx.userId : null,
+      event: createdEvent,
+      ...(responsibilityNeededEvent ? { responsibilityNeededEvent } : {}),
+    })
 
     // 7. Return
     return portal

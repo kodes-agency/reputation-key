@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest'
 import { createPortal } from './create-portal'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { isPortalError } from '../../domain/errors'
@@ -58,7 +59,7 @@ const setup = (
         },
       ],
     },
-    events,
+    commandStore: createInMemoryPortalCommandStore({ portalRepo, events }),
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
   }
@@ -160,7 +161,13 @@ describe('createPortal', () => {
 
     const emitted = events.capturedByTag('portal.created')
     expect(emitted).toHaveLength(1)
-    expect(emitted[0].name).toBe('My Portal')
+    expect(emitted[0]).toMatchObject({
+      propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
+      publicationState: 'draft',
+      sourceAggregateVersion: FIXED_TIME.toISOString(),
+    })
+    expect(emitted[0]).not.toHaveProperty('name')
+    expect(emitted[0]).not.toHaveProperty('slug')
   })
 
   it('rejects invalid name', async () => {

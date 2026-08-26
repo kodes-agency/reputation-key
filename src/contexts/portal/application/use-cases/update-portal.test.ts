@@ -4,6 +4,7 @@ import { describe, it, expect } from 'vitest'
 import { updatePortal, resolvePortalContentFields } from './update-portal'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -25,6 +26,7 @@ const setup = (
   let destinationLookups = 0
   const deps = {
     portalRepo,
+    commandStore: createInMemoryPortalCommandStore({ portalRepo, events }),
     propertyGoogleReviewDestinationApi: {
       getGoogleReviewDestination: async () => {
         destinationLookups += 1
@@ -46,7 +48,6 @@ const setup = (
       },
     },
     staffPublicApi: staffApiMock(accessible),
-    events,
     clock: () => FIXED_TIME,
   }
   const useCase = updatePortal(deps)
@@ -149,7 +150,14 @@ describe('updatePortal', () => {
 
     const emitted = events.capturedByTag('portal.updated')
     expect(emitted).toHaveLength(1)
-    expect(emitted[0].name).toBe('Updated')
+    expect(emitted[0]).toMatchObject({
+      propertyId: portal.propertyId,
+      previousPublicationState: portal.publicationState,
+      publicationState: portal.publicationState,
+      sourceAggregateVersion: FIXED_TIME.toISOString(),
+    })
+    expect(emitted[0]).not.toHaveProperty('name')
+    expect(emitted[0]).not.toHaveProperty('slug')
   })
 
   it('rejects update with empty name', async () => {

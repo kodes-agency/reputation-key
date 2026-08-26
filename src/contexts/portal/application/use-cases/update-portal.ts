@@ -1,7 +1,6 @@
 // Portal context — update portal use case
 
 import type { PortalRepository } from '../ports/portal.repository'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { Portal, PortalTheme } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdatePortalInput } from '../dto/update-portal.dto'
@@ -21,17 +20,16 @@ import type { Result } from '#/shared/domain'
 import type { PortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 import { transitionPortalPublication } from '../../domain/portal-publication'
 import type { PropertyGoogleReviewDestinationPublicApi } from '#/contexts/property/application/public-api'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
 
 export type UpdatePortalDeps = Readonly<{
   portalRepo: PortalRepository
+  commandStore: PortalCommandStore
   propertyGoogleReviewDestinationApi: PropertyGoogleReviewDestinationPublicApi
   staffPublicApi: StaffPublicApi
-  events: EventBus
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 type PortalPatch = {
@@ -205,22 +203,22 @@ export const updatePortal =
     }
 
     const updatedAt = deps.clock()
-    await deps.portalRepo.update(ctx.organizationId, pid, {
-      ...patch,
-      updatedAt,
-    })
-
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      portalUpdated({
+    await deps.commandStore.updatePortal({
+      organizationId: ctx.organizationId,
+      propertyId: existing.propertyId,
+      portalId: pid,
+      expectedUpdatedAt: existing.updatedAt,
+      patch: { ...patch, updatedAt },
+      event: portalUpdated({
         portalId: pid,
         organizationId: ctx.organizationId,
-        name: patch.name,
-        slug: patch.slug,
+        propertyId: existing.propertyId,
+        previousPublicationState: existing.publicationState,
+        publicationState: patch.publicationState,
+        sourceAggregateVersion: updatedAt.toISOString(),
         occurredAt: updatedAt,
       }),
-    )
+    })
 
     return buildUpdatedPortal(existing, patch, updatedAt)
   }
