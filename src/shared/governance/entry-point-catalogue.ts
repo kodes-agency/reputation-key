@@ -3664,6 +3664,19 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/review/finding-revalidation.ts',
+    'scripts/review/finding-revalidation.ts',
+    'none',
+    {
+      notes:
+        'FND-01 read-only validator: binds the complete finding revalidation record to the immutable review register, frozen source evidence, owner/package mapping, and executable or explicitly deferred closure criteria',
+    },
+  ),
+  ops('scripts/review/pre-fix-oracles.ts', 'scripts/review/pre-fix-oracles.ts', 'none', {
+    notes:
+      'review:validate-pre-fix-oracles / review:run-pre-fix-oracle — validates digest-bound historical regression artifacts and optionally runs one governed current test command; it does not mutate product data',
+  }),
+  ops(
     'scripts/review/zod-v4-conformance.ts',
     'scripts/review/zod-v4-conformance.ts',
     'none',
