@@ -15,7 +15,7 @@
 //   5. jobs — bootstrap.ts register(...) / registerCapabilityGatedJob(...)
 //      with imported JOB_NAME(S) constant resolution (same approach as the
 //      BQC-2.1 entry-point catalogue guard)
-//   6. schedules — worker/index.ts backgroundQueue.add(...) repeat options
+//   6. schedules — worker/index.ts planSchedule(...) registrations
 //   7. cross-catalogue consistency with the BQC-2.1 entry-point catalogue
 //
 // Policy invariants: enabled event families have consumers, orphan families
@@ -249,20 +249,17 @@ function scheduleString(pattern?: string, every?: string, offset?: string): stri
   return offset ? `every:${ms},offset:${evalNumericExpr(offset)}` : `every:${ms}`
 }
 
-/** Standalone `.add(NAME, {}, { repeat, jobId: '<name>-recurring' })` calls. */
-function standaloneSchedules(content: string): Map<string, string> {
+/** Standalone `planSchedule({ jobName, repeat })` calls. */
+function plannedSchedules(
+  content: string,
+  imports: Map<string, ImportTarget>,
+): Map<string, string> {
   const out = new Map<string, string>()
-  for (const chunk of content.split('.add(').slice(1)) {
-    // Repeat options are read only up to the jobId literal — the chunk runs
-    // on until the next `.add(` and would otherwise absorb unrelated
-    // `pattern:`/`every:` keys from later schedule tables.
-    const jobId = /jobId:\s*'([^']+)-recurring'/.exec(chunk)
-    if (!jobId) continue
-    const opts = chunk.slice(0, jobId.index)
-    const every = /every:\s*([0-9]+(?:\s*\*\s*[0-9]+)*)/.exec(opts)?.[1]
-    const offset = /offset:\s*([0-9]+(?:\s*\*\s*[0-9]+)*)/.exec(opts)?.[1]
-    const pattern = /pattern:\s*'([^']+)'/.exec(opts)?.[1]
-    out.set(jobId[1], scheduleString(pattern, every, offset))
+  const callRe =
+    /planSchedule\(\s*\{\s*jobName:\s*(?:'([^']+)'|JOB_NAMES\.(\w+)|(\w+)),\s*repeat:\s*\{\s*(?:pattern:\s*'([^']+)'|every:\s*([0-9]+(?:\s*\*\s*[0-9]+)*))(?:,\s*offset:\s*([0-9]+(?:\s*\*\s*[0-9]+)*))?\s*\},/g
+  for (const match of content.matchAll(callRe)) {
+    const name = resolveJobName(match[1], match[3], match[2], imports)
+    if (name) out.set(name, scheduleString(match[4], match[5], match[6]))
   }
   return out
 }
@@ -288,7 +285,7 @@ function discoverSchedules(): ReadonlyMap<string, string> {
   const content = readRel(file)
   const imports = importMap(file)
   return new Map([
-    ...standaloneSchedules(content),
+    ...plannedSchedules(content, imports),
     ...arrayLiteralSchedules(content, imports),
   ])
 }
