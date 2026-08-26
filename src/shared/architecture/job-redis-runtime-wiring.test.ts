@@ -19,4 +19,12 @@ describe('BullMQ Redis boot contract', () => {
       /command: \[redis-server, --appendonly, 'yes', --maxmemory-policy, noeviction\]/,
     )
   })
+
+  it('owns signals and fatal asynchronous process failures explicitly', () => {
+    expect(worker).toContain('createWorkerProcessFailurePolicy')
+    expect(worker).toContain("process.once('SIGTERM'")
+    expect(worker).toContain("process.once('SIGINT'")
+    expect(worker).toContain("process.once('unhandledRejection'")
+    expect(worker).toContain("process.once('uncaughtException'")
+  })
 })

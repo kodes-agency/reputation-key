@@ -36,6 +36,10 @@ import {
 } from '#/shared/jobs/job-schedulers'
 import { drainWorkerResources, namedCloseable } from './drain'
 import {
+  createWorkerProcessFailurePolicy,
+  type WorkerTerminationTrigger,
+} from './process-failure'
+import {
   QUARANTINE_QUEUE_NAME,
   quarantineJobDirect,
 } from '#/shared/jobs/failure-quarantine'
@@ -553,8 +557,8 @@ async function main() {
   // Railway's 30s drainingSeconds); a hung job previously stalled the deploy
   // window until SIGKILL. Budget expiry exits 1 — an unclean stop the
   // platform records — instead of an unbounded wait.
-  const shutdown = async (signal: string) => {
-    logger.info({ signal }, 'Shutdown signal received, draining workers')
+  const shutdown = async (trigger: WorkerTerminationTrigger, exitCode: 0 | 1) => {
+    logger.info({ exitCode, trigger }, 'Worker termination requested, draining workers')
 
     // Stop the outbox relay first (stop claiming new events)
     stopRelay?.()
@@ -583,11 +587,22 @@ async function main() {
       )
       process.exit(1)
     }
-    process.exit(0)
+    process.exit(exitCode)
   }
 
-  process.on('SIGTERM', () => void shutdown('SIGTERM'))
-  process.on('SIGINT', () => void shutdown('SIGINT'))
+  const processFailurePolicy = createWorkerProcessFailurePolicy({
+    shutdown,
+    exit: (code) => process.exit(code),
+    logger,
+  })
+  process.once('SIGTERM', () => processFailurePolicy.onSignal('SIGTERM'))
+  process.once('SIGINT', () => processFailurePolicy.onSignal('SIGINT'))
+  process.once('unhandledRejection', (reason) =>
+    processFailurePolicy.onUnhandledRejection(reason),
+  )
+  process.once('uncaughtException', (error) =>
+    processFailurePolicy.onUncaughtException(error),
+  )
 }
 
 main().catch((err) => {

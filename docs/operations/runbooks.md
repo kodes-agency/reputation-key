@@ -312,6 +312,8 @@ surface dark); network-level restriction of the ops surface is platform-owned
 
 **Connection policy:** `Queue` producers use one request retry plus a 5-second connect/command timeout. They return failure to the caller (or leave a durable outbox row unpublished for the next relay pass) instead of waiting forever. `Worker` blocking connections use `maxRetriesPerRequest=null` and continue reconnecting; SIGTERM/SIGINT stops new claims and the worker drain budget bounds shutdown. Do not copy the Worker connection policy onto producer queues.
 
+**Process-failure policy:** The first SIGTERM/SIGINT owns one bounded drain and exits 0. The first `unhandledRejection` or `uncaughtException` is fatal: its centrally sanitized error identity is logged, the same drain runs, and the process exits 1 so Railway restarts it. Later signals/failures cannot start competing close sequences; a rejecting drain forces exit 1.
+
 ---
 
 ## 8. Database Saturation / Failed Migration / Restore
