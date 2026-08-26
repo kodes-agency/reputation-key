@@ -1,20 +1,26 @@
 # Review source-content cutover
 
-Migration `0108_review_source_content_separation` is an expand migration. It
-creates `review_source_contents`, makes the legacy provider fields nullable,
-backfills rows with complete fetch-lifecycle controls, changes the Reply FK to
-`ON DELETE RESTRICT`, and adds the content-free tombstone invariant. It does
-not remove compatibility columns or activate a recurring sweep.
+Migrations `0108_review_source_content_separation` and
+`0116_stable_review_observations_and_material_revisions` form the Review expand
+track. They separate the current source-content cache, add versioned source
+observations and material revisions, make legacy provider fields nullable,
+backfill deterministic revision 1, keep the Reply FK at `ON DELETE RESTRICT`,
+and add content-free tombstone invariants. They do not remove compatibility
+columns or activate a recurring sweep.
 
 ## Required order
 
-1. Apply 0108 while destructive Review jobs remain quarantined.
-2. Deploy dual-write code. New/updated observations must write the stable
-   Review and source-content cache in one transaction.
-3. Reconcile rows excluded from backfill because a required fetch/expiry field
+1. Apply 0108 and then 0116 while Review lifecycle apply remains quarantined.
+2. Deploy the repository-owned writer. New/updated observations must write the
+   stable Review, current source-content cache, source observation, material
+   revision, and minimal outbox fact in one transaction.
+3. Reconcile rows excluded from observation backfill because a fetch/expiry field
    is missing; never invent a provider observation time.
-4. Compare every active compatibility row with `review_source_contents` by
-   Review ID, tenant, Property, source epoch/revision, expiry, and raw fields.
+4. Compare every active compatibility row with `review_source_contents` and
+   the latest `review_source_observations` row by Review ID, tenant, Property,
+   source epoch, material revision, expiry, and provider-controlled fields.
+   Confirm every Review has revision 1 and each observation has a valid
+   material-revision relationship.
 5. Run provider-deleted, source-expired, and re-observed real-PostgreSQL tests.
 6. Shadow new reads, then record a zero-difference observation window.
 7. Only after approval, activate the checkpointed field-erasure lifecycle.
@@ -28,8 +34,6 @@ logs, events, derivatives, or backups.
 
 ## Cutover blockers still open
 
-- Versioned Review Source Observations and Material Review Revisions, including
-  deterministic normalization-version shadow comparison, are not yet modeled.
 - Provider-controlled Google reply text is not yet separated from RepKey-owned
   Reply history.
 - Connection, property, and organization purge entry points now perform
@@ -37,5 +41,7 @@ logs, events, derivatives, or backups.
   Replies. They still need to converge on the single checkpointed lifecycle
   authority, with production activation evidence, before recurring erasure is
   enabled.
-- Backfill reconciliation, shadow-read parity, report-only production evidence,
-  restore erasure evidence, and the final schedule activation approval remain.
+- External backfill reconciliation, shadow-read parity, report-only production
+  evidence, restore erasure evidence, and final schedule activation approval
+  remain open. Repository and local PostgreSQL tests are implementation proof,
+  not rollout evidence.

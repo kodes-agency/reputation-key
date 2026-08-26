@@ -361,14 +361,16 @@ describe.sequential('reviewRepository (integration)', () => {
         reviews: [
           {
             reviewId: reviewId('1a000000-0000-0000-0000-0000000000a1'),
-            sourceRevision: 3,
+            // The observation adapter owns material numbering. Caller-supplied
+            // legacy counters cannot make the first material revision non-1.
+            sourceRevision: 1,
             analysisSequence: 11,
             localDate: '2026-08-16',
             hasText: true,
           },
           {
             reviewId: reviewId('1a000000-0000-0000-0000-0000000000a2'),
-            sourceRevision: 4,
+            sourceRevision: 1,
             analysisSequence: 12,
             localDate: '2026-08-16',
             hasText: false,

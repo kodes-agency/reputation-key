@@ -134,6 +134,8 @@ export const createReviewProviderObservationWriter = (
       sentimentLabel: existing?.sentimentLabel ?? stableIdentity?.sentimentLabel ?? null,
       sentimentScore: existing?.sentimentScore ?? stableIdentity?.sentimentScore ?? null,
       ...lifecycle,
+      sourceCreatedAt: input.review.sourceCreatedAt ?? lifecycle.sourceCreatedAt,
+      sourceUpdatedAt: input.review.sourceUpdatedAt ?? lifecycle.sourceUpdatedAt,
     }
     const expired =
       (stableIdentity != null && stableIdentity.sourceContentState !== 'active') ||
@@ -145,6 +147,7 @@ export const createReviewProviderObservationWriter = (
       isNew: existing == null && stableIdentity == null,
       contentUnchanged,
       expired,
+      observationKey: input.observationKey,
     })
     await mirrorReply(
       deps,
@@ -172,10 +175,15 @@ async function persistObservation(
     isNew: boolean
     contentUnchanged: boolean
     expired: boolean
+    observationKey: string
   }>,
 ): Promise<Review> {
-  if (state.expired) return deps.commandStore.reobserveExpiredAndRecord(review, now)
-  if (state.contentUnchanged) return deps.reviewRepo.upsert(review, now)
+  if (state.expired) {
+    return deps.commandStore.reobserveExpiredAndRecord(review, now, state.observationKey)
+  }
+  if (state.contentUnchanged) {
+    return deps.reviewRepo.upsert(review, now, state.observationKey)
+  }
   const eventForReview = (persisted: Review) => {
     const payload = {
       reviewId: persisted.id,
@@ -189,7 +197,12 @@ async function persistObservation(
     }
     return state.isNew ? reviewCreated(payload) : reviewUpdated(payload)
   }
-  return deps.commandStore.upsertAndRecord(review, eventForReview, now)
+  return deps.commandStore.upsertAndRecord(
+    review,
+    eventForReview,
+    now,
+    state.observationKey,
+  )
 }
 
 async function mirrorReply(

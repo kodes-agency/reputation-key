@@ -10,6 +10,7 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GoogleReviewApiPort } from './application/ports/google-review-api.port'
 import type { PropertyRoutingPort } from './application/ports/property-routing.port'
 import type { ReviewRepository } from './application/ports/review.repository'
+import type { ReviewObservationRepository } from './application/ports/review-observation.repository'
 import type { ReplyRepository } from './application/ports/reply.repository'
 import type { ReviewQueuePort } from './application/ports/review-queue.port'
 import type {
@@ -20,6 +21,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PropertyProcessingScopePublicApi } from '#/contexts/property/application/public-api'
 import type { AiReplyProvenancePublicKeyring } from './application/ports/ai-suggested-draft-store.port'
 import { createReviewRepository } from './infrastructure/repositories/review.repository'
+import { createReviewObservationRepository } from './infrastructure/repositories/review-observation.repository'
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
 import { createServingStats } from './infrastructure/serving-stats'
 import type { ReviewServingStats } from './application/ports/serving-stats.port'
@@ -97,6 +99,7 @@ export type ReviewContextApi = Readonly<{
   internal: Readonly<{
     repos: Readonly<{
       reviewRepo: ReviewRepository
+      observationRepo: ReviewObservationRepository
       replyRepo: ReplyRepository
       queue: ReviewQueuePort
       replyQueue: ReplyQueuePort
@@ -129,6 +132,7 @@ export type ReviewContextApi = Readonly<{
 
 export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContextApi => {
   const reviewRepo = createReviewRepository(input.db)
+  const observationRepo = createReviewObservationRepository(input.db)
   const replyRepo = createReplyRepository(input.db)
   const providerSubjectKeys = input.providerSubjectKeyring
     ? createReviewProviderSubjectKeyService({
@@ -336,6 +340,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     internal: {
       repos: {
         reviewRepo,
+        observationRepo,
         replyRepo,
         queue,
         replyQueue,

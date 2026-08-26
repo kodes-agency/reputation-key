@@ -170,12 +170,10 @@ export function defaultReviewLifecycle(args: {
     contentHash: args.contentHash ?? existing?.contentHash ?? null,
     sourceSeenGeneration: existing?.sourceSeenGeneration ?? null,
     sourceEpoch: args.sourceEpoch ?? existing?.sourceEpoch ?? 0,
-    sourceRevision:
-      existing == null
-        ? 1
-        : aiSourceDigest !== existing.aiSourceDigest
-          ? existing.sourceRevision + 1
-          : existing.sourceRevision,
+    // The repository-owned material comparator is the sole revision-number
+    // authority. Lifecycle defaults preserve an existing revision and never
+    // infer a guest edit from AI-source or metadata changes.
+    sourceRevision: existing?.sourceRevision ?? 1,
     analysisSequence: existing?.analysisSequence ?? 0,
     aiSourceByteLength: args.aiSourceByteLength,
     aiSourceDigest,
@@ -195,6 +193,10 @@ export type GoogleReview = Readonly<{
   translatedText: string | null
   languageCode: string | null
   reviewedAt: Date
+  /** Provider-authored creation clock, when supplied by the source adapter. */
+  sourceCreatedAt?: Date
+  /** Provider-authored update clock used to reject out-of-order observations. */
+  sourceUpdatedAt?: Date | null
   replyText: string | null
   replyUpdatedAt: Date | null
 }>

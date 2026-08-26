@@ -84,6 +84,16 @@ export const reviews = pgTable(
     sourceSeenGeneration: uuid('source_seen_generation'),
     sourceEpoch: integer('source_epoch').notNull(),
     sourceRevision: bigint('source_revision', { mode: 'number' }).notNull(),
+    sourceObservationSequence: bigint('source_observation_sequence', {
+      mode: 'number',
+    })
+      .notNull()
+      .default(0),
+    materialNormalizationVersion: varchar('material_normalization_version', {
+      length: 64,
+    }),
+    materialSourceDigest: varchar('material_source_digest', { length: 64 }),
+    materialNormalizedDigest: varchar('material_normalized_digest', { length: 64 }),
     analysisSequence: bigint('analysis_sequence', { mode: 'number' }).notNull(),
     aiSourceByteLength: integer('ai_source_byte_length'),
     aiSourceDigest: varchar('ai_source_digest', { length: 64 }),
@@ -138,6 +148,28 @@ export const reviews = pgTable(
     check(
       'reviews_source_revision_safe',
       sql`${t.sourceRevision} BETWEEN 0 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'reviews_source_observation_sequence_safe',
+      sql`${t.sourceObservationSequence} BETWEEN 0 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'reviews_material_comparison_head_valid',
+      sql`(
+        ${t.materialNormalizationVersion} IS NULL
+        AND ${t.materialSourceDigest} IS NULL
+        AND ${t.materialNormalizedDigest} IS NULL
+      ) OR (
+        ${t.materialNormalizationVersion} = 'legacy-unverified-v0'
+        AND ${t.materialSourceDigest} IS NULL
+        AND ${t.materialNormalizedDigest} IS NULL
+      ) OR (
+        ${t.materialNormalizationVersion} = 'review-material-v1'
+        AND ${t.materialSourceDigest} IS NOT NULL
+        AND ${t.materialSourceDigest} ~ '^[0-9a-f]{64}$'
+        AND ${t.materialNormalizedDigest} IS NOT NULL
+        AND ${t.materialNormalizedDigest} ~ '^[0-9a-f]{64}$'
+      )`,
     ),
     check(
       'reviews_analysis_sequence_safe',
@@ -245,6 +277,210 @@ export const reviewSourceContents = pgTable(
       'review_source_contents_ai_source_valid',
       sql`${t.aiSourceByteLength} BETWEEN 1 AND '4294967295'::bigint
         AND ${t.aiSourceDigest} ~ '^[0-9a-f]{64}$'`,
+    ),
+  ],
+)
+
+/**
+ * Stable, numbered business revisions. Provider content can be erased from a
+ * revision while its identity and comparison evidence remain available to
+ * RepKey-owned workflow records.
+ */
+export const materialReviewRevisions = pgTable(
+  'material_review_revisions',
+  {
+    reviewId: uuid('review_id').notNull(),
+    revision: bigint('revision', { mode: 'number' }).notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    normalizationVersion: varchar('normalization_version', { length: 64 }).notNull(),
+    sourceDigest: varchar('source_digest', { length: 64 }),
+    normalizedDigest: varchar('normalized_digest', { length: 64 }),
+    rating: integer('rating'),
+    normalizedText: text('normalized_text'),
+    contentState: varchar('content_state', { length: 24 }).notNull().default('active'),
+    contentErasedAt: timestamp('content_erased_at', { withTimezone: true }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    primaryKey({
+      name: 'material_review_revisions_pk',
+      columns: [t.reviewId, t.revision],
+    }),
+    foreignKey({
+      name: 'material_review_revisions_review_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.reviewId],
+      foreignColumns: [reviews.organizationId, reviews.propertyId, reviews.id],
+    }).onDelete('cascade'),
+    index('material_review_revisions_scope_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.reviewId,
+      t.revision,
+    ),
+    check(
+      'material_review_revisions_controls_safe',
+      sql`${t.sourceEpoch} BETWEEN 0 AND 2147483647
+        AND ${t.revision} BETWEEN 1 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'material_review_revisions_comparison_valid',
+      sql`(
+        ${t.normalizationVersion} = 'legacy-unverified-v0'
+        AND ${t.sourceDigest} IS NULL
+        AND ${t.normalizedDigest} IS NULL
+      ) OR (
+        ${t.normalizationVersion} = 'review-material-v1'
+        AND ${t.sourceDigest} IS NOT NULL
+        AND ${t.sourceDigest} ~ '^[0-9a-f]{64}$'
+        AND ${t.normalizedDigest} IS NOT NULL
+        AND ${t.normalizedDigest} ~ '^[0-9a-f]{64}$'
+      )`,
+    ),
+    check(
+      'material_review_revisions_content_state_valid',
+      sql`(
+        ${t.contentState} = 'active'
+        AND ${t.contentErasedAt} IS NULL
+        AND ${t.rating} IS NOT NULL
+        AND ${t.rating} BETWEEN 1 AND 5
+      ) OR (
+        ${t.contentState} IN ('source_expired', 'provider_deleted')
+        AND ${t.contentErasedAt} IS NOT NULL
+        AND ${t.rating} IS NULL
+        AND ${t.normalizedText} IS NULL
+      )`,
+    ),
+  ],
+)
+
+/**
+ * Versioned provider observations. An observation records both the exact and
+ * normalized comparison digests; its material revision link changes only when
+ * rating or normalized original guest text changes.
+ */
+export const reviewSourceObservations = pgTable(
+  'review_source_observations',
+  {
+    reviewId: uuid('review_id').notNull(),
+    observationSequence: bigint('observation_sequence', { mode: 'number' }).notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    observationKey: varchar('observation_key', { length: 64 }).notNull(),
+    observationDigest: varchar('observation_digest', { length: 64 }).notNull(),
+    materialRevision: bigint('material_revision', { mode: 'number' }).notNull(),
+    observedAt: timestamp('observed_at', { withTimezone: true }).notNull(),
+    contentExpiresAt: timestamp('content_expires_at', { withTimezone: true }).notNull(),
+    sourceCreatedAt: timestamp('source_created_at', { withTimezone: true }),
+    sourceUpdatedAt: timestamp('source_updated_at', { withTimezone: true }),
+    sourceDigest: varchar('source_digest', { length: 64 }),
+    normalizationVersion: varchar('normalization_version', { length: 64 }).notNull(),
+    normalizedDigest: varchar('normalized_digest', { length: 64 }),
+    comparisonResult: varchar('comparison_result', { length: 40 }).notNull(),
+    rating: integer('rating'),
+    originalText: text('original_text'),
+    translatedText: text('translated_text'),
+    languageCode: varchar('language_code', { length: 10 }),
+    reviewerName: varchar('reviewer_name', { length: 255 }),
+    reviewerProfilePhotoUrl: varchar('reviewer_profile_photo_url', { length: 1000 }),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    contentState: varchar('content_state', { length: 24 }).notNull().default('active'),
+    contentErasedAt: timestamp('content_erased_at', { withTimezone: true }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    primaryKey({
+      name: 'review_source_observations_pk',
+      columns: [t.reviewId, t.observationSequence],
+    }),
+    foreignKey({
+      name: 'review_source_observations_review_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.reviewId],
+      foreignColumns: [reviews.organizationId, reviews.propertyId, reviews.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'review_source_observations_material_revision_fk',
+      columns: [t.reviewId, t.materialRevision],
+      foreignColumns: [
+        materialReviewRevisions.reviewId,
+        materialReviewRevisions.revision,
+      ],
+    }).onDelete('restrict'),
+    uniqueIndex('review_source_observations_key_unique').on(
+      t.reviewId,
+      t.sourceEpoch,
+      t.observationKey,
+    ),
+    index('review_source_observations_digest_idx').on(
+      t.reviewId,
+      t.sourceEpoch,
+      t.observationDigest,
+    ),
+    index('review_source_observations_expiry_idx').on(
+      t.contentState,
+      t.contentExpiresAt,
+      t.reviewId,
+      t.observationSequence,
+    ),
+    check(
+      'review_source_observations_controls_safe',
+      sql`${t.sourceEpoch} BETWEEN 0 AND 2147483647
+        AND ${t.observationSequence} BETWEEN 1 AND '9007199254740991'::bigint
+        AND ${t.materialRevision} BETWEEN 1 AND '9007199254740991'::bigint`,
+    ),
+    check(
+      'review_source_observations_digest_valid',
+      sql`${t.observationKey} ~ '^[0-9a-f]{64}$'
+        AND ${t.observationDigest} ~ '^[0-9a-f]{64}$'
+        AND (
+          (${t.normalizationVersion} = 'legacy-unverified-v0'
+            AND ${t.sourceDigest} IS NULL
+            AND ${t.normalizedDigest} IS NULL)
+          OR
+          (${t.normalizationVersion} = 'review-material-v1'
+            AND ${t.sourceDigest} IS NOT NULL
+            AND ${t.sourceDigest} ~ '^[0-9a-f]{64}$'
+            AND ${t.normalizedDigest} IS NOT NULL
+            AND ${t.normalizedDigest} ~ '^[0-9a-f]{64}$')
+        )`,
+    ),
+    check(
+      'review_source_observations_comparison_valid',
+      sql`${t.comparisonResult} IN (
+        'backfilled_unverified',
+        'initial_material_revision',
+        'unchanged',
+        'material_change',
+        'normalization_shadow_match',
+        'baseline_unavailable',
+        'out_of_order_ignored'
+      )`,
+    ),
+    check(
+      'review_source_observations_content_state_valid',
+      sql`(
+        ${t.contentState} = 'active'
+        AND ${t.contentErasedAt} IS NULL
+        AND ${t.rating} IS NOT NULL
+        AND ${t.rating} BETWEEN 1 AND 5
+        AND ${t.reviewedAt} IS NOT NULL
+      ) OR (
+        ${t.contentState} IN ('source_expired', 'provider_deleted')
+        AND ${t.contentErasedAt} IS NOT NULL
+        AND ${t.rating} IS NULL
+        AND ${t.originalText} IS NULL
+        AND ${t.translatedText} IS NULL
+        AND ${t.languageCode} IS NULL
+        AND ${t.reviewerName} IS NULL
+        AND ${t.reviewerProfilePhotoUrl} IS NULL
+        AND ${t.reviewedAt} IS NULL
+        AND ${t.sourceCreatedAt} IS NULL
+        AND ${t.sourceUpdatedAt} IS NULL
+      )`,
     ),
   ],
 )

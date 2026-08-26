@@ -1,6 +1,11 @@
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { reviews, reviewSourceContents } from '#/shared/db/schema/review.schema'
+import {
+  materialReviewRevisions,
+  reviews,
+  reviewSourceContents,
+  reviewSourceObservations,
+} from '#/shared/db/schema/review.schema'
 import { unbrand } from '#/shared/domain/ids'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
@@ -141,6 +146,55 @@ export async function eraseReviewSourceContent(
     )
     .returning({ id: reviews.id })
   if (!rows[0]) return false
+
+  // Historical identities and comparison controls remain, but provider-owned
+  // values are removed from every retained observation/revision. Manager-owned
+  // Replies, Inbox items, and their audit history are separate records and are
+  // intentionally outside this lifecycle operation.
+  await tx
+    .update(reviewSourceObservations)
+    .set({
+      rating: null,
+      originalText: null,
+      translatedText: null,
+      languageCode: null,
+      reviewerName: null,
+      reviewerProfilePhotoUrl: null,
+      reviewedAt: null,
+      sourceCreatedAt: null,
+      sourceUpdatedAt: null,
+      contentState: input.state,
+      contentErasedAt: sql`transaction_timestamp()`,
+      updatedAt: sql`transaction_timestamp()`,
+    })
+    .where(
+      and(
+        eq(reviewSourceObservations.reviewId, input.reviewId),
+        eq(reviewSourceObservations.organizationId, input.organizationId),
+        eq(reviewSourceObservations.propertyId, input.propertyId),
+        eq(reviewSourceObservations.sourceEpoch, input.sourceEpoch),
+        eq(reviewSourceObservations.contentState, 'active'),
+      ),
+    )
+
+  await tx
+    .update(materialReviewRevisions)
+    .set({
+      rating: null,
+      normalizedText: null,
+      contentState: input.state,
+      contentErasedAt: sql`transaction_timestamp()`,
+      updatedAt: sql`transaction_timestamp()`,
+    })
+    .where(
+      and(
+        eq(materialReviewRevisions.reviewId, input.reviewId),
+        eq(materialReviewRevisions.organizationId, input.organizationId),
+        eq(materialReviewRevisions.propertyId, input.propertyId),
+        eq(materialReviewRevisions.sourceEpoch, input.sourceEpoch),
+        eq(materialReviewRevisions.contentState, 'active'),
+      ),
+    )
 
   await tx
     .delete(reviewSourceContents)

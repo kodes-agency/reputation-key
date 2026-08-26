@@ -67,6 +67,7 @@ describe('Review provider observation identity', () => {
       propertyId: property,
       connectionId: connection,
       sourceEpoch: 4,
+      observationKey: 'f'.repeat(64),
       subjects: [subject],
       review: {
         reviewName: 'accounts/a/locations/l/reviews/r',
@@ -92,6 +93,7 @@ describe('Review provider observation identity', () => {
         analysisSequence: 11,
       }),
       now,
+      'f'.repeat(64),
     )
     expect(result).toEqual({ reviewId: stableReview, sourceRevision: 8, isNew: false })
   })

@@ -17,14 +17,17 @@ export type ReviewCommandStore = Readonly<{
     review: Omit<Review, 'createdAt' | 'updatedAt'>,
     event: DomainEvent | ((persisted: Review) => DomainEvent),
     now?: Date,
+    observationKey?: string,
   ): Promise<Review>
   /**
    * At the database expiry equality boundary, atomically emit the old source
-   * expiry and advance the same durable Review identity to a fresh revision.
-   * Dependent staff-authored records must remain attached to that identity.
+   * expiry and restore the same durable Review identity from a fresh
+   * observation. The material revision advances only for a material change;
+   * dependent staff-authored records remain attached to the identity.
    */
   reobserveExpiredAndRecord(
     review: Omit<Review, 'createdAt' | 'updatedAt'>,
     now?: Date,
+    observationKey?: string,
   ): Promise<Review>
 }>

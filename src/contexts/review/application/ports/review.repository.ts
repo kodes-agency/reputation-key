@@ -69,7 +69,11 @@ export type ReviewRepository = Readonly<{
       subjects: readonly [ReviewProviderSubject, ...ReviewProviderSubject[]]
     }>,
   ): Promise<StableReviewSourceIdentity | null>
-  upsert(review: Omit<Review, 'createdAt' | 'updatedAt'>, now?: Date): Promise<Review>
+  upsert(
+    review: Omit<Review, 'createdAt' | 'updatedAt'>,
+    now?: Date,
+    observationKey?: string,
+  ): Promise<Review>
   findByPropertyId(
     propertyId: PropertyId,
     organizationId: OrganizationId,

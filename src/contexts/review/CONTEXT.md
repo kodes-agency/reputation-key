@@ -10,8 +10,8 @@ is not the identity or history authority.
 
 - **Review** — Stable RepKey identity for one provider review. It survives provider deletion and source-content expiry so Replies and manager handling history keep a valid reference.
 - **Review Source Content** — Separately erasable provider-controlled fields (provider identifiers, rating, text, reviewer presentation, provider timestamps) for the currently observed revision.
-- **Review Source Observation** — Target versioned record of what was fetched and when. The current expand implementation stores one active source-content row; full observation history remains REV-01 work.
-- **Material Review Revision** — Target versioned business revision used to fence Inbox handling, Replies, and AI. It is not yet implemented by the compatibility Review columns.
+- **Review Source Observation** — Immutable sequence identity for each accepted provider fetch, linked to the Material Review Revision it observed. Provider-controlled values can be erased while its timing, digests, comparison result, and relationship remain.
+- **Material Review Revision** — Numbered business revision for original rating and normalized original guest text. Provider metadata, translation, profile-photo, and observation-time changes stay on the current material revision.
 - **Rating** — 1–5 star value on a Review. NOT the same as Guest Rating (guest context, private, via QR).
 - **Feedback** — Private text comment from a portal visitor (guest context). Never appears here.
 - **Reply** — Response to a Review. Separate entity from Review. Has `source`: `google_sync` (mirrored from Google) or `internal` (drafted by staff). Internal replies follow a lifecycle: `draft` → `pending_approval` → `approved` → `published` (or `publish_failed`). Can be `rejected` (with optional reason) and re-drafted.
@@ -33,18 +33,21 @@ is not the identity or history authority.
 
 - Period-serving reads use half-open business-time bounds (`start <= reviewedAt < end`) so adjacent Dashboard periods are contiguous and never double-count a boundary review.
 - Active source content has one `(platform, external_id, organization_id)` identity. The compatibility Review value becomes null after erasure; the HMAC mapping preserves stable re-observation identity without retaining the provider ID there.
+- Each accepted provider fetch has a monotonically increasing observation sequence and a replay-safe observation key. A replay creates neither another observation nor another event; an older provider version is retained as `out_of_order_ignored` and cannot replace the current Review.
+- Material comparison uses `review-material-v1`: NFC-normalize the original guest text, collapse Unicode whitespace to one ASCII space, trim, and represent an empty result as null. Case and punctuation remain significant. Only rating or this normalized text can advance `sourceRevision`/Material Review Revision.
+- A normalization-version transition first compares the old content under the new version. It adopts a matching baseline without manufacturing an edit; an erased, incomparable legacy baseline preserves its last revision.
 - `google_sync` reply: at most one per review per org (unique on `(review_id, source, organization_id)`).
 - `internal` reply: at most one per review per org (same unique constraint, different source value).
 - Partial unique index ensures at most one `published` reply per review (regardless of source).
 - Rating is always 1–5 (`StarRating` union type). DB stores as integer — adapter validates via `STAR_RATING_MAP`.
-- Serving reads deny provider content at its fetch-based hard expiry. REV-01 expand storage dual-writes independently erasable `review_source_contents`; confirmed deletion/expiry removes that row and scrubs nullable compatibility fields while preserving the stable Review and manager Replies. Recurring activation remains quarantined until the shadow-parity/cutover audit and full revision model are complete.
+- Serving reads deny provider content at its fetch-based hard expiry. REV-01 expand storage writes `review_source_contents`, `review_source_observations`, and `material_review_revisions` with the stable Review in one transaction. Confirmed deletion/expiry removes the current cache and redacts provider-controlled values from retained observations/revisions while preserving their controls, the stable Review, and manager-owned Replies/history. Recurring activation remains quarantined until the external shadow-parity/cutover audit is complete.
 - Provider-subject HMAC mappings, not erased Google identifiers, reconnect a re-observation to the same stable Review ID. A collision fails closed.
 - Reply text limited to 4096 characters (`MAX_REPLY_LENGTH`).
 
 ## Events produced
 
 - **`review.created`** — identifier/scope plus source epoch, source revision, analysis sequence, and occurrence time. Contains no rating, reviewer, provider ID, or review text.
-- **`review.updated`** — the same content-minimal envelope for a newer observed source revision. Consumers resolve eligible content through the authorized Review read port.
+- **`review.updated`** — the same content-minimal envelope for a new current observation. Its material revision advances only for a rating/normalized-original-text change. Re-observation emits this fact, not a second `review.created` identity fact.
 - **`review.source_transitioned`** — content-minimal source-expired/provider-deleted transition that preserves the stable Review and Replies.
 - **`review.expired`** — legacy registered fact with no active producer while destructive Review purge is quarantined. REV-01 must replace/freeze its lifecycle semantics before activation.
 - **`review.reply.published`** — replyId, reviewId, propertyId, organizationId, userId (nullable), authorId, source, occurredAt. Emitted when a reply reaches published status (web: user-approved, import: Google sync mirror).
@@ -63,14 +66,16 @@ is not the identity or history authority.
 review/
   domain/              types.ts, constructors.ts, events.ts, errors.ts, rules.ts
   application/
-    ports/             review.repository.ts, reply.repository.ts, review-queue.port.ts,
+    ports/             review.repository.ts, review-observation.repository.ts,
+                       reply.repository.ts, review-queue.port.ts,
                        reply-queue.port.ts, google-review-api.port.ts,
                        serving-stats.port.ts (BQC-5.5 ReviewServingStats)
     use-cases/         sync-reviews.ts, reply-operations.ts, reconcile-reply-publication.ts
     ports/             review-command-store.port.ts, reply-command-store.port.ts (BQC-3.3), ...
     public-api.ts      re-exports DTO types, port types, event types/constructors
   infrastructure/
-    repositories/      review.repository.ts, reply.repository.ts (Drizzle)
+    repositories/      review.repository.ts, review-observation.repository.ts,
+                       reply.repository.ts (Drizzle)
     serving-stats.ts   governed aggregate serving reads (BQC-5.5; eligibility in SQL)
     mappers/           review.mapper.ts, reply.mapper.ts
     event-handlers/    on-property-created.ts, index.ts
@@ -96,7 +101,7 @@ review/
 
 Exported from `application/public-api.ts`:
 
-- Types: `GoogleReview`, `StarRating`, `ReviewQueuePort`, `SyncPropertyReviewsJobData`, `AddSyncJobOptions`, `GoogleReviewApiPort`, `StaffRecentReview`
+- Types: `GoogleReview`, `StarRating`, `ReviewQueuePort`, `SyncPropertyReviewsJobData`, `AddSyncJobOptions`, `GoogleReviewApiPort`, `StaffRecentReview`. Observation/material-history reads remain Review-internal and are exposed only on the context build's `internal.repos.observationRepo`.
 - BQC-5.5: `ReviewServingStats` — governed aggregate serving reads over review/reply content (ADR 0031 eligibility enforced at this owner, clock-injected). Composition wires the infrastructure implementation (`infrastructure/serving-stats.ts`) into the dashboard build; exposed on the build's `internal.servingStats`.
 - Event types: `ReviewCreated`, `ReviewUpdated`, `ReviewReplyPublished`, `ReviewReplySubmitted`, `ReviewReplyApproved`, `ReviewReplyRejected`, `ReviewReplyPublishFailed`, `ReviewExpired`, `ReviewEvent`
 - Event constructors: `reviewCreated`, `reviewUpdated`, `reviewReplyPublished`, `reviewReplySubmitted`, `reviewReplyApproved`, `reviewReplyRejected`, `reviewReplyPublishFailed`, `reviewExpired`
@@ -114,5 +119,5 @@ Exported from `application/public-api.ts`:
 
 - **sync-property-reviews** — Fetches reviews from Google for a specific property/location. Triggered by `property.created` event or `refresh-expiring-reviews` job.
 - **refresh-expiring-reviews** — Finds reviews expiring within 5 days, enqueues sync jobs to refresh them. Runs daily.
-- **purge-expired-reviews** — SAFE-03 quarantine handler only: drains leftover legacy jobs. The replacement repository lifecycle erasure has real-PostgreSQL expiry/provider-delete/re-observation evidence, but recurring activation still requires the REV-01 shadow-parity seal and checkpointed lifecycle cutover.
+- **purge-expired-reviews** — quarantine handler only: drains leftover legacy jobs. The repository-owned erasure/re-observation transaction has real-PostgreSQL coverage, but recurring activation still requires the REV-01 external shadow-parity seal and checkpointed lifecycle cutover.
 - **publish-reply** — Publishes an approved reply to Google via API. Retries up to 3 times with exponential backoff; provider outcomes classified via the publication saga (terminal 4xx → `publish_failed` without retry burn; ambiguous final → `publish_failed` + reconcile).

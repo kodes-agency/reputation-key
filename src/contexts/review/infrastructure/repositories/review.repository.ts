@@ -40,6 +40,7 @@ import type {
 } from '../../application/ports/ai-review-source.port'
 import { computeAiReviewSourceProvenance } from '../../application/ai-review-source'
 import { upsertReviewSourceContent } from '../review-source-content-store'
+import { persistReviewObservation } from './review-observation.repository'
 
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
 const MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1 = 16_384
@@ -590,10 +591,28 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
     })
   },
 
-  upsert: async (review: Omit<Review, 'createdAt' | 'updatedAt'>, now?: Date) => {
+  upsert: async (
+    review: Omit<Review, 'createdAt' | 'updatedAt'>,
+    now?: Date,
+    observationKey?: string,
+  ) => {
     return trace('review.upsert', async () => {
-      const row = reviewToRow(review)
       const updatedAt = now ?? new Date()
+      if (review.lastFetchedAt != null && review.contentExpiresAt != null) {
+        const observation = await db.transaction((tx) =>
+          persistReviewObservation(tx, {
+            review,
+            observedAt: updatedAt,
+            ...(observationKey == null ? {} : { observationKey }),
+          }),
+        )
+        return observation.review
+      }
+
+      // Compatibility-only path for non-provider fixtures and internal
+      // callers that predate fetch clocks. Provider observations always use
+      // the versioned adapter above.
+      const row = reviewToRow(review)
       const result = await db.transaction(async (tx) => {
         const rows = await tx
           .insert(reviews)

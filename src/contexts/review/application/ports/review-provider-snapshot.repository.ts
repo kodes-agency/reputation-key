@@ -252,6 +252,8 @@ export type ReviewProviderObservationWriter = Readonly<{
       propertyId: PropertyId
       connectionId: GoogleConnectionId
       sourceEpoch: number
+      /** Content-free idempotency digest for one logical provider observation. */
+      observationKey: string
       review: GoogleReview
       subjects: ReviewProviderSubjectCandidates
     }>,

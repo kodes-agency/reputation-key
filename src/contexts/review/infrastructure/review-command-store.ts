@@ -13,18 +13,31 @@ import { reviews } from '#/shared/db/schema/review.schema'
 import { trace } from '#/shared/observability/trace'
 import type { Review } from '../domain/types'
 import { reviewError } from '../domain/errors'
-import { reviewFromRow, reviewToRow } from './mappers/review.mapper'
 import type { ReviewCommandStore } from '../application/ports/review-command-store.port'
-import { reviewCreated, reviewSourceTransitioned } from '../domain/events'
-import { upsertReviewSourceContent } from './review-source-content-store'
+import { reviewSourceTransitioned, reviewUpdated } from '../domain/events'
+import { eraseReviewSourceContent } from './review-source-content-store'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import {
+  persistReviewObservation,
+  type PersistedReviewObservation,
+} from './repositories/review-observation.repository'
+
+type PersistObservation = (
+  tx: Parameters<Parameters<Database['transaction']>[0]>[0],
+  input: Readonly<{
+    review: Omit<Review, 'createdAt' | 'updatedAt'>
+    observedAt: Date
+    observationKey?: string
+  }>,
+) => Promise<PersistedReviewObservation>
 
 export function createAtomicReviewCommandStore(
   db: Database,
   events: EventBus,
+  persistObservation: PersistObservation = persistReviewObservation,
 ): ReviewCommandStore {
   return {
-    upsertAndRecord: async (review, event, now) => {
+    upsertAndRecord: async (review, event, now, observationKey) => {
       return trace('review.commandStore.upsertAndRecord', async () => {
         const committed = await db.transaction(async (tx) => {
           const sequenceResult = await tx.execute(sql`
@@ -42,61 +55,15 @@ export function createAtomicReviewCommandStore(
               'Review analysis sequence allocation failed',
             )
           }
-          const sequencedReview = { ...review, analysisSequence }
-          const row = reviewToRow(sequencedReview)
           const updatedAt = now ?? new Date()
-          const result = await tx
-            .insert(reviews)
-            .values(row)
-            .onConflictDoUpdate({
-              target: [reviews.platform, reviews.externalId, reviews.organizationId],
-              set: {
-                propertyId: row.propertyId,
-                externalLocationId: row.externalLocationId,
-                googleConnectionId: row.googleConnectionId,
-                reviewerName: row.reviewerName,
-                reviewerProfilePhotoUrl: row.reviewerProfilePhotoUrl,
-                rating: row.rating,
-                text: row.text,
-                // sync-reviews computes translatedText on every observation;
-                // omitting it here froze the provider translation at whatever
-                // the very first fetch saw (or NULL) forever.
-                translatedText: row.translatedText,
-                languageCode: row.languageCode,
-                reviewedAt: row.reviewedAt,
-                expiresAt: row.expiresAt,
-                lastFetchedAt: row.lastFetchedAt,
-                sourceCreatedAt: row.sourceCreatedAt,
-                sourceUpdatedAt: row.sourceUpdatedAt,
-                firstFetchedAt: row.firstFetchedAt,
-                contentExpiresAt: row.contentExpiresAt,
-                contentHash: row.contentHash,
-                sourceSeenGeneration: row.sourceSeenGeneration,
-                sourceEpoch: row.sourceEpoch,
-                sourceRevision: row.sourceRevision,
-                analysisSequence: row.analysisSequence,
-                aiSourceByteLength: row.aiSourceByteLength,
-                aiSourceDigest: row.aiSourceDigest,
-                sourceContentState: 'active',
-                sourceContentErasedAt: null,
-                updatedAt,
-              },
-            })
-            .returning()
-
-          if (!result[0]) {
-            throw reviewError(
-              'repo_upsert_failed',
-              'Review upsert failed — no row returned',
-            )
-          }
-
-          const saved = reviewFromRow(result[0])
-          if (!(await upsertReviewSourceContent(tx, sequencedReview))) {
-            throw reviewError(
-              'repo_upsert_failed',
-              'Provider Review observation requires a fetch-based expiry',
-            )
+          const observation = await persistObservation(tx, {
+            review: { ...review, analysisSequence },
+            observedAt: updatedAt,
+            ...(observationKey == null ? {} : { observationKey }),
+          })
+          const saved = observation.review
+          if (observation.duplicate || observation.outOfOrder) {
+            return { saved, event: null }
           }
           const candidateEvent = typeof event === 'function' ? event(saved) : event
           const recordedEvent =
@@ -113,41 +80,13 @@ export function createAtomicReviewCommandStore(
           return { saved, event: recordedEvent }
         })
 
-        await emitAfterCommit(events, committed.event)
+        if (committed.event) await emitAfterCommit(events, committed.event)
         return committed.saved
       })
     },
-    reobserveExpiredAndRecord: async (review, _now) => {
+    reobserveExpiredAndRecord: async (review, _now, observationKey) => {
       return trace('review.commandStore.reobserveExpiredAndRecord', async () => {
         const committed = await db.transaction(async (tx) => {
-          const firstSequenceResult = await tx.execute(sql`
-            SELECT lock_review_ai_analysis_head_v1(
-              ${review.organizationId},
-              ${review.propertyId}::uuid,
-              ${review.sourceEpoch}
-            ) AS analysis_sequence,
-            transaction_timestamp() AS occurred_at
-          `)
-          const firstValue = firstSequenceResult.rows[0]
-          const firstSequence = Number(firstValue?.analysis_sequence)
-          const occurredAtValue = firstValue?.occurred_at
-          const occurredAt =
-            occurredAtValue instanceof Date
-              ? occurredAtValue
-              : typeof occurredAtValue === 'string'
-                ? new Date(occurredAtValue)
-                : null
-          if (
-            !Number.isSafeInteger(firstSequence) ||
-            firstSequence <= 0 ||
-            occurredAt === null ||
-            Number.isNaN(occurredAt.getTime())
-          ) {
-            throw reviewError(
-              'repo_upsert_failed',
-              'Expired Review sequence allocation failed',
-            )
-          }
           const existingRows = await tx
             .select()
             .from(reviews)
@@ -169,123 +108,125 @@ export function createAtomicReviewCommandStore(
               'Review is not expired at the database boundary',
             )
           }
-          // A lifecycle tombstone intentionally has no provider fields, so it
-          // cannot be mapped back to the active Review domain shape. Only the
-          // stable identity/revision controls are needed to restore content.
-          const existing = {
+
+          const clockResult = await tx.execute(sql`
+            SELECT transaction_timestamp() AS occurred_at
+          `)
+          const occurredAtValue = clockResult.rows[0]?.occurred_at
+          const occurredAt =
+            occurredAtValue instanceof Date
+              ? occurredAtValue
+              : typeof occurredAtValue === 'string'
+                ? new Date(occurredAtValue)
+                : null
+          if (occurredAt === null || Number.isNaN(occurredAt.getTime())) {
+            throw reviewError('repo_upsert_failed', 'Review transaction clock is invalid')
+          }
+
+          const stableIdentity = {
             id: reviewId(existingRow.id),
             organizationId: organizationId(existingRow.organizationId),
             propertyId: propertyId(existingRow.propertyId),
             sourceEpoch: existingRow.sourceEpoch,
             sourceRevision: existingRow.sourceRevision,
           }
-          const expiredEvent = reviewSourceTransitioned({
-            reviewId: existing.id,
-            organizationId: existing.organizationId,
-            propertyId: existing.propertyId,
-            sourceEpoch: existing.sourceEpoch,
-            sourceRevision: existing.sourceRevision,
-            analysisSequence: firstSequence,
-            change: 'source_expired',
-            occurredAt,
-          })
+          const recordedEvents: DomainEvent[] = []
+          let previousSequence: number | null = null
 
-          const secondSequenceResult = await tx.execute(sql`
+          // An already-erased Review has already recorded its lifecycle fact.
+          // A row whose deadline has just elapsed is redacted first, in the
+          // same transaction, without removing its stable identity or history.
+          if (existingRow.sourceContentState === 'active') {
+            const expirySequenceResult = await tx.execute(sql`
+              SELECT lock_review_ai_analysis_head_v1(
+                ${review.organizationId},
+                ${review.propertyId}::uuid,
+                ${review.sourceEpoch}
+              ) AS analysis_sequence
+            `)
+            const expirySequence = Number(expirySequenceResult.rows[0]?.analysis_sequence)
+            if (!Number.isSafeInteger(expirySequence) || expirySequence <= 0) {
+              throw reviewError(
+                'repo_upsert_failed',
+                'Expired Review sequence allocation failed',
+              )
+            }
+            const expiredEvent = reviewSourceTransitioned({
+              reviewId: stableIdentity.id,
+              organizationId: stableIdentity.organizationId,
+              propertyId: stableIdentity.propertyId,
+              sourceEpoch: stableIdentity.sourceEpoch,
+              sourceRevision: stableIdentity.sourceRevision,
+              analysisSequence: expirySequence,
+              change: 'source_expired',
+              occurredAt,
+            })
+            const erased = await eraseReviewSourceContent(tx, {
+              reviewId: stableIdentity.id,
+              organizationId: stableIdentity.organizationId,
+              propertyId: stableIdentity.propertyId,
+              sourceEpoch: stableIdentity.sourceEpoch,
+              expectedSourceRevision: stableIdentity.sourceRevision,
+              state: 'source_expired',
+            })
+            if (!erased) {
+              throw reviewError('repo_upsert_failed', 'Expired Review redaction failed')
+            }
+            await insertOutboxRow(tx, expiredEvent)
+            recordedEvents.push(expiredEvent)
+            previousSequence = expirySequence
+          }
+
+          const reobserveSequenceResult = await tx.execute(sql`
             SELECT lock_review_ai_analysis_head_v1(
               ${review.organizationId},
               ${review.propertyId}::uuid,
               ${review.sourceEpoch}
             ) AS analysis_sequence
           `)
-          const secondSequence = Number(secondSequenceResult.rows[0]?.analysis_sequence)
+          const reobserveSequence = Number(
+            reobserveSequenceResult.rows[0]?.analysis_sequence,
+          )
           if (
-            !Number.isSafeInteger(secondSequence) ||
-            secondSequence !== firstSequence + 1
+            !Number.isSafeInteger(reobserveSequence) ||
+            reobserveSequence <= 0 ||
+            (previousSequence != null && reobserveSequence !== previousSequence + 1)
           ) {
             throw reviewError(
               'repo_upsert_failed',
               'Re-observed Review sequence is not contiguous',
             )
           }
-          const recreated = {
-            ...review,
-            sourceRevision: existing.sourceRevision + 1,
-            analysisSequence: secondSequence,
-          }
-          const recreatedRow = reviewToRow(recreated)
-          const updated = await tx
-            .update(reviews)
-            .set({
-              propertyId: recreatedRow.propertyId,
-              platform: recreatedRow.platform,
-              externalId: recreatedRow.externalId,
-              externalLocationId: recreatedRow.externalLocationId,
-              googleConnectionId: recreatedRow.googleConnectionId,
-              reviewerName: recreatedRow.reviewerName,
-              reviewerProfilePhotoUrl: recreatedRow.reviewerProfilePhotoUrl,
-              rating: recreatedRow.rating,
-              text: recreatedRow.text,
-              translatedText: recreatedRow.translatedText,
-              languageCode: recreatedRow.languageCode,
-              reviewedAt: recreatedRow.reviewedAt,
-              expiresAt: recreatedRow.expiresAt,
-              sentimentLabel: recreatedRow.sentimentLabel,
-              sentimentScore: recreatedRow.sentimentScore,
-              sourceCreatedAt: recreatedRow.sourceCreatedAt,
-              sourceUpdatedAt: recreatedRow.sourceUpdatedAt,
-              firstFetchedAt: recreatedRow.firstFetchedAt,
-              lastFetchedAt: recreatedRow.lastFetchedAt,
-              contentExpiresAt: recreatedRow.contentExpiresAt,
-              contentHash: recreatedRow.contentHash,
-              sourceSeenGeneration: recreatedRow.sourceSeenGeneration,
-              sourceEpoch: recreatedRow.sourceEpoch,
-              sourceRevision: recreatedRow.sourceRevision,
-              analysisSequence: recreatedRow.analysisSequence,
-              aiSourceByteLength: recreatedRow.aiSourceByteLength,
-              aiSourceDigest: recreatedRow.aiSourceDigest,
-              sourceContentState: 'active',
-              sourceContentErasedAt: null,
-              updatedAt: occurredAt,
-            })
-            .where(
-              sql`${reviews.id} = ${existing.id}
-                AND ${reviews.organizationId} = ${existing.organizationId}
-                AND ${reviews.propertyId} = ${existing.propertyId}
-                AND ${reviews.sourceEpoch} = ${existing.sourceEpoch}`,
-            )
-            .returning()
-          if (!updated[0]) {
+
+          const observation = await persistObservation(tx, {
+            review: { ...review, analysisSequence: reobserveSequence },
+            observedAt: occurredAt,
+            ...(observationKey == null ? {} : { observationKey }),
+          })
+          if (observation.duplicate || observation.outOfOrder) {
             throw reviewError(
               'repo_upsert_failed',
-              'Re-observed Review update returned no row',
+              'Re-observed Review did not provide a current observation',
             )
           }
-          if (!(await upsertReviewSourceContent(tx, recreated))) {
-            throw reviewError(
-              'repo_upsert_failed',
-              'Re-observed Review requires a fetch-based expiry',
-            )
-          }
-          const createdEvent = reviewCreated({
-            reviewId: recreated.id,
-            organizationId: recreated.organizationId,
-            propertyId: recreated.propertyId,
-            platform: recreated.platform,
-            sourceEpoch: recreated.sourceEpoch,
-            sourceRevision: recreated.sourceRevision,
-            analysisSequence: secondSequence,
+          const updatedEvent = reviewUpdated({
+            reviewId: observation.review.id,
+            organizationId: observation.review.organizationId,
+            propertyId: observation.review.propertyId,
+            platform: observation.review.platform,
+            sourceEpoch: observation.review.sourceEpoch,
+            sourceRevision: observation.review.sourceRevision,
+            analysisSequence: observation.review.analysisSequence,
             occurredAt,
           })
-          await insertOutboxRow(tx, expiredEvent)
-          await insertOutboxRow(tx, createdEvent)
+          await insertOutboxRow(tx, updatedEvent)
+          recordedEvents.push(updatedEvent)
           return {
-            review: reviewFromRow(updated[0]),
-            expiredEvent,
-            createdEvent,
+            review: observation.review,
+            events: recordedEvents,
           }
         })
-        await emitAfterCommit(events, committed.expiredEvent)
-        await emitAfterCommit(events, committed.createdEvent)
+        for (const event of committed.events) await emitAfterCommit(events, event)
         return committed.review
       })
     },
@@ -298,13 +239,17 @@ export function createAtomicReviewCommandStore(
  * Not for production — production must use createAtomicReviewCommandStore.
  */
 export function createSequentialReviewCommandStore(deps: {
-  upsert: (review: Omit<Review, 'createdAt' | 'updatedAt'>, now?: Date) => Promise<Review>
+  upsert: (
+    review: Omit<Review, 'createdAt' | 'updatedAt'>,
+    now?: Date,
+    observationKey?: string,
+  ) => Promise<Review>
   events: EventBus
   recordOutbox?: (event: DomainEvent) => Promise<void>
 }): ReviewCommandStore {
   return {
-    upsertAndRecord: async (review, event, now) => {
-      const saved = await deps.upsert(review, now)
+    upsertAndRecord: async (review, event, now, observationKey) => {
+      const saved = await deps.upsert(review, now, observationKey)
       const recordedEvent = typeof event === 'function' ? event(saved) : event
       if (deps.recordOutbox) {
         await deps.recordOutbox(recordedEvent)
@@ -312,7 +257,7 @@ export function createSequentialReviewCommandStore(deps: {
       await emitAfterCommit(deps.events, recordedEvent)
       return saved
     },
-    reobserveExpiredAndRecord: async (review, now) => {
+    reobserveExpiredAndRecord: async (review, now, observationKey) => {
       const occurredAt = now ?? new Date()
       const expiredEvent = reviewSourceTransitioned({
         reviewId: review.id,
@@ -326,26 +271,25 @@ export function createSequentialReviewCommandStore(deps: {
       })
       const recreated = {
         ...review,
-        sourceRevision: review.sourceRevision + 1,
         analysisSequence: review.analysisSequence + 2,
       }
-      const createdEvent = reviewCreated({
-        reviewId: recreated.id,
-        organizationId: recreated.organizationId,
-        propertyId: recreated.propertyId,
-        platform: recreated.platform,
-        sourceEpoch: recreated.sourceEpoch,
-        sourceRevision: recreated.sourceRevision,
-        analysisSequence: recreated.analysisSequence,
+      const saved = await deps.upsert(recreated, occurredAt, observationKey)
+      const updatedEvent = reviewUpdated({
+        reviewId: saved.id,
+        organizationId: saved.organizationId,
+        propertyId: saved.propertyId,
+        platform: saved.platform,
+        sourceEpoch: saved.sourceEpoch,
+        sourceRevision: saved.sourceRevision,
+        analysisSequence: saved.analysisSequence,
         occurredAt,
       })
-      const saved = await deps.upsert(recreated, occurredAt)
       if (deps.recordOutbox) {
         await deps.recordOutbox(expiredEvent)
-        await deps.recordOutbox(createdEvent)
+        await deps.recordOutbox(updatedEvent)
       }
       await emitAfterCommit(deps.events, expiredEvent)
-      await emitAfterCommit(deps.events, createdEvent)
+      await emitAfterCommit(deps.events, updatedEvent)
       return saved
     },
   }

@@ -70,6 +70,7 @@ const gbpReviewItemSchema = z.object({
     })
     .optional(),
   createTime: z.string().min(1).max(64),
+  updateTime: z.string().min(1).max(64).optional(),
 })
 
 const gbpReviewsPageSchema = z.object({
@@ -313,6 +314,8 @@ function mapReview(raw: GbpReviewItem, locationName: string): GoogleReview {
     translatedText: comment.translation,
     languageCode: null,
     reviewedAt: parseDate(raw.createTime),
+    sourceCreatedAt: parseDate(raw.createTime),
+    sourceUpdatedAt: raw.updateTime ? parseDate(raw.updateTime) : null,
     replyText: raw.reviewReply?.comment ?? null,
     replyUpdatedAt: raw.reviewReply?.updateTime
       ? parseDate(raw.reviewReply.updateTime)

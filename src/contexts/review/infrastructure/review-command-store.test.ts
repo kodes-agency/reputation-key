@@ -121,63 +121,15 @@ describe('createAtomicReviewCommandStore', () => {
 
   it('runs upsert + outbox insert inside a single transaction before emit', async () => {
     const order: string[] = []
-    const row = {
-      id: 'rev-1',
-      organizationId: 'org-1',
-      propertyId: 'prop-1',
-      platform: 'google',
-      externalId: 'ext-1',
-      externalLocationId: 'loc-1',
-      googleConnectionId: 'conn-1',
-      reviewerProfilePhotoUrl: null,
-      rating: 5,
-      text: 'Great',
-      translatedText: null,
-      languageCode: 'en',
-      reviewedAt: NOW,
-      expiresAt: NOW,
-      sentimentLabel: null,
-      sentimentScore: null,
-      sourceCreatedAt: NOW,
-      sourceUpdatedAt: null,
-      firstFetchedAt: NOW,
-      lastFetchedAt: NOW,
-      contentExpiresAt: null,
-      contentHash: null,
-      sourceSeenGeneration: null,
-      sourceEpoch: 0,
-      sourceRevision: 1,
+    const review = makeReview()
+    const saved = {
+      ...review,
       analysisSequence: 1,
-      aiSourceByteLength: 1,
-      aiSourceDigest: '0'.repeat(64),
-      sourceContentState: 'active',
-      sourceContentErasedAt: null,
       createdAt: NOW,
       updatedAt: NOW,
     }
-
-    const returning = vi.fn().mockResolvedValue([row])
-    const onConflictDoUpdate = vi.fn(() => ({ returning }))
-    const values = vi.fn(() => ({ onConflictDoUpdate }))
-    const insert = vi.fn(() => {
-      order.push('insert')
-      return { values }
-    })
-
-    // Second insert is outbox
-    let insertCalls = 0
     const txInsert = vi.fn(() => {
-      insertCalls++
-      order.push(
-        insertCalls === 1
-          ? 'tx.review'
-          : insertCalls === 2
-            ? 'tx.source-content'
-            : 'tx.outbox',
-      )
-      if (insertCalls <= 2) {
-        return { values }
-      }
+      order.push('tx.outbox')
       return {
         values: vi.fn().mockResolvedValue(undefined),
       }
@@ -209,8 +161,22 @@ describe('createAtomicReviewCommandStore', () => {
       clear: vi.fn(),
     }
 
-    const db = { transaction, insert } as unknown as Database
-    const store = createAtomicReviewCommandStore(db, events)
+    const persistObservation: NonNullable<
+      Parameters<typeof createAtomicReviewCommandStore>[2]
+    > = vi.fn(async (_tx, input) => {
+      order.push('tx.observation')
+      return {
+        review: { ...saved, analysisSequence: input.review.analysisSequence },
+        observationSequence: 1,
+        materialRevision: 1,
+        comparison: 'initial_material_revision' as const,
+        createsMaterialRevision: true,
+        duplicate: false,
+        outOfOrder: false,
+      }
+    })
+    const db = { transaction } as unknown as Database
+    const store = createAtomicReviewCommandStore(db, events, persistObservation)
 
     const eventFactory = vi.fn(
       (persisted: Review) =>
@@ -220,29 +186,28 @@ describe('createAtomicReviewCommandStore', () => {
           analysisSequence: persisted.analysisSequence,
         }) as DomainEvent,
     )
-    await store.upsertAndRecord(makeReview(), eventFactory, NOW)
+    await store.upsertAndRecord(review, eventFactory, NOW, 'f'.repeat(64))
 
     expect(transaction).toHaveBeenCalledTimes(1)
     expect(order).toEqual([
       'tx.start',
-      'tx.review',
-      'tx.source-content',
+      'tx.observation',
       'tx.outbox',
       'tx.commit',
       'emit',
     ])
     expect(events.emit).toHaveBeenCalledTimes(1)
-    // Every provider-refreshed content column must be in the conflict update
-    // set. translatedText was missing, so a review whose Google translation
-    // appeared (or changed) after the first fetch kept the stale value.
-    expect(onConflictDoUpdate).toHaveBeenCalledWith(
+    expect(persistObservation).toHaveBeenCalledWith(
+      expect.anything(),
       expect.objectContaining({
-        set: expect.objectContaining({
+        review: expect.objectContaining({
           text: 'Great',
           translatedText: null,
           languageCode: 'en',
           rating: 5,
+          analysisSequence: 1,
         }),
+        observationKey: 'f'.repeat(64),
       }),
     )
     expect(eventFactory).toHaveBeenCalledWith(

@@ -200,6 +200,8 @@ describe('GoogleReviewApiAdapter', () => {
         externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
         rating: 5,
         text: 'Excellent stay',
+        sourceCreatedAt: new Date('2026-08-01T10:00:00.000Z'),
+        sourceUpdatedAt: new Date('2026-08-02T10:00:00.000Z'),
       }),
     ])
     const serialized = JSON.stringify(page)

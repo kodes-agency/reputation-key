@@ -1,5 +1,6 @@
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
+import { sha256Hex } from '#/shared/domain/sha256'
 import type {
   GoogleReviewApiPort,
   GoogleReviewPage,
@@ -199,6 +200,7 @@ const persistPageObservations = async (
   deriver: ReviewProviderSubjectDeriver,
   input: RunReviewProviderSnapshotInput,
   reviews: readonly GoogleReview[],
+  observationScope: string,
 ): Promise<readonly ReviewProviderPersistedObservation[]> => {
   const observations: ReviewProviderPersistedObservation[] = []
   for (const review of reviews) {
@@ -216,6 +218,9 @@ const persistPageObservations = async (
       propertyId: input.propertyId,
       connectionId: input.connectionId,
       sourceEpoch: input.sourceEpoch,
+      observationKey: sha256Hex(
+        `repkey-review-provider-observation-key-v1\0${observationScope}\0${review.reviewName}`,
+      ),
       review,
       subjects,
     })
@@ -430,7 +435,13 @@ const runListPage = async (
 
   let observations: readonly ReviewProviderPersistedObservation[]
   try {
-    observations = await persistPageObservations(deps, deriver, input, page.reviews)
+    observations = await persistPageObservations(
+      deps,
+      deriver,
+      input,
+      page.reviews,
+      `${run.id}\0${position.phase}\0${position.pageIndex}`,
+    )
   } catch {
     return failAndDiscard(deps, input, run.id, 'observation_failed')
   }
@@ -490,9 +501,13 @@ const confirmTargetedCandidate = async (
   }
   let observation: ReviewProviderPersistedObservation
   try {
-    const [persisted] = await persistPageObservations(deps, deriver, input, [
-      result.review,
-    ])
+    const [persisted] = await persistPageObservations(
+      deps,
+      deriver,
+      input,
+      [result.review],
+      `${run.id}\0targeted\0${candidate.reviewId}\0${candidate.expectedSourceRevision}`,
+    )
     if (!persisted) throw new Error('observation missing')
     observation = persisted
   } catch {
