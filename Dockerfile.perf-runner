@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1
 ARG SOURCE_REVISION=unknown
-# BQC-8 — private target-cell runner. It carries the existing deterministic
+# BQC-8 — private target-cell runner. It carries prebuilt deterministic
 # seed/load CLIs so they run from inside the target's private DB/Redis network.
-# It exposes no HTTP surface; Railway SSH is the sole execution channel.
+# It exposes no HTTP surface; Railway SSH is the sole execution channel. Source,
+# TypeScript runners, package managers, and devDependencies stay in build stages.
 FROM node:22-slim@sha256:f32b81066cde10a75dbac96646099533316d94bac4150c55da1636e1f0ffdc46 AS base
 
 ENV PNPM_HOME=/pnpm \
@@ -21,15 +22,36 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 
 FROM deps AS runner
+COPY . .
+RUN pnpm exec tsup \
+      scripts/perf/load-test.ts \
+      scripts/perf/seed-scale.ts \
+      scripts/perf/seed-fleet.ts \
+      scripts/perf/write-scale-evidence.ts \
+      scripts/local-stack/fault-operation.ts \
+      --format esm \
+      --platform node \
+      --target node22 \
+      --out-dir dist-perf-runner \
+      --clean
+
+FROM base AS prod-deps
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --prod --ignore-scripts
+
+FROM base AS runtime
 ARG SOURCE_REVISION
 ENV NODE_ENV=production \
     IMAGE_SOURCE_REVISION=$SOURCE_REVISION
 LABEL org.opencontainers.image.revision=$SOURCE_REVISION
-COPY --chown=node:node tsconfig.json ./
-COPY --chown=node:node src ./src
+RUN rm -rf /opt/corepack /pnpm \
+    /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
+    /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg
+COPY --from=runner --chown=node:node /app/dist-perf-runner ./dist-perf-runner
+COPY --from=prod-deps --chown=node:node /app/node_modules ./node_modules
+COPY --chown=node:node package.runtime.json ./package.json
 COPY --chown=node:node drizzle ./drizzle
-COPY --chown=node:node scripts/perf ./scripts/perf
-COPY --chown=node:node scripts/local-stack/fault-operation.ts ./scripts/local-stack/fault-operation.ts
 USER node
 
 # A deployment is intentionally inert until a named Railway SSH operator runs

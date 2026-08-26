@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "images": [
+    {
+      "id": "web",
+      "dockerfile": "Dockerfile",
+      "ciImage": "repkey-web:ci",
+      "classification": "production-runtime",
+      "promotion": "release-candidate",
+      "releaseRole": "web",
+      "purpose": "Customer-facing TanStack Start web runtime and migration authority."
+    },
+    {
+      "id": "worker",
+      "dockerfile": "Dockerfile.worker",
+      "ciImage": "repkey-worker:ci",
+      "classification": "production-runtime",
+      "promotion": "release-candidate",
+      "releaseRole": "worker",
+      "purpose": "Production job, schedule, and outbox worker runtime."
+    },
+    {
+      "id": "google-provider-redis",
+      "dockerfile": "Dockerfile.google-provider-redis",
+      "ciImage": "repkey-google-provider-redis:ci",
+      "classification": "production-runtime",
+      "promotion": "release-candidate",
+      "releaseRole": "googleProviderRedis",
+      "purpose": "Disposable, policy-constrained provider-control Redis runtime."
+    },
+    {
+      "id": "ai-execution-admission",
+      "dockerfile": "Dockerfile.ai-execution-admission",
+      "ciImage": "repkey-ai-execution-admission:ci",
+      "classification": "production-runtime",
+      "promotion": "release-candidate",
+      "releaseRole": "aiExecutionAdmission",
+      "purpose": "Production AI execution-admission sidecar."
+    },
+    {
+      "id": "ai-egress-gateway",
+      "dockerfile": "Dockerfile.ai-egress-gateway",
+      "ciImage": "repkey-ai-egress-gateway:ci",
+      "classification": "production-runtime",
+      "promotion": "release-candidate",
+      "releaseRole": "aiEgressGateway",
+      "purpose": "Production AI egress-policy gateway and runtime probe bundle."
+    },
+    {
+      "id": "google-execution-admission",
+      "dockerfile": "Dockerfile.google-execution-admission",
+      "ciImage": "repkey-google-execution-admission:ci",
+      "classification": "production-runtime",
+      "promotion": "release-candidate",
+      "releaseRole": "googleExecutionAdmission",
+      "purpose": "Production Google execution-admission sidecar."
+    },
+    {
+      "id": "google-egress-gateway",
+      "dockerfile": "Dockerfile.google-egress-gateway",
+      "ciImage": "repkey-google-egress-gateway:ci",
+      "classification": "production-runtime",
+      "promotion": "release-candidate",
+      "releaseRole": "googleEgressGateway",
+      "purpose": "Production Google egress-policy gateway."
+    },
+    {
+      "id": "google-import-compatibility",
+      "dockerfile": "Dockerfile.google-import-compatibility",
+      "ciImage": "repkey-google-import-compatibility:ci",
+      "classification": "production-rollout-tool",
+      "promotion": "release-candidate",
+      "releaseRole": "googleImportCompatibility",
+      "purpose": "Digest-retained, rollout-only Google import compatibility operator."
+    },
+    {
+      "id": "provider-sandbox",
+      "dockerfile": "Dockerfile.sandbox",
+      "ciImage": "repkey-provider-sandbox:ci",
+      "classification": "acceptance-test-support",
+      "promotion": "ci-only",
+      "purpose": "Deterministic provider simulator used by local beta and acceptance stacks; never promoted to a customer Data Cell."
+    },
+    {
+      "id": "perf-runner",
+      "dockerfile": "Dockerfile.perf-runner",
+      "ciImage": "repkey-perf-runner:ci",
+      "classification": "acceptance-operator-tool",
+      "promotion": "ci-only",
+      "purpose": "Inert private-network load and fault runner invoked only by a named operator; never promoted as a serving release image."
+    }
+  ]
+}

@@ -1887,18 +1887,16 @@ async function scale(mode: LocalStackMode, preserveArtifacts = false): Promise<s
   })
   try {
     const scaleManifest = '/artifacts/perf/scale-dataset.json'
-    const runner = (args: readonly string[]) =>
+    const runner = (entry: 'seed-scale' | 'seed-fleet', args: readonly string[]) =>
       dockerCompose(mode, state, [
         'exec',
         '-T',
         'perf-runner',
-        'pnpm',
-        'exec',
-        'tsx',
+        'node',
+        `dist-perf-runner/perf/${entry}.js`,
         ...args,
       ])
-    runner([
-      'scripts/perf/seed-scale.ts',
+    runner('seed-scale', [
       '--seed=beta-local-scale-v1',
       '--orgs=100',
       '--properties=5000',
@@ -1906,8 +1904,7 @@ async function scale(mode: LocalStackMode, preserveArtifacts = false): Promise<s
       '--source-lifecycle',
       `--manifest=${scaleManifest}`,
     ])
-    runner([
-      'scripts/perf/seed-scale.ts',
+    runner('seed-scale', [
       '--seed=beta-local-scale-v1',
       '--orgs=100',
       '--properties=5000',
@@ -1916,8 +1913,7 @@ async function scale(mode: LocalStackMode, preserveArtifacts = false): Promise<s
       `--manifest=${scaleManifest}`,
       '--verify',
     ])
-    runner([
-      'scripts/perf/seed-scale.ts',
+    runner('seed-scale', [
       '--seed=beta-local-scale-v1',
       '--orgs=100',
       '--properties=5000',
@@ -1926,8 +1922,7 @@ async function scale(mode: LocalStackMode, preserveArtifacts = false): Promise<s
       `--manifest=${scaleManifest}`,
       '--clean',
     ])
-    runner([
-      'scripts/perf/seed-fleet.ts',
+    runner('seed-fleet', [
       '--seed=beta-local-fleet-v1',
       '--properties=5000',
       '--p1-ratio=0.5',
@@ -2023,11 +2018,8 @@ function runAffectedOperation(
       'exec',
       '-T',
       'perf-runner',
-      'pnpm',
-      '--silent',
-      'exec',
-      'tsx',
-      'scripts/local-stack/fault-operation.ts',
+      'node',
+      'dist-perf-runner/local-stack/fault-operation.js',
       dependency,
       phase,
     ],

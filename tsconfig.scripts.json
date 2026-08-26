@@ -9,6 +9,11 @@
   // scripts/ops/quarantine-redrive.ts:40 reads `.attempts` where the type says
   // `attemptsMade`) — each needs its own fix with its own verification.
   "extends": "./tsconfig.json",
-  "include": ["scripts/release/**/*.ts", "scripts/ops/**/*.ts", "scripts/review/**/*.ts"],
+  "include": [
+    "scripts/release/**/*.ts",
+    "scripts/ops/**/*.ts",
+    "scripts/review/**/*.ts",
+    "scripts/ci/**/*.ts"
+  ],
   "compilerOptions": { "types": ["node"] }
 }

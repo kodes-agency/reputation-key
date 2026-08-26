@@ -106,6 +106,7 @@
     "check:dependency-audit": "node scripts/check-dependency-audit.mjs",
     "check:licenses": "node scripts/check-licenses.mjs",
     "check:action-pins": "node scripts/check-action-pins.mjs",
+    "check:container-images": "tsx scripts/ci/check-container-image-policy.ts",
     "check:test-quality": "node scripts/check-test-quality.mjs",
     "check:zod-conformance": "tsx scripts/review/zod-v4-conformance.ts",
     "ops:queue": "tsx scripts/ops/queue-quarantine.ts",

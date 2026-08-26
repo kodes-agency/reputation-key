@@ -78,6 +78,29 @@ updates:
       - dependencies
       - security
 
+  # Docker base-image tags and digests
+  # Docker's updater scans one configured directory at a time. All current
+  # Dockerfiles (including Dockerfile.* custom names) live at repository root,
+  # so this one entry covers the complete machine-checked inventory in
+  # security/container-images.json. The inventory gate requires another Docker
+  # ecosystem directory entry if a future Dockerfile moves below root.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      base-images:
+        patterns:
+          - '*'
+    reviewers:
+      - kodes-agency/engineering
+    labels:
+      - dependencies
+      - security
+      - containers
+
   # GitHub Actions versions
   - package-ecosystem: github-actions
     directory: /

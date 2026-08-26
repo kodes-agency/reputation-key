@@ -3600,6 +3600,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
       'check:action-pins — CI gate (BQC-7.7): every workflow uses: is full-SHA pinned with # v… comment; every image: is digest-pinned',
   }),
   ops(
+    'scripts/ci/check-container-image-policy.ts',
+    'scripts/ci/check-container-image-policy.ts',
+    'none',
+    {
+      notes:
+        'check:container-images — read-only CI gate: every Dockerfile is explicitly classified and covered by build, smoke, SBOM, vulnerability scan, release posture, digest pinning, and Dependabot directory policy',
+    },
+  ),
+  ops(
     'scripts/review/baseline-inventory.ts',
     'scripts/review/baseline-inventory.ts',
     'none',

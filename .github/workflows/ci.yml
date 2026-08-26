@@ -79,6 +79,9 @@ jobs:
       - name: Action/image pin policy
         run: pnpm check:action-pins
 
+      - name: Container image inventory and coverage policy
+        run: pnpm check:container-images
+
       - name: Format check
         run: pnpm format:check
 
@@ -283,8 +286,8 @@ jobs:
           retention-days: 30
 
   # BQC-7.1: the production containers are the single deploy build path
-  # (nixpacks removed) — prove both images build reproducibly on every PR
-  # and run as the non-root node user.
+  # (nixpacks removed) — prove every classified image builds reproducibly on
+  # every PR and satisfies its explicit runtime contract.
   #
   # This job does NOT boot the Compose stack. It used to run `pnpm e2e:stack:up`
   # + `:smoke` here, byte-identical to what the `e2e` job runs — which then
@@ -348,6 +351,12 @@ jobs:
       - name: Build rollout-only Google import compatibility image
         run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.google-import-compatibility -t repkey-google-import-compatibility:ci .
 
+      - name: Build provider sandbox image
+        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.sandbox -t repkey-provider-sandbox:ci .
+
+      - name: Build performance runner image
+        run: docker build --build-arg SOURCE_REVISION="$GITHUB_SHA" -f Dockerfile.perf-runner -t repkey-perf-runner:ci .
+
       - name: Smoke images (contract, non-root, prod-deps purity)
         run: |
           sh scripts/ci/smoke-provider-redis-image.sh repkey-google-provider-redis:ci
@@ -358,6 +367,8 @@ jobs:
           docker run --rm --entrypoint node repkey-ai-egress-gateway:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
           docker run --rm --entrypoint node repkey-google-execution-admission:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
           docker run --rm --entrypoint node repkey-google-egress-gateway:ci -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'};for(const [key,value] of Object.entries(expected))if(process.versions[key]!==value)process.exit(1)"
+          docker run --rm --entrypoint sh repkey-provider-sandbox:ci -c 'set -eu; node provider-sandbox.mjs --kind=gbp --port=3000 >/tmp/provider-sandbox.log 2>&1 & child=$!; trap '\''kill "$child" 2>/dev/null || true; wait "$child" 2>/dev/null || true'\'' EXIT; attempt=0; until node -e "fetch('\''http://127.0.0.1:3000/__control/health'\'').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"; do attempt=$((attempt+1)); if [ "$attempt" -ge 30 ]; then cat /tmp/provider-sandbox.log; exit 1; fi; sleep 0.2; done'
+          docker run --rm --entrypoint node repkey-perf-runner:ci dist-perf-runner/perf/load-test.js --list
           # The runtime egress probe is a separately deployed bundle with its own
           # directory and Railway start command, so it is NOT under the gateway dist.
           for governed_entry in index.js canary.js; do
@@ -380,12 +391,28 @@ jobs:
           test "$(docker image inspect repkey-ai-egress-gateway:ci --format '{{.Config.User}}')" = "node"
           test "$(docker image inspect repkey-google-execution-admission:ci --format '{{.Config.User}}')" = "node"
           test "$(docker image inspect repkey-google-egress-gateway:ci --format '{{.Config.User}}')" = "node"
+          test "$(docker image inspect repkey-provider-sandbox:ci --format '{{.Config.User}}')" = "node"
+          test "$(docker image inspect repkey-perf-runner:ci --format '{{.Config.User}}')" = "node"
+          test "$(docker image inspect repkey-perf-runner:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 sleep infinity"
           test "$(docker image inspect repkey-google-execution-admission:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 node dist-google-execution-admission/index.js"
           test "$(docker image inspect repkey-google-egress-gateway:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 node dist-google-egress-gateway/index.js"
           for img in repkey-ai-execution-admission:ci repkey-ai-egress-gateway:ci repkey-google-execution-admission:ci repkey-google-egress-gateway:ci; do
             docker run --rm --entrypoint test "$img" ! -e /app/node_modules
             docker run --rm --entrypoint test "$img" ! -e /app/package.json
             test "$(docker image inspect "$img" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+          done
+          for img in repkey-provider-sandbox:ci repkey-perf-runner:ci; do
+            test "$(docker image inspect "$img" --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+          done
+          docker run --rm --entrypoint test repkey-provider-sandbox:ci ! -e /app/node_modules
+          docker run --rm --entrypoint test repkey-provider-sandbox:ci ! -e /usr/local/bin/npm
+          docker run --rm --entrypoint test repkey-perf-runner:ci ! -e /app/src
+          docker run --rm --entrypoint test repkey-perf-runner:ci ! -e /app/node_modules/tsx
+          docker run --rm --entrypoint test repkey-perf-runner:ci ! -e /usr/local/bin/npm
+          docker run --rm --entrypoint test repkey-perf-runner:ci -e /app/node_modules/pg
+          docker run --rm --entrypoint node repkey-perf-runner:ci -e "const p=require('/app/package.json');process.exit('scripts' in p?1:0)"
+          for entry in perf/load-test.js perf/seed-scale.js perf/seed-fleet.js perf/write-scale-evidence.js local-stack/fault-operation.js; do
+            docker run --rm --entrypoint test repkey-perf-runner:ci -e "/app/dist-perf-runner/$entry"
           done
           docker run --rm --entrypoint test repkey-google-egress-gateway:ci ! -e /app/dist-google-egress-gateway/control-proxy.js
           docker run --rm --entrypoint test repkey-google-egress-gateway:ci ! -e /app/dist-google-egress-gateway/tcp-relay.js
@@ -410,7 +437,7 @@ jobs:
           test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{len .Config.Entrypoint}} {{join .Config.Entrypoint " "}}')" = "2 node dist-google-import-compatibility/google-import-lifecycle.js"
           {
             echo "### Governed image digests"
-            for img in repkey-web:ci repkey-worker:ci repkey-google-provider-redis:ci repkey-google-import-compatibility:ci repkey-ai-execution-admission:ci repkey-ai-egress-gateway:ci repkey-google-execution-admission:ci repkey-google-egress-gateway:ci; do
+            for img in repkey-web:ci repkey-worker:ci repkey-google-provider-redis:ci repkey-google-import-compatibility:ci repkey-ai-execution-admission:ci repkey-ai-egress-gateway:ci repkey-google-execution-admission:ci repkey-google-egress-gateway:ci repkey-provider-sandbox:ci repkey-perf-runner:ci; do
               echo "\`$img@$(docker image inspect "$img" --format '{{.Id}}')\`"
             done
           } >> "$GITHUB_STEP_SUMMARY"
@@ -473,6 +500,20 @@ jobs:
           image: repkey-google-import-compatibility:ci
           format: spdx-json
           output-file: sbom-google-import-compatibility.spdx.json
+
+      - name: SBOM provider sandbox image
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: repkey-provider-sandbox:ci
+          format: spdx-json
+          output-file: sbom-provider-sandbox.spdx.json
+
+      - name: SBOM performance runner image
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: repkey-perf-runner:ci
+          format: spdx-json
+          output-file: sbom-perf-runner.spdx.json
 
       - name: Upload image SBOMs
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -576,6 +617,24 @@ jobs:
         uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
         with:
           image: repkey-google-import-compatibility:ci
+          fail-build: true
+          severity-cutoff: high
+          grype-version: v0.116.1
+          cache-db: true
+
+      - name: Vulnerability scan provider sandbox image (grype)
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: repkey-provider-sandbox:ci
+          fail-build: true
+          severity-cutoff: high
+          grype-version: v0.116.1
+          cache-db: true
+
+      - name: Vulnerability scan performance runner image (grype)
+        uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+        with:
+          image: repkey-perf-runner:ci
           fail-build: true
           severity-cutoff: high
           grype-version: v0.116.1
