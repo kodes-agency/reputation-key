@@ -80,8 +80,9 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
-        // Refetch, never invalidate: invalidating the org subtree used to evict
-        // the settings page's caches every time the bell was opened.
+        // Refetch the head, never invalidate: invalidating the org subtree used
+        // to evict settings caches, while refetching the old infinite query
+        // replayed every history page already loaded.
         if (next) list.refetch()
       }}
     >

@@ -11,76 +11,13 @@
 //  3. `mutateAsync` was called without a catch, so a failed dismiss produced an
 //     unhandled rejection. Every action here resolves, never rejects.
 
-import { useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { notificationKeys } from '#/shared/queries/query-keys'
-import type {
-  Notification,
-  NotificationPage,
-} from '#/contexts/notification/application/public-api'
+import type { Notification } from '#/contexts/notification/application/public-api'
 import type { NotificationListFilter } from '#/contexts/notification/application/public-api'
+import { patchNotificationFeedCache } from './notification-feed-cache'
 import type { NotificationServerFns } from './types'
-
-/** Shape `useInfiniteQuery` stores under `notificationKeys.list(...)`. */
-type FeedPages = Readonly<{
-  pages: ReadonlyArray<NotificationPage>
-  pageParams: ReadonlyArray<number>
-}>
-
-/** `null` removes the row. Returning the row unchanged is a no-op. */
-type RowPatch = (row: Notification) => Notification | null
-
-function patchPage(
-  page: NotificationPage,
-  patch: RowPatch,
-): Readonly<{ page: NotificationPage; unreadDelta: number }> {
-  const rows: Notification[] = []
-  let unreadDelta = 0
-  for (const row of page.notifications) {
-    const patched = patch(row)
-    const wasUnread = row.status === 'unread'
-    if (patched === null) {
-      if (wasUnread) unreadDelta -= 1
-      continue
-    }
-    if (wasUnread !== (patched.status === 'unread')) unreadDelta += wasUnread ? -1 : 1
-    rows.push(patched)
-  }
-  return { page: { ...page, notifications: rows }, unreadDelta }
-}
-
-/**
- * Applies `patch` to every cached page and adjusts the badge by the change in
- * unread rows. Returns the rollback thunk `useActionMutation` runs on failure.
- */
-function patchFeed(
-  qc: QueryClient,
-  listKey: QueryKey,
-  countKey: QueryKey,
-  patch: RowPatch,
-  options: Readonly<{ clearContinuation?: boolean }> = {},
-): (() => void) | undefined {
-  const previousPages = qc.getQueryData<FeedPages>(listKey)
-  if (!previousPages) return undefined
-  const previousCount = qc.getQueryData<{ count: number }>(countKey)
-
-  let unreadDelta = 0
-  const pages = previousPages.pages.map((page) => {
-    const patched = patchPage(page, patch)
-    unreadDelta += patched.unreadDelta
-    return options.clearContinuation ? { ...patched.page, hasMore: false } : patched.page
-  })
-
-  qc.setQueryData<FeedPages>(listKey, { ...previousPages, pages })
-  if (previousCount && unreadDelta !== 0) {
-    qc.setQueryData(countKey, { count: Math.max(0, previousCount.count + unreadDelta) })
-  }
-
-  return () => {
-    qc.setQueryData(listKey, previousPages)
-    if (previousCount) qc.setQueryData(countKey, previousCount)
-  }
-}
 
 const readNow = (row: Notification): Notification => ({
   ...row,
@@ -108,20 +45,21 @@ export function useNotificationMutations(
 ): NotificationFeedMutations {
   const qc = useQueryClient()
   const listKey = notificationKeys.list(organizationId, limit, filter)
+  const headKey = notificationKeys.head(organizationId, limit, filter)
   const countKey = notificationKeys.count(organizationId)
   const invalidateKeys = [notificationKeys.feed(organizationId)]
 
   const markRead = useActionMutation(fns.markRead, {
     invalidateKeys,
     optimistic: (input) =>
-      patchFeed(qc, listKey, countKey, (row) =>
+      patchNotificationFeedCache(qc, listKey, headKey, countKey, (row) =>
         row.id === input.data.notificationId ? readNow(row) : row,
       ),
   })
   const markUnread = useActionMutation(fns.markUnread, {
     invalidateKeys,
     optimistic: (input) =>
-      patchFeed(qc, listKey, countKey, (row) =>
+      patchNotificationFeedCache(qc, listKey, headKey, countKey, (row) =>
         row.id === input.data.notificationId
           ? { ...row, status: 'unread', readAt: null }
           : row,
@@ -130,21 +68,23 @@ export function useNotificationMutations(
   const dismiss = useActionMutation(fns.dismiss, {
     invalidateKeys,
     optimistic: (input) =>
-      patchFeed(qc, listKey, countKey, (row) =>
+      patchNotificationFeedCache(qc, listKey, headKey, countKey, (row) =>
         row.id === input.data.notificationId ? null : row,
       ),
   })
   const markAllRead = useActionMutation(fns.markAllRead, {
     invalidateKeys,
     optimistic: () =>
-      patchFeed(qc, listKey, countKey, (row) =>
+      patchNotificationFeedCache(qc, listKey, headKey, countKey, (row) =>
         row.status === 'unread' ? readNow(row) : row,
       ),
   })
   const dismissAll = useActionMutation(fns.dismissAll, {
     invalidateKeys,
     optimistic: () =>
-      patchFeed(qc, listKey, countKey, () => null, { clearContinuation: true }),
+      patchNotificationFeedCache(qc, listKey, headKey, countKey, () => null, {
+        clearContinuation: true,
+      }),
   })
   const muteCategory = useActionMutation(fns.muteCategory, {
     invalidateKeys: [notificationKeys.preferences(organizationId)],

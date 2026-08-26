@@ -1,9 +1,11 @@
 // Notification READS — TanStack Query. Mutations live in notification-mutations.ts.
 //
-// Both the badge count and the list poll. Previously only the count did, so an
-// OPEN panel sat on a frozen list while the badge beside it kept climbing. The
-// list polls only while its surface is actually visible (`poll`), so a closed
-// bell costs one request per mount, not one every 30s.
+// Both the badge count and the list head poll. Previously the infinite list
+// itself carried the interval, so TanStack Query correctly re-requested every
+// loaded page to keep an infinite query consistent. That made a long-lived
+// notification page progressively more expensive. Page zero now has its own
+// ordinary query; loaded history is a disabled infinite query advanced only by
+// the user's "Load more" action. The two caches are merged by stable row id.
 //
 // Polling is VISIBILITY-AWARE, using the query library's own primitives rather
 // than a hand-rolled `visibilitychange` listener (@tanstack/react-query 5.101):
@@ -29,28 +31,18 @@ import {
   DEFAULT_NOTIFICATION_FORMAT,
   type NotificationFormat,
 } from './notification-utils'
+import {
+  mergeNotificationHeadWithHistory,
+  notificationHeadQueryOptions,
+  notificationHistoryQueryOptions,
+  NOTIFICATION_POLL_OPTIONS,
+} from './notification-feed-pagination'
 import type {
   getUnreadNotificationCountFn,
   getNotificationsFn,
   getNotificationUserSettingsFn,
 } from '#/contexts/notification/server/notifications'
 import type { NotificationListFilter } from '#/contexts/notification/application/public-api'
-
-export const NOTIFICATION_POLL_INTERVAL = 30_000
-
-/**
- * The polling posture shared by both notification reads.
- *
- * Exported as one object so the two call sites cannot drift, and so the
- * behaviour is assertable against a real `QueryObserver` in
- * notification-queries.test.ts without rendering a component.
- */
-export const NOTIFICATION_POLL_OPTIONS = {
-  refetchInterval: NOTIFICATION_POLL_INTERVAL,
-  refetchIntervalInBackground: false,
-  refetchOnWindowFocus: true,
-  staleTime: 0,
-} as const
 
 export function useUnreadNotificationCount(
   getUnreadCount: typeof getUnreadNotificationCountFn,
@@ -71,27 +63,37 @@ export function useNotifications(
   filter: NotificationListFilter = 'all',
   poll = false,
 ) {
-  const query = useInfiniteQuery({
-    queryKey: notificationKeys.list(organizationId, limit, filter),
-    queryFn: ({ pageParam }) => getList({ data: { limit, offset: pageParam, filter } }),
-    initialPageParam: 0,
-    getNextPageParam: (lastPage, _allPages, lastPageParam) =>
-      lastPage.hasMore ? lastPageParam + limit : undefined,
-    ...NOTIFICATION_POLL_OPTIONS,
-    refetchInterval: poll ? NOTIFICATION_POLL_INTERVAL : false,
-  })
+  const fetchPage = (offset: number) => getList({ data: { limit, offset, filter } })
+  const head = useQuery(
+    notificationHeadQueryOptions(
+      notificationKeys.head(organizationId, limit, filter),
+      fetchPage,
+      poll,
+    ),
+  )
+  const history = useInfiniteQuery(
+    notificationHistoryQueryOptions(
+      notificationKeys.list(organizationId, limit, filter),
+      fetchPage,
+      limit,
+    ),
+  )
+  const historyPages = history.data?.pages ?? []
+  const hasLoadedHistory = historyPages.length > 0
+  const hasMore = hasLoadedHistory ? history.hasNextPage : (head.data?.hasMore ?? false)
 
   return {
-    notifications: query.data?.pages.flatMap((page) => page.notifications) ?? [],
-    isLoading: query.isPending,
-    isLoadingMore: query.isFetchingNextPage,
-    error: query.error,
-    hasMore: query.hasNextPage,
+    notifications: mergeNotificationHeadWithHistory(head.data, historyPages),
+    isLoading: head.isPending,
+    isLoadingMore: history.isFetchingNextPage,
+    error: head.error ?? history.error,
+    hasMore,
     refetch: () => {
-      void query.refetch()
+      void head.refetch()
+      if (history.isFetchNextPageError) void history.fetchNextPage()
     },
     loadMore: () => {
-      void query.fetchNextPage()
+      if (hasMore && !history.isFetchingNextPage) void history.fetchNextPage()
     },
   }
 }

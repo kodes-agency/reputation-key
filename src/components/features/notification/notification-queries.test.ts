@@ -15,15 +15,21 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
+  InfiniteQueryObserver,
   QueryClient,
   QueryObserver,
   environmentManager,
   focusManager,
 } from '@tanstack/react-query'
+import { notificationKeys } from '#/shared/queries/query-keys'
+import { makeNotification, notificationPageFixture } from './notification-fixtures'
 import {
+  mergeNotificationHeadWithHistory,
+  notificationHeadQueryOptions,
+  notificationHistoryQueryOptions,
   NOTIFICATION_POLL_INTERVAL,
   NOTIFICATION_POLL_OPTIONS,
-} from './notification-queries'
+} from './notification-feed-pagination'
 
 let client: QueryClient
 
@@ -111,5 +117,79 @@ describe('notification polling posture', () => {
     expect(NOTIFICATION_POLL_OPTIONS.refetchIntervalInBackground).toBe(false)
     expect(NOTIFICATION_POLL_OPTIONS.refetchOnWindowFocus).toBe(true)
     expect(NOTIFICATION_POLL_OPTIONS.staleTime).toBe(0)
+  })
+
+  it('polls only the head after older history has been loaded', async () => {
+    const offsets: number[] = []
+    const fetchPage = vi.fn(async (offset: number) => {
+      offsets.push(offset)
+      return notificationPageFixture([], offset < 40)
+    })
+    const headObserver = new QueryObserver(
+      client,
+      notificationHeadQueryOptions(
+        notificationKeys.head('org-1', 20, 'all'),
+        fetchPage,
+        true,
+      ),
+    )
+    const historyObserver = new InfiniteQueryObserver(
+      client,
+      notificationHistoryQueryOptions(
+        notificationKeys.list('org-1', 20, 'all'),
+        fetchPage,
+        20,
+      ),
+    )
+    const unsubscribeHead = headObserver.subscribe(() => {})
+    const unsubscribeHistory = historyObserver.subscribe(() => {})
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(offsets).toEqual([0])
+
+    await historyObserver.fetchNextPage()
+    expect(offsets).toEqual([0, 20])
+    await historyObserver.fetchNextPage()
+    expect(offsets).toEqual([0, 20, 40])
+
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL * 2)
+    expect(offsets).toEqual([0, 20, 40, 0, 0])
+
+    unsubscribeHead()
+    unsubscribeHistory()
+  })
+})
+
+describe('notification head/history merge', () => {
+  it('keeps every loaded history row exactly once when the head changes', () => {
+    const refreshed = makeNotification({
+      id: '10000000-0000-4000-8000-000000000010',
+      coalescedCount: 2,
+    })
+    const overlapFromHistory = makeNotification({
+      id: '10000000-0000-4000-8000-000000000010',
+      coalescedCount: 1,
+    })
+    const firstOlder = makeNotification({
+      id: '10000000-0000-4000-8000-000000000011',
+    })
+    const secondOlder = makeNotification({
+      id: '10000000-0000-4000-8000-000000000012',
+    })
+
+    const merged = mergeNotificationHeadWithHistory(
+      notificationPageFixture([refreshed]),
+      [
+        notificationPageFixture([overlapFromHistory, firstOlder], true),
+        notificationPageFixture([secondOlder]),
+      ],
+    )
+
+    expect(merged.map((row) => row.id)).toEqual([
+      refreshed.id,
+      firstOlder.id,
+      secondOlder.id,
+    ])
+    expect(merged[0]?.coalescedCount).toBe(2)
   })
 })
