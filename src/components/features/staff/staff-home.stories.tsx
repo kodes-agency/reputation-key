@@ -1,12 +1,12 @@
 // Staff home — the staff landing page (/home). The route component
 // (src/routes/_authenticated/home.tsx) is composition-only: every data/state
-// decision lives in the useStaffHomeData hook (five suspense queries via the
+// decision lives in the useStaffHomeData hook (four suspense queries via the
 // fns prop channel + decideStaffHomeEmptyState), and the route itself is not
 // storyable (it reads Route.useSearch() from the real route tree). These
 // stories therefore drive the REAL hook with in-memory fns and render the
 // same section composition the page renders (mirrored in StaffHomeHarness).
 //
-// States: Populated (KPIs + badges + goals + recent activity), Loading
+// States: Populated (KPIs + goals + recent activity), Loading
 // (suspense pending), Empty (property selected but no portal responsibility →
 // StaffEmptyState), Error (a query rejects → error boundary).
 import type { Meta, StoryObj } from '@storybook/react'
@@ -19,7 +19,6 @@ import { StaffGoalSummary } from './staff-goal-summary'
 import { StaffPortalFilter } from './staff-portal-filter'
 import { StaffRecentActivity } from './staff-recent-activity'
 import { StaffEmptyState } from './staff-empty-state'
-import { StaffBadgeSummary } from '#/components/features/badges/staff-badge-summary'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -31,14 +30,11 @@ import type { listStaffGoals } from '#/contexts/goal/server/staff-goals'
 import type { getStaffDashboardDataFn } from '#/contexts/dashboard/server/staff-dashboard'
 import type { listStaffPortals } from '#/contexts/staff/server/staff-portals'
 import type { getStaffRecentActivity } from '#/contexts/review/server/staff-recent-activity'
-import type { getStaffVisibleBadges } from '#/contexts/badge/server/badges'
 import type { KPIs } from '#/contexts/dashboard/application/public-api'
 import type { Goal, GoalProgress } from '#/contexts/goal/application/public-api'
 import type { StaffPortalEntry } from '#/contexts/staff/application/public-api'
-import type { BadgeAwardWithTarget } from '#/contexts/badge/application/public-api'
 import type { StaffRecentReview } from '#/contexts/review/application/public-api'
 import {
-  badgeId,
   goalId,
   goalProgressId,
   organizationId,
@@ -115,51 +111,6 @@ const goals = [
   ),
 ]
 
-function makeBadge(key: string, name: string, icon: string): BadgeAwardWithTarget {
-  const definitionId = badgeId(`badge-def-${key}`)
-  return {
-    award: {
-      id: badgeId(`badge-award-${key}`),
-      badgeDefinitionId: definitionId,
-      criteriaVersion: 1,
-      targetType: 'portal',
-      targetId: PORTAL_ID,
-      organizationId: ORG_ID,
-      propertyId: PROPERTY_ID,
-      portalId: PORTAL_ID,
-      portalGroupId: null,
-      awardedAt: new Date('2026-07-10T00:00:00Z'),
-      uniqueKey: `${key}-2026-07`,
-      createdAt: new Date('2026-07-10T00:00:00Z'),
-    },
-    definition: {
-      id: definitionId,
-      key,
-      name,
-      description: `${name} badge`,
-      icon,
-      targetScope: 'portal',
-      criteriaVersion: 1,
-      criteria: {
-        type: 'threshold',
-        metricKey: 'portal.scan',
-        operator: '>=',
-        threshold: 50,
-      },
-      enabled: true,
-      createdAt: new Date('2026-06-01T00:00:00Z'),
-      updatedAt: new Date('2026-06-01T00:00:00Z'),
-    },
-    targetType: 'portal',
-    targetId: PORTAL_ID,
-    label: 'Front Desk',
-  }
-}
-
-const badges: ReadonlyArray<BadgeAwardWithTarget> = [
-  makeBadge('scan-starter', 'Scan Starter', '🏅'),
-]
-
 const recentReviews: ReadonlyArray<StaffRecentReview> = [
   {
     id: 'rev-0001',
@@ -192,9 +143,6 @@ const populatedFns: StaffHomeFns = {
   getStaffRecentActivity: mockServerFn(async () => ({
     reviews: recentReviews,
   })) as unknown as typeof getStaffRecentActivity,
-  getStaffVisibleBadges: mockServerFn(
-    async () => badges,
-  ) as unknown as typeof getStaffVisibleBadges,
 }
 
 // ── Harness ─────────────────────────────────────────────────────────
@@ -210,7 +158,7 @@ function StaffHomeHarness({
   searchPropertyId: string
   searchPortalId?: string
 }) {
-  const { kpis, portals, goals, badges, recentReviews, emptyState } = useStaffHomeData(
+  const { kpis, portals, goals, recentReviews, emptyState } = useStaffHomeData(
     searchPropertyId,
     searchPortalId,
     fns,
@@ -240,8 +188,6 @@ function StaffHomeHarness({
       />
 
       {kpis && <StaffHomeKpis kpis={kpis} />}
-
-      <StaffBadgeSummary badges={badges} />
 
       <StaffGoalSummary goals={goals} />
 
@@ -330,7 +276,7 @@ type Story = StoryObj<typeof StaffHomeHarness>
 
 const SEARCH_PROPERTY_ID = 'prop-00000000-0000-0000-0000-000000000051'
 
-// Populated — responsible portals, KPIs, badges, goals and recent reviews all
+// Populated — responsible portals, KPIs, goals and recent reviews all
 // render through the real hook.
 export const Populated: Story = {
   args: { fns: populatedFns, searchPropertyId: SEARCH_PROPERTY_ID },
@@ -340,8 +286,6 @@ export const Populated: Story = {
     await expect(canvas.getByText('Avg Rating')).toBeVisible()
     await expect(canvas.getByText('Scans')).toBeVisible()
     await expect(canvas.getByText('Feedback')).toBeVisible()
-    // Badge summary.
-    await expect(canvas.getByText('Scan Starter')).toBeVisible()
     // Goals.
     await expect(canvas.getByText('July scan drive')).toBeVisible()
     // Recent activity.
@@ -406,9 +350,6 @@ export const Empty: Story = {
       getStaffRecentActivity: mockServerFn(async () => ({
         reviews: [],
       })) as unknown as typeof getStaffRecentActivity,
-      getStaffVisibleBadges: mockServerFn(
-        async () => [],
-      ) as unknown as typeof getStaffVisibleBadges,
     },
   },
   play: async ({ canvasElement }) => {

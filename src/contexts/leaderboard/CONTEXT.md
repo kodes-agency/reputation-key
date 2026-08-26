@@ -68,8 +68,9 @@ plan.
 ## Verification authority
 
 - Capability darkness: `src/shared/auth/dark-capability-enforcement.test.ts`
-- Runtime darkness: `src/shared/architecture/dark-context-matrix.test.ts` and
-  `src/shared/architecture/dark-consumer-gating.test.ts`
+- Runtime darkness: `src/shared/auth/dark-context-matrix.test.ts`,
+  `src/shared/architecture/dark-consumer-gating.test.ts`, and
+  `src/shared/architecture/legacy-recognition-active-surfaces.test.ts`
 - Entry-point/job dispositions: `src/shared/governance/entry-point-catalogue.ts`
   and `src/shared/governance/event-job-catalogue.ts`
 - Product decision: `docs/comprehensive-beta-implementation-program-2026-08-25.md`

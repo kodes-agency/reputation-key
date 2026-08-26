@@ -22,7 +22,6 @@ import {
   rotatePortalToken,
   updatePortal,
 } from '#/contexts/portal/server/portals'
-import { getVisibleTargetBadges } from '#/contexts/badge/server/badges'
 import { listPortalLinks } from '#/contexts/portal/server/portal-links'
 import { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
 import {
@@ -30,11 +29,10 @@ import {
   PortalDetailPage,
   type PortalDetailTab,
 } from '#/components/features/portal'
-import { PortalBadgeSection } from '#/components/features/badges/portal-badge-section'
 import type { Action } from '#/components/hooks/use-action'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { useServerFn } from '@tanstack/react-start'
-import { portalKeys, badgeKeys, identityKeys } from '#/shared/queries/query-keys'
+import { portalKeys, identityKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
@@ -42,7 +40,6 @@ import { ErrorState, LoadingState } from '#/components/layout/page-states'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Button } from '#/components/ui/button'
 import { AlertCircle } from 'lucide-react'
-import type { BadgeAwardWithTarget } from '#/contexts/badge/application/public-api'
 import type { Portal, PortalTokenStatus } from '#/contexts/portal/application/public-api'
 import type { UpdatePortalVariables } from '#/components/features/portal/shared/types'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
@@ -105,20 +102,6 @@ const membersQuery = queryOptions({
   staleTime: 30_000,
 })
 
-const portalBadgesQuery = (propertyId: string, portalId: string) =>
-  queryOptions({
-    queryKey: badgeKeys.target({ propertyId, targetType: 'portal', targetId: portalId }),
-    queryFn: () =>
-      getVisibleTargetBadges({
-        data: {
-          propertyId,
-          targetType: 'portal',
-          targetId: portalId,
-        },
-      }),
-    staleTime: 30_000,
-  })
-
 /**
  * Resolve the portal through the URL property's AUTHORIZED collection, so a
  * portal in another property or organization is reported exactly like one that
@@ -175,16 +158,13 @@ export const Route = createFileRoute(
     // simply absent from this collection, so it lands here — identical to a
     // removed portal, which is the point.
     if (!portal) throw notFound()
-    const [, { categories, links }, badges] = await Promise.all([
+    const [, { categories, links }] = await Promise.all([
       // The detail entry is FETCHED, not seeded from the list row: `getPortal`
       // also returns `tokenStatus` (C2), which no list row carries, so a
       // hand-built `{ portal }` seed would leave the Share tab reading
       // `tokenStatus` as undefined instead of triggering a fetch.
       context.queryClient.ensureQueryData(portalQuery(params.portalId)),
       context.queryClient.ensureQueryData(portalLinksQuery(params.portalId)),
-      context.queryClient.ensureQueryData(
-        portalBadgesQuery(params.propertyId, params.portalId),
-      ),
       context.queryClient.ensureQueryData(responsibleManagersQuery(params.portalId)),
       context.queryClient.ensureQueryData(membersQuery),
       context.queryClient.ensureQueryData(portalPublicationHistoryQuery(params.portalId)),
@@ -194,7 +174,6 @@ export const Route = createFileRoute(
       categories,
       links,
       propertyId: params.propertyId,
-      badges: badges as BadgeAwardWithTarget[],
     }
   },
   component: PortalDetailRoute,
@@ -298,7 +277,6 @@ function PortalDetailRoute() {
   const navigate = Route.useNavigate()
   const { data: portalData } = useSuspenseQuery(portalQuery(portalId))
   const { data: linksData } = useSuspenseQuery(portalLinksQuery(portalId))
-  const { data: badges } = useSuspenseQuery(portalBadgesQuery(propertyId, portalId))
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: responsibleManagers } = useSuspenseQuery(
     responsibleManagersQuery(portalId),
@@ -324,14 +302,11 @@ function PortalDetailRoute() {
     successMessage: 'Public links revoked',
   })
   // The only producer of the governed portal.content_review.completed /
-  // configuration_completeness / approved_destination_ratio facts, which badge
-  // and goal projections read — hence the badge invalidation.
+  // configuration_completeness / approved_destination_ratio facts. Legacy
+  // recognition projections stay inactive; active Goal consumers observe the fact.
   const completeReviewMutation = useActionMutation(completeContentReview, {
     successMessage: 'Content review recorded',
-    invalidateKeys: [
-      portalKeys.detail(portalId),
-      badgeKeys.target({ propertyId, targetType: 'portal', targetId: portalId }),
-    ],
+    invalidateKeys: [portalKeys.detail(portalId)],
   })
   const updateResponsibleManagersMutation = useActionMutation(
     updatePortalResponsibleManagers,
@@ -389,7 +364,6 @@ function PortalDetailRoute() {
         responsibleManagerMembers={membersData.members}
         updateResponsibleManagersMutation={updateResponsibleManagersMutation}
       />
-      <PortalBadgeSection badges={badges as BadgeAwardWithTarget[]} />
     </PageShell>
   )
 }

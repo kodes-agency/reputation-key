@@ -10,7 +10,6 @@ import {
   type StaffHomeFns,
 } from './use-staff-home-data'
 import {
-  badgeKeys,
   dashboardKeys,
   goalKeys,
   reviewKeys,
@@ -24,7 +23,6 @@ const setup = () => {
   const getStaffDashboardData = vi.fn(async () => ({ kpis: null, hasAssignments: true }))
   const listStaffPortals = vi.fn(async () => ({ portals: [] }))
   const getStaffRecentActivity = vi.fn(async () => ({ reviews: [] }))
-  const getStaffVisibleBadges = vi.fn(async () => [])
   // server-fn types carry createServerFn metadata the in-memory fns don't have —
   // the double cast bridges that brand (same justification as the storybook fns).
   const fns = {
@@ -32,7 +30,6 @@ const setup = () => {
     getStaffDashboardData,
     listStaffPortals,
     getStaffRecentActivity,
-    getStaffVisibleBadges,
   } as unknown as StaffHomeFns
   return {
     fns,
@@ -40,7 +37,6 @@ const setup = () => {
     getStaffDashboardData,
     listStaffPortals,
     getStaffRecentActivity,
-    getStaffVisibleBadges,
   }
 }
 
@@ -86,7 +82,6 @@ describe('staffHomeQueries', () => {
     )
     expect(q.portals.queryKey).toEqual(staffKeys.portals(PROPERTY_ID))
     expect(q.activity.queryKey).toEqual(reviewKeys.staffActivity(PROPERTY_ID))
-    expect(q.badges.queryKey).toEqual(badgeKeys.staffVisible(PROPERTY_ID))
   })
 
   it('routes each queryFn through the injected fns with the server-fn payload shape', async () => {
@@ -108,11 +103,6 @@ describe('staffHomeQueries', () => {
     await callQueryFn(q.activity.queryFn)
     expect(s.getStaffRecentActivity).toHaveBeenCalledWith({
       data: { propertyId: PROPERTY_ID },
-    })
-
-    await callQueryFn(q.badges.queryFn)
-    expect(s.getStaffVisibleBadges).toHaveBeenCalledWith({
-      data: { propertyId: PROPERTY_ID, limit: 6 },
     })
   })
 })
