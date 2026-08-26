@@ -399,20 +399,23 @@
     {
       "id": "IBX-01",
       "status": "partial",
-      "summary": "Review Inbox items now have an expand-only Handling Cycle model: cycle one is created in the same transaction as a newly projected Review item, later openings append numbered rows anchored to an existing Material Review Revision, and one locked compare-and-swap head fences the expected cycle, source revision, and state revision. The durable Review-update path opens a new cycle only for a later material revision and converges under duplicate or concurrent delivery. Existing Inbox workflow columns remain the compatibility projection and have not yet cut over to the cycle authority.",
+      "summary": "Review Inbox items now have an expand-only Handling Cycle model: cycle one is created in the same transaction as a newly projected Review item, later openings append numbered rows anchored to an existing Material Review Revision, and one locked compare-and-swap head fences the expected cycle, source revision, and state revision. The durable Review-update path opens a new cycle only for a later material revision and converges under duplicate or concurrent delivery. On the client, draft/reply-state changes patch only the selected detail, status changes patch that item before invalidating only affected folder/count/visit/activity data, and the status observer is keyed by item identity. Existing Inbox workflow columns remain the compatibility projection and have not yet cut over to the cycle authority.",
       "codeEvidence": [
         "drizzle/0117_inbox_handling_cycles_expand.sql",
         "src/contexts/inbox/domain/handling-cycles.ts",
         "src/contexts/inbox/infrastructure/review-handling-cycle.store.ts",
-        "src/contexts/inbox/infrastructure/outbox-consumers.ts"
+        "src/contexts/inbox/infrastructure/outbox-consumers.ts",
+        "src/components/inbox/inbox-cache-policy.ts",
+        "src/components/inbox/inbox-item-status-observer.ts"
       ],
       "testEvidence": [
         "31 affected unit files / 279 tests passed",
         "Review Handling Cycle and migration verification: 2 PostgreSQL files / 13 tests passed; fresh journal verification 8/8 passed through migration 0117",
-        "All three TypeScript configurations, targeted lint, architecture, filename, component-boundary, technology-stack, and fallow checks passed"
+        "All three TypeScript configurations passed for the Handling Cycle commit; targeted lint, architecture, filename, component-boundary, technology-stack, and fallow checks passed",
+        "Inbox UI matrix: 8 files / 59 tests passed; 17 focused cache/request-count assertions prove autosave adds zero requests and A-to-B-to-A selection makes exactly one detail and notes request per transition"
       ],
       "remaining": [
-        "Backfill and classify legacy Review items and cut reads/commands from compatibility status to the cycle head; add Guest Response cycles, source-specific Google/private-feedback closure and correction history, governed reopen reasons, eligibility-loss unassignment, target snapshots/reminders, cycle lifecycle facts and receipt-coordinated recovery, revision fencing for status/assignment/escalation/notes/bulk commands, all-or-none bounded bulk operations, current-user UI/history, response-cutoff watermark, and the full replay/browser evidence matrix."
+        "Backfill and classify legacy Review items and cut reads/commands from compatibility status to the cycle head; add Guest Response cycles, source-specific Google/private-feedback closure and correction history, governed reopen reasons, eligibility-loss unassignment, target snapshots/reminders, cycle lifecycle facts and receipt-coordinated recovery, revision fencing for status/assignment/escalation/notes/bulk commands, all-or-none bounded bulk operations, current-user UI/history, response-cutoff watermark, and the full replay/browser evidence matrix, including hosted browser proof for the scoped cache policy."
       ],
       "externalBlockers": []
     },
@@ -706,20 +709,23 @@
     {
       "id": "EXP-02",
       "status": "partial",
-      "summary": "The three known production literal query keys now use tested hierarchical factories, and an executable product-state inventory covers production components/routes. It currently governs 79 query-key sites, one explicitly owned login bootstrap whole-router invalidation, and 54 conservatively classified useState mirror candidates. This prevents silent new candidates but remains a bounded syntax/classification slice rather than semantic completion.",
+      "summary": "The three known production literal query keys now use tested hierarchical factories, and an executable product-state inventory covers production components/routes. It currently governs 79 query-key sites, one explicitly owned login bootstrap whole-router invalidation, and 54 conservatively classified useState mirror candidates. The active Inbox UI-11 seam is now semantically scoped: typed draft/reply/status changes patch or invalidate only the owned query families, selection identity fences the status observer, and real QueryObserver request-count regressions prevent broad refetch recurrence. The broader inventory remains a bounded syntax/classification slice rather than semantic completion.",
       "codeEvidence": [
         "src/shared/queries/query-keys.ts",
         "scripts/ci/check-product-state-consistency.ts",
         "scripts/ci/product-state-consistency-ledger.json",
-        "package.json"
+        "package.json",
+        "src/components/inbox/inbox-cache-policy.ts",
+        "src/components/inbox/inbox-item-status-observer.ts"
       ],
       "testEvidence": [
         "Product-state and query-key unit matrix: 2 files / 11 tests passed",
         "Executable inventory passed with 79 query-key sites, 1 owned broad invalidation, and 54 classified candidates",
-        "Focused lint, application TypeScript, scripts TypeScript, and diff checks passed"
+        "Focused lint, application TypeScript, scripts TypeScript, and diff checks passed for the inventory slice",
+        "Inbox UI matrix: 8 files / 59 tests passed; deterministic QueryObserver request-count and selected-item identity regressions passed"
       ],
       "remaining": [
-        "Semantically review all 54 mirror candidates and every query factory, expand coverage beyond production components/routes where warranted, freeze feature DTOs, replace legacy policy-bearing components, and close the remaining Bell/delete/reply/goal UI contradictions."
+        "Semantically review the remaining mirror candidates and every query factory, expand coverage beyond production components/routes where warranted, freeze feature DTOs, replace legacy policy-bearing components, and close the remaining Bell/delete/goal/provider-content lifecycle contradictions; retain hosted browser evidence for the resolved Inbox request-scope seam."
       ],
       "externalBlockers": []
     },
