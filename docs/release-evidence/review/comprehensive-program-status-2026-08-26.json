@@ -647,14 +647,20 @@
     {
       "id": "REC-01",
       "status": "partial",
-      "summary": "Recognition is correctly dark for beta, but the legacy competitive model remains and the agreed future Healthy Guest Gateway model is not implemented.",
+      "summary": "Recognition remains beta-dark at direct entry points, delayed work, navigation, and unavailable routes. Active Staff Home and Portal Detail surfaces no longer request, cache, invalidate, or render legacy Badge data, and an executable source guard prevents future active routes or the Staff Home query bundle from importing the legacy Badge/Leaderboard boundaries. The retained competitive contexts, tables, server functions, jobs, and compatibility components still await reconciled contraction; the future Healthy Guest Gateway model is intentionally not implemented for beta.",
       "codeEvidence": [
-        "Recognition and Leaderboard settings redirects",
-        "Legacy badge/leaderboard schema and code"
+        "src/shared/architecture/legacy-recognition-active-surfaces.test.ts",
+        "src/shared/auth/dark-context-matrix.test.ts",
+        "src/shared/architecture/dark-consumer-gating.test.ts",
+        "src/routes/_authenticated/home.tsx",
+        "src/routes/_authenticated/properties/$propertyId/portals/$portalId.tsx"
       ],
-      "testEvidence": ["Dark-route tests"],
+      "testEvidence": [
+        "Recognition darkness matrix: 5 files / 60 tests passed",
+        "Staff Home browser stories: 1 file / 5 states passed"
+      ],
       "remaining": [
-        "Strengthen darkness and delete unreachable competitive paths; after Portal Health exists, separate authorization/program/results and implement the calendar-month Healthy Gateway evaluator with neutral UI and fairness evidence."
+        "Inventory and disposition every retained Badge/Leaderboard row and foreign key, prove no production artifact or compatibility consumer depends on them, retain export/restore evidence, then remove the server functions, components, composition/build wiring, bootstrap/job/schedule/event paths, repositories, schemas, and stale notifications in reversible contraction slices. After Portal Health exists and only as post-beta work, define separate authorization/program/results and implement the calendar-month Healthy Guest Gateway evaluator with neutral UI and fairness evidence."
       ],
       "externalBlockers": [
         "Activation is explicitly post-beta and requires counsel/fairness review."
@@ -682,12 +688,16 @@
     {
       "id": "EXP-01",
       "status": "partial",
-      "summary": "Dormant surfaces are mostly hidden, but there is no persistent resumable role-aware setup checklist or complete no-access/waiting/deferred journey.",
+      "summary": "Dormant surfaces are mostly hidden, and the remaining legacy Recognition reads have been removed from active Staff Home and Portal Detail paths under an executable guard. There is still no persistent resumable role-aware setup checklist or complete no-access/waiting/deferred journey.",
       "codeEvidence": [
         "Organization settings and unavailable-route surfaces",
-        "Billing removal and Team/Recognition/Bulk Close gates"
+        "Billing removal and Team/Recognition/Bulk Close gates",
+        "src/shared/architecture/legacy-recognition-active-surfaces.test.ts"
       ],
-      "testEvidence": ["Unavailable-route and selected role-gating tests"],
+      "testEvidence": [
+        "Unavailable-route and selected role-gating tests",
+        "Recognition darkness matrix: 5 files / 60 tests passed; Staff Home browser stories: 1 file / 5 states passed"
+      ],
       "remaining": [
         "Build durable historical milestones plus current health, implement AccountAdmin/PropertyManager/Staff state journeys, disposition existing billing data, and prove every dormant route/job/server path denied."
       ],
