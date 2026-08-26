@@ -232,4 +232,34 @@ describe('createGoogleOAuthAdapter', () => {
       }),
     ).rejects.toMatchObject({ code: 'oauth_failed' })
   })
+
+  it('checks the credential egress boundary before every token or revoke socket', async () => {
+    const refusal = new Error('credential gateway required')
+    const assertDirectCredentialEgressAllowed = vi.fn(() => {
+      throw refusal
+    })
+    const adapter = createGoogleOAuthAdapter({
+      ...CONFIG,
+      assertDirectCredentialEgressAllowed,
+    })
+
+    await expect(
+      adapter.exchangeCode({
+        contractVersion: 'v2',
+        code: 'authorization-code',
+        redirectUri: 'https://app.example.test/api/auth/google/callback',
+        codeVerifier: 'pkce-verifier',
+        oidcNonce: 'oidc-nonce',
+      }),
+    ).rejects.toBe(refusal)
+    await expect(adapter.refreshAccessToken('refresh-token')).rejects.toBe(refusal)
+    await expect(adapter.revokeToken('refresh-token')).rejects.toBe(refusal)
+
+    expect(assertDirectCredentialEgressAllowed.mock.calls).toEqual([
+      ['oauth.token.exchange'],
+      ['oauth.token.refresh'],
+      ['oauth.revoke'],
+    ])
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })

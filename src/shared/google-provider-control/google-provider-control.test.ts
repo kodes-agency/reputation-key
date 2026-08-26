@@ -5,7 +5,6 @@ import {
   createInMemoryGoogleExecutionAdmission,
 } from './execution-admission'
 import { createInMemoryGoogleQuotaCoordinator } from './quota-coordinator'
-import { createRefreshSingleFlight } from './refresh-single-flight'
 import {
   executeWithSingle401Refresh,
   googleRetryDelayMs,
@@ -159,22 +158,6 @@ describe('Google quota and refresh coordination', () => {
       ok: true,
       remaining: 0,
     })
-  })
-
-  it('coalesces concurrent refreshes and clears the flight after settlement', async () => {
-    const singleFlight = createRefreshSingleFlight()
-    let release!: (value: string) => void
-    const pending = new Promise<string>((resolve) => {
-      release = resolve
-    })
-    const refresh = vi.fn(() => pending)
-    const first = singleFlight.run('connection-1', refresh)
-    const second = singleFlight.run('connection-1', refresh)
-    release('token-2')
-    await expect(Promise.all([first, second])).resolves.toEqual(['token-2', 'token-2'])
-    expect(refresh).toHaveBeenCalledTimes(1)
-    await singleFlight.run('connection-1', async () => 'token-3')
-    expect(refresh).toHaveBeenCalledTimes(1)
   })
 
   it('retries only one 401 after one refresh', async () => {

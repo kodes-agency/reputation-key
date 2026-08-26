@@ -10,6 +10,7 @@ import {
   GOOGLE_EGRESS_LEGACY_PATH_FIELDS,
   type ProviderConfigError,
   assertDirectProviderEgressAllowed,
+  assertDirectCredentialEgressAllowed,
   assertReviewProviderSubjectKeysConfigured,
   isProviderConfigError,
   missingGoogleEgressConfig,
@@ -130,16 +131,17 @@ describe('assertDirectProviderEgressAllowed', () => {
     expect(error.missing).toEqual(GOOGLE_EGRESS_CONFIG_FIELDS)
     expect(error.message).toContain('reviews.list')
     expect(error.message).toContain('GOOGLE_EGRESS_GATEWAY_ORIGIN')
-    expect(error.message).toContain('GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS')
+    expect(error.message).toContain('approved gateway transport')
   })
 
-  it('allows the direct path in production when the operator opts out explicitly', () => {
-    expect(() =>
+  it('refuses the direct path even when the legacy operator opt-out is set', () => {
+    const error = refusalFrom(() =>
       assertDirectProviderEgressAllowed(
         { NODE_ENV: 'production', GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS: true },
         'reviews.list',
       ),
-    ).not.toThrow()
+    )
+    expect(error.code).toBe('config_invalid')
   })
 
   it('still refuses in production when the gateway is fully configured — reaching the direct path at all is the bug', () => {
@@ -166,5 +168,31 @@ describe('assertDirectProviderEgressAllowed', () => {
         ),
       ).not.toThrow()
     }
+  })
+})
+
+describe('assertDirectCredentialEgressAllowed', () => {
+  it('has no production escape hatch for OAuth credentials', () => {
+    const error = refusalFrom(() =>
+      assertDirectCredentialEgressAllowed(
+        {
+          NODE_ENV: 'production',
+          GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS: true,
+          ...CONFIGURED_EGRESS,
+        },
+        'oauth.token.refresh',
+      ),
+    )
+
+    expect(error.missing).toEqual([])
+    expect(error.message).toContain('oauth.token.refresh')
+    expect(error.message).toContain('credential gateway')
+    expect(error.message).not.toContain('GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS=true')
+  })
+
+  it('stays quiet outside production for deterministic local adapters', () => {
+    expect(() =>
+      assertDirectCredentialEgressAllowed({ NODE_ENV: 'test' }, 'oauth.token.exchange'),
+    ).not.toThrow()
   })
 })

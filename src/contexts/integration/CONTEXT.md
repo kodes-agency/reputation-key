@@ -23,6 +23,16 @@ Owns Google OAuth connections, provider access, opaque property-import discovery
 - Discovery reads Google's output-only `metadata.newReviewUri`, validates it against the approved HTTPS Google-host policy, carries it through opaque/durable import state, and hands it to the Property binding effect. It is never manually entered by an administrator.
 - Performance data is live-only and property-scoped; the base Dashboard does not depend on provider availability.
 - Access tokens are encrypted at rest and never logged.
+- Production credential-bearing Google adapters have no direct-socket escape
+  hatch. OAuth exchange/refresh/revoke, legacy account lookup, notifications,
+  and Review fallbacks fail before network access unless a governed executor
+  owns the route; fixed-origin JWKS retrieval is the only current
+  non-credential direct trust read.
+- Refresh leadership is shared across replicas through Redis using an opaque
+  HMAC connection key, renewable owner lease, pre-commit ownership proof,
+  credential-generation CAS, and shared 5–300 second provider-failure backoff.
+  Coordination ambiguity denies the refresh before credential decryption or
+  database mutation.
 
 ## Events produced
 

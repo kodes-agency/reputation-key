@@ -98,6 +98,7 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
 import type { Env } from '#/shared/config/env'
 import {
+  assertDirectCredentialEgressAllowed,
   assertDirectProviderEgressAllowed,
   assertReviewProviderSubjectKeysConfigured,
 } from '#/shared/config/provider-config-guards'
@@ -143,6 +144,7 @@ import {
   type OAuthCallbackQuotaCounter,
 } from '#/contexts/integration/application/oauth-callback-abuse-gate'
 import { createRedisOAuthCallbackQuotaCounter } from '#/contexts/integration/infrastructure/oauth-callback-quota-counter'
+import { createRedisGoogleRefreshCoordination } from '#/contexts/integration/infrastructure/adapters/google-refresh-coordination.adapter'
 import { buildTeamContext } from '#/contexts/team/build'
 import { buildStaffContext } from '#/contexts/staff/build'
 import { buildPortalContext } from '#/contexts/portal/build'
@@ -638,6 +640,24 @@ export function createContainer(options?: {
         : undefined,
     })
   }
+
+  if (env.NODE_ENV === 'production' && !redis) {
+    throw new Error('Production Google credential refresh coordination requires Redis')
+  }
+  const googleRefreshCoordination =
+    redis && googleOpaqueReferenceKeys
+      ? createRedisGoogleRefreshCoordination({
+          redis,
+          connectionKeys: googleOpaqueReferenceKeys,
+          nowMs: () => clock().getTime(),
+          sleep: (durationMs) =>
+            new Promise<void>((resolve) => {
+              setTimeout(resolve, durationMs)
+            }),
+          ownerId: randomUUID,
+          jitterSample: () => randomBytes(4).readUInt32BE(0),
+        })
+      : undefined
 
   // Infrastructure
   const infra = buildInfrastructure({
@@ -1232,12 +1252,15 @@ export function createContainer(options?: {
     oauthStateHandles,
     oauthCallbackAbuseGate,
     refreshPolicyStoreRequired: identity.internal.refreshPolicyStoreRequired,
+    googleRefreshCoordination,
     // Fail closed on ungoverned provider egress in production. The review
     // adapter's direct-`fetch` fallback is reachable merely by leaving the
     // GOOGLE_EGRESS_* values unset, and it bypasses admission, quota control,
     // credential binding and mTLS. Outside production this is a no-op.
     assertDirectProviderEgressAllowed: (operation) =>
       assertDirectProviderEgressAllowed(env, operation),
+    assertDirectCredentialEgressAllowed: (operation) =>
+      assertDirectCredentialEgressAllowed(env, operation),
   })
 
   setMembershipRemovalLifecycle({

@@ -126,6 +126,12 @@ export const createGoogleOAuthAdapter = (config: {
   jwksUrl: string
   revokeUrl: string
   clock?: () => Date
+  /**
+   * Production guard supplied by the composition root. Credential-bearing
+   * routes call it immediately before any direct socket; production always
+   * refuses while local/test adapters remain deterministic.
+   */
+  assertDirectCredentialEgressAllowed?: (operation: string) => void
 }): GoogleOAuthPort => {
   const clock = config.clock ?? (() => new Date())
   let jwksCache:
@@ -197,6 +203,7 @@ export const createGoogleOAuthAdapter = (config: {
   }
 
   const exchangeCode: GoogleOAuthPort['exchangeCode'] = async (input) => {
+    config.assertDirectCredentialEgressAllowed?.('oauth.token.exchange')
     const response = await trace('googleOAuth.exchangeCode', () =>
       fetch(config.tokenUrl, {
         method: 'POST',
@@ -282,6 +289,7 @@ export const createGoogleOAuthAdapter = (config: {
   const refreshAccessToken: GoogleOAuthPort['refreshAccessToken'] = async (
     refreshToken,
   ) => {
+    config.assertDirectCredentialEgressAllowed?.('oauth.token.refresh')
     const response = await trace('googleOAuth.refreshToken', () =>
       fetch(config.tokenUrl, {
         method: 'POST',
@@ -312,6 +320,7 @@ export const createGoogleOAuthAdapter = (config: {
   }
 
   const revokeToken: GoogleOAuthPort['revokeToken'] = async (token) => {
+    config.assertDirectCredentialEgressAllowed?.('oauth.revoke')
     const response = await trace('googleOAuth.revokeToken', () =>
       fetch(config.revokeUrl, {
         method: 'POST',

@@ -15,8 +15,8 @@
 //      egress executor is absent, which happens merely by leaving the six
 //      GOOGLE_EGRESS_* / mTLS values unset. That path bypasses admission,
 //      quota control, credential binding and mTLS. In production it must
-//      refuse unless an operator explicitly opts out, and the refusal must
-//      name the missing configuration.
+//      refuse without an environment escape hatch, and the refusal must name
+//      the missing configuration.
 //
 // Scope: NODE_ENV === 'production' only. Development, test and CI keep exactly
 // the current behaviour (the canonical test env leaves these unset on purpose),
@@ -162,25 +162,44 @@ export function missingGoogleEgressConfig(
 }
 
 /**
- * Refuse an ungoverned direct provider call in production. Returns normally
- * outside production, and in production when the operator has explicitly set
- * GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS — the documented escape hatch for a
- * deployment that knowingly runs without the egress gateway.
+ * Refuse an ungoverned direct provider call in production. Provider calls
+ * carry OAuth access credentials, so an environment switch cannot waive the
+ * gateway/admission boundary.
  */
 export function assertDirectProviderEgressAllowed(
   env: DirectProviderEgressEnv,
   operation: string,
 ): void {
   if (env.NODE_ENV !== 'production') return
-  if (env.GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS === true) return
   const missing = missingGoogleEgressConfig(env)
   throw providerConfigError(
     `[CONFIG] Refused ungoverned direct Google provider call (${operation}) — ` +
       'the egress gateway is not configured, so this request would bypass ' +
       'admission, quota control, credential binding and mTLS. Missing: ' +
       `${missing.length === 0 ? 'none (executor unavailable for another reason)' : missing.join(', ')}. ` +
-      'Configure the gateway, or set GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS=true ' +
-      'to accept ungoverned egress deliberately.',
+      'Configure the approved gateway transport.',
+    missing,
+  )
+}
+
+/**
+ * Credential-bearing OAuth routes never have a production direct-egress
+ * exception. Unlike a bounded provider read, an authorization code, refresh
+ * token, client secret, or revoke token is the credential authority itself;
+ * an operator flag cannot waive the gateway/admission boundary required by
+ * ADR 0050 and SAFE-04.
+ */
+export function assertDirectCredentialEgressAllowed(
+  env: DirectProviderEgressEnv,
+  operation: string,
+): void {
+  if (env.NODE_ENV !== 'production') return
+  const missing = missingGoogleEgressConfig(env)
+  throw providerConfigError(
+    `[CONFIG] Refused direct Google credential egress (${operation}) — ` +
+      'OAuth credential traffic must use the approved credential gateway and ' +
+      'execution-admission boundary. Missing: ' +
+      `${missing.length === 0 ? 'none (credential gateway transport is not wired)' : missing.join(', ')}.`,
     missing,
   )
 }

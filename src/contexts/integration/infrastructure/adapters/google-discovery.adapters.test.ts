@@ -230,14 +230,12 @@ describe('Google Account Management adapter', () => {
     expect(execute).toHaveBeenCalledTimes(2)
   })
 
-  it('shares one refresh leader per connection while every caller reacquires execution', async () => {
+  it('delegates every 401 to replica-safe refresh coordination before reacquiring execution', async () => {
     let releaseRefresh: ((value: string) => void) | undefined
-    const refreshAccessToken = vi.fn(
-      () =>
-        new Promise<string>((resolve) => {
-          releaseRefresh = resolve
-        }),
-    )
+    const distributedResult = new Promise<string>((resolve) => {
+      releaseRefresh = resolve
+    })
+    const refreshAccessToken = vi.fn(() => distributedResult)
     const getAccessToken = vi.fn(async () => 'shared-access-token')
     const reauthorize = vi.fn(async () => reauthorized)
     const firstBodies = [
@@ -291,7 +289,7 @@ describe('Google Account Management adapter', () => {
       accessToken: 'expired-access-token-2',
       authorization,
     })
-    await vi.waitFor(() => expect(refreshAccessToken).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => expect(refreshAccessToken).toHaveBeenCalledTimes(2))
     releaseRefresh?.('leader-only-token')
 
     await expect(Promise.all([first, second])).resolves.toEqual([

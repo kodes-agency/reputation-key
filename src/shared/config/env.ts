@@ -201,18 +201,6 @@ const baseEnvSchema = z.object({
   GOOGLE_INTERNAL_MTLS_CERT_B64: z.string().min(1).optional(),
   GOOGLE_INTERNAL_MTLS_KEY_B64: z.string().min(1).optional(),
   GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: z.string().optional(),
-  // Explicit operator opt-out for UNGOVERNED direct Google provider egress.
-  // The review adapter falls back to a direct `fetch` whenever the egress
-  // executor is absent — which happens merely by leaving the six values above
-  // unset — and that path bypasses admission, quota control, credential
-  // binding and mTLS. Absent (the default) means PRODUCTION REFUSES the
-  // fallback with a config error naming the missing fields; development and
-  // test are unaffected either way. Set to 'true' only for a production
-  // deployment that knowingly runs without the gateway.
-  GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS: z
-    .string()
-    .optional()
-    .transform((v) => v?.toLowerCase() === 'true'),
 
   // Web/worker -> AI egress gateway. All transport and settlement-verification
   // values are configured together; composition rejects partial configuration.

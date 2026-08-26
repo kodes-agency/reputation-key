@@ -1,6 +1,6 @@
 // Integration context — refresh Google token use case tests
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { refreshGoogleToken } from './refresh-google-token'
 import { createInMemoryGoogleConnectionRepo } from '#/shared/testing/in-memory-google-connection-repo'
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
@@ -8,6 +8,7 @@ import { createInMemoryTokenEncryption } from '#/shared/testing/in-memory-token-
 import { buildTestGoogleConnection } from '#/shared/testing/fixtures'
 import { isIntegrationError } from '../../domain/errors'
 import { organizationId } from '#/shared/domain/ids'
+import type { GoogleRefreshCoordination } from '../ports/google-refresh-coordination.port'
 
 const FIXED_NOW = new Date('2026-01-15T12:00:00Z')
 const clock = () => FIXED_NOW
@@ -182,5 +183,73 @@ describe('refreshGoogleToken', () => {
     expect(connectionRepo.all()[0]?.encryptedAccessToken).toBe(
       connection.encryptedAccessToken,
     )
+  })
+
+  it('coordinates a refresh across replicas and accepts the committed credential generation', async () => {
+    const { connectionRepo, oauth, encryption } = setup()
+    const connection = buildTestGoogleConnection({
+      tokenExpiresAt: new Date(FIXED_NOW.getTime() - 60 * 60 * 1000),
+      credentialGeneration: 7,
+    })
+    const committed = buildTestGoogleConnection({
+      ...connection,
+      encryptedAccessToken: 'enc:replica-committed-access-token',
+      tokenExpiresAt: new Date(FIXED_NOW.getTime() + 60 * 60 * 1000),
+      credentialGeneration: 8,
+    })
+    connectionRepo.seed([connection])
+    let coordinationCalls = 0
+    const coordination: GoogleRefreshCoordination = {
+      run: async (input) => {
+        coordinationCalls += 1
+        expect(input.organizationId).toBe(ORG_ID)
+        expect(input.connectionId).toBe(connection.id)
+        expect(input.expectedCredentialGeneration).toBe(7)
+        connectionRepo.seed([committed])
+        const latest = await input.loadLatest()
+        if (latest === null) throw new Error('expected committed replica refresh')
+        return { ok: true, value: latest }
+      },
+    }
+    const useCase = refreshGoogleToken({
+      connectionRepo,
+      oauth,
+      encryption,
+      clock,
+      coordination,
+    })
+
+    await expect(useCase(ORG_ID, connection.id)).resolves.toEqual(committed)
+    expect(coordinationCalls).toBe(1)
+    expect(oauth.refreshAccessTokenCalls()).toEqual([])
+  })
+
+  it('fails closed before decrypting or calling Google when shared coordination denies', async () => {
+    const { connectionRepo, oauth, encryption } = setup()
+    const connection = buildTestGoogleConnection({
+      tokenExpiresAt: new Date(FIXED_NOW.getTime() - 60 * 60 * 1000),
+    })
+    connectionRepo.seed([connection])
+    const decrypt = vi.spyOn(encryption, 'decrypt')
+    const useCase = refreshGoogleToken({
+      connectionRepo,
+      oauth,
+      encryption,
+      clock,
+      coordination: {
+        run: async () => ({
+          ok: false as const,
+          code: 'coordination_unavailable' as const,
+          retryAfterMs: 0,
+        }),
+      },
+    })
+
+    await expect(useCase(ORG_ID, connection.id)).rejects.toSatisfy(
+      (error: unknown) =>
+        isIntegrationError(error) && error.code === 'token_refresh_failed',
+    )
+    expect(decrypt).not.toHaveBeenCalled()
+    expect(oauth.refreshAccessTokenCalls()).toEqual([])
   })
 })

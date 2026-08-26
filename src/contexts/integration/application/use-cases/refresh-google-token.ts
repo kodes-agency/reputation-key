@@ -10,6 +10,9 @@ import type { OrganizationId } from '#/shared/domain/ids'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { TOKEN_EXPIRY_BUFFER_MS } from '../constants'
+import type { GoogleRefreshCoordination } from '../ports/google-refresh-coordination.port'
+
+const REFRESH_COORDINATION_DEADLINE_MS = 25_000
 
 export type RefreshGoogleTokenOptions = Readonly<{
   force?: boolean
@@ -21,6 +24,7 @@ export type RefreshGoogleTokenDeps = Readonly<{
   oauth: GoogleOAuthPort
   encryption: TokenEncryptionPort
   clock: () => Date
+  coordination?: GoogleRefreshCoordination
 }>
 
 export const refreshGoogleToken =
@@ -60,54 +64,85 @@ export const refreshGoogleToken =
       return connection
     }
 
-    // 4. Decrypt refresh token
-    const refreshToken = deps.encryption.decrypt(connection.encryptedRefreshToken)
+    const validateCurrentAuthority = (current: GoogleConnection): GoogleConnection => {
+      if (current.status !== 'active' || current.credentialUseState !== 'active') {
+        throw integrationError(
+          'connection_disconnected',
+          'Credential authority changed after token refresh',
+        )
+      }
+      return current
+    }
 
-    // 5. Refresh access token
-    const refreshResult = await deps.oauth.refreshAccessToken(refreshToken)
-    const tokenExpiresAt = new Date(now + refreshResult.expiresIn * 1000)
+    const loadCommittedReplicaRefresh = async (): Promise<GoogleConnection | null> => {
+      const latest = await deps.connectionRepo.findById(orgId, connectionId)
+      if (!latest) {
+        throw integrationError(
+          'connection_not_found',
+          'Connection not found during token refresh',
+        )
+      }
+      if (latest.credentialGeneration === connection.credentialGeneration) return null
+      return validateCurrentAuthority(latest)
+    }
 
-    // 6. Encrypt new access token
-    const encryptedAccessToken = deps.encryption.encrypt(refreshResult.accessToken)
+    const performRefresh = async (
+      assertLeadership: () => Promise<void>,
+    ): Promise<GoogleConnection> => {
+      // Credential material is not decrypted until the replica owns the
+      // renewable Redis lease and shared failure backoff has admitted it.
+      const refreshToken = deps.encryption.decrypt(connection.encryptedRefreshToken)
+      const refreshResult = await deps.oauth.refreshAccessToken(refreshToken)
+      const tokenExpiresAt = new Date(now + refreshResult.expiresIn * 1000)
+      const encryptedAccessToken = deps.encryption.encrypt(refreshResult.accessToken)
 
-    // 7. Update tokens
-    const updated = await deps.connectionRepo.updateTokens(
-      orgId,
+      // Re-prove the exact Redis owner immediately before the database CAS.
+      // The connection generation is the durable fence if leadership moved.
+      await assertLeadership()
+      const updated = await deps.connectionRepo.updateTokens(
+        orgId,
+        connectionId,
+        {
+          lifecycleVersion: connection.lifecycleVersion,
+          credentialGeneration: connection.credentialGeneration,
+        },
+        encryptedAccessToken,
+        connection.encryptedRefreshToken,
+        tokenExpiresAt,
+      )
+      if (!updated) {
+        throw integrationError(
+          'connection_disconnected',
+          'Credential authority changed during token refresh',
+        )
+      }
+
+      const updatedConnection = await deps.connectionRepo.findById(orgId, connectionId)
+      if (!updatedConnection) {
+        throw integrationError(
+          'connection_not_found',
+          'Connection not found after token refresh',
+        )
+      }
+      return validateCurrentAuthority(updatedConnection)
+    }
+
+    if (!deps.coordination) return performRefresh(async () => undefined)
+    const coordinated = await deps.coordination.run({
+      organizationId: orgId,
       connectionId,
-      {
-        lifecycleVersion: connection.lifecycleVersion,
-        credentialGeneration: connection.credentialGeneration,
-      },
-      encryptedAccessToken,
-      connection.encryptedRefreshToken, // Keep same refresh token
-      tokenExpiresAt,
-    )
-    if (!updated) {
+      expectedCredentialGeneration: connection.credentialGeneration,
+      deadlineMs: now + REFRESH_COORDINATION_DEADLINE_MS,
+      loadLatest: loadCommittedReplicaRefresh,
+      refresh: performRefresh,
+    })
+    if (!coordinated.ok) {
       throw integrationError(
-        'connection_disconnected',
-        'Credential authority changed during token refresh',
+        'token_refresh_failed',
+        `Google token refresh coordination denied (${coordinated.code})`,
       )
     }
-
-    // 8. Re-read after the conditional commit; never return cleanup-only material.
-    const updatedConnection = await deps.connectionRepo.findById(orgId, connectionId)
-    if (!updatedConnection) {
-      throw integrationError(
-        'connection_not_found',
-        'Connection not found after token refresh',
-      )
-    }
-    if (
-      updatedConnection.status !== 'active' ||
-      updatedConnection.credentialUseState !== 'active'
-    ) {
-      throw integrationError(
-        'connection_disconnected',
-        'Credential authority changed after token refresh',
-      )
-    }
-
-    return updatedConnection
+    return coordinated.value
   }
 
 export type RefreshGoogleToken = ReturnType<typeof refreshGoogleToken>

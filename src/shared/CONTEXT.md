@@ -14,6 +14,12 @@ shared/
   cache/         cache/rate-limit Redis client, cache port + implementations (redis-cache, noop-cache)
   observability/ logger (pino), traced-server-fn, request-context, trace (correlation IDs, timing)
   config/        env Zod schema
+  google-provider-control/ typed route catalogue, credential binding, Redis quota/lease/backoff, admission grant contracts
+  provider-ephemeral/ non-persistent provider reference and authorization-lease infrastructure
+  governance/    executable event/job/entry-point/protected-field catalogues
+  outbox/        durable event relay and receipts
+  security/      request, secret, redaction, and artifact boundary controls
+  ops/           recovery fences and operator-safe shared contracts
   testing/       in-memory port fakes, capturing-event-bus, fixtures, integration helpers
   hooks/         usePermissions (role check), useCapabilities (feature-gate check)
 ```
@@ -70,6 +76,11 @@ Shared code is **used by 2+ modules** across the codebase. If only one context u
 Production Cache Redis (`REDIS_URL`) and BullMQ Queue Redis
 (`QUEUE_REDIS_URL`) are physically distinct per ADR 0053. Development/tests may
 use the documented single-Redis fallback; production code must never add one.
+Google refresh single-flight/backoff uses Cache Redis through an
+Integration-owned port; keys are HMAC-derived, leases renew while provider
+work is in flight, and the credential-generation database CAS is the durable
+commit fence. Provider-ephemeral Redis remains physically separate and is not
+used for this durable coordination metadata.
 
 ## Testing (`shared/testing/`)
 

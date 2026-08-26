@@ -58,6 +58,7 @@ import { createGoogleReviewApiAdapter } from './infrastructure/adapters/google-r
 import { createGoogleAccountManagementAdapter } from './infrastructure/adapters/google-account-management.adapter'
 import { createGoogleBusinessInformationAdapter } from './infrastructure/adapters/google-business-information.adapter'
 import { createSingle401RefreshExecutor } from './infrastructure/adapters/google-single-401-refresh-executor'
+import type { GoogleRefreshCoordination } from './application/ports/google-refresh-coordination.port'
 import { createActiveConnectionTokenProvider } from './application/active-connection-token-provider'
 import {
   createGoogleImportCommandAuthorizer,
@@ -213,11 +214,15 @@ type IntegrationContextDeps = Readonly<{
    * call site came to discard it.
    */
   refreshPolicyStoreRequired?: () => Promise<RequiredPolicyRefreshResult>
+  /** Redis-backed, renewable and generation-fenced refresh coordination. */
+  googleRefreshCoordination?: GoogleRefreshCoordination
   /** Production fail-closed check for the review adapter's DIRECT `fetch`
    * fallback (bypasses admission, quota control, credential binding, mTLS).
    * Wired by the composition root, which owns env; absent = today's
    * behaviour, which is what simulations and tests rely on. */
   assertDirectProviderEgressAllowed?: (operation: string) => void
+  /** Production has no escape hatch for credential-bearing OAuth sockets. */
+  assertDirectCredentialEgressAllowed?: (operation: string) => void
 }>
 
 export type IntegrationContextApi = Readonly<{
@@ -324,15 +329,30 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       tokenUrl: deps.providerEndpoints.oauthTokenUrl,
       jwksUrl: deps.providerEndpoints.oauthJwksUrl,
       revokeUrl: deps.providerEndpoints.oauthRevokeUrl,
+      ...(deps.assertDirectCredentialEgressAllowed === undefined
+        ? {}
+        : {
+            assertDirectCredentialEgressAllowed: deps.assertDirectCredentialEgressAllowed,
+          }),
     })
   const encryptionPort = createTokenEncryptionAdapter(getEnv().ENCRYPTION_KEY)
   const gbpApiPort =
     deps.gbpApi ??
     createGbpApiAdapter({
       baseUrl: deps.providerEndpoints.gbpAccountManagementBaseUrl,
+      ...(deps.assertDirectCredentialEgressAllowed === undefined
+        ? {}
+        : {
+            assertDirectCredentialEgressAllowed: deps.assertDirectCredentialEgressAllowed,
+          }),
     })
   const notificationsPort = createMyBusinessNotificationsAdapter({
     baseUrl: deps.providerEndpoints.notificationsApiBaseUrl,
+    ...(deps.assertDirectCredentialEgressAllowed === undefined
+      ? {}
+      : {
+          assertDirectCredentialEgressAllowed: deps.assertDirectCredentialEgressAllowed,
+        }),
   })
   const loadImportItemRouting = createImportItemRoutingLoader({ db: deps.db })
 
@@ -391,6 +411,9 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     oauth: oauthPort,
     encryption: encryptionPort,
     clock: deps.clock,
+    ...(deps.googleRefreshCoordination === undefined
+      ? {}
+      : { coordination: deps.googleRefreshCoordination }),
   })
   const activeConnectionTokenProvider = createActiveConnectionTokenProvider({
     connectionRepo,

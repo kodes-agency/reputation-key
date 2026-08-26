@@ -120,16 +120,18 @@
     {
       "id": "SAFE-04",
       "status": "partial",
-      "summary": "mTLS and sidecar controls are substantial, but OAuth token traffic still bypasses the gateway and live refresh coordination remains process-local.",
+      "summary": "Production direct credential sockets are now fail-closed and live refresh coordination is Redis-backed, renewable, generation-fenced, and shared-backoff aware; the credential gateway consumer is not yet activated.",
       "codeEvidence": [
         "src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts",
-        "src/contexts/integration/application/google-single-401-refresh-executor.ts"
+        "src/contexts/integration/infrastructure/adapters/google-refresh-coordination.adapter.ts",
+        "src/contexts/integration/application/use-cases/refresh-google-token.ts",
+        "src/shared/google-provider-control/refresh-single-flight.ts"
       ],
       "testEvidence": [
-        "SPIFFE SAN/EKU, TLS, permit-start, sidecar artifact, and SBOM suites"
+        "Real-Redis replica/renewal/backoff tests plus credential-egress refusal, SPIFFE SAN/EKU, TLS, permit-start, sidecar artifact, and SBOM suites"
       ],
       "remaining": [
-        "Route exchange/refresh/revoke through the credential gateway, wire fenced Redis single-flight and authorization invalidation, narrow direct egress to approved JWKS access, and produce sandbox/rotation/recovery evidence."
+        "Route exchange/refresh/revoke, legacy account lookup, and Notifications through credential-lifecycle permits and the gateway; wire durable authorization invalidation; remove the contained direct adapters after cutover; and produce sandbox/rotation/recovery evidence."
       ],
       "externalBlockers": [
         "Google production-boundary verification depends on approved provider configuration and reachable sandbox/live test surfaces."

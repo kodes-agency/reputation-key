@@ -662,13 +662,8 @@ describe('GoogleReviewApiAdapter direct-egress guard', () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(null, { status: 200 }))
-    // Same body as the operator-opt-out test below: build the ungoverned
-    // adapter, call replyToReview, assert it reached the network once. What
-    // differs is the only thing either test exists to pin — the env posture
-    // that makes a direct call legal (development here, production plus
-    // GOOGLE_ALLOW_DIRECT_PROVIDER_EGRESS there). Hiding that behind a helper
-    // parameter moves the input away from the assertion it explains.
-    // Revisit if a third posture lands: then it is a table over env inputs.
+    // Local deterministic adapters retain direct transport; production has no
+    // equivalent override because every Review request carries an OAuth token.
     // fallow-ignore-next-line code-duplication
     const api = ungovernedAdapter({ NODE_ENV: 'development' })
 
@@ -679,7 +674,7 @@ describe('GoogleReviewApiAdapter direct-egress guard', () => {
     fetchSpy.mockRestore()
   })
 
-  it('allows the direct call in production once the operator opts out', async () => {
+  it('refuses the direct call in production even when the legacy opt-out is set', async () => {
     const fetchSpy = vi
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(null, { status: 200 }))
@@ -690,8 +685,8 @@ describe('GoogleReviewApiAdapter direct-egress guard', () => {
 
     await expect(
       api.replyToReview(ORG_ID, CONNECTION_ID, GOOGLE_REVIEW_PRIMARY_RESOURCE, 'thanks'),
-    ).resolves.toBeUndefined()
-    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    ).rejects.toMatchObject({ code: 'config_invalid' })
+    expect(fetchSpy).not.toHaveBeenCalled()
     fetchSpy.mockRestore()
   })
 })

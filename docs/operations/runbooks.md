@@ -210,8 +210,16 @@ is the fixed `${BETTER_AUTH_URL}/api/auth/google/callback` and post-callback
 redirects are fixed app paths (`/import?…`) — no request-derived redirect
 target is ever honored. Tokens are AES-256-GCM encrypted at rest
 (`ENCRYPTION_KEY`); refresh runs through the single refresh use case; revoke
-on disconnect. Key rotation remains runbook-manual (§2) and is a registered
-platform finding — do not improvise rotation in an incident.
+on disconnect. In production, every credential-bearing direct socket now
+fails before network access with no environment opt-out. Refresh leadership
+uses Cache Redis across replicas: an opaque HMAC connection key, renewable
+lease, ownership proof immediately before credential-generation CAS, and
+shared 5–300 second failure backoff. A Redis outage denies refresh before
+credential decryption. The typed credential gateway/admission consumer for
+OAuth exchange/refresh/revoke and Notifications is still a SAFE-04 release
+blocker; keep those capabilities killed until its sandbox drill passes. Key
+rotation remains runbook-manual (§2) and is a registered platform finding —
+do not improvise rotation in an incident.
 
 **Error sanitization.** Server-fn errors map to generic tagged errors
 (`catchUntagged`); the root error boundary renders a generic message in
@@ -252,9 +260,9 @@ surface dark); network-level restriction of the ops surface is platform-owned
 **Trigger:** Google OAuth token leak suspected, encryption key exposure detected.
 **Impact:** P0 — unauthorized Google API access possible.
 **Diagnostics:** Check `google_connections` for the affected connection. Identify `encryption_key_id` version.
-**Containment:** Revoke the Google refresh token via Google API (`ops:disconnect-connection <connectionId> --org <id>` — revoke + redact + purge; destructive, typed confirmation). If encryption key compromised: begin key rotation — new tokens encrypted with new key, old tokens re-encrypted (runbook-manual, platform owner).
+**Containment:** Kill Google capabilities and pause provider work first. `ops:disconnect-connection <connectionId> --org <id>` fences imports and redacts the local connection, but it is not revocation evidence until the governed OAuth revoke route is active: the production direct route is deliberately refused. During that transition, revoke the OAuth grant in the approved Google operator surface and attach its evidence. If the encryption key is compromised, begin key rotation — new tokens encrypted with the new key and old tokens re-encrypted (runbook-manual, platform owner).
 **Recovery:** User must re-authenticate via Google OAuth. New tokens encrypted with new key version.
-**Verification:** Confirm old tokens are revoked at Google. Confirm no API calls succeed with old tokens.
+**Verification:** Confirm old tokens are revoked at Google through provider-authoritative evidence; a local disconnected row alone is insufficient. Confirm no API calls succeed with old tokens.
 **Escalation:** Page Bozhidar Denev. Notify Google if API abuse detected.
 
 ---

@@ -69,6 +69,7 @@ function buildDeps(overrides: {
   providerAuthorizationLeases?: ProviderAuthorizationLeaseService
   oauthStateHandles?: OAuthStateHandleService
   refreshPolicyStoreRequired?: () => Promise<RequiredPolicyRefreshResult>
+  assertDirectCredentialEgressAllowed?: (operation: string) => void
 }) {
   return {
     db: dbStub,
@@ -169,6 +170,23 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     // The default adapters are constructed, not the in-memory fakes' extras.
     expect('setExchangeResult' in oauth).toBe(false)
     expect('setAccounts' in gbp).toBe(false)
+  })
+
+  it('threads the production credential-egress refusal into the real OAuth adapter', async () => {
+    const refusal = new Error('credential gateway required')
+    const assertDirectCredentialEgressAllowed = vi.fn(() => {
+      throw refusal
+    })
+    const ctx = buildIntegrationContext(
+      buildDeps({ assertDirectCredentialEgressAllowed }),
+    )
+
+    await expect(
+      ctx.internal.repos.oauthPort.refreshAccessToken('refresh-token'),
+    ).rejects.toBe(refusal)
+    expect(assertDirectCredentialEgressAllowed).toHaveBeenCalledWith(
+      'oauth.token.refresh',
+    )
   })
 })
 

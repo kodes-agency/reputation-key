@@ -126,4 +126,32 @@ describe('createMyBusinessNotificationsAdapter', () => {
       })
     },
   )
+
+  it('checks the credential boundary before notification subscription sockets', async () => {
+    const refusal = new Error('credential gateway required')
+    const assertDirectCredentialEgressAllowed = vi.fn(() => {
+      throw refusal
+    })
+    const adapter = createMyBusinessNotificationsAdapter({
+      baseUrl: BASE_URL,
+      assertDirectCredentialEgressAllowed,
+    })
+
+    await expect(
+      adapter.subscribe({
+        accessToken: 'tok',
+        gbpAccountId: '1',
+        pubsubTopic: 't',
+        notificationTypes: [],
+      }),
+    ).rejects.toBe(refusal)
+    await expect(
+      adapter.unsubscribe({ accessToken: 'tok', gbpAccountId: '1' }),
+    ).rejects.toBe(refusal)
+    expect(assertDirectCredentialEgressAllowed.mock.calls).toEqual([
+      ['notifications.subscribe'],
+      ['notifications.unsubscribe'],
+    ])
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })

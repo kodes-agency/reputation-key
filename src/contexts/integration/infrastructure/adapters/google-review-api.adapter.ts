@@ -102,9 +102,8 @@ type GoogleReviewApiAdapterDeps = Readonly<{
    * fallback is reachable merely by leaving the six GOOGLE_EGRESS_* values
    * unset, and it bypasses admission, quota control, credential binding and
    * mTLS. The composition root wires
-   * `assertDirectProviderEgressAllowed` here; absent (simulations, tests,
-   * bare adapter construction) means the direct path stays available exactly
-   * as it is today.
+   * the production no-direct-egress guard here; absent (simulations, tests,
+   * bare adapter construction) retains the deterministic local path only.
    */
   assertDirectEgressAllowed?: (operation: string) => void
   nowMs?: () => number

@@ -28,26 +28,6 @@ export function createSingle401RefreshExecutor(
     >
   }>,
 ): GoogleAuthorizedProviderExecutor {
-  const inFlightByConnection = new Map<string, Promise<void>>()
-
-  const refresh = (
-    authorization: Parameters<
-      GoogleAuthorizedProviderExecutor['execute']
-    >[1]['authorization'],
-  ): Promise<void> => {
-    const key = `${authorization.organizationId}\u0000${authorization.connectionId}`
-    const current = inFlightByConnection.get(key)
-    if (current) return current
-
-    const started = deps.refreshAccessToken({ authorization }).then(() => undefined)
-    inFlightByConnection.set(key, started)
-    const remove = () => {
-      if (inFlightByConnection.get(key) === started) inFlightByConnection.delete(key)
-    }
-    void started.then(remove, remove)
-    return started
-  }
-
   const sameScope = (
     current: Parameters<GoogleAuthorizedProviderExecutor['execute']>[1]['authorization'],
     refreshed: Parameters<
@@ -66,7 +46,10 @@ export function createSingle401RefreshExecutor(
       if (!first.ok || first.status !== 401 || !('accessToken' in descriptor))
         return first
       first.body.fill(0)
-      await refresh(options.authorization)
+      // Replica-safe coalescing and backoff belong to refreshGoogleToken's
+      // Redis coordination port. Keeping a second process-local Map here made
+      // behavior depend on which web/worker replica received the 401.
+      await deps.refreshAccessToken({ authorization: options.authorization })
       options.signal?.throwIfAborted()
       const authorization = await deps.reauthorize({
         authorization: options.authorization,

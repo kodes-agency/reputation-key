@@ -27,9 +27,11 @@ const classifyHttpStatus = (status: number): GbpApiErrorKind => {
 // no hardcoded or fallback endpoint (ADR 0031/0048).
 export const createMyBusinessNotificationsAdapter = (config: {
   baseUrl: string
+  assertDirectCredentialEgressAllowed?: (operation: string) => void
 }): MyBusinessNotificationsPort => {
   const baseUrl = config.baseUrl
   const subscribe: MyBusinessNotificationsPort['subscribe'] = async (input) => {
+    config.assertDirectCredentialEgressAllowed?.('notifications.subscribe')
     // NotificationSetting's only writable fields, and the only two we set.
     const url = `${baseUrl}/accounts/${input.gbpAccountId}/notificationSetting?updateMask=pubsubTopic,notificationTypes`
     const response = await trace('mybusinessNotifications.subscribe', () =>
@@ -55,6 +57,7 @@ export const createMyBusinessNotificationsAdapter = (config: {
   }
 
   const unsubscribe: MyBusinessNotificationsPort['unsubscribe'] = async (input) => {
+    config.assertDirectCredentialEgressAllowed?.('notifications.unsubscribe')
     const url = `${baseUrl}/accounts/${input.gbpAccountId}/notificationSetting?updateMask=pubsubTopic`
     const response = await trace('mybusinessNotifications.unsubscribe', () =>
       providerFetch('unsubscribe', url, {

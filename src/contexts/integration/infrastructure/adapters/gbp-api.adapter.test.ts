@@ -102,4 +102,22 @@ describe('createGbpApiAdapter.listAccounts', () => {
       createGbpApiAdapter({ baseUrl: BASE_URL }).listAccounts('tok'),
     ).rejects.toMatchObject({ name: 'GbpApiError', kind: 'auth_failed' })
   })
+
+  it('checks the credential boundary before sending a bearer token', async () => {
+    const refusal = new Error('credential gateway required')
+    const assertDirectCredentialEgressAllowed = vi.fn(() => {
+      throw refusal
+    })
+
+    await expect(
+      createGbpApiAdapter({
+        baseUrl: BASE_URL,
+        assertDirectCredentialEgressAllowed,
+      }).listAccounts('tok'),
+    ).rejects.toBe(refusal)
+    expect(assertDirectCredentialEgressAllowed).toHaveBeenCalledWith(
+      'account-management.accounts.list',
+    )
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
 })

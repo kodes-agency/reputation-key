@@ -384,6 +384,15 @@ The five packages below start in parallel after Gate A. They merge as small, iso
 
 ### SAFE-04 — Google/provider trust-boundary hardening (**BLK, CP; PAR**)
 
+**Implementation note (2026-08-26):** Production direct credential egress now
+fails before network access without the former environment opt-out. Google
+refresh uses a real-Redis renewable single-flight lease, pre-commit ownership
+proof, credential-generation CAS, and shared backoff; real Redis covers both
+replica coalescing and the corrected Lua persistence path. This is containment,
+not package closure: the typed gateway/admission consumer for OAuth exchange,
+refresh, revoke, legacy account lookup, and Notifications must still be wired
+through the durable credential lifecycle before those capabilities activate.
+
 **Covers:** `SEC-03`, `SEC-04`, `SEC-10..11`, `GOV-04`, `SEC-17`, Google/AI sidecar raw findings.
 
 **Work**

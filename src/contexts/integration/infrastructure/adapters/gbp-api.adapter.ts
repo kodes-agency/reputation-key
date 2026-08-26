@@ -45,8 +45,12 @@ function mapAccount(account: z.infer<typeof accountSchema>): GbpAccount {
   })
 }
 
-export const createGbpApiAdapter = (config: { baseUrl: string }): GbpApiPort => ({
+export const createGbpApiAdapter = (config: {
+  baseUrl: string
+  assertDirectCredentialEgressAllowed?: (operation: string) => void
+}): GbpApiPort => ({
   listAccounts: async (accessToken) => {
+    config.assertDirectCredentialEgressAllowed?.('account-management.accounts.list')
     const allAccounts: GbpAccount[] = []
     const seenAccountIds = new Set<string>()
     const seenPageTokens = new Set<string>()
