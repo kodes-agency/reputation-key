@@ -446,6 +446,66 @@ surface dark); network-level restriction of the ops surface is platform-owned
 
 ---
 
+## 16. Error Monitoring Not Delivering
+
+**Trigger/Symptoms:** A Data Cell refuses startup with `SENTRY_DSN is required`
+or `Germany ingestion host`; logs contain `Error monitoring initialization
+failed`, `capture failed`, or `flush timed out`; or the Sentry project receives
+no web/worker events for the deployed release.
+
+**Impact:** Application work continues when the SDK or ingestion transport
+fails, but automatic error diagnosis and incident alerting are degraded. A
+missing or non-Germany DSN is different: the affected Railway web/worker
+process refuses startup because monitoring is mandatory for beta Data Cells.
+
+**Prerequisites:** Named incident owner; access to the cell's Railway shared
+variables and Germany-hosted Sentry project; candidate release SHA. Never paste
+the DSN, event payload, review text, contact data, or credentials into a ticket
+or chat transcript.
+
+**Diagnostics:**
+
+1. Confirm both `web` and `worker` use the same cell-scoped `SENTRY_DSN` and
+   `SENTRY_TRACES_SAMPLE_RATE`, and that the DSN host ends in
+   `.ingest.de.sentry.io`. There is intentionally no `SENTRY_ENABLED` switch.
+2. Search content-safe boot logs by `releaseSha`, `processingCell`, and
+   `service` for `Error monitoring initialized`. An SDK failure is logged as an
+   error but does not expose the DSN or exception message.
+3. Confirm the image command preloads
+   `web-observability-preload.mjs`/`worker-observability-preload.js` before the
+   application entry. A command override that omits `--import` is configuration
+   drift even if the Nitro hook later appears to initialize.
+4. In Sentry, filter by `release`, `environment`, `service`, and
+   `processing_cell`. Events intentionally omit request bodies, headers,
+   cookies, user/extra data, exception messages, breadcrumb content, local
+   variables, and source context.
+
+**Containment:** Do not disable monitoring. If a newly pinned SDK causes
+resource or startup instability, roll back to the last signed image digest;
+runtime SDK/transport exceptions already fail open. Treat any prohibited
+content found in an event as a tenant-data incident and follow §9 immediately.
+
+**Recovery:** Correct the shared Germany DSN or transport/project state and
+redeploy the exact candidate through the normal promotion path. Do not add a
+second worker process-level uncaught-error handler: RepKey owns worker
+drain/exit and the Sentry worker defaults are deliberately removed to avoid
+races and duplicates. Web retains the SDK's fatal handlers because it has no
+equivalent application-owned fatal process boundary.
+
+**Verification:** Send one controlled synthetic exception from each process in
+each affected cell through the staging/RC drill. Verify one event per failure,
+the correct release/environment/service/cell tags, readable stack frames, and
+absence of the seeded secret, review, feedback, contact, cookie, and token
+markers. Terminate web and worker once and confirm bounded flush completes
+inside the Railway drain window.
+
+**Escalation/Evidence:** Bozhidar Denev. Record cell, release SHA, service,
+Sentry event ID, alert receipt, drill time, and scrubber inspection result. Do
+not record event bodies. Source-map upload and external alert routing remain RC
+evidence gates; runtime initialization alone does not close OBS-01.
+
+---
+
 ## Alerts (BQC-7.4)
 
 Every alert is defined in `src/shared/observability/alert-definitions.ts` (owner, severity per ADR 0038, threshold/window) and evaluated by the health-check job every 5 minutes against the OperationsSnapshot plus the aux reads (retention runs, policy denials, quarantine region-attempts).

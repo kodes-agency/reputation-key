@@ -129,8 +129,10 @@ const baseEnvSchema = z.object({
     .optional()
     .transform((value) => value?.toLowerCase() === 'true'),
 
-  // Error tracking — Sentry (optional, Phase 22 for full integration)
-  SENTRY_DSN: z.string().optional(),
+  // Error tracking — optional for local/test execution. Every deployed
+  // production Data Cell requires a Germany-ingestion DSN at the monitoring
+  // preload boundary (shared/observability/telemetry.ts).
+  SENTRY_DSN: z.url().optional(),
   SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0.1),
 
   // Guest sessions — required in production, dev-only default for convenience

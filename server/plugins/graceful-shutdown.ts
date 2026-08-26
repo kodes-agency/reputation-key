@@ -24,6 +24,7 @@ import { closeRedis } from '#/shared/cache/redis'
 import { closePool } from '#/shared/db/pool'
 import { closeWebResources } from '#/shared/lifecycle/graceful-shutdown'
 import { getLogger } from '#/shared/observability/logger'
+import { flushObservability } from '#/shared/observability/telemetry'
 
 const CLOSE_BUDGET_MS = 3_000
 
@@ -36,6 +37,14 @@ export default definePlugin(() => {
         { name: 'container-queues', close: closeContainer },
         { name: 'redis', close: closeRedis },
         { name: 'pg-pool', close: closePool },
+        {
+          name: 'error-monitoring',
+          close: async () => {
+            if (!(await flushObservability())) {
+              throw new Error('Error monitoring flush incomplete')
+            }
+          },
+        },
       ],
       { budgetMs: CLOSE_BUDGET_MS, logger },
     ).then((failures) => {

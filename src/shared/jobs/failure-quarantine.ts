@@ -105,7 +105,7 @@ function sanitizeFailedReason(err: unknown): string {
 }
 
 /** True when the job's configured attempt budget is spent. */
-function isAttemptsExhausted(job: Job): boolean {
+export function isAttemptsExhausted(job: Job): boolean {
   const configured = job.opts?.attempts
   const attempts =
     typeof configured === 'number' && configured > 0 ? configured : DEFAULT_ATTEMPTS

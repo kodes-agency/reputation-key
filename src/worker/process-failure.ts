@@ -33,6 +33,11 @@ export function createWorkerProcessFailurePolicy(deps: {
   ) => Promise<void>
   readonly exit: (code: 1) => unknown
   readonly logger: WorkerProcessFailureLogger
+  readonly captureFatal: (
+    error: Error,
+    trigger: WorkerTerminationTrigger | 'shutdown',
+  ) => void
+  readonly flushErrorMonitoring: () => Promise<boolean>
 }): WorkerProcessFailurePolicy {
   let terminationRequested = false
 
@@ -45,17 +50,22 @@ export function createWorkerProcessFailurePolicy(deps: {
     terminationRequested = true
 
     if (failure !== undefined) {
+      const safeFailure = safeUnhandledReason(failure)
+      deps.captureFatal(safeFailure, trigger)
       deps.logger.fatal(
-        { err: safeUnhandledReason(failure), trigger },
+        { err: safeFailure, trigger },
         'Fatal worker process error — starting bounded drain',
       )
     }
 
-    void deps.shutdown(trigger, exitCode).catch((error: unknown) => {
+    void deps.shutdown(trigger, exitCode).catch(async (error: unknown) => {
+      const safeError = safeUnhandledReason(error)
+      deps.captureFatal(safeError, 'shutdown')
       deps.logger.fatal(
-        { err: safeUnhandledReason(error), trigger },
+        { err: safeError, trigger },
         'Worker shutdown failed — forcing non-zero exit',
       )
+      await deps.flushErrorMonitoring()
       deps.exit(1)
     })
   }

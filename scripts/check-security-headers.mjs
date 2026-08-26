@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // BQC-7.6 — booted-artifact security gate (STD-P1-07 closure evidence).
 //
-// Boots the BUILT production server (.output/server/index.mjs) on an ephemeral
-// port and asserts the full B0.7 security header set on live responses — the
+// Boots the BUILT production server through its real Node --import monitoring
+// preload on an ephemeral port and asserts the full B0.7 security header set — the
 // proof STD-P1-07 demands: "Built server serves the full B0.7 header set on
 // every response; CI assertion fails when any header is absent."
 //
@@ -34,12 +34,14 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SERVER_ENTRY = join(ROOT, '.output/server/index.mjs')
+const PRELOAD_ENTRY = join(ROOT, '.output/server/web-observability-preload.mjs')
 
 const BOOT_TIMEOUT_MS = 30_000
 const POLL_INTERVAL_MS = 250
 // Small limit so the 413 probe stays cheap; the production default (1 MiB)
 // lives in src/shared/config/env.ts (REQUEST_BODY_LIMIT_BYTES).
 const BODY_LIMIT_BYTES = 1024
+const PROBE_UPLOAD_ORIGIN = 'https://uploads.security-probe.repkey.invalid'
 
 // The B0.7 header set, exactly as served in production (HSTS included —
 // NODE_ENV=production). The CSP allows the application shell's per-response
@@ -48,7 +50,7 @@ const BODY_LIMIT_BYTES = 1024
 // src/shared/security/security-headers.ts — keep in sync deliberately; this
 // independent encoding is what makes the gate fail on drift.
 const EXPECTED_CSP_PATTERN =
-  /^script-src 'self'(?: 'nonce-[A-Za-z0-9+/_-]+={0,2}')?; style-src 'self' 'unsafe-inline' https:\/\/api\.fontshare\.com https:\/\/fonts\.googleapis\.com; img-src 'self' data: https:; connect-src 'self'; font-src 'self' https:\/\/cdn\.fontshare\.com https:\/\/fonts\.gstatic\.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'$/
+  /^script-src 'self'(?: 'nonce-[A-Za-z0-9+/_-]+={0,2}')?; style-src 'self' 'unsafe-inline' https:\/\/api\.fontshare\.com https:\/\/fonts\.googleapis\.com; img-src 'self' data: https:; connect-src 'self' https:\/\/uploads\.security-probe\.repkey\.invalid; font-src 'self' https:\/\/cdn\.fontshare\.com https:\/\/fonts\.gstatic\.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'$/
 
 const EXPECTED_HEADERS = {
   'x-content-type-options': 'nosniff',
@@ -58,9 +60,9 @@ const EXPECTED_HEADERS = {
   'strict-transport-security': 'max-age=31536000; includeSubDomains',
 }
 
-if (!existsSync(SERVER_ENTRY)) {
+if (!existsSync(SERVER_ENTRY) || !existsSync(PRELOAD_ENTRY)) {
   console.error(
-    `[security-headers] ${SERVER_ENTRY} not found — run \`pnpm build\` first (this gate verifies the built artifact).`,
+    `[security-headers] serving artifact or monitoring preload not found — run \`pnpm build && pnpm build:worker\` first.`,
   )
   process.exit(1)
 }
@@ -109,6 +111,10 @@ function serverEnv(port) {
     OAUTH_STATE_SECRET: hex(32),
     GUEST_SESSION_SALT: hex(16),
     PORTAL_TOKEN_HASH_SECRET: hex(32),
+    // Make the probe hermetic even though the real preload loads dotenv in
+    // local execution. Production images contain no .env file; this stable
+    // origin models the browser upload destination they receive as a variable.
+    S3_PRESIGN_ENDPOINT: PROBE_UPLOAD_ORIGIN,
     REQUEST_BODY_LIMIT_BYTES: String(BODY_LIMIT_BYTES),
     LOG_LEVEL: 'warn',
   }
@@ -138,7 +144,7 @@ function assertHeaders(label, headers, failures) {
 async function main() {
   const port = await freePort()
   const base = `http://127.0.0.1:${port}`
-  const child = spawn(process.execPath, [SERVER_ENTRY], {
+  const child = spawn(process.execPath, ['--import', PRELOAD_ENTRY, SERVER_ENTRY], {
     cwd: ROOT,
     env: serverEnv(port),
     stdio: ['ignore', 'pipe', 'pipe'],

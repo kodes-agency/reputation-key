@@ -1,5 +1,29 @@
-import { describe, it, expect } from 'vitest'
-import { scrubSentryEvent } from './telemetry'
+import { describe, it, expect, vi } from 'vitest'
+import {
+  buildObservabilityConfig,
+  createErrorMonitor,
+  scrubSentryBreadcrumb,
+  scrubSentryEvent,
+  type ErrorMonitoringSdk,
+} from './telemetry'
+
+function sdk() {
+  return {
+    init: vi.fn<ErrorMonitoringSdk['init']>(),
+    isInitialized: vi.fn<ErrorMonitoringSdk['isInitialized']>(() => false),
+    setTags: vi.fn<ErrorMonitoringSdk['setTags']>(),
+    captureException: vi.fn<ErrorMonitoringSdk['captureException']>(),
+    flush: vi.fn<ErrorMonitoringSdk['flush']>(async () => true),
+  } satisfies ErrorMonitoringSdk
+}
+
+function logger() {
+  return {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }
+}
 
 describe('telemetry PII scrubbing (B3.5)', () => {
   it('redacts known PII fields', () => {
@@ -14,7 +38,7 @@ describe('telemetry PII scrubbing (B3.5)', () => {
     expect(scrubbed.email).toBe('[REDACTED]')
     expect(scrubbed.token).toBe('[REDACTED]')
     expect(scrubbed.reviewText).toBe('[REDACTED]')
-    expect(scrubbed.message).toBe('Something happened')
+    expect(scrubbed.message).toBe('[REDACTED]')
   })
 
   it('redacts nested PII fields', () => {
@@ -27,11 +51,7 @@ describe('telemetry PII scrubbing (B3.5)', () => {
       },
     }
     const scrubbed = scrubSentryEvent(event) as Record<string, unknown>
-    const extra = scrubbed.extra as Record<string, unknown>
-    const context = extra.context as Record<string, unknown>
-
-    expect(extra.reviewerName).toBe('[REDACTED]')
-    expect(context.accessToken).toBe('[REDACTED]')
+    expect(scrubbed).not.toHaveProperty('extra')
   })
 
   it('uses the same normalized credential and personal-data vocabulary as logs', () => {
@@ -71,9 +91,8 @@ describe('telemetry PII scrubbing (B3.5)', () => {
     const scrubbed = scrubSentryEvent(event) as Record<string, unknown>
     const breadcrumbs = scrubbed.breadcrumbs as Array<Record<string, unknown>>
 
-    expect((breadcrumbs[0].data as Record<string, unknown>).email).toBe('[REDACTED]')
-    expect((breadcrumbs[0].data as Record<string, unknown>).action).toBe('click')
-    expect((breadcrumbs[1].data as Record<string, unknown>).token).toBe('[REDACTED]')
+    expect(breadcrumbs[0]).toEqual({})
+    expect(breadcrumbs[1]).toEqual({})
   })
 
   it('preserves non-PII data', () => {
@@ -106,5 +125,294 @@ describe('telemetry PII scrubbing (B3.5)', () => {
   it('handles null and undefined', () => {
     expect(scrubSentryEvent(null)).toBeNull()
     expect(scrubSentryEvent(undefined)).toBeUndefined()
+  })
+
+  it('removes arbitrary exception messages, request content, user data, and extras', () => {
+    const marker = 'seeded-private-review-and-contact'
+    const scrubbed = scrubSentryEvent({
+      message: marker,
+      transaction: `/properties/${marker}/reviews`,
+      exception: {
+        values: [{ type: 'Error', value: marker, stacktrace: { frames: [] } }],
+      },
+      request: {
+        method: 'POST',
+        url: `https://eu.example.invalid/portal/${marker}?token=${marker}`,
+        headers: { cookie: marker },
+        cookies: { session: marker },
+        data: { feedback: marker },
+        query_string: `contact=${marker}`,
+      },
+      user: { id: marker, email: `${marker}@example.invalid` },
+      extra: { arbitrary: marker },
+      tags: { service: 'web', tenant_name: marker },
+      contexts: {
+        runtime: { name: 'node', version: '22.23.2', commandLine: marker },
+        custom: { note: marker },
+      },
+      fingerprint: [marker],
+      logentry: { formatted: marker },
+      breadcrumbs: [{ category: 'http', message: marker, data: { body: marker } }],
+    }) as Record<string, unknown>
+
+    expect(JSON.stringify(scrubbed)).not.toContain(marker)
+    expect(scrubbed.message).toBe('[REDACTED]')
+    expect(scrubbed.transaction).toBe('[REDACTED]')
+    expect(scrubbed.request).toEqual({ method: 'POST' })
+    expect(scrubbed).not.toHaveProperty('user')
+    expect(scrubbed).not.toHaveProperty('extra')
+    expect(scrubbed).not.toHaveProperty('fingerprint')
+    expect(scrubbed).not.toHaveProperty('logentry')
+    expect(scrubbed.tags).toEqual({ service: 'web' })
+    expect(scrubbed.contexts).toEqual({
+      runtime: { name: 'node', version: '22.23.2' },
+    })
+  })
+
+  it('keeps only non-content breadcrumb metadata', () => {
+    expect(
+      scrubSentryBreadcrumb({
+        type: 'http',
+        category: 'fetch',
+        level: 'error',
+        timestamp: 123,
+        message: 'private review text',
+        data: { url: '/portal/private-hotel', responseBody: 'private feedback' },
+      }),
+    ).toEqual({ type: 'http', category: 'fetch', level: 'error', timestamp: 123 })
+  })
+})
+
+describe('error monitoring runtime', () => {
+  const baseConfig = {
+    service: 'worker' as const,
+    dsn: 'https://public@o1.ingest.de.sentry.io/1',
+    environment: 'cell-europe',
+    release: 'a'.repeat(40),
+    processingCell: 'europe',
+    tracesSampleRate: 0.1,
+  }
+
+  it('initializes once with privacy hooks and stable deployment tags', () => {
+    const sentry = sdk()
+    const log = logger()
+    const monitor = createErrorMonitor({ sentry, logger: log })
+
+    expect(monitor.initialize(baseConfig)).toBe('enabled')
+    expect(monitor.initialize(baseConfig)).toBe('enabled')
+
+    expect(sentry.init).toHaveBeenCalledOnce()
+    expect(sentry.init).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dsn: baseConfig.dsn,
+        environment: 'cell-europe',
+        release: baseConfig.release,
+        tracesSampleRate: 0.1,
+        sendDefaultPii: false,
+        includeLocalVariables: false,
+        serverName: 'repkey-worker',
+        integrations: expect.any(Function),
+        beforeSend: expect.any(Function),
+        beforeSendTransaction: expect.any(Function),
+        beforeBreadcrumb: expect.any(Function),
+      }),
+    )
+    expect(sentry.setTags).toHaveBeenCalledWith({
+      service: 'worker',
+      processing_cell: 'europe',
+      release_sha: baseConfig.release,
+    })
+    const options = sentry.init.mock.calls[0]![0]
+    expect(
+      options.integrations([
+        { name: 'Http' },
+        { name: 'OnUncaughtException' },
+        { name: 'OnUnhandledRejection' },
+        { name: 'LocalVariablesAsync' },
+        { name: 'ContextLines' },
+      ]),
+    ).toEqual([{ name: 'Http' }])
+  })
+
+  it('binds to a preload-initialized SDK without initializing it twice', () => {
+    const sentry = sdk()
+    sentry.isInitialized.mockReturnValue(true)
+    const monitor = createErrorMonitor({ sentry, logger: logger() })
+
+    expect(monitor.initialize(baseConfig)).toBe('enabled')
+    expect(sentry.init).not.toHaveBeenCalled()
+    expect(sentry.setTags).toHaveBeenCalledOnce()
+  })
+
+  it('initializes even when the full application logger is not available yet', () => {
+    const sentry = sdk()
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+    const monitor = createErrorMonitor({
+      sentry,
+      logger: () => {
+        throw new Error('full application environment unavailable')
+      },
+    })
+
+    expect(monitor.initialize(baseConfig)).toBe('enabled')
+    expect(sentry.init).toHaveBeenCalledOnce()
+    expect(stderr).toHaveBeenCalledWith(
+      '[observability:info] Error monitoring initialized\n',
+    )
+    stderr.mockRestore()
+  })
+
+  it('retains the provider process-fatal integrations for the web process', () => {
+    const sentry = sdk()
+    const monitor = createErrorMonitor({ sentry, logger: logger() })
+    monitor.initialize({ ...baseConfig, service: 'web' })
+    const options = sentry.init.mock.calls[0]![0]
+
+    expect(
+      options.integrations([
+        { name: 'OnUncaughtException' },
+        { name: 'OnUnhandledRejection' },
+        { name: 'LocalVariablesAsync' },
+        { name: 'ContextLines' },
+      ]),
+    ).toEqual([{ name: 'OnUncaughtException' }, { name: 'OnUnhandledRejection' }])
+  })
+
+  it('is disabled without a DSN and never loads or captures data', async () => {
+    const sentry = sdk()
+    const monitor = createErrorMonitor({ sentry, logger: logger() })
+
+    expect(monitor.initialize({ ...baseConfig, dsn: undefined })).toBe('disabled')
+    monitor.captureException(new Error('not sent'), { source: 'worker-startup' })
+
+    expect(sentry.init).not.toHaveBeenCalled()
+    expect(sentry.captureException).not.toHaveBeenCalled()
+    await expect(monitor.flush(25)).resolves.toBe(true)
+    expect(sentry.flush).not.toHaveBeenCalled()
+  })
+
+  it('never forwards a primitive rejection value to the provider', () => {
+    const sentry = sdk()
+    const monitor = createErrorMonitor({ sentry, logger: logger() })
+    monitor.initialize(baseConfig)
+
+    monitor.captureException('postgresql://user:secret@example.invalid/db', {
+      source: 'worker-process',
+      trigger: 'unhandledRejection',
+    })
+
+    expect(sentry.captureException).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Non-Error failure' }),
+      {
+        tags: {
+          runtime_source: 'worker-process',
+          termination_trigger: 'unhandledRejection',
+        },
+      },
+    )
+    expect(JSON.stringify(sentry.captureException.mock.calls)).not.toContain('secret')
+  })
+
+  it('allows only bounded machine-readable queue and job tags', () => {
+    const sentry = sdk()
+    const monitor = createErrorMonitor({ sentry, logger: logger() })
+    monitor.initialize(baseConfig)
+
+    monitor.captureException(new Error('failed'), {
+      source: 'bullmq-job',
+      queue: 'background',
+      jobName: 'retention-sweep',
+    })
+    monitor.captureException(new Error('failed'), {
+      source: 'bullmq-job',
+      queue: 'a private queue name',
+      jobName: 'private/review/text',
+    })
+
+    expect(sentry.captureException).toHaveBeenNthCalledWith(1, expect.any(Error), {
+      tags: {
+        runtime_source: 'bullmq-job',
+        queue: 'background',
+        job_name: 'retention-sweep',
+      },
+    })
+    expect(sentry.captureException).toHaveBeenNthCalledWith(2, expect.any(Error), {
+      tags: {
+        runtime_source: 'bullmq-job',
+        queue: 'unknown',
+        job_name: 'unknown',
+      },
+    })
+  })
+
+  it('fails open if provider initialization or flushing fails', async () => {
+    const sentry = sdk()
+    sentry.init.mockImplementation(() => {
+      throw new Error('sdk unavailable')
+    })
+    sentry.flush.mockRejectedValue(new Error('network unavailable'))
+    const log = logger()
+    const monitor = createErrorMonitor({ sentry, logger: log })
+
+    expect(monitor.initialize(baseConfig)).toBe('failed')
+    expect(log.error).toHaveBeenCalledWith(
+      { err: expect.any(Error), service: 'worker' },
+      'Error monitoring initialization failed — application startup continues',
+    )
+
+    sentry.init.mockImplementation(() => undefined)
+    const second = createErrorMonitor({ sentry, logger: log })
+    second.initialize(baseConfig)
+    await expect(second.flush(25)).resolves.toBe(false)
+    expect(log.warn).toHaveBeenCalledWith(
+      { err: expect.any(Error), timeoutMs: 25 },
+      'Error monitoring flush failed',
+    )
+  })
+
+  it('reports a bounded flush timeout without throwing into shutdown', async () => {
+    const sentry = sdk()
+    sentry.flush.mockResolvedValue(false)
+    const log = logger()
+    const monitor = createErrorMonitor({ sentry, logger: log })
+    monitor.initialize(baseConfig)
+
+    await expect(monitor.flush(25)).resolves.toBe(false)
+    expect(log.warn).toHaveBeenCalledWith(
+      { timeoutMs: 25 },
+      'Error monitoring flush timed out before delivery completed',
+    )
+  })
+
+  it('requires the Germany ingestion host and a DSN in a deployed production cell', () => {
+    const deployed = {
+      NODE_ENV: 'production' as const,
+      PROCESSING_CELL: 'europe',
+      RAILWAY_ENVIRONMENT_NAME: 'cell-europe',
+      RELEASE_SHA: 'b'.repeat(40),
+      RAILWAY_GIT_COMMIT_SHA: undefined,
+      SENTRY_TRACES_SAMPLE_RATE: 0.1,
+    }
+
+    expect(() => buildObservabilityConfig('web', deployed)).toThrow(
+      'SENTRY_DSN is required',
+    )
+    expect(() =>
+      buildObservabilityConfig('web', {
+        ...deployed,
+        SENTRY_DSN: 'https://public@o1.ingest.sentry.io/1',
+      }),
+    ).toThrow('Germany ingestion host')
+    expect(
+      buildObservabilityConfig('web', {
+        ...deployed,
+        SENTRY_DSN: 'https://public@o1.ingest.de.sentry.io/1',
+      }),
+    ).toMatchObject({
+      environment: 'cell-europe',
+      processingCell: 'europe',
+      release: 'b'.repeat(40),
+      service: 'web',
+    })
   })
 })

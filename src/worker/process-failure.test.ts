@@ -21,6 +21,8 @@ function harness(
     shutdown,
     exit: vi.fn(),
     logger: { fatal: vi.fn() },
+    captureFatal: vi.fn(),
+    flushErrorMonitoring: vi.fn(async () => true),
   }
 }
 
@@ -56,6 +58,11 @@ describe('worker process failure policy', () => {
       'Fatal worker process error — starting bounded drain',
     )
     expect(JSON.stringify(deps.logger.fatal.mock.calls)).not.toContain('secret')
+    expect(deps.captureFatal).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Non-Error rejection' }),
+      'unhandledRejection',
+    )
+    expect(JSON.stringify(deps.captureFatal.mock.calls)).not.toContain('secret')
   })
 
   it('treats an uncaught exception as fatal', async () => {
@@ -72,6 +79,7 @@ describe('worker process failure policy', () => {
       { err: error, trigger: 'uncaughtException' },
       'Fatal worker process error — starting bounded drain',
     )
+    expect(deps.captureFatal).toHaveBeenCalledWith(error, 'uncaughtException')
   })
 
   it('allows only the first termination path to own shutdown', async () => {
@@ -95,6 +103,8 @@ describe('worker process failure policy', () => {
     policy.onUnhandledRejection(new Error('first failure'))
 
     await vi.waitFor(() => expect(deps.exit).toHaveBeenCalledWith(1))
+    expect(deps.captureFatal).toHaveBeenLastCalledWith(expect.any(Error), 'shutdown')
+    expect(deps.flushErrorMonitoring).toHaveBeenCalledOnce()
     expect(deps.logger.fatal).toHaveBeenLastCalledWith(
       { err: expect.any(Error), trigger: 'unhandledRejection' },
       'Worker shutdown failed — forcing non-zero exit',

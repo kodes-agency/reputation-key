@@ -13,6 +13,12 @@ export default defineConfig({
     // Immutable-release proof: exercises only final schema reads on expand
     // and contract schemas from the exact web/worker image bits.
     'google-import-final-schema-probe': 'scripts/google-import-final-schema-probe.ts',
+    // Error monitoring must initialize before the worker imports queue/runtime
+    // modules. Docker and start:worker load this through Node's supported ESM
+    // --import preload path. The web counterpart has its own config so
+    // `pnpm build` alone remains a complete web artifact.
+    'worker-observability-preload':
+      'src/shared/observability/worker-observability-preload.ts',
   },
   outDir: 'dist-worker',
   format: ['esm'],
@@ -29,7 +35,15 @@ export default defineConfig({
   // 'better-auth/db/migration' and 'drizzle-orm' covers
   // 'drizzle-orm/node-postgres/migrator' — verified in the built bundle).
   noExternal: [/^#/],
-  external: ['pg', 'ioredis', 'bullmq', 'pino', 'better-auth', 'drizzle-orm'],
+  external: [
+    '@sentry/node',
+    'pg',
+    'ioredis',
+    'bullmq',
+    'pino',
+    'better-auth',
+    'drizzle-orm',
+  ],
   env: {
     NODE_ENV: process.env.NODE_ENV ?? 'production',
   },

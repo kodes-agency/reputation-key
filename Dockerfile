@@ -130,9 +130,10 @@ RUN node -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'}; for (con
 # the base image (its bundled deps carry known CVEs: grype container gate).
 # node itself is untouched; corepack/pnpm shims stay for operator tooling.
 RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
-# .output is fully traced by Nitro (no node_modules needed to serve);
-# prod node_modules is here for the worker/migrate externals (pg, ioredis,
-# bullmq, pino, better-auth, drizzle-orm) used by dist-worker/migrate-deploy.js.
+# Nitro traces the application bundle; @sentry/node is deliberately external
+# so the Node --import preload and the Nitro hook share one SDK instance.
+# Production node_modules also supplies the worker/migrate externals (pg,
+# ioredis, bullmq, pino, better-auth, drizzle-orm).
 COPY --from=build /app/.output ./.output
 COPY --from=build /app/dist-worker ./dist-worker
 COPY --from=prod-deps /app/node_modules ./node_modules
@@ -149,4 +150,4 @@ EXPOSE 3000
 # → restart posture); the platform activation gate is /api/health/started.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.NITRO_PORT||process.env.PORT||3000)+'/api/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-CMD ["node", ".output/server/index.mjs"]
+CMD ["node", "--import", "./.output/server/web-observability-preload.mjs", ".output/server/index.mjs"]

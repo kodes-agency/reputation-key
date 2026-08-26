@@ -10,7 +10,8 @@
 import { Worker, type Job, type Queue } from 'bullmq'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
-import { quarantineExhaustedJob } from './failure-quarantine'
+import { captureObservabilityException } from '#/shared/observability/telemetry'
+import { isAttemptsExhausted, quarantineExhaustedJob } from './failure-quarantine'
 import type { JobHandler } from './registry'
 import { Redis } from 'ioredis'
 import { getJobRedisUrl } from './redis-topology'
@@ -120,6 +121,7 @@ export function createJobWorker<T>(
   // the single structured, centrally redacted path for runtime queue faults.
   worker.on('error', (err: Error) => {
     logger.error({ component: 'bullmq-worker', queue: name, err }, 'BullMQ worker error')
+    captureObservabilityException(err, { source: 'bullmq-worker', queue: name })
   })
 
   worker.on('completed', (job: Job<T>) => {
@@ -132,10 +134,17 @@ export function createJobWorker<T>(
         queue: name,
         jobName: job?.name,
         attemptsMade: job?.attemptsMade,
-        err: { message: err.message, stack: err.stack },
+        err,
       },
       'job failed',
     )
+    if (job && isAttemptsExhausted(job)) {
+      captureObservabilityException(err, {
+        source: 'bullmq-job',
+        queue: name,
+        jobName: job.name,
+      })
+    }
     // BQC-3.6: attempts exhausted → dead-letter quarantine (content-safe).
     // Fire-and-forget with its own error containment — a quarantine write
     // failure must never take down the worker's failure path.

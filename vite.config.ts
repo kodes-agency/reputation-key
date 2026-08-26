@@ -81,6 +81,8 @@ const config = defineConfig(({ mode }) => {
               // path. Wired plugins (init order):
               //   - production-secret-guard (BQC-7.6): refuse boot when a
               //     known placeholder/test secret leaks into production.
+              //   - error-monitoring (OBS-01): capture unexpected Nitro errors;
+              //     Node --import preloads the SDK before any plugin starts.
               //   - release-identity-guard: refuse a declared candidate that
               //     differs from the revision baked into the image.
               //   - restore-mode-guard (BQC-7.8): restore-isolated boot
@@ -100,6 +102,7 @@ const config = defineConfig(({ mode }) => {
               //     routing) + x-request-id on every response.
               plugins: [
                 'server/plugins/production-secret-guard.ts',
+                'server/plugins/error-monitoring.ts',
                 'server/plugins/release-identity-guard.ts',
                 'server/plugins/restore-mode-guard.ts',
                 'server/plugins/redis-runtime-guard.ts',

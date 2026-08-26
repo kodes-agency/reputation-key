@@ -4,6 +4,11 @@
 import 'dotenv/config'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
+import {
+  captureObservabilityException,
+  flushObservability,
+  initObservability,
+} from '#/shared/observability/telemetry'
 import { runCapabilityBootGuard } from '#/shared/auth/capability-boot-guard'
 import { assertProductionSecrets } from '#/shared/config/production-secrets'
 import { assertReleaseIdentity } from '#/shared/config/release-identity'
@@ -77,6 +82,7 @@ async function main() {
   const env = getEnv()
   assertReleaseIdentity(env)
   const logger = getLogger()
+  initObservability('worker')
 
   logger.info({ env: env.NODE_ENV, releaseSha: getReleaseSha(env) }, 'Worker starting')
 
@@ -591,8 +597,10 @@ async function main() {
         { stuck: result.stuck, budgetMs: env.DRAIN_BUDGET_MS },
         'Drain budget exceeded — exiting with unclean shutdown',
       )
+      await flushObservability()
       process.exit(1)
     }
+    await flushObservability()
     process.exit(exitCode)
   }
 
@@ -600,6 +608,12 @@ async function main() {
     shutdown,
     exit: (code) => process.exit(code),
     logger,
+    captureFatal: (error, trigger) =>
+      captureObservabilityException(error, {
+        source: 'worker-process',
+        trigger,
+      }),
+    flushErrorMonitoring: flushObservability,
   })
   process.once('SIGTERM', () => processFailurePolicy.onSignal('SIGTERM'))
   process.once('SIGINT', () => processFailurePolicy.onSignal('SIGINT'))
@@ -611,7 +625,12 @@ async function main() {
   )
 }
 
-main().catch((err) => {
-  console.error('Worker failed to start', err)
+main().catch(async (err) => {
+  captureObservabilityException(err, {
+    source: 'worker-startup',
+    trigger: 'startup',
+  })
+  getLogger().fatal({ err }, 'Worker failed to start')
+  await flushObservability()
   process.exit(1)
 })

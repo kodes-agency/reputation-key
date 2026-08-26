@@ -4,6 +4,7 @@ const logger = vi.hoisted(() => ({
   info: vi.fn(),
   error: vi.fn(),
 }))
+const captureObservabilityException = vi.hoisted(() => vi.fn())
 
 vi.mock('#/shared/config/env', () => ({
   getEnv: () => ({ REDIS_URL: 'redis://unit-test:6379' }),
@@ -11,6 +12,10 @@ vi.mock('#/shared/config/env', () => ({
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => logger,
+}))
+
+vi.mock('#/shared/observability/telemetry', () => ({
+  captureObservabilityException,
 }))
 
 vi.mock('ioredis', () => ({
@@ -73,6 +78,41 @@ describe('worker observability', () => {
         err: error,
       },
       'BullMQ worker error',
+    )
+    expect(captureObservabilityException).toHaveBeenCalledWith(error, {
+      source: 'bullmq-worker',
+      queue: 'default',
+    })
+  })
+
+  it('captures only a job failure whose retry budget is exhausted', () => {
+    createJobWorker(
+      'background',
+      vi.fn(async () => undefined),
+    )
+    const failed = fakeWorkers().at(-1)!.listeners.get('failed')!
+    const error = new Error('private review text must not become a tag')
+
+    failed({ name: 'retention-sweep', attemptsMade: 1, opts: { attempts: 3 } }, error)
+    expect(captureObservabilityException).not.toHaveBeenCalledWith(
+      error,
+      expect.objectContaining({ source: 'bullmq-job' }),
+    )
+
+    failed({ name: 'retention-sweep', attemptsMade: 3, opts: { attempts: 3 } }, error)
+    expect(captureObservabilityException).toHaveBeenCalledWith(error, {
+      source: 'bullmq-job',
+      queue: 'background',
+      jobName: 'retention-sweep',
+    })
+    expect(logger.error).toHaveBeenLastCalledWith(
+      {
+        queue: 'background',
+        jobName: 'retention-sweep',
+        attemptsMade: 3,
+        err: error,
+      },
+      'job failed',
     )
   })
 })
