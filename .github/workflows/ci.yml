@@ -82,6 +82,9 @@ jobs:
       - name: Container image inventory and coverage policy
         run: pnpm check:container-images
 
+      - name: Technology stack authority and reproducibility
+        run: pnpm check:technology-stack
+
       - name: Format check
         run: pnpm format:check
 

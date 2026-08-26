@@ -3622,6 +3622,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ci/check-technology-stack.ts',
+    'scripts/ci/check-technology-stack.ts',
+    'none',
+    {
+      notes:
+        'check:technology-stack — read-only GOV-01 gate: exact runtime/package/CLI authority, immutable action and Docker-base allowlists, mutable network-tool denial, migration guidance denial, and pino/BullMQ/Redis/pg contract evidence',
+    },
+  ),
+  ops(
     'scripts/review/baseline-inventory.ts',
     'scripts/review/baseline-inventory.ts',
     'none',

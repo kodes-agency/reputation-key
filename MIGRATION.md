@@ -38,13 +38,9 @@ pnpm db:migrate
 
 ## Development Workflow
 
-For rapid prototyping in development, you can use schema push instead of migrations:
-
-```bash
-pnpm db:push
-```
-
-> ⚠️ `db:push` does not create migration files. Use `db:generate` + `db:migrate` for production.
+Use the same journaled workflow in development, CI, shared beta environments, and
+production. Never use `pnpm db:push` against this repository's schema: it bypasses
+the authoritative migration journal and can conceal deploy-time drift.
 
 ## Adding Auth Schema Changes
 

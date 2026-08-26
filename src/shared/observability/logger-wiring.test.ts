@@ -12,6 +12,6 @@ describe('logger dependency boundary', () => {
     }
 
     expect(manifest.dependencies?.['pino-pretty']).toBeUndefined()
-    expect(manifest.devDependencies?.['pino-pretty']).toBe('^13.1.3')
+    expect(manifest.devDependencies?.['pino-pretty']).toBe('13.1.3')
   })
 })

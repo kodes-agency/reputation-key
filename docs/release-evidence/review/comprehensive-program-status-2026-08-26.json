@@ -433,16 +433,31 @@
     {
       "id": "AI-04",
       "status": "partial",
-      "summary": "Property trends currently call an AI provider and enforce 10-review/10-point thresholds, contradicting the agreed provider-free 20-review/15-point contract.",
+      "summary": "The repository-owned Property Trend path is now provider-free and deterministic: exact preceding/current 30-complete-day windows, 20 analyzed Reviews, 90% text-candidate coverage, gap fencing, 15-point change and 10% category eligibility, correction-aware scheduling, versioned evidence, latest-complete/update presentation, lifecycle hiding, and 24-month outcome retention are implemented. Package activation is still partial because its upstream population and material-revision guarantees and live rollout evidence are not complete.",
       "codeEvidence": [
-        "src/contexts/ai/application/generate-property-trend.ts",
-        "src/contexts/ai/domain/ai-property-trend-contract.ts"
+        "src/contexts/ai/application/use-cases/generate-property-trend.ts",
+        "src/contexts/ai/infrastructure/adapters/ai-property-trend-schedule-store.adapter.ts",
+        "src/contexts/ai/infrastructure/adapters/ai-property-aggregate-store.adapter.ts",
+        "src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts",
+        "src/contexts/review/application/ai-review-source.ts",
+        "src/contexts/review/infrastructure/repositories/review.repository.ts",
+        "src/shared/ai-property-trend-contract.ts",
+        "src/components/features/property/property-ai-trend-section.tsx",
+        "drizzle/0112_ai_property_trend_evidence.sql",
+        "docs/architecture/ai-property-trend-definition-v1.md"
       ],
-      "testEvidence": ["Existing trend contract and generation suites"],
+      "testEvidence": [
+        "Deterministic contract, generation, Review population boundary, authorization/read-path, server DTO, scheduler, and scheduler-job suites (79 focused assertions passing on 2026-08-26)",
+        "TypeScript application, scripts, and Railway configurations compile on 2026-08-26"
+      ],
       "remaining": [
-        "Replace provider inference with a pure evaluator enforcing 20 analyses, 90% current coverage, no sequence gaps, 15-point movement, 10% category threshold, star-only reporting, lineage DTOs, and latest-complete/update semantics."
+        "AI-02 must prove exhaustive eligible-Review enrollment, immutable membership, and caught-up Review Analysis coverage; until then AI-04 cannot prove that its candidate population is complete.",
+        "REV-01 must prove stable Review identity, Material Review Revision sequencing, source cutover, and correction/content-lifecycle behavior used by the candidate-to-analysis join.",
+        "Record clean real-Postgres migration/read-path evidence, deterministic shadow parity, sufficient/insufficient/partial-coverage canaries, correction/rebuild recovery, lifecycle hide/erase, retention, and deployed cell-local scheduling drills before allowlisting Property Trends."
       ],
-      "externalBlockers": []
+      "externalBlockers": [
+        "Production-like canary and Railway cell evidence require the deployed environment after AI-02 and REV-01 close; no provider approval is required for the deterministic trend evaluation itself."
+      ]
     },
     {
       "id": "NTF-01",
@@ -638,19 +653,33 @@
     {
       "id": "GOV-01",
       "status": "partial",
-      "summary": "Node, pnpm, TypeScript types, Zod, Drizzle, TanStack, pino, BullMQ, Redis, and pg usage improved, but no single generated stack authority or complete exception register exists.",
+      "summary": "One executable authority now pins Node/pnpm, 41 core packages and CLIs, 11 GitHub Actions, all external Docker bases, runtime contracts, and an owned expiring exception; remaining conformance belongs to feature owners and release evidence.",
       "codeEvidence": [
+        "security/technology-stack.json",
+        "scripts/ci/check-technology-stack.ts",
+        "docs/operations/technology-stack-authority.md",
         "package.json",
         "package.runtime.json",
-        "scripts/review/zod-v4-conformance.ts"
+        "security/container-images.json",
+        "src/shared/observability/logger.ts",
+        "src/shared/jobs/redis-runtime.ts",
+        "src/shared/jobs/queue.ts",
+        "src/shared/jobs/worker.ts",
+        "src/shared/db/pool.ts"
       ],
       "testEvidence": [
-        "Stack-conformance, dependency, license, action-pin, and Zod checks"
+        "Technology-stack checker with independent negative fixtures",
+        "Built-ESM pino-pretty resolution proof",
+        "BullMQ/Redis topology, compatibility, retry, error-handler, and scheduler suites",
+        "PostgreSQL acquisition-only retry and ambiguous-statement non-replay suite",
+        "Container inventory, action-pin, dependency, license, and Zod conformance gates"
       ],
       "remaining": [
-        "Generate one runtime/tool/version authority, document every exception with owner/expiry, add Docker monitoring, mechanically prohibit production db:push, and retain clean current all-image/all-gate evidence."
+        "Complete CSRF, TanStack Query/Form/validator, React, Better Auth, Drizzle-extra, Zod migration, and settled error-contract changes in their owning packages; retain a clean hosted CI/all-image scan at the immutable candidate SHA."
       ],
-      "externalBlockers": []
+      "externalBlockers": [
+        "Hosted CI, current vulnerability databases, and deployed Railway runtime evidence cannot be replaced by local repository checks."
+      ]
     },
     {
       "id": "GOV-02",

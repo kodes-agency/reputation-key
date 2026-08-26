@@ -28,6 +28,16 @@ shared/
 
 Shared code is **used by 2+ modules** across the codebase. If only one context uses it, it belongs in that context. Wait for the second importer before extracting to shared.
 
+## Technology-stack authority
+
+`security/technology-stack.json` is the machine-checked runtime, core-package,
+CLI, external Docker-base, GitHub Action, and exception authority. Run
+`pnpm check:technology-stack` after changing package versions, runtime files,
+Dockerfiles, workflows, queue/Redis configuration, pino wiring, or the pg pool.
+The gate reuses `security/container-images.json`; never create a parallel image
+inventory. See `docs/operations/technology-stack-authority.md` for the upgrade
+and evidence protocol.
+
 ## Auth (`shared/auth/`)
 
 - **`auth.ts`** — better-auth server config with organization plugin and access control statement
@@ -81,6 +91,12 @@ Integration-owned port; keys are HMAC-derived, leases renew while provider
 work is in flight, and the credential-generation database CAS is the durable
 commit fence. Provider-ephemeral Redis remains physically separate and is not
 used for this durable coordination metadata.
+
+Queue Redis must pass the boot-time Redis 6.2+/GETDEL/`noeviction` inspection.
+Producer connections remain bounded and fail fast; Worker blocking connections
+retain `maxRetriesPerRequest: null`; every queue/client owns an error handler.
+PostgreSQL may retry transient pool acquisition only—never replay a SQL statement
+whose commit outcome may be ambiguous.
 
 ## Testing (`shared/testing/`)
 
