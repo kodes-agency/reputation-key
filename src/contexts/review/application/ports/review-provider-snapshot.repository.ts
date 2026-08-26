@@ -204,6 +204,11 @@ export type ReviewProviderSnapshotRepository = Readonly<{
     }>,
   ): Promise<ReviewProviderSnapshotRun>
 
+  /**
+   * Apply confirmed provider-missing transitions in a bounded batch. The
+   * persisted `deleting` state is legacy vocabulary; SAFE-03 makes source
+   * content ineligible while preserving stable Review/Reply identity.
+   */
   applyDeletionBatch(
     input: Readonly<{
       runId: string
@@ -218,6 +223,10 @@ export type ReviewProviderSnapshotRepository = Readonly<{
     }>
   >
 
+  /**
+   * Transition hard-expired provider source to ineligible. SAFE-03 preserves
+   * the stable Review row; REV-01 supplies field-level source erasure.
+   */
   expireRawSourceBatch(
     input: Readonly<{
       beforeOrAt: Date

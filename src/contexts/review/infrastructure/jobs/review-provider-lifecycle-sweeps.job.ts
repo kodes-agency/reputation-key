@@ -40,15 +40,13 @@ const parseSweepData = (data: ReviewProviderLifecycleSweepJobData) => {
 export const createExpireReviewProviderSourceHandler =
   (dependencies: Dependencies) => async (job: Job<ReviewProviderLifecycleSweepJobData>) =>
     trace('job.expireReviewProviderSource', async () => {
-      const input = parseSweepData(job.data)
-      const result = await dependencies.repository.expireRawSourceBatch(input)
-      if (result.nextReviewId != null) {
-        await dependencies.enqueueExpiryContinuation({
-          ...job.data,
-          afterReviewId: result.nextReviewId,
-        })
-      }
-      return result
+      // Validate stale queue payloads, then drain them harmlessly. The legacy
+      // repository path hard-deletes the Review row and cascades Replies;
+      // SAFE-03 keeps it unreachable until REV-01 separates expiring provider
+      // content from stable RepKey identity/history.
+      parseSweepData(job.data)
+      void dependencies
+      return { status: 'quarantined' as const, transitioned: 0, nextReviewId: null }
     })
 
 export const createSweepReviewProviderTombstonesHandler =

@@ -4,8 +4,8 @@
 //   1. Outbox insert failure (unregistered event type → toOutboxEvent throws)
 //      rolls back the state write — no state/outbox split is observable.
 //   2. Happy path commits state row AND outbox row with the same eventId.
-//   3. purgeExpiredReview removes the review and records review.expired
-//      atomically.
+//   3. SAFE-03 quarantines the legacy purge command before it can erase the
+//      stable Review row or RepKey-owned Reply history.
 
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
@@ -303,12 +303,14 @@ describe.sequential('replyCommandStore (integration)', () => {
     ])
   })
 
-  it('purgeExpiredReview deletes the review and records review.expired atomically', async () => {
+  it('quarantines purgeExpiredReview without erasing the review, reply, or recording a false expiry fact', async () => {
     const db = getDb()
     const reviewRepo = createReviewRepository(db)
+    const replyRepo = createReplyRepository(db)
     const store = createAtomicReplyCommandStore(db, silentEvents)
 
     await reviewRepo.upsert(makeReview())
+    await replyRepo.upsert(makeReply())
 
     const event = reviewExpired({
       reviewId: REVIEW_A,
@@ -317,16 +319,17 @@ describe.sequential('replyCommandStore (integration)', () => {
       occurredAt: NOW,
     })
 
-    await store.purgeExpiredReview(REVIEW_A, event)
+    await expect(store.purgeExpiredReview(REVIEW_A, event)).rejects.toThrow(
+      'Review destructive lifecycle is quarantined',
+    )
 
     const found = await reviewRepo.findById(REVIEW_A, ORG_A)
-    expect(found).toBeNull()
+    expect(found?.id).toBe(REVIEW_A)
+    expect((await replyRepo.findById(REPLY_A, ORG_A))?.id).toBe(REPLY_A)
     const outbox = await pool.query(
       `SELECT id, event_type FROM outbox_events WHERE organization_id = $1`,
       [ORG_A],
     )
-    expect(outbox.rows).toHaveLength(1)
-    expect(outbox.rows[0].id).toBe(event.eventId)
-    expect(outbox.rows[0].event_type).toBe('review.expired')
+    expect(outbox.rows).toHaveLength(0)
   })
 })

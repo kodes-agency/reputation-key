@@ -63,6 +63,7 @@ import { JOB_NAME as HEALTH_CHECK_JOB_NAME } from '#/shared/jobs/health-check.jo
 import { JOB_NAME as REFRESH_EXPIRING_JOB_NAME } from '#/contexts/review/infrastructure/jobs/refresh-expiring-reviews.job'
 import { JOB_NAME as DISCOVER_NEW_REVIEWS_JOB_NAME } from '#/contexts/review/infrastructure/jobs/discover-new-reviews.job'
 import { JOB_NAME as PURGE_EXPIRED_JOB_NAME } from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
+import { isLegacyDestructiveReviewLifecycleEnabled } from '#/contexts/review/application/review-lifecycle-safety'
 import { JOB_NAME as RECONCILE_MISSING_NOTIFICATIONS_JOB_NAME } from '#/contexts/notification/infrastructure/jobs/reconcile-missing-notifications.job'
 import { JOB_NAME as QUARANTINE_TTL_SWEEP_JOB_NAME } from '#/shared/jobs/quarantine-ttl-sweep.job'
 import { JOB_NAME as PERMIT_START_DEADLINE_SWEEP_JOB_NAME } from '#/shared/jobs/permit-start-deadline-sweep.job'
@@ -303,11 +304,16 @@ async function main() {
       label: 'every 10 minutes',
     })
 
-    planSchedule({
-      jobName: PURGE_EXPIRED_JOB_NAME,
-      repeat: { every: 24 * 60 * 60 * 1000, offset: 2 * 60 * 60 * 1000 },
-      label: 'daily',
-    })
+    // Keep the legacy name in the managed set so reconciliation removes any
+    // already-installed recurring scheduler while omitting it from desired.
+    planSchedule(
+      {
+        jobName: PURGE_EXPIRED_JOB_NAME,
+        repeat: { every: 24 * 60 * 60 * 1000, offset: 2 * 60 * 60 * 1000 },
+        label: 'quarantined by SAFE-03 pending REV-01',
+      },
+      isLegacyDestructiveReviewLifecycleEnabled(),
+    )
 
     // BQC-3.8: reconcile ambiguous reply publications every 30 minutes. A row
     // becomes due 15 minutes after the final ambiguous send attempt

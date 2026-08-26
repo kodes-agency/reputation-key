@@ -2540,7 +2540,10 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:review.purge',
     'none',
     'tenant_cross',
-    { notes: 'DB delete + review.expired event; retention evidence rows' },
+    {
+      notes:
+        'SAFE-03 quarantine handler; drains legacy jobs without reads/mutations/facts until REV-01 stable-identity cutover',
+    },
   ),
   job(
     'expire-review-provider-source',
@@ -2550,7 +2553,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'bounded Review raw-source expiry continuation; identifier-only source transition is committed with the row deletion',
+        'SAFE-03 quarantine continuation; validates and drains legacy expiry jobs without invoking row deletion',
     },
   ),
   job(
@@ -3073,7 +3076,10 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:review.purge',
     'none',
     'tenant_cross',
-    { notes: 'daily, offset 2h' },
+    {
+      notes:
+        'managed but disabled by SAFE-03; reconciles the former daily scheduler away',
+    },
   ),
   schedule(
     'reconcile-ambiguous-publications-recurring',
@@ -3266,7 +3272,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   ),
   ops('scripts/ops/enqueue-purge.ts', 'scripts/ops/enqueue-purge.ts', 'tenant_cross', {
     notes:
-      'ops:purge — content-free static retention-rule report by default; bounded re-run of purge-expired-reviews / retention-sweep via the BQC-3 producer contract on apply; destructive: typed --yes confirmation (BQC-7.5/GST-01)',
+      'ops:purge — content-free static retention-rule report by default; retention apply is destructive and typed-confirmed; Review apply reaches the SAFE-03 no-mutation quarantine handler until REV-01 (BQC-7.5/GST-01)',
   }),
   ops(
     'scripts/ops/property-suspension.ts',
@@ -3589,6 +3595,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
       'review:freeze-baseline — writes a release-SHA-bound, hashed review evidence bundle from tracked source, plan, consolidated report, validation gates, and repository governance state',
   }),
   ops(
+    'scripts/review/comprehensive-program-status.ts',
+    'scripts/review/comprehensive-program-status.ts',
+    'none',
+    {
+      notes:
+        'review:validate-program-status — read-only validation and summary of the machine-checked 42-package implementation ledger',
+    },
+  ),
+  ops(
     'scripts/review/zod-v4-conformance.ts',
     'scripts/review/zod-v4-conformance.ts',
     'none',
@@ -3772,6 +3787,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'release:validate-evidence — validates the named, path-contained BQC-8.8 reviewer evidence bundle; read-only',
+    },
+  ),
+  ops(
+    'scripts/release/railway-data-cell-plan.ts',
+    'scripts/release/railway-data-cell-plan.ts',
+    'none',
+    {
+      notes:
+        'release:railway-data-cell-plan — fail-closed read-only Railway infrastructure plan wrapper bound to the requested project and data-cell environment',
     },
   ),
   // ── bqc ───────────────────────────────────────────────────────────

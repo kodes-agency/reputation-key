@@ -417,9 +417,14 @@ describe('BQC-3.1 event/job family catalogue', () => {
   it('pins schedules to worker/index.ts (bidirectional)', () => {
     const discovered = discoverSchedules()
 
-    const drift = JOB_FAMILY_ROWS.filter(
-      (r) => (discovered.get(r.jobName) ?? 'none') !== r.schedule,
-    )
+    const drift = JOB_FAMILY_ROWS.filter((r) => {
+      // A quarantined job may remain in worker's managed schedule set only so
+      // reconciliation removes a previously installed recurrence. It is not
+      // part of desired runtime scheduling.
+      const effectiveSchedule =
+        r.registration === 'quarantined' ? 'none' : (discovered.get(r.jobName) ?? 'none')
+      return effectiveSchedule !== r.schedule
+    })
     expect(
       drift.map(
         (r) =>
@@ -469,7 +474,7 @@ describe('BQC-3.1 event/job family catalogue', () => {
     const bad = ENTRY_POINT_CATALOGUE.filter((r) => r.kind === 'schedule').filter((r) => {
       const name = /^(.*)-recurring$/.exec(r.name)?.[1]
       const j = name ? jobRow(name) : undefined
-      return !j || j.schedule === 'none'
+      return !j || (j.schedule === 'none' && j.registration !== 'quarantined')
     })
     expect(
       bad.map((r) => r.name),
@@ -550,8 +555,16 @@ describe('BQC-3.1 event/job family catalogue', () => {
   })
 
   it('keeps promotable jobs registered and blocks only permanent prohibitions', () => {
+    const quarantinedJobs = new Set([
+      'expire-review-provider-source',
+      'purge-expired-reviews',
+    ])
     const bad = JOB_FAMILY_ROWS.filter((r) => {
-      const expected = BLOCKED_CAPS.has(r.capability) ? 'blocked_capability' : 'enabled'
+      const expected = BLOCKED_CAPS.has(r.capability)
+        ? 'blocked_capability'
+        : quarantinedJobs.has(r.jobName)
+          ? 'quarantined'
+          : 'enabled'
       return r.registration !== expected
     })
     expect(

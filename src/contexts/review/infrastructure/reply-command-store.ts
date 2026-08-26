@@ -20,7 +20,7 @@
 
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { replies, reviews } from '#/shared/db/schema/review.schema'
+import { replies } from '#/shared/db/schema/review.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
@@ -28,6 +28,7 @@ import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type { Reply } from '../domain/types'
 import { reviewError } from '../domain/errors'
+import { denyLegacyReviewDestruction } from '../application/review-lifecycle-safety'
 import {
   AMBIGUOUS_RECONCILE_DELAY_MS,
   nextPublicationState,
@@ -406,34 +407,29 @@ export function createAtomicReplyCommandStore(
 
     purgeExpiredReview: async (reviewId, event) => {
       return trace('reply.commandStore.purgeExpiredReview', async () => {
-        await db.transaction(async (tx) => {
-          // Delete + fact commit together: a crash removes neither or both.
-          await tx
-            .delete(reviews)
-            .where(
-              and(
-                eq(reviews.id, reviewId),
-                eq(reviews.organizationId, event.organizationId),
-              ),
-            )
-          await insertOutboxRow(tx, event)
-        })
-        await emitAfterCommit(events, event)
+        // SAFE-03: the current Review row still carries both provider content
+        // and stable RepKey Reply/history identity. Its Reply FK cascades, so
+        // this legacy command cannot be made safe without the REV-01 schema
+        // cutover. Deny before SQL and before recording a false expiry fact.
+        void reviewId
+        void event
+        denyLegacyReviewDestruction()
       })
     },
   }
 }
 
 /**
- * Non-transactional store for unit tests / expand-phase fakes.
- * Applies the same operation order (state → outbox → emit) without a real
- * transaction. Not for production — production must use
- * createAtomicReplyCommandStore.
+ * Non-transactional store for unit tests / expand-phase fakes. Applies the
+ * same operation order (state → outbox → emit) without a real transaction;
+ * the legacy Review purge is denied before every dependency in both stores.
+ * Not for production — production must use createAtomicReplyCommandStore.
  */
 export function createSequentialReplyCommandStore(deps: {
   conditionalUpdate: ReplyRepository['conditionalUpdate']
   upsert: ReplyRepository['upsert']
   deleteByReviewIdAndSource: ReplyRepository['deleteByReviewIdAndSource']
+  /** @deprecated SAFE-03 keeps this compatibility dependency unreachable. */
   deleteReviewById: (reviewId: ReviewId, organizationId: OrganizationId) => Promise<void>
   events: EventBus
   recordOutbox?: (event: DomainEvent) => Promise<void>
@@ -621,8 +617,11 @@ export function createSequentialReplyCommandStore(deps: {
     },
 
     purgeExpiredReview: async (reviewId, event) => {
-      await deps.deleteReviewById(reviewId, event.organizationId)
-      await recordAndEmit(event)
+      // Keep the non-transactional fake aligned with production safety. Tests
+      // must never normalize a cascade that production deliberately denies.
+      void reviewId
+      void event
+      denyLegacyReviewDestruction()
     },
   }
 }

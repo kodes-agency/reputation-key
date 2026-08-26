@@ -3,15 +3,16 @@
 // jobEnqueueOptions — catalogue retry policy; the dispatch gate re-authorizes
 // at execution). Handlers are never invoked directly.
 //
-// DESTRUCTIVE: the sweeps delete expired data (bounded, evidence-writing).
-// --apply requires the typed confirmation --yes ops:purge.
+// DESTRUCTIVE: retention deletes expired data (bounded, evidence-writing), so
+// --apply requires the typed confirmation --yes ops:purge. The Review target
+// is SAFE-03-quarantined and performs no mutation until REV-01 cutover.
 //
 // Usage:
 //   pnpm ops:purge <target> --operator <id>            — dry-run report
 //   pnpm ops:purge <target> --operator <id> --reason <text> --apply --yes ops:purge
 //
 // Targets (background queue, bounded internally by the sweeps themselves):
-//   reviews    — purge-expired-reviews (daily; atomic delete + evidence per review)
+//   reviews    — purge-expired-reviews (quarantined; no mutation/evidence)
 //   retention  — retention-sweep (daily; static registry, evidence in retention_runs)
 //
 // Report mode requires DATABASE_URL only. Apply also requires QUEUE_REDIS_URL. Every

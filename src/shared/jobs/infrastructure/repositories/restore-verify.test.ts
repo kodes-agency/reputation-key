@@ -13,11 +13,9 @@
 // Proves the restore-verify chain end to end:
 //   1. --apply --reason --yes ops:restore-verify — evaluated through the REAL
 //      ExecutionPolicy operator branch and audited in policy_decision_audit;
-//      the source-policy purge runs IN-PROCESS (the purge job's core, no
-//      BullMQ): the seeded expired reviews are deleted (with review.expired
-//      outbox facts), the live review survives, the 'reviews.purge' evidence
-//      row lands in retention_runs, and the re-scan proves zero expired rows
-//      remain eligible;
+//      SAFE-03 quarantine makes the legacy in-process purge a no-op, so the
+//      re-scan fails closed, every Review survives, and no false expiry fact or
+//      retention evidence is written;
 //   2. dry-run (no --apply) — reports eligibility, purges nothing, audits
 //      'dry-run';
 //   3. RESTORE_MODE not isolated in the command env — the action REFUSES
@@ -269,7 +267,7 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
   })
 
-  it('apply: purges expired in-process, keeps live rows, writes evidence + audit', async () => {
+  it('apply: fails closed while Review erasure is quarantined and preserves every row', async () => {
     const io = memoryIO()
     const result = await runOperatorCommand(
       RESTORE_VERIFY_SPEC,
@@ -288,30 +286,28 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
       io,
     )
 
-    expect(result.exitCode).toBe(0)
-    // Expired gone, live intact (marker-org scoped).
-    expect(await reviewCount()).toBe(1)
+    expect(result.exitCode).toBe(1)
+    // SAFE-03: expired and live Review identity rows all survive.
+    expect(await reviewCount()).toBe(3)
     const live = await db.execute(
       sql`SELECT count(*)::int AS c FROM reviews WHERE id = ${REVIEW_LIVE}`,
     )
     expect((live.rows[0] as { c: number }).c).toBe(1)
 
-    // review.expired outbox facts for exactly the two purged reviews.
+    // No mutation means no false review.expired facts.
     const facts = await db.execute(
       sql`SELECT count(*)::int AS c FROM outbox_events
           WHERE organization_id = ${ORG} AND event_type = 'review.expired'`,
     )
-    expect((facts.rows[0] as { c: number }).c).toBe(2)
+    expect((facts.rows[0] as { c: number }).c).toBe(0)
 
-    // retention_runs evidence (cross-tenant purge — rows_deleted is a lower bound).
+    // A quarantined no-op cannot claim deletion evidence.
     const evidence = await db.execute(
       sql`SELECT outcome, rows_deleted FROM retention_runs
           WHERE subject = ${RESTORE_VERIFY_PURGE_SUBJECT}
           ORDER BY started_at DESC LIMIT 1`,
     )
-    expect(evidence.rows).toHaveLength(1)
-    expect(evidence.rows[0]).toMatchObject({ outcome: 'completed' })
-    expect(Number(evidence.rows[0].rows_deleted)).toBeGreaterThanOrEqual(2)
+    expect(evidence.rows).toHaveLength(0)
 
     // Operator decision audit: allow with the operator reason.
     const audits = await auditRowsFor(OPERATOR, 1)
@@ -324,12 +320,12 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
       reason: 'restore drill',
     })
 
-    // The output walks the operator through evidence + cutover.
+    // The operator sees the restore target but never receives cutover steps.
     const out = io.outLines.join('\n')
+    const err = io.errLines.join('\n')
     expect(out).toMatch(/RESTORE MODE ISOLATED/)
-    expect(out).toMatch(/reviews\.purge/)
-    expect(out).toMatch(/zero expired-content row\(s\) remain/)
-    expect(out).toMatch(/UNSET RESTORE_MODE/)
+    expect(err).toMatch(/expired-content row\(s\) remain eligible after the purge/)
+    expect(out).not.toMatch(/UNSET RESTORE_MODE/)
   })
 
   it('dry-run: reports eligibility, purges nothing, audits dry-run', async () => {

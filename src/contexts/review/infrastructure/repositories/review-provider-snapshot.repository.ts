@@ -269,10 +269,14 @@ async function recordSourceTransition(
     throw new Error('Review analysis head transition returned no value')
   }
   const analysisSequence = Number(value.analysis_sequence)
+  const occurredAt =
+    value.occurred_at instanceof Date
+      ? value.occurred_at
+      : new Date(String(value.occurred_at))
   if (
     !Number.isSafeInteger(analysisSequence) ||
     analysisSequence < 0 ||
-    !(value.occurred_at instanceof Date)
+    Number.isNaN(occurredAt.getTime())
   ) {
     throw new Error('Review analysis head transition returned invalid controls')
   }
@@ -284,7 +288,7 @@ async function recordSourceTransition(
     sourceRevision: mapping.lastSourceRevision,
     analysisSequence,
     change,
-    occurredAt: value.occurred_at,
+    occurredAt,
   })
   await insertOutboxRow(tx, event)
   return event
@@ -891,8 +895,20 @@ export const createReviewProviderSnapshotRepository = (
           continue
         }
         if (mapping.state === 'linked') {
-          const deleted = await tx
-            .delete(reviews)
+          const expired = await tx
+            .update(reviews)
+            .set({
+              // SAFE-03 containment: a provider deletion must make source
+              // content immediately ineligible without deleting the stable
+              // Review identity. Replies and RepKey workflow history remain
+              // attached while REV-01 introduces field-level raw-content
+              // erasure/version storage.
+              contentExpiresAt: sql`LEAST(
+                COALESCE(${reviews.contentExpiresAt}, transaction_timestamp()),
+                transaction_timestamp()
+              )`,
+              updatedAt: sql`transaction_timestamp()`,
+            })
             .where(
               and(
                 eq(reviews.id, candidate.reviewId),
@@ -903,7 +919,7 @@ export const createReviewProviderSnapshotRepository = (
               ),
             )
             .returning({ id: reviews.id })
-          if (!deleted[0]) {
+          if (!expired[0]) {
             await tx
               .update(reviewProviderDeletionCandidates)
               .set({ state: 'observed', updatedAt: sql`transaction_timestamp()` })
@@ -1034,8 +1050,18 @@ export const createReviewProviderSnapshotRepository = (
               eq(reviewProviderSubjects.locatorHmac, mapping.locatorHmac),
             ),
           )
-        const deleted = await tx
-          .delete(reviews)
+        const expired = await tx
+          .update(reviews)
+          .set({
+            // SAFE-03 containment mirrors provider-deletion apply: provider
+            // content remains denied by the hard-expiry read predicate, while
+            // the stable Review identity and RepKey Reply/history survive.
+            contentExpiresAt: sql`LEAST(
+              COALESCE(${reviews.contentExpiresAt}, transaction_timestamp()),
+              transaction_timestamp()
+            )`,
+            updatedAt: sql`transaction_timestamp()`,
+          })
           .where(
             and(
               eq(reviews.id, row.id),
@@ -1044,7 +1070,7 @@ export const createReviewProviderSnapshotRepository = (
             ),
           )
           .returning({ id: reviews.id })
-        if (!deleted[0]) throw new Error('Expired Review changed before deletion')
+        if (!expired[0]) throw new Error('Expired Review changed before transition')
         transitioned += 1
       }
       return {

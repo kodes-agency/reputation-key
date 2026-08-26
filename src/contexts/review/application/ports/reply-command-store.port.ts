@@ -174,9 +174,9 @@ export type ReplyCommandStore = Readonly<{
    */
   mirrorSyncedReply(command: MirrorSyncedReplyCommand): Promise<Reply | null>
   /**
-   * Retention purge: delete the review and record review.expired in one
-   * transaction (replaces the job's pre-BQC-3.3 emit-then-delete flow).
-   * The organization scope comes from the event.
+   * Legacy retention command retained only for caller compatibility during
+   * SAFE-03 containment. It always rejects before SQL/outbox until REV-01
+   * separates expiring provider content from stable Review/Reply history.
    */
   purgeExpiredReview(reviewId: ReviewId, event: ReviewExpired): Promise<void>
 }>

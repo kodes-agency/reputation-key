@@ -1026,23 +1026,26 @@ describe('createAtomicReplyCommandStore', () => {
   })
 
   describe('purgeExpiredReview', () => {
-    it('deletes the review and records review.expired in one tx before emit', async () => {
+    it('fails closed before opening a transaction or emitting a false expiry fact', async () => {
       const order: string[] = []
       const { db } = createMockDb({ order })
       const events = makeEvents(order)
       const store = createAtomicReplyCommandStore(db, events)
 
-      await store.purgeExpiredReview(
-        REVIEW_ID,
-        reviewExpired({
-          reviewId: REVIEW_ID,
-          propertyId: PROP_ID,
-          organizationId: ORG_ID,
-          occurredAt: NOW,
-        }),
-      )
+      await expect(
+        store.purgeExpiredReview(
+          REVIEW_ID,
+          reviewExpired({
+            reviewId: REVIEW_ID,
+            propertyId: PROP_ID,
+            organizationId: ORG_ID,
+            occurredAt: NOW,
+          }),
+        ),
+      ).rejects.toThrow('Review destructive lifecycle is quarantined')
 
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual([])
+      expect(events.emit).not.toHaveBeenCalled()
     })
   })
 
@@ -1330,7 +1333,7 @@ describe('createSequentialReplyCommandStore', () => {
     expect(order).toEqual(['state', 'outbox', 'emit', 'state'])
   })
 
-  it('purgeExpiredReview deletes, records, then emits', async () => {
+  it('sequential purgeExpiredReview is quarantined before delete, outbox, or emit', async () => {
     const order: string[] = []
     const store = createSequentialReplyCommandStore({
       conditionalUpdate: vi.fn(),
@@ -1351,16 +1354,18 @@ describe('createSequentialReplyCommandStore', () => {
       },
     })
 
-    await store.purgeExpiredReview(
-      REVIEW_ID,
-      reviewExpired({
-        reviewId: REVIEW_ID,
-        propertyId: PROP_ID,
-        organizationId: ORG_ID,
-        occurredAt: NOW,
-      }),
-    )
+    await expect(
+      store.purgeExpiredReview(
+        REVIEW_ID,
+        reviewExpired({
+          reviewId: REVIEW_ID,
+          propertyId: PROP_ID,
+          organizationId: ORG_ID,
+          occurredAt: NOW,
+        }),
+      ),
+    ).rejects.toThrow('Review destructive lifecycle is quarantined')
 
-    expect(order).toEqual(['state', 'outbox', 'emit'])
+    expect(order).toEqual([])
   })
 })

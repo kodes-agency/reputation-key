@@ -8,8 +8,9 @@
 // capability gate, schedule).
 //
 // Row vocabulary:
-//   disposition   — enabled | orphan | denied_dark (event families)
-//   registration  — enabled | denied_dark | blocked_capability (job families)
+//   disposition   — enabled | orphan | quarantined | denied_dark (event families)
+//   registration  — enabled | denied_dark | blocked_capability | quarantined
+//                   (job families)
 //   capability    — the beta capability gate (ADR 0032); 'none' when ungated
 //   action        — SystemAction of the producing path; 'none' for
 //                   user-permission producers
@@ -118,6 +119,7 @@ export type JobRegistration =
   | 'enabled' // real handler registered and schedulable
   | 'denied_dark' // capability dark — no-op handler registered (BQR-0 containment)
   | 'blocked_capability' // capability hard-blocked — no-op handler registered
+  | 'quarantined' // safety no-op registered; scheduling/cutover explicitly denied
 
 export type JobFamilyRow = Readonly<{
   /** BullMQ job name. */
@@ -1653,12 +1655,12 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       capability: 'none',
       action: 'system:review.purge',
       schedule: 'none',
-      registration: 'enabled',
+      registration: 'quarantined',
     },
     {
       timeoutMs: 300_000,
       notes:
-        'bounded 100-row raw-source expiry continuation; initial activation is owned by the later lifecycle release automation',
+        'SAFE-03 validates and drains legacy raw-source expiry continuations without repository mutation; REV-01 owns activation',
     },
   ),
   job(
@@ -1806,13 +1808,13 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       queue: 'background',
       capability: 'none',
       action: 'system:review.purge',
-      schedule: 'every:86400000,offset:7200000',
-      registration: 'enabled',
+      schedule: 'none',
+      registration: 'quarantined',
     },
     {
       timeoutMs: 300_000,
       notes:
-        'atomic delete + review.expired outbox write per review (BQC-3.3); retention evidence rows; 5m bounds the daily batch',
+        'SAFE-03 no-mutation handler; recurring scheduler reconciled away until REV-01 stable-identity cutover',
     },
   ),
   job(

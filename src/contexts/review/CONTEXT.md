@@ -32,14 +32,14 @@ External platform reviews — sync, storage, reply mirroring, and 30-day retenti
 - `internal` reply: at most one per review per org (same unique constraint, different source value).
 - Partial unique index ensures at most one `published` reply per review (regardless of source).
 - Rating is always 1–5 (`StarRating` union type). DB stores as integer — adapter validates via `STAR_RATING_MAP`.
-- Reviews without a fresh sync for 30+ days are purged (3-day grace period for failed syncs).
+- Serving reads deny provider content at its fetch-based hard expiry. The legacy row-delete purge is quarantined by SAFE-03 until REV-01 separates expiring provider fields from stable Review/Reply history; this is a release blocker, not permission to retain raw content indefinitely.
 - Reply text limited to 4096 characters (`MAX_REPLY_LENGTH`).
 
 ## Events produced
 
 - **`review.created`** — reviewId, propertyId, organizationId, platform, externalId, rating, reviewText, occurredAt. Emitted when a new review is synced from Google.
 - **`review.updated`** — reviewId, propertyId, organizationId, platform, externalId, rating, reviewText, occurredAt. Emitted when an existing review is re-synced with new data.
-- **`review.expired`** — reviewId, propertyId, organizationId, occurredAt. Emitted when the purge job hard-deletes expired reviews.
+- **`review.expired`** — legacy registered fact with no active producer while destructive Review purge is quarantined. REV-01 must replace/freeze its lifecycle semantics before activation.
 - **`review.reply.published`** — replyId, reviewId, propertyId, organizationId, userId (nullable), authorId, source, occurredAt. Emitted when a reply reaches published status (web: user-approved, import: Google sync mirror).
 - **`review.reply.submitted`** — replyId, reviewId, propertyId, organizationId, userId, source, occurredAt. Emitted when a draft reply is submitted for approval.
 - **`review.reply.approved`** — replyId, reviewId, propertyId, organizationId, userId, authorId, source, occurredAt. Emitted when a reply is approved.
@@ -107,5 +107,5 @@ Exported from `application/public-api.ts`:
 
 - **sync-property-reviews** — Fetches reviews from Google for a specific property/location. Triggered by `property.created` event or `refresh-expiring-reviews` job.
 - **refresh-expiring-reviews** — Finds reviews expiring within 5 days, enqueues sync jobs to refresh them. Runs daily.
-- **purge-expired-reviews** — Hard-deletes reviews whose content TTL has passed. Delete + `review.expired` outbox fact commit atomically per review (BQC-3.3 ReplyCommandStore). Runs daily.
+- **purge-expired-reviews** — SAFE-03 quarantine handler only: drains leftover jobs without reading or mutating Review data. Its recurring scheduler is reconciled away. Activation requires the REV-01 stable-identity migration and real-PostgreSQL expiry/provider-delete/re-observation evidence.
 - **publish-reply** — Publishes an approved reply to Google via API. Retries up to 3 times with exponential backoff; provider outcomes classified via the publication saga (terminal 4xx → `publish_failed` without retry burn; ambiguous final → `publish_failed` + reconcile).

@@ -137,9 +137,11 @@ pnpm perf:cell -- down --drop                               # stop; drop the cel
   `last_fetched_at` / `content_expires_at` NULL, so routine BQC-8.2 execution
   cannot erase its own 500,000-row fixture. The separate
   `--source-lifecycle` profile populates deterministic fetch clocks and content
-  hashes. Its `retention` run explicitly drives the actual
-  `purge-expired-reviews` queue handler, one bounded job at a time, then
-  requires zero expired rows and zero remaining canaries.
+  hashes. Its `retention` run still drives the production
+  `purge-expired-reviews` queue handler, but SAFE-03 now requires that handler
+  to return `quarantined` without mutations. Consequently this scenario must
+  fail release evidence until REV-01 supplies the stable-identity erasure path,
+  then requires zero expired rows and zero remaining canaries.
 
 Typical execution session:
 

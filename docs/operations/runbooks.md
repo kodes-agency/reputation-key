@@ -32,7 +32,7 @@ The commands:
 - `ops:queue <status|pause|resume> <queue>` — pause/resume a BullMQ queue (containment; jobs preserved). §3/§7
 - `ops:quarantine <list|redrive <id>>` — failure-quarantine inspection + redrive to the original queue. §4/§7
 - `ops:refresh <reviews|metrics-daily|metrics-weekly|metrics-inbox>` — enqueue one bounded refresh-sweep run. §3/§4
-- `ops:purge <reviews|retention>` — report the static-rule retention backlog by default, or enqueue one bounded purge/retention run with `--apply` (destructive, typed confirmation); inspect Google import lifecycle separately. §10
+- `ops:purge <reviews|retention>` — report the static-rule retention backlog by default. `retention --apply` remains destructive and requires typed confirmation. `reviews --apply` currently reaches the SAFE-03 quarantine handler and performs no mutation; do not treat it as erasure evidence. Inspect Google import lifecycle separately. §10
 - `ops:rebuild-projection --org <id> [--property <id>]` — repair the inbox projection (bounded, dry-run report first). §5
 - `ops:reconcile-publication <replyId> | --all-ambiguous` — reconcile ambiguous Google reply publication (provider re-read; never a send). §6
 - `ops:reconcile-regions [--org <id>]` / `ops:reconcile-grants [--org <id> ...]` — report-first reconciliations (conflicts/anomalies never auto-converted). §12
@@ -354,9 +354,9 @@ surface dark); network-level restriction of the ops surface is platform-owned
 **Impact:** Varies — P2 for archive, P1 for disconnect, P0 for purge (irreversible).
 **Diagnostics:** Check property `lifecycle_state`; use `ops:google-import-lifecycle inspect-request <importJobId> --org <id>` for identifier-only import state. Check for active sync jobs, pending publications, inbox items. Before a general retention apply, run `pnpm ops:purge retention --operator <id>` and attach its content-free per-rule backlog/cutoff report.
 **Containment:** Suspend → `ops:suspend-property --org <id> --property <id> --reason <text> --ticket <ref> --apply` (blocks new processing via the capability store; restore with `ops:restore-property`). Disconnect → `ops:disconnect-connection <connectionId> --org <id>` (fences import work, revokes Google tokens, and sets connection `disconnected`). A stuck request may be fenced with `ops:google-import-lifecycle cancel-request <importJobId> --org <id> --reason <text> --apply --yes ops:google-import-lifecycle`.
-**Recovery:** Archive → data preserved, can restore to `active`. Purge → irreversible, confirm via typed property name; bounded purge/retention sweeps re-run via `ops:purge <reviews|retention> --reason <text> --apply --yes ops:purge` (destructive — typed confirmation). Property/member/connection/org removal fences matching import parents/items and invalidates provider references before authority disappears.
+**Recovery:** Archive → data preserved, can restore to `active`. General retention purge → irreversible, confirm via typed property name and re-run with `ops:purge retention --reason <text> --apply --yes ops:purge`. Review expiry purge is unavailable while SAFE-03 quarantine is active; escalation cannot bypass it with configuration. Property/member/connection/org removal fences matching import parents/items and invalidates provider references before authority disappears.
 **Verification:** Lifecycle state correct. `ops:google-import-lifecycle inspect` reports zero overdue/release backlog; scoped inspection reports no outstanding authority. Purge evidence includes `integration.google_import_v2.lifecycle`.
-**Escalation:** Purge requires operator confirmation + evidence report. Bozhidar Denev signs off.
+**Escalation:** Purge requires operator confirmation + evidence report. Review raw-content erasure additionally requires the reviewed REV-01 cutover; until then it blocks release. Bozhidar Denev signs off.
 
 ---
 

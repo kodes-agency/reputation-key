@@ -355,8 +355,9 @@ export async function bootstrap(
     'registered discover-new-reviews job handler',
   )
 
-  // BQC-3.3: atomic reply/review state + outbox writes for the purge and
-  // publish job handlers (one instance, shared — the store is stateless).
+  // BQC-3.3: one stateless atomic store for reply publication. The legacy
+  // purge method remains on the compatibility port but SAFE-03 denies it
+  // before SQL/outbox; the registered purge handler below is also a no-op.
   const replyCommandStore = createAtomicReplyCommandStore(
     container.db,
     container.eventBus,
@@ -371,7 +372,7 @@ export async function bootstrap(
   container.jobRegistry.register(PURGE_EXPIRED_JOB_NAME, async (job) => purgeHandler(job))
   logger.info(
     { job: PURGE_EXPIRED_JOB_NAME },
-    'registered purge-expired-reviews job handler',
+    'registered quarantined purge-expired-reviews job handler',
   )
 
   // ── Reply publish job ──────────────────────────────────────────────

@@ -73,7 +73,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     readPath: 'authorized Review lookup',
     refreshRule: 'kept while required for source operation',
     deletionMechanism:
-      'purge-expired-reviews job (daily); bounded lifecycle purge on disconnect/property/org purge (BQC-1.7)',
+      'SAFE-03 quarantine: compliant field erasure requires REV-01; legacy disconnect/property/org row deletion remains release-blocked',
     mustEliminate: false,
   },
   {
@@ -86,7 +86,8 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'sync-reviews upsert',
     readPath: 'authorized Review lookup; reply publish path',
     refreshRule: 'kept while required for source operation',
-    deletionMechanism: 'purge-expired-reviews job; bounded lifecycle purge (BQC-1.7)',
+    deletionMechanism:
+      'SAFE-03 quarantine: compliant field erasure requires REV-01 before release',
     mustEliminate: false,
   },
   {
@@ -100,7 +101,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     readPath: 'sync/publish paths',
     refreshRule: 'kept while required for source operation',
     deletionMechanism:
-      'set null on connection delete; purge job; bounded lifecycle purge (BQC-1.7)',
+      'connection delete sets this field null; other compliant erasure requires REV-01 before release',
     mustEliminate: false,
   },
   {
@@ -113,7 +114,8 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'sync-reviews upsert',
     readPath: 'authorized Review lookup only',
     refreshRule: 'successful-fetch clock (30d TTL)',
-    deletionMechanism: 'purge-expired-reviews job; bounded lifecycle purge (BQC-1.7)',
+    deletionMechanism:
+      'SAFE-03 quarantine: compliant field erasure requires REV-01 before release',
     mustEliminate: false,
   },
   {
@@ -126,7 +128,8 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'sync-reviews upsert',
     readPath: 'authorized Review lookup only',
     refreshRule: 'successful-fetch clock (30d TTL)',
-    deletionMechanism: 'purge-expired-reviews job; bounded lifecycle purge (BQC-1.7)',
+    deletionMechanism:
+      'SAFE-03 quarantine: compliant field erasure requires REV-01 before release',
     mustEliminate: false,
   },
   {
@@ -139,7 +142,8 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'sync-reviews upsert',
     readPath: 'authorized Review lookup; aggregates',
     refreshRule: 'successful-fetch clock (30d TTL)',
-    deletionMechanism: 'purge-expired-reviews job; bounded lifecycle purge (BQC-1.7)',
+    deletionMechanism:
+      'SAFE-03 quarantine: compliant field erasure requires REV-01 before release',
     mustEliminate: false,
   },
   {
@@ -152,7 +156,8 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'sync-reviews upsert',
     readPath: 'authorized Review lookup only',
     refreshRule: 'successful-fetch clock (30d TTL)',
-    deletionMechanism: 'purge-expired-reviews job; bounded lifecycle purge (BQC-1.7)',
+    deletionMechanism:
+      'SAFE-03 quarantine: compliant field erasure requires REV-01 before release',
     mustEliminate: false,
   },
   {
@@ -165,7 +170,8 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'sync-reviews upsert',
     readPath: 'authorized Review lookup only',
     refreshRule: 'successful-fetch clock (30d TTL)',
-    deletionMechanism: 'purge-expired-reviews job; bounded lifecycle purge (BQC-1.7)',
+    deletionMechanism:
+      'SAFE-03 quarantine: compliant field erasure requires REV-01 before release',
     mustEliminate: false,
   },
   {
@@ -178,7 +184,8 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'sync-reviews upsert',
     readPath: 'sync path only',
     refreshRule: 'updated on successful fetch',
-    deletionMechanism: 'dies with review row',
+    deletionMechanism:
+      'SAFE-03 quarantine: REV-01 must erase this provider-derived digest without deleting stable Review identity',
     mustEliminate: false,
   },
   {
@@ -191,7 +198,8 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'none today (no AI implementation)',
     readPath: 'none today',
     refreshRule: 'separate derivative retention (ADR 0031)',
-    deletionMechanism: 'dies with review row',
+    deletionMechanism:
+      'REV-01 separates governed derivative retention from provider-content expiry',
     mustEliminate: false,
   },
   {
@@ -204,7 +212,8 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'none today',
     readPath: 'none today',
     refreshRule: 'separate derivative retention (ADR 0031)',
-    deletionMechanism: 'dies with review row',
+    deletionMechanism:
+      'REV-01 separates governed derivative retention from provider-content expiry',
     mustEliminate: false,
   },
 
@@ -221,7 +230,7 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     readPath: 'authorized Review lookup; publish path',
     refreshRule: 'same source clock as parent review',
     deletionMechanism:
-      'per-batch FK cascade with parent review; bounded lifecycle purge (BQC-1.7)',
+      "SAFE-03 quarantine: source='google_sync' requires REV-01 field erasure; internal Reply history is preserved; the current parent cascade is release-blocked",
     mustEliminate: false,
   },
   {
@@ -234,7 +243,8 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     creationPath: 'reply-operations reject',
     readPath: 'reply workflow UI',
     refreshRule: 'internal workflow fact',
-    deletionMechanism: 'cascade with review row',
+    deletionMechanism:
+      'RepKey-owned workflow history is preserved; the current parent cascade is release-blocked by SAFE-03',
     mustEliminate: false,
   },
 
