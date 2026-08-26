@@ -6,7 +6,7 @@
     {
       "id": "FND-01",
       "status": "partial",
-      "summary": "Immutable independent revalidation is complete for all 114 rows in the accepted register across the ARCH, AUTH, DATA, DEC, EVT, GATE, GOV, OPS, UI, and SEC families. The fragments pin exact frozen fields and digests, descendant comparison evidence, reachability, impact, owner/targets, and non-overstated closure criteria. Current dispositions are 55 closed, 5 superseded, 50 confirmed, 3 configuration-dependent, and 1 reproduced after current proof closed UI-11 and UI-21. Package-planned and deployment-dependent residual criteria remain release work and are not treated as finding closure.",
+      "summary": "Immutable independent revalidation is complete for all 114 rows in the accepted register across the ARCH, AUTH, DATA, DEC, EVT, GATE, GOV, OPS, UI, and SEC families. The fragments pin exact frozen fields and digests, descendant comparison evidence, reachability, impact, owner/targets, and non-overstated closure criteria. Current dispositions are 56 closed, 5 superseded, 49 confirmed, 3 configuration-dependent, and 1 reproduced after current proof closed UI-06, UI-11, and UI-21. Package-planned and deployment-dependent residual criteria remain release work and are not treated as finding closure.",
       "codeEvidence": [
         "docs/release-evidence/review/718fad1807b7422885584660bd3580f2a3a49113/",
         "docs/release-evidence/review/finding-revalidation-fragments/arch-auth-data-dec-evt-2026-08-26.json",
@@ -57,17 +57,17 @@
     {
       "id": "FND-03",
       "status": "partial",
-      "summary": "The executable entry-point catalogue now covers routes, request handlers, server-only implementation boundaries, jobs, consumers, schedules, operator commands, production scripts, migration utilities, and sidecar/release gates. Its discovery proof recognizes both createServerFn and createServerOnlyFn declarations, and the catalogue includes the beta-feedback implementation boundary plus the product-state and independent finding-fragment evidence utilities. Event/job catalogues also exist. Per-entry cell ownership, complete mutation classification, runtime-composed registrations, canonical-only elimination, and executed reachability/darkness proof remain incomplete.",
+      "summary": "The executable entry-point catalogue covers 440 routes, request handlers, server-only implementation boundaries, jobs, consumers, schedules, operator commands, production scripts, migration utilities, and sidecar/release gates. Every row now has a context/cell owner, mutation disposition, and registration-reachability classification: 108 read-only, 1 proven atomic state-and-fact, 23 local-only with reason, 11 explicitly identified non-atomic Portal defects, and 297 owned time-bounded debts; registrations classify as 368 direct, 41 source-composed, 29 boot-registry, and 2 declared-only. Event/job catalogues also exist. Catalogue completeness and classification are not treated as runtime execution proof.",
       "codeEvidence": [
         "src/shared/governance/entry-point-catalogue.ts",
         "src/shared/governance/event-job-catalogue.ts"
       ],
       "testEvidence": [
-        "src/shared/governance/entry-point-catalogue.test.ts — 13/13 tests, including a fabricated declaration fixture proving request-handler and server-only discovery",
+        "src/shared/governance/entry-point-catalogue.test.ts — 16/16 tests; 440 rows and zero validator issues, stable full-order digest fbb2e69fe9723585c411ee38d45a592a66eac092d0c1f476c0a26e5950a38bd6",
         "src/shared/governance/event-job-catalogue.test.ts"
       ],
       "remaining": [
-        "Add per-entry cell ownership and complete mutation classification; cover dynamically composed and runtime-observed registrations; eliminate unscoped/canonical-only/orphan rows; prove active reachability and dark denial through every execution path."
+        "Individually prove and reclassify the 297 time-bounded mutation debts; repair the 11 named non-atomic Portal paths; compose or remove the declared-only Badge and Goal consumers; retain deployed boot/readiness evidence for registry work and deployed execution/delivery evidence for composed registrations."
       ],
       "externalBlockers": []
     },
@@ -477,16 +477,22 @@
     {
       "id": "AI-02",
       "status": "partial",
-      "summary": "Versioned analysis and resumable backfill exist, but enrollment silently caps at 10,000 and lacks immutable coverage membership and an awaiting-approval state.",
+      "summary": "Versioned analysis and resumable backfill now store each run's ordered immutable membership relationally. Migration 0119 backfills legacy arrays, canonical writes are atomic, restart recovery reads relational ordinals, duplicate/cycle mutations fail closed, an expand-safe compatibility mirror supports older workers, and a real PostgreSQL proof covers 10,001 members without persisting the capped legacy array. The operator batch-size control remains explicitly a ticketed pilot/repair mechanism rather than first-enablement coverage authority.",
       "codeEvidence": [
-        "src/contexts/ai/infrastructure/db/ai.schema.ts",
-        "src/contexts/ai/application/backfill-review-analysis.ts"
+        "drizzle/0119_ai_review_backfill_relational_membership.sql",
+        "src/shared/db/schema/ai.schema.ts",
+        "src/contexts/ai/application/use-cases/backfill-review-analysis.ts",
+        "src/contexts/ai/application/use-cases/advance-review-analysis-backfill.ts",
+        "src/contexts/ai/infrastructure/adapters/ai-review-analysis-backfill.adapter.ts",
+        "src/shared/governance/data-fate-authority.ts"
       ],
       "testEvidence": [
-        "Analysis result/head, consumer, aggregate, and resumable backfill suites"
+        "Focused AI/governance unit proof: 3 files / 26 tests passing, including restart recovery through relational membership",
+        "Fresh PostgreSQL proof: exact 0119 backfill/order, old-binary mirror, duplicate-parent rollback, immutable update/delete fences, and 10,001 members including ordinal 10,000; adapter/recovery/schema parity 3 files / 26 tests passing",
+        "Fresh migration reported 179 tables at journal head 120; full repository typecheck passed"
       ],
       "remaining": [
-        "Anchor results to Material Review Revisions, replace capped arrays with immutable membership, add assisted approval and caught-up truth, and complete progress/disable/invalidate/erase lifecycle."
+        "Anchor results to Material Review Revisions; implement a distinct exhaustive first-enablement enrollment trigger with durable caught-up/readiness evidence and assisted approval; complete progress, disable, invalidate, and erase lifecycle; retire the compatibility array/mirror only after old-worker retirement is proved."
       ],
       "externalBlockers": []
     },
@@ -540,7 +546,7 @@
     {
       "id": "NTF-01",
       "status": "partial",
-      "summary": "Private feedback uses the Action-needed delivery class, required in-app channels are enforced through domain/repository/UI/database controls, and filtered pagination carries exact server-derived continuation evidence. Client refresh now reads only the unread count and newest page: older pages are loaded on demand, retained across refreshes, and de-duplicated with refreshed-head precedence. Optimistic read/dismiss changes update and restore the head, history, and count together. The end-to-end trigger and recipient contract remains incomplete.",
+      "summary": "Private feedback uses the Action-needed delivery class, required in-app channels are enforced through domain/repository/UI/database controls, and filtered pagination carries exact server-derived continuation evidence. Client refresh reads only the unread count and newest page while retaining and de-duplicating on-demand history; optimistic read/dismiss changes update and restore head, history, and count together. Eleven notification source families now have durable consumers: the newly covered assignment, escalation, note, and five Reply lifecycle facts replay through the same scoped handlers as immediate delivery, acknowledge only after enqueue, and share deterministic per-recipient identities so dual delivery converges. The full trigger/recipient contract is still incomplete.",
       "codeEvidence": [
         "src/contexts/notification/domain/notification-delivery-policy.ts",
         "src/contexts/notification/infrastructure/repositories/notification-preference.repository.ts",
@@ -552,15 +558,19 @@
         "src/components/features/notification/notification-feed-cache.ts",
         "src/components/features/notification/notification-feed-pagination.ts",
         "src/components/features/notification/notification-mutations.ts",
+        "src/contexts/notification/infrastructure/workflow-outbox-consumers.ts",
+        "src/shared/governance/event-job-catalogue.ts",
         "drizzle/0109_notification_required_channels.sql"
       ],
       "testEvidence": [
         "Required-channel upgrade/constraint proof plus coalescing, responsibility resolution, outbox, digest, quiet-hours, unsubscribe, exact filtered pagination, and gap reconciliation tests",
+        "Notification workflow recovery: 15 focused assertions cover all eight added event families, stable registration, same-recipient replay identity, null system actors, tenant/property attribution denial, and no acknowledgement after enqueue failure",
+        "Complete Notification context suite: 56 files / 502 tests passing, including real-database adapters and delivery repositories",
         "Focused client consistency matrix: 3 files / 10 tests; real QueryObserver and InfiniteQueryObserver coverage proves periodic offset-zero-only reads, retained/de-duplicated history, consistent count deltas, and complete rollback; full typecheck and targeted boundary/style checks passed",
         "Complete Storybook component suite: 91 files / 530 assertions passing on 2026-08-26"
       ],
       "remaining": [
-        "Complete and execute the trigger/recipient/eligibility matrix, close every durable producer-to-delivery gap, add a shared newest-page/unread-count watermark or equivalent concurrent-write consistency proof, finish exact immutable digest membership/outcomes, instrument lag and repair behavior, and retain deployed latency/outage evidence."
+        "Complete and execute the trigger/recipient/eligibility matrix for revised Reviews, resolution, reauthorization/health, account/service, and any activated Goal families; close the remaining durable producer-to-delivery gaps and prove receipt/notification settlement across the Redis-to-database boundary; add a shared newest-page/unread-count watermark or equivalent concurrent-write consistency proof; finish exact immutable digest membership/outcomes; instrument lag and repair behavior; retain deployed latency/outage evidence."
       ],
       "externalBlockers": []
     },
@@ -669,17 +679,21 @@
     {
       "id": "REC-01",
       "status": "partial",
-      "summary": "Recognition remains beta-dark at direct entry points, delayed work, navigation, and unavailable routes. Active Staff Home and Portal Detail surfaces no longer request, cache, invalidate, or render legacy Badge data, and an executable source guard prevents future active routes or the Staff Home query bundle from importing the legacy Badge/Leaderboard boundaries. The retained competitive contexts, tables, server functions, jobs, and compatibility components still await reconciled contraction; the future Healthy Guest Gateway model is intentionally not implemented for beta.",
+      "summary": "Recognition remains beta-dark at direct entry points, delayed work, navigation, and unavailable routes. Active Staff Home and Portal Detail surfaces no longer request, cache, invalidate, or render legacy Badge data; the unreachable Recognition settings and Badge display components have been removed; Portal management/settings copy now describes only supported review-gateway and shared-goal behavior. An executable source guard prevents active routes, the Staff Home bundle, or component barrels from reintroducing the contracted owners. Retained competitive contexts, tables, server functions, jobs, and notification compatibility still await reconciled contraction; the future Healthy Guest Gateway model is intentionally not implemented for beta.",
       "codeEvidence": [
         "src/shared/architecture/legacy-recognition-active-surfaces.test.ts",
         "src/shared/auth/dark-context-matrix.test.ts",
         "src/shared/architecture/dark-consumer-gating.test.ts",
         "src/routes/_authenticated/home.tsx",
-        "src/routes/_authenticated/properties/$propertyId/portals/$portalId.tsx"
+        "src/routes/_authenticated/properties/$propertyId/portals/$portalId.tsx",
+        "src/components/features/portal/portal-group-management.tsx",
+        "src/components/features/portal/portal-settings/content-review-card.tsx"
       ],
       "testEvidence": [
         "Recognition darkness matrix: 5 files / 60 tests passed",
-        "Staff Home browser stories: 1 file / 5 states passed"
+        "Staff Home browser stories: 1 file / 5 states passed",
+        "Recognition settings and Badge display contraction guards plus redirect proof: 4 files / 7 tests passed",
+        "Portal supported-copy browser contracts: 2 Storybook files / 18 tests passed; full repository typecheck and architecture boundary controls passed"
       ],
       "remaining": [
         "Inventory and disposition every retained Badge/Leaderboard row and foreign key, prove no production artifact or compatibility consumer depends on them, retain export/restore evidence, then remove the server functions, components, composition/build wiring, bootstrap/job/schedule/event paths, repositories, schemas, and stale notifications in reversible contraction slices. After Portal Health exists and only as post-beta work, define separate authorization/program/results and implement the calendar-month Healthy Guest Gateway evaluator with neutral UI and fairness evidence."
@@ -730,7 +744,7 @@
     {
       "id": "EXP-02",
       "status": "partial",
-      "summary": "The three known production literal query keys use tested hierarchical factories, and an executable product-state inventory covers production components/routes. It currently governs 79 query-key sites, one explicitly owned login bootstrap whole-router invalidation, and 54 conservatively classified useState mirror candidates. UI-11 is formally closed by selected-item request-count and identity proofs. UI-21 is also formally closed: Integration application now owns provider-content clearing, view epochs, expiry timing, and content-free stale completion outcomes, while hooks retain only presentation/runtime coordination. The broader inventory remains a bounded syntax/classification slice rather than semantic completion.",
+      "summary": "The three known production literal query keys use tested hierarchical factories, and an executable product-state inventory covers production components/routes. It currently governs 75 query-key sites, one explicitly owned login bootstrap whole-router invalidation, and 46 conservatively classified useState candidates; the newly exposed Inbox status observer is explicitly classified as a component-lifetime coordinator rather than server state. UI-06 is formally closed by contracting its unreachable mirrored-state owner, UI-11 by selected-item request-count and identity proofs, and UI-21 by moving provider-content clearing, view epochs, expiry timing, and content-free stale outcomes into Integration application ownership. The broader inventory remains a bounded syntax/classification slice rather than semantic completion.",
       "codeEvidence": [
         "src/shared/queries/query-keys.ts",
         "scripts/ci/check-product-state-consistency.ts",
@@ -743,11 +757,11 @@
       ],
       "testEvidence": [
         "Product-state and query-key unit matrix: 2 files / 11 tests passed",
-        "Executable inventory passed with 79 query-key sites, 1 owned broad invalidation, and 54 classified candidates",
+        "Executable inventory passed with 75 query-key sites, 1 owned broad invalidation, and 46 classified candidates; focused checker 5/5 tests passed",
         "Focused lint, application TypeScript, scripts TypeScript, and diff checks passed for the inventory slice",
         "Inbox UI matrix: 8 files / 59 tests passed; deterministic QueryObserver request-count and selected-item identity regressions passed",
         "Provider-content lifecycle: 2 lifecycle/ownership files / 7 tests, 9 focused Integration UI/architecture files / 49 tests, and 3 Chromium Storybook files / 14 stories passed; full application typecheck and boundary controls passed",
-        "UI finding fragment validates 21/21 rows at da48647cdd1f5a92246897ca049a6f88dcdce686 with 19 closed, 1 confirmed, and 1 superseded"
+        "UI finding fragment validates 21/21 rows at 66afe661d5a2007ee12df13fa1057d4ee73609ca with 20 closed and 1 superseded"
       ],
       "remaining": [
         "Semantically review the remaining mirror candidates and every query factory, expand coverage beyond production components/routes where warranted, freeze feature DTOs, replace remaining legacy Bell/delete/goal policy components, and retain hosted browser evidence for the resolved Inbox request-scope seam."
