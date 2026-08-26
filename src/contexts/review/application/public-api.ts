@@ -90,6 +90,9 @@ export type {
   AiReviewSourceExpectation,
   AiReviewSourceRequest,
   AiReviewSourceResult,
+  AiTrendPopulationRequest,
+  AiTrendPopulationResult,
+  AiTrendPopulationReview,
 } from './ports/ai-review-source.port'
 
 // ── Staff type aliases for cross-context consumers ──────────────────────

@@ -12,6 +12,8 @@ import type {
   AiReviewSourceDenial,
   AiReviewSourceRequest,
   AiReviewSourceResult,
+  AiTrendPopulationRequest,
+  AiTrendPopulationResult,
 } from './ai-review-source.port'
 import type { ReviewProviderSubject } from '#/shared/review-provider-subject-contract'
 
@@ -32,6 +34,7 @@ export type StableReviewSourceIdentity = Readonly<{
 export type ReviewRepository = Readonly<{
   findById(id: ReviewId, organizationId: OrganizationId): Promise<Review | null>
   readForAi(input: AiReviewSourceRequest): Promise<AiReviewSourceResult>
+  readTrendPopulation(input: AiTrendPopulationRequest): Promise<AiTrendPopulationResult>
   assertCurrentForAi(
     input: AiReviewSourceRequest,
   ): Promise<Readonly<{ status: 'current' | AiReviewSourceDenial }>>

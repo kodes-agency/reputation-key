@@ -35,10 +35,15 @@ describe('createAiReviewSource', () => {
       },
     }
     const readForAi = vi.fn(async () => available)
+    const readTrendPopulation = vi.fn(async () => ({
+      status: 'complete' as const,
+      reviews: [],
+    }))
     const assertCurrentForAi = vi.fn(async () => ({ status: 'current' as const }))
     const readReplyStateRevision = vi.fn(async () => 7)
     const source = createAiReviewSource({
       readForAi,
+      readTrendPopulation,
       assertCurrentForAi,
       readReplyStateRevision,
     })
@@ -47,6 +52,21 @@ describe('createAiReviewSource', () => {
     await expect(source.assertCurrent(REQUEST)).resolves.toEqual({ status: 'current' })
     expect(readForAi).toHaveBeenCalledWith(REQUEST)
     expect(assertCurrentForAi).toHaveBeenCalledWith(REQUEST)
+    const trendRequest = {
+      organizationId: REQUEST.organizationId,
+      propertyId: REQUEST.propertyId,
+      sourceEpoch: 4,
+      timezone: 'Europe/Sofia',
+      calendarProfileVersion: 'property-calendar-v1' as const,
+      startLocalDate: '2026-06-01',
+      endLocalDate: '2026-07-30',
+      limit: 10_001,
+    }
+    await expect(source.readTrendPopulation(trendRequest)).resolves.toEqual({
+      status: 'complete',
+      reviews: [],
+    })
+    expect(readTrendPopulation).toHaveBeenCalledWith(trendRequest)
     await expect(
       source.readReplyStateRevision({
         organizationId: REQUEST.organizationId,

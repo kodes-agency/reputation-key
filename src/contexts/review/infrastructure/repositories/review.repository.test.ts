@@ -299,6 +299,98 @@ describe.sequential('reviewRepository (integration)', () => {
     })
   })
 
+  describe('readTrendPopulation', () => {
+    it('returns the bounded current-revision population with local dates and separate star-only evidence', async () => {
+      const repo = createReviewRepository(getDb())
+      const future = new Date('2099-01-01T00:00:00Z')
+      const fetchedAt = new Date('2026-08-20T00:00:00Z')
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-0000000000a1',
+          externalId: 'trend-text',
+          text: 'Helpful staff',
+          reviewedAt: new Date('2026-08-15T22:30:00Z'),
+          firstFetchedAt: fetchedAt,
+          lastFetchedAt: fetchedAt,
+          contentExpiresAt: future,
+          sourceRevision: 3,
+          analysisSequence: 11,
+        }),
+      )
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-0000000000a2',
+          externalId: 'trend-star-only',
+          text: '   ',
+          reviewedAt: new Date('2026-08-16T10:00:00Z'),
+          firstFetchedAt: fetchedAt,
+          lastFetchedAt: fetchedAt,
+          contentExpiresAt: future,
+          sourceRevision: 4,
+          analysisSequence: 12,
+        }),
+      )
+      await repo.upsert(
+        makeReview({
+          id: '1a000000-0000-0000-0000-0000000000a3',
+          externalId: 'trend-other-epoch',
+          text: 'Must not cross the source-epoch fence',
+          reviewedAt: new Date('2026-08-16T11:00:00Z'),
+          firstFetchedAt: fetchedAt,
+          lastFetchedAt: fetchedAt,
+          contentExpiresAt: future,
+          sourceEpoch: 1,
+          sourceRevision: 1,
+          analysisSequence: 13,
+        }),
+      )
+
+      await expect(
+        repo.readTrendPopulation({
+          organizationId: ORG_A,
+          propertyId: PROP_A,
+          sourceEpoch: 0,
+          timezone: 'Europe/Sofia',
+          calendarProfileVersion: 'property-calendar-v1',
+          startLocalDate: '2026-08-16',
+          endLocalDate: '2026-08-16',
+          limit: 10,
+        }),
+      ).resolves.toEqual({
+        status: 'complete',
+        reviews: [
+          {
+            reviewId: reviewId('1a000000-0000-0000-0000-0000000000a1'),
+            sourceRevision: 3,
+            analysisSequence: 11,
+            localDate: '2026-08-16',
+            hasText: true,
+          },
+          {
+            reviewId: reviewId('1a000000-0000-0000-0000-0000000000a2'),
+            sourceRevision: 4,
+            analysisSequence: 12,
+            localDate: '2026-08-16',
+            hasText: false,
+          },
+        ],
+      })
+
+      await expect(
+        repo.readTrendPopulation({
+          organizationId: ORG_A,
+          propertyId: PROP_A,
+          sourceEpoch: 0,
+          timezone: 'Europe/Sofia',
+          calendarProfileVersion: 'property-calendar-v1',
+          startLocalDate: '2026-08-16',
+          endLocalDate: '2026-08-16',
+          limit: 2,
+        }),
+      ).resolves.toEqual({ status: 'limit_exceeded' })
+    })
+  })
+
   describe('findIdsByContentFilter', () => {
     it('returns the complete match set for organizations with more than 1,000 reviews', async () => {
       await pool.query(

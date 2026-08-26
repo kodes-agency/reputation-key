@@ -49,8 +49,36 @@ export type AiReviewSourceResult =
   | Readonly<{ status: 'available'; observation: AiReviewObservation }>
   | Readonly<{ status: AiReviewSourceDenial }>
 
+export type AiTrendPopulationReview = Readonly<{
+  reviewId: ReviewId
+  sourceRevision: number
+  analysisSequence: number
+  localDate: string
+  hasText: boolean
+}>
+
+export type AiTrendPopulationRequest = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  sourceEpoch: number
+  timezone: string
+  calendarProfileVersion: 'property-calendar-v1'
+  startLocalDate: string
+  endLocalDate: string
+  /** Hard query ceiling. A full result is strictly smaller than this value. */
+  limit: number
+}>
+
+export type AiTrendPopulationResult =
+  | Readonly<{
+      status: 'complete'
+      reviews: readonly AiTrendPopulationReview[]
+    }>
+  | Readonly<{ status: 'limit_exceeded' | 'policy_unavailable' }>
+
 export type AiReviewSourcePort = Readonly<{
   readForAi(input: AiReviewSourceRequest): Promise<AiReviewSourceResult>
+  readTrendPopulation(input: AiTrendPopulationRequest): Promise<AiTrendPopulationResult>
   readReplyStateRevision(
     input: Readonly<{
       organizationId: OrganizationId

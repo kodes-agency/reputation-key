@@ -44,13 +44,48 @@ const getAiTrend = (async () => ({
   aggregateRevision: 24,
   reportProfileVersion: 'property-trend-v1',
   report: {
-    signalKey: 'sentiment',
+    signalKey: 'sentiment.positive.up',
     direction: 'improving',
-    confidenceBasisPoints: 8600,
+    changeMagnitudeBasisPoints: 2_500,
     supportingReviewCount: 24,
     headline: 'Review signals improved',
     sentences: ['Positive service mentions increased in the current period.'],
   },
+  evidence: {
+    definitionVersion: 'property-trend-definition-v1',
+    definitionDigest: 'a'.repeat(64),
+    renderProfileVersion: 'trend-render-v1',
+    renderProfileDigest: 'b'.repeat(64),
+    timezone: 'Europe/Sofia',
+    dataThroughLocalDate: '2026-08-14',
+    baseline: {
+      period: { startLocalDate: '2026-06-16', endLocalDate: '2026-07-15' },
+      textCandidateCount: 24,
+      analyzedCount: 24,
+      excludedCount: 0,
+      starOnlyCount: 4,
+      coverageBasisPoints: 10_000,
+    },
+    current: {
+      period: { startLocalDate: '2026-07-16', endLocalDate: '2026-08-14' },
+      textCandidateCount: 24,
+      analyzedCount: 24,
+      excludedCount: 0,
+      starOnlyCount: 3,
+      coverageBasisPoints: 10_000,
+    },
+    modelLineage: [],
+    selectedSignals: [
+      {
+        signalId: 'sentiment.positive.up',
+        baseline: { count: 0, total: 24 },
+        current: { count: 6, total: 24 },
+        changeMagnitudeBasisPoints: 2_500,
+      },
+    ],
+    supportingReviews: [],
+  },
+  updating: false,
   generatedAtEpochMillis: Date.UTC(2026, 7, 15, 12),
 })) as unknown as typeof getPropertyAiTrendFn
 const getAiAggregates = (async () => ({
@@ -106,7 +141,7 @@ export const Default: Story = {
     expect(canvas.getByText('78%')).toBeVisible()
     expect(await canvas.findByText('Review signals improved')).toBeVisible()
     // The basis-point field is a change magnitude, never a confidence score.
-    expect(await canvas.findByText(/largest change 86 pts/i)).toBeVisible()
+    expect(await canvas.findByText(/largest change 25 pts/i)).toBeVisible()
     expect(canvas.queryByText(/confidence/i)).toBeNull()
   },
 }

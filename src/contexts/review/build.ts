@@ -346,6 +346,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       servingStats: createServingStats({ db: input.db, clock: input.clock }),
       aiReviewSource: createAiReviewSource({
         readForAi: reviewRepo.readForAi,
+        readTrendPopulation: reviewRepo.readTrendPopulation,
         assertCurrentForAi: reviewRepo.assertCurrentForAi,
         readReplyStateRevision: reviewRepo.readReplyStateRevision,
       }),

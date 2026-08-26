@@ -1,5 +1,5 @@
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
-import type { AiTrendReport } from './ai-output-store.port'
+import type { AiTrendEvidence, AiTrendReport } from './ai-output-store.port'
 
 export type AiPropertyTrendSchedule = Readonly<{
   id: string
@@ -17,7 +17,8 @@ export type AiPropertyTrendSchedule = Readonly<{
   reportProfileVersion: 'property-trend-v1'
   schedulerGeneration: number
   scheduledAtEpochMillis: number
-  outcomeDisposition: 'ready' | 'insufficient_data' | 'no_material_change' | null
+  outcomeDisposition:
+    'ready' | 'updating' | 'insufficient_data' | 'no_material_change' | null
 }>
 
 export type AiPropertyTrendScheduleStorePort = Readonly<{
@@ -36,7 +37,8 @@ export type AiPropertyTrendScheduleStorePort = Readonly<{
   recordProviderFreeOutcome(
     input: Readonly<{
       scheduleId: string
-      disposition: 'insufficient_data' | 'no_material_change'
+      disposition: 'updating' | 'insufficient_data' | 'no_material_change'
+      evidence: AiTrendEvidence
     }>,
   ): Promise<'recorded' | 'replayed' | 'stale'>
 
@@ -46,6 +48,7 @@ export type AiPropertyTrendScheduleStorePort = Readonly<{
       selectedSignalIds: readonly string[]
       report: AiTrendReport &
         Required<Pick<AiTrendReport, 'headline' | 'sentences' | 'summary'>>
+      evidence: AiTrendEvidence
     }>,
   ): Promise<'recorded' | 'replayed' | 'stale'>
 }>

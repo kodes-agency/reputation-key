@@ -213,6 +213,8 @@ export function buildAiContext(input: AiContextBuildInput) {
         aggregates,
         schedules,
         processingProfiles,
+        reviewSources: input.reviewSources,
+        nowEpochMillis,
       }),
       schedulePropertyTrends: createSchedulePropertyTrends({ schedules }),
       dataLifecycle,

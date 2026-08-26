@@ -9,9 +9,12 @@ import {
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import {
+  AI_PROPERTY_TREND_DEFINITION_DIGEST,
+  AI_PROPERTY_TREND_DEFINITION_VERSION,
   AI_TREND_RENDER_PROFILE_DIGEST,
   AI_TREND_RENDER_PROFILE_VERSION,
 } from '#/shared/ai-property-trend-contract'
+import { canonicalizeRfc8785 } from '#/shared/merchant-ai-notice-contract'
 import type {
   AiPropertyTrendSchedule,
   AiPropertyTrendScheduleStorePort,
@@ -21,7 +24,18 @@ import { aiPropertyTrendGenerationRequested } from '../../domain/events'
 const SCHEDULER_KEY = 'property-trend-v1'
 const BATCH_SIZE = 100
 const LEASE_MILLISECONDS = 60_000
-const REPORT_RETENTION_MILLISECONDS = 730 * 24 * 60 * 60 * 1_000
+
+function addUtcMonths(value: Date, months: number): Date {
+  const result = new Date(value.getTime())
+  const day = result.getUTCDate()
+  result.setUTCDate(1)
+  result.setUTCMonth(result.getUTCMonth() + months)
+  const lastDay = new Date(
+    Date.UTC(result.getUTCFullYear(), result.getUTCMonth() + 1, 0),
+  ).getUTCDate()
+  result.setUTCDate(Math.min(day, lastDay))
+  return result
+}
 
 type CandidateRow = Readonly<{
   organizationId: string
@@ -166,6 +180,8 @@ export function createAiPropertyTrendScheduleStore(
                 AND existing."property_trends_epoch" = auth."property_trends_epoch"
                 AND existing."property_profile_version" = profile."profile_version"
                 AND existing."report_profile_version" = 'property-trend-v1'
+                AND existing."terminal_analysis_sequence" = aggregate."terminal_analysis_sequence"
+                AND existing."aggregate_revision" = aggregate."aggregate_revision"
             )
           ORDER BY property."organization_id", property."id"
           LIMIT ${BATCH_SIZE}
@@ -303,15 +319,25 @@ export function createAiPropertyTrendScheduleStore(
       }
     },
 
-    recordProviderFreeOutcome: async ({ scheduleId, disposition }) =>
+    recordProviderFreeOutcome: async ({ scheduleId, disposition, evidence }) =>
       db.transaction(async (tx) => {
         const existing = await tx
-          .select({ disposition: aiPropertyTrendOutcomes.disposition })
+          .select({
+            disposition: aiPropertyTrendOutcomes.disposition,
+            definitionVersion: aiPropertyTrendOutcomes.definitionVersion,
+            definitionDigest: aiPropertyTrendOutcomes.definitionDigest,
+            evidence: aiPropertyTrendOutcomes.evidence,
+          })
           .from(aiPropertyTrendOutcomes)
           .where(eq(aiPropertyTrendOutcomes.scheduleId, scheduleId))
           .limit(1)
         if (existing[0] !== undefined) {
-          return existing[0].disposition === disposition ? 'replayed' : 'stale'
+          return existing[0].disposition === disposition &&
+            existing[0].definitionVersion === AI_PROPERTY_TREND_DEFINITION_VERSION &&
+            existing[0].definitionDigest === AI_PROPERTY_TREND_DEFINITION_DIGEST &&
+            canonicalizeRfc8785(existing[0].evidence) === canonicalizeRfc8785(evidence)
+            ? 'replayed'
+            : 'stale'
         }
 
         const current = await tx.execute<{
@@ -359,6 +385,7 @@ export function createAiPropertyTrendScheduleStore(
             AND profile."profile_version" = schedule."property_profile_version"
             AND profile."timezone" = schedule."timezone"
             AND review_head."head_sequence" = schedule."terminal_analysis_sequence"
+            AND cursor."consumed_sequence" = schedule."terminal_analysis_sequence"
             AND cursor."terminal_analysis_sequence" = schedule."terminal_analysis_sequence"
             AND cursor."aggregate_revision" = schedule."aggregate_revision"
             AND aggregate."terminal_analysis_sequence" = schedule."terminal_analysis_sequence"
@@ -379,21 +406,40 @@ export function createAiPropertyTrendScheduleStore(
             organizationId: binding.organizationId,
             propertyId: binding.propertyId,
             disposition,
+            definitionVersion: AI_PROPERTY_TREND_DEFINITION_VERSION,
+            definitionDigest: AI_PROPERTY_TREND_DEFINITION_DIGEST,
+            evidence,
             recordedAt,
+            expiresAt: addUtcMonths(recordedAt, 24),
           })
           .onConflictDoNothing()
           .returning({ disposition: aiPropertyTrendOutcomes.disposition })
         if (inserted[0] !== undefined) return 'recorded'
 
         const replay = await tx
-          .select({ disposition: aiPropertyTrendOutcomes.disposition })
+          .select({
+            disposition: aiPropertyTrendOutcomes.disposition,
+            definitionVersion: aiPropertyTrendOutcomes.definitionVersion,
+            definitionDigest: aiPropertyTrendOutcomes.definitionDigest,
+            evidence: aiPropertyTrendOutcomes.evidence,
+          })
           .from(aiPropertyTrendOutcomes)
           .where(eq(aiPropertyTrendOutcomes.scheduleId, scheduleId))
           .limit(1)
-        return replay[0]?.disposition === disposition ? 'replayed' : 'stale'
+        return replay[0]?.disposition === disposition &&
+          replay[0].definitionVersion === AI_PROPERTY_TREND_DEFINITION_VERSION &&
+          replay[0].definitionDigest === AI_PROPERTY_TREND_DEFINITION_DIGEST &&
+          canonicalizeRfc8785(replay[0].evidence) === canonicalizeRfc8785(evidence)
+          ? 'replayed'
+          : 'stale'
       }),
 
-    recordDeterministicReport: async ({ scheduleId, selectedSignalIds, report }) =>
+    recordDeterministicReport: async ({
+      scheduleId,
+      selectedSignalIds,
+      report,
+      evidence,
+    }) =>
       db.transaction(async (tx) => {
         const [existing] = await tx
           .select({
@@ -406,6 +452,9 @@ export function createAiPropertyTrendScheduleStore(
             headline: aiPropertyTrendOutcomes.headline,
             sentences: aiPropertyTrendOutcomes.sentences,
             summary: aiPropertyTrendOutcomes.summary,
+            definitionVersion: aiPropertyTrendOutcomes.definitionVersion,
+            definitionDigest: aiPropertyTrendOutcomes.definitionDigest,
+            evidence: aiPropertyTrendOutcomes.evidence,
           })
           .from(aiPropertyTrendOutcomes)
           .where(eq(aiPropertyTrendOutcomes.scheduleId, scheduleId))
@@ -417,11 +466,14 @@ export function createAiPropertyTrendScheduleStore(
               JSON.stringify(selectedSignalIds) &&
             existing.signalKey === report.signalKey &&
             existing.direction === report.direction &&
-            existing.confidenceBasisPoints === report.confidenceBasisPoints &&
+            existing.confidenceBasisPoints === report.changeMagnitudeBasisPoints &&
             existing.supportingReviewCount === report.supportingReviewCount &&
             existing.headline === report.headline &&
             JSON.stringify(existing.sentences) === JSON.stringify(report.sentences) &&
-            existing.summary === report.summary
+            existing.summary === report.summary &&
+            existing.definitionVersion === AI_PROPERTY_TREND_DEFINITION_VERSION &&
+            existing.definitionDigest === AI_PROPERTY_TREND_DEFINITION_DIGEST &&
+            canonicalizeRfc8785(existing.evidence) === canonicalizeRfc8785(evidence)
           return replayed ? 'replayed' : 'stale'
         }
 
@@ -494,15 +546,18 @@ export function createAiPropertyTrendScheduleStore(
             selectedSignalIds: [...selectedSignalIds],
             signalKey: report.signalKey,
             direction: report.direction,
-            confidenceBasisPoints: report.confidenceBasisPoints,
+            confidenceBasisPoints: report.changeMagnitudeBasisPoints,
             supportingReviewCount: report.supportingReviewCount,
             headline: report.headline,
             sentences: [...report.sentences],
             summary: report.summary,
             renderProfileVersion: AI_TREND_RENDER_PROFILE_VERSION,
             renderProfileDigest: AI_TREND_RENDER_PROFILE_DIGEST,
+            definitionVersion: AI_PROPERTY_TREND_DEFINITION_VERSION,
+            definitionDigest: AI_PROPERTY_TREND_DEFINITION_DIGEST,
+            evidence,
             recordedAt,
-            expiresAt: new Date(recordedAt.getTime() + REPORT_RETENTION_MILLISECONDS),
+            expiresAt: addUtcMonths(recordedAt, 24),
           })
           .onConflictDoNothing()
           .returning({ disposition: aiPropertyTrendOutcomes.disposition })

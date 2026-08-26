@@ -25,6 +25,52 @@ export type AiAnalysisResult =
   | Readonly<{ status: 'ready'; derivative: AiAnalysisDerivative }>
   | Readonly<{ status: 'unavailable'; reason: 'language_not_supported' }>
 
+export type AiTrendWindowEvidence = Readonly<{
+  period: Readonly<{ startLocalDate: string; endLocalDate: string }>
+  textCandidateCount: number
+  analyzedCount: number
+  /** Text-bearing candidates absent from the current successful analysis set. */
+  excludedCount: number
+  /** Rating-only Reviews; deliberately outside the coverage denominator. */
+  starOnlyCount: number
+  coverageBasisPoints: number
+}>
+
+export type AiTrendModelLineage = Readonly<{
+  analysisProfileVersion: string
+  providerDeploymentProfileVersion: string
+  modelSnapshot: string
+}>
+
+export type AiTrendSelectedSignalEvidence = Readonly<{
+  signalId: string
+  baseline: Readonly<{ count: number; total: number }>
+  current: Readonly<{ count: number; total: number }>
+  changeMagnitudeBasisPoints: number
+}>
+
+export type AiTrendSupportingReview = Readonly<{
+  reviewId: ReviewId
+  window: 'baseline' | 'current'
+  localDate: string
+  /** Content-free navigation target. The Review remains the access authority. */
+  href: string
+}>
+
+export type AiTrendEvidence = Readonly<{
+  definitionVersion: string
+  definitionDigest: string
+  renderProfileVersion: string
+  renderProfileDigest: string
+  timezone: string
+  dataThroughLocalDate: string
+  baseline: AiTrendWindowEvidence
+  current: AiTrendWindowEvidence
+  modelLineage: readonly AiTrendModelLineage[]
+  selectedSignals: readonly AiTrendSelectedSignalEvidence[]
+  supportingReviews: readonly AiTrendSupportingReview[]
+}>
+
 export type AiTrendReport = Readonly<{
   signalKey: string
   /**
@@ -41,7 +87,7 @@ export type AiTrendReport = Readonly<{
    * name matches the historical `confidence_basis_points` column only. Surfaces
    * must label it as a change size.
    */
-  confidenceBasisPoints: number
+  changeMagnitudeBasisPoints: number
   supportingReviewCount: number
   headline?:
     'Review signals improved' | 'Review signals need attention' | 'Notable review changes'
@@ -66,13 +112,12 @@ export type AiTrendReportRead =
       propertyProfileVersion: number
     }>
   | Readonly<{
-      status: 'snapshot_superseded'
+      status: 'updating'
       sourceEpoch: number
       reviewAnalysisEpoch: number
       propertyTrendsEpoch: number
       propertyProfileVersion: number
-      terminalAnalysisSequence: number
-      aggregateRevision: number
+      evidence?: AiTrendEvidence
     }>
   | Readonly<{
       status: 'insufficient_data' | 'no_material_change'
@@ -83,6 +128,8 @@ export type AiTrendReportRead =
       dueLocalDate: string
       terminalAnalysisSequence: number
       aggregateRevision: number
+      evidence: AiTrendEvidence
+      updating: boolean
     }>
   | Readonly<{
       status: 'ready'
@@ -95,6 +142,8 @@ export type AiTrendReportRead =
       aggregateRevision: number
       reportProfileVersion: string
       report: AiTrendReport
+      evidence: AiTrendEvidence
+      updating: boolean
       generatedAtEpochMillis: number
     }>
 

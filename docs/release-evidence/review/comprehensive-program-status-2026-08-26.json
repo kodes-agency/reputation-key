@@ -448,12 +448,13 @@
       ],
       "testEvidence": [
         "Deterministic contract, generation, Review population boundary, authorization/read-path, server DTO, scheduler, and scheduler-job suites (79 focused assertions passing on 2026-08-26)",
-        "TypeScript application, scripts, and Railway configurations compile on 2026-08-26"
+        "Clean scratch-Postgres migration parity (8 assertions), AI persistence/read path (17 assertions), and Review trend-population repository (25 assertions) pass on 2026-08-26",
+        "Property dashboard Storybook states (8 assertions), TypeScript application/scripts/Railway configurations, focused lint, and architecture/component boundary checks pass on 2026-08-26"
       ],
       "remaining": [
         "AI-02 must prove exhaustive eligible-Review enrollment, immutable membership, and caught-up Review Analysis coverage; until then AI-04 cannot prove that its candidate population is complete.",
         "REV-01 must prove stable Review identity, Material Review Revision sequencing, source cutover, and correction/content-lifecycle behavior used by the candidate-to-analysis join.",
-        "Record clean real-Postgres migration/read-path evidence, deterministic shadow parity, sufficient/insufficient/partial-coverage canaries, correction/rebuild recovery, lifecycle hide/erase, retention, and deployed cell-local scheduling drills before allowlisting Property Trends."
+        "Record deterministic shadow parity, sufficient/insufficient/partial-coverage canaries, correction/rebuild recovery, lifecycle hide/erase, retention, and deployed cell-local scheduling drills before allowlisting Property Trends."
       ],
       "externalBlockers": [
         "Production-like canary and Railway cell evidence require the deployed environment after AI-02 and REV-01 close; no provider approval is required for the deterministic trend evaluation itself."

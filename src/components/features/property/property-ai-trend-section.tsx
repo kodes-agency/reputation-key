@@ -47,10 +47,7 @@ export function PropertyAiTrendSection({
     )
   }
 
-  if (
-    trend.data?.status === 'preparing' ||
-    trend.data?.status === 'snapshot_superseded'
-  ) {
+  if (trend.data?.status === 'preparing' || trend.data?.status === 'updating') {
     return (
       <section aria-labelledby="review-trends-heading">
         <h2
@@ -61,7 +58,49 @@ export function PropertyAiTrendSection({
         </h2>
         <div className="mt-3 rounded-lg border p-4">
           <p className="text-sm text-muted-foreground">
-            Building a trend after enough current review signals are available.
+            {trend.data.status === 'updating'
+              ? 'Review trends are updating as current review analysis catches up.'
+              : 'Building a trend after enough current review signals are available.'}
+          </p>
+          {trend.data.status === 'updating' && trend.data.evidence ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              Data through {trend.data.evidence.dataThroughLocalDate}
+            </p>
+          ) : null}
+        </div>
+      </section>
+    )
+  }
+
+  if (
+    trend.data?.status === 'insufficient_data' ||
+    trend.data?.status === 'no_material_change'
+  ) {
+    const evidence = trend.data.evidence
+    return (
+      <section aria-labelledby="review-trends-heading">
+        <h2
+          id="review-trends-heading"
+          className="text-sm font-medium uppercase tracking-wide text-muted-foreground"
+        >
+          Review trends
+        </h2>
+        <div className="mt-3 rounded-lg border p-4">
+          <h3 className="text-base font-semibold">
+            {trend.data.status === 'insufficient_data'
+              ? 'Not enough review data'
+              : 'No notable change'}
+          </h3>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {evidence.current.analyzedCount.toLocaleString()} analyzed text reviews in the
+            latest complete period and {evidence.baseline.analyzedCount.toLocaleString()}{' '}
+            in the preceding period.
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            Data through {evidence.dataThroughLocalDate}
+            {trend.data.updating ? ' · Updating' : ''} · star-only ratings{' '}
+            {evidence.current.starOnlyCount.toLocaleString()} current /{' '}
+            {evidence.baseline.starOnlyCount.toLocaleString()} preceding
           </p>
         </div>
       </section>
@@ -101,8 +140,33 @@ export function PropertyAiTrendSection({
         ) : null}
         <p className="mt-3 text-xs text-muted-foreground">
           Based on {report.supportingReviewCount.toLocaleString()} current reviews ·
-          largest change {Math.round(report.confidenceBasisPoints / 100)} pts
+          largest change {Math.round(report.changeMagnitudeBasisPoints / 100)} pts
         </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Data through {trend.data.evidence.dataThroughLocalDate}
+          {trend.data.updating ? ' · Updating' : ''} · analysis coverage{' '}
+          {(trend.data.evidence.current.coverageBasisPoints / 100).toFixed(1)}% current /{' '}
+          {(trend.data.evidence.baseline.coverageBasisPoints / 100).toFixed(1)}% preceding
+          · star-only ratings {trend.data.evidence.current.starOnlyCount.toLocaleString()}{' '}
+          current / {trend.data.evidence.baseline.starOnlyCount.toLocaleString()}{' '}
+          preceding
+        </p>
+        {trend.data.evidence.supportingReviews.length > 0 ? (
+          <div className="mt-3">
+            <p className="text-xs font-medium text-muted-foreground">
+              Supporting reviews
+            </p>
+            <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+              {trend.data.evidence.supportingReviews.slice(0, 5).map((review) => (
+                <li key={review.reviewId}>
+                  <a className="underline underline-offset-2" href={review.href}>
+                    {review.localDate}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </div>
     </section>
   )

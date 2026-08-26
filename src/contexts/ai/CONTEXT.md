@@ -74,6 +74,36 @@ Analysis. A capability being present in code or schema is not activation.
 - Property Trend scheduling/generation and Review Analysis backfill must be
   replayable, idempotent, bounded internally, observable, and repairable.
 
+## Deterministic Property Trend definition
+
+`property-trend-definition-v1` compares the latest 30 complete Property-local
+calendar days with the immediately preceding 30 complete days. The current
+partial local day is never included. Rating-only Reviews are reported as
+`starOnlyCount` but are outside the text-analysis coverage denominator.
+
+A window is ready only when it contains at least 20 successfully analyzed,
+current-revision, text-bearing Reviews and those analyses cover at least 90% of
+the eligible text-bearing candidate Reviews. Candidate, analyzed, excluded, and
+star-only counts remain separate. Any unresolved Review-analysis sequence gap,
+head/cursor mismatch, inaccessible source population, or correction not yet
+reflected in the aggregate records `Updating`; it never manufactures a zero.
+
+A notable signal requires an absolute share change of at least 15 percentage
+points. Category signals additionally require the category to represent at
+least 10% of analyzed Reviews in either comparison window. Selection and prose
+are deterministic and provider-free. The durable result pins exact periods,
+coverage, definition/render digests, Review Analysis profile/deployment/model
+lineage, exact signal numerators/denominators, and content-free supporting Review
+links. The numeric value exposed by the API is a change magnitude, never
+confidence or statistical significance.
+
+Readers keep showing the latest compatible complete result while a later head
+is pending, paired with `Data through …` and `Updating`. They hide it when
+authorization, source epoch, Property access/lifecycle, profile, or delivery
+lease is no longer current. Scheduling is bounded and idempotent over the exact
+terminal analysis sequence and aggregate revision, so a correction creates a
+new schedule without overwriting the prior complete result.
+
 ## Data and retention
 
 - Source Review content remains owned and retained by Review; AI receives only an
@@ -81,6 +111,9 @@ Analysis. A capability being present in code or schema is not activation.
 - AI operations retain content-minimal execution/governance facts. Derivative
   Review Analysis, Reply Draft, aggregate, and trend outputs follow authorization
   and source-content lifecycle fences and can be erased independently.
+- New deterministic Property Trend outcomes expire after 24 calendar months;
+  retention never overrides the immediate read-time authorization and lifecycle
+  hiding rules.
 - Raw provider requests/responses, prompts, private data, tokens, and unredacted
   errors are prohibited from database, Redis, job payload, log, and evidence
   artifacts.

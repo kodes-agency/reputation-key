@@ -15,6 +15,12 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import {
+  AI_PROPERTY_TREND_DEFINITION_DIGEST,
+  AI_PROPERTY_TREND_DEFINITION_VERSION,
+  AI_TREND_RENDER_PROFILE_DIGEST,
+  AI_TREND_RENDER_PROFILE_VERSION,
+} from '#/shared/ai-property-trend-contract'
 import type { AiTrendReportRead } from '#/contexts/ai/application/ports/ai-output-store.port'
 import type * as ExecutionPolicyModule from '#/shared/auth/execution-policy'
 import type * as LoggerModule from '#/shared/observability/logger'
@@ -124,6 +130,34 @@ const NEVER_EDITED_EPOCHS = {
   propertyProfileVersion: 0,
 } as const
 
+const EVIDENCE = {
+  definitionVersion: AI_PROPERTY_TREND_DEFINITION_VERSION,
+  definitionDigest: AI_PROPERTY_TREND_DEFINITION_DIGEST,
+  renderProfileVersion: AI_TREND_RENDER_PROFILE_VERSION,
+  renderProfileDigest: AI_TREND_RENDER_PROFILE_DIGEST,
+  timezone: 'UTC',
+  dataThroughLocalDate: '2026-08-19',
+  baseline: {
+    period: { startLocalDate: '2026-06-21', endLocalDate: '2026-07-20' },
+    textCandidateCount: 20,
+    analyzedCount: 20,
+    excludedCount: 0,
+    starOnlyCount: 0,
+    coverageBasisPoints: 10_000,
+  },
+  current: {
+    period: { startLocalDate: '2026-07-21', endLocalDate: '2026-08-19' },
+    textCandidateCount: 20,
+    analyzedCount: 20,
+    excludedCount: 0,
+    starOnlyCount: 0,
+    coverageBasisPoints: 10_000,
+  },
+  modelLineage: [],
+  selectedSignals: [],
+  supportingReviews: [],
+} as const
+
 const call = (propertyId: string = PROPERTY_ID) =>
   getPropertyAiTrendFn({ data: { propertyId } })
 
@@ -212,11 +246,13 @@ describe('getPropertyAiTrendFn — read-model states reach the client intact', (
       report: {
         signalKey: 'sentiment.negative',
         direction: 'declining',
-        confidenceBasisPoints: 0,
+        changeMagnitudeBasisPoints: 0,
         supportingReviewCount: 3,
         headline: 'Review signals need attention',
         sentences: [],
       },
+      evidence: EVIDENCE,
+      updating: false,
       generatedAtEpochMillis: 0,
     }
     mocks.readPropertyAiTrend.mockResolvedValue(read)
@@ -228,7 +264,7 @@ describe('getPropertyAiTrendFn — read-model states reach the client intact', (
     expect(result).toEqual(read)
     expect(result).toMatchObject({
       reportProfileVersion: TREND_PROFILE.profileVersion,
-      report: { confidenceBasisPoints: 0, sentences: [] },
+      report: { changeMagnitudeBasisPoints: 0, sentences: [] },
     })
   })
 
@@ -236,12 +272,11 @@ describe('getPropertyAiTrendFn — read-model states reach the client intact', (
     ['disabled', { status: 'disabled' }],
     ['preparing', { status: 'preparing', ...NEVER_EDITED_EPOCHS }],
     [
-      'snapshot_superseded',
+      'updating',
       {
-        status: 'snapshot_superseded',
+        status: 'updating',
         ...NEVER_EDITED_EPOCHS,
-        terminalAnalysisSequence: 0,
-        aggregateRevision: 0,
+        evidence: EVIDENCE,
       },
     ],
     [
@@ -252,6 +287,8 @@ describe('getPropertyAiTrendFn — read-model states reach the client intact', (
         dueLocalDate: '2026-08-20',
         terminalAnalysisSequence: 0,
         aggregateRevision: 0,
+        evidence: EVIDENCE,
+        updating: false,
       },
     ],
     [
@@ -262,6 +299,8 @@ describe('getPropertyAiTrendFn — read-model states reach the client intact', (
         dueLocalDate: '2026-08-20',
         terminalAnalysisSequence: 0,
         aggregateRevision: 0,
+        evidence: EVIDENCE,
+        updating: false,
       },
     ],
   ])(

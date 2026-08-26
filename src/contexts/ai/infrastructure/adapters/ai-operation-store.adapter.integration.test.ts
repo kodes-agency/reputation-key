@@ -35,6 +35,12 @@ import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/id
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { properties } from '#/shared/db/schema/property.schema'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import {
+  AI_PROPERTY_TREND_DEFINITION_DIGEST,
+  AI_PROPERTY_TREND_DEFINITION_VERSION,
+  AI_TREND_RENDER_PROFILE_DIGEST,
+  AI_TREND_RENDER_PROFILE_VERSION,
+} from '#/shared/ai-property-trend-contract'
 import { maximumCostMicros } from '#/shared/ai-openai-provider-profile'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
@@ -56,6 +62,7 @@ import {
 } from './ai-read-barrier.adapter'
 import { createAiReviewEventStoreAdapter } from './ai-review-event-store.adapter'
 import { createAiOperationExecutionReaper } from '../../application/ai-operation-execution-reaper'
+import { addDays } from '../../application/local-date'
 
 const NOW = Date.parse('2026-08-16T12:00:00.000Z')
 const CONTENT_EXPIRES_AT = Date.now() + 86_400_000
@@ -67,6 +74,50 @@ const REVIEW_ID = '71000000-0000-4000-8000-000000000002'
 const ORIGIN_EVENT_ID = '71000000-0000-4000-8000-000000000003'
 const LINEAGE_ID = '71000000-0000-4000-8000-000000000004'
 const DIGEST = 'a'.repeat(64)
+
+function trendEvidence(dataThroughLocalDate: string) {
+  const dueLocalDate = addDays(dataThroughLocalDate, 1)
+  return {
+    definitionVersion: AI_PROPERTY_TREND_DEFINITION_VERSION,
+    definitionDigest: AI_PROPERTY_TREND_DEFINITION_DIGEST,
+    renderProfileVersion: AI_TREND_RENDER_PROFILE_VERSION,
+    renderProfileDigest: AI_TREND_RENDER_PROFILE_DIGEST,
+    timezone: 'UTC',
+    dataThroughLocalDate,
+    baseline: {
+      period: {
+        startLocalDate: addDays(dueLocalDate, -60),
+        endLocalDate: addDays(dueLocalDate, -31),
+      },
+      textCandidateCount: 20,
+      analyzedCount: 20,
+      excludedCount: 0,
+      starOnlyCount: 2,
+      coverageBasisPoints: 10_000,
+    },
+    current: {
+      period: {
+        startLocalDate: addDays(dueLocalDate, -30),
+        endLocalDate: dataThroughLocalDate,
+      },
+      textCandidateCount: 20,
+      analyzedCount: 20,
+      excludedCount: 0,
+      starOnlyCount: 1,
+      coverageBasisPoints: 10_000,
+    },
+    modelLineage: [],
+    selectedSignals: [
+      {
+        signalId: 'sentiment.positive.up',
+        baseline: { count: 5, total: 20 },
+        current: { count: 8, total: 20 },
+        changeMagnitudeBasisPoints: 1_500,
+      },
+    ],
+    supportingReviews: [],
+  } as const
+}
 
 registerAllEventSchemas()
 const SOURCE_PROVENANCE = Object.freeze({ digest: DIGEST, byteCount: 17 })
@@ -1911,7 +1962,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     ])
   })
 
-  it('stores immutable provider-bound and deterministic trend reports', async () => {
+  it('stores immutable deterministic trends and keeps the latest complete report while updating', async () => {
     await db
       .update(reviewAiAnalysisHeads)
       .set({ headSequence: 7, updatedAt: new Date(NOW) })
@@ -1995,7 +2046,7 @@ describe('AI operation store (real PostgreSQL)', () => {
       report: {
         signalKey: 'sentiment.positive.up',
         direction: 'improving',
-        confidenceBasisPoints: 8_750,
+        changeMagnitudeBasisPoints: 8_750,
         supportingReviewCount: 12,
         headline: 'Review signals improved',
         sentences: ['Positive sentiment improved in the current period.'],
@@ -2016,7 +2067,7 @@ describe('AI operation store (real PostgreSQL)', () => {
       .select({
         signalKey: aiPropertyTrendOutcomes.signalKey,
         direction: aiPropertyTrendOutcomes.direction,
-        confidenceBasisPoints: aiPropertyTrendOutcomes.confidenceBasisPoints,
+        changeMagnitudeBasisPoints: aiPropertyTrendOutcomes.confidenceBasisPoints,
         supportingReviewCount: aiPropertyTrendOutcomes.supportingReviewCount,
         headline: aiPropertyTrendOutcomes.headline,
         sentences: aiPropertyTrendOutcomes.sentences,
@@ -2026,6 +2077,8 @@ describe('AI operation store (real PostgreSQL)', () => {
       .where(eq(aiPropertyTrendOutcomes.operationId, operationId))
       .limit(1)
     expect(stored).toEqual(report.report)
+    // Provider-bound historical outcomes are retained for rollback evidence but
+    // cannot cross the current provider-free read boundary.
     await expect(
       outputStore.readTrendReportForDelivery(
         {
@@ -2042,12 +2095,7 @@ describe('AI operation store (real PostgreSQL)', () => {
         async (_lease, result) => result,
       ),
     ).resolves.toMatchObject({
-      status: 'ready',
-      dueLocalDate: '2026-08-16',
-      terminalAnalysisSequence: 7,
-      aggregateRevision: 5,
-      generatedAtEpochMillis: NOW + 1,
-      report: report.report,
+      status: 'preparing',
     })
 
     const noDataScheduleId = '71000000-0000-4000-8000-000000000022'
@@ -2074,12 +2122,14 @@ describe('AI operation store (real PostgreSQL)', () => {
       scheduleStore.recordProviderFreeOutcome({
         scheduleId: noDataScheduleId,
         disposition: 'insufficient_data',
+        evidence: trendEvidence('2026-08-14'),
       }),
     ).resolves.toBe('recorded')
     await expect(
       scheduleStore.recordProviderFreeOutcome({
         scheduleId: noDataScheduleId,
         disposition: 'insufficient_data',
+        evidence: trendEvidence('2026-08-14'),
       }),
     ).resolves.toBe('replayed')
     const [noDataOutcome] = await db
@@ -2098,7 +2148,7 @@ describe('AI operation store (real PostgreSQL)', () => {
       operationId: null,
       selectedSignalIds: null,
       providerSelectionRecordedAt: null,
-      expiresAt: null,
+      expiresAt: expect.any(Date),
     })
 
     const deterministicScheduleId = '71000000-0000-4000-8000-000000000024'
@@ -2123,7 +2173,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     const deterministicReport = {
       signalKey: 'sentiment.positive.up',
       direction: 'improving',
-      confidenceBasisPoints: 1_500,
+      changeMagnitudeBasisPoints: 1_500,
       supportingReviewCount: 24,
       headline: 'Review signals improved',
       sentences: ['Positive sentiment improved in the current period.'],
@@ -2134,6 +2184,7 @@ describe('AI operation store (real PostgreSQL)', () => {
         scheduleId: deterministicScheduleId,
         selectedSignalIds: ['sentiment.positive.up'],
         report: deterministicReport,
+        evidence: trendEvidence('2026-08-16'),
       }),
     ).resolves.toBe('recorded')
     await expect(
@@ -2141,6 +2192,7 @@ describe('AI operation store (real PostgreSQL)', () => {
         scheduleId: deterministicScheduleId,
         selectedSignalIds: ['sentiment.positive.up'],
         report: deterministicReport,
+        evidence: trendEvidence('2026-08-16'),
       }),
     ).resolves.toBe('replayed')
     await expect(
@@ -2148,6 +2200,7 @@ describe('AI operation store (real PostgreSQL)', () => {
         scheduleId: deterministicScheduleId,
         selectedSignalIds: ['sentiment.positive.up'],
         report: { ...deterministicReport, summary: 'A conflicting report.' },
+        evidence: trendEvidence('2026-08-16'),
       }),
     ).resolves.toBe('stale')
     const [deterministicOutcome] = await db
@@ -2187,6 +2240,8 @@ describe('AI operation store (real PostgreSQL)', () => {
       terminalAnalysisSequence: 7,
       aggregateRevision: 5,
       report: deterministicReport,
+      evidence: trendEvidence('2026-08-16'),
+      updating: false,
     })
     await db
       .delete(aiPropertyTrendOutcomes)
@@ -2219,7 +2274,39 @@ describe('AI operation store (real PostgreSQL)', () => {
       dueLocalDate: '2026-08-15',
       terminalAnalysisSequence: 7,
       aggregateRevision: 5,
+      evidence: trendEvidence('2026-08-14'),
+      updating: false,
     })
+    const invalidEvidence = trendEvidence('2026-08-14')
+    await db
+      .update(aiPropertyTrendOutcomes)
+      .set({
+        evidence: {
+          ...invalidEvidence,
+          current: { ...invalidEvidence.current, coverageBasisPoints: 9_999 },
+        },
+      })
+      .where(eq(aiPropertyTrendOutcomes.scheduleId, noDataScheduleId))
+    await expect(
+      outputStore.readTrendReportForDelivery(
+        {
+          organizationId: report.organizationId,
+          actorUserId: userId('ai-operation-test-trend-reader'),
+          propertyId: report.propertyId,
+          sourceEpoch: report.sourceEpoch,
+          reviewAnalysisEpoch: report.reviewAnalysisEpoch,
+          propertyTrendsEpoch: report.propertyTrendsEpoch,
+          propertyProfileVersion: report.propertyProfileVersion,
+          reportProfileVersion: report.reportProfileVersion,
+          nowEpochMillis: NOW + 2,
+        },
+        async (_lease, result) => result,
+      ),
+    ).resolves.toMatchObject({ status: 'preparing' })
+    await db
+      .update(aiPropertyTrendOutcomes)
+      .set({ evidence: trendEvidence('2026-08-14') })
+      .where(eq(aiPropertyTrendOutcomes.scheduleId, noDataScheduleId))
     await db
       .update(aiReviewEventCursors)
       .set({ aggregateRevision: 6, updatedAt: new Date(NOW + 3) })
@@ -2244,13 +2331,16 @@ describe('AI operation store (real PostgreSQL)', () => {
         async (_lease, result) => result,
       ),
     ).resolves.toEqual({
-      status: 'snapshot_superseded',
+      status: 'insufficient_data',
       sourceEpoch: 2,
       reviewAnalysisEpoch: 1,
       propertyTrendsEpoch: 1,
       propertyProfileVersion: 3,
+      dueLocalDate: '2026-08-15',
       terminalAnalysisSequence: 7,
-      aggregateRevision: 6,
+      aggregateRevision: 5,
+      evidence: trendEvidence('2026-08-14'),
+      updating: true,
     })
     await db
       .update(aiReviewEventCursors)
@@ -2626,13 +2716,16 @@ describe('AI operation store (real PostgreSQL)', () => {
         async (_lease, result) => result,
       ),
     ).resolves.toEqual({
-      status: 'snapshot_superseded',
+      status: 'insufficient_data',
       sourceEpoch: 2,
       reviewAnalysisEpoch: 1,
       propertyTrendsEpoch: 1,
       propertyProfileVersion: 3,
-      terminalAnalysisSequence: 8,
-      aggregateRevision: 6,
+      dueLocalDate: '2026-08-15',
+      terminalAnalysisSequence: 7,
+      aggregateRevision: 5,
+      evidence: trendEvidence('2026-08-14'),
+      updating: true,
     })
     const noResultEvent = {
       organizationId: unavailableAnalysis.organizationId,

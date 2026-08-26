@@ -1789,6 +1789,8 @@ export const aiPropertyTrendSchedules = pgTable(
       t.propertyTrendsEpoch,
       t.propertyProfileVersion,
       t.reportProfileVersion,
+      t.terminalAnalysisSequence,
+      t.aggregateRevision,
     ),
     foreignKey({
       columns: [t.organizationId, t.propertyId],
@@ -1833,6 +1835,9 @@ export const aiPropertyTrendOutcomes = pgTable(
     summary: text('summary'),
     renderProfileVersion: varchar('render_profile_version', { length: 100 }),
     renderProfileDigest: varchar('render_profile_digest', { length: 64 }),
+    definitionVersion: varchar('definition_version', { length: 100 }),
+    definitionDigest: varchar('definition_digest', { length: 64 }),
+    evidence: jsonb('evidence').$type<Readonly<Record<string, unknown>>>(),
     providerSelectionRecordedAt: timestamptz('provider_selection_recorded_at'),
     recordedAt: timestamptz('recorded_at').notNull(),
     expiresAt: timestamptz('expires_at'),
@@ -1864,6 +1869,12 @@ export const aiPropertyTrendOutcomes = pgTable(
         AND ${t.renderProfileVersion} = 'trend-render-v1'
         AND ${t.renderProfileDigest} ~ '^[0-9a-f]{64}$'
         AND (
+          (${t.definitionVersion} IS NULL AND ${t.definitionDigest} IS NULL AND ${t.evidence} IS NULL)
+          OR (${t.definitionVersion} = 'property-trend-definition-v1'
+            AND ${t.definitionDigest} ~ '^[0-9a-f]{64}$'
+            AND jsonb_typeof(${t.evidence}) = 'object')
+        )
+        AND (
           (${t.operationId} IS NOT NULL
             AND ${t.providerSelectionRecordedAt} IS NOT NULL
             AND ${t.recordedAt} = ${t.providerSelectionRecordedAt})
@@ -1871,7 +1882,7 @@ export const aiPropertyTrendOutcomes = pgTable(
         )
         AND ${t.expiresAt} > ${t.recordedAt}
       ) OR (
-        ${t.disposition} IN ('insufficient_data', 'no_material_change')
+        ${t.disposition} IN ('updating', 'insufficient_data', 'no_material_change')
         AND ${t.operationId} IS NULL
         AND ${t.selectedSignalIds} IS NULL
         AND ${t.signalKey} IS NULL
@@ -1883,8 +1894,14 @@ export const aiPropertyTrendOutcomes = pgTable(
         AND ${t.summary} IS NULL
         AND ${t.renderProfileVersion} IS NULL
         AND ${t.renderProfileDigest} IS NULL
+        AND (
+          (${t.definitionVersion} IS NULL AND ${t.definitionDigest} IS NULL AND ${t.evidence} IS NULL AND ${t.expiresAt} IS NULL)
+          OR (${t.definitionVersion} = 'property-trend-definition-v1'
+            AND ${t.definitionDigest} ~ '^[0-9a-f]{64}$'
+            AND jsonb_typeof(${t.evidence}) = 'object'
+            AND ${t.expiresAt} > ${t.recordedAt})
+        )
         AND ${t.providerSelectionRecordedAt} IS NULL
-        AND ${t.expiresAt} IS NULL
       )`,
     ),
     index('ai_property_trend_outcomes_property_idx').on(

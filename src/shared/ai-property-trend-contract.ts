@@ -3,7 +3,13 @@ import { z } from 'zod/v4'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 
 export const AI_PROPERTY_TREND_CONTRACT_VERSION = 'property-trend-v1' as const
+export const AI_PROPERTY_TREND_DEFINITION_VERSION =
+  'property-trend-definition-v1' as const
 export const AI_TREND_RENDER_PROFILE_VERSION = 'trend-render-v1' as const
+export const AI_PROPERTY_TREND_MINIMUM_ANALYZED_PER_WINDOW = 20 as const
+export const AI_PROPERTY_TREND_MINIMUM_COVERAGE_BASIS_POINTS = 9_000 as const
+export const AI_PROPERTY_TREND_MINIMUM_CHANGE_PERCENTAGE_POINTS = 15 as const
+export const AI_PROPERTY_TREND_CATEGORY_MINIMUM_SHARE_PERCENT = 10 as const
 
 export type ClosedTrendSignalId =
   | `sentiment.${'positive' | 'neutral' | 'negative' | 'mixed'}.${'up' | 'down'}`
@@ -207,7 +213,7 @@ export function validateDeterministicAggregateWindow(
 ): DeterministicAggregateWindow {
   const parsed = aggregateWindowSchema.parse(value)
   const reviewCount = BigInt(parsed.reviewCount)
-  if (parsed.reviewCount < 20)
+  if (parsed.reviewCount < AI_PROPERTY_TREND_MINIMUM_ANALYZED_PER_WINDOW)
     throw new TypeError('aggregate window requires at least twenty ready analyses')
   if (sum(Object.values(parsed.sentimentCounts)) !== reviewCount) {
     throw new TypeError('sentiment counts must sum to reviewCount')
@@ -267,11 +273,17 @@ function shareCandidate(
   const delta = currentNumerator * baselineCount - baselineNumerator * currentCount
   if (delta === 0n) return null
   const denominatorProduct = currentCount * baselineCount
-  if (absolute(delta) * 100n < 15n * denominatorProduct) return null
+  if (
+    absolute(delta) * 100n <
+    BigInt(AI_PROPERTY_TREND_MINIMUM_CHANGE_PERCENTAGE_POINTS) * denominatorProduct
+  )
+    return null
   if (
     input.categoryPrevalenceRequired &&
-    currentNumerator * 10n < currentCount &&
-    baselineNumerator * 10n < baselineCount
+    currentNumerator * 100n <
+      BigInt(AI_PROPERTY_TREND_CATEGORY_MINIMUM_SHARE_PERCENT) * currentCount &&
+    baselineNumerator * 100n <
+      BigInt(AI_PROPERTY_TREND_CATEGORY_MINIMUM_SHARE_PERCENT) * baselineCount
   )
     return null
 
@@ -373,13 +385,16 @@ function validateCandidate(candidate: DeterministicTrendCandidate): ScoredCandid
     currentNumerator < 0n ||
     baselineNumerator > baselineDenominator ||
     currentNumerator > currentDenominator ||
-    absolute(delta) * 100n < 15n * denominatorProduct
+    absolute(delta) * 100n <
+      BigInt(AI_PROPERTY_TREND_MINIMUM_CHANGE_PERCENTAGE_POINTS) * denominatorProduct
   )
     throw new TypeError('invalid share candidate')
   if (
     candidate.id.startsWith('category.') &&
-    baselineNumerator * 10n < baselineDenominator &&
-    currentNumerator * 10n < currentDenominator
+    baselineNumerator * 100n <
+      BigInt(AI_PROPERTY_TREND_CATEGORY_MINIMUM_SHARE_PERCENT) * baselineDenominator &&
+    currentNumerator * 100n <
+      BigInt(AI_PROPERTY_TREND_CATEGORY_MINIMUM_SHARE_PERCENT) * currentDenominator
   )
     throw new TypeError('category candidate does not meet prevalence')
   return {
@@ -502,9 +517,41 @@ const PROPERTY_TREND_CONTRACT_MANIFEST = Object.freeze({
   renderProfileDigest: AI_TREND_RENDER_PROFILE_DIGEST,
 })
 
+const PROPERTY_TREND_DEFINITION_MANIFEST = Object.freeze({
+  version: AI_PROPERTY_TREND_DEFINITION_VERSION,
+  signalIds: CLOSED_TREND_SIGNAL_IDS,
+  windowLengthCompleteLocalDays: 30,
+  comparisonWindowCount: 2,
+  currentPartialLocalDayExcluded: true,
+  minimumSuccessfullyAnalyzedTextCandidates:
+    AI_PROPERTY_TREND_MINIMUM_ANALYZED_PER_WINDOW,
+  minimumCurrentAnalysisCoverageBasisPoints:
+    AI_PROPERTY_TREND_MINIMUM_COVERAGE_BASIS_POINTS,
+  shareThresholdPercentagePoints: AI_PROPERTY_TREND_MINIMUM_CHANGE_PERCENTAGE_POINTS,
+  categoryMinimumWindowSharePercent: AI_PROPERTY_TREND_CATEGORY_MINIMUM_SHARE_PERCENT,
+  starOnlyReviewsExcludedFromCandidateDenominator: true,
+  unresolvedSequenceGapDisposition: 'updating',
+  meanValenceSignal: 'removed-no-persisted-per-review-valence',
+  maximumDeterministicCandidates: 12,
+  selectionMinimum: 1,
+  selectionMaximum: 4,
+  selectionUnique: true,
+  candidateOrdering: 'normalized-magnitude-descending-then-id-lexical',
+  shareNormalizedMagnitude: 'absolute-share-delta-divided-by-10',
+  directionRule: 'leading-signal-polarity-then-majority-polarity-then-stable',
+  selectionMustBeCandidate: true,
+  renderProfileVersion: AI_TREND_RENDER_PROFILE_VERSION,
+  renderProfileDigest: AI_TREND_RENDER_PROFILE_DIGEST,
+})
+
 export const AI_PROPERTY_TREND_CONTRACT_DIGEST = createHash('sha256')
   .update('repkey-ai-property-trend-contract-v1\0', 'utf8')
   .update(canonicalizeRfc8785(PROPERTY_TREND_CONTRACT_MANIFEST), 'utf8')
+  .digest('hex')
+
+export const AI_PROPERTY_TREND_DEFINITION_DIGEST = createHash('sha256')
+  .update('repkey-ai-property-trend-definition-v1\0', 'utf8')
+  .update(canonicalizeRfc8785(PROPERTY_TREND_DEFINITION_MANIFEST), 'utf8')
   .digest('hex')
 
 function roundRatioToOneDecimal(

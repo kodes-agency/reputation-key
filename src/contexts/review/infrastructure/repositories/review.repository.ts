@@ -279,6 +279,97 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
     })
   },
 
+  readTrendPopulation: async (input) => {
+    return await trace('review.readTrendPopulation', async () => {
+      if (
+        !Number.isSafeInteger(input.limit) ||
+        input.limit < 2 ||
+        input.limit > 10_001 ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(input.startLocalDate) ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(input.endLocalDate) ||
+        input.startLocalDate > input.endLocalDate
+      ) {
+        return { status: 'policy_unavailable' as const }
+      }
+      try {
+        const result = await db.execute(sql<{
+          reviewId: string
+          sourceRevision: number | string
+          analysisSequence: number | string
+          localDate: string
+          hasText: boolean
+        }>`
+          WITH captured AS (
+            SELECT transaction_timestamp() AS now
+          )
+          SELECT
+            review."id"::text AS "reviewId",
+            review."source_revision"::float8 AS "sourceRevision",
+            review."analysis_sequence"::float8 AS "analysisSequence",
+            resolve_ai_property_local_date_v1(
+              source."reviewed_at",
+              ${input.timezone},
+              ${input.calendarProfileVersion}
+            )::text AS "localDate",
+            NULLIF(btrim(source."text"), '') IS NOT NULL AS "hasText"
+          FROM "reviews" AS review
+          INNER JOIN "review_source_contents" AS source
+            ON source."organization_id" = review."organization_id"
+           AND source."property_id" = review."property_id"
+           AND source."review_id" = review."id"
+          CROSS JOIN captured
+          WHERE review."organization_id" = ${input.organizationId}
+            AND review."property_id" = ${input.propertyId}::uuid
+            AND review."source_content_state" = 'active'
+            AND review."source_epoch" = ${input.sourceEpoch}
+            AND source."source_epoch" = ${input.sourceEpoch}
+            AND source."source_revision" = review."source_revision"
+            AND source."content_expires_at" > captured.now
+            AND resolve_ai_property_local_date_v1(
+              source."reviewed_at",
+              ${input.timezone},
+              ${input.calendarProfileVersion}
+            ) BETWEEN ${input.startLocalDate}::date AND ${input.endLocalDate}::date
+          ORDER BY source."reviewed_at", review."id"
+          LIMIT ${input.limit}
+        `)
+        if (result.rows.length >= input.limit) {
+          return { status: 'limit_exceeded' as const }
+        }
+        const population = []
+        for (const row of result.rows) {
+          const sourceRevision = parseSafeNonnegativeInteger(row.sourceRevision)
+          const analysisSequence = parseSafeNonnegativeInteger(row.analysisSequence)
+          if (
+            sourceRevision === null ||
+            analysisSequence === null ||
+            typeof row.reviewId !== 'string' ||
+            typeof row.localDate !== 'string' ||
+            !/^\d{4}-\d{2}-\d{2}$/.test(row.localDate) ||
+            typeof row.hasText !== 'boolean'
+          ) {
+            return { status: 'policy_unavailable' as const }
+          }
+          population.push(
+            Object.freeze({
+              reviewId: reviewId(row.reviewId),
+              sourceRevision,
+              analysisSequence,
+              localDate: row.localDate,
+              hasText: row.hasText,
+            }),
+          )
+        }
+        return {
+          status: 'complete' as const,
+          reviews: Object.freeze(population),
+        }
+      } catch {
+        return { status: 'policy_unavailable' as const }
+      }
+    })
+  },
+
   assertCurrentForAi: async (input) => {
     return await trace('review.assertCurrentForAi', async () => {
       try {

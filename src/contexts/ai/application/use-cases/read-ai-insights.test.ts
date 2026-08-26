@@ -2,6 +2,12 @@ import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { MERCHANT_AI_NOTICE_VERSION } from '#/shared/merchant-ai-notice-contract'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import {
+  AI_PROPERTY_TREND_DEFINITION_DIGEST,
+  AI_PROPERTY_TREND_DEFINITION_VERSION,
+  AI_TREND_RENDER_PROFILE_DIGEST,
+  AI_TREND_RENDER_PROFILE_VERSION,
+} from '#/shared/ai-property-trend-contract'
 import type { AiMerchantAuthorizationSnapshot } from '../ports/ai-authorization.port'
 import type { AiOutputStorePort, AiTrendReportRead } from '../ports/ai-output-store.port'
 import type {
@@ -148,11 +154,37 @@ const TREND_PREPARING: AiTrendReportRead = Object.freeze({
   ...TREND_PINS,
   status: 'preparing',
 })
-const TREND_SUPERSEDED: AiTrendReportRead = Object.freeze({
+const TREND_EVIDENCE = Object.freeze({
+  definitionVersion: AI_PROPERTY_TREND_DEFINITION_VERSION,
+  definitionDigest: AI_PROPERTY_TREND_DEFINITION_DIGEST,
+  renderProfileVersion: AI_TREND_RENDER_PROFILE_VERSION,
+  renderProfileDigest: AI_TREND_RENDER_PROFILE_DIGEST,
+  timezone: 'Europe/Sofia',
+  dataThroughLocalDate: '2026-08-14',
+  baseline: {
+    period: { startLocalDate: '2026-06-16', endLocalDate: '2026-07-15' },
+    textCandidateCount: 20,
+    analyzedCount: 20,
+    excludedCount: 0,
+    starOnlyCount: 2,
+    coverageBasisPoints: 10_000,
+  },
+  current: {
+    period: { startLocalDate: '2026-07-16', endLocalDate: '2026-08-14' },
+    textCandidateCount: 20,
+    analyzedCount: 20,
+    excludedCount: 0,
+    starOnlyCount: 1,
+    coverageBasisPoints: 10_000,
+  },
+  modelLineage: [],
+  selectedSignals: [],
+  supportingReviews: [],
+})
+const TREND_UPDATING: AiTrendReportRead = Object.freeze({
   ...TREND_PINS,
-  status: 'snapshot_superseded',
-  terminalAnalysisSequence: 0,
-  aggregateRevision: 0,
+  status: 'updating',
+  evidence: TREND_EVIDENCE,
 })
 const TREND_INSUFFICIENT: AiTrendReportRead = Object.freeze({
   ...TREND_PINS,
@@ -160,6 +192,8 @@ const TREND_INSUFFICIENT: AiTrendReportRead = Object.freeze({
   dueLocalDate: '2026-08-15',
   terminalAnalysisSequence: 0,
   aggregateRevision: 0,
+  evidence: TREND_EVIDENCE,
+  updating: false,
 })
 const TREND_READY: AiTrendReportRead = Object.freeze({
   ...TREND_PINS,
@@ -171,9 +205,11 @@ const TREND_READY: AiTrendReportRead = Object.freeze({
   report: {
     signalKey: 'sentiment.negative.up',
     direction: 'declining',
-    confidenceBasisPoints: 1_200,
+    changeMagnitudeBasisPoints: 1_200,
     supportingReviewCount: 18,
   },
+  evidence: TREND_EVIDENCE,
+  updating: false,
   generatedAtEpochMillis: NOW - 3_600_000,
 } as const)
 
@@ -415,7 +451,7 @@ describe('read property trend', () => {
 
   it.each([
     ['preparing', TREND_PREPARING],
-    ['snapshot_superseded', TREND_SUPERSEDED],
+    ['updating', TREND_UPDATING],
     ['insufficient_data', TREND_INSUFFICIENT],
     ['ready', TREND_READY],
   ])('forwards the %s outcome without rewriting it', async (_status, trendRead) => {
