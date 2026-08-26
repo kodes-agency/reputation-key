@@ -154,60 +154,6 @@
       "policy": "Seed from persisted end time and keep input local until Save; the containing settings view owns remount/reset behavior."
     },
     {
-      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(metricVersionId)",
-      "classification": "server_draft",
-      "owner": "Recognition activation form",
-      "policy": "Seed from current activation/default metric and hold a local configuration draft for the mounted property settings page."
-    },
-    {
-      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(selectedGroups)",
-      "classification": "server_draft",
-      "owner": "Recognition activation form",
-      "policy": "Seed from current activation groups and hold a local configuration draft for the mounted property settings page."
-    },
-    {
-      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(jurisdiction)",
-      "classification": "server_draft",
-      "owner": "Recognition activation form",
-      "policy": "Seed from current activation jurisdiction and hold a local configuration draft for the mounted property settings page."
-    },
-    {
-      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(consultationStatus)",
-      "classification": "server_draft",
-      "owner": "Recognition activation form",
-      "policy": "Seed from current activation consultation status and hold a local configuration draft for the mounted property settings page."
-    },
-    {
-      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(minimumExposure)",
-      "classification": "server_draft",
-      "owner": "Recognition activation form",
-      "policy": "Seed from current activation/default exposure and hold a local configuration draft for the mounted property settings page."
-    },
-    {
-      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(minimumSample)",
-      "classification": "server_draft",
-      "owner": "Recognition activation form",
-      "policy": "Seed from current activation or metric minimum and update when the draft metric changes."
-    },
-    {
-      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(freshnessSeconds)",
-      "classification": "server_draft",
-      "owner": "Recognition activation form",
-      "policy": "Seed from current activation/default freshness and hold a local configuration draft for the mounted property settings page."
-    },
-    {
-      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(minimumCompleteness)",
-      "classification": "server_draft",
-      "owner": "Recognition activation form",
-      "policy": "Seed from current activation/default completeness and hold a local configuration draft for the mounted property settings page."
-    },
-    {
-      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(periodKind)",
-      "classification": "server_draft",
-      "owner": "Recognition activation form",
-      "policy": "Seed from current activation/default period and hold a local configuration draft for the mounted property settings page."
-    },
-    {
       "id": "src/components/features/staff/portal-responsibilities-modal.tsx:useState(primaryPortalId)",
       "classification": "server_draft",
       "owner": "Staff portal-responsibility editor",

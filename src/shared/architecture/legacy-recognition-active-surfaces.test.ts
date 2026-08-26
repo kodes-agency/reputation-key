@@ -1,14 +1,36 @@
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const ROOT = process.cwd()
 const ROUTES = join(ROOT, 'src', 'routes')
-
-const RETAINED_REDIRECT_ROUTES = new Set([
-  'src/routes/_authenticated/leaderboard.tsx',
-  'src/routes/_authenticated/settings/recognition.tsx',
-])
+const COMPONENTS = join(ROOT, 'src', 'components')
+const SETTINGS_BARREL = join(
+  ROOT,
+  'src',
+  'components',
+  'features',
+  'settings',
+  'index.ts',
+)
+const LEGACY_RECOGNITION_SETTINGS_UI = [
+  join(
+    ROOT,
+    'src',
+    'components',
+    'features',
+    'settings',
+    'recognition-settings-page.tsx',
+  ),
+  join(
+    ROOT,
+    'src',
+    'components',
+    'features',
+    'settings',
+    'recognition-activation-card.tsx',
+  ),
+]
 
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -34,7 +56,6 @@ describe('legacy recognition stays out of active beta surfaces', () => {
   it('keeps active routes independent from Badge and Leaderboard runtime reads', () => {
     const violations = sourceFiles(ROUTES)
       .map((path) => relative(ROOT, path))
-      .filter((path) => !RETAINED_REDIRECT_ROUTES.has(path))
       .flatMap((path) =>
         legacyRecognitionReferences(join(ROOT, path)).map(
           (reference) => `${path}: ${reference}`,
@@ -51,5 +72,36 @@ describe('legacy recognition stays out of active beta surfaces', () => {
         (reference) => `${path}: ${reference}`,
       ),
     ).toEqual([])
+  })
+
+  it('retains no legacy Recognition settings presentation owner or importer', () => {
+    const retainedModules = LEGACY_RECOGNITION_SETTINGS_UI.filter(existsSync).map(
+      (path) => relative(ROOT, path),
+    )
+    const legacyImportMarkers = [
+      'RecognitionSettingsPage',
+      'recognition-settings-page',
+      'recognition-activation-card',
+    ]
+    const importers = [...sourceFiles(COMPONENTS), ...sourceFiles(ROUTES)]
+      .filter((path) => !LEGACY_RECOGNITION_SETTINGS_UI.includes(path))
+      .flatMap((path) => {
+        const body = readFileSync(path, 'utf8')
+        return legacyImportMarkers
+          .filter((marker) => body.includes(marker))
+          .map((marker) => `${relative(ROOT, path)}: ${marker}`)
+      })
+
+    expect({
+      importers,
+      retainedModules,
+      settingsBarrelExportsLegacyUi: legacyImportMarkers.some((marker) =>
+        readFileSync(SETTINGS_BARREL, 'utf8').includes(marker),
+      ),
+    }).toEqual({
+      importers: [],
+      retainedModules: [],
+      settingsBarrelExportsLegacyUi: false,
+    })
   })
 })
