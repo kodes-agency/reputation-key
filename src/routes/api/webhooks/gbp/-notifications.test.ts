@@ -49,13 +49,11 @@ vi.mock('#/shared/config/env', () => ({
 vi.mock('#/shared/auth/pubsub-jwt.verifier', () => ({
   verifyPubSubJwt: mocks.verifyPubSubJwt,
 }))
-
-vi.mock(
-  '#/contexts/integration/infrastructure/handlers/gbp-notification-handler',
-  () => ({
-    handleGbpNotification: mocks.handleGbpNotification,
+vi.mock('#/composition', () => ({
+  getContainer: () => ({
+    useCases: { handleGbpNotification: mocks.handleGbpNotification },
   }),
-)
+}))
 
 const encodePayload = (payload: unknown): string =>
   Buffer.from(JSON.stringify(payload), 'utf-8').toString('base64')

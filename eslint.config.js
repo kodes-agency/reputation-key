@@ -16,6 +16,8 @@ const elementType = (type) => ({ element: { type } })
 const elementTypes = (...types) => ({ element: { types: { anyOf: types } } })
 const fileCategory = (categories) => ({ file: { categories } })
 const localModule = { module: { origin: 'local' } }
+const rootedElements = (descriptors) =>
+  descriptors.map((descriptor) => ({ ...descriptor, partialMatch: false }))
 
 export default tseslint.config(
   js.configs.recommended,
@@ -64,9 +66,12 @@ export default tseslint.config(
   //                    routing, security, queries, ... — catch-all for dirs without a
   //                    dedicated element; MUST stay the last shared-* pattern)
   //   test-helpers   → shared/testing/
-  //   top-level      → composition.ts, bootstrap.ts, start.ts, router.tsx, worker/
+  //   top-level      → worker/
+  //   file categories → composition.ts, bootstrap.ts, start.ts, router.tsx,
+  //                     generated/ambient files, API routes
   // ────────────────────────────────────────────────────────────────────
   {
+    files: ['src/**/*.{ts,tsx}', 'services/**/*.ts', 'server/**/*.ts'],
     plugins: {
       boundaries,
     },
@@ -76,7 +81,10 @@ export default tseslint.config(
           alwaysTryTypes: true,
         },
       },
-      'boundaries/elements': [
+      // Anchor every architectural element at the repository root. The v7
+      // default performs suffix matching, which otherwise makes `server/**`
+      // classify `src/contexts/*/server/**` as a Nitro runtime plugin.
+      'boundaries/elements': rootedElements([
         // ── Context layers (inner → outer) ──────────────────────────
         {
           type: 'domain',
@@ -118,6 +126,14 @@ export default tseslint.config(
         {
           type: 'components',
           pattern: 'src/components/**',
+        },
+        {
+          type: 'ui-support',
+          pattern: 'src/hooks/**',
+        },
+        {
+          type: 'ui-support',
+          pattern: 'src/lib/**',
         },
 
         // ── Shared layers ───────────────────────────────────────────
@@ -185,6 +201,10 @@ export default tseslint.config(
           type: 'test-helpers',
           pattern: 'src/shared/testing/**',
         },
+        {
+          type: 'test-helpers',
+          pattern: 'src/test-fixtures/**',
+        },
         // BQC-5.1: catch-all for shared/ dirs without a dedicated element
         // (queries, architecture, ...). MUST stay the last shared-* pattern —
         // element matching is first-match-wins, so the specific patterns
@@ -194,28 +214,22 @@ export default tseslint.config(
           pattern: 'src/shared/**',
         },
 
-        // ── Top-level entry points ──────────────────────────────────
-        {
-          type: 'top-level',
-          pattern: 'src/composition.*',
-        },
-        {
-          type: 'top-level',
-          pattern: 'src/bootstrap.*',
-        },
-        {
-          type: 'top-level',
-          pattern: 'src/start.*',
-        },
-        {
-          type: 'top-level',
-          pattern: 'src/router.*',
-        },
+        // ── Runtime entry points/boundaries ─────────────────────────
+        // Exact root files are classified by boundaries/files below;
+        // v7 element patterns describe folders, not individual files.
         {
           type: 'top-level',
           pattern: 'src/worker/**',
         },
-      ],
+        {
+          type: 'service',
+          pattern: 'services/**',
+        },
+        {
+          type: 'runtime-plugin',
+          pattern: 'server/**',
+        },
+      ]),
       // v7 file descriptors classify individual seam/runtime files without
       // pretending they are folders. These categories are consumed by the
       // dependency policies below.
@@ -231,6 +245,30 @@ export default tseslint.config(
             'src/shared/outbox/dispatcher.ts',
             'src/shared/outbox/event-adapter.ts',
           ],
+        },
+        {
+          category: 'composition-root',
+          pattern: ['src/composition.ts', 'src/bootstrap.ts'],
+        },
+        {
+          category: 'start-entry',
+          pattern: 'src/start.ts',
+        },
+        {
+          category: 'router-entry',
+          pattern: 'src/router.tsx',
+        },
+        {
+          category: 'generated-router',
+          pattern: 'src/routeTree.gen.ts',
+        },
+        {
+          category: 'ambient-types',
+          pattern: 'src/vite-env.d.ts',
+        },
+        {
+          category: 'api-route',
+          pattern: 'src/routes/api/**',
         },
       ],
     },
@@ -327,6 +365,12 @@ export default tseslint.config(
                 ),
               },
             },
+            // Server functions are inbound adapters and resolve the already
+            // assembled use-case graph through the documented container seam.
+            {
+              from: elementType('server'),
+              allow: { to: fileCategory('composition-root') },
+            },
 
             // context-build → the per-context wiring seam (BQC-5.1). May touch
             // every layer of its OWN context + shared; the local
@@ -376,6 +420,7 @@ export default tseslint.config(
                   'shared-domain',
                   'shared-auth',
                   'shared-other',
+                  'ui-support',
                 ),
               },
             },
@@ -393,7 +438,18 @@ export default tseslint.config(
                   'shared-other',
                   'application',
                   'server',
+                  'ui-support',
                 ),
+              },
+            },
+
+            // Shared browser helpers may compose one another and consume only
+            // shared contracts. They are not an alternate route into context
+            // server/application or database modules.
+            {
+              from: elementType('ui-support'),
+              allow: {
+                to: elementTypes('ui-support', 'shared-domain', 'shared-other'),
               },
             },
 
@@ -466,9 +522,13 @@ export default tseslint.config(
                 ),
               },
             },
+            {
+              from: elementType('test-helpers'),
+              allow: { to: fileCategory('composition-root') },
+            },
 
-            // top-level → imports from infrastructure (wiring), shared/* (wiring everything together)
-            // Per architecture: composition.ts wires the full dependency graph, including infrastructure factories.
+            // Worker entry points consume the assembled runtime graph plus
+            // infrastructure-owned job adapters and shared runtime services.
             {
               from: elementType('top-level'),
               allow: {
@@ -485,6 +545,104 @@ export default tseslint.config(
                   'shared-outbox-infra',
                 ),
               },
+            },
+            {
+              from: elementType('top-level'),
+              allow: { to: fileCategory('composition-root') },
+            },
+
+            // eslint-plugin-boundaries v7 classifies exact root files through
+            // file categories. The composition/bootstrap pair may wire
+            // contexts and runtime infrastructure, but must never reach into
+            // UI/routes. Context build targets are categories as well.
+            {
+              from: fileCategory('composition-root'),
+              allow: {
+                to: elementTypes(
+                  'domain',
+                  'application',
+                  'infrastructure',
+                  'shared-domain',
+                  'shared-auth',
+                  'shared-db',
+                  'shared-events',
+                  'shared-other',
+                  'shared-outbox-infra',
+                  'service',
+                ),
+              },
+            },
+            {
+              from: fileCategory('composition-root'),
+              allow: {
+                to: fileCategory(['composition-root', 'context-build']),
+              },
+            },
+            {
+              from: fileCategory('start-entry'),
+              allow: {
+                to: elementTypes(
+                  'server',
+                  'shared-domain',
+                  'shared-auth',
+                  'shared-other',
+                ),
+              },
+            },
+            {
+              from: fileCategory('router-entry'),
+              allow: {
+                to: elementTypes(
+                  'components',
+                  'ui-support',
+                  'shared-domain',
+                  'shared-other',
+                ),
+              },
+            },
+            {
+              from: fileCategory('router-entry'),
+              allow: { to: fileCategory('generated-router') },
+            },
+            // HTTP API routes host non-createServerFn callbacks (auth,
+            // health, provider webhooks) and may resolve root-owned runtime
+            // capabilities. Browser route modules receive no such exception.
+            {
+              from: fileCategory('api-route'),
+              allow: { to: fileCategory('composition-root') },
+            },
+
+            // Runtime trust-boundary services may share the deliberately
+            // published kernels and service-local modules, never context
+            // internals/UI. Nitro plugins similarly stay at root/shared seams.
+            {
+              from: elementType('service'),
+              allow: {
+                to: elementTypes(
+                  'service',
+                  'shared-domain',
+                  'shared-auth',
+                  'shared-db',
+                  'shared-events',
+                  'shared-other',
+                ),
+              },
+            },
+            {
+              from: elementType('runtime-plugin'),
+              allow: {
+                to: elementTypes(
+                  'shared-domain',
+                  'shared-auth',
+                  'shared-db',
+                  'shared-events',
+                  'shared-other',
+                ),
+              },
+            },
+            {
+              from: elementType('runtime-plugin'),
+              allow: { to: fileCategory('composition-root') },
             },
 
             // File-category policies preserve the former single-file element
@@ -526,9 +684,9 @@ export default tseslint.config(
         },
       ],
 
-      // Off — too noisy for now. Files without an element type still
-      // get caught by the dependency rules if they import wrong things.
-      'boundaries/no-unknown-files': 'off',
+      // Every production src/service/plugin file must be classified. Test
+      // files are disabled in the dedicated override below.
+      'boundaries/no-unknown-files': 'error',
     },
   },
 
@@ -854,9 +1012,15 @@ export default tseslint.config(
 
   // ─── Test files: relaxed boundary rules ────────────────────────────
   {
-    files: ['src/**/*.test.ts', 'src/**/*.test.tsx', 'src/test-setup.ts'],
+    files: [
+      'src/**/*.test.ts',
+      'src/**/*.test.tsx',
+      'src/test-setup.ts',
+      'services/**/*.test.ts',
+    ],
     rules: {
       'boundaries/dependencies': 'off',
+      'boundaries/no-unknown-files': 'off',
       'no-restricted-imports': 'off',
       'local/cross-context-public-api': 'off',
       // BQC-5.3: test fixtures build dates freely — the ambient-clock ban

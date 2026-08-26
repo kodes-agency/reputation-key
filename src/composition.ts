@@ -1734,6 +1734,7 @@ export function createContainer(options?: {
     portalPublicApi: portal.publicApi,
     notificationRepo: notification.internal.repos.notificationRepo,
     notificationEmailRepo: notification.internal.repos.emailRepo,
+    handleResendEvent: notification.internal.handleResendEvent,
     notificationPrefRepo: notification.internal.repos.prefRepo,
     notificationAudienceAuthorizer: notification.internal.authorizeAudience,
     // The notification-gap healing sweep (registered by bootstrap on the

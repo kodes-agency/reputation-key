@@ -48,6 +48,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'eventBus',
   'goalRepo',
   'googleReviewApi',
+  'handleResendEvent',
   'identityPort',
   'inboxNoteRepo',
   'inboxRepo',

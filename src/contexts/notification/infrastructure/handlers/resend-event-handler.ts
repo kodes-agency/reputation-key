@@ -7,13 +7,11 @@
 // kept mailing dead addresses until the provider throttled the whole domain.
 // This is the missing caller.
 //
-// Called from the webhook route after signature verification, in the same shape
-// as `integration/infrastructure/handlers/gbp-notification-handler.ts`: not a
-// createServerFn, because a webhook is push, not RPC.
+// Built by the notification context and exposed to the webhook route through
+// the composition container. This is not a createServerFn because a webhook is
+// provider push, not client RPC.
 
-import { getContainer } from '#/composition'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import { providerEventCorrelationId } from '../delivery-correlation'
 import type { NotificationEmailRepositoryPort } from '../../application/ports/notification-email-repository.port'
@@ -134,16 +132,11 @@ export async function applyResendEvent(
 }
 
 /**
- * Route-facing entry point. Resolves the repository from the container so the
- * webhook route stays a thin request/response shell.
+ * Bind the route-facing handler while the context is assembled. Infrastructure
+ * receives its ports inward from the build module and never reaches outward to
+ * the global container.
  */
-export async function handleResendEvent(
-  input: ResendEventInput,
-): Promise<ResendEventResult> {
-  return trace('notification.handleResendEvent', async () => {
-    return applyResendEvent(
-      { emailRepo: getContainer().notificationEmailRepo, logger: getLogger() },
-      input,
-    )
-  })
-}
+export const createResendEventHandler =
+  (deps: ResendEventDeps) =>
+  (input: ResendEventInput): Promise<ResendEventResult> =>
+    trace('notification.handleResendEvent', () => applyResendEvent(deps, input))

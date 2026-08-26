@@ -1,22 +1,22 @@
 // Integration context — GBP Pub/Sub webhook endpoint
 // Per architecture: the route is thin — it verifies the JWT (API endpoint concern),
-// parses the push payload, extracts locationId, then delegates to the server function.
+// parses the push payload, extracts locationId, then delegates to the root-owned use case.
 // No auth guard — JWT verification is manual (Google Pub/Sub push format).
 // Responses are status-coded so operators can distinguish a forged token (401) from a
 // malformed payload (400) from a transient internal failure (500); Pub/Sub retries only
 // on non-2xx, so the happy path still acks with 200.
-// Webhook routes are exempt from the "no direct infrastructure import" rule — see src/routes/CONTEXT.md
+// Webhook routes may resolve narrow runtime operations from composition, but
+// never import context infrastructure directly. See src/routes/CONTEXT.md.
 
 import { createFileRoute } from '@tanstack/react-router'
 import { JOSEError } from 'jose/errors'
 import { z, ZodError } from 'zod'
 import { verifyPubSubJwt } from '#/shared/auth/pubsub-jwt.verifier'
+import { getContainer } from '#/composition'
 import { getEnv, type Env } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import type pino from 'pino'
 import { trace } from '#/shared/observability/trace'
-// eslint-disable-next-line boundaries/dependencies -- webhook routes delegate directly to context handlers
-import { handleGbpNotification } from '#/contexts/integration/infrastructure/handlers/gbp-notification-handler'
 
 const pubSubBodySchema = z.object({
   message: z
@@ -200,8 +200,15 @@ export async function handleGbpWebhookPost(request: Request): Promise<Response> 
       const notification = await readPushNotification(request, logger)
       if (notification instanceof Response) return notification
 
-      // 3. Delegate business logic to server function
-      const result = await handleGbpNotification(notification)
+      // 3. Delegate through the composition-owned application use case. The
+      // route never imports context infrastructure or constructs a queue.
+      const result = await getContainer().useCases.handleGbpNotification(notification)
+      if (!result.enqueued) {
+        logger.info(
+          { locationId: notification.locationId, reason: result.reason },
+          'GBP notification processed — no job enqueued',
+        )
+      }
 
       // 2xx acknowledges receipt — Pub/Sub will not retry this message.
       return Response.json({ ok: true, enqueued: result.enqueued }, { status: 200 })

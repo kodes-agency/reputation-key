@@ -25,7 +25,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.scripts.json --noEmit && tsc -p tsconfig.railway.json --noEmit",
     "local:doctor": "node scripts/local-doctor.mjs",
-    "lint": "eslint . && node scripts/check-filenames.mjs && node scripts/check-component-boundaries.mjs",
+    "lint": "eslint . && node scripts/check-architecture-boundary-controls.mjs && node scripts/check-filenames.mjs && node scripts/check-component-boundaries.mjs",
     "infra:railway:validate": "vitest run --project=unit .railway/railway.test.ts services/google-egress-gateway/environment.test.ts services/google-execution-admission/environment.test.ts services/ai-egress-gateway/environment.test.ts services/ai-execution-admission/environment.test.ts",
     "lint:ci": "pnpm lint && node scripts/check-test-quality.mjs && pnpm check:google-provider-fixtures && pnpm check:ai-contract-attestations && pnpm check:ai-governance-artifacts",
     "lint:fix": "eslint . --fix",

@@ -3328,6 +3328,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     { notes: 'CI lint: component boundary check' },
   ),
+  ops(
+    'scripts/check-architecture-boundary-controls.mjs',
+    'scripts/check-architecture-boundary-controls.mjs',
+    'none',
+    {
+      notes:
+        'CI lint: executable negative/positive controls proving production files are classified and architectural dependency policies reject forbidden seams',
+    },
+  ),
   ops('scripts/check-bundle-budget.mjs', 'scripts/check-bundle-budget.mjs', 'none', {
     notes:
       'check:bundles — CI build gate (BQC-6.8): client bundle budgets on .output/public/assets; exits 1 over budget',

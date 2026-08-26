@@ -2,28 +2,27 @@
 //
 // Structured after `api/webhooks/gbp/notifications.ts`: the route is thin — it
 // verifies the signature (an API endpoint concern), parses the event, then
-// delegates to an infrastructure handler. Responses are status-coded so an
-// operator can tell a forged signature (401) from a malformed body (400) from a
-// transient internal failure (500). Resend retries only on non-2xx, so the
-// happy path acks with 200 — and so does an event we deliberately ignore,
-// because retrying it forever would not change the outcome.
+// delegates to the composition-owned notification handler. Responses are
+// status-coded so an operator can tell a forged signature (401) from a
+// malformed body (400) from a transient internal failure (500). Resend retries
+// only on non-2xx, so the happy path acks with 200 — and so does an event we
+// deliberately ignore, because retrying it forever would not change the outcome.
 //
 // Fail-closed-at-the-route, matching /api/health/metrics: `RESEND_WEBHOOK_SECRET`
 // is OPTIONAL in the env schema so a deployment without Resend webhooks still
 // boots, and this endpoint answers 503 `webhook_disabled` rather than accepting
 // unverified state transitions.
 //
-// Webhook routes are exempt from the "no direct infrastructure import" rule —
-// see src/routes/CONTEXT.md
+// Webhook routes may resolve narrow runtime operations from the composition
+// container, but never import context infrastructure directly.
 
 import { createFileRoute } from '@tanstack/react-router'
 import { z, ZodError } from 'zod'
+import { getContainer } from '#/composition'
 import { svixHeaders, verifySvixSignature } from '#/shared/auth/svix-signature.verifier'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
-// eslint-disable-next-line boundaries/dependencies -- webhook routes delegate directly to context handlers
-import { handleResendEvent } from '#/contexts/notification/infrastructure/handlers/resend-event-handler'
 
 // Only the fields we act on. Resend adds fields freely, so the schema stays
 // permissive about everything else — and deliberately never reads `data.to`,
@@ -83,7 +82,7 @@ export async function handleResendWebhookPost(request: Request): Promise<Respons
 
       const event = resendEventSchema.parse(JSON.parse(rawBody))
       const parsedAt = event.created_at ? new Date(event.created_at) : null
-      const result = await handleResendEvent({
+      const result = await getContainer().handleResendEvent({
         type: event.type,
         providerMessageId: event.data.email_id,
         // A provider timestamp we cannot parse is worse than our own receipt

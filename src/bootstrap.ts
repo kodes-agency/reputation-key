@@ -638,7 +638,7 @@ export async function bootstrap(
   // wiring time. Rules live in shared/email/transport-selection.ts.
   const { decideEmailTransport } = await import('#/shared/email/transport-selection')
   const { createCapturingEmailSender } =
-    await import('#/shared/testing/capturing-email-sender')
+    await import('#/contexts/notification/infrastructure/adapters/capturing-email-sender.adapter')
   const emailTransport = decideEmailTransport(getEnv())
   const notifEmailSender =
     emailTransport.mode === 'capture'

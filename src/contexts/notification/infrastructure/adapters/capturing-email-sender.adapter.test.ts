@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { EmailSendRequest } from '#/contexts/notification/application/ports/email-sender.port'
-import { createCapturingEmailSender } from './capturing-email-sender'
+import type { EmailSendRequest } from '../../application/ports/email-sender.port'
+import { createCapturingEmailSender } from './capturing-email-sender.adapter'
 
 const request = (overrides: Partial<EmailSendRequest> = {}): EmailSendRequest => ({
   to: 'manager@example.com',

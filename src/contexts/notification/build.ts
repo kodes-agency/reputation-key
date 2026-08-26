@@ -27,6 +27,7 @@ import { registerPortalNotificationHandlers } from './infrastructure/event-handl
 import { registerPropertyNotificationHandlers } from './infrastructure/event-handlers/property-event-handlers'
 import { registerPropertyNotificationConsumers } from './infrastructure/property-outbox-consumers'
 import { createNotificationGapRepository } from './infrastructure/repositories/notification-gap.repository'
+import { createResendEventHandler } from './infrastructure/handlers/resend-event-handler'
 import {
   createReconcileMissingNotificationsHandler,
   DEFAULT_RECONCILE_GRACE_MS,
@@ -77,6 +78,7 @@ export const buildNotificationContext = (input: BuildInput) => {
   const emailRepo = createNotificationEmailRepository(input.db)
   const prefRepo = createNotificationPreferenceRepository(input.db)
   const oneClickUnsubscribeRepo = createOneClickUnsubscribeRepository(input.db)
+  const handleResendEvent = createResendEventHandler({ emailRepo, logger: input.logger })
   const userLookup = createDbUserLookupAdapter(input.db)
   const inboxItemLookup = createInboxItemLookupAdapter(
     input.db,
@@ -340,6 +342,7 @@ export const buildNotificationContext = (input: BuildInput) => {
     internal: {
       repos: { notificationRepo, emailRepo, prefRepo, gapRepo },
       useCases,
+      handleResendEvent,
       /**
        * Durable at-least-once path for `inbox.inbox_item.created`. Inert until
        * OUTBOX_DISPATCHER_ENABLED is true (the DURABLE_CUTOVER_INBOX* flags do
