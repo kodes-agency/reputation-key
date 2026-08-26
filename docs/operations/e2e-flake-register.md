@@ -19,6 +19,12 @@ other day. A register makes the cost countable, which is what justifies fixing
   that only passes on retry. A flake therefore cannot accumulate silently — it
   blocks the release until it is fixed or explicitly quarantined.
 - Locally `retries: 0`, so a flake is visible while you work on it.
+- The exhaustive `critical` and `full` projects remain Chromium-based. A
+  bounded, read-only compatibility project set separately covers desktop
+  Firefox, desktop WebKit, Android-sized Chromium, and iPhone-sized WebKit.
+  All four use the same error and page-accessibility gates and run on every CI
+  candidate; they are not substitutes for physical-device or assistive-
+  technology acceptance evidence.
 
 A row here is not a shrug. Three rows for one spec is a bug report with
 evidence, and the fix belongs in the spec or the code under it.
@@ -26,7 +32,7 @@ evidence, and the fix belongs in the spec or the code under it.
 ## How to add a row
 
 Take the values from the failing run's log and artifacts (the e2e job uploads
-`e2e-artifacts-critical` / `e2e-artifacts-full` and
+`e2e-browser-reports`, the relevant `e2e-artifacts-*` bundle, and
 `e2e-local-stack-evidence`). Reproduce locally with:
 
 ```bash
@@ -35,6 +41,10 @@ pnpm e2e:stack:up
 for i in 1 2 3 4 5; do pnpm e2e:stack:reseed && pnpm test:e2e --project=critical -g "<title>"; done
 pnpm e2e:stack:down
 ```
+
+Use `pnpm test:e2e:compatibility` for the bounded four-project browser/device
+matrix. The retained JSON report identifies the exact project and browser for
+every result.
 
 `reseed` matters: most critical specs assume first-run state, so repeating one
 against a stack it already mutated produces failures that are not the flake.

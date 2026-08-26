@@ -759,8 +759,9 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Chromium was downloaded from scratch in every job that needs it. Key the
-      # cache on the resolved @playwright/test version so a bump invalidates it.
+      # The release browser matrix is cached on the resolved Playwright version;
+      # a dependency bump therefore replaces Chromium, Firefox, and WebKit as
+      # one coherent test runtime.
       - name: Resolve Playwright version
         id: pw
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
@@ -769,16 +770,19 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
-      - name: Install Playwright browser
+      - name: Install Playwright release browsers
         run: >-
           ${{ steps.pw-cache.outputs.cache-hit == 'true'
-          && 'pnpm exec playwright install-deps chromium'
-          || 'pnpm exec playwright install --with-deps chromium' }}
+          && 'pnpm exec playwright install-deps chromium firefox webkit'
+          || 'pnpm exec playwright install --with-deps chromium firefox webkit' }}
       - name: Start local Compose application stack
         run: pnpm e2e:stack:up
       - name: Smoke local Compose application stack
         run: pnpm e2e:stack:smoke
       - name: Run critical e2e (hard gate — BQR-5.1)
+        id: e2e_critical
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-critical-report.json
         run: pnpm test:e2e --project=critical ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
       # BQC-6.4: retain failure diagnostics (trace/screenshot/video, written to
       # test-results/playwright/ only by failed tests). `if: failure()` is correct HERE:
@@ -795,6 +799,8 @@ jobs:
           retention-days: 7
       - name: Run full e2e suite (hard gate — BQC-6.7)
         id: e2e_full
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-full-report.json
         run: pnpm test:e2e --project=full ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
       # BQC-6.7: the full suite is a hard gate — its failure fails the job, so
       # `if: failure()` would also fire; gating on the step outcome stays more
@@ -805,6 +811,30 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: e2e-artifacts-full
+          path: test-results/playwright/**
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Run bounded browser and mobile compatibility gate
+        id: e2e_compatibility
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/e2e-compatibility-report.json
+        run: pnpm test:e2e:compatibility ${{ github.event_name == 'push' && '--fail-on-flaky-tests' || '' }}
+      - name: Upload exact browser reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-browser-reports
+          path: |
+            test-results/e2e-critical-report.json
+            test-results/e2e-full-report.json
+            test-results/e2e-compatibility-report.json
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Upload compatibility failure artifacts
+        if: steps.e2e_compatibility.outcome == 'failure'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-artifacts-compatibility
           path: test-results/playwright/**
           if-no-files-found: ignore
           retention-days: 7

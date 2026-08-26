@@ -635,13 +635,19 @@
     {
       "id": "EXP-03",
       "status": "partial",
-      "summary": "Chromium E2E, axe, keyboard, viewport, and reduced-motion coverage exists, but Firefox/WebKit/mobile-device/accessibility/language release evidence is incomplete.",
-      "codeEvidence": ["playwright.config.ts", "e2e/"],
+      "summary": "Chromium critical/full E2E is now complemented by bounded, state-preserving Firefox, WebKit, Android-sized Chromium, and iPhone-sized WebKit projects. Every project uses the page error/accessibility gates and CI retains exact JSON results; physical-device, manual accessibility, Portal fault, and language evidence remains incomplete.",
+      "codeEvidence": [
+        "playwright.config.ts",
+        "e2e/helpers/compatibility-projects.ts",
+        "e2e/compatibility/core-surfaces.spec.ts",
+        ".github/workflows/ci.yml"
+      ],
       "testEvidence": [
-        "Chromium critical E2E, axe, keyboard, mobile viewport, and reduced-motion suites"
+        "Chromium critical E2E, axe, keyboard, mobile viewport, and reduced-motion suites",
+        "Compatibility-project authority: 2/2 unit assertions passing; Playwright collection resolves setup plus 8 exact Firefox/WebKit/mobile journeys"
       ],
       "remaining": [
-        "Add tagged Firefox/WebKit/mobile projects, retain exact browser reports, run real iPhone/Android and VoiceOver/zoom/high-contrast checks, complete Portal fault/device matrices, gate AI languages, and own accessibility debt."
+        "Execute and retain a green hosted compatibility artifact at the candidate SHA, run real iPhone/Android and VoiceOver/zoom/high-contrast checks, complete Portal fault/device matrices, gate AI languages, and own accessibility debt."
       ],
       "externalBlockers": [
         "Real-device and manual assistive-technology evidence requires supported external test devices/operators."
