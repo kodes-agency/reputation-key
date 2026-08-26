@@ -148,17 +148,23 @@ run trips the `retention.failure` alert. The 24h
 `queue.quarantine-growth` alert (operator redrive SLA) is unchanged and
 orthogonal: the SLA asks operators to drain; the TTL is the last-resort bound.
 
-## 3. Object lifecycle (S3)
+## 3. Object lifecycle (S3-compatible storage)
 
-Portal image uploads are gated by `portal.upload`, a **non-core** capability
-(ADR 0032) — off until an organization and its properties are allowlisted, not
-permanently blocked; only the three `gbp.*` prohibitions are. The S3 adapter is
-additionally a no-op while the four `AWS_S3_*` vars are unconfigured, so an
-allowlisted tenant still uploads nothing until the bucket is configured. Once
-both are in place, bucket lifecycle rules are platform (S3) configuration —
-expected shape: expire portal image objects per the source-content policy
-horizon (raw content 30d, §5), documented here as the configuration expectation
-to be applied at enablement.
+Portal image uploads are governed by `portal.upload`, which the executable
+capability-fate authority currently classifies as **temporarily unavailable**.
+Organization or Property policy cannot activate it until the named SAFE-01
+readiness record is complete and the product fate is deliberately changed. The
+S3-compatible adapter also remains a no-op while its access, bucket, region,
+and endpoint variables are incomplete.
+
+The target Railway topology binds those variables to one private, cell-local
+`object-store` bucket; the variable names retain their `AWS_S3_*` compatibility
+prefix and do not identify the live storage provider. Bucket lifecycle is
+external platform configuration. Before any activation, record the exact live
+provider/cell, lifecycle rules for source and derived objects, orphan cleanup,
+deletion and restore behavior, and the end-to-end object-store readiness
+evidence required by SAFE-01. A repository configuration expectation is not
+proof that those live controls exist.
 
 ## 4. Log / trace retention
 
