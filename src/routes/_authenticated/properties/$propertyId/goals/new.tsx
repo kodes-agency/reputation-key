@@ -24,7 +24,7 @@ import {
 
 const subjectsQuery = (propertyId: string) =>
   queryOptions({
-    queryKey: [...portalKeys.all, 'goal-subjects', propertyId] as const,
+    queryKey: portalKeys.goalSubjects(propertyId),
     queryFn: async () => {
       const [groups, portals] = await Promise.all([
         listPortalGroups({ data: { propertyId } }),

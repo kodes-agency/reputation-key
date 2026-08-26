@@ -1,0 +1,350 @@
+{
+  "version": 1,
+  "scope": ["src/components", "src/routes"],
+  "broadInvalidationExceptions": [
+    {
+      "id": "src/routes/login.tsx:router.invalidate#1",
+      "owner": "Authentication bootstrap",
+      "rationale": "After sign-in and active-organization selection, the authenticated route context must be rebuilt before redirect; this is the sole whole-router bootstrap exception."
+    }
+  ],
+  "stateMirrorCandidates": [
+    {
+      "id": "src/components/features/guest/public-portal/guest-response-form.tsx:useState(response)",
+      "classification": "server_snapshot",
+      "owner": "Guest response journey",
+      "policy": "Seed from the loader response, then replace only with confirmed response-mutation results; route-token remount remains the reset boundary."
+    },
+    {
+      "id": "src/components/features/guest/public-portal/guest-response-form.tsx:useState(activeCsrfNonce)",
+      "classification": "server_snapshot",
+      "owner": "Guest response CSRF lifecycle",
+      "policy": "Seed from the issued nonce and rotate only from confirmed start-new-response results; route-token remount remains the reset boundary."
+    },
+    {
+      "id": "src/components/features/guest/public-portal/guest-response-form.tsx:useState(rating)",
+      "classification": "server_draft",
+      "owner": "Guest rating form",
+      "policy": "Seed from the current response rating and keep guest edits local until submit or correction completes."
+    },
+    {
+      "id": "src/components/features/identity/profile-settings-form.tsx:useState(avatarUrl)",
+      "classification": "server_snapshot",
+      "owner": "Profile avatar editor",
+      "policy": "Seed from the user image and update from the finalized upload or removal interaction; parent remount is the external refresh boundary."
+    },
+    {
+      "id": "src/components/features/integration/google-import-manager/use-google-import-discovery-controller.ts:useState(step)",
+      "classification": "local_runtime",
+      "owner": "Google import discovery controller",
+      "policy": "The initial progress prop chooses the first client workflow step; later transitions are owned by the controller state machine."
+    },
+    {
+      "id": "src/components/features/integration/google-import-manager/use-google-import-discovery-controller.ts:useState(connectionId)",
+      "classification": "local_runtime",
+      "owner": "Google import discovery controller",
+      "policy": "The server-provided connection list selects an initial UI choice; the controller reconciles revoked connections in its effect."
+    },
+    {
+      "id": "src/components/features/integration/google-import-manager/use-google-import-discovery-controller.ts:useState(contentActive)",
+      "classification": "local_runtime",
+      "owner": "Google import discovery controller",
+      "policy": "This is a client fetch-lifecycle switch derived once from bootstrap inputs and explicitly changed by controller transitions."
+    },
+    {
+      "id": "src/components/features/integration/google-import-manager/use-google-import-discovery-controller.ts:useState(selectedIds)",
+      "classification": "local_runtime",
+      "owner": "Google import discovery selection",
+      "policy": "The Set is client-only selection state and is cleared by the controller lifecycle; it does not mirror server authority."
+    },
+    {
+      "id": "src/components/features/notification/notification-announcer.tsx:useState(announcement)",
+      "classification": "local_runtime",
+      "owner": "Notification accessibility announcer",
+      "policy": "The imported EMPTY object is only the initial client live-region value; mutation announcements own subsequent values."
+    },
+    {
+      "id": "src/components/features/organization/organization-settings-page.tsx:useState(logoUrl)",
+      "classification": "server_snapshot",
+      "owner": "Organization logo editor",
+      "policy": "Seed from the active organization logo and update from confirmed upload/removal interactions; failed removal restores the input prop."
+    },
+    {
+      "id": "src/components/features/organization/response-sla-card.tsx:useState(value)",
+      "classification": "server_draft",
+      "owner": "Organization response-SLA form",
+      "policy": "Seed from the persisted SLA and preserve typed edits until save; parent lifecycle supplies reset semantics."
+    },
+    {
+      "id": "src/components/features/portal/link-tree/link-inline-form.tsx:useState(label)",
+      "classification": "server_draft",
+      "owner": "Portal link editor",
+      "policy": "Seed the edit form label once and retain local input until submit or cancel unmounts the inline form."
+    },
+    {
+      "id": "src/components/features/portal/link-tree/link-inline-form.tsx:useState(url)",
+      "classification": "server_draft",
+      "owner": "Portal link editor",
+      "policy": "Seed the edit form URL once and retain local input until submit or cancel unmounts the inline form."
+    },
+    {
+      "id": "src/components/features/portal/link-tree/use-category-form.ts:useState(title)",
+      "classification": "server_draft",
+      "owner": "Portal link-category editor",
+      "policy": "Seed edit mode from the category title; create mode clears after success and edit mode resets by unmounting."
+    },
+    {
+      "id": "src/components/features/portal/portal-analytics/portal-analytics-tab.tsx:useState(timeRange)",
+      "classification": "client_persistence",
+      "owner": "Portal analytics viewing preference",
+      "policy": "Initialize from schema-validated localStorage and persist changes; this preference is intentionally global across portals."
+    },
+    {
+      "id": "src/components/features/portal/portal-group-row.tsx:useState(editName)",
+      "classification": "server_draft",
+      "owner": "Portal group rename form",
+      "policy": "Seed from the group name and explicitly reset from the latest prop each time rename mode opens."
+    },
+    {
+      "id": "src/components/features/property/goals/goal-create-form.tsx:useState(s)",
+      "classification": "local_runtime",
+      "owner": "Legacy goal create form",
+      "policy": "The imported initial object is a client-only blank form model, not a server-result mirror."
+    },
+    {
+      "id": "src/components/features/responsible-managers/use-responsible-manager-selection.ts:useState(selected)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Responsible-manager selection hook",
+      "policy": "An effect reconciles new normalized server assignments against the prior server selection while preserving independent local edits."
+    },
+    {
+      "id": "src/components/features/settings/merchant-ai-settings-page.tsx:useState(snapshot)",
+      "classification": "server_snapshot",
+      "owner": "Merchant AI authorization settings",
+      "policy": "Seed from the selected property's snapshot and replace with confirmed command results; property-change remount/reconciliation remains a semantic follow-up, not a proven invariant."
+    },
+    {
+      "id": "src/components/features/settings/merchant-ai-settings-page.tsx:useState(selectedCapabilities)",
+      "classification": "server_draft",
+      "owner": "Merchant AI authorization settings",
+      "policy": "Seed from the current authorization or notice defaults and retain local capability edits until a command result replaces them."
+    },
+    {
+      "id": "src/components/features/settings/notifications-settings-page.tsx:useState(locale)",
+      "classification": "server_draft",
+      "owner": "Notification formatting settings",
+      "policy": "The keyed NotificationFormattingBoundary remounts when persisted locale/timezone changes, while preserving in-progress edits between refetches with identical server values."
+    },
+    {
+      "id": "src/components/features/settings/notifications-settings-page.tsx:useState(timezone)",
+      "classification": "server_draft",
+      "owner": "Notification formatting settings",
+      "policy": "The keyed NotificationFormattingBoundary remounts when persisted locale/timezone changes, while preserving in-progress edits between refetches with identical server values."
+    },
+    {
+      "id": "src/components/features/settings/quiet-hours-editor.tsx:useState(nextStart)",
+      "classification": "server_draft",
+      "owner": "Notification quiet-hours editor",
+      "policy": "Seed from persisted start time and keep input local until Save; the containing settings view owns remount/reset behavior."
+    },
+    {
+      "id": "src/components/features/settings/quiet-hours-editor.tsx:useState(nextEnd)",
+      "classification": "server_draft",
+      "owner": "Notification quiet-hours editor",
+      "policy": "Seed from persisted end time and keep input local until Save; the containing settings view owns remount/reset behavior."
+    },
+    {
+      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(metricVersionId)",
+      "classification": "server_draft",
+      "owner": "Recognition activation form",
+      "policy": "Seed from current activation/default metric and hold a local configuration draft for the mounted property settings page."
+    },
+    {
+      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(selectedGroups)",
+      "classification": "server_draft",
+      "owner": "Recognition activation form",
+      "policy": "Seed from current activation groups and hold a local configuration draft for the mounted property settings page."
+    },
+    {
+      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(jurisdiction)",
+      "classification": "server_draft",
+      "owner": "Recognition activation form",
+      "policy": "Seed from current activation jurisdiction and hold a local configuration draft for the mounted property settings page."
+    },
+    {
+      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(consultationStatus)",
+      "classification": "server_draft",
+      "owner": "Recognition activation form",
+      "policy": "Seed from current activation consultation status and hold a local configuration draft for the mounted property settings page."
+    },
+    {
+      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(minimumExposure)",
+      "classification": "server_draft",
+      "owner": "Recognition activation form",
+      "policy": "Seed from current activation/default exposure and hold a local configuration draft for the mounted property settings page."
+    },
+    {
+      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(minimumSample)",
+      "classification": "server_draft",
+      "owner": "Recognition activation form",
+      "policy": "Seed from current activation or metric minimum and update when the draft metric changes."
+    },
+    {
+      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(freshnessSeconds)",
+      "classification": "server_draft",
+      "owner": "Recognition activation form",
+      "policy": "Seed from current activation/default freshness and hold a local configuration draft for the mounted property settings page."
+    },
+    {
+      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(minimumCompleteness)",
+      "classification": "server_draft",
+      "owner": "Recognition activation form",
+      "policy": "Seed from current activation/default completeness and hold a local configuration draft for the mounted property settings page."
+    },
+    {
+      "id": "src/components/features/settings/recognition-settings-page.tsx:useState(periodKind)",
+      "classification": "server_draft",
+      "owner": "Recognition activation form",
+      "policy": "Seed from current activation/default period and hold a local configuration draft for the mounted property settings page."
+    },
+    {
+      "id": "src/components/features/staff/portal-responsibilities-modal.tsx:useState(primaryPortalId)",
+      "classification": "server_draft",
+      "owner": "Staff portal-responsibility editor",
+      "policy": "Seed from current responsibility and preserve edits for this modal instance; closing the modal unmounts the draft."
+    },
+    {
+      "id": "src/components/goals/goal-program-revision-dialog.tsx:useState(metric)",
+      "classification": "server_draft",
+      "owner": "Goal program revision dialog",
+      "policy": "Seed from the current goal version and preserve edits for the mounted dialog lifecycle."
+    },
+    {
+      "id": "src/components/goals/goal-program-revision-dialog.tsx:useState(target)",
+      "classification": "server_draft",
+      "owner": "Goal program revision dialog",
+      "policy": "Seed from the current goal target and preserve edits for the mounted dialog lifecycle."
+    },
+    {
+      "id": "src/components/goals/goal-program-revision-dialog.tsx:useState(subjects)",
+      "classification": "server_draft",
+      "owner": "Goal program revision dialog",
+      "policy": "Seed from current goal assignments and preserve edits for the mounted dialog lifecycle."
+    },
+    {
+      "id": "src/components/inbox/reply-editor-views.tsx:useState(text)",
+      "classification": "server_draft",
+      "owner": "Published reply editor",
+      "policy": "Seed from the durable reply and keep edits local until save or cancel unmounts the editor."
+    },
+    {
+      "id": "src/components/inbox/use-debounced-value.ts:useState(debounced)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Inbox debounce helper",
+      "policy": "An effect intentionally copies the latest input after delayMs; this is a timed client projection, not server authority."
+    },
+    {
+      "id": "src/components/inbox/use-reply-composer.ts:useState(selectedLanguage)",
+      "classification": "server_draft",
+      "owner": "Inbox reply composer",
+      "policy": "Seed from saved/property/review language inputs and preserve the writer's selection throughout the mounted composer."
+    },
+    {
+      "id": "src/components/inbox/use-reply-composer.ts:useState(hasAiDraft)",
+      "classification": "server_draft",
+      "owner": "Inbox reply composer",
+      "policy": "Seed provenance from the saved draft and update it only through composer adoption/edit transitions."
+    },
+    {
+      "id": "src/components/ui/sidebar.tsx:useState(_open)",
+      "classification": "local_runtime",
+      "owner": "Sidebar provider",
+      "policy": "defaultOpen seeds uncontrolled client UI state; controlled openProp remains the render authority when supplied."
+    },
+    {
+      "id": "src/routes/_authenticated/settings/notifications.tsx:useState(propertyId)",
+      "classification": "local_runtime",
+      "owner": "Notification property selector",
+      "policy": "The first accessible property seeds a client selection; subsequent selection is user-owned and keys the capability query."
+    },
+    {
+      "id": "src/components/features/integration/google-import-manager/google-import-manager.tsx:useState(startError)",
+      "classification": "local_runtime",
+      "owner": "Google import callback recovery",
+      "policy": "A route callback error seeds one dismissible client banner; recovery and new discovery actions explicitly clear or replace it."
+    },
+    {
+      "id": "src/components/features/integration/google-import-manager/use-google-import-content.ts:useState(lifecycle)",
+      "classification": "local_runtime",
+      "owner": "Google import content lifecycle",
+      "policy": "The lazy initializer constructs one client coordinator per hook lifetime; it owns cache teardown callbacks and is not server state."
+    },
+    {
+      "id": "src/components/features/portal/portal-form/portal-creation-with-preview.tsx:useState(preview)",
+      "classification": "local_runtime",
+      "owner": "Portal creation preview",
+      "policy": "This composite is a client-only blank form preview updated by CreatePortalForm; it has no server source."
+    },
+    {
+      "id": "src/components/features/portal/portal-preview/use-preview-toggle.ts:useState(open)",
+      "classification": "client_persistence",
+      "owner": "Portal preview preference",
+      "policy": "The lazy initializer reads guarded localStorage for this portal scope and the setter persists later changes."
+    },
+    {
+      "id": "src/components/features/property/use-google-performance-lifecycle.ts:useState(clock)",
+      "classification": "local_runtime",
+      "owner": "Google performance retry countdown",
+      "policy": "The lazy Date.now value is a client clock tick used only to render a retry countdown."
+    },
+    {
+      "id": "src/components/features/staff/portal-responsibilities-modal.tsx:useState(supportingPortalIds)",
+      "classification": "server_draft",
+      "owner": "Staff portal-responsibility editor",
+      "policy": "Seed from current supporting responsibilities and preserve edits for this modal instance; closing the modal unmounts the draft."
+    },
+    {
+      "id": "src/components/inbox/use-reply-autosave.ts:useState(state)",
+      "classification": "local_runtime",
+      "owner": "Inbox reply autosave",
+      "policy": "The composite is a client-only coordinator status initialized to idle and advanced by autosave callbacks."
+    },
+    {
+      "id": "src/components/inbox/use-reply-autosave.ts:useState(coordinator)",
+      "classification": "local_runtime",
+      "owner": "Inbox reply autosave",
+      "policy": "The lazy initializer constructs one client autosave coordinator per mounted composer and updates its save callback through an effect."
+    },
+    {
+      "id": "src/components/inbox/use-reply-composer.ts:useState(effectiveReviewLanguage)",
+      "classification": "server_draft",
+      "owner": "Inbox reply composer",
+      "policy": "The lazy initializer derives a starting language from saved review/reply inputs; composer detection and adoption transitions own later values."
+    },
+    {
+      "id": "src/components/inbox/use-reply-composer.ts:useState(draft)",
+      "classification": "server_draft",
+      "owner": "Inbox reply composer",
+      "policy": "Seed from the durable reply draft and derived language, then keep writer edits local while autosave persists snapshots."
+    },
+    {
+      "id": "src/components/inbox/use-scoped-inbox-selection.ts:useState(selection)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Inbox scoped selection",
+      "policy": "The selection stores its originating filter scope; a changed scope renders an empty selection and the setter rebases future ids onto the current scope."
+    }
+  ],
+  "classificationDefinitions": {
+    "server_draft": "Editable local draft initialized from server-owned input; later server refreshes intentionally do not overwrite in-progress edits unless the row policy says otherwise.",
+    "server_snapshot": "Local server-derived snapshot advanced from mutation responses. The row policy names how it is refreshed and any remaining remount or reconciliation dependency.",
+    "synchronized_prop_copy": "Local copy of an input with an explicit synchronization or delay policy.",
+    "client_persistence": "Client-owned state initialized from browser persistence or another client-only preference source.",
+    "local_runtime": "Local runtime/controller state caught by the conservative syntax heuristic; it is not treated as a server-state authority."
+  },
+  "limitations": [
+    "This executable inventory covers production TypeScript and TSX files under src/components and src/routes; it excludes tests, stories, contexts, workers, and external packages.",
+    "The state-mirror inventory is a conservative syntax heuristic over non-literal useState initializers. Classification prevents silent new candidates but does not prove semantic completeness or correct synchronization behavior.",
+    "The query-key check rejects direct array literals assigned to queryKey and inventories all queryKey property assignments. It does not prove that every factory has ideal domain semantics or that every server read uses TanStack Query.",
+    "The invalidation check detects zero-argument .invalidate() calls in scope. The login auth-bootstrap row is the only approved whole-router exception."
+  ]
+}

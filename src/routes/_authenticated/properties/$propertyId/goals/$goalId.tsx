@@ -29,7 +29,7 @@ const goalQuery = (propertyId: string, programId: string) =>
   })
 const subjectNamesQuery = (propertyId: string) =>
   queryOptions({
-    queryKey: [...portalKeys.all, 'goal-subject-names', propertyId] as const,
+    queryKey: portalKeys.goalSubjectNames(propertyId),
     queryFn: async () => {
       const [groups, portals] = await Promise.all([
         listPortalGroups({ data: { propertyId } }),

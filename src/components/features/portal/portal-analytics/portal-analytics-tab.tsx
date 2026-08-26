@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import type { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
+import { portalKeys } from '#/shared/queries/query-keys'
 import {
   timeRangePreset,
   type TimeRangePreset,
@@ -63,7 +64,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
     isLoading: loading,
     error: queryError,
   } = useQuery({
-    queryKey: ['portal-analytics', propertyId, portalId, timeRange],
+    queryKey: portalKeys.analytics(propertyId, portalId, timeRange),
     queryFn: () => getPortalAnalytics({ data: { propertyId, portalId, timeRange } }),
   })
 

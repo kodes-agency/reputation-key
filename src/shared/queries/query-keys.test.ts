@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { dashboardKeys, goalKeys, identityKeys, integrationKeys } from './query-keys'
+import {
+  dashboardKeys,
+  goalKeys,
+  identityKeys,
+  integrationKeys,
+  portalKeys,
+} from './query-keys'
 
 describe('identity query keys', () => {
   it('keeps personal and organization invitation response shapes disjoint', () => {
@@ -75,6 +81,34 @@ describe('goal query keys', () => {
       'detail',
       'property-1',
       'goal-1',
+    ])
+  })
+
+  it('keeps goal subject data in one property-scoped portal subtree', () => {
+    expect(portalKeys.goalSubjects('property-1')).toEqual([
+      'portals',
+      'goal-subjects',
+      'property-1',
+    ])
+    expect(portalKeys.goalSubjectNames('property-1')).toEqual([
+      'portals',
+      'goal-subjects',
+      'property-1',
+      'names',
+    ])
+  })
+})
+
+describe('portal analytics query keys', () => {
+  it('isolates each range within a property-scoped portal analytics subtree', () => {
+    expect(portalKeys.analytics('property-1', 'portal-1', 'last_30_days')).toEqual([
+      'portals',
+      'property',
+      'property-1',
+      'portal',
+      'portal-1',
+      'analytics',
+      'last_30_days',
     ])
   })
 })

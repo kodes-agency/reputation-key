@@ -167,6 +167,18 @@ export const portalKeys = {
   responsibleManagers: (portalId: string) =>
     [...portalKeys.detail(portalId), 'responsible-managers'] as const,
   groups: (propertyId: string) => [...portalKeys.all, 'groups', propertyId] as const,
+  goalSubjects: (propertyId: string) =>
+    [...portalKeys.all, 'goal-subjects', propertyId] as const,
+  goalSubjectNames: (propertyId: string) =>
+    [...portalKeys.goalSubjects(propertyId), 'names'] as const,
+  forProperty: (propertyId: string) =>
+    [...portalKeys.all, 'property', propertyId] as const,
+  forPropertyPortal: (propertyId: string, portalId: string) =>
+    [...portalKeys.forProperty(propertyId), 'portal', portalId] as const,
+  analyticsRoot: (propertyId: string, portalId: string) =>
+    [...portalKeys.forPropertyPortal(propertyId, portalId), 'analytics'] as const,
+  analytics: (propertyId: string, portalId: string, timeRange: string) =>
+    [...portalKeys.analyticsRoot(propertyId, portalId), timeRange] as const,
 }
 
 // ── Badges / recognition ─────────────────────────────────────────────────
