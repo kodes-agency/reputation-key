@@ -33,4 +33,25 @@ describe('schema tool supply-chain posture', () => {
       expect(manifest.scripts[script], script).not.toMatch(/\bnpx\b/u)
     }
   })
+
+  it('starts the shadcn MCP server through the repository-installed CLI', () => {
+    const mcpConfig = JSON.parse(readFileSync(resolve(root, '.mcp.json'), 'utf8')) as {
+      mcpServers: Record<string, { command: string; args: string[] }>
+    }
+    const codexConfig = readFileSync(resolve(root, '.codex/config.toml'), 'utf8')
+    const authoritativeGuidance = [
+      readFileSync(resolve(root, 'README.md'), 'utf8'),
+      readFileSync(resolve(root, 'package.json'), 'utf8'),
+      JSON.stringify(mcpConfig),
+      codexConfig,
+    ].join('\n')
+
+    expect(mcpConfig.mcpServers.shadcn).toEqual({
+      command: 'pnpm',
+      args: ['exec', 'shadcn', 'mcp'],
+    })
+    expect(codexConfig).toContain('command = "pnpm"')
+    expect(codexConfig).toMatch(/args = \[\s*"exec",\s*"shadcn",\s*"mcp",?\s*\]/u)
+    expect(authoritativeGuidance).not.toMatch(/\bnpx\s+-y\b|@latest|\bpnpm\s+dlx\b/u)
+  })
 })

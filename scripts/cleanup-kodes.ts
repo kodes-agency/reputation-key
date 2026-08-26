@@ -1,5 +1,5 @@
 // Delete KODES agency property and its reviews so you can re-import
-// Run: npx tsx scripts/cleanup-kodes.ts
+// Run: pnpm exec tsx scripts/cleanup-kodes.ts
 
 import 'dotenv/config'
 import { eq } from 'drizzle-orm'

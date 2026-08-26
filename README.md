@@ -19,13 +19,14 @@ cp .env.example .env.local
 # Edit .env.local with your DATABASE_URL and BETTER_AUTH_SECRET
 
 # 3. Set up the database
-pnpm db:push          # Push schema to DB (dev)
-# or
-pnpm db:generate      # Generate migration SQL
-pnpm db:migrate       # Apply migrations
+pnpm db:bootstrap-auth
+pnpm auth:migrate
+pnpm db:migrate
+pnpm db:google-property-binding-index
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/migrations/2026-07-06-permission-version-triggers.sql
 
 # 4. Generate auth secret (if not set)
-npx -y @better-auth/cli secret
+node --input-type=module -e "import { randomBytes } from 'node:crypto'; console.log(randomBytes(32).toString('base64url'))"
 
 # 5. Start dev server
 pnpm dev
