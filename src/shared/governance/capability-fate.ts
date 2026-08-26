@@ -93,8 +93,10 @@ export const CAPABILITY_FATE = Object.freeze({
   'portal.guest_text': CONTROLLED(
     'Private feedback text is controlled beta behavior with separate retention and access rules.',
   ),
-  'portal.guest_contact': CONTROLLED(
-    'Contact Requests require separate purpose, encryption, retention, and channel readiness; phone remains excluded.',
+  'portal.guest_contact': fate(
+    'safety_blocked',
+    'Contact Request storage is backend-only; phone is excluded and external beta activation awaits approved notice, handling, retention, and channel evidence.',
+    'Remove the safety block only after named counsel/product approval and complete guest-notice, manager-handling, retention, and channel-readiness evidence; tenant policy alone cannot enable it.',
   ),
   'portal.guest_media': DISABLED(
     'Guest media is excluded from the first beta cohort and has no public issuance surface.',

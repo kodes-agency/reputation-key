@@ -53,8 +53,6 @@ export function guestResponseFromRow(
       : null,
     ratingSourceEventId: row.ratingSourceEventId,
     feedbackSourceEventId: row.feedbackSourceEventId,
-    contactConsent: false,
-    contactDetails: null,
     correctionCount: row.correctionCount === 1 ? 1 : 0,
     submittedAt: row.submittedAt,
     correctedAt: row.correctedAt,

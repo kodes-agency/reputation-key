@@ -111,8 +111,6 @@ describe('createGuestResponseRepository', () => {
       },
       ratingSourceEventId: 'rating-event-1',
       feedbackSourceEventId: 'feedback-event-1',
-      contactConsent: false,
-      contactDetails: null,
       correctionCount: 0,
       submittedAt,
       correctedAt: submittedAt,

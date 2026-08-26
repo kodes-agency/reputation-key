@@ -1096,4 +1096,18 @@ export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
     source: 'drizzle/0053_assert_ai_reply_binding.sql',
     reason: NO_TRIGGER_DSL,
   },
+  {
+    name: 'retire_guest_contact_on_response_terminal_v1',
+    kind: 'function',
+    owner: 'guest',
+    source: 'drizzle/0120_guest_contact_requests.sql',
+    reason: `${NO_TRIGGER_DSL}; atomically purges separately encrypted Contact Request material when its Guest Response becomes terminal.`,
+  },
+  {
+    name: 'guest_responses_retire_contact_request',
+    kind: 'trigger',
+    owner: 'guest',
+    source: 'drizzle/0120_guest_contact_requests.sql',
+    reason: NO_TRIGGER_DSL,
+  },
 ]

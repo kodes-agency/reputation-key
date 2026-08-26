@@ -537,3 +537,157 @@ export const guestResponseMedia = pgTable(
     ),
   ],
 )
+
+/**
+ * A guest's request for a manager follow-up. Contact material is deliberately
+ * outside the rating/feedback aggregate and is unreadable without an audited
+ * reveal. Terminal states keep only a content-free lifecycle tombstone.
+ */
+export const guestContactRequests = pgTable(
+  'guest_contact_requests',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    responseId: uuid('response_id').notNull(),
+    purpose: varchar('purpose', { length: 50 }).notNull(),
+    consentGranted: boolean('consent_granted').notNull().default(false),
+    encryptedContact: text('encrypted_contact'),
+    encryptionKeyId: varchar('encryption_key_id', { length: 50 }),
+    status: varchar('status', { length: 20 }).notNull().default('active'),
+    submittedAt: timestamp('submitted_at', { withTimezone: true }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    withdrawnAt: timestamp('withdrawn_at', { withTimezone: true }),
+    purgedAt: timestamp('purged_at', { withTimezone: true }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    uniqueIndex('guest_contact_requests_org_id_key').on(t.organizationId, t.id),
+    uniqueIndex('guest_contact_requests_scope_id_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.portalId,
+      t.id,
+    ),
+    uniqueIndex('guest_contact_requests_response_key').on(t.organizationId, t.responseId),
+    index('guest_contact_requests_expiry_idx').on(t.status, t.expiresAt, t.id),
+    foreignKey({
+      name: 'guest_contact_requests_response_scope_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId, t.responseId],
+      foreignColumns: [
+        guestResponses.organizationId,
+        guestResponses.propertyId,
+        guestResponses.portalId,
+        guestResponses.id,
+      ],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'guest_contact_requests_portal_scope_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
+    }).onDelete('restrict'),
+    check(
+      'guest_contact_requests_purpose_valid',
+      sql`${t.purpose} = 'manager_follow_up'`,
+    ),
+    check(
+      'guest_contact_requests_key_id_valid',
+      sql`${t.encryptionKeyId} IS NULL OR ${t.encryptionKeyId} ~ '^[a-z0-9][a-z0-9._-]{0,49}$'`,
+    ),
+    check(
+      'guest_contact_requests_retention_exact',
+      sql`${t.expiresAt} = ${t.submittedAt} + INTERVAL '720:00:00'`,
+    ),
+    check(
+      'guest_contact_requests_lifecycle_valid',
+      sql`(
+        ${t.status} = 'active'
+        AND ${t.consentGranted} = true
+        AND ${t.encryptedContact} IS NOT NULL
+        AND ${t.encryptionKeyId} IS NOT NULL
+        AND ${t.withdrawnAt} IS NULL
+        AND ${t.purgedAt} IS NULL
+      ) OR (
+        ${t.status} = 'withdrawn'
+        AND ${t.consentGranted} = false
+        AND ${t.encryptedContact} IS NULL
+        AND ${t.withdrawnAt} IS NOT NULL
+        AND ${t.purgedAt} IS NULL
+      ) OR (
+        ${t.status} = 'expired'
+        AND ${t.consentGranted} = false
+        AND ${t.encryptedContact} IS NULL
+        AND ${t.withdrawnAt} IS NULL
+        AND ${t.purgedAt} IS NOT NULL
+      )`,
+    ),
+  ],
+)
+
+/** Content-free evidence for every successful just-in-time reveal. */
+export const guestContactRequestRevealAudits = pgTable(
+  'guest_contact_request_reveal_audits',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    contactRequestId: uuid('contact_request_id').notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    actorId: varchar('actor_id', { length: 255 }).notNull(),
+    accessPurpose: varchar('access_purpose', { length: 50 }).notNull(),
+    authorityBasis: varchar('authority_basis', { length: 32 }).notNull(),
+    revealedAt: timestamp('revealed_at', { withTimezone: true }).notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (t) => [
+    index('guest_contact_reveal_audits_request_idx').on(
+      t.organizationId,
+      t.contactRequestId,
+      t.revealedAt,
+    ),
+    foreignKey({
+      name: 'guest_contact_reveal_audits_request_scope_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId, t.contactRequestId],
+      foreignColumns: [
+        guestContactRequests.organizationId,
+        guestContactRequests.propertyId,
+        guestContactRequests.portalId,
+        guestContactRequests.id,
+      ],
+    }).onDelete('cascade'),
+    check(
+      'guest_contact_reveal_audits_purpose_valid',
+      sql`${t.accessPurpose} = 'respond_to_contact_request'`,
+    ),
+    check(
+      'guest_contact_reveal_audits_authority_valid',
+      sql`${t.authorityBasis} IN ('account_admin', 'portal_creator', 'responsible_manager')`,
+    ),
+  ],
+)
+
+/** Restart-safe global checkpoint for the serialized 30-day purge authority. */
+export const guestContactRequestPurgeCheckpoints = pgTable(
+  'guest_contact_request_purge_checkpoints',
+  {
+    authority: varchar('authority', { length: 64 }).primaryKey(),
+    cursorExpiresAt: timestamp('cursor_expires_at', { withTimezone: true }),
+    cursorId: uuid('cursor_id'),
+    completedThrough: timestamp('completed_through', { withTimezone: true }),
+    processedCount: integer('processed_count').notNull().default(0),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    check(
+      'guest_contact_purge_checkpoint_authority_valid',
+      sql`${t.authority} = 'guest-contact-30d-v1'`,
+    ),
+    check(
+      'guest_contact_purge_checkpoint_cursor_pair',
+      sql`(${t.cursorExpiresAt} IS NULL) = (${t.cursorId} IS NULL)`,
+    ),
+    check('guest_contact_purge_checkpoint_count_valid', sql`${t.processedCount} >= 0`),
+  ],
+)

@@ -125,7 +125,6 @@ describe('BetaCapabilities', () => {
         'portal.public_read',
         'portal.guest_response',
         'portal.guest_text',
-        'portal.guest_contact',
         'notification.send_email',
       ] as const) {
         expect(
@@ -145,6 +144,28 @@ describe('BetaCapabilities', () => {
           ).reason,
         ).toBe('property_not_allowlisted')
       }
+    })
+
+    it('keeps Contact Request activation dark even when every scoped policy seam allows it', () => {
+      const ctx = buildTestAuthContext()
+      initCapabilityPolicyStore(
+        makeStore({
+          isCapabilityGloballyEnabled: () => true,
+          isOrgAllowlisted: () => true,
+          isPropertyAllowlisted: () => true,
+        }),
+      )
+
+      expect(
+        checkScopedCapability(
+          { organizationId: ctx.organizationId, propertyId: 'p1' },
+          'portal.guest_contact',
+        ),
+      ).toEqual({
+        allowed: false,
+        reason: 'capability_blocked',
+        capability: 'portal.guest_contact',
+      })
     })
 
     it('denies Portal upload even when every scoped policy seam allows it', () => {

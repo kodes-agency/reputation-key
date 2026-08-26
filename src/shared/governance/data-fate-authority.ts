@@ -288,6 +288,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'guest.schema.ts',
     exportNames: [
+      'guestContactRequestPurgeCheckpoints',
       'guestDestinationActionReceipts',
       'guestResponseExperienceSnapshots',
       'guestResponseIntegrityDecisions',
@@ -300,6 +301,14 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'guest.schema.ts',
+    exportNames: ['guestContactRequestRevealAudits'],
+    owner: 'guest',
+    disposition: 'recoverable_archive',
+    authority: 'GST-01',
+    exitCriteria: RETAINED_HISTORY,
+  }),
+  ...rows({
+    schemaFile: 'guest.schema.ts',
     exportNames: ['guestResponseMedia'],
     owner: 'guest',
     disposition: 'quarantined_reconciliation_input',
@@ -309,7 +318,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'guest.schema.ts',
-    exportNames: ['guestResponsePrivateFeedback'],
+    exportNames: ['guestContactRequests', 'guestResponsePrivateFeedback'],
     owner: 'guest',
     disposition: 'erasable_source_content',
     authority: 'GST-01/LIF-01',

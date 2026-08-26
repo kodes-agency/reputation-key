@@ -70,8 +70,6 @@ function response(): GuestResponse {
     },
     ratingSourceEventId: null,
     feedbackSourceEventId: null,
-    contactConsent: false,
-    contactDetails: null,
     correctionCount: 0,
     submittedAt: NOW,
     correctedAt: null,

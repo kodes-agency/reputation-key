@@ -50,6 +50,8 @@ describe('GuestResponse', () => {
         integrityRevision: 1,
         integrityAssessedAt: NOW,
       })
+      expect(r).not.toHaveProperty('contactConsent')
+      expect(r).not.toHaveProperty('contactDetails')
     })
   })
 
@@ -109,8 +111,6 @@ describe('GuestResponse', () => {
         responseConsent: true,
         text: null,
         textConsent: false,
-        contactConsent: false,
-        contactDetails: null,
         feedbackSubmittedAt: NOW,
         feedbackWithdrawnAt: withdrawnAt,
       })
@@ -207,34 +207,6 @@ describe('GuestResponse', () => {
       const r = createResponse(baseParams)
       const result = submitResponse(r, { text: 'x'.repeat(MAX_TEXT_LENGTH + 1) }, NOW)
       expect(result).toHaveProperty('code', 'text_too_long')
-    })
-
-    it('rejects contact details without consent', () => {
-      const r = createResponse(baseParams)
-      const result = submitResponse(
-        r,
-        {
-          rating: 5,
-          contactDetails: 'email@example.com',
-          contactConsent: false,
-        },
-        NOW,
-      )
-      expect(result).toHaveProperty('code', 'contact_without_consent')
-    })
-
-    it('accepts contact details with consent', () => {
-      const r = createResponse(baseParams)
-      const result = submitResponse(
-        r,
-        {
-          rating: 5,
-          contactDetails: 'email@example.com',
-          contactConsent: true,
-        },
-        NOW,
-      )
-      expect(result).toHaveProperty('status', 'submitted')
     })
 
     it('rejects submission on deleted response', () => {

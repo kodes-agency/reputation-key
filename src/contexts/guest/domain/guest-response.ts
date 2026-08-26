@@ -63,8 +63,6 @@ export interface GuestResponse {
   readonly ratingSourceEventId: string | null
   /** Durable lineage of the currently effective private-feedback count fact. */
   readonly feedbackSourceEventId: string | null
-  readonly contactConsent: boolean
-  readonly contactDetails: string | null
   readonly correctionCount: 0 | 1
   readonly submittedAt: Date | null
   readonly correctedAt: Date | null
@@ -84,7 +82,6 @@ export type ResponseError =
   | { code: 'rating_out_of_range'; rating: number }
   | { code: 'text_too_long'; length: number; max: number }
   | { code: 'no_content' }
-  | { code: 'contact_without_consent' }
   | { code: 'feedback_not_eligible' }
   | { code: 'feedback_already_submitted' }
   | { code: 'feedback_not_found' }
@@ -136,8 +133,6 @@ export function createResponse(params: {
     experienceSnapshot: params.experienceSnapshot,
     ratingSourceEventId: null,
     feedbackSourceEventId: null,
-    contactConsent: false,
-    contactDetails: null,
     correctionCount: 0,
     submittedAt: null,
     correctedAt: null,
@@ -220,8 +215,6 @@ export function withdrawPrivateFeedback(
     text: null,
     textConsent: false,
     feedbackSourceEventId: null,
-    contactConsent: false,
-    contactDetails: null,
     feedbackWithdrawnAt: now,
   }
 }
@@ -254,8 +247,6 @@ export function submitResponse(
     responseConsent?: boolean
     textConsent?: boolean
     mediaConsent?: boolean
-    contactConsent?: boolean
-    contactDetails?: string | null
   },
   now: Date,
 ): GuestResponse | ResponseError {
@@ -292,10 +283,6 @@ export function submitResponse(
   if (text && params.textConsent === false) {
     return { code: 'no_content' }
   }
-  if (params.contactDetails && !params.contactConsent) {
-    return { code: 'contact_without_consent' }
-  }
-
   return {
     ...response,
     status: 'submitted',
@@ -305,8 +292,6 @@ export function submitResponse(
     responseConsent: params.responseConsent ?? params.rating != null,
     textConsent: params.textConsent ?? text.length > 0,
     mediaConsent: params.mediaConsent ?? false,
-    contactConsent: params.contactConsent ?? false,
-    contactDetails: params.contactDetails ?? null,
     submittedAt: now,
     feedbackSubmittedAt: text ? now : null,
   }
@@ -325,8 +310,6 @@ export function correctResponse(
     responseConsent?: boolean
     textConsent?: boolean
     mediaConsent?: boolean
-    contactConsent?: boolean
-    contactDetails?: string | null
   },
   now: Date,
   correctionWindowMs: number = DEFAULT_CORRECTION_WINDOW_MS,
@@ -363,10 +346,6 @@ export function correctResponse(
   const rating = params.rating === undefined ? response.rating : params.rating
   const nextText = params.text === undefined ? response.text : text || null
   if (rating == null && nextText == null) return { code: 'no_content' }
-  if (params.contactDetails && !params.contactConsent && !response.contactConsent) {
-    return { code: 'contact_without_consent' }
-  }
-
   return {
     ...response,
     status: 'corrected',
@@ -376,11 +355,6 @@ export function correctResponse(
     responseConsent: params.responseConsent ?? response.responseConsent,
     textConsent: params.textConsent ?? response.textConsent,
     mediaConsent: params.mediaConsent ?? response.mediaConsent,
-    contactConsent: params.contactConsent ?? response.contactConsent,
-    contactDetails:
-      params.contactDetails === undefined
-        ? response.contactDetails
-        : params.contactDetails,
     correctionCount: 1,
     correctedAt: now,
   }
@@ -423,8 +397,6 @@ export function deleteResponse(
     responseConsent: false,
     textConsent: false,
     mediaConsent: false,
-    contactConsent: false,
-    contactDetails: null,
     feedbackSubmittedAt: response.feedbackSubmittedAt,
     deletedAt: now,
   }

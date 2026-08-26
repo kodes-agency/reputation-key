@@ -39,6 +39,7 @@ describe('accepted beta capability fate authority', () => {
       'gbp.review_solicitation_gamification',
     ])
     expect(CAPABILITY_FATE['portal.upload'].fate).toBe('safety_blocked')
+    expect(CAPABILITY_FATE['portal.guest_contact'].fate).toBe('safety_blocked')
     expect(CAPABILITY_FATE['portal.guest_media'].fate).toBe('beta_disabled')
     expect(CAPABILITY_FATE['team.use'].fate).toBe('beta_disabled')
   })

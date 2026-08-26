@@ -10,6 +10,7 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 - **ScanEvent** — A recorded visit to a public portal page, captured on page load with `source` attribution (`qr`, `nfc`, `direct`). Tracks `portalId`, `propertyId`, timestamp.
 - **Rating** — A 1–5 star rating submitted by a guest for a specific portal visit. NOT the same as Review Rating (review context, public/platform rating).
 - **Feedback** — Optional free-text note (max 2,000 characters) submitted only after an eligible private rating. It is private and routed to the managers responsible for the Portal.
+- **Contact Request** — A separately consented manager-follow-up request with a valid email and optional name. It is not part of a Rating or Feedback, is encrypted for exactly 30 days, and remains backend-only until its notice and handling approvals exist.
 - **Google Review Selection** — The post-rating choice to open the Property-owned Google review destination. It is offered with identical order and prominence for all five ratings and is recorded as core analytics.
 - **Qualified Link Action** — An explicit post-render, origin/CSRF/session-bound mutation for a destination classified as `google_review` or `secondary_link`. A redirect GET is navigation only and never increments it.
 - **Response Integrity Outcome** — The current, content-free classification of a retained rating response: `Accepted`, `Filtered automatically`, or `Under review`. It governs headline metric eligibility independently of feedback moderation.
@@ -38,7 +39,12 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 - **Anti-discouragement**: after a durable rating, Google is always first and identical for values 1–5. Private feedback is additive, never an alternative, prerequisite, delay, or replacement for Google.
 - If the Property-owned Google destination degrades after publication, the same first post-rating position shows gentle unavailable copy for every rating. Private feedback and secondary links remain usable, and no stale Google URI reaches the browser.
 - The guest-facing response view is a receipt: private feedback text, canonical response/session IDs, tenant/provider IDs, category IDs, and internal consent fields are never returned to the browser after submission.
-- For 24 hours after private-feedback submission, the same signed session may withdraw only that feedback. The command purges text/contact, emits `guest.feedback.retracted`, and leaves the private rating and its lineage intact. A content-free withdrawal tombstone prevents resubmission.
+- For 24 hours after private-feedback submission, the same signed session may withdraw only that feedback. The command purges text, emits `guest.feedback.retracted`, and leaves the private rating and its lineage intact. A content-free withdrawal tombstone prevents resubmission; separately consented Contact Request lifecycle is not inferred from feedback consent.
+- Contact Request purpose and consent are explicit: omitted consent defaults to false, an email or optional name never implies consent or purpose, and phone is not an accepted field. The request references one exact Organization/Property/Portal/Guest Response scope but persists in its own table and aggregate.
+- Contact Request values use versioned AES-256-GCM material bound to the Organization, Property, Portal, and request ID. Ordinary reads select only a constant masked projection. A plaintext reveal occurs only in a locked transaction that rechecks current membership, exact scope, and current Property access for a PropertyManager, then appends content-free reveal evidence. Effective access is limited to the Portal creator, current assigned responsible managers, and AccountAdmins; unrelated Property Managers are not included.
+- Contact Request material expires exactly 30 days after submission. Reads deny it at the deadline even before cleanup. A serialized, bounded purge authority keeps a durable checkpoint while rechecking all eligible rows on every run, so restart, restore, or older backfilled rows cannot hide behind a cursor.
+- Contact Request withdrawal and reveal lock the same row. Whichever commits first establishes the serial order; withdrawal always clears consent and encrypted material. A linked whole-response withdrawal clears Contact Request material in the same database transaction.
+- Contact Request has no domain event, log value, notification value, analytics dimension, Inbox field, AI input, or search field. Only content-free scope, lifecycle, authority basis, and reveal timestamps are retained.
 - For 24 hours after the initial rating, the same signed session may instead withdraw the entire response. That terminal command retracts rating and any still-effective feedback, purges content, and schedules media deletion.
 - Retention classes are physically separate: the response recovery binding is re-signed to the committed rating/feedback withdrawal deadline (exactly 24 hours from that action, never a rolling retry extension), private-feedback body lasts at most 90 days, and the content-free response fact/tombstone lasts 24 calendar months. Repository reads deny expired binding/text even before the bounded evidence-producing sweep deletes it.
 - “Start a new response” is available only after this signed session has a durable rating. It rotates the cookie/CSRF recovery identity and cached receipt without correcting, withdrawing, or deleting the earlier response; both session and rotating-network/Portal rate limits bound shared-device abuse.
@@ -75,15 +81,19 @@ guest/
   domain/              types.ts, constructors.ts, events.ts, errors.ts, rules.ts
   application/
     ports/             guest-interaction.repository.ts, portal-context-resolver.port.ts,
-                       public-portal-lookup.port.ts
-    dto/               public-portal.dto.ts
+                       public-portal-lookup.port.ts, contact-request.repository.ts,
+                       contact-request-encryption.port.ts
+    dto/               public-portal.dto.ts, contact-request.dto.ts
     use-cases/         record-scan.ts, guest-response-lifecycle.ts,
+                       contact-request-lifecycle.ts,
                        get-portal-response-integrity-summary.ts,
                        track-review-link-click.ts, resolve-link-and-track.ts,
                        resolve-portal-context.ts, get-public-portal.ts
     public-api.ts      re-exports domain types, event types/constructors
   infrastructure/
     repositories/      guest-interaction.repository.ts
+                       contact-request.repository.ts
+    adapters/           contact-request-encryption.adapter.ts
     feedback-portal-attribution.ts  tenant-scoped, content-free source lookup
     mappers/           guest.mapper.ts
     resolvers/         portal-context-resolver.ts, public-portal-lookup.ts
@@ -95,6 +105,7 @@ guest/
 
 - **`recordScan`** — Record a scan event (no referral attribution).
 - **`responseLifecycle`** — Submit the required private rating, add eligible private feedback, withdraw only that feedback within 24 hours, correct the rating once, and withdraw/moderate the aggregate. State and content-free facts commit atomically.
+- **`contactRequestLifecycle`** — Backend-only submit, masked read, audited just-in-time reveal, withdrawal, and checkpointed 30-day purge. It is intentionally absent from `build.ts`, server functions, routes, workers, and public API.
 - **`trackReviewLinkClick`** — Atomically commit the short-lived classified action receipt and `guest.review_link.clicked`; persistence failure is reported but never blocks an approved navigation.
 - **`resolveLinkAndTrack`** — Resolve a token-owned Portal link. It tracks only when the explicit POST edge supplies a qualified signed session; calls from the redirect GET resolve without analytics.
 - **`resolvePortalContext`** — Resolve org + property from portal ID.
@@ -127,3 +138,7 @@ Guest context is entirely public — no authentication is required for any endpo
 - `portal:read` — Read public portal data (name, description, links). Public.
 - `feedback.read` — Reserved for future use (viewing feedback history).
 - `feedback.respond` — Reserved for future use (responding to guest feedback).
+
+## Contact Request activation
+
+`portal.guest_contact` is safety-blocked for beta. The backend foundation and tests do not create an activation path. Tenant allowlists, E2E overrides, routes, UI, workers, and public APIs cannot enable it. Activation requires named approval evidence for the guest notice, 30-day retention wording, manager handling, and delivery channel; phone remains excluded.
