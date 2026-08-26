@@ -14,6 +14,9 @@ routes/ → contexts/<ctx>/server/ → contexts/<ctx>/application/ → contexts/
 ```
 
 Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
+The executable beta capability fate authority is
+`src/shared/governance/capability-fate.ts`; do not infer product activation from
+the presence of a route, table, or retained legacy module.
 
 ## Layer guides
 
