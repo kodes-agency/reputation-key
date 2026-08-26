@@ -109,6 +109,3 @@ export type RecentActivityEntry = Readonly<{
   eventId: string | null
   createdAt: Date
 }>
-
-/** @deprecated Use RecentActivityEntry; retained during the compatibility window. */
-export type ActivityLog = RecentActivityEntry

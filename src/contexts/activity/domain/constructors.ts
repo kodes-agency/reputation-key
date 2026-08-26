@@ -22,7 +22,7 @@ import { activityError, type ActivityError } from './errors'
 /** System user ID for automated / background operations. */
 export const SYSTEM_USER_ID: UserId = userId('system')
 
-export type CreateActivityLogInput = Readonly<{
+export type CreateRecentActivityEntryInput = Readonly<{
   id: ActivityLogId
   actorId: UserId
   actorName: string
@@ -52,7 +52,7 @@ const ALLOWED_RECENT_ACTIVITY_KINDS: ReadonlySet<string> = new Set(
 )
 
 export const createRecentActivityEntry = (
-  input: CreateActivityLogInput,
+  input: CreateRecentActivityEntryInput,
   clock: () => Date,
 ): Result<RecentActivityEntry, ActivityError> => {
   if (!ALLOWED_ACTIONS.has(input.action)) {
@@ -110,6 +110,3 @@ export const createRecentActivityEntry = (
     createdAt: clock(),
   })
 }
-
-/** @deprecated Use createRecentActivityEntry. */
-export const createActivityLog = createRecentActivityEntry

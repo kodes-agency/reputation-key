@@ -51,4 +51,20 @@ describe('Recent Activity integrity-claim boundary', () => {
         'is reserved for the separately governed Operational Action History.',
     ).toEqual([])
   })
+
+  it('does not expose deprecated ActivityLog domain aliases', () => {
+    const files = [
+      join(ROOT, 'src/contexts/activity/domain/types.ts'),
+      join(ROOT, 'src/contexts/activity/domain/constructors.ts'),
+      join(ROOT, 'src/contexts/activity/application/public-api.ts'),
+    ]
+    const offenders = files.flatMap((file) => {
+      const source = readFileSync(file, 'utf8')
+      return [/\bActivityLog\b/u, /\bCreateActivityLogInput\b/u, /\bcreateActivityLog\b/u]
+        .filter((pattern) => pattern.test(source))
+        .map((pattern) => `${file.replace(`${ROOT}/`, '')}: ${pattern.source}`)
+    })
+
+    expect(offenders).toEqual([])
+  })
 })

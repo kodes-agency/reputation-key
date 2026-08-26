@@ -3,7 +3,6 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId } from '#/shared/domain/ids'
 
 export type {
-  ActivityLog,
   RecentActivityEntry,
   ActivityAction,
   ResourceType,

@@ -70,11 +70,12 @@ source-context facts and projects rebuildable Recent Activity rows.
 
 ## Known incomplete contract
 
-Production code now uses `RecentActivityEntry` and `createRecentActivityEntry`.
-Deprecated `ActivityLog`/`createActivityLog` compatibility aliases, the physical
-`activity_log` table/job names, and `getOrgActivity` remain during the migration
-window. Broader historical enum values remain read-compatible while new writes
-are bounded by `RECENT_ACTIVITY_KINDS`. The 90-day sweep exists, but Activity
+Production code and the public interface now use only `RecentActivityEntry` and
+`createRecentActivityEntry`; the deprecated domain aliases have been removed.
+The physical `activity_log` table/job names and `getOrgActivity` remain during
+their separately governed data and entry-point migration window. Broader
+historical enum values remain read-compatible while new writes are bounded by
+`RECENT_ACTIVITY_KINDS`. The 90-day sweep exists, but Activity
 still needs historical-row reconciliation, an owned expiry proof, rebuild
 states, durable projection receipts, and explicit redaction semantics.
 Operational Action History remains separate and unimplemented. Until those
@@ -100,10 +101,9 @@ activity/
 | `getActivityTimeline` | Read a bounded resource timeline                              | `inbox.read`; scoped at query |
 | `getOrgActivity`      | Read a bounded Organization/Property feed                     | `inbox.read`; scoped at query |
 
-The public API exports canonical `RecentActivityEntry` and the deprecated
-`ActivityLog` alias plus these two reads for compatibility. New consumers must
-use Activity only as Recent Activity and must not use its rows to authorize
-actions, prove external effects, or recover source state.
+The public API exports only canonical `RecentActivityEntry` plus these two reads.
+Consumers must use Activity only as Recent Activity and must not use its rows to
+authorize actions, prove external effects, or recover source state.
 
 ## Verification authority
 
