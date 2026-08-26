@@ -20,7 +20,7 @@ export const onMemberInvited =
         subject: 'member',
         from: null,
         to: event.role,
-        detail: event.email,
+        detail: null,
       },
     }
     await deps.queue.add('insert-activity-log', payload)

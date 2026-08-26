@@ -424,7 +424,6 @@ const staffUnassignedSchema = z.object({
 const memberInvitedSchema = z.object({
   invitationId: z.string(),
   organizationId: z.string(),
-  email: z.string(),
   role: z.string(),
 })
 

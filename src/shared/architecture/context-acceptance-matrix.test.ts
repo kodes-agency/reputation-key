@@ -515,14 +515,11 @@ describe('row 17 — AI (private-beta foundation): closed policy and durable ope
   })
 })
 
-describe('registered BQC-1 gaps F1–F3 keep their register entries (rerun rule)', () => {
-  it('F1 + F2 stay in the content-free facts register with their BQC-1 justification', () => {
+describe('registered BQC-1 gaps F1 and F3 keep their register entries (rerun rule)', () => {
+  it('F1 stays in the content-free facts register with its BQC-1 justification', () => {
     const facts = readFileSync(join(ROOT, REUSED_PINS.contentFreeFacts), 'utf-8')
     expect(facts, 'F1 fixed? update this matrix row and rerun').toMatch(
       /'ReviewReplyRejected\.reason':\s*'BQC-1 gap/,
-    )
-    expect(facts, 'F2 fixed? update this matrix row and rerun').toMatch(
-      /'IdentityMemberInvited\.email':\s*'BQC-1 gap/,
     )
   })
 

@@ -28,9 +28,6 @@ const REGISTER: Readonly<Record<string, string>> = {
   // The durable outbox schema already strips it, but activity audit detail
   // (on-reply-rejected) and notification email bodies copy it.
   'ReviewReplyRejected.reason': 'BQC-1 gap: protected content on the bus',
-  // BQC-1 gap (F2): invitee email persisted into activity audit detail
-  // (on-member-invited).
-  'IdentityMemberInvited.email': 'BQC-1 gap: invitee PII on the bus',
   // By-design non-sensitive display names (no PII, no review content).
   'PortalCreated.name': 'by-design non-sensitive display name',
   'PortalUpdated.name': 'by-design non-sensitive display name',

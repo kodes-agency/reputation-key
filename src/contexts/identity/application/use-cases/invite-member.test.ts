@@ -143,7 +143,7 @@ describe('inviteMember', () => {
 
     const emitted = events.capturedByTag('identity.member.invited')
     expect(emitted).toHaveLength(1)
-    expect(emitted[0].email).toBe('new@test.com')
+    expect(emitted[0]).not.toHaveProperty('email')
     expect(emitted[0].role).toBe('PropertyManager')
     expect(emitted[0].organizationId).toBe(ctx.organizationId)
   })

@@ -79,7 +79,6 @@ export const inviteMember =
       expiresAt: new Date(now.getTime() + deps.invitationExpiresInMs),
       event: identityMemberInvited({
         organizationId: ctx.organizationId,
-        email: input.email,
         role: input.role,
         userId: ctx.userId,
         invitationId,

@@ -28,16 +28,16 @@ describe('identity events', () => {
     expect(event.occurredAt).toBe(NOW)
   })
 
-  it('identityMemberInvited works', () => {
+  it('identityMemberInvited emits an identifier-only fact', () => {
     const event = identityMemberInvited({
       organizationId: ORG_ID,
       userId: USER_ID,
-      email: 'test@example.com',
       role: 'Staff' as Role,
       invitationId: INV_ID,
       occurredAt: NOW,
     })
     expect(event._tag).toBe('identity.member.invited')
+    expect(event).not.toHaveProperty('email')
   })
 
   it('throws/asserts for invalid occurredAt', () => {

@@ -70,7 +70,6 @@ const REQUIRED_EVENT_FIELDS: ReadonlyArray<
 > = [
   { relation: 'event:review.created', field: 'externalId' },
   { relation: 'event:review.updated', field: 'externalId' },
-  { relation: 'event:identity.member.invited', field: 'email' },
   { relation: 'event:guest.rating.submitted', field: 'value' },
 ]
 
@@ -150,7 +149,7 @@ describe('BQC-1.1 protected-field registry', () => {
   it('registers every event payload field that holds protected data', () => {
     // Outbox event payloads are identifier-only by zod allowlist (BQR-2.5),
     // but allowlisted fields themselves need classification (e.g. externalId,
-    // rating on review.created; email on identity.member.invited).
+    // rating on review.created).
     const registered = new Set(PROTECTED_FIELD_REGISTRY.map(registryKey))
     const missing = REQUIRED_EVENT_FIELDS.filter(
       ({ relation, field }) => !registered.has(`${relation}:${field}`),

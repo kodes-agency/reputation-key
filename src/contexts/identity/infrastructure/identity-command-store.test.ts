@@ -194,7 +194,6 @@ function makeEvents(order: string[], fail = false): EventBus {
 const invitedEvent = () =>
   identityMemberInvited({
     organizationId: ORG_ID,
-    email: 'invitee@test.com',
     role: 'PropertyManager',
     userId: INVITER,
     invitationId: INV_ID,

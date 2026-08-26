@@ -42,7 +42,7 @@ Authentication, session management, organization membership, and invitation work
 | Name                 | Tag                             | Payload                                                     | When                    |
 | -------------------- | ------------------------------- | ----------------------------------------------------------- | ----------------------- |
 | Organization created | `identity.organization.created` | organizationId, organizationName, slug, ownerId             | Organization created    |
-| Invitation sent      | `identity.member.invited`       | organizationId, userId, email, role, invitationId           | Invitation sent         |
+| Invitation sent      | `identity.member.invited`       | organizationId, userId, role, invitationId                  | Invitation sent         |
 | Invitation accepted  | `identity.invitation.accepted`  | invitationId, organizationId, userId, propertyIds           | Invitation accepted     |
 | Invitation rejected  | `identity.invitation.rejected`  | invitationId, organizationId                                | Invitation rejected     |
 | Invitation canceled  | `identity.invitation.canceled`  | invitationId, organizationId                                | Invitation canceled     |

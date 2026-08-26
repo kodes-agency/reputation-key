@@ -37,7 +37,6 @@ export type IdentityMemberInvited = Readonly<{
   eventId: string
   organizationId: OrganizationId
   userId: UserId
-  email: string
   role: Role
   invitationId: InvitationId
   occurredAt: Date

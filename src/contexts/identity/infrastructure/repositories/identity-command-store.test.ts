@@ -126,7 +126,6 @@ beforeEach(async () => {
 const invitedEvent = (invId: string): IdentityMemberInvited =>
   identityMemberInvited({
     organizationId: ORG_ID,
-    email: 'idcmd-new@test.com',
     role: 'PropertyManager',
     userId: INVITER_ID,
     invitationId: invitationId(invId),
@@ -164,12 +163,13 @@ describe.sequential('identityCommandStore (integration)', () => {
       propertyIds: '["prop-a"]',
     })
     const facts = await pool.query(
-      `SELECT id, event_type FROM outbox_events
+      `SELECT id, event_type, payload FROM outbox_events
        WHERE organization_id = $1 AND event_type = 'identity.member.invited'`,
       [ORG_ID],
     )
     expect(facts.rows).toHaveLength(1)
     expect(facts.rows[0].id).toBe(event.eventId)
+    expect(facts.rows[0].payload).not.toHaveProperty('email')
   })
 
   it('inviteMember rolls back the invitation when the fact insert fails (unregistered type)', async () => {
@@ -284,7 +284,6 @@ describe.sequential('identityCommandStore (integration)', () => {
         expiresAt: new Date('2026-06-08T12:00:00.000Z'),
         event: identityMemberInvited({
           organizationId: targetOrganizationId,
-          email: 'idcmd-invite-race@test.com',
           role: 'PropertyManager',
           userId: INVITER_ID,
           invitationId: invitationId(id),
