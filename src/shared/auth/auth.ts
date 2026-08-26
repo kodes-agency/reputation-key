@@ -14,6 +14,7 @@ import { organization } from 'better-auth/plugins'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { getEnv } from '#/shared/config/env'
 import { getPool } from '#/shared/db/pool'
+import { getRedis } from '#/shared/cache/redis'
 import { getLogger } from '#/shared/observability/logger'
 import { absoluteUrl } from '#/shared/email/urls'
 import {
@@ -27,6 +28,7 @@ import {
   claimsE2ERateLimitBypass,
   isE2ERateLimitBypassAuthorized,
 } from './beta-capabilities'
+import { createBetterAuthRateLimitStorage } from './better-auth-rate-limit-storage'
 
 // ── Post-acceptance property-access hook ───────────────────────────
 // Property IDs selected explicitly during invitation become access grants.
@@ -79,6 +81,12 @@ function membershipRemovalLifecycle(): MembershipRemovalLifecycle {
 export function createAuth() {
   const env = getEnv()
   const pool = getPool()
+  const redis = getRedis()
+  const authRateLimitStorage = redis
+    ? createBetterAuthRateLimitStorage(redis, {
+        keyHmacSecret: env.BETTER_AUTH_SECRET,
+      })
+    : undefined
 
   // Review §5.1: decided once per process (createAuth is a lazy singleton) so
   // the posture is recorded, not silently assumed. An E2E claim without an
@@ -153,6 +161,11 @@ export function createAuth() {
       // brute-force layers in a real deployment with no signal at all. An
       // unauthorized claim now keeps the limiter ON and is logged.
       enabled: !rateLimitBypass,
+      // Process memory multiplies the allowance by the number of web
+      // replicas. Share only limiter state through cache Redis; do not set
+      // Better Auth's global secondaryStorage because sessions and
+      // verification records remain authoritative in Postgres.
+      ...(authRateLimitStorage ? { customStorage: authRateLimitStorage } : {}),
     },
     session: {
       expiresIn: SESSION_EXPIRY_SECONDS, // 30 days

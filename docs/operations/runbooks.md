@@ -179,7 +179,12 @@ adapter-level timeouts exist where hangs are possible (e.g. the alert webhook
 POST at 3s) and the platform gateway owns the outer request deadline.
 
 **Rate controls.** better-auth's built-in limiter guards its native endpoints
-(disabled only under `E2E=1`). The shared Redis limiter
+(disabled only under the authorized `E2E=1` test identity). When `REDIS_URL`
+is configured, its atomic custom storage shares the allowance across web
+replicas and stores only an HMAC-derived client/path bucket with the active
+window TTL. Redis command failure fails the auth request closed. The adapter is
+rate-limit-only: Better Auth sessions and verification records remain in
+Postgres, not Redis. The shared Redis limiter
 (`src/shared/rate-limit/middleware.ts`) guards registration, sign-in, guest
 submissions, and the auth catch-all; when Redis is absent or erroring it
 **fails closed in production** (deny + error log) and fails open with a warn

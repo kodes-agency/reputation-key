@@ -49,6 +49,13 @@ and upgraded consistently without hand-wiring services.
 7. The typed Railway graph owns both resources, regional placement, and service
    references. Applying that graph remains a separately reviewed operator
    action; repository validation never mutates Railway.
+8. Better Auth's native endpoint limiter uses an atomic custom storage on
+   `REDIS_URL`; it never uses process memory when cache Redis is configured.
+   The stored bucket key is an audience-separated HMAC of Better Auth's client
+   and route key, and the record expires with the active window. Redis command
+   failure propagates through Better Auth and fails the auth request closed.
+   This custom storage is rate-limit-only: Better Auth `secondaryStorage` is
+   not configured, so sessions and verification records remain in Postgres.
 
 ## Consequences
 
@@ -60,6 +67,9 @@ and upgraded consistently without hand-wiring services.
   outbox prevents accepted database facts from being lost during a queue outage.
 - Provider-ephemeral Redis remains a third, stricter trust boundary and must be
   distinct from both general application resources.
+- Web replica count no longer multiplies Better Auth's native login/recovery
+  allowance. Rotating `BETTER_AUTH_SECRET` intentionally abandons the prior
+  short-lived HMAC bucket namespace along with revoking existing sessions.
 - ADR 0050's phrase “general BullMQ/quota Redis” is historical shorthand. Quota
   and BullMQ state are no longer permitted to share one production endpoint.
 
@@ -82,5 +92,7 @@ and upgraded consistently without hand-wiring services.
 - Production topology and runtime guards reject absent, shared, unsupported, or
   eviction-enabled queue configurations before client construction.
 - Real-Redis integration proves runtime inspection and bounded queue health.
+- Real-Redis integration issues concurrent consumes through independent client
+  connections and proves that Better Auth admits only the shared maximum.
 - The production-shaped local stack proves independent cache and queue faults,
   clean stores, recovery, and no duplicate external effects.
