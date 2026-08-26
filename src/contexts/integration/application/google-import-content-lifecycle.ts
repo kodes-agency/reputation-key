@@ -7,12 +7,17 @@ export type GoogleImportClearReason =
   | 'route_left'
   | 'tenant_changed'
 
-export class StaleGoogleImportViewError extends Error {
-  constructor() {
-    super('Google import content belongs to a stale view')
-    this.name = 'StaleGoogleImportViewError'
-  }
-}
+export type GoogleImportViewCompletion<T> =
+  | Readonly<{
+      _tag: 'current_google_import_view'
+      value: T
+    }>
+  | Readonly<{
+      _tag: 'stale_google_import_view'
+      clearReason: GoogleImportClearReason
+      currentEpoch: number
+      requestEpoch: number
+    }>
 
 type LifecycleDependencies = Readonly<{
   cancelQueries: () => Promise<void>
@@ -33,9 +38,11 @@ export function createGoogleImportContentLifecycle(deps: LifecycleDependencies) 
   let clearOperation: Promise<void> | null = null
   let active = true
   let clearContent = deps.clearContent
+  const invalidationReasons: GoogleImportClearReason[] = []
 
-  const clear = async (_reason: GoogleImportClearReason): Promise<void> => {
+  const clear = async (reason: GoogleImportClearReason): Promise<void> => {
     if (clearOperation) return clearOperation
+    invalidationReasons[viewEpoch] = reason
     viewEpoch += 1
     clearOperation = (async () => {
       try {
@@ -49,10 +56,24 @@ export function createGoogleImportContentLifecycle(deps: LifecycleDependencies) 
     return clearOperation
   }
 
-  const guard = async <T>(requestEpoch: number, operation: Promise<T>): Promise<T> => {
+  const guard = async <T>(
+    requestEpoch: number,
+    operation: Promise<T>,
+  ): Promise<GoogleImportViewCompletion<T>> => {
     const result = await operation
-    if (requestEpoch !== viewEpoch) throw new StaleGoogleImportViewError()
-    return result
+    if (requestEpoch === viewEpoch) {
+      return { _tag: 'current_google_import_view', value: result }
+    }
+    const clearReason = invalidationReasons[requestEpoch]
+    if (clearReason === undefined) {
+      throw new TypeError('Google import view epoch is invalid')
+    }
+    return {
+      _tag: 'stale_google_import_view',
+      clearReason,
+      currentEpoch: viewEpoch,
+      requestEpoch,
+    }
   }
 
   return Object.freeze({

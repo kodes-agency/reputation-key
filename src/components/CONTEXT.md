@@ -40,11 +40,12 @@ Components may import from:
 
 - Other `components/` directories
 - `shared/` (hooks, utilities, domain types for display)
+- `contexts/<ctx>/application/public-api.ts` (the context's supported cross-boundary contracts and framework-free behavior)
 - `contexts/<ctx>/application/dto/` (to derive form schemas only)
 
 Components must **never** import from:
 
-- `domain/`, `application/` (non-dto), `infrastructure/`
+- `domain/`, non-public `application/` modules (except DTO schemas for forms), or `infrastructure/`
 - Direct DB access or Drizzle
 
 **Exception:** Components with 5+ server function mutations (e.g., `link-tree.tsx`) may import from `server/` to avoid excessive prop drilling. This is a deliberate trade-off — document it with a comment when used.

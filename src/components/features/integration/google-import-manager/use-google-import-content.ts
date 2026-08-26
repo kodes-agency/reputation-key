@@ -1,15 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import {
+  contentExpiryDelayMs,
+  createGoogleImportContentLifecycle,
+} from '#/contexts/integration/application/public-api'
 import { integrationKeys } from '#/shared/queries/query-keys'
 import type {
   GoogleImportManagerProps,
   GoogleImportStep,
 } from './google-import-manager-contract'
-import {
-  StaleGoogleImportViewError,
-  contentExpiryDelayMs,
-  createGoogleImportContentLifecycle,
-} from './google-import-content-lifecycle'
 import {
   useGoogleImportAccounts,
   useGoogleImportCandidates,
@@ -164,8 +163,7 @@ export function useGoogleImportContent({
     return () => window.clearTimeout(timeout)
   }, [enabled, leaseExpiresAt, lifecycle])
   useEffect(() => {
-    if (!leaseQuery.error || leaseQuery.error instanceof StaleGoogleImportViewError)
-      return
+    if (!leaseQuery.error) return
     void lifecycle.clear('lease_expired')
   }, [leaseQuery.error, lifecycle])
   useEffect(() => {

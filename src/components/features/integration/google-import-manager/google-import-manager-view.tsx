@@ -23,7 +23,6 @@ import { Field, FieldLabel } from '#/components/ui/field'
 import { GoogleImportDiscoveryPanel } from './google-import-discovery-panel'
 import { discoveryErrorMessage } from './google-import-error-messages'
 import type { GoogleImportGetAuthUrl } from './google-import-manager-contract'
-import { StaleGoogleImportViewError } from './google-import-content-lifecycle'
 import { GoogleImportReviewForm } from './google-import-review-form'
 import type { ImportReviewDraft } from './google-import-review-model'
 import type { GoogleImportDiscoveryController } from './use-google-import-discovery-controller'
@@ -39,7 +38,7 @@ type Props = Readonly<{
 }>
 
 function visibleError(error: unknown): string | null {
-  if (!error || error instanceof StaleGoogleImportViewError) return null
+  if (!error) return null
   return discoveryErrorMessage(error)
 }
 

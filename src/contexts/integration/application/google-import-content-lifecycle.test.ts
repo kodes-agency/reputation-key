@@ -1,9 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import {
-  StaleGoogleImportViewError,
-  createGoogleImportContentLifecycle,
-  contentExpiryDelayMs,
-} from './google-import-content-lifecycle'
+import { createGoogleImportContentLifecycle, contentExpiryDelayMs } from './public-api'
 
 describe('Google import provider-content lifecycle', () => {
   it('advances the epoch and clears in cancel, remove, state order', async () => {
@@ -27,7 +23,22 @@ describe('Google import provider-content lifecycle', () => {
     expect(order).toEqual(['cancel', 'remove', 'clear'])
   })
 
-  it('rejects a late completion from the previous epoch', async () => {
+  it('returns completed content while the request still belongs to the current view', async () => {
+    const lifecycle = createGoogleImportContentLifecycle({
+      cancelQueries: vi.fn(async () => {}),
+      removeQueries: vi.fn(),
+      clearContent: vi.fn(),
+    })
+
+    await expect(
+      lifecycle.guard(lifecycle.epoch(), Promise.resolve({ items: ['current'] })),
+    ).resolves.toEqual({
+      _tag: 'current_google_import_view',
+      value: { items: ['current'] },
+    })
+  })
+
+  it('classifies a late completion without retaining its provider content', async () => {
     const lifecycle = createGoogleImportContentLifecycle({
       cancelQueries: vi.fn(async () => {}),
       removeQueries: vi.fn(),
@@ -40,7 +51,12 @@ describe('Google import provider-content lifecycle', () => {
     await lifecycle.clear('page_hidden')
     deferred.resolve({ items: ['provider content'] })
 
-    await expect(guarded).rejects.toBeInstanceOf(StaleGoogleImportViewError)
+    await expect(guarded).resolves.toEqual({
+      _tag: 'stale_google_import_view',
+      clearReason: 'page_hidden',
+      currentEpoch: 1,
+      requestEpoch: 0,
+    })
   })
 
   it('coalesces concurrent clear triggers into ordered clearing operations', async () => {
@@ -61,6 +77,12 @@ describe('Google import provider-content lifecycle', () => {
 
     expect(order).toEqual(['cancel', 'remove', 'clear'])
     expect(lifecycle.epoch()).toBe(1)
+    await expect(lifecycle.guard(0, Promise.resolve('late'))).resolves.toEqual({
+      _tag: 'stale_google_import_view',
+      clearReason: 'page_hidden',
+      currentEpoch: 1,
+      requestEpoch: 0,
+    })
   })
 
   it('uses current callbacks while active and suppresses content updates after deactivation', async () => {

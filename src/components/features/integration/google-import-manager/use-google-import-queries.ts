@@ -1,4 +1,5 @@
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
+import type { GoogleImportViewCompletion } from '#/contexts/integration/application/public-api'
 import type {
   listImportAccounts,
   listImportCandidates,
@@ -14,7 +15,26 @@ type AwaitedReturn<T extends (...args: never[]) => unknown> = Awaited<
 >
 type AccountsPage = AwaitedReturn<typeof listImportAccounts>
 type CandidatesPage = AwaitedReturn<typeof listImportCandidates>
-type EpochGuard = <T>(epoch: number, operation: Promise<T>) => Promise<T>
+type EpochGuard = <T>(
+  epoch: number,
+  operation: Promise<T>,
+) => Promise<GoogleImportViewCompletion<T>>
+
+function currentViewInfiniteData<T, TPageParam>(
+  data: Readonly<{
+    pages: readonly GoogleImportViewCompletion<T>[]
+    pageParams: readonly TPageParam[]
+  }>,
+): Readonly<{ pages: T[]; pageParams: TPageParam[] }> {
+  const pages: T[] = []
+  const pageParams: TPageParam[] = []
+  for (const [index, completion] of data.pages.entries()) {
+    if (completion._tag !== 'current_google_import_view') continue
+    pages.push(completion.value)
+    pageParams.push(data.pageParams[index]!)
+  }
+  return { pages, pageParams }
+}
 
 export function useGoogleImportAccounts(
   input: Readonly<{
@@ -43,7 +63,11 @@ export function useGoogleImportAccounts(
         }),
       ),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage: AccountsPage) => lastPage.nextCursor ?? undefined,
+    getNextPageParam: (lastCompletion) =>
+      lastCompletion._tag === 'current_google_import_view'
+        ? (lastCompletion.value.nextCursor ?? undefined)
+        : undefined,
+    select: currentViewInfiniteData<AccountsPage, string | undefined>,
     enabled: input.enabled && input.connectionId !== null,
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 0,
@@ -89,7 +113,11 @@ export function useGoogleImportCandidates(
         }),
       ),
     initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage: CandidatesPage) => lastPage.nextCursor ?? undefined,
+    getNextPageParam: (lastCompletion) =>
+      lastCompletion._tag === 'current_google_import_view'
+        ? (lastCompletion.value.nextCursor ?? undefined)
+        : undefined,
+    select: currentViewInfiniteData<CandidatesPage, string | undefined>,
     enabled: input.enabled && input.connectionId !== null && input.accountRef !== null,
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 0,
@@ -131,6 +159,8 @@ export function useGoogleImportContentLease(
           },
         }),
       ),
+    select: (completion) =>
+      completion._tag === 'current_google_import_view' ? completion.value : null,
     enabled:
       input.enabled &&
       input.connectionId !== null &&

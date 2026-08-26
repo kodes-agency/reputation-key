@@ -6,6 +6,15 @@
  */
 export type { GoogleConnectionDto } from './dto/google-connection.dto'
 
+export {
+  contentExpiryDelayMs,
+  createGoogleImportContentLifecycle,
+} from './google-import-content-lifecycle'
+export type {
+  GoogleImportClearReason,
+  GoogleImportViewCompletion,
+} from './google-import-content-lifecycle'
+
 export type { GoogleConnectionStatus, GoogleConnectionVisibility } from '../domain/types'
 
 export type {
