@@ -96,17 +96,23 @@
     {
       "id": "SAFE-01",
       "status": "partial",
-      "summary": "Portal hero uploads are safely dark and now use persisted, opaque, Organization/Property/Portal-bound, single-use issuances; first-write-only source objects, exact MIME/size/ETag validation, an atomic durable processing hand-off, ETag-bound worker reads, server-derived derivatives, and stale-worker fencing are enforced. The broader public-edge package is not complete.",
+      "summary": "Portal hero uploads are safely dark and now use persisted, opaque, Organization/Property/Portal-bound, single-use issuances; first-write-only source objects, exact MIME/size/ETag validation, an atomic durable processing hand-off, ETag-bound worker reads, server-derived derivatives, and stale-worker fencing are enforced. Request-level same-origin checks, token-scoped stored-link resolution, signed Guest sessions, layered session plus network/Portal limits shared across app instances, private no-store responses, and an explicit public DTO allowlist are also proved. The broader public-edge package is not complete.",
       "codeEvidence": [
         "src/shared/auth/beta-capabilities.ts",
+        "src/start.ts",
         "drizzle/0110_portal_upload_issuances.sql",
         "src/contexts/portal/application/use-cases/request-upload-url.ts",
         "src/contexts/portal/application/use-cases/finalize-upload.ts",
+        "src/contexts/portal/domain/safe-link.ts",
         "src/components/forms/image-upload-field/put-file-presigned.ts",
         "src/contexts/portal/infrastructure/portal-upload-issuance-store.ts",
         "src/contexts/portal/infrastructure/adapters/s3-storage.adapter.ts",
         "src/contexts/portal/infrastructure/jobs/process-image.job.ts",
-        "src/contexts/portal/infrastructure/outbox-consumers.ts"
+        "src/contexts/portal/infrastructure/outbox-consumers.ts",
+        "src/contexts/guest/application/dto/public-portal.dto.ts",
+        "src/contexts/guest/server/guest-session.ts",
+        "src/contexts/guest/server/guest-scans.ts",
+        "src/contexts/guest/server/public.ts"
       ],
       "testEvidence": [
         "src/start.test.ts",
@@ -117,10 +123,14 @@
         "src/contexts/portal/infrastructure/jobs/process-image.job.test.ts",
         "src/contexts/portal/infrastructure/outbox-consumers.test.ts",
         "src/contexts/portal/infrastructure/portal-upload-issuance-store.integration.test.ts",
-        "Guest cache, safe-link, rating-first, dedupe, and shared Redis limiter tests"
+        "src/contexts/guest/server/guest-session.integration.test.ts",
+        "src/shared/rate-limit/middleware.integration.test.ts",
+        "src/shared/architecture/guest-public-response-security.test.ts",
+        "Guest public DTO, safe-link, rating-first, and durable dedupe tests",
+        "Focused request and shared-store matrix: 4 files / 16 tests passed on 2026-08-26"
       ],
       "remaining": [
-        "Keep portal.upload disabled until SAFE-01's CSRF, redirect/address-resolution, stable abuse/session keys, real-Redis rate/dedupe proof, cache/Vary review, public-model minimization, analytics privacy review, orphan cleanup, end-to-end object-store adversarial drill, and signed security review are complete.",
+        "Keep portal.upload disabled until DNS/address-resolution and post-publication destination-drift policy, the complete public response/mutation cache-and-limit inventory, analytics privacy and rotating-pseudonym retention review, durable observation-loss monitoring, upload orphan cleanup, an end-to-end object-store release drill, and independent review are complete.",
         "Guest media remains beta-disabled and still uses its separate legacy arbitrary-key StoragePort surface; migrate it to capability-oriented issued storage before any future activation."
       ],
       "externalBlockers": [
