@@ -31,6 +31,10 @@ const LEGACY_RECOGNITION_SETTINGS_UI = [
     'recognition-activation-card.tsx',
   ),
 ]
+const LEGACY_BADGE_DISPLAY_UI = [
+  join(ROOT, 'src', 'components', 'features', 'badges', 'staff-badge-summary.tsx'),
+  join(ROOT, 'src', 'components', 'features', 'badges', 'portal-badge-section.tsx'),
+]
 
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -102,6 +106,31 @@ describe('legacy recognition stays out of active beta surfaces', () => {
       importers: [],
       retainedModules: [],
       settingsBarrelExportsLegacyUi: false,
+    })
+  })
+
+  it('retains no legacy Badge display owner or importer', () => {
+    const retainedModules = LEGACY_BADGE_DISPLAY_UI.filter(existsSync).map((path) =>
+      relative(ROOT, path),
+    )
+    const legacyImportMarkers = [
+      'StaffBadgeSummary',
+      'PortalBadgeSection',
+      'staff-badge-summary',
+      'portal-badge-section',
+    ]
+    const importers = [...sourceFiles(COMPONENTS), ...sourceFiles(ROUTES)]
+      .filter((path) => !LEGACY_BADGE_DISPLAY_UI.includes(path))
+      .flatMap((path) => {
+        const body = readFileSync(path, 'utf8')
+        return legacyImportMarkers
+          .filter((marker) => body.includes(marker))
+          .map((marker) => `${relative(ROOT, path)}: ${marker}`)
+      })
+
+    expect({ importers, retainedModules }).toEqual({
+      importers: [],
+      retainedModules: [],
     })
   })
 })
