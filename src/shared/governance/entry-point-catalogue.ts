@@ -857,9 +857,12 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'deleteProperty',
       `${PROPERTY}/property-read.ts`,
       'property.delete',
-      'property.create',
+      'property.erase',
       'property',
-      { notes: 'soft-delete; policy-wired in BQC-2.4 with target propertyId' },
+      {
+        notes:
+          'LIF-01 containment: blocked capability and server/use-case denial preserve stale-client compatibility without a destructive effect',
+      },
     ),
     sf(
       'requestRegionMoveFn',

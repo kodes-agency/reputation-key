@@ -4,8 +4,6 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
 import { Plus, ChevronRight } from 'lucide-react'
-import { DeletePropertyDialog } from './delete-property-dialog'
-import type { Action } from '#/components/hooks/use-action'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 
@@ -18,13 +16,9 @@ interface Property {
 
 export interface PropertyListPageProps {
   properties: ReadonlyArray<Property>
-  deleteAction: Action<
-    { data: { propertyId: string } },
-    { deleted: boolean; propertyId: string }
-  >
 }
 
-export function PropertyListPage({ properties, deleteAction }: PropertyListPageProps) {
+export function PropertyListPage({ properties }: PropertyListPageProps) {
   const { can } = usePermissions()
 
   return (
@@ -75,13 +69,6 @@ export function PropertyListPage({ properties, deleteAction }: PropertyListPageP
                 </div>
                 <ChevronRight className="ml-3 size-4 shrink-0 text-muted-foreground" />
               </Link>
-              <div className="flex shrink-0 items-center px-3">
-                <DeletePropertyDialog
-                  propertyId={p.id}
-                  propertyName={p.name}
-                  deleteAction={deleteAction}
-                />
-              </div>
             </div>
           ))}
         </div>

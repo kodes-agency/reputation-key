@@ -11,7 +11,9 @@ import type { Capability } from './beta-capabilities'
 const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   'property.create': 'property.create',
   'property.update': 'property.create',
-  'property.delete': 'property.create',
+  // LIF-01: destructive deletion is not ordinary Property management.
+  // This capability stays blocked until support-mediated erasure exists.
+  'property.delete': 'property.erase',
   'property.read': 'property.create',
   'property.admin': 'property.create',
   'property.import_gbp_v2': 'property.import_gbp_v2',

@@ -1107,8 +1107,8 @@ export function createContainer(options?: {
 
   // BQC-1.7: the bounded lifecycle purge implementation is review-owned
   // infrastructure — the composition root is the only layer allowed to
-  // import it (CONTEXT.md cross-context rule). Constructed ONCE and shared
-  // by the property (hard delete) and integration (disconnect) builds.
+  // import it (CONTEXT.md cross-context rule). LIF-01 severs it from normal
+  // Property lifecycle; Integration still uses it for governed disconnect.
   const sourceContentPurge = createSourceContentPurge({ db, clock })
 
   // BQC-2.7: every path that creates a property grants it the capability
@@ -1129,7 +1129,6 @@ export function createContainer(options?: {
     localCell: env.PROCESSING_CELL,
     staffPublicApi: staff.publicApi,
     identityPublicApi: identity.publicApi,
-    sourceContentPurge,
     provisionPropertyCapabilities:
       propertyCapabilityProvisioning.provisionCreatedProperty,
     logger: getLogger(),
@@ -1144,21 +1143,6 @@ export function createContainer(options?: {
         { name: 'default', queue: infra.jobQueue },
         { name: 'background', queue: infra.backgroundQueue },
       ],
-    },
-    googleImportLifecycle: {
-      prepareDeletion: async (orgId, propertyIdValue) => {
-        const prepare =
-          integration.internal.useCases.prepareGoogleImportV2PropertyDeletion
-        if (!prepare) throw new Error('Google import lifecycle unavailable')
-        const result = await prepare(orgId, propertyIdValue)
-        return { itemIds: result.itemIds }
-      },
-      finalizeDeletion: async (orgId, itemIds) => {
-        const finalize =
-          integration.internal.useCases.finalizeGoogleImportV2PropertyDeletion
-        if (!finalize) throw new Error('Google import lifecycle unavailable')
-        await finalize(orgId, itemIds)
-      },
     },
   })
 

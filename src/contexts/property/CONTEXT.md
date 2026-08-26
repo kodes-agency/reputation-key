@@ -2,7 +2,7 @@
 
 ## Bounded context
 
-Property management — creation, updates, soft-deletion, and cross-context property lookups.
+Property management — creation, updates, lifecycle containment, and cross-context property lookups.
 
 ## Glossary
 
@@ -23,7 +23,7 @@ Property management — creation, updates, soft-deletion, and cross-context prop
 ## Invariants
 
 - Property slugs must be unique within an organization.
-- Properties are hard-deleted (`deleteProperty`). BQC-1.7: reviews (+ replies via per-batch FK cascade) and inbox rows are first removed by a bounded, evidenced lifecycle purge (`sourceContentPurge`). The use-case file is named `soft-delete-property.ts` but the implementation performs a hard delete.
+- Destructive Property deletion is unreachable from the normal product in beta. The legacy `deleteProperty` server boundary and use case both fail closed before lookup, purge, provider fencing, or durable writes; `property.delete` maps to the permanently blocked `property.erase` capability. Recoverable Archive/Disconnect and support-mediated permanent erasure remain separate LIF-01 work.
 - Canonical GBP location suffixes must be unique within an organization.
 - A Google review destination is accepted only from the provider discovery/import path, is restricted to approved HTTPS Google hosts, and is pinned to the Property binding generation that produced it.
 - Disconnect preserves the last destination only as `awaiting_refresh`; credential scrub clears it. Neither state is a public rendering authority.
@@ -32,13 +32,13 @@ Property management — creation, updates, soft-deletion, and cross-context prop
 - Responsible Managers are explicit and may be multiple. Property creation never infers one from the creator.
 - AccountAdmins are eligible organization-wide. A PropertyManager needs active membership, an active PropertyAccessGrant, and an active linked StaffParticipation for the Property.
 - Losing membership, access, or participation ends only the affected manager's active interval. If none remain, the Property records `responsibilityNeededSince`; no replacement is guessed and offboarding is not blocked.
-- Responsible Manager history is owned by the Property aggregate and is removed when the Property is hard-deleted.
+- Responsible Manager history is owned by the Property aggregate. Its behavior at permanent erasure remains part of the future support-mediated LIF-01 workflow; normal product actions cannot erase it.
 
 ## Events produced
 
 - **`property.created`** — propertyId, organizationId, name, slug, dataCellId (when resolved), legacy processingRegion, occurredAt.
 - **`property.updated`** — propertyId, organizationId, name, slug, occurredAt.
-- **`property.deleted`** — propertyId, organizationId, occurredAt.
+- **`property.deleted`** — legacy/future-erasure fact retained in the low-level command contract; normal product actions cannot produce it during LIF-01 containment.
 - **`property.responsibility_became_needed`** — propertyId, organizationId, occurredAt. Identifier-only and atomically recorded with the transition to no active responsible manager; Notification alerts current AccountAdmins with content-free copy.
 
 ## Events consumed
@@ -70,7 +70,7 @@ property/
 - **`updateProperty`** — Update property settings, emits `property.updated`.
 - **`getProperty`** — Retrieve a single property by ID.
 - **`listProperties`** — List properties for an org, filtered by user's accessible properties (via StaffPublicApi).
-- **`deleteProperty`** — Hard-delete a property (file: `soft-delete-property.ts`), emits `property.deleted`. BQC-1.7: bounded lifecycle purge of reviews/replies/inbox rows first. Requires `property.delete` permission.
+- **`deleteProperty`** — Contained legacy entry point (file: `soft-delete-property.ts`). Always refuses before effects. It does not implement Archive/Disconnect or support-mediated erasure.
 
 ## Public API
 
@@ -81,7 +81,7 @@ Exported from `application/public-api.ts`:
 
 ## Server functions
 
-- **`properties.ts` / `property-read.ts`** — CRUD server functions for properties (create, update, list, get, delete).
+- **`properties.ts` / `property-read.ts`** — Create, update, list, and get server functions plus a typed, fail-closed stale-client boundary for legacy deletion requests.
 - **`property-responsible-managers.ts`** — list eligible/assigned managers and replace the explicit selection with revision-based compare-and-swap.
 
 ## Permissions
@@ -89,4 +89,4 @@ Exported from `application/public-api.ts`:
 - `property.read` — View property details and list properties.
 - `property.create` — Create new properties (also used cross-context by integration).
 - `property.update` — Update property settings.
-- `property.delete` — Soft-delete properties.
+- `property.delete` — Legacy destructive request permission. Maps to blocked `property.erase`; there is no normal product deletion capability.

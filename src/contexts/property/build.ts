@@ -15,7 +15,6 @@ import type {
 } from './application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { IdentityPublicApi } from '#/contexts/identity/application/public-api'
-import type { SourceContentPurge } from '#/contexts/review/application/public-api'
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
 import { createProperty } from './application/use-cases/create-property'
@@ -69,10 +68,6 @@ type PropertyContextDeps = Readonly<{
   staffPublicApi: StaffPublicApi
   identityPublicApi: IdentityPublicApi
   regionMove: RegionMoveContextDeps
-  /** BQC-1.7: bounded lifecycle purge before the FK-cascading hard delete.
-   * Constructed once by the composition root (the only layer that may
-   * import review infrastructure) and shared across contexts. */
-  sourceContentPurge: SourceContentPurge
   /**
    * BQC-2.7 parity for the manual creation path: grant a newly created
    * property the capability allowlist its organization already holds. Without
@@ -87,16 +82,6 @@ type PropertyContextDeps = Readonly<{
     }>,
   ) => Promise<void>
   logger?: Readonly<{ warn: (obj: object, msg: string) => void }>
-  googleImportLifecycle?: Readonly<{
-    prepareDeletion: (
-      organizationId: string,
-      propertyId: string,
-    ) => Promise<Readonly<{ itemIds: ReadonlyArray<string> }>>
-    finalizeDeletion: (
-      organizationId: string,
-      itemIds: ReadonlyArray<string>,
-    ) => Promise<void>
-  }>
 }>
 
 export const buildPropertyContext = (deps: PropertyContextDeps) => {
@@ -159,14 +144,7 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       queues: deps.regionMove.queues,
       clock: deps.clock,
     }),
-    softDeleteProperty: deleteProperty({
-      propertyRepo: deps.repo,
-      commandStore,
-      clock: deps.clock,
-      sourceContentPurge: deps.sourceContentPurge,
-      prepareGoogleImportDeletion: deps.googleImportLifecycle?.prepareDeletion,
-      finalizeGoogleImportDeletion: deps.googleImportLifecycle?.finalizeDeletion,
-    }),
+    softDeleteProperty: deleteProperty(),
     listPropertyResponsibleManagers: listPropertyResponsibleManagers({
       propertyRepo: deps.repo,
       managerRepo: responsibleManagerRepo,

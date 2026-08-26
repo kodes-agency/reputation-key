@@ -21,10 +21,11 @@ Capabilities are categorized into three sets (aligned with [BQR master plan §4]
    - `ai.analyze`, `ai.generate_reply`, `ai.detect_trends`
 3. **Blocked** — always off, cannot be allowlisted:
    - `identity.register`, `organization.create`, `team.use`
+   - `property.erase` until LIF-01 supplies recoverable Archive/Disconnect and a distinct, verified support-mediated permanent-erasure workflow
    - `portal.upload` until the issuance-bound upload implementation and adversarial evidence are complete
    - `gbp.reply.auto_publish`, `gbp.ai.cross_property_summary`, `gbp.review_solicitation_gamification`
 
-Public registration, self-service secondary Organization creation, and Team are beta-disabled product decisions and cannot be reopened by an environment allowlist. `notification.send_email`, `portal.write`, and the approved Portal/Guest capabilities remain non-core and require persisted policy; `portal.upload` remains temporarily blocked by the public-edge safety gate.
+Public registration, self-service secondary Organization creation, Team, and destructive Property deletion are beta-disabled product decisions and cannot be reopened by an environment allowlist. The legacy `property.delete` permission maps to blocked `property.erase`, and its server and use-case boundaries independently refuse before effects. `notification.send_email`, `portal.write`, and the approved Portal/Guest capabilities remain non-core and require persisted policy; `portal.upload` remains temporarily blocked by the public-edge safety gate.
 
 The decision function consumes authenticated user, organization, property, environment cohort, and operator overrides. It returns a typed `CapabilityDecision` with a stable reason code.
 
@@ -39,7 +40,7 @@ Emergency kill switches (`BETA_CAPABILITIES_OFF` env var) stop new effects immed
 - `src/shared/auth/beta-capabilities.ts` — decision function, capability registry, core/blocked sets
 - `BETA_ALLOWLIST_ORGS` / `BETA_SUSPENDED_ORGS` / `BETA_E2E_GLOBAL_CAPABILITIES` — operator env vars
 - `assertBetaCapability()` / `assertGlobalCapability()` — throw on deny
-- `requireAuthorized()` maps permission → capability (BQR-4.1)
+- `requireExecutionAllowed()` maps permission → capability (BQR-4.1)
 - Registration route checks `identity.register` before rendering
 
 ## Considered options

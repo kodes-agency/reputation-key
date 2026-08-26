@@ -8,7 +8,11 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
-import { isPropertyError } from '../domain/errors'
+import {
+  isPropertyError,
+  PROPERTY_DELETION_UNAVAILABLE_MESSAGE,
+  propertyError,
+} from '../domain/errors'
 import { propertyErrorStatus } from './property-shared'
 
 // ── Shared Zod validators ──────────────────────────────────────────
@@ -87,15 +91,19 @@ export const deleteProperty = createServerFn({ method: 'POST' })
           propertyId: data.propertyId,
         })
 
-        try {
-          const { useCases } = getContainer()
-          await useCases.softDeleteProperty(data, ctx)
-          return { deleted: true, propertyId: data.propertyId }
-        } catch (e) {
-          if (isPropertyError(e))
-            throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
+        // LIF-01: keep this stale-client boundary so callers receive a typed,
+        // mild denial, but deliberately provide no edge to the legacy
+        // destructive use case. Archive/Disconnect and support-mediated
+        // erasure will be separate commands when their lifecycle exists.
+        const unavailable = propertyError(
+          'forbidden',
+          PROPERTY_DELETION_UNAVAILABLE_MESSAGE,
+        )
+        throwContextError(
+          'PropertyError',
+          unavailable,
+          propertyErrorStatus(unavailable.code),
+        )
       },
       'POST',
       'property.deleteProperty',

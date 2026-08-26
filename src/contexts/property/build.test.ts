@@ -36,23 +36,6 @@ const createStubStaffApi = (): StaffPublicApi => ({
 
 const identityPublicApi = { listActiveManagers: async () => [] }
 
-// Minimal SourceContentPurge stub — the purge port is a required build dep
-// (BQC-1.7); these tests never exercise the purge path.
-const createStubSourceContentPurge = () => ({
-  forConnection: vi.fn(async () => ({
-    subject: 'connection',
-    batches: 0,
-    rowsDeleted: 0,
-  })),
-  forProperty: vi.fn(async () => ({ subject: 'property', batches: 0, rowsDeleted: 0 })),
-  forOrganization: vi.fn(async () => ({
-    subject: 'organization',
-    batches: 0,
-    rowsDeleted: 0,
-  })),
-  inboxForProperty: vi.fn(async () => ({ subject: 'inbox', batches: 0, rowsDeleted: 0 })),
-})
-
 describe('PropertyPublicApi', () => {
   it('propertyExists returns true when repo has the property', async () => {
     const repo = createInMemoryPropertyRepo()
@@ -71,7 +54,6 @@ describe('PropertyPublicApi', () => {
       localCell: 'us',
       staffPublicApi,
       identityPublicApi,
-      sourceContentPurge: createStubSourceContentPurge(),
       regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
 
@@ -93,7 +75,6 @@ describe('PropertyPublicApi', () => {
       localCell: 'us',
       staffPublicApi,
       identityPublicApi,
-      sourceContentPurge: createStubSourceContentPurge(),
       regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
 
@@ -121,7 +102,6 @@ describe('PropertyPublicApi', () => {
           { userId: managerId, role: 'AccountAdmin' as const },
         ],
       },
-      sourceContentPurge: createStubSourceContentPurge(),
       regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
 

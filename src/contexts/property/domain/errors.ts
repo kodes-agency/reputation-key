@@ -4,6 +4,9 @@
 
 import { createErrorFactory } from '#/shared/domain/errors'
 
+export const PROPERTY_DELETION_UNAVAILABLE_MESSAGE =
+  'Permanent property removal is not available in this beta.'
+
 export type PropertyErrorCode =
   | 'forbidden'
   | 'invalid_slug'

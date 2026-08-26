@@ -27,7 +27,7 @@ import { isRestoreIsolated } from '#/shared/config/restore-mode'
  * Capability-policy version. Bump when capability vocabulary or posture changes.
  * Recorded in the boot and release manifests.
  */
-export const CAPABILITY_POLICY_VERSION = 'beta-local-5'
+export const CAPABILITY_POLICY_VERSION = 'beta-local-6'
 
 // ── Capability definitions ──────────────────────────────────────────
 
@@ -36,6 +36,7 @@ export type Capability =
   | 'identity.register'
   | 'organization.create'
   | 'property.create'
+  | 'property.erase'
   | 'property.connect_gbp'
   | 'property.import_gbp_v2'
   | 'property.read_gbp_performance'
@@ -116,6 +117,10 @@ const CORE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
 const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   'identity.register',
   'organization.create',
+  // LIF-01: ordinary lifecycle changes must become recoverable Archive /
+  // Disconnect. Permanent erasure needs a separate support-mediated workflow;
+  // the legacy destructive product path cannot be promoted in the meantime.
+  'property.erase',
   'team.use',
   'portal.upload',
   'portal.guest_media',
