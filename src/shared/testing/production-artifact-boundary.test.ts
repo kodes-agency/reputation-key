@@ -122,6 +122,11 @@ describe('production artifact boundary', () => {
     ],
     ['default credential', 'index.js', 'const password = "password123"\n'],
     [
+      'CommonJS pino-pretty resolution in an ESM artifact',
+      'index.mjs',
+      "const pretty = require.resolve('pino-pretty')\n",
+    ],
+    [
       'Storybook source',
       'index.js.map',
       JSON.stringify({ sources: ['../src/components/ui/button.stories.tsx'] }),

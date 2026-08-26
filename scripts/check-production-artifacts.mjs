@@ -13,6 +13,10 @@ const FORBIDDEN_NAMES = Object.freeze([
 
 const FORBIDDEN_CONTENT = Object.freeze([
   { label: 'default E2E credential', pattern: /password123/u },
+  {
+    label: 'CommonJS pino-pretty resolution in an ESM artifact',
+    pattern: /\brequire\s*\.\s*resolve\s*\(\s*['"]pino-pretty['"]\s*\)/u,
+  },
 ])
 
 // Source paths are inspected from the source-map graph, not by matching every

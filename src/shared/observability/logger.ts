@@ -1,4 +1,5 @@
 // Logger — structured logging via pino
+import { createRequire } from 'node:module'
 import pino from 'pino'
 import { getEnv } from '#/shared/config/env'
 import { getSpanAttrs } from '#/shared/observability/request-context'
@@ -122,11 +123,14 @@ function sanitizeLogArgs(args: unknown[]): unknown[] {
 }
 
 let _logger: pino.Logger | undefined
+const resolveFromLoggerModule = createRequire(import.meta.url).resolve
 
-/** Check if pino-pretty is resolvable without throwing. */
-function isPrettyTransportAvailable(): boolean {
+/** Check if pino-pretty is resolvable from this ESM module without throwing. */
+export function isPrettyTransportAvailable(
+  resolveModule: (specifier: string) => string = resolveFromLoggerModule,
+): boolean {
   try {
-    require.resolve('pino-pretty')
+    resolveModule('pino-pretty')
     return true
   } catch {
     return false

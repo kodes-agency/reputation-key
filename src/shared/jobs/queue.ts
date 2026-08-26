@@ -68,7 +68,8 @@ export function createJobQueue(name: string): Queue | undefined {
       removeOnFail: { count: 50 },
       attempts: 3,
       // Delayed retries so a transient DB/Redis blip doesn't burn all attempts
-      // within milliseconds. Honoured by the worker's backoffStrategy.
+      // within milliseconds. BullMQ's native retry handling honors these job
+      // options; the Worker intentionally installs no custom backoffStrategy.
       backoff: { type: 'exponential', delay: 30_000 },
     },
   })
