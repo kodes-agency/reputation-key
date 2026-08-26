@@ -306,3 +306,31 @@ describe('repository ARCH/AUTH/DATA/DEC/EVT fragment', () => {
     expect(validateFindingRevalidationFragment(fragment, register, plan)).toHaveLength(52)
   })
 })
+
+describe('repository GATE/GOV/OPS fragment', () => {
+  it('validates all 23 selected rows against immutable repository evidence', () => {
+    const root = process.cwd()
+    const fragment = JSON.parse(
+      readFileSync(
+        join(
+          root,
+          'docs/release-evidence/review/finding-revalidation-fragments/gate-gov-ops-2026-08-26.json',
+        ),
+        'utf8',
+      ),
+    ) as unknown
+    const register = readFileSync(
+      join(
+        root,
+        'docs/release-evidence/review/718fad1807b7422885584660bd3580f2a3a49113/local-darwin-arm64-node22.23.2/finding-register.json',
+      ),
+      'utf8',
+    )
+    const plan = readFileSync(
+      join(root, 'docs/comprehensive-beta-implementation-program-2026-08-25.md'),
+      'utf8',
+    )
+
+    expect(validateFindingRevalidationFragment(fragment, register, plan)).toHaveLength(23)
+  })
+})
