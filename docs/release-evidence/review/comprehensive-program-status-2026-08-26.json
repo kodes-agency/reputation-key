@@ -164,17 +164,21 @@
     {
       "id": "SAFE-05",
       "status": "partial",
-      "summary": "Eight promoted images are built and scanned, but not every Dockerfile is covered and no clean current all-gates artifact record exists.",
+      "summary": "All ten classified Dockerfiles are built, smoke-checked, SBOMed, scanned, and dependency-monitored in CI: eight immutable release-candidate images and two explicitly CI-only support images. A clean hosted all-gates artifact record at the final candidate SHA is still required.",
       "codeEvidence": [
+        "security/container-images.json",
+        "scripts/ci/check-container-image-policy.ts",
         "scripts/check-production-artifacts.mjs",
         ".github/workflows/ci.yml",
         ".github/dependabot.yml"
       ],
       "testEvidence": [
-        "Production artifact boundary tests, image SBOM generation, and Grype scans for promoted images"
+        "Container policy checker with independent negative fixtures",
+        "Production artifact boundary tests, image SBOM generation, and image scans for all ten classified artifacts",
+        "Technology-stack and gate-wiring inventory checks"
       ],
       "remaining": [
-        "Build and scan sandbox/perf-runner images or classify them out of production, add Docker dependency monitoring, and retain a clean isolated install/build/type/lint/test/coverage/artifact gate at the candidate SHA."
+        "Retain one clean isolated install/build/type/lint/test/coverage/artifact run plus hosted SBOM/scan/signature/provenance artifacts at the immutable candidate SHA; resolve or explicitly expire any candidate-time dependency findings."
       ],
       "externalBlockers": []
     },

@@ -53,7 +53,7 @@ ARG SOURCE_REVISION=unknown
 FROM node:22-slim@sha256:f32b81066cde10a75dbac96646099533316d94bac4150c55da1636e1f0ffdc46 AS base
 # HUSKY=0: Husky's `prepare` must not try to install git hooks in the image.
 # COREPACK_HOME + the pinned `corepack install` below: identical to the other
-# eight Dockerfiles ON PURPOSE. Docker keys a layer on the instruction text, so
+# Node-based Dockerfiles ON PURPOSE. Docker keys a layer on the instruction text, so
 # any drift in this prefix gives each image its own `pnpm install` layer instead
 # of one shared chain — five installs per cold daemon in CI.
 ENV PNPM_HOME=/pnpm \

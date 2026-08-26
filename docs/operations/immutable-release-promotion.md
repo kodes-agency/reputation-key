@@ -69,12 +69,12 @@ provide:
 
 The preflight reads the named CI run, requires the same source SHA, successful
 conclusion, and exact CI workflow path, then hashes the run and job outcomes.
-The matrix builds seven unique full-SHA GHCR images, generates SBOMs, fails on
+The matrix builds eight unique full-SHA GHCR images, generates SBOMs, fails on
 High/Critical vulnerability findings, signs and verifies every image, and
 captures SLSA provenance. The final job creates and keylessly signs the
 canonical manifest. A non-`main` dispatch cannot run.
 
-Download the `promotion-manifest-<sha>` artifact and the seven
+Download the `promotion-manifest-<sha>` artifact and the eight
 `release-image-*` evidence artifacts into the controlled change record. Retain
 them together. Verify the checksum before doing anything else:
 
@@ -122,7 +122,7 @@ pnpm release:beta \
   --cell us
 ```
 
-Dry-run parses the complete contract and prints the seven exact image references
+Dry-run parses the complete contract and prints the seven serving image references
 without invoking Railway or needing application secrets. Review the target
 `cell-us`, revision, manifest SHA, images, and order.
 

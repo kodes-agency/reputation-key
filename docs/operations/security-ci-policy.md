@@ -26,18 +26,19 @@ exit / failed action) and therefore blocks the PR. There is no
 | Lockfile integrity                       | every job that installs                                            | `pnpm install --frozen-lockfile` (ci.yml, simulation.yml, Dockerfiles)   | install fails on lockfile/manifest drift                                                                        | —                                                |
 | Pinned actions/images                    | `check` job, step "Action/image pin policy"                        | `pnpm check:action-pins` → `scripts/check-action-pins.mjs`               | any `uses:` not full-SHA + `# v…` comment; any `image:` not digest-pinned                                       | Step log                                         |
 | SBOM — source                            | `check` job, steps "Generate SBOM" + "Upload SBOM"                 | `anchore/sbom-action` (SPDX-JSON, source scope) — BQC-7.1                | generation failure                                                                                              | `sbom-spdx` artifact, 30d                        |
-| SBOM — images                            | `docker` job, steps "SBOM web/worker image"                        | `anchore/sbom-action` with `image:` (SPDX-JSON)                          | generation failure                                                                                              | `sbom-images-spdx` artifact, 30d                 |
+| SBOM — images                            | `docker` job, one named step per classified image                  | `anchore/sbom-action` with `image:` (SPDX-JSON)                          | generation failure                                                                                              | `sbom-images-spdx` artifact, 30d                 |
 | Container/image + artifact-content scan  | `docker` job, steps "Vulnerability scan … (grype)"                 | `anchore/scan-action` (grype), `fail-build: true`                        | **high+critical** (`severity-cutoff: high`)                                                                     | SARIF → code scanning; step log table            |
 | Production dependency/prune verification | `docker` job, step "Smoke images"                                  | inline shell: sentinel devDeps absent + prod tree present                | any sentinel devDependency in `/app/node_modules`                                                               | Step log                                         |
 | Migration artifact consistency           | `check` job, steps "Predeploy migration parity" + "Schema drift …" | `pnpm db:migrate-deploy` (BQC-7.1) + `pnpm check:schema-drift`           | parity divergence / model↔catalog drift                                                                         | Step log                                         |
 
-**Artifact-content scanning — interpretation:** the two images ARE the deploy
-artifacts — `repkey-web:ci` contains `.output` + `dist-worker`, the worker
-image contains `dist-worker` (the deterministic-tar digest in the check job
-covers the same outputs). Scanning the images with grype therefore IS the
-artifact-content scan: OS packages, the bundled npm toolchain, and the prod
-`node_modules` that ship. The source-tree SBOM (check job) plus the two image
-SBOMs (docker job) cover both sides of the build.
+**Artifact-content scanning — interpretation:** each classified image is the
+artifact that actually runs. The promoted web image contains `.output` plus
+`dist-worker`; the worker and sidecar images contain their named bundles; the
+CI-only sandbox and performance runner contain only their prebuilt support
+bundles and required runtime dependencies. Scanning all ten images with grype
+therefore is the artifact-content scan: OS packages, bundles, and the production
+`node_modules` that ship. The source-tree SBOM plus the ten image SBOMs cover
+both sides of the build without treating non-promoted tools as production.
 
 ## Severity and exception policy
 
@@ -59,7 +60,7 @@ SBOMs (docker job) cover both sides of the build.
   YAML — see the platform notes.)
 - **Licenses:** allow-list is absolute; anything outside it needs a reviewed,
   dated exception.
-- **Grype:** high+critical fails both image scans.
+- **Grype:** high+critical fails every classified image scan.
 - **eslint-plugin-security:** recommended ruleset as errors on production
   code; deliberate rule deviations documented below.
 
@@ -105,16 +106,16 @@ drizzle-kit` — build tooling, reported). Full tree: 11 high, 0 critical —
 - Grype: 19 wont-fix/not-fixed Debian CVE entries + 2 Go-stdlib package
   entries in `.grype.yaml` (each with owner/reason/expiry). The fixable
   classes were fixed instead of excepted: base image bumped to the newest
-  node:22-slim build (2026-07-29) and the npm CLI stripped from both runtime
-  stages (cleared all 6 npm-bundled findings incl. Critical `tar`
+  node:22-slim build (2026-07-29) and the npm CLI stripped from every runtime
+  that does not execute package management (cleared all 6 npm-bundled findings incl. Critical `tar`
   GHSA-23hp-3jrh-7fpw — 57 → 51 high/critical per image).
 
 ## Per-gate notes
 
 ### Lockfile integrity
 
-`pnpm install --frozen-lockfile` IS the lockfile-integrity gate: CI
-(ci.yml ×4, simulation.yml) and both Dockerfiles (full + `--prod` stages)
+`pnpm install --frozen-lockfile` IS the lockfile-integrity gate: CI,
+simulation, and every Node-based Dockerfile (full and production-only stages)
 install frozen, so a hand-edited lockfile or an out-of-sync manifest fails
 the build. `package.json#packageManager` (pnpm@10.6.5) + corepack pin the
 installer itself.
@@ -132,9 +133,12 @@ the actions consuming them are themselves SHA-pinned.
 
 ### Dependabot (B0.4)
 
-`.github/dependabot.yml` covers npm + github-actions weekly. Dependabot is
-the burn-down engine for dev-tree advisories and action pin bumps; the gates
-above are the enforcement floor (they do not depend on Dependabot firing).
+`.github/dependabot.yml` covers npm, GitHub Actions, and every distinct
+Dockerfile directory weekly. All current custom-named Dockerfiles are in `/`;
+`check:container-images` requires a new Docker ecosystem directory entry if
+that inventory expands elsewhere. Dependabot is the burn-down engine for
+dependency, action, and base-image updates; the gates above are the enforcement
+floor (they do not depend on Dependabot firing).
 
 **Exactly pinned, deliberately:** `better-auth` carries no range (`1.6.23`, not
 `^1.6.23`). `src/routes/api/auth/$.ts` refuses a list of better-auth's OWN
@@ -247,11 +251,11 @@ warn-only stale exceptions.
 
 ### Container scanning details
 
-`anchore/scan-action` runs grype against both locally-built images with
+`anchore/scan-action` runs grype against every locally built classified image with
 `fail-build: true`, `severity-cutoff: high`, pinned `grype-version`. Fixes
 land before exceptions: the base digest is bumped deliberately (documented in
-the Dockerfile headers) and the **npm CLI is stripped from both runtime
-stages** (the runtime never installs packages — this cleared all six
+the Dockerfile headers) and the **npm CLI is stripped from runtimes that do not
+execute package management** (the runtime never installs packages — this cleared all six
 npm-bundled findings, including a Critical `tar` advisory). What remains in
 `.grype.yaml` is wont-fix/not-fixed Debian triage noise (19 CVEs, no patched
 package exists) and Go-stdlib findings inside never-executed esbuild CLI

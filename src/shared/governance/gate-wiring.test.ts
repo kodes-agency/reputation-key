@@ -27,6 +27,9 @@ const read = (relative: string): string => readFileSync(resolve(ROOT, relative),
 const packageJson = JSON.parse(read('package.json')) as {
   scripts: Record<string, string>
 }
+const containerPolicy = JSON.parse(read('security/container-images.json')) as {
+  images: ReadonlyArray<unknown>
+}
 const ciWorkflow = read('.github/workflows/ci.yml')
 const prePush = read('.husky/pre-push')
 const runBaseline = read('scripts/bqc/run-baseline.ts')
@@ -109,7 +112,7 @@ describe('coverage and changed-code gates', () => {
   it('caches the grype vulnerability DB for every image scan', () => {
     // The first scan otherwise spends ~50s downloading and loading the DB.
     const scans = ciWorkflow.match(/grype-version: v0\.116\.1\n\s+cache-db: true/g)
-    expect(scans).toHaveLength(8)
+    expect(scans).toHaveLength(containerPolicy.images.length)
   })
 })
 
