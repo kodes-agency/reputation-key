@@ -1,107 +1,52 @@
-# Badge Context
+# Badge Context — Legacy, Beta-Dark
 
 ## Bounded context
 
-Metric-driven recognition awards earned by portals and portal groups when criteria are met.
+This package retains the legacy Badge model only so existing rows can be
+inspected, reconciled, exported, and removed safely. It is not active beta
+product authority. `badge.use` remains denied, Badge jobs/consumers must not
+evaluate or award, and no beta route may expose Badge data.
 
-## Glossary
+The agreed controlled post-core direction is a non-competitive **Healthy Guest
+Gateway** recognition result derived from governed Portal Health for one
+calendar month. That model does not yet exist and must not be simulated by
+renaming or reactivating legacy badges.
 
-| Term                            | Definition                                                                                                                           |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **BadgeDefinition**             | A reusable badge rule with criteria, target scope, name, icon, and enabled state. System-seeded and org-enabled, not manager-edited. |
-| **BadgeCriteria**               | The metric-driven condition for earning a badge. Supports threshold, streak, and milestone types with `>=` and `<=` operators.       |
-| **BadgeAward**                  | An immutable historical fact: a specific portal or portal group earned a specific badge. Never revoked.                              |
-| **OrganizationBadgeEnablement** | An org-level choice to enable or disable a system badge definition. Does not change criteria.                                        |
-| **BadgeTargetType**             | `'portal'` or `'portal_group'`. Determines which entities can earn the badge.                                                        |
-| **BadgeCriteriaVersion**        | Incremented only when the earning rule changes. Drives idempotency via `unique_key`.                                                 |
-| **BadgeStreak**                 | A criterion requiring a target to be met on consecutive calendar days in the property timezone.                                      |
+## Prohibited beta behavior
 
-## Relationships
+- no Badge creation, enablement, evaluation, award, reconciliation, or
+  notification;
+- no influence on authorization, Staff assessment, Goals, manager workflow, or
+  Portal publication;
+- no Team scope, ranking, score, streak, milestone, or comparative language;
+- no route, navigation, dashboard, Staff-home, Portal-detail, or notification
+  reachability;
+- no reinterpretation of historical Badge rows as Healthy Guest Gateway
+  results.
 
-- BadgeDefinition → Organization (many-to-many via OrganizationBadgeEnablement).
-- BadgeAward → BadgeDefinition (required `badgeDefinitionId`).
-- BadgeAward → Property (required `propertyId`).
-- BadgeAward → Portal (optional `portalId`, set when targetType is `portal`).
-- BadgeAward → PortalGroup (optional `portalGroupId`, set when targetType is `portal_group`).
-- Badge context **subscribes to** `metric.recorded` events from the metric context.
-- Badge context **depends on** `MetricPublicApi` for querying metric aggregates and daily counts.
-- Badge context **emits** `badge.awarded` events consumed by the notification context.
+## Retained implementation
 
-## Invariants
+The domain types, repositories, server functions, event handlers, scheduled
+jobs, tables, and historical tests describe the legacy system. They are retained
+temporarily for contraction and restore compatibility, not as a product promise.
+Any code change in this package must preserve hard denial and make deletion or
+reconciliation safer.
 
-- Badge awards are immutable — never revoked on membership changes, definition disablement, portal soft-delete, or group soft-delete.
-- Each award is unique per `badge_definition_id + criteria_version + target_type + target_id`.
-- Only enabled definitions for the org are evaluated.
-- Streak days are evaluated in the target portal's property timezone.
-- Phase 16.2 badge criteria use portal-scoped metrics only.
-- Phase 16.2 badges are one-time achievements per target — the same badge is not re-awarded in later periods.
-- Disabling a definition prevents future awards but keeps existing awards visible.
+## Exit criteria
 
-## Events produced
+Before legacy Badge paths can be removed, retain a bounded inventory and restore
+proof for existing rows, prove no executable entry point or production artifact
+depends on them, and document the migration/deletion decision. A future
+recognition implementation requires Portal Health, separate authorization,
+program/version/result records, neutral manager language, correction behavior,
+fairness/privacy review, and its own accepted activation decision.
 
-| Tag             | Payload                                                                                                     | When                                 |
-| --------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------ |
-| `badge.awarded` | badgeDefinitionId, criteriaVersion, targetType, targetId, organizationId, propertyId, awardedAt, occurredAt | Badge evaluation inserts a new award |
+## Verification authority
 
-## Events consumed
-
-| Tag               | Source context | Handler action                                                       |
-| ----------------- | -------------- | -------------------------------------------------------------------- |
-| `metric.recorded` | metric         | Evaluate all enabled definitions for the event's portal/group target |
-
-## Architecture layers
-
-```
-badge/
-  domain/              types.ts, constructors.ts, events.ts, errors.ts, seed-badges.ts
-  application/
-    ports/             badge.repository.ts
-    dto/               badge.dto.ts (Zod schemas)
-    use-cases/         seed-badge-definitions.ts, evaluate-badge-for-target.ts, reconcile-badge-definitions.ts
-    utils.ts           periodToRange, dayKeyInTimezone
-    public-api.ts      re-exports DTO types, event types/constructors
-  infrastructure/
-    repositories/      badge.repository.ts (Drizzle)
-    mappers/           badge.mapper.ts
-  server/              badges.ts
-  build.ts             composition root
-```
-
-## Use cases
-
-| Use case                         | Input                                            | Output                        | Permission             |
-| -------------------------------- | ------------------------------------------------ | ----------------------------- | ---------------------- |
-| `seedBadgeDefinitions`           | —                                                | `BadgeDefinition[]`           | System (bootstrap)     |
-| `evaluateBadgeForTarget`         | organizationId, propertyId, targetType, targetId | `BadgeEvaluationResult`       | System (event handler) |
-| `reconcileBadgeDefinitions`      | organizationId?, propertyId?                     | `{ evaluated, awarded }`      | System (hourly job)    |
-| `getStaffVisibleBadges`          | organizationId, userId, propertyId, limit?       | `BadgeAwardWithTarget[]`      | `badge.read`           |
-| `getVisibleTargetBadges`         | organizationId, propertyId, targetType, targetId | `BadgeAwardWithTarget[]`      | `badge.read`           |
-| `setOrganizationBadgeEnablement` | organizationId, badgeDefinitionId, enabled       | `OrganizationBadgeEnablement` | `badge.manage`         |
-
-## Public API
-
-Exported from `application/public-api.ts`:
-
-- Types: `BadgeDefinition`, `BadgeAwardWithTarget`, `EvaluateBadgeForTargetInput`, `ReconcileBadgeDefinitionsInput`, `ReconcileBadgeDefinitionsResult`
-- DTO types: `GetStaffVisibleBadgesInput`, `GetVisibleTargetBadgesInput`, `SetOrganizationBadgeEnablementInput`
-- Event types: `BadgeAwarded`, `BadgeEvent`
-- Event constructors: `badgeAwarded`
-
-## Server functions
-
-| Function                         | Method | Permission     | Route                       |
-| -------------------------------- | ------ | -------------- | --------------------------- |
-| `getStaffVisibleBadges`          | GET    | `badge.read`   | Staff home badge section    |
-| `getVisibleTargetBadges`         | GET    | `badge.read`   | Portal detail badge section |
-| `setOrganizationBadgeEnablement` | POST   | `badge.manage` | Badge settings (future)     |
-
-## Permissions
-
-| Permission     | AccountAdmin | PropertyManager | Staff |
-| -------------- | ------------ | --------------- | ----- |
-| `badge.read`   | ✓            | ✓               | ✓     |
-| `badge.manage` | ✓            | ✓               | —     |
-
-## Background jobs
-
-- **badge.reconcile** — hourly job that re-evaluates all definitions for all portals and groups across all orgs. Catches missed events or failed evaluations.
+- Capability darkness: `src/shared/auth/dark-capability-enforcement.test.ts`
+- Runtime darkness: `src/shared/architecture/dark-context-matrix.test.ts` and
+  `src/shared/architecture/dark-consumer-gating.test.ts`
+- Entry-point/job dispositions: `src/shared/governance/entry-point-catalogue.ts`
+  and `src/shared/governance/event-job-catalogue.ts`
+- Product decision: `docs/comprehensive-beta-implementation-program-2026-08-25.md`
+  (`REC-01`)

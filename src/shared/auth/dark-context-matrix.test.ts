@@ -35,8 +35,8 @@ const DARK: ReadonlyArray<
   { capability: 'portal.read', reason: 'org_not_allowlisted', label: 'Portals' },
   { capability: 'team.use', reason: 'capability_blocked', label: 'Teams' },
   { capability: 'goal.use', reason: 'org_not_allowlisted', label: 'Goals' },
-  { capability: 'badge.use', reason: 'org_not_allowlisted', label: 'Recognition' },
-  { capability: 'leaderboard.use', reason: 'org_not_allowlisted', label: 'Leaderboard' },
+  { capability: 'badge.use', reason: 'capability_blocked', label: 'Recognition' },
+  { capability: 'leaderboard.use', reason: 'capability_blocked', label: 'Leaderboard' },
   { capability: 'ai.analyze', reason: 'org_not_allowlisted', label: 'AI' },
 ]
 
@@ -151,10 +151,10 @@ describe('BQC-2.6 controlled-feature containment matrix', () => {
   })
 
   describe('delayed contract: dark job/schedule actions deny (BQC-2.5 contract)', () => {
-    it('promoted leaderboard reconcile + email digest deny with stable reasons', async () => {
+    it('blocked leaderboard reconcile + promotable email digest deny with stable reasons', async () => {
       const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
       const cases: ReadonlyArray<readonly [string, string]> = [
-        ['system:leaderboard.reconcile', 'org_not_allowlisted'],
+        ['system:leaderboard.reconcile', 'capability_blocked'],
         ['system:notification.email_digest', 'org_not_allowlisted'],
       ]
       for (const [action, reason] of cases) {

@@ -27,7 +27,7 @@ import { isRestoreIsolated } from '#/shared/config/restore-mode'
  * Capability-policy version. Bump when capability vocabulary or posture changes.
  * Recorded in the boot and release manifests.
  */
-export const CAPABILITY_POLICY_VERSION = 'beta-local-6'
+export const CAPABILITY_POLICY_VERSION = 'beta-local-7'
 
 // ── Capability definitions ──────────────────────────────────────────
 
@@ -113,6 +113,12 @@ const CORE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
  * Other Portal, guest, and product-email capabilities are non-core
  * controlled-beta features: they remain off by default and require persisted
  * organization/property policy.
+ *
+ * `badge.use` and `leaderboard.use` describe retained legacy recognition and
+ * ranking implementations. The beta explicitly rejects competitive ranking;
+ * neither capability may be reopened by an Organization allowlist or test
+ * override. A future Healthy Guest Gateway design requires a new, separately
+ * reviewed capability rather than reusing these legacy authorities.
  */
 const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   'identity.register',
@@ -122,6 +128,8 @@ const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
   // the legacy destructive product path cannot be promoted in the meantime.
   'property.erase',
   'team.use',
+  'badge.use',
+  'leaderboard.use',
   'portal.upload',
   'portal.guest_media',
   'gbp.reply.auto_publish',

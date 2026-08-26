@@ -93,7 +93,14 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 | **Portal Group**     | A named reporting/goal collection within one Property. A Portal belongs to at most one active group; it is never a people Team. |
 | **Ungrouped Portal** | A Portal outside a group. It remains individually targetable by goals and visible in governed Property reporting.               |
 
-### Badges
+### Retained legacy badges (not beta authority)
+
+The vocabulary below documents quarantined legacy code and rows so they can be
+reconciled or removed safely. It is not an approved beta design. Recognition is
+controlled post-core; any future implementation must use the neutral
+calendar-month **Healthy Guest Gateway** contract derived from governed Portal
+Health. Legacy badges must remain unreachable and must not affect access, Staff,
+Goals, notifications, or workflow decisions.
 
 | Term                                          | Definition                                                                                                                                                                                                                    |
 | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -123,7 +130,12 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 | **Badge UI Placement**                        | Earned badges appear on staff home, leaderboard, and portal detail pages.                                                                                                                                                     |
 | **Phase 16.2 Badge Library**                  | The initial system badge set: First Review, First Feedback Response, 100 Scans, 500 Scans, 1000 Scans, 10 Feedback Responses, 50 Feedback Responses, 4.5 Avg Rating This Month, 7-Day Scan Streak, and 5-Day Feedback Streak. |
 
-### Leaderboards
+### Retained legacy leaderboards (not beta authority)
+
+The vocabulary below documents code and data awaiting bounded contraction. The
+beta does not approve competitive ranks, composite scores, Team/Staff comparison,
+or a ranking UI. The former route may show only a mild Achievement Board
+unavailable state and must not load or calculate this model.
 
 | Term                                          | Definition                                                                                                                                                             |
 | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -140,12 +152,12 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 | Term                 | Definition                                                                                                                                                                                                                                                                                                                                            |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Review**           | A public review from an external platform (Google, future TripAdvisor). Has `platform`, `externalId`, `rating`, `text`, `reviewerName`. Reply state lives in a separate `Reply` entity. Lives in the `review` context.                                                                                                                                |
+| **Review**           | Stable RepKey identity for an external review. Provider observations and erasable source content have separate lifecycles; RepKey replies and handling history reference the stable Review. Lives in the `review` context.                                                                                                                            |
 | **Rating**           | A private 1–5 star rating submitted by a portal visitor. Lives in the `guest` context.                                                                                                                                                                                                                                                                |
 | **Feedback**         | A private text comment submitted by a portal visitor. Lives in the `guest` context.                                                                                                                                                                                                                                                                   |
 | **GoogleConnection** | An OAuth connection to a Google account. Stores encrypted tokens, scopes, visibility. Lives in the `integration` context.                                                                                                                                                                                                                             |
 | **ReviewPlatform**   | The external source of a review (`'google'`). Extensible for future platforms.                                                                                                                                                                                                                                                                        |
-| **Review Sync**      | Process of fetching reviews from GBP. Triggered by Pub/Sub push notification (new/updated review) or manual "Sync Now" button. No periodic polling.                                                                                                                                                                                                   |
+| **Review Sync**      | Process of observing Google review state. Pub/Sub notification is preferred, while bounded checkpoint polling and manual sync remain required repair and freshness paths.                                                                                                                                                                             |
 | **GBP Notification** | GCP Pub/Sub push from Google when a review is created or updated. Subscribed per-account on first property import, unsubscribed on last property removal or disconnect.                                                                                                                                                                               |
 | **Reply**            | A response to a review. Separate entity from Review. Has `source`: `google_sync` (mirrored from GBP) or `internal` (staff-authored with draft/approve/reject lifecycle). Internal replies follow: `draft` → `pending_approval` → `approved` → `published` (or `publish_failed`). Only PM+ roles can manage replies; Staff cannot view or manage them. |
 | **Inbox Item**       | A unified triage entry pointing to a Review or Feedback. Carries denormalized filter/sort fields and inbox state (status, assignment). Lives in the `inbox` context.                                                                                                                                                                                  |

@@ -7,13 +7,7 @@ import { deterministicFixtureHash } from '../../src/shared/testing/local-stack-c
 const VERSION = 'fleet-local-1'
 const DEFAULT_PROPERTIES = 5_000
 const DEFAULT_P1_RATIO = 0.5
-const CAPABILITIES = [
-  'portal.read',
-  'portal.public_read',
-  'goal.use',
-  'badge.use',
-  'leaderboard.use',
-] as const
+const CAPABILITIES = ['portal.read', 'portal.public_read', 'goal.use'] as const
 
 type InstrumentedQuery = Readonly<{
   ordinal: number

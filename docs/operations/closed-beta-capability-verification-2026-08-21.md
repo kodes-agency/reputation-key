@@ -74,10 +74,11 @@ not a denial:
 The first new or materially-updated Google review will therefore be analysed.
 Nothing further is required to make that happen.
 
-**`leaderboard.use` / `badge.use`** render their capability-enabled views and
-report "You don't have an active portal responsibility at this property". The
-org has one portal (Draft) and no portal groups, so there is no recognition scope
-to display. Capability resolved; data absent.
+**Historical note:** this evidence previously activated `leaderboard.use` and
+`badge.use`. That posture was superseded by the 2026-08-25 beta product decision.
+Both legacy capabilities are now unconditionally blocked and are not valid
+candidate behavior. Future recognition uses a separately authorized,
+non-competitive Healthy Guest Gateway model after Portal Health exists.
 
 ## Signup — CLOSED 2026-08-22
 

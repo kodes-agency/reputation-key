@@ -1598,7 +1598,7 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
     {
       notes:
-        'R2/S3 fetch+upload; always registered and capability-scoped at dispatch/execution',
+        'Issuance-only private read and derived writes; stale-fenced; always registered and capability-scoped at dispatch/execution',
     },
   ),
   job(
@@ -2026,11 +2026,11 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       capability: 'leaderboard.use',
       action: 'system:leaderboard.reconcile',
       schedule: 'cron:30 * * * *',
-      registration: 'enabled',
+      registration: 'blocked_capability',
     },
     {
       notes:
-        'inline literal (no *.job.ts); every discovered property is capability-scoped',
+        'legacy ranking job retained as a no-op registration; beta capability is unconditionally blocked',
     },
   ),
 ]

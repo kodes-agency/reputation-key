@@ -4,138 +4,86 @@
 
 ## Bounded context
 
-The Activity context records an immutable audit log of user-initiated actions across the application. It is a **pure subscriber context** — it has a single internal use case (`insertActivityLog`), no commands, no mutating server functions. Writes arrive via domain event subscriptions delivered through BullMQ; reads are served through query functions.
+Activity owns the privacy-aware **Recent Activity** product feed used by
+authorized managers to understand collaboration and workflow changes. It is a
+thin subscriber context: source contexts own the durable facts, Activity projects
+selected content-minimal summaries, and its server queries expose those summaries
+within the caller's current access scope.
 
-Layer: **Thin (subscriber)**. Like the metric context, the activity context is event-driven, not request-driven.
+Activity is not the security, compliance, or operator audit authority. The
+restricted **Operational Action History** required by ADR 0056 is a separate model
+and is not implemented by `activity_log`.
 
-Key entity: `ActivityLog`
+## Canonical language
 
-## Glossary
+| Term                           | Meaning                                                                                                                     |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| **Recent Activity**            | A bounded, user-facing collaboration feed. Entries may be expired, redacted, rebuilt, or tombstoned under its policy.       |
+| **Activity entry**             | One projected summary tied to a source event and tenant/resource scope. It is not proof that the source transaction exists. |
+| **Operational Action History** | Future restricted history for security-sensitive, provider-effect, authorization, lifecycle, and operator actions.          |
+| **Durable Domain Fact**        | Source-context-owned recovery/consumer fact. Activity consumes selected facts but never becomes their authority.            |
 
-| Term                  | Definition                                                                                                                                                            |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **ActivityLog**       | An immutable record of a single user action. Stored in the `activity_log` table.                                                                                      |
-| **ActivityAction**    | A verb from the fixed vocabulary: `created`, `changed`, `deleted`, `assigned`, `unassigned`, `published`, `rejected`, `approved`, `submitted`, `added`, `escalated`.  |
-| **Action Grammar**    | Uniform payload format: `{ subject, from, to, detail, bulkId? }`. All activity entries use this structure, regardless of entity type (GitHub/AWS CloudTrail pattern). |
-| **Activity Timeline** | Chronological display of all activity for a specific resource (e.g., an inbox item). Sourced from activity log queries with permission filtering.                     |
-| **ResourceType**      | The kind of entity an action affects: `inbox_item`, `review`, `reply`, `note`, `property`, `member`.                                                                  |
+Do not describe Activity as immutable, tamper-proof, tamper-evident,
+cryptographically verifiable, compliance-grade, or an audit log. A database
+unique constraint provides delivery idempotency; it does not provide those
+integrity properties.
 
-## Relationships
+## Current relationships and behavior
 
-- **ActivityLog → Organization** (N:1 via `organizationId`) — Every activity entry is scoped to an organization.
-- **ActivityLog → Property** (N:1 via `propertyId`, nullable) — Property-scoped actions carry a property reference. Organization-level actions use `null`.
-- **Cross-context** — Activity consumes events from inbox and review contexts. Uses `StaffPublicApi` (staff context) for permission filtering. Actor resolution in the BullMQ worker uses a DB-backed adapter (`db-user-lookup.adapter.ts`) that queries member/user tables directly.
+- Every row is Organization-scoped and may carry a Property scope.
+- `eventId + organizationId` is unique so at-least-once delivery does not create
+  duplicate rows.
+- Actor display information is copied at projection time. Failed actor lookup is
+  represented as `System`; it must not be treated as verified attribution.
+- Queries filter by current Property access and omit reply-workflow rows from
+  callers without `reply.manage`.
+- Source-context events arrive through the durable event/queue path and are
+  projected by `insertActivityLog`.
+- Invitation entries are identifier-only; retained or resumed jobs cannot write
+  invitation content into `payload.detail`.
+- Payloads must never copy review text, private feedback/contact, Inbox notes,
+  reply bodies, tokens, credentials, presigned URLs, or raw network identifiers.
 
-## Invariants
+## Known incomplete contract
 
-- Activity records are **immutable** — no `updated_at` column, no update operations.
-- **Idempotency**: BullMQ delivers at-least-once. A DB-level unique constraint on `(eventId, organizationId)` (`activity_log_event_id_org_uniq`) is the TOCTOU-safe guard. The repository insert catches Postgres error 23505 and treats it as a successful idempotent no-op. A pre-check `findDuplicate` provides a fast path to avoid constructing the domain object on retry.
-- Actor identity is **denormalized** at write time: `actorId`, `actorName`, `actorAvatarUrl`, `actorRole` are stored on the activity record to avoid cross-context JOINs at query time.
-- Events without a `userId` (truly system-driven) fall back to `actorId: 'system'`.
-- Events without a `propertyId` (organization-level actions) carry `propertyId: null`.
+The current implementation still uses legacy names (`ActivityLog`,
+`activity_log`, `getOrgActivity`) and a broad historical action/resource
+vocabulary. ACT-01 owns the bounded vocabulary, retention and rebuild states,
+durable projection receipts, explicit redaction semantics, and the separate
+Operational Action History. Until those land, this context must make only the
+limited product-feed claims above.
 
-## Events produced
+## Architecture
 
-None. Activity is a pure subscriber context — it only consumes events, never emits them.
-
-## Events consumed
-
-Events are delivered via **BullMQ**. Each event handler enqueues a job (name `insert-activity-log`) to the shared `default` queue. A BullMQ worker consumes jobs, runs the `insertActivityLog` use case with automatic retry and dead-letter queue.
-
-Handlers live in `infrastructure/event-handlers/` — one file per event tag:
-
-```
-infrastructure/event-handlers/
-  on-inbox-item-created.ts
-  on-inbox-status-changed.ts
-  on-inbox-item-escalated.ts
-  on-inbox-item-assigned.ts
-  on-inbox-item-unassigned.ts
-  on-inbox-note-added.ts
-  on-inbox-bulk-status-changed.ts
-  on-reply-published.ts
-  on-reply-submitted.ts
-  on-reply-approved.ts
-  on-reply-rejected.ts
-  index.ts                         (registerActivityHandlers)
-```
-
-Each handler:
-
-- Is typed to its specific event (no `DomainEvent` union import, no switch)
-- Maps event fields directly to a job payload
-- Enqueues the job via `deps.queue.add('insert-activity-log', payload)`
-- Is registered individually in `index.ts` via `deps.events.on(tag, handler)`
-
-| Tag                                    | Source Context | Action       | ResourceType |
-| -------------------------------------- | -------------- | ------------ | ------------ |
-| `inbox.inbox_item.created`             | inbox          | `created`    | `inbox_item` |
-| `inbox.inbox_item.status_changed`      | inbox          | `changed`    | `inbox_item` |
-| `inbox.inbox_item.escalated`           | inbox          | `escalated`  | `inbox_item` |
-| `inbox.inbox_item.assigned`            | inbox          | `assigned`   | `inbox_item` |
-| `inbox.inbox_item.unassigned`          | inbox          | `unassigned` | `inbox_item` |
-| `inbox.inbox_note.added`               | inbox          | `added`      | `note`       |
-| `inbox.inbox_item.bulk_status_changed` | inbox          | `changed`    | `inbox_item` |
-| `review.reply.published`               | review         | `published`  | `reply`      |
-| `review.reply.submitted`               | review         | `submitted`  | `reply`      |
-| `review.reply.approved`                | review         | `approved`   | `reply`      |
-| `review.reply.rejected`                | review         | `rejected`   | `reply`      |
-
-**Required event fields:** Every consumed event must carry `propertyId`, `userId`, and `source` (`'web'` | `'import'`). Mapping is done inline in each handler — no shared mapper function.
-
-**Excluded events:** `review.created`, `review.updated`, `review.expired`, `cache.invalidated`, `metric.recorded`. These are system-internal or auto-generated.
-
-## Architecture layers
-
-```
-domain/          → types.ts, constructors.ts, errors.ts (no events — doesn't emit)
-application/     → public-api.ts, use-cases/insert-activity-log.ts
-ports/           → activity-repository.port.ts, user-lookup.port.ts, inbox-item-lookup.port.ts
-infrastructure/  → activity-repository.drizzle.ts, event-handlers/ (one per tag),
-                    adapters/db-user-lookup.adapter.ts, adapters/db-inbox-item-lookup.adapter.ts,
-                    jobs/insert-activity-log.job.ts
-queries/         → get-activity-timeline.ts, get-org-activity.ts
-server/          → activity.ts (server functions for timeline and org-wide fetching)
-build.ts
+```text
+activity/
+  domain/          Activity entry types and constructors
+  application/     projection use case and public interface
+  infrastructure/  repository, durable event handlers, queue job, lookup adapters
+  queries/         scoped Recent Activity reads
+  server/          authenticated read functions
+  build.ts         context-local composition
 ```
 
-## Use cases
+## Active interfaces
 
-| Name                | Input                                                                                     | Output | Permission           |
-| ------------------- | ----------------------------------------------------------------------------------------- | ------ | -------------------- |
-| `insertActivityLog` | flat fields (action, resourceType, etc.), `deps` (repo, userLookup, clock, logger, idGen) | `void` | system (worker-only) |
+| Interface             | Purpose                                                       | Authorization                 |
+| --------------------- | ------------------------------------------------------------- | ----------------------------- |
+| `insertActivityLog`   | Idempotently project one content-minimal source-event summary | System worker only            |
+| `getActivityTimeline` | Read a bounded resource timeline                              | `inbox.read`; scoped at query |
+| `getOrgActivity`      | Read a bounded Organization/Property feed                     | `inbox.read`; scoped at query |
 
-`insertActivityLog` is the single write-side use case. Runs inside the BullMQ worker. Handles idempotency (duplicate check), user resolution, domain construction, and persistence.
+The public API exports the legacy `ActivityLog` types and these two reads for
+compatibility. New consumers must use Activity only as Recent Activity and must
+not use its rows to authorize actions, prove external effects, or recover source
+state.
 
-## Public API
+## Verification authority
 
-Exported from `application/public-api.ts`:
-
-- Re-exports: `ActivityLog`, `ActivityAction`, `ResourceType`, `ActivityPayload`
-- Interface: `ActivityPublicApi` (with `getActivityTimeline`, `getOrgActivity` method signatures)
-
-## Server functions
-
-| Name                  | Method | Permission   | Description                                        |
-| --------------------- | ------ | ------------ | -------------------------------------------------- |
-| `getActivityTimeline` | GET    | `inbox.read` | Fetch activity timeline for a resource (paginated) |
-| `getOrgActivity`      | GET    | `inbox.read` | Fetch organization-wide activity feed (paginated)  |
-
-## Permissions
-
-Mirrors existing inbox access:
-
-- **Admin** (`can(role, 'inbox.manage')`): sees all activity for the organization.
-- **PM / Staff**: scoped to properties they can access via `staffPublicApi.getAccessiblePropertyIds()`.
-- Activity entries with `propertyId: null` (system-level actions) are visible to all roles.
-- Permissions are enforced in the `getActivityTimeline` and `getOrgActivity` query functions.
-
-## Testing
-
-| Layer                  | Type                      | Coverage                                  |
-| ---------------------- | ------------------------- | ----------------------------------------- |
-| Domain constructor     | Pure unit                 | ✓ `constructors.test.ts`                  |
-| Query functions        | Unit with in-memory fakes | ✓ `queries/get-activity-timeline.test.ts` |
-| DB user lookup adapter | Unit with mock db         | Pending                                   |
-| Event handlers         | Unit with mock repo       | Pending                                   |
-| Drizzle repository     | Integration vs Postgres   | Pending                                   |
+- Domain construction: `domain/constructors.test.ts`
+- Projection and content safety: `application/use-cases/insert-activity-log.test.ts`
+  and `infrastructure/event-handlers/activity-content-safety.test.ts`
+- Scoped reads: `queries/get-activity-timeline.test.ts` and
+  `queries/get-org-activity.test.ts`
+- Writer boundary: `src/shared/architecture/context-acceptance-matrix.test.ts`
+- Integrity-claim authority: `docs/adr/0056-operational-action-history-integrity-claims.md`

@@ -18,8 +18,6 @@ export const LOCAL_BETA_CAPABILITIES = [
   'portal.guest_text',
   'portal.guest_contact',
   'goal.use',
-  'badge.use',
-  'leaderboard.use',
   'property.import_gbp_v2',
   'property.read_gbp_performance',
 ] as const satisfies ReadonlyArray<Capability>

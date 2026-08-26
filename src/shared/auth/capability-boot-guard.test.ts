@@ -155,9 +155,7 @@ describe('BQC-0.3 capability boot guard (SPEC-P0-03)', () => {
       expect(manifest.coreCapabilities.length).toBeGreaterThan(0)
       expect(manifest.blockedCapabilities).toContain('gbp.reply.auto_publish')
       expect(manifest.blockedCapabilities).toContain('gbp.ai.cross_property_summary')
-      expect(manifest.e2eGlobalOverrides).toEqual(
-        expect.arrayContaining(['goal.use', 'badge.use']),
-      )
+      expect(manifest.e2eGlobalOverrides).toEqual(['goal.use'])
       expect(manifest.e2eExecutionIdentity).toBe('playwright-e2e')
     })
 

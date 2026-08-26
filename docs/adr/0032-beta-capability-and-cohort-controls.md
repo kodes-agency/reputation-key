@@ -16,11 +16,13 @@ Capabilities are categorized into three sets (aligned with [BQR master plan §4]
    - `review.use`, `inbox.use`, `dashboard.use`, `staff.use`, `integration.use`
    - `activity.use`, `notification.in_app`, `metric.internal`
 2. **Non-core** — off by default, allowlistable per organization:
-   - `goal.use`, `badge.use`, `leaderboard.use`
+   - `goal.use`
    - `portal.read` (**not** core — BQR-0 removed portal from core; portal and guest are default-deny, promotable through persisted policy)
    - `ai.analyze`, `ai.generate_reply`, `ai.detect_trends`
 3. **Blocked** — always off, cannot be allowlisted:
    - `identity.register`, `organization.create`, `team.use`
+   - legacy `badge.use` and `leaderboard.use`; the future non-competitive
+     Healthy Guest Gateway requires a new capability and activation decision
    - `property.erase` until LIF-01 supplies recoverable Archive/Disconnect and a distinct, verified support-mediated permanent-erasure workflow
    - `portal.upload` until the issuance-bound upload implementation and adversarial evidence are complete
    - `gbp.reply.auto_publish`, `gbp.ai.cross_property_summary`, `gbp.review_solicitation_gamification`
@@ -33,7 +35,10 @@ Mutations and external side effects fail closed: unknown capability, missing pol
 
 Emergency kill switches (`BETA_CAPABILITIES_OFF` env var) stop new effects immediately while preserving canonical data. Queued jobs re-check capability before side-effect execution so a kill switch affects already-enqueued work.
 
-**Supersedes** any prior listing of `portal.read` as core and the earlier allowlistable posture for public registration, self-service Organization creation, or Team. The 2026-08-25 comprehensive beta product contract is the approving authority for this amendment.
+**Supersedes** any prior listing of `portal.read` as core and the earlier
+allowlistable posture for public registration, self-service Organization
+creation, Team, Badge, or Leaderboard. The 2026-08-25 comprehensive beta product
+contract is the approving authority for this amendment.
 
 ## Implementation
 
