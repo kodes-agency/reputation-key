@@ -2,7 +2,7 @@
   "version": 1,
   "fragmentId": "ui",
   "frozenSha": "718fad1807b7422885584660bd3580f2a3a49113",
-  "comparisonSha": "11a35a41f64cc54dce27e780e01fad33a65b5def",
+  "comparisonSha": "da48647cdd1f5a92246897ca049a6f88dcdce686",
   "sourceRegisterSha256": "77eb6bb21ea555197a3c7e10edac5f0e5356cabac0f953adecf8408c4f622135",
   "assessedAt": "2026-08-26",
   "families": ["UI"],
@@ -422,7 +422,7 @@
       "current.ui07.reply-editor": {
         "kind": "git_file",
         "path": "src/components/inbox/reply-editor.tsx",
-        "sha256": "b57d6125f301e2ec1d4e056c704e2220f14caede43cc5d67ecf361aaa67b205b",
+        "sha256": "b9965cc51ae478c03528fba099a54b27865f8755fdcace1f4f99e7107e45b727",
         "contains": [
           "initialReply: ReplyData | null",
           "reply={initialReply}",
@@ -433,7 +433,7 @@
       "current.ui07.story": {
         "kind": "git_file",
         "path": "src/components/inbox/reply-editor.stories.tsx",
-        "sha256": "e7927578de0186080fd3aceaa56f4de0ef89079c22a00ac4fae0551efe158a0a",
+        "sha256": "c3a7a8a88b07d775feb1af73475c1fc2f4d77f4e7667576c24c780e146e9a0ca",
         "contains": [
           "export const FollowsServerRefresh",
           "getByText('Publishing...')",
@@ -507,24 +507,47 @@
       "current.ui11.detail": {
         "kind": "git_file",
         "path": "src/components/inbox/use-inbox-detail.ts",
-        "sha256": "fe557a10241b3928caa58ca01d555d2fb54a34ed6feef156d197e0def9e00ce6",
+        "sha256": "99bd68da4307221801a975126d96ee734e0f5888c30a0d6231e0d5f6e42f45a0",
         "contains": [
           "function useInboxAutoCloseDetection(",
           "polledStatus: detailQuery.data?.item.status",
-          "inboxCachePolicy.onReplyMutated(qc, id, reply)"
+          "inboxCachePolicy.onReplyChanged(qc, id, change)",
+          "statusObserver.accept({ itemId: updated.id, status: updated.status })"
         ],
         "omits": []
       },
       "current.ui11.cache-policy": {
         "kind": "git_file",
         "path": "src/components/inbox/inbox-cache-policy.ts",
-        "sha256": "e74f26a5924997c7aa0970eca4e76b40e6911c8734e147aec187db4df027c137",
+        "sha256": "2be23bef6cb690ae0f5b5b61996e653cdc2e86d0e37745166296fdd1464fad62",
         "contains": [
           "function invalidateFolderCaches(qc: QueryClient)",
           "qc.invalidateQueries({ queryKey: inboxKeys.lists() })",
           "qc.invalidateQueries({ queryKey: inboxKeys.counts() })",
           "qc.invalidateQueries({ queryKey: inboxKeys.lastVisitCount() })",
-          "onReplyMutated("
+          "onReplyChanged(qc: QueryClient, id: string, change: InboxReplyCacheChange)",
+          "patchReply(qc, id, change.reply)"
+        ],
+        "omits": []
+      },
+      "current.ui11.request-count-test": {
+        "kind": "git_file",
+        "path": "src/components/inbox/inbox-cache-request-count.test.ts",
+        "sha256": "4b9f04ef845c0067059b8afd2862b066567b1c638adbd56d4c83b75e6c9a97b1",
+        "contains": [
+          "requests detail and notes once for each selected item transition",
+          "autosaves a draft without requesting detail, notes, activity, or folders",
+          "expect(detailRequests).toEqual(['item-a', 'item-b', 'item-a'])"
+        ],
+        "omits": []
+      },
+      "current.ui11.status-observer-test": {
+        "kind": "git_file",
+        "path": "src/components/inbox/inbox-item-status-observer.test.ts",
+        "sha256": "d5c697e68a9714d8e3709b1743d80dc671043dd2dfc068c633fb73059decdfe5",
+        "contains": [
+          "does not carry a status transition across selected item identities",
+          "accepts a locally handled status without reporting it again"
         ],
         "omits": []
       },
@@ -739,13 +762,24 @@
       },
       "current.ui21.content-lifecycle": {
         "kind": "git_file",
-        "path": "src/components/features/integration/google-import-manager/google-import-content-lifecycle.ts",
-        "sha256": "df5e2f169b8505e3f1d00fa8276fc227b131d8a2db759cce1de2561a17d3dc2b",
+        "path": "src/contexts/integration/application/google-import-content-lifecycle.ts",
+        "sha256": "ca8f73fbec7b6b5f06b0215b554e6f5b883c0d0de27c4d93a34899da0bdb4e73",
         "contains": [
           "let viewEpoch = 0",
-          "const clear = async (_reason: GoogleImportClearReason)",
-          "if (requestEpoch !== viewEpoch) throw new StaleGoogleImportViewError()",
-          "clearContent = next"
+          "const clear = async (reason: GoogleImportClearReason)",
+          "_tag: 'stale_google_import_view'",
+          "invalidationReasons[viewEpoch] = reason"
+        ],
+        "omits": ["from 'react'", "@tanstack", "document", "window"]
+      },
+      "current.ui21.lifecycle-ownership": {
+        "kind": "git_file",
+        "path": "src/shared/architecture/google-import-content-lifecycle-ownership.test.ts",
+        "sha256": "ce396888b75d7c133a0c51ba69d608355d8ae2022a39e2a742f3fb7a3347f6ad",
+        "contains": [
+          "keeps lifecycle policy behind the Integration application public API",
+          "expect(existsSync(legacyFeaturePolicy)).toBe(false)",
+          "expect(applicationPolicySource).not.toMatch("
         ],
         "omits": []
       }
@@ -969,19 +1003,27 @@
       "frozenSeverity": "Medium",
       "frozenSourceLine": 398,
       "frozenSummary": "Inbox detail/status/autosave paths use overly broad invalidation, causing list/count refetch storms; must be rechecked after the active inbox merge",
-      "disposition": "confirmed",
-      "reachability": "active",
-      "impact": "Reply drafts and detail transitions can still refresh every list, count, and last-visit query, which may make the active inbox feel unnecessarily busy under sustained manager use.",
+      "disposition": "closed",
+      "reachability": "not_reachable",
+      "impact": "Reply draft and state changes now patch only the selected detail, status commands invalidate only folder-owned data, and the status observer is selected-item scoped, preventing the former broad request recurrence.",
       "ownerPackage": "IBX-01",
       "targetPackages": ["EXP-02", "IBX-01"],
       "frozenEvidence": ["frozen.ui11.detail", "frozen.ui11.cache-policy"],
-      "currentEvidence": ["current.ui11.detail", "current.ui11.cache-policy"],
+      "currentEvidence": [
+        "current.ui11.detail",
+        "current.ui11.cache-policy",
+        "current.ui11.request-count-test",
+        "current.ui11.status-observer-test"
+      ],
       "closure": {
-        "kind": "planned_in_package",
-        "package": "IBX-01",
-        "expected": "Differentiate draft, reply-state, status, and selected-item changes; patch or invalidate only affected detail, folder, count, and last-visit data, with request-count regressions across item switching and autosave."
+        "kind": "verified_current",
+        "evidence": [
+          "current.ui11.request-count-test",
+          "current.ui11.status-observer-test"
+        ],
+        "expected": "Draft autosave causes no additional detail, notes, activity, list, count, or last-visit request; A-to-B-to-A selection requests each item's detail and notes once per transition; status observation never crosses item identities."
       },
-      "note": "Invalidation is centralized, which improves consistency, but every reply mutation still invalidates detail plus all folder caches; auto-close tracking also observes status without an item identity."
+      "note": "Typed reply-change classification patches only the selected detail. Folder caches change only for status transitions, the observer is item-identity scoped, and real QueryObserver regressions pin request counts for selection changes and autosave. Hosted browser proof remains package-level evidence, not a condition for closing this code finding."
     },
     {
       "id": "UI-12",
@@ -1177,9 +1219,9 @@
       "frozenSeverity": "Medium",
       "frozenSourceLine": 408,
       "frozenSummary": "Notification/import/country-timezone/provider-content business policy is implemented in feature components",
-      "disposition": "confirmed",
-      "reachability": "controlled",
-      "impact": "Most reviewed policy has moved behind maintained application boundaries, but Google import content clearing and stale-view rules still live in the feature layer, increasing maintenance risk for this controlled workflow.",
+      "disposition": "closed",
+      "reachability": "not_reachable",
+      "impact": "Google import clearing, view epochs, stale-completion outcomes, and expiry-delay policy are now owned by the Integration application boundary; the feature hooks retain only React, browser-event, timer, and query-client coordination.",
       "ownerPackage": "EXP-02",
       "targetPackages": ["EXP-02"],
       "frozenEvidence": [
@@ -1193,14 +1235,18 @@
         "current.ui21.notification-server",
         "current.ui21.selection",
         "current.ui20.dto",
-        "current.ui21.content-lifecycle"
+        "current.ui21.content-lifecycle",
+        "current.ui21.lifecycle-ownership"
       ],
       "closure": {
-        "kind": "planned_in_package",
-        "package": "EXP-02",
-        "expected": "Decide and enforce ownership for provider-content clearing and stale-view lifecycle rules, extracting durable policy from the feature component layer while leaving presentation coordination local."
+        "kind": "verified_current",
+        "evidence": [
+          "current.ui21.content-lifecycle",
+          "current.ui21.lifecycle-ownership"
+        ],
+        "expected": "Integration application owns provider-content clearing and stale-view lifecycle policy, stale outcomes carry no provider content, and the legacy feature policy module is absent."
       },
-      "note": "Notification mute semantics now execute server-side, the client selection cap is gone, and country/timezone validation is in the Integration DTO. The narrower provider-content lifecycle module remains in feature components and retains view-epoch and clear-reason policy."
+      "note": "Notification mute semantics execute server-side, the client selection cap is gone, country/timezone validation is in the Integration DTO, and the final provider-content lifecycle policy moved behind Integration's public API with focused unit, architecture, and Chromium Storybook evidence."
     }
   ]
 }

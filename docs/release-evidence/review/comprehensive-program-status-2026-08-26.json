@@ -6,7 +6,7 @@
     {
       "id": "FND-01",
       "status": "partial",
-      "summary": "Immutable independent revalidation is complete for all 114 rows in the accepted register across the ARCH, AUTH, DATA, DEC, EVT, GATE, GOV, OPS, UI, and SEC families. The fragments pin exact frozen fields and digests, descendant comparison evidence, reachability, impact, owner/targets, and non-overstated closure criteria. Current dispositions are 53 closed, 5 superseded, 52 confirmed, 3 configuration-dependent, and 1 reproduced. Package-planned and deployment-dependent residual criteria remain release work and are not treated as finding closure.",
+      "summary": "Immutable independent revalidation is complete for all 114 rows in the accepted register across the ARCH, AUTH, DATA, DEC, EVT, GATE, GOV, OPS, UI, and SEC families. The fragments pin exact frozen fields and digests, descendant comparison evidence, reachability, impact, owner/targets, and non-overstated closure criteria. Current dispositions are 55 closed, 5 superseded, 50 confirmed, 3 configuration-dependent, and 1 reproduced after current proof closed UI-11 and UI-21. Package-planned and deployment-dependent residual criteria remain release work and are not treated as finding closure.",
       "codeEvidence": [
         "docs/release-evidence/review/718fad1807b7422885584660bd3580f2a3a49113/",
         "docs/release-evidence/review/finding-revalidation-fragments/arch-auth-data-dec-evt-2026-08-26.json",
@@ -730,23 +730,27 @@
     {
       "id": "EXP-02",
       "status": "partial",
-      "summary": "The three known production literal query keys now use tested hierarchical factories, and an executable product-state inventory covers production components/routes. It currently governs 79 query-key sites, one explicitly owned login bootstrap whole-router invalidation, and 54 conservatively classified useState mirror candidates. The active Inbox UI-11 seam is now semantically scoped: typed draft/reply/status changes patch or invalidate only the owned query families, selection identity fences the status observer, and real QueryObserver request-count regressions prevent broad refetch recurrence. The broader inventory remains a bounded syntax/classification slice rather than semantic completion.",
+      "summary": "The three known production literal query keys use tested hierarchical factories, and an executable product-state inventory covers production components/routes. It currently governs 79 query-key sites, one explicitly owned login bootstrap whole-router invalidation, and 54 conservatively classified useState mirror candidates. UI-11 is formally closed by selected-item request-count and identity proofs. UI-21 is also formally closed: Integration application now owns provider-content clearing, view epochs, expiry timing, and content-free stale completion outcomes, while hooks retain only presentation/runtime coordination. The broader inventory remains a bounded syntax/classification slice rather than semantic completion.",
       "codeEvidence": [
         "src/shared/queries/query-keys.ts",
         "scripts/ci/check-product-state-consistency.ts",
         "scripts/ci/product-state-consistency-ledger.json",
         "package.json",
         "src/components/inbox/inbox-cache-policy.ts",
-        "src/components/inbox/inbox-item-status-observer.ts"
+        "src/components/inbox/inbox-item-status-observer.ts",
+        "src/contexts/integration/application/google-import-content-lifecycle.ts",
+        "src/shared/architecture/google-import-content-lifecycle-ownership.test.ts"
       ],
       "testEvidence": [
         "Product-state and query-key unit matrix: 2 files / 11 tests passed",
         "Executable inventory passed with 79 query-key sites, 1 owned broad invalidation, and 54 classified candidates",
         "Focused lint, application TypeScript, scripts TypeScript, and diff checks passed for the inventory slice",
-        "Inbox UI matrix: 8 files / 59 tests passed; deterministic QueryObserver request-count and selected-item identity regressions passed"
+        "Inbox UI matrix: 8 files / 59 tests passed; deterministic QueryObserver request-count and selected-item identity regressions passed",
+        "Provider-content lifecycle: 2 lifecycle/ownership files / 7 tests, 9 focused Integration UI/architecture files / 49 tests, and 3 Chromium Storybook files / 14 stories passed; full application typecheck and boundary controls passed",
+        "UI finding fragment validates 21/21 rows at da48647cdd1f5a92246897ca049a6f88dcdce686 with 19 closed, 1 confirmed, and 1 superseded"
       ],
       "remaining": [
-        "Semantically review the remaining mirror candidates and every query factory, expand coverage beyond production components/routes where warranted, freeze feature DTOs, replace legacy policy-bearing components, and close the remaining Bell/delete/goal/provider-content lifecycle contradictions; retain hosted browser evidence for the resolved Inbox request-scope seam."
+        "Semantically review the remaining mirror candidates and every query factory, expand coverage beyond production components/routes where warranted, freeze feature DTOs, replace remaining legacy Bell/delete/goal policy components, and retain hosted browser evidence for the resolved Inbox request-scope seam."
       ],
       "externalBlockers": []
     },
