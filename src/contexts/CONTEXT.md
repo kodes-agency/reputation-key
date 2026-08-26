@@ -8,18 +8,18 @@
 | ----------- | -------------------------------------------------------------------- | ---------------------------------------- | ------------------------ |
 | Identity    | Users, organizations, members, invitations                           | User, Organization, Member, Invitation   | Thin (wraps better-auth) |
 | Property    | Properties (hotels/restaurants) + GBP location import                | Property                                 | Thick                    |
-| Portal      | Guest-facing portal pages with links, per property                   | Portal, Link, LinkCategory               | Thick                    |
-| Guest       | Public portal rendering, rating collection, feedback                 | Rating, Feedback                         | Thick                    |
+| Portal      | Review gateway first; secondary link tree, groups, lifecycle         | Portal, Link, LinkCategory, PortalGroup  | Thick                    |
+| Guest       | Rating-first Guest Responses, feedback/contact, destination actions  | GuestResponse, Rating, Feedback          | Thick                    |
 | Team        | Quarantined historical data and people migration reconciliation      | Team, TeamMembership                     | Quarantined              |
 | Staff       | Participants, Property participation, and Portal attribution         | StaffParticipation, PortalResponsibility | Thick                    |
-| Integration | Google connections, OAuth, tokens, GBP API adapter                   | GoogleConnection                         | Standard                 |
-| Review      | External platform reviews (Google), sync, replies                    | Review                                   | Thick                    |
+| Integration | Organization Google authority, import/discovery, provider I/O        | GoogleConnection, GoogleImportSaga       | Standard                 |
+| Review      | Stable Reviews, source observations/lifecycle, Reply workflow        | Review, ReviewSourceObservation, Reply   | Thick                    |
 | AI          | Property-scoped private-beta review analysis, reply drafting, trends | AiOperation, AiReviewAnalysis            | Standard                 |
-| Inbox       | Unified triage surface for reviews + feedback                        | InboxItem, InboxNote                     | Thick                    |
-| Metric      | Aggregation of raw counters (scans, ratings, clicks, reviews)        | MetricReading                            | Standard                 |
-| Goal        | Property-scoped goals with progress tracking                         | Goal, GoalInstance                       | Thick                    |
+| Inbox       | Stable Inbox Items and numbered Handling Cycles                      | InboxItem, HandlingCycle, InboxNote      | Thick                    |
+| Metric      | Governed readings, versions, corrections, availability evidence      | MetricDefinition, MetricReading          | Standard                 |
+| Goal        | Property, Portal Group, and Portal goals over approved measures      | GoalDefinition, GoalEvaluation           | Thick                    |
 | Dashboard   | Read-only aggregation of metrics, reviews, replies                   | —                                        | Thin (read model)        |
-| Activity    | Immutable audit log, event-driven writes, query-driven reads         | ActivityLog                              | Thin (subscriber)        |
+| Activity    | Privacy-aware Recent Activity; never the security/audit authority    | ActivityLog                              | Thin (subscriber)        |
 
 **Thin contexts** (like Identity) may have empty layer folders — no mappers, no jobs, sparse use cases. That's expected. **Metric context** has no `server/` layer by design — it records readings via event handlers and background jobs, not via server functions called from routes.
 

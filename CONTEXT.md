@@ -26,25 +26,25 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 ## Bounded contexts
 
-|     | Context      | Responsibility                                                                          | Key Entities                             |
-| --- | ------------ | --------------------------------------------------------------------------------------- | ---------------------------------------- |
-|     | Identity     | Users, organizations, members, invitations                                              | User, Organization, Member, Invitation   |
-|     | Property     | Properties (hotels/restaurants) owned by organizations                                  | Property                                 |
-|     | Portal       | Guest-facing portal pages with links and portal groups, per property                    | Portal, Link, LinkCategory, PortalGroup  |
-|     | Guest        | Public portal rendering, rating collection, feedback                                    | Rating, Feedback                         |
-|     | Team         | Quarantined historical Team data and reconciliation; no beta surface                    | Team, TeamMembership                     |
-|     | Staff        | Staff Participants, Property participation, and Portal performance attribution          | StaffParticipation, PortalResponsibility |
-|     | Integration  | Google connections, OAuth, tokens, GBP API adapter                                      | GoogleConnection                         |
-|     | Review       | External platform reviews (Google), sync, replies                                       | Review                                   |
-|     | AI           | Governed review analysis, reply drafting, and Property trends                           | AiOperation, AiReviewAnalysis            |
-|     | Inbox        | Unified triage surface for reviews + feedback                                           | InboxItem, InboxNote                     |
-|     | Metric       | Aggregation of raw counters (scans, ratings, clicks, reviews)                           | MetricReading                            |
-|     | Goal         | Property-scoped goals with progress tracking                                            | Goal, GoalInstance                       |
-|     | Badge        | Recognition awards earned by portals or portal groups from metric-driven criteria       | BadgeDefinition, BadgeAward              |
-|     | Leaderboard  | Read-only ranking of portals and portal groups using composite and per-metric scores    | LeaderboardEntry, LeaderboardSnapshot    |
-|     | Dashboard    | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts | —                                        |
-|     | Notification | User-facing in-app/email notifications                                                  | —                                        |
-|     | Activity     | Immutable audit log                                                                     | —                                        |
+|     | Context      | Responsibility                                                                           | Key Entities                             |
+| --- | ------------ | ---------------------------------------------------------------------------------------- | ---------------------------------------- |
+|     | Identity     | Users, organizations, members, invitations                                               | User, Organization, Member, Invitation   |
+|     | Property     | Properties (hotels/restaurants) owned by organizations                                   | Property                                 |
+|     | Portal       | Review gateway first, secondary link tree, lifecycle, groups, and manager responsibility | Portal, Link, LinkCategory, PortalGroup  |
+|     | Guest        | Private rating-first Guest Responses, optional feedback/contact, and destination actions | GuestResponse, Rating, Feedback          |
+|     | Team         | Quarantined historical Team data and reconciliation; no beta surface                     | Team, TeamMembership                     |
+|     | Staff        | Staff Participants, Property participation, and Portal performance attribution           | StaffParticipation, PortalResponsibility |
+|     | Integration  | Organization-owned Google authority, import, discovery, notifications, and provider I/O  | GoogleConnection, GoogleImportSaga       |
+|     | Review       | Stable Reviews, source observations/lifecycle, and RepKey-owned Reply workflow           | Review, ReviewSourceObservation, Reply   |
+|     | AI           | Governed review analysis, reply drafting, and Property trends                            | AiOperation, AiReviewAnalysis            |
+|     | Inbox        | Stable Inbox Items with numbered Handling Cycles for Google and private feedback work    | InboxItem, HandlingCycle, InboxNote      |
+|     | Metric       | Governed, versioned readings and availability evidence for managerial reporting          | MetricDefinition, MetricReading          |
+|     | Goal         | Property, Portal Group, and individual Portal goals over the three approved measures     | GoalDefinition, GoalEvaluation           |
+|     | Badge        | Legacy recognition plus controlled post-core achievement migration                       | BadgeDefinition, BadgeAward              |
+|     | Leaderboard  | Legacy ranking data retained for controlled contraction; not a beta product authority    | LeaderboardEntry, LeaderboardSnapshot    |
+|     | Dashboard    | Read-only aggregation of metrics, reviews, replies into property-scoped KPIs and charts  | —                                        |
+|     | Notification | User-facing in-app/email notifications                                                   | —                                        |
+|     | Activity     | Privacy-aware Recent Activity; not the security/audit authority                          | ActivityLog                              |
 
 ## Glossary
 
@@ -88,10 +88,10 @@ Composition root: `src/composition.ts`. Bootstrap: `src/bootstrap.ts`.
 
 ### Portal Groups
 
-| Term                 | Definition                                                                                                                                                            |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Portal Group**     | A named collection of portals within a property. Used for goal scoping and leaderboard ranking. One portal belongs to at most one group. Lives in the portal context. |
-| **Ungrouped Portal** | A portal not assigned to any portal group. Still individually targetable by goals and rankable on leaderboards.                                                       |
+| Term                 | Definition                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| **Portal Group**     | A named reporting/goal collection within one Property. A Portal belongs to at most one active group; it is never a people Team. |
+| **Ungrouped Portal** | A Portal outside a group. It remains individually targetable by goals and visible in governed Property reporting.               |
 
 ### Badges
 
@@ -214,7 +214,8 @@ Node builtins (`crypto`, `async_hooks`, `fs`, `stream`, …), the packages `pg` 
 
 ## Architecture Decisions
 
-See `docs/adr/` for formal ADRs. Key ADRs:
+See [`docs/adr/README.md`](docs/adr/README.md) for the exhaustive ADR index and
+supersession authority. Key active/superseding ADRs:
 
 | ADR  | Title                                                                 | Context                                      |
 | ---- | --------------------------------------------------------------------- | -------------------------------------------- |
@@ -239,6 +240,10 @@ See `docs/adr/` for formal ADRs. Key ADRs:
 | 0019 | Simulation Harness & Deterministic Backends                           | Testability, Simulation                      |
 | 0039 | People, Access, and Attribution Are Separate Effective-Dated Concepts | People, Access, Attribution                  |
 | 0052 | Beta People, Access, Attribution, and Manager Responsibility          | Canonical Beta People Model, Team Quarantine |
+| 0053 | Production Redis Workload Isolation                                   | Cache/Queue Runtime Boundaries               |
+| 0054 | Data Cell Catalogue and Routing                                       | Regional Data/Execution Authority            |
+| 0055 | Stable Review Identity and Inbox Handling Cycles                      | Review, Reply, Inbox, Retention              |
+| 0056 | Operational Action History Integrity Claims                           | Activity, Audit, Honest Claims               |
 
 ## Key Files
 
