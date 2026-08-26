@@ -199,49 +199,57 @@
     {
       "id": "ARC-01",
       "status": "partial",
-      "summary": "Versioned envelopes and atomic helpers exist, but intended Portal mutations still commit state before non-atomic fact emission and two fact families are orphaned.",
+      "summary": "Versioned envelopes and atomic helpers exist. Portal create/update/publication/delete and Portal Group deletion now commit state, required membership/token side effects, and lifecycle facts in one PostgreSQL transaction under revision fences; stale views and failed fact writes change nothing, while local post-commit delivery failure leaves the durable fact intact. Other active Portal mutations and durable Activity/Notification families remain incomplete.",
       "codeEvidence": [
         "src/shared/outbox/envelope.ts",
         "src/shared/outbox/commit.ts",
-        "Portal use cases calling emitAndRecord"
+        "src/contexts/portal/application/ports/portal-command-store.port.ts",
+        "src/contexts/portal/infrastructure/portal-command-store.ts",
+        "src/contexts/portal/application/use-cases/soft-delete-portal-group.ts",
+        "Remaining Portal use cases calling emitAndRecord"
       ],
-      "testEvidence": ["Durable Guest, analytics, AI, and identity fact tests"],
+      "testEvidence": [
+        "Durable Guest, analytics, AI, and identity fact tests",
+        "Portal Group atomic deletion: 3 focused files / 23 tests, including real PostgreSQL commit, failed-fact rollback, stale-revision refusal, membership closure, and post-commit local-delivery failure; targeted lint and formatting checks passed"
+      ],
       "remaining": [
-        "Add command/content classification to the envelope, make every active Portal write atomic with its fact, close orphan families, and prove crash recovery plus empty-projection replay parity."
+        "Add command/content classification to the envelope; move remaining active Portal Group/link/membership/token writes from emitAndRecord into owned command transactions; close durable Activity/Notification and other orphan families; make consumer receipts and projections interruption-safe; prove recovery plus empty-projection replay parity."
       ],
       "externalBlockers": []
     },
     {
       "id": "ARC-02",
       "status": "partial",
-      "summary": "Scheduling and repair behavior improved, but the live registry silently overwrites duplicate handlers, jobs are unscoped, destructive Review jobs remain active, and repair ownership is incomplete.",
+      "summary": "The live job registry rejects duplicate handlers without replacing the original, runtime manifests reject duplicate jobs/schedulers, and stable scheduler reconciliation plus boot/readiness checks have improved. Job catalogue region ownership is still declared unscoped, orchestration remains distributed, the legacy destructive Review lifecycle registration is retained as a quarantined no-op, and projection repair/observed-run ownership is incomplete.",
       "codeEvidence": [
         "src/shared/jobs/registry.ts",
         "src/shared/jobs/runtime.ts",
         "src/shared/governance/event-job-catalogue.ts"
       ],
       "testEvidence": [
-        "Scheduler reconciliation, queue error, Redis isolation, digest, and Inbox rebuild tests"
+        "Duplicate JobRegistry/manifest refusal, scheduler reconciliation, queue error, Redis isolation, digest, and Inbox rebuild tests"
       ],
       "remaining": [
-        "Reject duplicate live registrations, bind each job to cell/owner/readiness/repair, remove destructive Review work, add Metric/Notification repair, and retain restart/missed-schedule/poison evidence."
+        "Bind each job to cell/owner/readiness/repair in one observed runtime authority, contract the quarantined destructive Review work after lifecycle cutover, add Metric/Notification repair, and retain restart/missed-schedule/poison evidence plus last-success objectives."
       ],
       "externalBlockers": []
     },
     {
       "id": "ARC-03",
       "status": "partial",
-      "summary": "Boundary controls improved, but composition remains a large internal-service-locator with global mutable process state and a missing AI context boundary.",
+      "summary": "Boundary controls improved and AI now has the standard context document, build seam, and public API. Composition remains a large internal-service-locator with global mutable process state, direct server/framework calls, shared super-context ambiguity, and separately deployed sidecars without package-level dependency boundaries.",
       "codeEvidence": [
         "src/shared/composition.ts",
         "src/bootstrap.ts",
-        "src/worker/index.ts"
+        "src/worker/index.ts",
+        "src/contexts/ai/CONTEXT.md",
+        "src/contexts/ai/application/public-api.ts"
       ],
       "testEvidence": [
         "Architecture boundary, React hook, and TanStack Query enforcement tests"
       ],
       "remaining": [
-        "Create the AI context/public API, deepen composition interfaces, eliminate global execution/container/queue registries, stop late environment reads, and prove one isolated container per process."
+        "Deepen composition interfaces, eliminate global execution/container/queue registries, move direct server/framework calls behind context seams, partition/document shared authorities, decide package boundaries for sidecars, stop late environment reads, and prove one isolated container per process."
       ],
       "externalBlockers": []
     },
@@ -554,7 +562,7 @@
     {
       "id": "POR-01",
       "status": "partial",
-      "summary": "Rating-first Portal foundations now include database-enforced immutable EN publication snapshots, append-only activation/rollback history, snapshot-backed token resolution, exact Guest evidence binding, and an automatically derived Property-owned Google review destination. Managers now receive an exact Organization/Property/Portal-scoped history showing the live immutable version, prior publish/rollback activity, and whether saved content is waiting for the next publication. Paused Portals retain truthful history without implying a version is live, and provider destination refreshes are not presented as saved-content changes.",
+      "summary": "Rating-first Portal foundations now include database-enforced immutable EN publication snapshots, append-only activation/rollback history, snapshot-backed token resolution, exact Guest evidence binding, and an automatically derived Property-owned Google review destination. Managers receive an exact scoped history showing the live immutable version, prior publish/rollback activity, and pending saved content. Portal Group deletion now atomically archives the Group, closes effective memberships, and records its durable lifecycle fact under a revision fence.",
       "codeEvidence": [
         "src/contexts/portal/",
         "src/contexts/portal/application/portal-publication-snapshot.ts",
@@ -572,10 +580,11 @@
       "testEvidence": [
         "Portal snapshot/digest, publication transition, rollback, token revocation, tamper fail-closed, exact Guest evidence, responsibility, and Guest-flow tests; real PostgreSQL publication repository and atomic command-store suites",
         "Google review destination presentation: 1 file / 3 tests; Portal detail Storybook: 1 file / 5 tests; targeted lint and typecheck passed",
-        "Publication-history commits 9a08c667 and b27ed616: focused Portal unit/PostgreSQL/server matrix 5 files / 45 tests, Portal Storybook 3 files / 19 tests, composition characterization 1 file / 8 tests, and targeted standards checks passed"
+        "Publication-history commits 9a08c667 and b27ed616: focused Portal unit/PostgreSQL/server matrix 5 files / 45 tests, Portal Storybook 3 files / 19 tests, composition characterization 1 file / 8 tests, and targeted standards checks passed",
+        "Portal Group deletion commit 9a94fcc0: 3 focused files / 23 tests, including PostgreSQL commit/rollback, stale revision, membership closure, and post-commit recovery authority"
       ],
       "remaining": [
-        "Implement Brand Profile and EN/BG/locales, broader Approved Destinations governance, Portal Health intervals, stable public address and governed Access Artifacts, archive/restore, explicit ownership, dedicated publication facts, legacy classification, and the full public cache/privacy matrix; add bounded history pagination before activation volume becomes material."
+        "Implement Brand Profile and EN/BG/locales, broader Approved Destinations governance, Portal Health intervals, stable public address and governed Access Artifacts, archive/restore, explicit ownership, remaining Portal Group/link/membership/token fact atomicity, dedicated publication facts, legacy classification, and the full public cache/privacy matrix; add bounded history pagination before activation volume becomes material."
       ],
       "externalBlockers": []
     },
