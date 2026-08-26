@@ -1,5 +1,7 @@
 # AI context
 
+## Bounded context
+
 The AI context owns governed AI authorization reads, operation admission,
 provider-inference orchestration, derivative output lineage/lifecycle, Review
 Analysis enrollment, deterministic Property Trends, and on-demand Reply Drafting.
@@ -62,6 +64,25 @@ Analysis. A capability being present in code or schema is not activation.
 10. Provider work is cell-local and permit-bound. A provider outage, denied
     route, quota ambiguity, Redis/control outage, or authorization uncertainty
     fails closed without direct-network fallback.
+
+## Events produced
+
+| Event tag                                | Purpose                                                                  |
+| ---------------------------------------- | ------------------------------------------------------------------------ |
+| `ai.review_analysis.backfill_requested`  | Request one freshly sequenced, identifier-only Review Analysis admission |
+| `ai.property_trend.generation_requested` | Request deterministic reconciliation for one governed Property schedule  |
+
+Both events use the shared identifier-only envelope and are exported through
+`application/public-api.ts`.
+
+## Public API
+
+`application/public-api.ts` is the only cross-context interface. It exposes
+governed aggregate reads, on-demand Reply Drafting inputs/results, current
+Review Analysis and Property Trend read models, identifier-only event types and
+constructors, and the AI tagged-error guard. Provider adapters, persistence,
+jobs, admission controls, and source-content ports remain internal to the
+context and composition root.
 
 ## Durable facts and jobs
 

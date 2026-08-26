@@ -12,6 +12,29 @@ Gateway** recognition result derived from governed Portal Health for one
 calendar month. That model does not yet exist and must not be simulated by
 renaming or reactivating legacy badges.
 
+## Invariants
+
+1. `badge.use` remains denied in beta and no retained Badge path may become
+   reachable through a route, worker, consumer, schedule, notification, or
+   production artifact.
+2. Retained Badge rows cannot influence access, Staff assessment, Goals,
+   manager workflow, Portal publication, or recognition decisions.
+3. Historical Badge data remains distinguishable from any future Healthy Guest
+   Gateway model and is retained only for bounded inventory, export, restore,
+   reconciliation, and contraction.
+
+## Events produced
+
+The package retains the historical `badge.awarded` event type for data and
+restore compatibility. No beta-active path may emit it while `badge.use` is
+denied.
+
+## Public API
+
+`application/public-api.ts` retains historical types and event exports for
+compatibility. It is not an activation surface; runtime use remains governed by
+the capability and entry-point authorities.
+
 ## Prohibited beta behavior
 
 - no Badge creation, enablement, evaluation, award, reconciliation, or

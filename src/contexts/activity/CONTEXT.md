@@ -28,6 +28,24 @@ cryptographically verifiable, compliance-grade, or an audit log. A database
 unique constraint provides delivery idempotency; it does not provide those
 integrity properties.
 
+## Invariants
+
+1. Activity is a rebuildable Recent Activity projection, never an authorization,
+   recovery, provider-effect, or Operational Action History authority.
+2. Every entry is Organization-scoped; reads apply the caller's current Property
+   access and reply-workflow permissions.
+3. Projected payloads remain content-minimal and never contain Review text,
+   private feedback/contact, Inbox notes, Reply bodies, credentials, tokens,
+   presigned links, or raw network identifiers.
+4. Re-delivery of one source event is idempotent within its Organization.
+5. Missing actor display data is represented as `System` and is not treated as
+   verified attribution.
+
+## Events produced
+
+Activity currently produces no cross-context domain events. It consumes selected
+source-context facts and projects rebuildable Recent Activity rows.
+
 ## Current relationships and behavior
 
 - Every row is Organization-scoped and may carry a Property scope.
@@ -65,7 +83,7 @@ activity/
   build.ts         context-local composition
 ```
 
-## Active interfaces
+## Public API
 
 | Interface             | Purpose                                                       | Authorization                 |
 | --------------------- | ------------------------------------------------------------- | ----------------------------- |

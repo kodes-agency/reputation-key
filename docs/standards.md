@@ -4,21 +4,39 @@
 **Date:** 2026-06-02
 **Scope:** Entire `reputation-key/oslo` codebase
 
-This document codifies naming, structural, and documentation standards for every bounded context. All new code MUST follow these rules. Existing code is grandfathered until refactored.
+This document codifies naming, structural, and documentation standards for every
+bounded context. It is subordinate to external obligations, the approved product
+contract, and accepted superseding ADRs. A retained historical implementation is
+never product authority merely because it predates this document.
+
+## Standards tiers and enforcement
+
+| Tier                | Meaning                                                                                                                               | Enforcement                                                                                                                       |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| **Invariant**       | Product correctness, authorization, tenant/data boundaries, durable state, recovery, capability posture, and client/server isolation. | Mechanically blocks every changed path and, where stated by a gate, the whole repository. No grandfathering.                      |
+| **Maintainability** | Consistent interfaces, event/use-case/repository shapes, file names, factory forms, and documentation structure.                      | Required for new or materially modified code; existing variance migrates context-by-context and does not justify unrelated churn. |
+| **Guidance**        | Readability and presentation preferences that do not change behavior or architectural boundaries.                                     | Review or formatter guidance; never a release claim by itself.                                                                    |
+
+Each section below identifies its tier. When a temporary exception to an
+Invariant or Maintainability rule is unavoidable, it must be narrow and recorded
+in `docs/governance/standards-exceptions.json` with a rule, exact scope, reason,
+owner, compensating check, review date, and expiry date. Expired, unowned, or
+scope-less entries fail the documentation authority gate. Guidance does not use
+exceptions.
 
 ---
 
-## 1. Event Standards
+## 1. Event Standards (Invariant for meaning/envelope; Maintainability for shape)
 
 ### 1.1 Naming: `context.entity.verb`
 
 Every event `_tag` follows `context.entity.verb`:
 
-| Segment   | Rule                                                                                                            | Example     |
-| --------- | --------------------------------------------------------------------------------------------------------------- | ----------- |
-| `context` | Bounded context name (identity, integration, portal, property, team, staff, guest, review, inbox, goal, metric) | `review`    |
-| `entity`  | Domain entity name (can contain underscores for multi-word: `portal_link`, `google_account`)                    | `reply`     |
-| `verb`    | Past-tense action (can contain underscores: `status_changed`, `visibility_changed`)                             | `published` |
+| Segment   | Rule                                                                                                                                                                       | Example     |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `context` | Bounded context name (activity, ai, badge, dashboard, goal, guest, identity, inbox, integration, leaderboard, metric, notification, portal, property, review, staff, team) | `review`    |
+| `entity`  | Domain entity name (can contain underscores for multi-word: `portal_link`, `google_account`)                                                                               | `reply`     |
+| `verb`    | Past-tense action (can contain underscores: `status_changed`, `visibility_changed`)                                                                                        | `published` |
 
 **Shorthand:** When `context === entity`, omit the entity segment: `review.created` (not `review.review.created`).
 
@@ -129,7 +147,7 @@ One file per context: `domain/events.ts`. Monolithic. All event types, construct
 
 ---
 
-## 2. Use Case Standards
+## 2. Use Case Standards (Invariant for authorization/errors; Maintainability for shape)
 
 ### 2.1 Type naming
 
@@ -169,7 +187,7 @@ Skip steps that don't apply. Query: (1) + (5) + (7). Mutation: all 7.
 
 ---
 
-## 3. Build Function Standards
+## 3. Build Function Standards (Invariant for boundaries; Maintainability for shape)
 
 ### 3.1 Return shape
 
@@ -194,7 +212,7 @@ type ContextApi<T> = Readonly<{
 
 ---
 
-## 4. CONTEXT.md Standards
+## 4. CONTEXT.md Standards (Maintainability; posture statements are Invariants)
 
 ### 4.1 Required sections (in order)
 
@@ -240,7 +258,7 @@ These do NOT belong in CONTEXT.md (move to appropriate location):
 
 ---
 
-## 5. Repository Standards
+## 5. Repository Standards (Invariant for tenant scope; Maintainability for shape)
 
 ### 5.1 Port naming
 
@@ -257,7 +275,7 @@ These do NOT belong in CONTEXT.md (move to appropriate location):
 
 ---
 
-## 6. Dependency Rules
+## 6. Dependency Rules (Invariant)
 
 Re-affirming from `src/contexts/CONTEXT.md`:
 
@@ -274,7 +292,8 @@ Cross-context: import ONLY from `application/public-api.ts`. Never from `domain/
 
 ## 7. Migration Path
 
-Existing code is grandfathered. When refactoring a context:
+Existing maintainability variance is migrated deliberately. It does not exempt
+an existing path from an Invariant. When materially refactoring a context:
 
 1. Standardize `_tag` values and type names (Section 1)
 2. Add event envelope fields and constructor assertions (Sections 1.4–1.5)
@@ -284,11 +303,14 @@ Existing code is grandfathered. When refactoring a context:
 6. Standardize use case type exports (Section 2)
 7. Update all subscribers and emitters
 
-New contexts MUST follow all standards from inception.
+New contexts MUST follow all Invariant and Maintainability standards from
+inception. A migration that cannot do so must carry a narrow, expiring exception;
+never broaden the exception to an entire context when an exact file or symbol can
+be named.
 
 ---
 
-## 8. File Naming Standards
+## 8. File Naming Standards (Maintainability)
 
 ### 8.1 File name conventions by layer
 
@@ -319,7 +341,10 @@ Test files SHALL mirror the source file name with `.test.ts` / `.test.tsx` appen
 
 ### 8.3 Factory declaration style
 
-All infrastructure factories (repos, adapters, mappers, job handlers) SHALL use arrow-const:
+New or materially modified infrastructure factories (repos, adapters, mappers,
+job handlers) use arrow-const for local consistency. This is a Maintainability
+convention, not an architectural invariant and not a reason to rewrite an
+otherwise untouched module:
 
 ```ts
 // CORRECT — arrow const
@@ -333,7 +358,7 @@ export const createBetterAuthIdentityAdapter = (db: Database): IdentityPort => {
   return { ... }
 }
 
-// WRONG — function declaration (inconsistent with codebase convention)
+// LEGACY VARIANCE — migrate when this factory is materially modified
 export function createReviewRepository(db: Database): ReviewRepository {
   return { ... }
 }
@@ -341,7 +366,7 @@ export function createReviewRepository(db: Database): ReviewRepository {
 
 **Exception:** Domain constructors (`createBadgeDefinition`, `createActivityLog`, etc.) MAY use `export function` — they create domain entities, not infrastructure wiring.
 
-## 9. Code Quality Tooling (Fallow)
+## 9. Code Quality Tooling (Invariant gates plus Maintainability migration)
 
 Fallow (dead-code, complexity, boundaries) is a devDependency. Config + regression baseline: `.fallowrc.json` (audit.gate: new-only).
 
@@ -370,6 +395,9 @@ Co-located context files in the source tree:
 - Routes: `src/routes/CONTEXT.md` — loaders, mutations, auth guards, staleTime
 - Archive: `docs/archive/` — superseded plans and closed programmes (historical only)
 - ADRs: `docs/adr/`
+- ADR navigation and supersession authority: `docs/adr/README.md`
+- Beta capability fate authority: `docs/architecture/beta-capability-fate-authority.md`
+- Standards exception register: `docs/governance/standards-exceptions.json`
 - Auth migrations: `docs/auth-migrations.md`
 
 ---

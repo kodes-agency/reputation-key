@@ -12,6 +12,27 @@ unavailable** state. It must not load ranking data, calculate snapshots, expose 
 comparison matrix, or imply that employees, Portals, Portal Groups, Properties,
 or Teams are being ranked.
 
+## Invariants
+
+1. `leaderboard.use` remains denied and no ranking read, refresh, consumer, or
+   schedule may be beta-reachable.
+2. Retained snapshots cannot influence access, Staff assessment, Goals,
+   notifications, manager workflow, or Portal publication.
+3. Historical ranking data remains distinguishable from any future neutral
+   recognition model and is retained only for bounded inventory, export,
+   restore, and contraction.
+
+## Events produced
+
+Leaderboard currently defines no cross-context domain events. Its retained
+refresh paths must remain inactive while the capability is denied.
+
+## Public API
+
+`application/public-api.ts` retains historical read types for compatibility.
+It is not an activation surface; runtime use remains governed by the capability
+and entry-point authorities.
+
 ## Prohibited beta behavior
 
 - no per-metric or composite rank, normalized score, tie ordering, competition,

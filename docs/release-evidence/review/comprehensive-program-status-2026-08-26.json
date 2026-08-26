@@ -690,14 +690,21 @@
     {
       "id": "GOV-02",
       "status": "partial",
-      "summary": "A 17-context matrix exists, but it records unresolved gaps and current context/root/ADR documentation directly contradicts accepted product and architecture language.",
+      "summary": "The exact 17-context inventory, capability ownership, required documentation shape, root map, ADR index, and owned exception register are now executable. Standards are separated into invariant, maintainability, and guidance tiers, but the complete standards matrix and remaining narrative reconciliation are unfinished.",
       "codeEvidence": [
-        "src/shared/governance/context-acceptance-matrix.test.ts",
-        "Context documents under src/contexts/*/CONTEXT.md"
+        "src/shared/governance/context-standards-authority.ts",
+        "docs/governance/standards-exceptions.json",
+        "docs/standards.md",
+        "docs/adr/README.md",
+        "Context documents under src/contexts/*/CONTEXT.md",
+        "docs/deep-review.md"
       ],
-      "testEvidence": ["Context acceptance and architecture-boundary checks"],
+      "testEvidence": [
+        "src/shared/governance/context-standards-authority.test.ts with incomplete-document and invalid-exception negative fixtures",
+        "Context acceptance, ADR index, capability fate, and architecture-boundary checks"
+      ],
       "remaining": [
-        "Add the AI context/public API, repair every contradictory ADR/root/context claim, create the ADR index and exception register, and make terminology/standards consistency executable."
+        "Reconcile remaining Shared, Routes, Components, Database, operational, historical-plan, and REUI claims; regenerate the full 17-context by 11-rule conformance matrix from executable evidence; finish mechanical event/error/build/repository consistency checks; archive or clearly supersede every stale current-looking plan."
       ],
       "externalBlockers": []
     },
