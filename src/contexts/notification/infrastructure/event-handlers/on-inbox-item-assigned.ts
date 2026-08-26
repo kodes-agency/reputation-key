@@ -1,16 +1,16 @@
 // Notification context — event handler for inbox.inbox_item.assigned
 // Notifies the assignee that an inbox item was assigned to them.
 
-import type { Queue } from 'bullmq'
 import type { InboxItemAssigned } from '#/contexts/inbox/application/public-api'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import type { InboxItemLookupPort } from '../../application/ports/inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
+import type { NotificationJobEnqueuePort } from '../inbox-notification-fanout'
 import { buildInboxItemPayload } from './payload-facts'
 
 type Deps = Readonly<{
-  queue: Queue
+  queue: NotificationJobEnqueuePort
   userLookup: UserLookupPort
   inboxItemLookup: InboxItemLookupPort
   clock: () => Date
@@ -43,5 +43,7 @@ export const onInboxItemAssigned =
       },
     }
 
-    await deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, data)
+    await deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, data, {
+      jobId: `${event.eventId}-${event.assignedTo}`,
+    })
   }

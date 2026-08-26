@@ -22,6 +22,7 @@ import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-it
 import { createRecognitionLookupAdapter } from './infrastructure/adapters/recognition-lookup.adapter'
 import { registerNotificationHandlers } from './infrastructure/event-handlers'
 import { registerNotificationConsumers } from './infrastructure/outbox-consumers'
+import { registerWorkflowNotificationConsumers } from './infrastructure/workflow-outbox-consumers'
 import { registerPortalNotificationConsumers } from './infrastructure/portal-outbox-consumers'
 import { registerPortalNotificationHandlers } from './infrastructure/event-handlers/portal-event-handlers'
 import { registerPropertyNotificationHandlers } from './infrastructure/event-handlers/property-event-handlers'
@@ -354,6 +355,10 @@ export const buildNotificationContext = (input: BuildInput) => {
       registerOutboxConsumers: () => {
         if (!fanoutDeps) return
         registerNotificationConsumers({
+          ...fanoutDeps,
+          receipts: input.outboxRepo,
+        })
+        registerWorkflowNotificationConsumers({
           ...fanoutDeps,
           receipts: input.outboxRepo,
         })

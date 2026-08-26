@@ -7,13 +7,11 @@
 // already had a durable consumer; notification had none, so the bus was its
 // ONLY path.
 //
-// Scope: `inbox.inbox_item.created` only, deliberately. It is the one inbox
-// event whose loss is both silent and unrecoverable — nobody is watching a
-// screen when a guest posts a review, so a dropped notification is
-// indistinguishable from "no new review". Assignment, escalation and note
-// events are user actions with immediate in-app feedback: the actor sees
-// whether they landed, and the item itself is already visible in the inbox.
-// Those stay bus-only.
+// Scope of this module: `inbox.inbox_item.created`. The sibling
+// workflow-outbox-consumers module durably covers assignment, escalation,
+// notes, and Reply lifecycle notifications while reusing their existing
+// recipient handlers. Keeping the created-item fan-out here preserves its
+// source-specific lookup and obsolete-event policy.
 //
 // Idempotency, in the order the fences apply:
 //   1. The dispatcher pre-checks `hasReceipt(eventId, consumerName)` and skips

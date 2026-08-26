@@ -116,7 +116,7 @@ const inboxItemStatusChangedSchema = z.object({
 const inboxItemEscalatedSchema = z.object({
   inboxItemId: z.string(),
   organizationId: z.string(),
-  userId: z.string(),
+  userId: z.string().nullable().optional(),
   propertyId: z.string().nullable().optional(),
   source: z.string().optional(),
   occurredAt: z.string().optional(),
@@ -125,7 +125,7 @@ const inboxItemEscalatedSchema = z.object({
 const inboxItemEscalationResolvedSchema = z.object({
   inboxItemId: z.string(),
   organizationId: z.string(),
-  userId: z.string(),
+  userId: z.string().nullable().optional(),
   propertyId: z.string().nullable().optional(),
   source: z.string().optional(),
   occurredAt: z.string().optional(),
@@ -135,7 +135,7 @@ const inboxNoteAddedSchema = z.object({
   inboxItemId: z.string(),
   noteId: z.string(),
   organizationId: z.string(),
-  userId: z.string(),
+  userId: z.string().nullable().optional(),
   propertyId: z.string().nullable().optional(),
   source: z.string().optional(),
   occurredAt: z.string().optional(),

@@ -327,7 +327,9 @@ export const buildExpectedJob = (
     propertyId: NOTIF_TEST_IDS.propId,
     eventId: NOTIF_TEST_IDS.eventId,
   },
-  ...(opts ? { opts } : {}),
+  opts: opts ?? {
+    jobId: `${NOTIF_TEST_IDS.eventId}-${data.userId}`,
+  },
 })
 
 // ── Shared event-handler assertions / stubs ─────────────────────────

@@ -11,7 +11,6 @@
 // None of them supplies copy — that is rendered from (type, payload) in
 // domain/notification-templates.ts.
 
-import type { Queue } from 'bullmq'
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
 import type { InsertNotificationJobData } from '../jobs/insert-notification.job'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
@@ -19,6 +18,7 @@ import type { InboxItemLookupPort } from '../../application/ports/inbox-item-loo
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { buildInboxItemPayload } from './payload-facts'
+import type { NotificationJobEnqueuePort } from '../inbox-notification-fanout'
 
 /** Common shape of reply lifecycle events that notify the reply author. */
 export type ReplyNotificationEvent = Readonly<{
@@ -30,7 +30,7 @@ export type ReplyNotificationEvent = Readonly<{
 }>
 
 export type ReplyNotificationDeps = Readonly<{
-  queue: Queue
+  queue: NotificationJobEnqueuePort
   inboxItemLookup: InboxItemLookupPort
   userLookup: UserLookupPort
   clock: () => Date
@@ -84,6 +84,8 @@ export function makeReplyNotificationHandler<E extends ReplyNotificationEvent>(o
         audience: { kind: 'property_operator' },
       }
 
-      await deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, data)
+      await deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, data, {
+        jobId: `${event.eventId}-${event.authorId}`,
+      })
     }
 }

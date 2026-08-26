@@ -11,12 +11,18 @@ const ADMIN_A = 'notification-user-lookup-admin-a'
 const ADMIN_B = 'notification-user-lookup-admin-b'
 const MANAGER_A = 'notification-user-lookup-manager-a'
 const OWNER_GUARD_A = 'notification-user-lookup-owner-guard-a'
-const TEST_USERS = [ADMIN_A, ADMIN_B, MANAGER_A]
-
 const { getPool } = setupIntegrationDb({ orgA: ORG_A, orgB: ORG_B, tables: [] })
 
 async function resetMembers(): Promise<void> {
-  await getPool().query(`DELETE FROM member WHERE "userId" = ANY($1)`, [TEST_USERS])
+  // These Organization ids belong to this file. Clean by tenant rather than
+  // by today's fixture ids so a renamed/older fixture cannot make an exact
+  // recipient assertion depend on rows left by a previous test process.
+  await getPool().query(
+    `DELETE FROM member
+      WHERE "organizationId" = ANY($1)
+        AND "userId" <> $2`,
+    [[ORG_A, ORG_B], OWNER_GUARD_A],
+  )
 }
 
 async function seedMembership(

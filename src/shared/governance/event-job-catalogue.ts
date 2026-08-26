@@ -294,6 +294,8 @@ const PROPERTY_RETENTION_OUTBOX =
 const INTEGRATION_IMPORT_OUTBOX =
   'src/contexts/integration/infrastructure/outbox-consumers.ts'
 const NOTIFICATION_OUTBOX = 'src/contexts/notification/infrastructure/outbox-consumers.ts'
+const NOTIFICATION_WORKFLOW_OUTBOX =
+  'src/contexts/notification/infrastructure/workflow-outbox-consumers.ts'
 const NOTIFICATION_PORTAL_OUTBOX =
   'src/contexts/notification/infrastructure/portal-outbox-consumers.ts'
 const NOTIFICATION_PROPERTY_OUTBOX =
@@ -449,6 +451,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable('notification.on-review-reply-submitted', NOTIFICATION_WORKFLOW_OUTBOX),
         bus('inbox.event-handlers', INBOX_HANDLERS),
       ],
       disposition: 'enabled',
@@ -471,6 +474,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable('notification.on-review-reply-approved', NOTIFICATION_WORKFLOW_OUTBOX),
       ],
       disposition: 'enabled',
     },
@@ -510,6 +514,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable('notification.on-review-reply-rejected', NOTIFICATION_WORKFLOW_OUTBOX),
       ],
       disposition: 'enabled',
     },
@@ -530,6 +535,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable('notification.on-review-reply-published', NOTIFICATION_WORKFLOW_OUTBOX),
         bus('inbox.event-handlers', INBOX_HANDLERS),
         durable('inbox.on-reply-published', INBOX_OUTBOX),
       ],
@@ -551,7 +557,13 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'system:reply.publish',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [bus('notification.event-handlers', NOTIFICATION_HANDLERS)],
+      consumers: [
+        bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable(
+          'notification.on-review-reply-publish_failed',
+          NOTIFICATION_WORKFLOW_OUTBOX,
+        ),
+      ],
       disposition: 'enabled',
     },
     {
@@ -650,6 +662,10 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable(
+          'notification.on-inbox-inbox_item-assigned',
+          NOTIFICATION_WORKFLOW_OUTBOX,
+        ),
       ],
       disposition: 'enabled',
     },
@@ -689,6 +705,10 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable(
+          'notification.on-inbox-inbox_item-escalated',
+          NOTIFICATION_WORKFLOW_OUTBOX,
+        ),
       ],
       disposition: 'enabled',
     },
@@ -728,6 +748,7 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       consumers: [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
+        durable('notification.on-inbox-inbox_note-added', NOTIFICATION_WORKFLOW_OUTBOX),
       ],
       disposition: 'enabled',
     },

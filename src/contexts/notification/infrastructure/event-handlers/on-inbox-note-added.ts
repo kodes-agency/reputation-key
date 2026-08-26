@@ -13,16 +13,16 @@ import type { InboxItemLookupPort } from '../../application/ports/inbox-item-loo
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InsertNotificationJobData } from '../jobs/insert-notification.job'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
-import type { Queue } from 'bullmq'
 import { buildInboxItemPayload } from './payload-facts'
 import type { ResponsibleManagerLookupPort } from '../../application/ports/responsible-manager-lookup.port'
 import {
   inboxNotificationAudience,
   resolveInboxResponsibleRecipients,
 } from '../../application/responsible-recipients'
+import type { NotificationJobEnqueuePort } from '../inbox-notification-fanout'
 
 type Deps = Readonly<{
-  queue: Queue
+  queue: NotificationJobEnqueuePort
   userLookup: UserLookupPort
   responsibleManagers: ResponsibleManagerLookupPort
   inboxItemLookup: InboxItemLookupPort
@@ -85,6 +85,10 @@ export const onInboxNoteAdded =
     }))
 
     await Promise.all(
-      jobs.map((data) => deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, data)),
+      jobs.map((data) =>
+        deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, data, {
+          jobId: `${event.eventId}-${data.userId}`,
+        }),
+      ),
     )
   }
