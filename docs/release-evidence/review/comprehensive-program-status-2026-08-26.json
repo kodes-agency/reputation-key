@@ -554,7 +554,7 @@
     {
       "id": "POR-01",
       "status": "partial",
-      "summary": "Rating-first Portal foundations now include database-enforced immutable EN publication snapshots, append-only activation/rollback history, snapshot-backed token resolution, exact Guest evidence binding, and an automatically derived Property-owned Google review destination. Managers see a readiness/refresh status without entering or receiving provider identifiers or a duplicate URL; Brand Profile, BG/locales, broader destination governance, stable address/artifacts, health intervals, and archive/restore remain.",
+      "summary": "Rating-first Portal foundations now include database-enforced immutable EN publication snapshots, append-only activation/rollback history, snapshot-backed token resolution, exact Guest evidence binding, and an automatically derived Property-owned Google review destination. Managers now receive an exact Organization/Property/Portal-scoped history showing the live immutable version, prior publish/rollback activity, and whether saved content is waiting for the next publication. Paused Portals retain truthful history without implying a version is live, and provider destination refreshes are not presented as saved-content changes.",
       "codeEvidence": [
         "src/contexts/portal/",
         "src/contexts/portal/application/portal-publication-snapshot.ts",
@@ -565,14 +565,17 @@
         "drizzle/0114_portal_publication_evidence_binding.sql",
         "drizzle/0115_portal_publication_immutability.sql",
         "src/contexts/property/domain/google-review-destination.ts",
-        "src/components/features/portal/portal-settings/google-review-destination-card.tsx"
+        "src/components/features/portal/portal-settings/google-review-destination-card.tsx",
+        "src/contexts/portal/application/use-cases/get-portal-publication-history.ts",
+        "src/components/features/portal/portal-settings/portal-publication-history-card.tsx"
       ],
       "testEvidence": [
         "Portal snapshot/digest, publication transition, rollback, token revocation, tamper fail-closed, exact Guest evidence, responsibility, and Guest-flow tests; real PostgreSQL publication repository and atomic command-store suites",
-        "Google review destination presentation: 1 file / 3 tests; Portal detail Storybook: 1 file / 5 tests; targeted lint and typecheck passed"
+        "Google review destination presentation: 1 file / 3 tests; Portal detail Storybook: 1 file / 5 tests; targeted lint and typecheck passed",
+        "Publication-history commits 9a08c667 and b27ed616: focused Portal unit/PostgreSQL/server matrix 5 files / 45 tests, Portal Storybook 3 files / 19 tests, composition characterization 1 file / 8 tests, and targeted standards checks passed"
       ],
       "remaining": [
-        "Implement Brand Profile and EN/BG/locales, Pending Content Changes and manager publication/history UI, broader Approved Destinations governance, Portal Health intervals, stable public address and governed Access Artifacts, archive/restore, explicit ownership, dedicated publication facts, legacy classification, and the full public cache and privacy matrix."
+        "Implement Brand Profile and EN/BG/locales, broader Approved Destinations governance, Portal Health intervals, stable public address and governed Access Artifacts, archive/restore, explicit ownership, dedicated publication facts, legacy classification, and the full public cache/privacy matrix; add bounded history pagination before activation volume becomes material."
       ],
       "externalBlockers": []
     },
