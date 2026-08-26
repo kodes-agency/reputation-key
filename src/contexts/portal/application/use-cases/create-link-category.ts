@@ -7,11 +7,11 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { buildPortalLinkCategory } from '../../domain/constructors'
 import { generateKeyBetween } from 'fractional-indexing'
 import { portalLinkCategoryCreated } from '../../domain/events'
-import type { EventBus } from '#/shared/events/event-bus'
 import { portalId, portalLinkCategoryId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { loadPortalOrThrow } from '../load-accessible-portal'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import { nextPortalCommandAt } from '../portal-command-version'
 
 export type CreateLinkCategoryInput = Readonly<{
   portalId: string
@@ -22,10 +22,9 @@ export type CreateLinkCategoryDeps = Readonly<{
   portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
   staffPublicApi: StaffPublicApi
-  events: EventBus
+  commandStore: PortalCommandStore
   idGen: () => string
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 export const createLinkCategory =
@@ -46,29 +45,35 @@ export const createLinkCategory =
     const lastSortKey = existing.length > 0 ? existing[existing.length - 1].sortKey : null
     const sortKey = generateKeyBetween(lastSortKey, null)
 
+    const now = nextPortalCommandAt(deps.clock(), portal.updatedAt)
     const result = buildPortalLinkCategory({
       id: portalLinkCategoryId(deps.idGen()),
       portalId: portalId(input.portalId),
       organizationId: ctx.organizationId,
       title: input.title,
       sortKey,
-      now: deps.clock(),
+      now,
     })
 
     if (result.isErr()) throw result.error
 
-    await deps.portalLinkRepo.insertCategory(ctx.organizationId, result.value)
-
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      portalLinkCategoryCreated({
-        portalId: portal.id,
-        categoryId: result.value.id,
-        organizationId: ctx.organizationId,
-        occurredAt: deps.clock(),
-      }),
-    )
+    const event = portalLinkCategoryCreated({
+      portalId: portal.id,
+      categoryId: result.value.id,
+      organizationId: ctx.organizationId,
+      propertyId: portal.propertyId,
+      sourceAggregateVersion: now.toISOString(),
+      occurredAt: now,
+    })
+    await deps.commandStore.createPortalLinkCategory({
+      organizationId: ctx.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      expectedPortalUpdatedAt: portal.updatedAt,
+      category: result.value,
+      at: now,
+      event,
+    })
 
     return result.value
   }

@@ -64,6 +64,9 @@ assignment, and governed access artifacts.
 - Losing the last manager sets `responsibilityNeededSince` and atomically records one identifier-only recovery fact. Adding any manager clears the state; nobody is auto-promoted.
 - Core Portal creation, update/publication transition, and soft deletion use one Portal-owned command store. Authoritative Portal state, initial responsibility, live-token revocation on delete, and every required lifecycle outbox fact commit in the same PostgreSQL transaction. The in-process bus runs only after commit.
 - Portal Group soft deletion uses the same command boundary: the Group archive, effective-dated membership closure, and `portal_group.deleted` outbox fact commit together under an `updatedAt` revision fence. A failed fact write or stale manager view changes none of them.
+- Portal Group create/rename/membership commands use that boundary too. Group state, effective-dated membership changes, an `updatedAt` compare-and-swap fence, and identifier-only versioned facts commit together.
+- Portal link/category creation and reorder commands fence the parent Portal `updatedAt`; content rows, the parent revision, and identifier-only versioned facts share one transaction. This prevents a content edit from crossing publication or another content mutation unnoticed.
+- Portal token issue/rotation/revocation use the parent Portal revision and one lock order. Token state, Portal revision, and the versioned lifecycle fact commit together; retries cannot duplicate a token or fact.
 - Portal lifecycle facts are identifier-only. They carry Property/Portal scope, publication-state codes where relevant, and `sourceAggregateVersion = updatedAt.toISOString()`; they never copy Portal name, slug, description, theme, or link content. The outbox event UUID is the replay uniqueness key and optimistic `updatedAt` fencing rejects stale commands.
 - Portal hero source keys are server-derived from an opaque issuance ID and the presigned PUT is first-write-only. Finalization accepts only that ID, rechecks current scope/state/expiry and exact storage MIME/size/ETag, and atomically consumes it with the durable processing fact. The worker reads with that observed ETag as an immutable-version fence. A newer consumed issuance supersedes an older worker; only the current consumed issuance may publish newly derived WebP keys. Client Portal updates may remove a hero image but may never set a non-null URL.
 
@@ -74,26 +77,26 @@ assignment, and governed access artifacts.
 - **`portal.deleted`** — portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
 - **`portal.responsibility_became_needed`** — portalId, organizationId, propertyId, occurredAt. Identifier-only, atomically recorded with the unowned transition; Notification sends one content-free recovery alert to each current AccountAdmin.
 - **`portal.hero_image.processing_requested`** — uploadId, portalId, organizationId, propertyId, sourceETag, occurredAt. Content-free durable hand-off committed atomically with issuance consumption; the consumer binds the source read to the observed ETag.
-- **`portal.token.issued`** — portalId, organizationId, propertyId, tokenIdentifier, version, occurredAt.
-- **`portal.token.rotated`** — portalId, organizationId, propertyId, previousVersion, version, gracePeriodEnds, occurredAt.
-- **`portal.token.revoked`** — portalId, organizationId, propertyId, occurredAt. Identifier-only audit fact; no consumers.
-- **`portal_group.created`** — portalGroupId, organizationId, propertyId, name, occurredAt.
-- **`portal_group.updated`** — portalGroupId, organizationId, propertyId, name, occurredAt.
+- **`portal.token.issued`** — portalId, organizationId, propertyId, tokenIdentifier, version, sourceAggregateVersion, occurredAt.
+- **`portal.token.rotated`** — portalId, organizationId, propertyId, previousVersion, version, gracePeriodEnds, sourceAggregateVersion, occurredAt.
+- **`portal.token.revoked`** — portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt. Identifier-only audit fact; no consumers.
+- **`portal_group.created`** — portalGroupId, organizationId, propertyId, sourceAggregateVersion, occurredAt. The in-process event also carries the new name; the durable fact does not.
+- **`portal_group.updated`** — portalGroupId, organizationId, propertyId, sourceAggregateVersion, occurredAt. The in-process event also carries the new name; the durable fact does not.
 - **`portal_group.deleted`** — portalGroupId, organizationId, propertyId, occurredAt.
-- **`portal_group.portal_added`** — portalGroupId, portalId, organizationId, occurredAt.
-- **`portal_group.portal_removed`** — portalGroupId, portalId, organizationId, occurredAt.
-- **`portal_link_category.created`** — portalId, categoryId, organizationId, occurredAt.
-- **`portal_link_category.reordered`** — portalId, organizationId, occurredAt.
-- **`portal_link.created`** — portalId, linkId, categoryId, organizationId, occurredAt.
-- **`portal_link.reordered`** — portalId, categoryId, organizationId, occurredAt.
+- **`portal_group.portal_added`** — portalGroupId, portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
+- **`portal_group.portal_removed`** — portalGroupId, portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
+- **`portal_link_category.created`** — portalId, categoryId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
+- **`portal_link_category.reordered`** — portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
+- **`portal_link.created`** — portalId, linkId, categoryId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
+- **`portal_link.reordered`** — portalId, categoryId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
   > **Subscriber status:** `portal.created` and `portal.updated` are durable lifecycle/audit
   > facts with no product projection today. `portal.deleted` is durable and has the retained
-  > Goal cleanup subscriber. The remaining link/category/group events
+  > Goal cleanup subscriber. The link/category/group events
   > (`portal_group.created`, `portal_group.updated`, `portal_group.portal_added`,
   > `portal_group.portal_removed`, `portal_link_category.created`,
   > `portal_link_category.reordered`, `portal_link.created`, `portal_link.reordered`) are
-  > **fire-and-forget** — they have no current subscriber but are cheap to emit and may be
-  > needed for real-time UI updates. They are intentionally retained for future extensibility.
+  > durable identifier-only audit facts with no current subscriber. Display names, titles,
+  > labels, and URLs are excluded from their outbox allowlists.
 
 ## Events consumed
 
@@ -128,7 +131,7 @@ portal/
                        portal-responsible-managers.ts
     public-api.ts      re-exports port types, PortalPublicApi, PortalGroupPublicApi, event types/constructors
   infrastructure/
-    portal-command-store.ts (atomic core lifecycle state + outbox facts)
+    portal-command-store.ts (atomic Portal, Group, content, token state + outbox facts)
     portal-upload-issuance-store.ts (single-use scoped issuance + stale-worker fence)
     repositories/      portal.repository.ts, portal-publication.repository.ts,
                        portal-group.repository.ts, portal-link.repository.ts,
@@ -160,7 +163,7 @@ portal/
 - **`listPortalLinks`** — List all links for a portal (flat, with category info).
 - **`createPortalGroup`** — Create a new portal group for a property. Validates name uniqueness and portal memberships. Optionally adds initial portals (pre-validated).
 - **`updatePortalGroup`** — Update group name. Validates name uniqueness (excluding self).
-- **`softDeletePortalGroup`** — Soft-delete a group, emits `portal_group.deleted`. Does not cascade-remove portal memberships.
+- **`softDeletePortalGroup`** — Atomically soft-delete a group, close its active effective-dated memberships, and record `portal_group.deleted`; membership history is not hard-deleted.
 - **`listPortalGroups`** — List groups for an org/property.
 - **`getPortalGroup`** — Retrieve a single group by ID.
 - **`addPortalToGroup`** — Add a portal to a group. Validates portal not already in another group.

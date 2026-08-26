@@ -4,7 +4,6 @@
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { PortalGroup, PortalGroupId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreatePortalGroupInput } from '../dto/create-portal-group.dto'
@@ -14,17 +13,16 @@ import { portalGroupCreated, portalAddedToGroup } from '../../domain/events'
 import { portalId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertNewPortalPropertyAccess } from '../load-accessible-portal'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
 
 export type CreatePortalGroupDeps = Readonly<{
   portalGroupRepo: PortalGroupRepository
   portalRepo: PortalRepository
   propertyApi: PropertyPublicApi
   staffPublicApi: StaffPublicApi
-  events: EventBus
+  commandStore: PortalCommandStore
   idGen: () => PortalGroupId
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 export const createPortalGroup =
@@ -58,25 +56,9 @@ export const createPortalGroup =
 
     const group = groupResult.value
 
-    // 5. Persist
-    await deps.portalGroupRepo.insert(ctx.organizationId, group)
-
-    // 6a. Emit created event
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      portalGroupCreated({
-        portalGroupId: group.id,
-        organizationId: group.organizationId,
-        propertyId: group.propertyId,
-        name: group.name,
-        occurredAt: group.createdAt,
-      }),
-    )
-
-    // 6b. Add portals if provided — pre-validate all before mutating
-    if (input.portalIds?.length) {
-      const brandedPids = input.portalIds.map((pid) => portalId(pid))
+    // 5. Validate every initial membership before the atomic commit.
+    const brandedPids = (input.portalIds ?? []).map((candidate) => portalId(candidate))
+    if (brandedPids.length) {
       for (const brandedPid of brandedPids) {
         const existing = await deps.portalGroupRepo.findPortalMembership(
           ctx.organizationId,
@@ -100,26 +82,36 @@ export const createPortalGroup =
           )
         }
       }
-      for (const brandedPid of brandedPids) {
-        await deps.portalGroupRepo.addPortal(
-          ctx.organizationId,
-          group.id,
-          brandedPid,
-          group.createdAt,
-          ctx.userId,
-        )
-        await emitAndRecord(
-          deps.events,
-          deps.outboxRepo,
-          portalAddedToGroup({
-            portalGroupId: group.id,
-            portalId: brandedPid,
-            organizationId: ctx.organizationId,
-            occurredAt: group.createdAt,
-          }),
-        )
-      }
     }
+
+    // 6. State, memberships, and all facts share one transaction.
+    const created = portalGroupCreated({
+      portalGroupId: group.id,
+      organizationId: group.organizationId,
+      propertyId: group.propertyId,
+      name: group.name,
+      sourceAggregateVersion: group.updatedAt.toISOString(),
+      occurredAt: group.createdAt,
+    })
+    const added = brandedPids.map((brandedPid) =>
+      portalAddedToGroup({
+        portalGroupId: group.id,
+        portalId: brandedPid,
+        organizationId: ctx.organizationId,
+        propertyId: group.propertyId,
+        sourceAggregateVersion: group.updatedAt.toISOString(),
+        occurredAt: group.createdAt,
+      }),
+    )
+    await deps.commandStore.createPortalGroup({
+      organizationId: ctx.organizationId,
+      group,
+      memberships: brandedPids.map((brandedPid) => ({
+        portalId: brandedPid,
+        createdBy: ctx.userId,
+      })),
+      events: [created, ...added],
+    })
 
     // 7. Return
     return group

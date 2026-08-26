@@ -13,7 +13,7 @@ import { assertPropertyAccess } from '../assert-property-access'
 
 export type SoftDeletePortalGroupDeps = Readonly<{
   portalGroupRepo: PortalGroupRepository
-  commandStore: PortalCommandStore
+  commandStore: Pick<PortalCommandStore, 'deletePortalGroup'>
   staffPublicApi: StaffPublicApi
   clock: () => Date
 }>

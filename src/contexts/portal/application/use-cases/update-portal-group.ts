@@ -2,7 +2,6 @@
 // Full 7-step pattern: authorize → find → check uniqueness → update → emit → return
 
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { PortalGroup } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdatePortalGroupInput } from '../dto/update-portal-group.dto'
@@ -12,14 +11,14 @@ import { portalGroupUpdated } from '../../domain/events'
 import { portalGroupId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import { nextPortalCommandAt } from '../portal-command-version'
 
 export type UpdatePortalGroupDeps = Readonly<{
   portalGroupRepo: PortalGroupRepository
   staffPublicApi: StaffPublicApi
-  events: EventBus
+  commandStore: PortalCommandStore
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 export const updatePortalGroup =
@@ -60,24 +59,24 @@ export const updatePortalGroup =
     }
 
     // 4. Update
-    const now = deps.clock()
-    await deps.portalGroupRepo.update(ctx.organizationId, gid, {
+    const now = nextPortalCommandAt(deps.clock(), existing.updatedAt)
+    const event = portalGroupUpdated({
+      portalGroupId: gid,
+      organizationId: ctx.organizationId,
+      propertyId: existing.propertyId,
       name: newName,
-      updatedAt: now,
+      sourceAggregateVersion: now.toISOString(),
+      occurredAt: now,
     })
-
-    // 5. Emit event
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      portalGroupUpdated({
-        portalGroupId: gid,
-        organizationId: ctx.organizationId,
-        propertyId: existing.propertyId,
-        name: newName,
-        occurredAt: now,
-      }),
-    )
+    await deps.commandStore.updatePortalGroup({
+      organizationId: ctx.organizationId,
+      propertyId: existing.propertyId,
+      portalGroupId: gid,
+      expectedUpdatedAt: existing.updatedAt,
+      name: newName,
+      at: now,
+      event,
+    })
 
     // 6. Return updated group
     return { ...existing, name: newName, updatedAt: now }

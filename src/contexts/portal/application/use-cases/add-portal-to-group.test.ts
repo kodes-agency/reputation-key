@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import { addPortalToGroup } from './add-portal-to-group'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import {
@@ -129,11 +130,16 @@ const seedPortal = (): Portal => ({
 const setup = (accessible: ReadonlyArray<PropertyId> | null) => {
   const portalGroupRepo = createInMemoryPortalGroupRepo()
   const events = createCapturingEventBus()
+  const portalRepo = createPortalRepoMock(seedPortal())
   const deps = {
     portalGroupRepo,
-    portalRepo: createPortalRepoMock(seedPortal()),
+    portalRepo,
     staffPublicApi: staffApiMock(accessible),
-    events,
+    commandStore: createInMemoryPortalCommandStore({
+      portalRepo,
+      portalGroupRepo,
+      events,
+    }),
     clock: () => FIXED_TIME,
   }
   const useCase = addPortalToGroup(deps)

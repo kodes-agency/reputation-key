@@ -1,20 +1,19 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
-import { portalId, unbrand } from '#/shared/domain/ids'
+import { portalId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { portalError } from '../../domain/errors'
 import { portalTokenRevoked } from '../../domain/events'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import { nextPortalCommandAt } from '../portal-command-version'
 
 export type RevokePortalTokensDeps = Readonly<{
   portalRepo: PortalRepository
   portalTokenRepo: PortalTokenRepository
   staffPublicApi: StaffPublicApi
-  events: EventBus
-  outboxRepo?: OutboxRepository
+  commandStore: PortalCommandStore
   clock: () => Date
 }>
 
@@ -30,27 +29,24 @@ export const revokePortalTokens =
     })
     const reason = input.reason.trim()
     if (!reason) throw portalError('token_unavailable', 'Revocation reason is required')
-    const at = deps.clock()
-    const revoked = await deps.portalTokenRepo.revokeForPortal({
-      organizationId: ctx.organizationId,
+    const at = nextPortalCommandAt(deps.clock(), portal.updatedAt)
+    const event = portalTokenRevoked({
       portalId: portal.id,
-      revokedBy: unbrand(ctx.userId),
+      organizationId: portal.organizationId,
+      propertyId: portal.propertyId,
+      sourceAggregateVersion: at.toISOString(),
+      occurredAt: at,
+    })
+    return deps.commandStore.revokePortalTokens({
+      organizationId: ctx.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      expectedPortalUpdatedAt: portal.updatedAt,
+      revokedBy: ctx.userId,
       reason,
       at,
+      event,
     })
-    if (revoked > 0) {
-      await emitAndRecord(
-        deps.events,
-        deps.outboxRepo,
-        portalTokenRevoked({
-          portalId: portal.id,
-          organizationId: portal.organizationId,
-          propertyId: portal.propertyId,
-          occurredAt: at,
-        }),
-      )
-    }
-    return { revoked }
   }
 
 export type RevokePortalTokens = ReturnType<typeof revokePortalTokens>

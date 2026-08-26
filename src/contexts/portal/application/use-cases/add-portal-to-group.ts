@@ -6,18 +6,17 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PortalRepository } from '../ports/portal.repository'
 import { portalError } from '../../domain/errors'
 import { portalAddedToGroup } from '../../domain/events'
-import type { EventBus } from '#/shared/events/event-bus'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { loadGroupAndPortalForMembership } from '../load-accessible-portal'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import { nextPortalCommandAt } from '../portal-command-version'
 
 export type AddPortalToGroupDeps = Readonly<{
   portalGroupRepo: PortalGroupRepository
   portalRepo: PortalRepository
   staffPublicApi: StaffPublicApi
-  events: EventBus
+  commandStore: PortalCommandStore
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 export const addPortalToGroup =
@@ -48,19 +47,25 @@ export const addPortalToGroup =
       throw portalError('portal_already_grouped', 'portal is already in a group')
     }
 
-    const now = deps.clock()
-    await deps.portalGroupRepo.addPortal(ctx.organizationId, gid, pid, now, ctx.userId)
-
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      portalAddedToGroup({
-        portalGroupId: gid,
-        portalId: pid,
-        organizationId: ctx.organizationId,
-        occurredAt: now,
-      }),
-    )
+    const now = nextPortalCommandAt(deps.clock(), group.updatedAt)
+    const event = portalAddedToGroup({
+      portalGroupId: gid,
+      portalId: pid,
+      organizationId: ctx.organizationId,
+      propertyId: group.propertyId,
+      sourceAggregateVersion: now.toISOString(),
+      occurredAt: now,
+    })
+    await deps.commandStore.addPortalToGroup({
+      organizationId: ctx.organizationId,
+      propertyId: group.propertyId,
+      portalGroupId: gid,
+      portalId: pid,
+      expectedUpdatedAt: group.updatedAt,
+      at: now,
+      changedBy: ctx.userId,
+      event,
+    })
   }
 
 export type AddPortalToGroup = ReturnType<typeof addPortalToGroup>

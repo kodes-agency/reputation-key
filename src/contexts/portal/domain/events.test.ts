@@ -37,6 +37,7 @@ describe('portal events', () => {
       organizationId: ORG_ID,
       propertyId: PROP_ID,
       name: 'Test Group',
+      sourceAggregateVersion: NOW.toISOString(),
       occurredAt: NOW,
     })
     expect(event._tag).toBe('portal_group.created')
@@ -51,6 +52,7 @@ describe('portal events', () => {
           organizationId: ORG_ID,
           propertyId: PROP_ID,
           name: ' ',
+          sourceAggregateVersion: NOW.toISOString(),
           occurredAt: NOW,
         }),
       'name must be a non-empty string',
@@ -63,6 +65,7 @@ describe('portal events', () => {
           organizationId: ORG_ID,
           propertyId: PROP_ID,
           name: ' ',
+          sourceAggregateVersion: NOW.toISOString(),
           occurredAt: NOW,
         }),
       'name must be a non-empty string',
@@ -90,6 +93,7 @@ describe('portal events', () => {
       portalId: PORTAL_ID,
       organizationId: ORG_ID,
       propertyId: PROP_ID,
+      sourceAggregateVersion: NOW.toISOString(),
       occurredAt: NOW,
     }
     const issued = portalTokenIssued({

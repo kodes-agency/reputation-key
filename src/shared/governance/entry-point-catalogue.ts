@@ -246,7 +246,7 @@ const MUTATING_QUERY_NAMES = new Set([
   'listImportCandidates',
   'getPropertyGooglePerformance',
 ])
-const NON_ATOMIC_PORTAL_MUTATIONS = new Set([
+const ATOMIC_PORTAL_MUTATIONS = new Set([
   'createPortalGroup',
   'updatePortalGroup',
   'addPortalToGroup',
@@ -328,12 +328,13 @@ function mutationForEntry(
         'Owns BullMQ repeatable-schedule metadata; domain mutation occurs only in the separately catalogued job.',
     }
   }
-  if (name === 'softDeletePortalGroup') {
+  if (name === 'softDeletePortalGroup' || ATOMIC_PORTAL_MUTATIONS.has(name)) {
     return {
       kind: 'mutation',
       stateOwner: 'portal',
       disposition: 'atomic_state_and_fact',
-      reason: 'PortalCommandStore atomically archives the group and records its fact.',
+      reason:
+        'PortalCommandStore commits the revision-fenced state change, required side effects, and versioned outbox fact in one PostgreSQL transaction.',
     }
   }
   if (LOCAL_ONLY_PORTAL_MUTATIONS.has(name)) {
@@ -343,15 +344,6 @@ function mutationForEntry(
       disposition: 'local_only_with_reason',
       reason:
         'The Portal contract declares no durable fact for this link/category edit; it is a context-local state write.',
-    }
-  }
-  if (NON_ATOMIC_PORTAL_MUTATIONS.has(name)) {
-    return {
-      kind: 'mutation',
-      stateOwner: 'portal',
-      disposition: 'non_atomic_defect',
-      reason:
-        'Portal link/group state still uses the non-transactional emit-and-record path.',
     }
   }
   return {

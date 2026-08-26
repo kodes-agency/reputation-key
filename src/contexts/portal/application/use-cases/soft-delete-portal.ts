@@ -64,6 +64,7 @@ export const softDeletePortal =
         portalId: pid,
         organizationId: ctx.organizationId,
         propertyId: existing.propertyId,
+        sourceAggregateVersion: occurredAt.toISOString(),
         occurredAt,
       }),
     })

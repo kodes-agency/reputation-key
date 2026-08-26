@@ -569,6 +569,36 @@ describe('BQC-2.1 entry-point catalogue', () => {
     ])
   })
 
+  it('records the eleven Portal command-store transactions as atomic state-and-fact writes', () => {
+    const atomicCommands = new Set([
+      'createPortalGroup',
+      'updatePortalGroup',
+      'addPortalToGroup',
+      'removePortalFromGroup',
+      'createLink',
+      'reorderLinks',
+      'createLinkCategory',
+      'reorderCategories',
+      'issuePortalToken',
+      'rotatePortalToken',
+      'revokePortalTokens',
+    ])
+    const rows = catalogue.filter(
+      ({ kind, name }) => kind === 'server_function' && atomicCommands.has(name),
+    )
+
+    expect(rows).toHaveLength(11)
+    expect(rows.map(({ mutation }) => mutation)).toEqual(
+      Array.from({ length: 11 }, () =>
+        expect.objectContaining({
+          kind: 'mutation',
+          stateOwner: 'portal',
+          disposition: 'atomic_state_and_fact',
+        }),
+      ),
+    )
+  })
+
   it('records every delayed entry point as BQC-3.2-integrated (BQC-2.5/3.2)', () => {
     const delayed = catalogue.filter((r) =>
       ['job', 'consumer', 'schedule'].includes(r.kind),

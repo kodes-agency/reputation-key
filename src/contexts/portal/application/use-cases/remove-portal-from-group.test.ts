@@ -5,6 +5,8 @@
 import { describe, it, expect } from 'vitest'
 import { removePortalFromGroup } from './remove-portal-from-group'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
+import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import {
@@ -103,7 +105,11 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null) => {
   const deps = {
     portalGroupRepo,
     staffPublicApi: staffApiMock(accessible),
-    events,
+    commandStore: createInMemoryPortalCommandStore({
+      portalRepo: createInMemoryPortalRepo(),
+      portalGroupRepo,
+      events,
+    }),
     clock: () => FIXED_TIME,
   }
   const useCase = removePortalFromGroup(deps)

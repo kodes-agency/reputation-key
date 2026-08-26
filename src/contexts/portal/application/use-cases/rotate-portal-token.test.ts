@@ -4,6 +4,7 @@ import type { PortalTokenCodec } from '../ports/portal-token-codec.port'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { issueToken } from '../../domain/portal-token'
 import { rotatePortalToken } from './rotate-portal-token'
@@ -37,15 +38,20 @@ describe('rotatePortalToken', () => {
     })
     const saveRotation = vi.fn(async () => undefined)
     const events = createCapturingEventBus()
+    const portalTokenRepo = {
+      findLatestForPortal: vi.fn(async () => current),
+      saveRotation,
+    } as unknown as PortalTokenRepository
     const useCase = rotatePortalToken({
       portalRepo,
-      portalTokenRepo: {
-        findLatestForPortal: vi.fn(async () => current),
-        saveRotation,
-      } as unknown as PortalTokenRepository,
+      portalTokenRepo,
       tokenCodec: { issue: vi.fn(() => material) } as unknown as PortalTokenCodec,
       staffPublicApi,
-      events,
+      commandStore: createInMemoryPortalCommandStore({
+        portalRepo,
+        portalTokenRepo,
+        events,
+      }),
       idGen: () => 'portal-token-2',
       clock: () => NOW,
       baseUrl: 'https://example.test',
@@ -82,14 +88,20 @@ describe('rotatePortalToken', () => {
       const portal = buildTestPortal()
       portalRepo.seed([portal])
       const findLatestForPortal = vi.fn()
+      const portalTokenRepo = {
+        findLatestForPortal,
+      } as unknown as PortalTokenRepository
+      const events = createCapturingEventBus()
       const useCase = rotatePortalToken({
         portalRepo,
-        portalTokenRepo: {
-          findLatestForPortal,
-        } as unknown as PortalTokenRepository,
+        portalTokenRepo,
         tokenCodec: { issue: vi.fn() } as unknown as PortalTokenCodec,
         staffPublicApi,
-        events: createCapturingEventBus(),
+        commandStore: createInMemoryPortalCommandStore({
+          portalRepo,
+          portalTokenRepo,
+          events,
+        }),
         idGen: () => 'portal-token-2',
         clock: () => NOW,
         baseUrl: 'https://example.test',
@@ -107,14 +119,20 @@ describe('rotatePortalToken', () => {
     const portalRepo = createInMemoryPortalRepo()
     const portal = buildTestPortal()
     portalRepo.seed([portal])
+    const portalTokenRepo = {
+      findLatestForPortal: vi.fn(async () => null),
+    } as unknown as PortalTokenRepository
+    const events = createCapturingEventBus()
     const useCase = rotatePortalToken({
       portalRepo,
-      portalTokenRepo: {
-        findLatestForPortal: vi.fn(async () => null),
-      } as unknown as PortalTokenRepository,
+      portalTokenRepo,
       tokenCodec: { issue: vi.fn() } as unknown as PortalTokenCodec,
       staffPublicApi,
-      events: createCapturingEventBus(),
+      commandStore: createInMemoryPortalCommandStore({
+        portalRepo,
+        portalTokenRepo,
+        events,
+      }),
       idGen: () => 'portal-token-2',
       clock: () => NOW,
       baseUrl: 'https://example.test',

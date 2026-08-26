@@ -100,13 +100,7 @@ const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
 const setup = (accessible: ReadonlyArray<PropertyId> | null) => {
   const portalGroupRepo = createInMemoryPortalGroupRepo()
   const events = createCapturingEventBus()
-  const unused = async (): Promise<never> => {
-    throw new Error('not used by this test')
-  }
   const commandStore = {
-    createPortal: unused,
-    updatePortal: unused,
-    deletePortal: unused,
     deletePortalGroup: async (command) => {
       await portalGroupRepo.softDelete(
         command.organizationId,
@@ -115,7 +109,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null) => {
       )
       await events.emit(command.event)
     },
-  } satisfies PortalCommandStore
+  } satisfies Pick<PortalCommandStore, 'deletePortalGroup'>
   const deps = {
     portalGroupRepo,
     commandStore,

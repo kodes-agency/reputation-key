@@ -2,6 +2,8 @@
 import { describe, it, expect } from 'vitest'
 import { updatePortalGroup } from './update-portal-group'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
+import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import {
@@ -36,22 +38,27 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 
 function setup(notFound = false, accessible: ReadonlyArray<PropertyId> | null = null) {
   const events = createCapturingEventBus()
+  const portalGroupRepo = {
+    findById: async () => (notFound ? null : existing),
+    listByProperty: async () => [],
+    nameExists: async () => false,
+    insert: async () => {},
+    update: async () => {},
+    softDelete: async () => {},
+    addPortal: async () => {},
+    removePortal: async () => false,
+    findPortalMembership: async () => null,
+    getGroupPortalIds: async () => [],
+    findGroupIdsByPortalIds: async () => [],
+    findGroupForPortal: async () => null,
+  }
   const useCase = updatePortalGroup({
-    portalGroupRepo: {
-      findById: async () => (notFound ? null : existing),
-      listByProperty: async () => [],
-      nameExists: async () => false,
-      insert: async () => {},
-      update: async () => {},
-      softDelete: async () => {},
-      addPortal: async () => {},
-      removePortal: async () => false,
-      findPortalMembership: async () => null,
-      getGroupPortalIds: async () => [],
-      findGroupIdsByPortalIds: async () => [],
-      findGroupForPortal: async () => null,
-    },
-    events,
+    portalGroupRepo,
+    commandStore: createInMemoryPortalCommandStore({
+      portalRepo: createInMemoryPortalRepo(),
+      portalGroupRepo,
+      events,
+    }),
     clock: () => FIXED_TIME,
     staffPublicApi: staffApiMock(accessible),
   })

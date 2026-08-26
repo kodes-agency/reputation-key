@@ -605,6 +605,8 @@ const portalTokenIssuedSchema = z.object({
   propertyId: z.string(),
   tokenIdentifier: z.string(),
   version: z.number().int().positive(),
+  sourceAggregateVersion: z.iso.datetime().optional(),
+  occurredAt: z.iso.datetime().optional(),
 })
 
 const portalTokenRotatedSchema = z.object({
@@ -614,18 +616,79 @@ const portalTokenRotatedSchema = z.object({
   previousVersion: z.number().int().positive(),
   version: z.number().int().positive(),
   gracePeriodEnds: z.iso.datetime(),
+  sourceAggregateVersion: z.iso.datetime().optional(),
+  occurredAt: z.iso.datetime().optional(),
 })
 
 const portalTokenRevokedSchema = z.object({
   portalId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
+  sourceAggregateVersion: z.iso.datetime().optional(),
+  occurredAt: z.iso.datetime().optional(),
 })
 
 const portalGroupDeletedSchema = z.object({
   portalGroupId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
+})
+
+const portalGroupCreatedSchema = z.object({
+  portalGroupId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  sourceAggregateVersion: z.iso.datetime(),
+  occurredAt: z.iso.datetime(),
+})
+
+const portalAddedToGroupSchema = z.object({
+  portalGroupId: z.string(),
+  portalId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  sourceAggregateVersion: z.iso.datetime(),
+  occurredAt: z.iso.datetime(),
+})
+
+const portalGroupUpdatedSchema = portalGroupCreatedSchema
+
+const portalRemovedFromGroupSchema = portalAddedToGroupSchema
+
+const portalLinkCategoryCreatedSchema = z.object({
+  portalId: z.string(),
+  categoryId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  sourceAggregateVersion: z.iso.datetime(),
+  occurredAt: z.iso.datetime(),
+})
+
+const portalLinkCategoryReorderedSchema = z.object({
+  portalId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  sourceAggregateVersion: z.iso.datetime(),
+  occurredAt: z.iso.datetime(),
+})
+
+const portalLinkCreatedSchema = z.object({
+  portalId: z.string(),
+  linkId: z.string(),
+  categoryId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  sourceAggregateVersion: z.iso.datetime(),
+  occurredAt: z.iso.datetime(),
+})
+
+const portalLinkReorderedSchema = z.object({
+  portalId: z.string(),
+  categoryId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  sourceAggregateVersion: z.iso.datetime(),
+  occurredAt: z.iso.datetime(),
 })
 
 // ── Registration ────────────────────────────────────────────────────
@@ -991,6 +1054,46 @@ export function registerAllEventSchemas(): void {
     type: 'portal.token.revoked',
     version: EVENT_VERSION,
     schema: portalTokenRevokedSchema,
+  })
+  registerEventSchema({
+    type: 'portal_link_category.created',
+    version: EVENT_VERSION,
+    schema: portalLinkCategoryCreatedSchema,
+  })
+  registerEventSchema({
+    type: 'portal_link_category.reordered',
+    version: EVENT_VERSION,
+    schema: portalLinkCategoryReorderedSchema,
+  })
+  registerEventSchema({
+    type: 'portal_link.created',
+    version: EVENT_VERSION,
+    schema: portalLinkCreatedSchema,
+  })
+  registerEventSchema({
+    type: 'portal_link.reordered',
+    version: EVENT_VERSION,
+    schema: portalLinkReorderedSchema,
+  })
+  registerEventSchema({
+    type: 'portal_group.created',
+    version: EVENT_VERSION,
+    schema: portalGroupCreatedSchema,
+  })
+  registerEventSchema({
+    type: 'portal_group.updated',
+    version: EVENT_VERSION,
+    schema: portalGroupUpdatedSchema,
+  })
+  registerEventSchema({
+    type: 'portal_group.portal_added',
+    version: EVENT_VERSION,
+    schema: portalAddedToGroupSchema,
+  })
+  registerEventSchema({
+    type: 'portal_group.portal_removed',
+    version: EVENT_VERSION,
+    schema: portalRemovedFromGroupSchema,
   })
   registerEventSchema({
     type: 'portal_group.deleted',

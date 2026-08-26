@@ -1,6 +1,4 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 import { unbrand, portalId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
@@ -10,14 +8,15 @@ import { loadPortalOrThrow } from '../load-accessible-portal'
 import { issueToken } from '../../domain/portal-token'
 import { portalError } from '../../domain/errors'
 import { portalTokenIssued } from '../../domain/events'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import { nextPortalCommandAt } from '../portal-command-version'
 
 export type IssuePortalTokenDeps = Readonly<{
   portalRepo: PortalRepository
   portalTokenRepo: PortalTokenRepository
   tokenCodec: PortalTokenCodec
   staffPublicApi: StaffPublicApi
-  events: EventBus
-  outboxRepo?: OutboxRepository
+  commandStore: PortalCommandStore
   idGen: () => string
   clock: () => Date
   baseUrl: string
@@ -50,6 +49,7 @@ export const issuePortalToken =
     }
 
     const material = deps.tokenCodec.issue()
+    const now = nextPortalCommandAt(deps.clock(), portal.updatedAt)
     const token = issueToken({
       id: deps.idGen(),
       organizationId: unbrand(portal.organizationId),
@@ -60,21 +60,26 @@ export const issuePortalToken =
       tokenKeyVersion: material.tokenKeyVersion,
       version: (latest?.version ?? 0) + 1,
       printBatch: input.printBatch,
-      now: deps.clock(),
+      now,
     })
-    await deps.portalTokenRepo.insert(token)
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      portalTokenIssued({
-        portalId: portal.id,
-        organizationId: portal.organizationId,
-        propertyId: portal.propertyId,
-        tokenIdentifier: token.tokenIdentifier,
-        version: token.version,
-        occurredAt: token.issuedAt,
-      }),
-    )
+    const event = portalTokenIssued({
+      portalId: portal.id,
+      organizationId: portal.organizationId,
+      propertyId: portal.propertyId,
+      tokenIdentifier: token.tokenIdentifier,
+      version: token.version,
+      sourceAggregateVersion: token.issuedAt.toISOString(),
+      occurredAt: token.issuedAt,
+    })
+    await deps.commandStore.issuePortalToken({
+      organizationId: ctx.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      expectedPortalUpdatedAt: portal.updatedAt,
+      token,
+      at: token.issuedAt,
+      event,
+    })
     return {
       rawToken: material.rawToken,
       publicUrl: new URL(`/p/${material.rawToken}`, deps.baseUrl).toString(),

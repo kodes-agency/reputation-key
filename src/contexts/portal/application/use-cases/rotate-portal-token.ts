@@ -1,6 +1,4 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
-import type { EventBus } from '#/shared/events/event-bus'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 import { portalId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
@@ -10,6 +8,8 @@ import { loadPortalOrThrow } from '../load-accessible-portal'
 import { rotateToken } from '../../domain/portal-token'
 import { portalError } from '../../domain/errors'
 import { portalTokenRotated } from '../../domain/events'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import { nextPortalCommandAt } from '../portal-command-version'
 
 const MAX_GRACE_SECONDS = 7 * 24 * 60 * 60
 
@@ -18,8 +18,7 @@ export type RotatePortalTokenDeps = Readonly<{
   portalTokenRepo: PortalTokenRepository
   tokenCodec: PortalTokenCodec
   staffPublicApi: StaffPublicApi
-  events: EventBus
-  outboxRepo?: OutboxRepository
+  commandStore: PortalCommandStore
   idGen: () => string
   clock: () => Date
   baseUrl: string
@@ -64,7 +63,7 @@ export const rotatePortalToken =
     }
 
     const material = deps.tokenCodec.issue()
-    const now = deps.clock()
+    const now = nextPortalCommandAt(deps.clock(), portal.updatedAt)
     const result = rotateToken(
       current,
       {
@@ -84,20 +83,26 @@ export const rotatePortalToken =
     if (!gracePeriodEnds) {
       throw portalError('token_unavailable', 'Portal token rotation has no grace period')
     }
-    await deps.portalTokenRepo.saveRotation(result)
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      portalTokenRotated({
-        portalId: portal.id,
-        organizationId: portal.organizationId,
-        propertyId: portal.propertyId,
-        previousVersion: current.version,
-        version: result.newToken.version,
-        gracePeriodEnds,
-        occurredAt: now,
-      }),
-    )
+    const event = portalTokenRotated({
+      portalId: portal.id,
+      organizationId: portal.organizationId,
+      propertyId: portal.propertyId,
+      previousVersion: current.version,
+      version: result.newToken.version,
+      gracePeriodEnds,
+      sourceAggregateVersion: now.toISOString(),
+      occurredAt: now,
+    })
+    await deps.commandStore.rotatePortalToken({
+      organizationId: ctx.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      expectedPortalUpdatedAt: portal.updatedAt,
+      oldToken: result.oldToken,
+      newToken: result.newToken,
+      at: now,
+      event,
+    })
     return {
       rawToken: material.rawToken,
       publicUrl: new URL(`/p/${material.rawToken}`, deps.baseUrl).toString(),

@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import { createPortalGroup } from './create-portal-group'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import {
@@ -128,9 +129,10 @@ const createPortalRepoMock = (portal: Portal | null): PortalRepository =>
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalGroupRepo = createInMemoryPortalGroupRepo()
   const events = createCapturingEventBus()
+  const portalRepo = createPortalRepoMock(seedPortal())
   const deps = {
     portalGroupRepo,
-    portalRepo: createPortalRepoMock(seedPortal()),
+    portalRepo,
     staffPublicApi: staffApiMock(accessible),
     propertyApi: {
       propertyExists: async (_orgId: OrganizationId, pid: PropertyId) =>
@@ -143,7 +145,11 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
       findIdsByGoogleConnection: async () => [],
       clearGoogleConnectionRef: async () => {},
     },
-    events,
+    commandStore: createInMemoryPortalCommandStore({
+      portalRepo,
+      portalGroupRepo,
+      events,
+    }),
     idGen: () => FIXED_ID,
     clock: () => FIXED_TIME,
   }
