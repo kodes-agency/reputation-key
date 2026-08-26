@@ -4,7 +4,13 @@
 // in one regional PostgreSQL transaction. The in-process bus is emitted only
 // after commit and is never the recovery authority.
 
-import type { OrganizationId, PortalId, PropertyId, UserId } from '#/shared/domain/ids'
+import type {
+  OrganizationId,
+  PortalGroupId,
+  PortalId,
+  PropertyId,
+  UserId,
+} from '#/shared/domain/ids'
 import type { Portal } from '../../domain/types'
 import type {
   PortalPublicationActivation,
@@ -13,6 +19,7 @@ import type {
 import type {
   PortalCreated,
   PortalDeleted,
+  PortalGroupDeleted,
   PortalResponsibilityNeeded,
   PortalTokenRevoked,
   PortalUpdated,
@@ -69,8 +76,19 @@ export type DeletePortalCommand = Readonly<{
   tokenRevokedEvent: PortalTokenRevoked
 }>
 
+export type DeletePortalGroupCommand = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalGroupId: PortalGroupId
+  /** Optimistic fence captured by the application pre-read. */
+  expectedUpdatedAt: Date
+  at: Date
+  event: PortalGroupDeleted
+}>
+
 export type PortalCommandStore = Readonly<{
   createPortal(command: CreatePortalCommand): Promise<void>
   updatePortal(command: UpdatePortalCommand): Promise<void>
   deletePortal(command: DeletePortalCommand): Promise<Readonly<{ revoked: number }>>
+  deletePortalGroup(command: DeletePortalGroupCommand): Promise<void>
 }>

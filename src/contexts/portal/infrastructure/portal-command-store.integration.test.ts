@@ -10,10 +10,17 @@ import { buildTestPortal } from '#/shared/testing/fixtures'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { EventBus } from '#/shared/events/event-bus'
-import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  portalGroupId,
+  portalId,
+  propertyId,
+  userId,
+} from '#/shared/domain/ids'
 import {
   portalCreated,
   portalDeleted,
+  portalGroupDeleted,
   portalResponsibilityNeeded,
   portalTokenRevoked,
   portalUpdated,
@@ -25,8 +32,10 @@ const ORG_A = organizationId('org-portalcmd-0000-0000-000000000001')
 const ORG_B = organizationId('org-portalcmd-0000-0000-000000000002')
 const PROPERTY_A = propertyId('6a000000-0000-4000-8000-000000000001')
 const PORTAL_A = portalId('6b000000-0000-4000-8000-000000000001')
+const GROUP_A = portalGroupId('6f000000-0000-4000-8000-000000000001')
 const MANAGER = userId('manager-portalcmd-00000000000000001')
 const CREATED_AT = new Date('2026-08-26T10:00:00.000Z')
+const GROUP_UPDATED_AT = new Date('2026-08-26T10:02:00.000Z')
 const UPDATED_AT = new Date('2026-08-26T10:05:00.000Z')
 const DELETED_AT = new Date('2026-08-26T10:10:00.000Z')
 const ROLLBACK_TOKEN_HASH =
@@ -40,6 +49,8 @@ const { getPool } = setupIntegrationDb({
   tables: [
     'portal_publication_activations',
     'portal_publication_snapshots',
+    'portal_group_memberships',
+    'portal_groups',
     'portal_tokens',
     'portal_responsible_managers',
     'outbox_events',
@@ -77,6 +88,29 @@ const createdFact = (portal = makePortal()) =>
     sourceAggregateVersion: portal.updatedAt.toISOString(),
     occurredAt: portal.createdAt,
   })
+
+async function seedPortalGroupMembership(): Promise<void> {
+  const portal = makePortal()
+  await createAtomicPortalCommandStore(getDb(), silentEvents).createPortal({
+    organizationId: ORG_A,
+    portal,
+    initialResponsibleManagerId: MANAGER,
+    event: createdFact(portal),
+  })
+  await getPool().query(
+    `INSERT INTO portal_groups
+       (id, organization_id, property_id, name, created_at, updated_at)
+     VALUES ($1, $2, $3, 'Front Desk', $4, $5)`,
+    [GROUP_A, ORG_A, PROPERTY_A, CREATED_AT, GROUP_UPDATED_AT],
+  )
+  await getPool().query(
+    `INSERT INTO portal_group_memberships
+       (organization_id, property_id, portal_id, portal_group_id,
+        effective_from, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [ORG_A, PROPERTY_A, PORTAL_A, GROUP_A, CREATED_AT, MANAGER],
+  )
+}
 
 const ORG_NAME = `Test Org t-${String(ORG_A).replace(/-/gu, '')}`
 
@@ -458,5 +492,169 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       { id: deleted.eventId, event_type: 'portal.deleted' },
       { id: revoked.eventId, event_type: 'portal.token.revoked' },
     ])
+  })
+
+  it('commits Portal Group archive, membership closure, and lifecycle fact together', async () => {
+    await seedPortalGroupMembership()
+    const event = portalGroupDeleted({
+      portalGroupId: GROUP_A,
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      occurredAt: DELETED_AT,
+    })
+    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+
+    await store.deletePortalGroup({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalGroupId: GROUP_A,
+      expectedUpdatedAt: GROUP_UPDATED_AT,
+      at: DELETED_AT,
+      event,
+    })
+
+    const group = await getPool().query(
+      `SELECT deleted_at, updated_at FROM portal_groups
+       WHERE organization_id = $1 AND id = $2`,
+      [ORG_A, GROUP_A],
+    )
+    const membership = await getPool().query(
+      `SELECT effective_to, end_reason FROM portal_group_memberships
+       WHERE organization_id = $1 AND portal_group_id = $2`,
+      [ORG_A, GROUP_A],
+    )
+    const fact = await getPool().query(
+      `SELECT id, event_type FROM outbox_events
+       WHERE organization_id = $1 AND id = $2`,
+      [ORG_A, event.eventId],
+    )
+    expect(group.rows).toEqual([{ deleted_at: DELETED_AT, updated_at: DELETED_AT }])
+    expect(membership.rows).toEqual([
+      { effective_to: DELETED_AT, end_reason: 'group_archived' },
+    ])
+    expect(fact.rows).toEqual([{ id: event.eventId, event_type: 'portal_group.deleted' }])
+  })
+
+  it('rolls back Portal Group archive and membership closure when its fact fails', async () => {
+    await seedPortalGroupMembership()
+    const event = portalGroupDeleted({
+      portalGroupId: GROUP_A,
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      occurredAt: DELETED_AT,
+    })
+    await getPool().query(
+      `INSERT INTO outbox_events
+         (id, event_type, event_version, payload, organization_id, property_id,
+          source_context, source_aggregate_id, created_at)
+       VALUES ($1, 'portal_group.deleted', 1, '{}'::jsonb, $2, $3,
+               'portal', $4, $5)`,
+      [event.eventId, ORG_A, PROPERTY_A, GROUP_A, DELETED_AT],
+    )
+    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+
+    await expect(
+      store.deletePortalGroup({
+        organizationId: ORG_A,
+        propertyId: PROPERTY_A,
+        portalGroupId: GROUP_A,
+        expectedUpdatedAt: GROUP_UPDATED_AT,
+        at: DELETED_AT,
+        event,
+      }),
+    ).rejects.toThrow()
+
+    const group = await getPool().query(
+      `SELECT deleted_at, updated_at FROM portal_groups
+       WHERE organization_id = $1 AND id = $2`,
+      [ORG_A, GROUP_A],
+    )
+    const membership = await getPool().query(
+      `SELECT effective_to, end_reason FROM portal_group_memberships
+       WHERE organization_id = $1 AND portal_group_id = $2`,
+      [ORG_A, GROUP_A],
+    )
+    expect(group.rows).toEqual([{ deleted_at: null, updated_at: GROUP_UPDATED_AT }])
+    expect(membership.rows).toEqual([{ effective_to: null, end_reason: null }])
+  })
+
+  it('rejects a stale Portal Group delete without changing membership or recording a fact', async () => {
+    await seedPortalGroupMembership()
+    const event = portalGroupDeleted({
+      portalGroupId: GROUP_A,
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      occurredAt: DELETED_AT,
+    })
+
+    await expect(
+      createAtomicPortalCommandStore(getDb(), silentEvents).deletePortalGroup({
+        organizationId: ORG_A,
+        propertyId: PROPERTY_A,
+        portalGroupId: GROUP_A,
+        expectedUpdatedAt: CREATED_AT,
+        at: DELETED_AT,
+        event,
+      }),
+    ).rejects.toMatchObject({ _tag: 'PortalError', code: 'revision_conflict' })
+
+    const group = await getPool().query(
+      `SELECT deleted_at, updated_at FROM portal_groups
+       WHERE organization_id = $1 AND id = $2`,
+      [ORG_A, GROUP_A],
+    )
+    const membership = await getPool().query(
+      `SELECT effective_to FROM portal_group_memberships
+       WHERE organization_id = $1 AND portal_group_id = $2`,
+      [ORG_A, GROUP_A],
+    )
+    const fact = await getPool().query(
+      `SELECT id FROM outbox_events WHERE organization_id = $1 AND id = $2`,
+      [ORG_A, event.eventId],
+    )
+    expect(group.rows).toEqual([{ deleted_at: null, updated_at: GROUP_UPDATED_AT }])
+    expect(membership.rows).toEqual([{ effective_to: null }])
+    expect(fact.rows).toHaveLength(0)
+  })
+
+  it('retains the Portal Group state and durable fact when local post-commit delivery fails', async () => {
+    await seedPortalGroupMembership()
+    const event = portalGroupDeleted({
+      portalGroupId: GROUP_A,
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      occurredAt: DELETED_AT,
+    })
+    const unavailableLocalEvents: EventBus = {
+      on: () => {},
+      emit: async () => {
+        throw new Error('local delivery unavailable')
+      },
+      clear: () => {},
+    }
+
+    await createAtomicPortalCommandStore(
+      getDb(),
+      unavailableLocalEvents,
+    ).deletePortalGroup({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalGroupId: GROUP_A,
+      expectedUpdatedAt: GROUP_UPDATED_AT,
+      at: DELETED_AT,
+      event,
+    })
+
+    const group = await getPool().query(
+      `SELECT deleted_at FROM portal_groups
+       WHERE organization_id = $1 AND id = $2`,
+      [ORG_A, GROUP_A],
+    )
+    const fact = await getPool().query(
+      `SELECT id FROM outbox_events WHERE organization_id = $1 AND id = $2`,
+      [ORG_A, event.eventId],
+    )
+    expect(group.rows).toEqual([{ deleted_at: DELETED_AT }])
+    expect(fact.rows).toEqual([{ id: event.eventId }])
   })
 })

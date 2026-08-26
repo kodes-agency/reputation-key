@@ -4,7 +4,7 @@
 // lifecycle fact commit in one PostgreSQL transaction. The EventBus is only a
 // post-commit acceleration path; the outbox remains the recovery authority.
 
-import { and, eq, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, gte, isNull, lt, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   portalPublicationActivations,
@@ -15,6 +15,8 @@ import {
   portals,
   portalTokens,
 } from '#/shared/db/schema/portal.schema'
+import { portalGroups } from '#/shared/db/schema/portal-group.schema'
+import { portalGroupMemberships } from '#/shared/db/schema/people-access.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
@@ -22,6 +24,7 @@ import { unbrand } from '#/shared/domain/ids'
 import type {
   CreatePortalCommand,
   DeletePortalCommand,
+  DeletePortalGroupCommand,
   PortalCommandStore,
   UpdatePortalCommand,
 } from '../application/ports/portal-command-store.port'
@@ -394,6 +397,18 @@ function assertDeleteCommand(command: DeletePortalCommand): void {
   }
 }
 
+function assertDeletePortalGroupCommand(command: DeletePortalGroupCommand): void {
+  const { event } = command
+  if (
+    event.organizationId !== command.organizationId ||
+    event.propertyId !== command.propertyId ||
+    event.portalGroupId !== command.portalGroupId ||
+    !sameInstant(event.occurredAt, command.at)
+  ) {
+    throw portalError('forbidden', 'Tenant or resource mismatch on Portal Group delete')
+  }
+}
+
 export const createAtomicPortalCommandStore = (
   db: Database,
   events: EventBus,
@@ -600,6 +615,59 @@ export const createAtomicPortalCommandStore = (
           await emitAfterCommit(events, command.tokenRevokedEvent)
         }
         return { revoked }
+      }),
+
+    deletePortalGroup: async (command) =>
+      trace('portal.commandStore.deletePortalGroup', async () => {
+        assertDeletePortalGroupCommand(command)
+        await db.transaction(async (tx) => {
+          const [deleted] = await tx
+            .update(portalGroups)
+            .set({ deletedAt: command.at, updatedAt: command.at })
+            .where(
+              and(
+                eq(portalGroups.organizationId, unbrand(command.organizationId)),
+                eq(portalGroups.propertyId, unbrand(command.propertyId)),
+                eq(portalGroups.id, unbrand(command.portalGroupId)),
+                eq(portalGroups.updatedAt, command.expectedUpdatedAt),
+                isNull(portalGroups.deletedAt),
+              ),
+            )
+            .returning({ id: portalGroups.id })
+          if (!deleted) {
+            throw portalError(
+              'revision_conflict',
+              'Portal Group changed while the delete was being committed',
+            )
+          }
+
+          const membershipScope = [
+            eq(portalGroupMemberships.organizationId, unbrand(command.organizationId)),
+            eq(portalGroupMemberships.propertyId, unbrand(command.propertyId)),
+            eq(portalGroupMemberships.portalGroupId, unbrand(command.portalGroupId)),
+            isNull(portalGroupMemberships.effectiveTo),
+          ] as const
+          await tx
+            .delete(portalGroupMemberships)
+            .where(
+              and(
+                ...membershipScope,
+                gte(portalGroupMemberships.effectiveFrom, command.at),
+              ),
+            )
+          await tx
+            .update(portalGroupMemberships)
+            .set({ effectiveTo: command.at, endReason: 'group_archived' })
+            .where(
+              and(
+                ...membershipScope,
+                lt(portalGroupMemberships.effectiveFrom, command.at),
+              ),
+            )
+
+          await insertOutboxRow(tx, command.event, { recordedAt: command.at })
+        })
+        await emitAfterCommit(events, command.event)
       }),
   }
 }

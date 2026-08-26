@@ -17,6 +17,7 @@ import {
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalGroup } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const GROUP_ID = portalGroupId('pg-00000000-0000-0000-0000-000000000001')
@@ -99,10 +100,26 @@ const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
 const setup = (accessible: ReadonlyArray<PropertyId> | null) => {
   const portalGroupRepo = createInMemoryPortalGroupRepo()
   const events = createCapturingEventBus()
+  const unused = async (): Promise<never> => {
+    throw new Error('not used by this test')
+  }
+  const commandStore = {
+    createPortal: unused,
+    updatePortal: unused,
+    deletePortal: unused,
+    deletePortalGroup: async (command) => {
+      await portalGroupRepo.softDelete(
+        command.organizationId,
+        command.portalGroupId,
+        command.at,
+      )
+      await events.emit(command.event)
+    },
+  } satisfies PortalCommandStore
   const deps = {
     portalGroupRepo,
+    commandStore,
     staffPublicApi: staffApiMock(accessible),
-    events,
     clock: () => FIXED_TIME,
   }
   const useCase = softDeletePortalGroup(deps)

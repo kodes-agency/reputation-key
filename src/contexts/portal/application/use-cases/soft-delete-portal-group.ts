@@ -1,23 +1,21 @@
 // Portal context — soft delete portal group use case
-// Full pattern: authorize → find → soft delete → emit → return
+// Full pattern: authorize → find → atomically archive + record fact → return
 
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
 import { portalGroupDeleted } from '../../domain/events'
-import type { EventBus } from '#/shared/events/event-bus'
 import { portalGroupId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
-import { emitAndRecord, type OutboxRepository } from '#/shared/outbox'
 
 export type SoftDeletePortalGroupDeps = Readonly<{
   portalGroupRepo: PortalGroupRepository
+  commandStore: PortalCommandStore
   staffPublicApi: StaffPublicApi
-  events: EventBus
   clock: () => Date
-  outboxRepo?: OutboxRepository
 }>
 
 export const softDeletePortalGroup =
@@ -41,18 +39,20 @@ export const softDeletePortalGroup =
     )
 
     const now = deps.clock()
-    await deps.portalGroupRepo.softDelete(ctx.organizationId, gid, now)
-
-    await emitAndRecord(
-      deps.events,
-      deps.outboxRepo,
-      portalGroupDeleted({
-        portalGroupId: gid,
-        organizationId: ctx.organizationId,
-        propertyId: existing.propertyId,
-        occurredAt: now,
-      }),
-    )
+    const event = portalGroupDeleted({
+      portalGroupId: gid,
+      organizationId: ctx.organizationId,
+      propertyId: existing.propertyId,
+      occurredAt: now,
+    })
+    await deps.commandStore.deletePortalGroup({
+      organizationId: ctx.organizationId,
+      propertyId: existing.propertyId,
+      portalGroupId: gid,
+      expectedUpdatedAt: existing.updatedAt,
+      at: now,
+      event,
+    })
   }
 
 export type SoftDeletePortalGroup = ReturnType<typeof softDeletePortalGroup>

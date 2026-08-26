@@ -293,8 +293,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     }),
     softDeletePortalGroup: softDeletePortalGroup({
       portalGroupRepo,
+      commandStore: portalCommandStore,
       staffPublicApi: deps.staffPublicApi,
-      events: deps.events,
       clock: deps.clock,
     }),
     addPortalToGroup: addPortalToGroup({
