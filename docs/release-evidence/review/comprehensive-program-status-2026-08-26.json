@@ -1,0 +1,681 @@
+{
+  "version": 1,
+  "baselineSha": "9501a6c33ddda7a95b5f4c66f1c7927cbc124612",
+  "assessedAt": "2026-08-26",
+  "packages": [
+    {
+      "id": "FND-01",
+      "status": "partial",
+      "summary": "A digest-bound frozen baseline exists, but it is unsigned and its 114 findings have not been revalidated and dispositioned at the frozen SHA.",
+      "codeEvidence": [
+        "docs/release-evidence/review/718fad1807b7422885584660bd3580f2a3a49113/"
+      ],
+      "testEvidence": [
+        "Frozen gate record: one failed gate and five skipped gates before remediation"
+      ],
+      "remaining": [
+        "Sign the baseline manifest, revalidate every finding with owner/reachability/impact/closure evidence, rerun every gate, and publish the section 16 completion record."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "FND-02",
+      "status": "partial",
+      "summary": "Capability and people authorities improved, but ADRs, context documents, root claims, and capability fate records still contradict the accepted program.",
+      "codeEvidence": [
+        "docs/adr/0052-people-authority.md",
+        "src/shared/auth/beta-capabilities.ts"
+      ],
+      "testEvidence": ["src/shared/governance/context-acceptance-matrix.test.ts"],
+      "remaining": [
+        "Create an ADR index and complete route/job/consumer/schedule/data fate ledger; repair ADR 0003, 0004, 0045, 0048, root documentation, and the missing AI context/public API."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "FND-03",
+      "status": "partial",
+      "summary": "Entry-point and event/job catalogues exist, but they omit required executable kinds, cell ownership, write classifications, and executed reachability proof.",
+      "codeEvidence": [
+        "src/shared/governance/entry-point-catalogue.ts",
+        "src/shared/governance/event-job-catalogue.ts"
+      ],
+      "testEvidence": [
+        "src/shared/governance/entry-point-catalogue.test.ts",
+        "src/shared/governance/event-job-catalogue.test.ts"
+      ],
+      "remaining": [
+        "Add migrations, sidecars, and production scripts; classify every mutation; eliminate unscoped/canonical-only/orphan rows; prove active reachability and dark denial through every execution path."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "FND-04",
+      "status": "partial",
+      "summary": "Many regression tests landed, but there is no oracle index proving each accepted reproduction failed before its fix and closes the intended finding.",
+      "codeEvidence": [
+        "src/start.test.ts",
+        "src/shared/db/pool.test.ts",
+        "src/contexts/review/infrastructure/repositories/review-command-store.integration.test.ts"
+      ],
+      "testEvidence": [
+        "Focused regression suites exist for proxy, database retry, Guest cache, digests, and review re-observation"
+      ],
+      "remaining": [
+        "Publish the pre-fix oracle index and complete missing provider-crash, Portal-upload, goal/leaderboard, coverage-interruption, and production-bundle reproductions."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "SAFE-01",
+      "status": "partial",
+      "summary": "The unsafe Portal upload path is safely dark and the public Guest edge is stronger, but upload issuance/finalization still accepts arbitrary storage keys.",
+      "codeEvidence": [
+        "src/shared/auth/beta-capabilities.ts",
+        "src/contexts/portal/application/use-cases/finalize-upload.ts"
+      ],
+      "testEvidence": [
+        "src/start.test.ts",
+        "Guest cache, safe-link, rating-first, dedupe, and shared Redis limiter tests"
+      ],
+      "remaining": [
+        "Implement issued-upload ownership, single-use CAS finalization, derivative-only writes, cross-tenant/replay/expiry/stale-worker tests, real-Redis evidence, and security review before activating portal.upload."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "SAFE-02",
+      "status": "partial",
+      "summary": "Session, invitation, rate-limit, and tenant controls improved, but active manager decisions still branch on raw roles and deployed proxy/revocation evidence is incomplete.",
+      "codeEvidence": [
+        "src/contexts/staff/application/use-cases/staff-participations.ts",
+        "src/contexts/portal/application/responsible-manager-eligibility.ts"
+      ],
+      "testEvidence": [
+        "Password reset, invitation, membership audit, proxy, and rate-limit suites"
+      ],
+      "remaining": [
+        "Remove remaining raw-role authority checks, prove multi-device revocation and revoked-cookie denial in browser tests, capture Railway forwarding behavior, and disposition every identity/membership anomaly."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "SAFE-03",
+      "status": "partial",
+      "summary": "Retry and re-observation fixes landed, but active lifecycle paths can still hard-delete Reviews and cascade-delete RepKey replies and history.",
+      "codeEvidence": [
+        "src/contexts/reply/infrastructure/repositories/reply-command-store.ts",
+        "src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts",
+        "src/contexts/review/infrastructure/db/review.schema.ts"
+      ],
+      "testEvidence": [
+        "src/shared/db/pool.test.ts",
+        "src/contexts/review/infrastructure/repositories/review-command-store.integration.test.ts"
+      ],
+      "remaining": [
+        "Land a stable Review/material-revision tombstone model, replace every active delete with atomic scrub/tombstone facts, restrict reply deletion, reconcile existing rows, and prove lifecycle preservation in real PostgreSQL."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "SAFE-04",
+      "status": "partial",
+      "summary": "mTLS and sidecar controls are substantial, but OAuth token traffic still bypasses the gateway and live refresh coordination remains process-local.",
+      "codeEvidence": [
+        "src/contexts/integration/infrastructure/adapters/google-oauth.adapter.ts",
+        "src/contexts/integration/application/google-single-401-refresh-executor.ts"
+      ],
+      "testEvidence": [
+        "SPIFFE SAN/EKU, TLS, permit-start, sidecar artifact, and SBOM suites"
+      ],
+      "remaining": [
+        "Route exchange/refresh/revoke through the credential gateway, wire fenced Redis single-flight and authorization invalidation, narrow direct egress to approved JWKS access, and produce sandbox/rotation/recovery evidence."
+      ],
+      "externalBlockers": [
+        "Google production-boundary verification depends on approved provider configuration and reachable sandbox/live test surfaces."
+      ]
+    },
+    {
+      "id": "SAFE-05",
+      "status": "partial",
+      "summary": "Eight promoted images are built and scanned, but not every Dockerfile is covered and no clean current all-gates artifact record exists.",
+      "codeEvidence": [
+        "scripts/check-production-artifacts.mjs",
+        ".github/workflows/ci.yml",
+        ".github/dependabot.yml"
+      ],
+      "testEvidence": [
+        "Production artifact boundary tests, image SBOM generation, and Grype scans for promoted images"
+      ],
+      "remaining": [
+        "Build and scan sandbox/perf-runner images or classify them out of production, add Docker dependency monitoring, and retain a clean isolated install/build/type/lint/test/coverage/artifact gate at the candidate SHA."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "ARC-01",
+      "status": "partial",
+      "summary": "Versioned envelopes and atomic helpers exist, but intended Portal mutations still commit state before non-atomic fact emission and two fact families are orphaned.",
+      "codeEvidence": [
+        "src/shared/outbox/envelope.ts",
+        "src/shared/outbox/commit.ts",
+        "Portal use cases calling emitAndRecord"
+      ],
+      "testEvidence": ["Durable Guest, analytics, AI, and identity fact tests"],
+      "remaining": [
+        "Add command/content classification to the envelope, make every active Portal write atomic with its fact, close orphan families, and prove crash recovery plus empty-projection replay parity."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "ARC-02",
+      "status": "partial",
+      "summary": "Scheduling and repair behavior improved, but the live registry silently overwrites duplicate handlers, jobs are unscoped, destructive Review jobs remain active, and repair ownership is incomplete.",
+      "codeEvidence": [
+        "src/shared/jobs/registry.ts",
+        "src/shared/jobs/runtime.ts",
+        "src/shared/governance/event-job-catalogue.ts"
+      ],
+      "testEvidence": [
+        "Scheduler reconciliation, queue error, Redis isolation, digest, and Inbox rebuild tests"
+      ],
+      "remaining": [
+        "Reject duplicate live registrations, bind each job to cell/owner/readiness/repair, remove destructive Review work, add Metric/Notification repair, and retain restart/missed-schedule/poison evidence."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "ARC-03",
+      "status": "partial",
+      "summary": "Boundary controls improved, but composition remains a large internal-service-locator with global mutable process state and a missing AI context boundary.",
+      "codeEvidence": [
+        "src/shared/composition.ts",
+        "src/bootstrap.ts",
+        "src/worker/index.ts"
+      ],
+      "testEvidence": [
+        "Architecture boundary, React hook, and TanStack Query enforcement tests"
+      ],
+      "remaining": [
+        "Create the AI context/public API, deepen composition interfaces, eliminate global execution/container/queue registries, stop late environment reads, and prove one isolated container per process."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "REG-01",
+      "status": "partial",
+      "summary": "A three-cell catalogue and execution policy exist, but credential-home routing and deployed cell isolation are not implemented or evidenced.",
+      "codeEvidence": [
+        "src/shared/domain/data-cell-catalogue.ts",
+        "src/shared/execution/execution-policy.ts"
+      ],
+      "testEvidence": ["Data-cell catalogue and execution-policy boundary tests"],
+      "remaining": [
+        "Implement the credential-home/routing directory, enforce routing at every ingress and effect boundary, create the three live cell environments, and prove wrong-cell denial and residency."
+      ],
+      "externalBlockers": [
+        "Live Railway currently has only production, staging, and google-closed-beta environments; all observed resources are in Amsterdam."
+      ]
+    },
+    {
+      "id": "REG-02",
+      "status": "partial",
+      "summary": "TypeScript Railway IaC models all three cells, but it is not applied, current live services use legacy Config-as-Code, and the cell resources do not exist.",
+      "codeEvidence": [
+        ".railway/railway.ts",
+        ".railway/cell-topology.ts",
+        "railway*.json"
+      ],
+      "testEvidence": [".railway/railway.test.ts"],
+      "remaining": [
+        "Resolve and approve the exact IaC migration plan, create cell-us/cell-europe/cell-global, provision isolated database/cache/queue/provider Redis/bucket resources, and perform staged rollback drills."
+      ],
+      "externalBlockers": [
+        "Railway IaC apply requires explicit operator approval after reviewing the exact plan and resolving legacy-service ownership diagnostics."
+      ]
+    },
+    {
+      "id": "REG-03",
+      "status": "partial",
+      "summary": "Immutable manifest and digest-promotion code exists, but no same-digest all-cell release has been completed and live services lack manifest identity.",
+      "codeEvidence": [
+        "scripts/release/create-promotion-manifest.ts",
+        "scripts/release/deploy-beta.ts",
+        ".github/workflows/release-images.yml"
+      ],
+      "testEvidence": ["Promotion-manifest and release-script tests"],
+      "remaining": [
+        "Restore green authoritative CI on main, build/sign/scan one candidate, promote exact digests through all cells, run expand/backfill/contract migration gates, and prove rollback without rebuilding."
+      ],
+      "externalBlockers": [
+        "The remote main branch is stale/failing and the required live Railway cell topology is absent."
+      ]
+    },
+    {
+      "id": "REG-04",
+      "status": "partial",
+      "summary": "Recovery scripts and cutover attestations exist, but Railway PITR/backups are disabled and no cell recovery or alert drill is retained.",
+      "codeEvidence": [
+        "src/shared/config/restore-mode.ts",
+        "src/shared/config/recovery-cutover-attestation.ts",
+        "docs/operations/backup-and-lifecycle.md"
+      ],
+      "testEvidence": ["Restore-mode and recovery-cutover-attestation tests"],
+      "remaining": [
+        "Enable and verify backups/PITR per cell, add sidecar/app readiness and regional alerts, execute isolated restore and cutover drills, measure RPO/RTO, and retain incident evidence."
+      ],
+      "externalBlockers": [
+        "Live Railway databases currently report PITR disabled and no backups; enabling service-level recovery changes external state."
+      ]
+    },
+    {
+      "id": "PPL-01",
+      "status": "partial",
+      "summary": "Canonical participants, user links, responsibility intervals, and CAS exist, but legacy assignments remain and migration/offboarding/event-time attribution are incomplete.",
+      "codeEvidence": [
+        "src/shared/db/schema/people-access.schema.ts",
+        "src/contexts/staff/CONTEXT.md"
+      ],
+      "testEvidence": ["People authority, responsibility, and Team-quarantine tests"],
+      "remaining": [
+        "Reconcile and retire legacy readers, snapshot event-time primary Staff attribution, implement offboarding/vacancy recovery, and prove negative-role and concurrent-edit journeys."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "GGL-01",
+      "status": "partial",
+      "summary": "Google lifecycle and resumable import foundations are substantial, but connections are not organization-only, imports cap at 100, and push handling falls back to full-property sync.",
+      "codeEvidence": [
+        "src/contexts/integration/infrastructure/db/google-connection.schema.ts",
+        "src/contexts/integration/infrastructure/db/google-import-v2.schema.ts",
+        "src/contexts/integration/application/handle-gbp-notification.ts"
+      ],
+      "testEvidence": [
+        "OAuth, credential CAS, import checkpoint, Pub/Sub JWT, and pusher validation suites"
+      ],
+      "remaining": [
+        "Migrate to organization ownership, add connector-departure preflight, introduce super-parent imports with bounded batches, persist identifier-only push receipts, and route targeted Review fetches through the correct credential home."
+      ],
+      "externalBlockers": [
+        "Live targeted-push and credential-home proof depends on Google sandbox/configuration and deployed Railway cells."
+      ]
+    },
+    {
+      "id": "REV-01",
+      "status": "partial",
+      "summary": "The current mutable Review/source-revision model does not implement stable logical Reviews, source observations, material revisions, or non-destructive tombstones.",
+      "codeEvidence": [
+        "src/contexts/review/infrastructure/db/review.schema.ts",
+        "src/contexts/review/CONTEXT.md"
+      ],
+      "testEvidence": ["Review re-observation integration regression"],
+      "remaining": [
+        "Add stable Review, source observation, material revision, normalization version/digests, shadow dual-write comparison, content-free tombstones, collision handling, migration parity, and real-database lifecycle proof."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "IBX-01",
+      "status": "partial",
+      "summary": "Inbox correctness improved, but the model remains one mutable item rather than immutable numbered Handling Cycles with revision fencing and source-specific outcomes.",
+      "codeEvidence": ["src/contexts/inbox/", "src/shared/db/schema/inbox.schema.ts"],
+      "testEvidence": ["Cursor, empty-scope, watermark, rebuild, and bulk-reopen tests"],
+      "remaining": [
+        "Implement numbered cycles and CAS, feedback/Google outcome vocabularies, rehandling on material revision, eligibility-loss unassignment, target snapshots/reminders, and fenced all-or-none bulk operations."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "RPL-01",
+      "status": "partial",
+      "summary": "A durable publication overlay and ambiguity reconciliation exist, but confirmation intent is not atomically queued and Inbox closure does not wait for subsequently observed Google truth.",
+      "codeEvidence": [
+        "src/contexts/reply/application/reply-operations.ts",
+        "src/contexts/reply/",
+        "src/components/reply/reply-form.tsx"
+      ],
+      "testEvidence": [
+        "Publication state, authorization, retry, and ambiguity reconciliation suites"
+      ],
+      "remaining": [
+        "Add atomically committed publication intent and per-attempt history, material-revision fences, normalized provider fixtures, observed-live closure, external-reply reconciliation, operations UX/alerts, and settled Confirm & Publish language."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "AI-01",
+      "status": "partial",
+      "summary": "The AI safety plane is strong, but authorization and manager configuration are combined and disable/erase/provider lifecycle proof is incomplete.",
+      "codeEvidence": [
+        "src/contexts/ai/",
+        "services/ai-execution-admission/",
+        "services/ai-egress-gateway/"
+      ],
+      "testEvidence": [
+        "AI consent, permit, quota, circuit, egress, provenance, and prohibited-source suites"
+      ],
+      "remaining": [
+        "Separate authorization from configuration, implement one lifecycle owner for disable/erase/invalidation/archive, prove 24-hour erasure and non-mutation, and retain every-cell denial/exfiltration/fault evidence."
+      ],
+      "externalBlockers": [
+        "External provider region/retention/legal facts and deployed cell evidence remain release-gated."
+      ]
+    },
+    {
+      "id": "AI-02",
+      "status": "partial",
+      "summary": "Versioned analysis and resumable backfill exist, but enrollment silently caps at 10,000 and lacks immutable coverage membership and an awaiting-approval state.",
+      "codeEvidence": [
+        "src/contexts/ai/infrastructure/db/ai.schema.ts",
+        "src/contexts/ai/application/backfill-review-analysis.ts"
+      ],
+      "testEvidence": [
+        "Analysis result/head, consumer, aggregate, and resumable backfill suites"
+      ],
+      "remaining": [
+        "Anchor results to Material Review Revisions, replace capped arrays with immutable membership, add assisted approval and caught-up truth, and complete progress/disable/invalidate/erase lifecycle."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "AI-03",
+      "status": "partial",
+      "summary": "The current feature selects stock templates; it does not implement the agreed genuinely personalized, grounded EN/BG reply drafting capability.",
+      "codeEvidence": [
+        "src/shared/ai-operation-profiles.ts",
+        "services/ai-egress-gateway/route-preparer.ts",
+        "src/contexts/review/infrastructure/db/review.schema.ts"
+      ],
+      "testEvidence": ["Template-selection and AI admission tests"],
+      "remaining": [
+        "Create a distinct EN/BG genuine-draft operation with structured grounding/safety validation, ephemeral session semantics, explicit human adoption, RPL handoff, and versioned adversarial/outage evaluation packs."
+      ],
+      "externalBlockers": [
+        "Production activation depends on AI provider/legal approvals and the completed REV/POR/RPL contracts."
+      ]
+    },
+    {
+      "id": "AI-04",
+      "status": "partial",
+      "summary": "Property trends currently call an AI provider and enforce 10-review/10-point thresholds, contradicting the agreed provider-free 20-review/15-point contract.",
+      "codeEvidence": [
+        "src/contexts/ai/application/generate-property-trend.ts",
+        "src/contexts/ai/domain/ai-property-trend-contract.ts"
+      ],
+      "testEvidence": ["Existing trend contract and generation suites"],
+      "remaining": [
+        "Replace provider inference with a pure evaluator enforcing 20 analyses, 90% current coverage, no sequence gaps, 15-point movement, 10% category threshold, star-only reporting, lineage DTOs, and latest-complete/update semantics."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "NTF-01",
+      "status": "partial",
+      "summary": "Delivery mechanics are strong, but private feedback is misclassified, Action Required in-app notifications can be disabled, recipient/trigger matrices are incomplete, and the Bell exposes Clear all.",
+      "codeEvidence": [
+        "src/contexts/notification/domain/notification-delivery-policy.ts",
+        "src/components/notification/notification-popover-content.tsx"
+      ],
+      "testEvidence": [
+        "Coalescing, responsibility resolution, outbox, digest, quiet-hours, unsubscribe, pagination, and gap reconciliation tests"
+      ],
+      "remaining": [
+        "Correct class/channel mutability, migrate preferences, remove Clear all, complete trigger/recipient/eligibility matrices, instrument lag, and retain deployed latency evidence."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "ACT-01",
+      "status": "partial",
+      "summary": "Recent Activity and restricted Operational Action History remain conflated, with incomplete vocabulary/rebuild/retention controls and a false home-grown tamper-evidence claim.",
+      "codeEvidence": ["src/contexts/activity/", "src/shared/activity/activity-audit.ts"],
+      "testEvidence": ["Activity retention and selected projection tests"],
+      "remaining": [
+        "Rename and bound Recent Activity, remove false audit/tamper claims, add durable receipts/rebuild states, introduce restricted Operational Action History, and implement access/legal-hold/export/redaction auditing."
+      ],
+      "externalBlockers": [
+        "Operational-history retention and legal-hold policy requires counsel approval."
+      ]
+    },
+    {
+      "id": "POR-01",
+      "status": "partial",
+      "summary": "Rating-first Portal foundations exist, but immutable publication snapshots, Brand Profile, EN/BG packs, approved destinations, stable address/artifacts, health intervals, and archive/restore are missing.",
+      "codeEvidence": [
+        "src/contexts/portal/",
+        "src/contexts/portal/infrastructure/db/portal.schema.ts",
+        "src/components/portal/portal-archive-button.tsx"
+      ],
+      "testEvidence": [
+        "Portal state, threshold, destination, responsibility, token, and Guest-flow tests"
+      ],
+      "remaining": [
+        "Implement snapshots/brand/locales, Approved Destinations, Portal Health, stable public address and governed Access Artifacts, archive/restore, explicit ownership, and atomic facts with the full public cache/security matrix."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "GST-01",
+      "status": "partial",
+      "summary": "Private rating/feedback is strong, but Contact Request, Staff attribution, legacy migration, canonical network-abuse records, and artifact-qualified scans are absent.",
+      "codeEvidence": [
+        "src/contexts/guest/",
+        "src/contexts/guest/infrastructure/db/guest.schema.ts"
+      ],
+      "testEvidence": [
+        "Rating-first, threshold, correction/withdrawal, fact, rate-limit, receipt, Google-action, and secondary-action suites"
+      ],
+      "remaining": [
+        "Add separately encrypted/audited Contact Requests with 30-day purge, event-time Staff attribution, legacy reconciliation, shared-device/privacy matrices, integrity moderation, and Access-Artifact-backed Qualified Scans."
+      ],
+      "externalBlockers": [
+        "Contact Request notices, retention, and privacy handling require counsel approval before external beta activation."
+      ]
+    },
+    {
+      "id": "MET-01",
+      "status": "partial",
+      "summary": "Governed rating metrics exist, but Qualified Scan is unavailable, event-time attribution is incomplete, and legacy/direct consumers remain active.",
+      "codeEvidence": ["src/contexts/metric/", "src/contexts/metric/CONTEXT.md"],
+      "testEvidence": [
+        "Metric definition, correction-aware aggregate, availability, timezone, and Portal analytics suites"
+      ],
+      "remaining": [
+        "Define Access-Artifact-backed Qualified Scan, complete group/Staff attribution and lifetime correction/rebuild parity, separate public reputation truth, migrate legacy consumers, and prove lag/query performance."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "GOA-01",
+      "status": "partial",
+      "summary": "The new Program/version/assignment/result model exists for all three scopes and measures, but Qualified Scan is unavailable and legacy goal systems remain active.",
+      "codeEvidence": [
+        "src/contexts/goal/",
+        "Goal program routes and hourly maintenance"
+      ],
+      "testEvidence": ["Goal program, assignment, monthly result, and revision suites"],
+      "remaining": [
+        "Complete Qualified Scan, reconcile and deny legacy goal paths/jobs, add the unified Results Matrix and point-in-time bulk assignment, emit scoped notification facts, and prove DST/pause/archive/correction/replay semantics."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "REC-01",
+      "status": "partial",
+      "summary": "Recognition is correctly dark for beta, but the legacy competitive model remains and the agreed future Healthy Guest Gateway model is not implemented.",
+      "codeEvidence": [
+        "Recognition and Leaderboard settings redirects",
+        "Legacy badge/leaderboard schema and code"
+      ],
+      "testEvidence": ["Dark-route tests"],
+      "remaining": [
+        "Strengthen darkness and delete unreachable competitive paths; after Portal Health exists, separate authorization/program/results and implement the calendar-month Healthy Gateway evaluator with neutral UI and fairness evidence."
+      ],
+      "externalBlockers": [
+        "Activation is explicitly post-beta and requires counsel/fairness review."
+      ]
+    },
+    {
+      "id": "LIF-01",
+      "status": "partial",
+      "summary": "Suspension, retention, and recovery tools exist, but normal Property deletion remains destructive and Organization closure/export/privacy lifecycles are not implemented.",
+      "codeEvidence": [
+        "src/contexts/property/application/use-cases/soft-delete-property.ts",
+        "src/components/property/delete-property-dialog.tsx",
+        "src/shared/retention/"
+      ],
+      "testEvidence": [
+        "Processing suspension, retention registry, report/apply, and recovery-fencing suites"
+      ],
+      "remaining": [
+        "Fence destructive normal deletion; implement archive/restore, support-mediated erase, Organization closure/cancellation, backup fences, context-owned export, Guest-contact/Participant privacy, and full retention reconciliation drills."
+      ],
+      "externalBlockers": [
+        "Counsel-approved retention, export, and erasure policy is required for final external-beta closure."
+      ]
+    },
+    {
+      "id": "EXP-01",
+      "status": "partial",
+      "summary": "Dormant surfaces are mostly hidden, but there is no persistent resumable role-aware setup checklist or complete no-access/waiting/deferred journey.",
+      "codeEvidence": [
+        "Organization settings and unavailable-route surfaces",
+        "Billing removal and Team/Recognition/Bulk Close gates"
+      ],
+      "testEvidence": ["Unavailable-route and selected role-gating tests"],
+      "remaining": [
+        "Build durable historical milestones plus current health, implement AccountAdmin/PropertyManager/Staff state journeys, disposition existing billing data, and prove every dormant route/job/server path denied."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "EXP-02",
+      "status": "partial",
+      "summary": "Query keys, Zod/TanStack usage, primitives, contrast, and Storybook improved, but whole-product form/query/state consistency and policy-free UI boundaries are unproven.",
+      "codeEvidence": [
+        "src/shared/query-keys.ts",
+        "Design-system primitives and Storybook stories"
+      ],
+      "testEvidence": [
+        "Zod/TanStack conformance, component-state, accessibility, and Storybook suites"
+      ],
+      "remaining": [
+        "Create the component-state ledger, mechanically audit query keys and mirrored state, freeze feature DTOs, replace legacy policy-bearing components, and close Bell/delete/reply/goal UI contradictions."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "EXP-03",
+      "status": "partial",
+      "summary": "Chromium E2E, axe, keyboard, viewport, and reduced-motion coverage exists, but Firefox/WebKit/mobile-device/accessibility/language release evidence is incomplete.",
+      "codeEvidence": ["playwright.config.ts", "e2e/"],
+      "testEvidence": [
+        "Chromium critical E2E, axe, keyboard, mobile viewport, and reduced-motion suites"
+      ],
+      "remaining": [
+        "Add tagged Firefox/WebKit/mobile projects, retain exact browser reports, run real iPhone/Android and VoiceOver/zoom/high-contrast checks, complete Portal fault/device matrices, gate AI languages, and own accessibility debt."
+      ],
+      "externalBlockers": [
+        "Real-device and manual assistive-technology evidence requires supported external test devices/operators."
+      ]
+    },
+    {
+      "id": "OBS-01",
+      "status": "partial",
+      "summary": "A privacy-aware text-only feedback slice exists, but deployed all-cell monitoring, synthetic exfiltration proof, triage, dashboards, alert drills, and consented Bug capture do not.",
+      "codeEvidence": [
+        "Native Bug/Suggestion feedback implementation",
+        "Sentry scrubbing and pseudonymous-tag seams"
+      ],
+      "testEvidence": [
+        "Feedback authorization, Redis budget, scrubbing, and receipt suites"
+      ],
+      "remaining": [
+        "Prove Germany-region monitoring for every process/cell, add synthetic exfiltration tests and native triage, build journey/cell dashboards and drills, and only then add consented previewable Bug screenshot/replay with retention controls."
+      ],
+      "externalBlockers": [
+        "Sentry subprocessor/retention/notice and capture policy require legal approval; live probes require deployed cells."
+      ]
+    },
+    {
+      "id": "GOV-01",
+      "status": "partial",
+      "summary": "Node, pnpm, TypeScript types, Zod, Drizzle, TanStack, pino, BullMQ, Redis, and pg usage improved, but no single generated stack authority or complete exception register exists.",
+      "codeEvidence": [
+        "package.json",
+        "package.runtime.json",
+        "scripts/review/zod-v4-conformance.ts"
+      ],
+      "testEvidence": [
+        "Stack-conformance, dependency, license, action-pin, and Zod checks"
+      ],
+      "remaining": [
+        "Generate one runtime/tool/version authority, document every exception with owner/expiry, add Docker monitoring, mechanically prohibit production db:push, and retain clean current all-image/all-gate evidence."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "GOV-02",
+      "status": "partial",
+      "summary": "A 17-context matrix exists, but it records unresolved gaps and current context/root/ADR documentation directly contradicts accepted product and architecture language.",
+      "codeEvidence": [
+        "src/shared/governance/context-acceptance-matrix.test.ts",
+        "Context documents under src/contexts/*/CONTEXT.md"
+      ],
+      "testEvidence": ["Context acceptance and architecture-boundary checks"],
+      "remaining": [
+        "Add the AI context/public API, repair every contradictory ADR/root/context claim, create the ADR index and exception register, and make terminology/standards consistency executable."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "CNV-01",
+      "status": "partial",
+      "summary": "Team and post-core surfaces are quarantined, but multiple false/unused/legacy islands remain without the required reachability, data, parity, release, and restore deletion report.",
+      "codeEvidence": [
+        "Team quarantine",
+        "src/shared/jobs/runtime.ts",
+        "src/shared/projections/projection-contract.ts",
+        "REUI.md"
+      ],
+      "testEvidence": ["Darkness and boundary tests for selected quarantined surfaces"],
+      "remaining": [
+        "Complete replacement paths, prove zero reachability and data/FK disposition, delete false abstractions and stale artifacts in small reversible slices, and retain release/restore evidence for each contraction."
+      ],
+      "externalBlockers": []
+    },
+    {
+      "id": "LEG-01",
+      "status": "partial",
+      "summary": "Written Google confirmation is recorded, but privacy/terms/subprocessor/retention/AI/contact/monitoring approvals are draft or stale and no counsel closure record exists.",
+      "codeEvidence": ["docs/legal/", "Recorded Google written confirmation evidence"],
+      "testEvidence": [],
+      "remaining": [
+        "Update the exact beta data map, notices, terms, privacy/subprocessor list, retention matrix, AI/provider facts, Contact Request and monitoring policy; record named counsel approvals and expiry/review dates."
+      ],
+      "externalBlockers": [
+        "Requires external counsel and provider-policy approval; engineering cannot self-approve legal acceptance."
+      ]
+    },
+    {
+      "id": "REL-01",
+      "status": "partial",
+      "summary": "Release tooling and evidence schemas exist, but no clean signed candidate has passed all gates and been promoted unchanged through every required Railway cell.",
+      "codeEvidence": [
+        "scripts/release/",
+        ".github/workflows/release-images.yml",
+        "docs/operations/immutable-release-promotion.md"
+      ],
+      "testEvidence": [
+        "Release manifest, evidence validation, and deployment-script suites"
+      ],
+      "remaining": [
+        "Close all beta blockers, produce independent reviews and full test/fault evidence, obtain legal acceptance, create and exercise all cells/backups, promote one signed digest candidate, run smoke/rollback, and publish all section 16 records."
+      ],
+      "externalBlockers": [
+        "Depends on live Railway topology, green authoritative CI, provider/legal approvals, and explicit release authorization."
+      ]
+    }
+  ]
+}
