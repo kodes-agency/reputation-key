@@ -91,7 +91,7 @@
 
 1. **Full negative cross-tenant test coverage** — not every repository has negative tests yet; BETA-1 completes this.
 2. **Body/time limits** — proxy-level request size limits not yet configured.
-3. **Auth endpoint abuse** — the shared Redis limiter guards sign-in, registration, guest submissions and the better-auth catch-all, and fails closed in production (`docs/operations/runbooks.md` §Security posture); raw self-service sign-up is refused at the HTTP boundary (invite-only beta). Residual: no proxy-level rate limiting in front of the app.
+3. **Auth endpoint abuse** — the shared Redis limiter guards sign-in, registration, invitation send/resend, guest submissions and the better-auth catch-all, and fails closed in production; Better Auth's native limiter also uses atomic Redis storage across replicas (`docs/operations/runbooks.md` §Security posture). Raw self-service sign-up is refused at the HTTP boundary (invite-only beta). Residual: no proxy-level rate limiting in front of the app.
 4. **Supply chain** — Dependabot configured but initial advisory scan returned 0 vulnerabilities; continuous monitoring needed.
 
 ## OWASP ASVS 5.0 mapping

@@ -14,10 +14,12 @@ import {
 import { catchUntagged } from '#/shared/auth/server-errors'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { getContainer } from '#/composition'
+import { getEnv } from '#/shared/config/env'
 import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.errors.server'
 import { invitationId, userId } from '#/shared/domain/ids'
 import { acceptInvitationInputSchema } from '../application/dto/invitation.dto'
+import { enforceInvitationSendRateLimit } from './invitation-rate-limit.server'
 
 // ── Accept invitation ──────────────────────────────────────────────
 // User may not have an active org yet (they're joining), so we only
@@ -91,7 +93,13 @@ export const resendInvitation = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'invitation.resend' })
 
         try {
-          const { useCases } = getContainer()
+          const { useCases, rateLimiter } = getContainer()
+          await enforceInvitationSendRateLimit({
+            rateLimiter,
+            actorId: ctx.userId,
+            organizationId: ctx.organizationId,
+            keyHmacSecret: getEnv().BETTER_AUTH_SECRET,
+          })
           await useCases.resendInvitation(data, ctx)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
