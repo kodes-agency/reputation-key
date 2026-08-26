@@ -135,7 +135,9 @@ services:
   redis:
     profiles: [backend]
     image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b
-    command: [redis-server, --appendonly, 'yes']
+    # BullMQ correctness contract: queue keys must never be evicted. The worker
+    # independently inspects this live value before creating queue clients.
+    command: [redis-server, --appendonly, 'yes', --maxmemory-policy, noeviction]
     ports:
       - '127.0.0.1:${REDIS_HOST_PORT}:6379'
     healthcheck:

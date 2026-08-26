@@ -23,6 +23,7 @@ import {
   DEFAULT_QUEUE_CONCURRENCY,
 } from '#/shared/jobs/worker'
 import { createJobQueue, type Queue } from '#/shared/jobs/queue'
+import { assertConfiguredJobRedisRuntime } from '#/shared/jobs/redis-runtime'
 import {
   createGatedJobHandler,
   type JobRoutingGate,
@@ -88,6 +89,28 @@ async function main() {
   }
   assertRestoreModeCompatible(env, 'worker')
   await assertRecoveryCutoverAttestation(createRecoveryCutoverRunReader(getDb()), env)
+
+  // DATA-18 / GOV-01: inspect the actual queue Redis before constructing any
+  // BullMQ Queue or Worker. `noeviction` is a correctness requirement, Redis
+  // 6.2 is the supported compatibility floor, and GETDEL is also required by
+  // the one-time authorization stores. Production never degrades into a
+  // worker that looks started but owns no queues.
+  if (!env.REDIS_URL) {
+    if (env.NODE_ENV === 'production') {
+      throw new Error('[CONFIG] BullMQ Redis runtime is incompatible: url_missing')
+    }
+    logger.warn('No Redis configured — BullMQ runtime inspection skipped')
+  } else {
+    const redisReadiness = await assertConfiguredJobRedisRuntime(env.REDIS_URL)
+    logger.info(
+      {
+        redisVersion: redisReadiness.redisVersion,
+        maxmemoryPolicy: redisReadiness.maxmemoryPolicy,
+        getdelAvailable: redisReadiness.getdelAvailable,
+      },
+      'BullMQ Redis runtime verified',
+    )
+  }
 
   // Build the dependency container
   const container = createContainer({ enableJobs: true })

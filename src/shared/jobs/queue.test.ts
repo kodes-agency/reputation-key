@@ -2,8 +2,8 @@
 //
 // Pins the graceful-shutdown contract for queue connections:
 //   1. REDIS_URL absent → no queue, no connection;
-//   2. creation wires the dedicated connection (maxRetriesPerRequest=null —
-//      BullMQ's requirement) and the hardened defaultJobOptions, and tracks
+//   2. creation wires a bounded producer connection and hardened
+//      defaultJobOptions, and tracks
 //      the connection in the process-wide registry;
 //   3. closeJobQueueConnections quits tracked connections (BullMQ marks
 //      user-supplied instances `shared` and deliberately does NOT close them
@@ -134,10 +134,16 @@ describe('createJobQueue', () => {
       attempts: 3,
       backoff: { type: 'exponential', delay: 30_000 },
     })
-    // BullMQ-required connection options, and the connection IS the one the
-    // queue was built with — the registry must reap what queue.close() won't.
+    // Queue producers fail within one retry / command-timeout budget when
+    // Redis is unavailable. Workers use their separate indefinite connection.
+    // The connection IS the one the queue was built with — the registry must
+    // reap what queue.close() won't.
     expect(fakeConnections()).toHaveLength(1)
-    expect(fakeConnections()[0].options).toEqual({ maxRetriesPerRequest: null })
+    expect(fakeConnections()[0].options).toEqual({
+      commandTimeout: 5_000,
+      connectTimeout: 5_000,
+      maxRetriesPerRequest: 1,
+    })
     expect(fakeQueues()[0].opts.connection).toBe(fakeConnections()[0])
   })
 

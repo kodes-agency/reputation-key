@@ -33,9 +33,14 @@ user, and denies persistence/admin commands to its dedicated ACL identity. The
 environment-scoped `PROVIDER_EPHEMERAL_REDIS_URL` must be
 `rediss://<non-default-user>:<secret>@google-provider-redis.railway.internal:6380`;
 the private CA is supplied separately. The main queue/cache Redis continues to
-use Railway private networking. Bucket references use Railway's `BUCKET`,
-`ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`, `REGION`, and `ENDPOINT` outputs. Railway
-buckets use virtual-hosted addressing, so `S3_FORCE_PATH_STYLE=false`.
+use Railway private networking. Because Railway's typed `redis()` resource
+does not expose Redis server flags, the worker validates the provisioned
+service itself before constructing BullMQ: Redis 6.2 or newer, GETDEL present,
+and `maxmemory-policy=noeviction`. A non-conforming Railway Redis deployment
+fails closed during boot rather than accepting queue work. Bucket references
+use Railway's `BUCKET`, `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`, `REGION`, and
+`ENDPOINT` outputs. Railway buckets use virtual-hosted addressing, so
+`S3_FORCE_PATH_STYLE=false`.
 
 No runtime service source is declared in IaC. The graph owns resources,
 placement, variables, domains, build/deploy settings, and process boundaries.

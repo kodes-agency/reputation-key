@@ -303,12 +303,14 @@ surface dark); network-level restriction of the ops surface is platform-owned
 
 **Trigger:** Redis unreachable, queue backlog building, or a poison job crashing workers repeatedly.
 **Impact:** P1 — external effects delayed.
-**Diagnostics:** Check Redis connectivity. Check BullMQ stalled/failed counts. Identify poison job pattern.
+**Diagnostics:** Check Redis connectivity and worker boot logs. `BullMQ Redis runtime verified` records the non-secret Redis version, `noeviction` policy, and GETDEL capability; `[CONFIG] BullMQ Redis runtime is incompatible: <code>` means the process refused a missing, uninspectable, unsupported, or eviction-capable queue store. Check BullMQ stalled/failed counts and identify the poison-job pattern.
 **Containment:** If Redis down: outbox accumulates events (no data loss). Web stays healthy. If poison job: quarantine via dead-letter, stop retry cycle.
 **Recovery:** Redis restore → relay drains backlog. Poison job → fix handler code, redrive from DLQ.
 **Verification:** Queue depth normal. No repeated failures. Outbox `published_at` advances.
 **Escalation:** Bozhidar Denev if backlog > 30 minutes.
 **Durability posture:** Redis is disposable-and-rebuild — the Postgres outbox is the durable fact store, no AOF is required for correctness (backup-and-lifecycle.md §2). BullMQ history prunes by count; dead-letter quarantine entries expire after `QUARANTINE_TTL_DAYS` (default 30d) via the daily `quarantine-ttl-sweep` (per-entry `job.remove()`, evidence subject `quarantine.ttl`) — the 24h `queue.quarantine-growth` redrive SLA is unchanged.
+
+**Connection policy:** `Queue` producers use one request retry plus a 5-second connect/command timeout. They return failure to the caller (or leave a durable outbox row unpublished for the next relay pass) instead of waiting forever. `Worker` blocking connections use `maxRetriesPerRequest=null` and continue reconnecting; SIGTERM/SIGINT stops new claims and the worker drain budget bounds shutdown. Do not copy the Worker connection policy onto producer queues.
 
 ---
 

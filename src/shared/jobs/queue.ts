@@ -1,14 +1,13 @@
 // BullMQ queue factory — creates named queues backed by dedicated Redis connection.
 // Per architecture: "shared/jobs/ holds queue/worker factories and job registry."
 //
-// NOTE: This should only be called in the worker process (via createContainer({ enableJobs: true })).
-// The web process does not need a BullMQ queue — it only needs Redis for caching/rate limiting.
-// The enableJobs flag in composition.ts controls whether this factory is invoked.
+// The web process owns producer-only Queue handles for post-commit enqueueing.
+// The worker owns producer handles, Worker consumers, and the background
+// Queue; composition's enableJobs flag controls that consumer-only surface.
 //
-// Uses a dedicated ioredis connection with maxRetriesPerRequest=null, matching the worker pattern.
-// BullMQ recommends all Redis connections (Queue + Worker) use maxRetriesPerRequest=null to avoid
-// MaxRetriesPerRequestError under Redis instability. The shared caching Redis client (getRedis())
-// uses maxRetriesPerRequest=3 which is unsuitable for BullMQ.
+// Queue producers and Workers intentionally have different outage behavior:
+// producers fail within a bounded command/retry budget so HTTP and relay calls
+// never wait forever, while Worker blocking connections retry indefinitely.
 
 import { Queue } from 'bullmq'
 import { Redis } from 'ioredis'
@@ -16,6 +15,8 @@ import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 
 export type { Queue }
+
+export const JOB_QUEUE_COMMAND_TIMEOUT_MS = 5_000
 
 // BQC-7.1: BullMQ marks a user-supplied ioredis instance as `shared` and
 // deliberately does NOT close it on queue.close() (queue-base.js:
@@ -37,7 +38,7 @@ function connectionStore(): Set<Redis> {
 
 /**
  * Create a named BullMQ queue.
- * Uses a dedicated Redis connection with maxRetriesPerRequest=null (required by BullMQ).
+ * Uses a dedicated bounded Redis producer connection.
  * Returns undefined if Redis is not configured (REDIS_URL missing).
  * Callers MUST check for undefined before using the queue.
  */
@@ -45,10 +46,15 @@ export function createJobQueue(name: string): Queue | undefined {
   const env = getEnv()
   if (!env.REDIS_URL) return undefined
 
-  // Dedicated connection for BullMQ Queue operations.
-  // Cannot share the caching Redis client which uses maxRetriesPerRequest=3.
+  // BullMQ's producer guidance is deliberately different from its Worker
+  // guidance: a Queue operation must fail quickly during a Redis outage so
+  // the HTTP path can report failure and the durable outbox relay can retry.
+  // commandTimeout also bounds a connected-but-unresponsive Redis endpoint;
+  // maxRetriesPerRequest alone only bounds reconnect cycles.
   const connection = new Redis(env.REDIS_URL, {
-    maxRetriesPerRequest: null,
+    commandTimeout: JOB_QUEUE_COMMAND_TIMEOUT_MS,
+    connectTimeout: JOB_QUEUE_COMMAND_TIMEOUT_MS,
+    maxRetriesPerRequest: 1,
   })
   connectionStore().add(connection)
 
