@@ -19,6 +19,9 @@ rollback until contraction is safe.
 - Active intervals are half-open: `[effectiveFrom, effectiveTo)`. Editing a set
   closes removed relationships, inserts new relationships, and preserves every
   unchanged row's identity, creator, and start time.
+- Current `StaffUserLink` reads honor both interval boundaries. If retained data
+  contains overlapping current links for a Participant or login, interactive
+  eligibility resolves no link until reconciliation removes the ambiguity.
 - At most one active Primary Staff Attribution exists per Portal. Supporting
   relationships do not confer primary credit.
 - Participation and responsibility never grant login or Property access and never
@@ -57,6 +60,14 @@ Consumers must never access Staff repositories or `container.useCases` directly.
 Notification code must use future Portal/Property Responsible Manager APIs instead
 of `getAssignedPortals`.
 
+The Identity-owned operator-only reconciliation seam is
+`../identity/infrastructure/repositories/people-authority-reconciliation.repository.ts`.
+It is read-only and compares legacy assignment/access rows, Better Auth
+membership, canonical Participant/link/participation/attribution rows, manager
+responsibility, and quarantined Team history at one explicit observation time.
+Its stable outcomes are `exact`, `mappable`, `conflict`, `orphan`, and `unsafe`;
+no outcome performs or authorizes a write.
+
 ## Glossary
 
 - **StaffParticipant** — Manager-maintained person/business profile. The target
@@ -87,10 +98,12 @@ member directory, and Portal options. It has no Team dependency.
 
 ## Legacy quarantine
 
-Legacy assignment repositories, inactive use-case/source files, events, and data
-remain because the migration has not reached contraction. Their network endpoints
-and activity consumers have been removed; they must not gain a new beta consumer.
-Schema removal waits for:
+Legacy assignment repositories, the older plural `property_access_grants` table,
+inactive use-case/source files, events, and Team data remain because the migration
+has not reached contraction. Their network endpoints and activity consumers have
+been removed; they must not gain a new beta consumer. The deterministic authority
+report is the current review input; older conversion utilities are not authority
+to revive Team or infer access/manager responsibility. Schema removal waits for:
 
 1. an exact/mappable/conflict/orphan/unsafe reconciliation report with zero
    unexplained rows;
@@ -114,8 +127,6 @@ staff/
 
 ## Deferred work
 
-- Add PortalResponsibleManager and PropertyResponsibleManager in their owning
-  contexts; do not place them in Staff PortalResponsibility.
 - Contract the nullable legacy `staff_participations.user_id` and display-name
   shadows only after rollback/parity evidence permits it.
 - Cut over remaining internal legacy readers (including any Badge/recognition path)

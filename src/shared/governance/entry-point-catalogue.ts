@@ -3286,6 +3286,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ops/report-people-authority.ts',
+    'scripts/ops/report-people-authority.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-people-authority — read-only, explicit-time reconciliation of membership, access, Staff participation/attribution, manager responsibility, and retained Team/legacy rows; stable exact/mappable/conflict/orphan/unsafe output',
+    },
+  ),
+  ops(
     'scripts/ops/rebuild-projection.ts',
     'scripts/ops/rebuild-projection.ts',
     'organization',

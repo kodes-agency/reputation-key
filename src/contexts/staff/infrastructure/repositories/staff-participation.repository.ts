@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   portalResponsibilities,
@@ -82,7 +82,20 @@ const selectParticipation = <T extends Database>(query: T) =>
       and(
         eq(staffUserLinks.organizationId, staffParticipants.organizationId),
         eq(staffUserLinks.staffParticipantId, staffParticipants.id),
-        isNull(staffUserLinks.effectiveTo),
+        sql`${staffUserLinks.effectiveFrom} <= CURRENT_TIMESTAMP`,
+        sql`(${staffUserLinks.effectiveTo} IS NULL OR ${staffUserLinks.effectiveTo} > CURRENT_TIMESTAMP)`,
+        sql`NOT EXISTS (
+          SELECT 1
+          FROM staff_user_links AS other_link
+          WHERE other_link.organization_id = ${staffUserLinks.organizationId}
+            AND other_link.id <> ${staffUserLinks.id}
+            AND other_link.effective_from <= CURRENT_TIMESTAMP
+            AND (other_link.effective_to IS NULL OR other_link.effective_to > CURRENT_TIMESTAMP)
+            AND (
+              other_link.staff_participant_id = ${staffUserLinks.staffParticipantId}
+              OR other_link.user_id = ${staffUserLinks.userId}
+            )
+        )`,
       ),
     )
 
@@ -125,7 +138,10 @@ export const createStaffParticipationRepository = (
           eq(staffParticipations.organizationId, organizationId),
           eq(staffParticipations.propertyId, propertyId),
           eq(staffUserLinks.userId, userId),
+          eq(staffParticipants.status, 'active'),
           eq(staffParticipations.status, 'active'),
+          sql`${staffParticipations.startedAt} <= CURRENT_TIMESTAMP`,
+          sql`(${staffParticipations.endedAt} IS NULL OR ${staffParticipations.endedAt} > CURRENT_TIMESTAMP)`,
         ),
       )
       .limit(1)
@@ -138,7 +154,14 @@ export const createStaffParticipationRepository = (
       conditions.push(eq(staffParticipations.propertyId, filters.propertyId))
     }
     if (filters.userId) conditions.push(eq(staffUserLinks.userId, filters.userId))
-    if (filters.activeOnly) conditions.push(eq(staffParticipations.status, 'active'))
+    if (filters.activeOnly) {
+      conditions.push(
+        eq(staffParticipants.status, 'active'),
+        eq(staffParticipations.status, 'active'),
+        sql`${staffParticipations.startedAt} <= CURRENT_TIMESTAMP`,
+        sql`(${staffParticipations.endedAt} IS NULL OR ${staffParticipations.endedAt} > CURRENT_TIMESTAMP)`,
+      )
+    }
     const rows = await selectParticipation(db)
       .where(and(...conditions))
       .orderBy(asc(staffParticipants.displayName), asc(staffParticipations.id))
@@ -208,7 +231,23 @@ export const createStaffParticipationRepository = (
               and(
                 eq(staffUserLinks.organizationId, staffParticipants.organizationId),
                 eq(staffUserLinks.staffParticipantId, staffParticipants.id),
-                isNull(staffUserLinks.effectiveTo),
+                lte(staffUserLinks.effectiveFrom, at),
+                or(
+                  isNull(staffUserLinks.effectiveTo),
+                  gt(staffUserLinks.effectiveTo, at),
+                ),
+                sql`NOT EXISTS (
+                  SELECT 1
+                  FROM staff_user_links AS other_link
+                  WHERE other_link.organization_id = ${staffUserLinks.organizationId}
+                    AND other_link.id <> ${staffUserLinks.id}
+                    AND other_link.effective_from <= ${at}
+                    AND (other_link.effective_to IS NULL OR other_link.effective_to > ${at})
+                    AND (
+                      other_link.staff_participant_id = ${staffUserLinks.staffParticipantId}
+                      OR other_link.user_id = ${staffUserLinks.userId}
+                    )
+                )`,
               ),
             )
             .where(

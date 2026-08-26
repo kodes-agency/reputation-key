@@ -139,6 +139,84 @@ describe('staff participation repository', () => {
     await expect(repo.list(ORG_A, { activeOnly: true })).resolves.toHaveLength(1)
   })
 
+  it('resolves a login link only while its effective interval contains now', async () => {
+    const repo = createStaffParticipationRepository(getDb())
+    await createFixture(repo)
+    const { rows } = await pool.query<{ now: Date }>('SELECT NOW() AS now')
+    const now = new Date(rows[0].now)
+    const hour = 60 * 60 * 1_000
+    await pool.query(
+      `INSERT INTO staff_user_links
+         (organization_id, staff_participant_id, user_id, effective_from,
+          effective_to, created_by)
+       VALUES ($1, $2, 'current-linked-user', $3, $4, 'owner'),
+              ($1, $2, 'future-linked-user', $5, NULL, 'owner')`,
+      [
+        ORG_A,
+        PARTICIPANT,
+        new Date(now.getTime() - hour),
+        new Date(now.getTime() + hour),
+        new Date(now.getTime() + 2 * hour),
+      ],
+    )
+
+    await expect(repo.findById(ORG_A, PARTICIPATION)).resolves.toMatchObject({
+      linkedUserId: 'current-linked-user',
+    })
+    await expect(
+      repo.findActiveByUser(ORG_A, PROPERTY_A, 'current-linked-user'),
+    ).resolves.toMatchObject({ id: PARTICIPATION })
+    await expect(
+      repo.findActiveByUser(ORG_A, PROPERTY_A, 'future-linked-user'),
+    ).resolves.toBeNull()
+
+    const ambiguousLink = 'db000000-0000-4000-8000-000000000031'
+    await pool.query(
+      `INSERT INTO staff_user_links
+         (id, organization_id, staff_participant_id, user_id, effective_from,
+          effective_to, created_by)
+       VALUES ($1, $2, $3, 'other-current-linked-user', $4, $5, 'owner')`,
+      [
+        ambiguousLink,
+        ORG_A,
+        PARTICIPANT,
+        new Date(now.getTime() - hour),
+        new Date(now.getTime() + hour),
+      ],
+    )
+    await expect(
+      repo.findActiveByUser(ORG_A, PROPERTY_A, 'current-linked-user'),
+    ).resolves.toBeNull()
+    await expect(repo.findById(ORG_A, PARTICIPATION)).resolves.toMatchObject({
+      linkedUserId: null,
+    })
+    await pool.query('DELETE FROM staff_user_links WHERE id = $1', [ambiguousLink])
+
+    await pool.query(`UPDATE staff_participations SET started_at = $1 WHERE id = $2`, [
+      new Date(now.getTime() + hour / 2),
+      PARTICIPATION,
+    ])
+    await expect(
+      repo.findActiveByUser(ORG_A, PROPERTY_A, 'current-linked-user'),
+    ).resolves.toBeNull()
+    await expect(repo.list(ORG_A, { activeOnly: true })).resolves.toEqual([])
+    await pool.query(`UPDATE staff_participations SET started_at = $1 WHERE id = $2`, [
+      new Date(now.getTime() - hour),
+      PARTICIPATION,
+    ])
+
+    await pool.query(
+      `UPDATE staff_participants
+       SET status = 'archived', archived_at = NOW(), archive_reason = 'data_repair'
+       WHERE organization_id = $1 AND id = $2`,
+      [ORG_A, PARTICIPANT],
+    )
+    await expect(
+      repo.findActiveByUser(ORG_A, PROPERTY_A, 'current-linked-user'),
+    ).resolves.toBeNull()
+    await expect(repo.list(ORG_A, { activeOnly: true })).resolves.toEqual([])
+  })
+
   it('persists an idempotent responsibility set and rejects a cross-property portal', async () => {
     const repo = createStaffParticipationRepository(getDb())
     await createFixture(repo)

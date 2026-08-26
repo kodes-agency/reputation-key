@@ -37,6 +37,7 @@ The commands:
 - `ops:reconcile-publication <replyId> | --all-ambiguous` — reconcile ambiguous Google reply publication (provider re-read; never a send). §6
 - `ops:reconcile-regions [--org <id>]` / `ops:reconcile-grants [--org <id> ...]` — report-first reconciliations (conflicts/anomalies never auto-converted). §12
 - `ops:reconcile-people-team [--org <id>]` — reconcile retired Staff assignments into canonical participation, Team-quarantine, Portal responsibility, and Portal Group intervals. `--apply` requires `--evidence <new-json-path>`, verifies post-apply parity, and writes an artifact only when every mapping is exact. A release artifact must come from a global (no `--org`) run. §12
+- `pnpm exec tsx scripts/ops/report-people-authority.ts --operator <id> --as-of <ISO-8601> [--org <id>]` — produce the read-only, deterministic People authority report across membership, access, participation, attribution, manager responsibility, and retained Team/legacy rows. See `people-authority-reconciliation.md`; every non-`exact` row requires separate review.
 - `ops:suspend-property` / `ops:restore-property --org <id> --property <id> --ticket <ref>` — suspend/restore property processing. §10
 - `ops:inspect region|policy ...` — read-only routing/policy decision explanation. §12
 - `ops:disconnect-connection <connectionId> --org <id>` — revoke Google connection credentials (destructive; reconnect completes rotation). §2/§10

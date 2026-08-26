@@ -24,6 +24,10 @@ Authentication, session management, organization membership, and invitation work
 - Staff context references `userId` from identity for staff assignments.
 - Integration context references `userId` for `connectedBy` on Google connections.
 - Goal context does not directly depend on identity (uses shared auth context).
+- The operator-only People authority report is Identity-owned because Better Auth
+  membership and the singular `property_access_grant` table are the access
+  authority. It observes Staff/Portal/Property history read-only and never turns
+  participation, attribution, Team, or manager responsibility into access.
 
 ## Invariants
 
@@ -81,6 +85,8 @@ identity/
   infrastructure/
     adapters/          auth-identity.adapter.ts (implements IdentityPort),
                        better-auth-schemas.ts (Zod schemas for better-auth responses)
+    repositories/      includes the read-only, deterministic People authority
+                       reconciliation report used before legacy contraction
   server/              organizations.ts, organizations.query.ts, organizations.update.ts,
                        organizations.members.ts, organizations.invitations.ts,
                        organizations.registration.ts, organizations.upload.ts,
