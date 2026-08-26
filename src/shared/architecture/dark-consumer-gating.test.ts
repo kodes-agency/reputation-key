@@ -10,6 +10,8 @@
 // Asserts against the catalogue module's exported data (no file re-parsing).
 
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
 
 /** Beta-dark contexts (ADR 0032); 'ai' reserved — no context directory yet. */
@@ -40,5 +42,19 @@ describe('architecture: dark-context consumers and jobs are capability-gated (BQ
       'leaderboard.event-handlers': 'leaderboard.use',
       'process-image': 'portal.upload',
     })
+  })
+
+  it('keeps the inactive Goal and legacy Leaderboard runtime gaps explicit', () => {
+    const composition = readFileSync(resolve('src/composition.ts'), 'utf8')
+    const leaderboardHandlers = readFileSync(
+      resolve('src/contexts/leaderboard/infrastructure/event-handlers/index.ts'),
+      'utf8',
+    )
+
+    expect(composition).not.toContain('registerGoalEventHandlers')
+    expect(leaderboardHandlers).toContain("consumer: 'recognition.event-handlers'")
+    expect(
+      darkRows.find((row) => row.name === 'leaderboard.event-handlers')?.capability,
+    ).toBe('leaderboard.use')
   })
 })

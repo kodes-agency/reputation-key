@@ -58,6 +58,13 @@ describe('BQR-1.3: outbox import boundary', () => {
     expect(domainFiles.length).toBeGreaterThan(10)
   })
 
+  it('detects a deliberately invalid application import of outbox internals', () => {
+    const invalidApplicationSource =
+      "import { registerConsumer } from '#/shared/outbox/dispatcher'"
+
+    expect(forbiddenHits(invalidApplicationSource)).toEqual(['shared/outbox/dispatcher'])
+  })
+
   for (const file of applicationFiles) {
     it(`${file} does not import outbox internals`, () => {
       const src = readFileSync(join(ROOT, file), 'utf-8')
