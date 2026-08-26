@@ -15,6 +15,7 @@ import {
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { ReplyStatusView, resolveReplyView } from './reply-status-view'
 import type { ReplyData } from './reply-status-view'
+import type { InboxReplyCacheChange } from './inbox-cache-policy'
 
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 export type { ReplyData } from './reply-status-view'
@@ -27,7 +28,7 @@ type InnerProps = Readonly<{
   propertyDefaultReplyLanguage: string | null
   reviewReplyLanguage: string | null
   canDetectReviewLanguage: boolean
-  onReplyChanged: (reply: ReplyData | null) => void
+  onReplyChanged: (change: InboxReplyCacheChange) => void
   generateReplySuggestion?: typeof generateReplySuggestionFn
 }>
 
@@ -43,31 +44,31 @@ export function ReplyEditorInner({
   generateReplySuggestion,
 }: InnerProps) {
   const draft = useActionMutation(draftReplyFn, {
-    onSuccess: onReplyChanged,
+    onSuccess: (reply) => onReplyChanged({ kind: 'draft_saved', reply }),
   })
   const submit = useActionMutation(submitReplyFn, {
     successMessage: 'Submitted for approval',
-    onSuccess: onReplyChanged,
+    onSuccess: (reply) => onReplyChanged({ kind: 'state_changed', reply }),
   })
   const approve = useActionMutation(approveReplyFn, {
     successMessage: 'Approved and publishing',
-    onSuccess: onReplyChanged,
+    onSuccess: (reply) => onReplyChanged({ kind: 'state_changed', reply }),
   })
   const reject = useActionMutation(rejectReplyFn, {
     successMessage: 'Reply rejected',
-    onSuccess: onReplyChanged,
+    onSuccess: (reply) => onReplyChanged({ kind: 'state_changed', reply }),
   })
   const del = useActionMutation(deleteReplyFn, {
     successMessage: 'Reply deleted',
-    onSuccess: () => onReplyChanged(null),
+    onSuccess: () => onReplyChanged({ kind: 'state_changed', reply: null }),
   })
   const retry = useActionMutation(retryPublishFn, {
     successMessage: 'Retrying publish...',
-    onSuccess: onReplyChanged,
+    onSuccess: (reply) => onReplyChanged({ kind: 'state_changed', reply }),
   })
   const edit = useActionMutation(editPublishedReplyFn, {
     successMessage: 'Reply updated — republishing',
-    onSuccess: onReplyChanged,
+    onSuccess: (reply) => onReplyChanged({ kind: 'state_changed', reply }),
   })
   const isSaving = [submit, approve, reject, del, retry, edit].some((m) => m.isPending)
 

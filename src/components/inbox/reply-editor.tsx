@@ -4,6 +4,7 @@
 // passed as props; the reply mutations still come from server/ (5+ mutations).
 import { ReplyEditorInner } from './reply-form'
 import type { ReplyData } from './reply-form'
+import type { InboxReplyCacheChange } from './inbox-cache-policy'
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
 
 export type ReplyEditorProps = Readonly<{
@@ -16,7 +17,7 @@ export type ReplyEditorProps = Readonly<{
   reviewReplyLanguage: string | null
   canDetectReviewLanguage: boolean
   /** Propagates reply mutations up so the owner can sync its cache. */
-  onReplyChanged?: (reply: ReplyData | null) => void
+  onReplyChanged?: (change: InboxReplyCacheChange) => void
   generateReplySuggestion?: typeof generateReplySuggestionFn
 }>
 

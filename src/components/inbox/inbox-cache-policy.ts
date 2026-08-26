@@ -13,7 +13,15 @@
 
 import type { QueryClient } from '@tanstack/react-query'
 import { inboxKeys } from '#/shared/queries/query-keys'
-import type { InboxItemDetailResult } from '#/contexts/inbox/application/public-api'
+import type {
+  InboxItem,
+  InboxItemDetailResult,
+} from '#/contexts/inbox/application/public-api'
+
+export type InboxReplyCacheChange = Readonly<{
+  kind: 'draft_saved' | 'state_changed'
+  reply: InboxItemDetailResult['reply']
+}>
 
 /** BullMQ inserts the activity row ~2s after a status change — re-invalidate on a lag. */
 export const BULLMQ_ACTIVITY_LAG_MS = 2500
@@ -52,6 +60,22 @@ function invalidateActivityAfterLag(qc: QueryClient, id: string): void {
   )
 }
 
+function patchReply(
+  qc: QueryClient,
+  id: string,
+  reply: InboxItemDetailResult['reply'],
+): void {
+  qc.setQueryData<InboxItemDetailResult>(inboxKeys.detail(id), (old) =>
+    old ? { ...old, reply } : old,
+  )
+}
+
+function patchItem(qc: QueryClient, item: InboxItem): void {
+  qc.setQueryData<InboxItemDetailResult>(inboxKeys.detail(item.id), (old) =>
+    old ? { ...old, item } : old,
+  )
+}
+
 // ── The policy ──────────────────────────────────────────────────
 
 export const inboxCachePolicy = {
@@ -60,34 +84,21 @@ export const inboxCachePolicy = {
     await qc.invalidateQueries({ queryKey: inboxKeys.lastVisitCount() })
   },
 
-  /**
-   * A status mutation succeeded (mark-read / escalate / archive / resolve).
-   * detail(id) is a PREFIX of notes + activity → one invalidate refreshes all
-   * three; the BullMQ-inserted activity row is caught by the delayed
-   * re-invalidate. Targeted — never router.invalidate().
-   */
-  onStatusChanged(qc: QueryClient, id: string): void {
-    qc.invalidateQueries({ queryKey: inboxKeys.detail(id) })
-    invalidateActivityAfterLag(qc, id)
+  /** A status command returned the authoritative Inbox item snapshot. */
+  onItemStatusChanged(qc: QueryClient, item: InboxItem): void {
+    patchItem(qc, item)
+    invalidateActivityAfterLag(qc, item.id)
     invalidateFolderCaches(qc)
   },
 
   /**
-   * A reply mutation (submit/approve/reject/publish) succeeded. Writes the new
-   * reply straight into the detail cache so revisiting the item shows it
-   * without a refetch. Publishing also auto-closes the inbox item server-side
-   * (on-reply-published event handler), so the folder caches are stale too.
+   * A reply command returned the authoritative reply snapshot. Draft autosaves
+   * and workflow transitions are classified separately by callers, but both
+   * affect only this item's reply. Provider-confirmed publication is observed
+   * by detail polling; only the resulting Inbox status transition moves folders.
    */
-  onReplyMutated(
-    qc: QueryClient,
-    id: string,
-    reply: InboxItemDetailResult['reply'],
-  ): void {
-    qc.setQueryData<InboxItemDetailResult>(inboxKeys.detail(id), (old) =>
-      old ? { ...old, reply } : old,
-    )
-    qc.invalidateQueries({ queryKey: inboxKeys.detail(id) })
-    invalidateFolderCaches(qc)
+  onReplyChanged(qc: QueryClient, id: string, change: InboxReplyCacheChange): void {
+    patchReply(qc, id, change.reply)
   },
 
   /** A note was added — refresh notes now, activity after the BullMQ lag. */

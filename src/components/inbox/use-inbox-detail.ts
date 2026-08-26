@@ -5,12 +5,20 @@
 // activity lag, folder-cache staleness, reply-poll predicate) lives in the
 // InboxCachePolicy module (./inbox-cache-policy) — this hook is wiring only:
 // Query owns cache, dedup, and cancellation.
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import type { Action } from '#/components/hooks/use-action'
 import { inboxKeys } from '#/shared/queries/query-keys'
-import { inboxCachePolicy, replyRefetchInterval } from './inbox-cache-policy'
+import {
+  inboxCachePolicy,
+  replyRefetchInterval,
+  type InboxReplyCacheChange,
+} from './inbox-cache-policy'
+import {
+  createInboxItemStatusObserver,
+  type InboxItemStatusObserver,
+} from './inbox-item-status-observer'
 import type {
   updateInboxStatusFn,
   escalateInboxItemFn,
@@ -52,8 +60,8 @@ export type InboxDetailState = Readonly<{
   >
   /** Called after a note is added — refreshes notes + activity. */
   onNoteAdded: () => void
-  /** Called after a reply mutation — writes the new reply into the detail cache. */
-  onReplyMutated: (reply: InboxItemDetailResult['reply']) => void
+  /** Called after a classified reply change — patches only this item's reply. */
+  onReplyMutated: (change: InboxReplyCacheChange) => void
   error: string | null
   lastMarkedId: string | null
 }>
@@ -100,15 +108,15 @@ function useInboxDetailQueries(
 /** Detect a server-side status transition (auto-close during reply-publish polling). */
 function useInboxAutoCloseDetection(
   qc: QueryClient,
+  id: string,
   polledStatus: string | undefined,
+  observer: InboxItemStatusObserver,
 ): void {
-  const prevStatusRef = useRef<string | undefined>(undefined)
   useEffect(() => {
-    if (prevStatusRef.current && prevStatusRef.current !== polledStatus) {
+    if (id && observer.observe({ itemId: id, status: polledStatus })) {
       inboxCachePolicy.onItemFolderChanged(qc)
     }
-    prevStatusRef.current = polledStatus
-  }, [polledStatus, qc])
+  }, [id, observer, polledStatus, qc])
 }
 
 /** The three status mutations sharing one success handler (policy + list sync). */
@@ -118,17 +126,18 @@ function useInboxStatusMutations(
     'updateInboxStatus' | 'escalateInboxItem' | 'resolveEscalation'
   >,
   qc: QueryClient,
-  id: string,
+  statusObserver: InboxItemStatusObserver,
   onItemStatusChanged?: (updated: InboxItem) => void,
 ) {
   // Notify the policy about the status change, then the list for the
   // optimistic sync (instant UI update + drop-from-filter).
   const handleStatusChanged = useCallback(
     (updated: InboxItem) => {
-      inboxCachePolicy.onStatusChanged(qc, id)
+      statusObserver.accept({ itemId: updated.id, status: updated.status })
+      inboxCachePolicy.onItemStatusChanged(qc, updated)
       onItemStatusChanged?.(updated)
     },
-    [qc, id, onItemStatusChanged],
+    [qc, statusObserver, onItemStatusChanged],
   )
   const updateStatus = useActionMutation(inboxFns.updateInboxStatus, {
     successMessage: 'Status updated',
@@ -162,16 +171,22 @@ export function useInboxDetail(
   const { onItemStatusChanged } = options ?? {}
   const id = item?.id ?? ''
   const enabled = active && !!item
+  const [statusObserver] = useState(createInboxItemStatusObserver)
 
   const queries = useInboxDetailQueries(inboxFns, id, enabled, item)
-  useInboxAutoCloseDetection(qc, queries.polledStatus)
-  const mutations = useInboxStatusMutations(inboxFns, qc, id, onItemStatusChanged)
+  useInboxAutoCloseDetection(qc, id, queries.polledStatus, statusObserver)
+  const mutations = useInboxStatusMutations(
+    inboxFns,
+    qc,
+    statusObserver,
+    onItemStatusChanged,
+  )
 
-  // A reply mutation (submit/approve/reject/publish) — the policy writes the
-  // reply through to the detail cache and refreshes the stale folder caches.
+  // Reply draft saves and workflow changes are classified before they reach
+  // the policy. Neither moves an Inbox item between folders by itself.
   const onReplyMutated = useCallback(
-    (reply: InboxItemDetailResult['reply']) => {
-      inboxCachePolicy.onReplyMutated(qc, id, reply)
+    (change: InboxReplyCacheChange) => {
+      inboxCachePolicy.onReplyChanged(qc, id, change)
     },
     [qc, id],
   )

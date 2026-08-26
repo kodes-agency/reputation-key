@@ -7,6 +7,7 @@ import { InboxNotesThread } from './inbox-notes-thread'
 import { InboxReviewAnalysisPanel } from './inbox-review-analysis'
 import { ReplyEditor } from './reply-editor'
 import { ReplyToolbarProvider, ReplyToolbarSlot } from './reply-toolbar-slot'
+import type { InboxReplyCacheChange } from './inbox-cache-policy'
 import type { InboxDetailFns } from './types'
 import type {
   InboxItem,
@@ -19,7 +20,7 @@ export type DetailContentProps = Readonly<{
   detail: InboxItemDetailResult | null
   notes: ReadonlyArray<InboxNote>
   onNoteAdded: () => void
-  onReplyMutated: (reply: InboxItemDetailResult['reply']) => void
+  onReplyMutated: (change: InboxReplyCacheChange) => void
   detailFns: InboxDetailFns
 }>
 
