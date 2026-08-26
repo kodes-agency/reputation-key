@@ -1,4 +1,4 @@
-import type { ActivityLog } from '../domain/types'
+import type { RecentActivityEntry } from '../domain/types'
 import type { ActivityAction, ResourceType, ActivityPayload } from '../domain/types'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
@@ -23,18 +23,18 @@ export type FindDuplicateInput = Readonly<{
 }>
 
 export type ActivityRepository = Readonly<{
-  insert(entry: ActivityLog): Promise<void>
+  insert(entry: RecentActivityEntry): Promise<void>
   findByResource(
     orgId: OrganizationId,
     resourceType: string,
     resourceId: string,
     limit: number,
-  ): Promise<readonly ActivityLog[]>
+  ): Promise<readonly RecentActivityEntry[]>
   findByOrganization(
     orgId: OrganizationId,
     filter: ActivityFilter,
     pagination: Pagination,
-  ): Promise<readonly ActivityLog[]>
+  ): Promise<readonly RecentActivityEntry[]>
   /** Check if a duplicate activity entry already exists (idempotency gate). */
   findDuplicate(input: FindDuplicateInput): Promise<boolean>
 }>

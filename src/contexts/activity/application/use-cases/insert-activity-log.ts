@@ -12,7 +12,7 @@ import type {
   PropertyId,
   ActivityLogId,
 } from '#/shared/domain/ids'
-import { createActivityLog, SYSTEM_USER_ID } from '../../domain/constructors'
+import { createRecentActivityEntry, SYSTEM_USER_ID } from '../../domain/constructors'
 import type { ActivityAction, ResourceType, ActivityPayload } from '../../domain/types'
 
 export type InsertActivityLogInput = Readonly<{
@@ -91,7 +91,7 @@ export const insertActivityLog =
     }
 
     // 3. Construct the domain object via the domain constructor
-    const result = createActivityLog(
+    const result = createRecentActivityEntry(
       {
         id: deps.idGen(),
         actorId: resolvedUserId || SYSTEM_USER_ID,

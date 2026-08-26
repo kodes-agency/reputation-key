@@ -11,7 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { createActivityRepository } from '../activity-repository.drizzle'
-import type { ActivityLog } from '../../domain/types'
+import type { RecentActivityEntry } from '../../domain/types'
 import { activityLogId, userId, propertyId, organizationId } from '#/shared/domain/ids'
 
 const db = getDb()
@@ -22,7 +22,11 @@ const ORG_C = organizationId('org-activity-valid-vocabulary')
 const SHARED_RESOURCE_ID = 'shared-resource-id'
 const OTHER_ORG_MARKER = 'OTHER-ORG-TENANT-FREE-TEXT-MARKER'
 
-function entry(id: string, orgId: typeof ORG_A, detail: string | null): ActivityLog {
+function entry(
+  id: string,
+  orgId: typeof ORG_A,
+  detail: string | null,
+): RecentActivityEntry {
   return {
     id: activityLogId(id),
     actorId: userId('user-activity-iso'),
@@ -43,7 +47,7 @@ function entry(id: string, orgId: typeof ORG_A, detail: string | null): Activity
 
 const ROW_A = entry('d4000000-0000-4000-8000-0000000000c1', ORG_A, 'own-org reason')
 const ROW_B = entry('d4000000-0000-4000-8000-0000000000c2', ORG_B, OTHER_ORG_MARKER)
-const ROW_C: ActivityLog = {
+const ROW_C: RecentActivityEntry = {
   ...entry('d4000000-0000-4000-8000-0000000000c3', ORG_C, 'escalation resolved'),
   action: 'deescalated',
   resourceType: 'organization',

@@ -7,7 +7,7 @@ import {
   ACTIVITY_RESOURCE_TYPES,
   ACTIVITY_SOURCES,
   RECENT_ACTIVITY_KINDS,
-  type ActivityLog,
+  type RecentActivityEntry,
   type ActivityAction,
 } from './types'
 import type {
@@ -27,32 +27,34 @@ export type CreateActivityLogInput = Readonly<{
   actorId: UserId
   actorName: string
   actorAvatarUrl: string | null
-  actorRole: ActivityLog['actorRole']
+  actorRole: RecentActivityEntry['actorRole']
   action: ActivityAction
-  resourceType: ActivityLog['resourceType']
+  resourceType: RecentActivityEntry['resourceType']
   resourceId: string
   propertyId: PropertyId | null
   organizationId: OrganizationId
-  payload: ActivityLog['payload']
-  source: ActivityLog['source']
+  payload: RecentActivityEntry['payload']
+  source: RecentActivityEntry['source']
   eventId: string
 }>
 
 const ALLOWED_ACTIONS: ReadonlySet<ActivityAction> = new Set(ACTIVITY_ACTIONS)
-const ALLOWED_RESOURCE_TYPES: ReadonlySet<ActivityLog['resourceType']> = new Set(
+const ALLOWED_RESOURCE_TYPES: ReadonlySet<RecentActivityEntry['resourceType']> = new Set(
   ACTIVITY_RESOURCE_TYPES,
 )
-const ALLOWED_SOURCES: ReadonlySet<ActivityLog['source']> = new Set(ACTIVITY_SOURCES)
+const ALLOWED_SOURCES: ReadonlySet<RecentActivityEntry['source']> = new Set(
+  ACTIVITY_SOURCES,
+)
 const ALLOWED_RECENT_ACTIVITY_KINDS: ReadonlySet<string> = new Set(
   RECENT_ACTIVITY_KINDS.map(
     ({ action, resourceType }) => `${action}\u0000${resourceType}`,
   ),
 )
 
-export const createActivityLog = (
+export const createRecentActivityEntry = (
   input: CreateActivityLogInput,
   clock: () => Date,
-): Result<ActivityLog, ActivityError> => {
+): Result<RecentActivityEntry, ActivityError> => {
   if (!ALLOWED_ACTIONS.has(input.action)) {
     return err(
       activityError('invalid_action', `Invalid action: ${input.action}`, {
@@ -108,3 +110,6 @@ export const createActivityLog = (
     createdAt: clock(),
   })
 }
+
+/** @deprecated Use createRecentActivityEntry. */
+export const createActivityLog = createRecentActivityEntry

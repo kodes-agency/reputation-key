@@ -1,5 +1,5 @@
 import type { ActivityRepository } from '../ports/activity-repository.port'
-import type { ActivityLog } from '../domain/types'
+import type { RecentActivityEntry } from '../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
@@ -18,7 +18,10 @@ type GetTimelineDeps = Readonly<{
 
 export const getActivityTimeline =
   (deps: GetTimelineDeps) =>
-  async (input: GetTimelineInput, ctx: AuthContext): Promise<readonly ActivityLog[]> => {
+  async (
+    input: GetTimelineInput,
+    ctx: AuthContext,
+  ): Promise<readonly RecentActivityEntry[]> => {
     const limit = input.limit ?? 50
     const entries = await deps.repo.findByResource(
       ctx.organizationId,
@@ -29,7 +32,7 @@ export const getActivityTimeline =
 
     // Org-wide bypass mirrors the original action check (organization.update) — PM holds
     // it and sees the full timeline; Staff are scoped to assigned properties.
-    let scoped: readonly ActivityLog[]
+    let scoped: readonly RecentActivityEntry[]
     if (canForContext(ctx, 'organization.update')) {
       scoped = entries
     } else {

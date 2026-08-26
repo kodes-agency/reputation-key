@@ -70,14 +70,15 @@ source-context facts and projects rebuildable Recent Activity rows.
 
 ## Known incomplete contract
 
-The current implementation still uses legacy names (`ActivityLog`,
-`activity_log`, `getOrgActivity`) and retains broader historical enum values for
-read compatibility. New writes are bounded by `RECENT_ACTIVITY_KINDS`. The
-90-day sweep exists, but Activity still needs historical-row reconciliation, an
-owned expiry proof, rebuild states, durable projection receipts, and explicit
-redaction semantics. Operational Action History remains separate and
-unimplemented. Until those land, this context must make only the limited
-product-feed claims above.
+Production code now uses `RecentActivityEntry` and `createRecentActivityEntry`.
+Deprecated `ActivityLog`/`createActivityLog` compatibility aliases, the physical
+`activity_log` table/job names, and `getOrgActivity` remain during the migration
+window. Broader historical enum values remain read-compatible while new writes
+are bounded by `RECENT_ACTIVITY_KINDS`. The 90-day sweep exists, but Activity
+still needs historical-row reconciliation, an owned expiry proof, rebuild
+states, durable projection receipts, and explicit redaction semantics.
+Operational Action History remains separate and unimplemented. Until those
+land, this context must make only the limited product-feed claims above.
 
 ## Architecture
 
@@ -99,10 +100,10 @@ activity/
 | `getActivityTimeline` | Read a bounded resource timeline                              | `inbox.read`; scoped at query |
 | `getOrgActivity`      | Read a bounded Organization/Property feed                     | `inbox.read`; scoped at query |
 
-The public API exports the legacy `ActivityLog` types and these two reads for
-compatibility. New consumers must use Activity only as Recent Activity and must
-not use its rows to authorize actions, prove external effects, or recover source
-state.
+The public API exports canonical `RecentActivityEntry` and the deprecated
+`ActivityLog` alias plus these two reads for compatibility. New consumers must
+use Activity only as Recent Activity and must not use its rows to authorize
+actions, prove external effects, or recover source state.
 
 ## Verification authority
 

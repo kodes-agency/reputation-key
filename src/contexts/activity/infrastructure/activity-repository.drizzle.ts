@@ -18,7 +18,7 @@ import {
   ACTIVITY_ACTIONS,
   ACTIVITY_RESOURCE_TYPES,
   ACTIVITY_SOURCES,
-  type ActivityLog,
+  type RecentActivityEntry,
 } from '../domain/types'
 import type { Role } from '#/shared/domain/roles'
 
@@ -26,7 +26,7 @@ const log = getLogger().child({ component: 'activity-repo' })
 
 const VALID_ROLES = new Set<string>(['Staff', 'PropertyManager', 'AccountAdmin'])
 
-const activityFromRow = (row: typeof activityLog.$inferSelect): ActivityLog => ({
+const activityFromRow = (row: typeof activityLog.$inferSelect): RecentActivityEntry => ({
   id: activityLogId(row.id),
   actorId: toUserId(row.actorId),
   actorName: row.actorName,
@@ -36,22 +36,22 @@ const activityFromRow = (row: typeof activityLog.$inferSelect): ActivityLog => (
     row.action,
     ACTIVITY_ACTIONS,
     'activity.action',
-  ) as ActivityLog['action'],
+  ) as RecentActivityEntry['action'],
   resourceType: assertLiteral(
     row.resourceType,
     ACTIVITY_RESOURCE_TYPES,
     'activity.resourceType',
-  ) as ActivityLog['resourceType'],
+  ) as RecentActivityEntry['resourceType'],
   resourceId: row.resourceId,
   propertyId: row.propertyId ? toPropertyId(row.propertyId) : null,
   organizationId: toOrgId(row.organizationId),
   // payload is JSONB — needs a per-action schema for full validation (future enhancement)
-  payload: row.payload as ActivityLog['payload'],
+  payload: row.payload as RecentActivityEntry['payload'],
   source: assertLiteral(
     row.source,
     ACTIVITY_SOURCES,
     'activity.source',
-  ) as ActivityLog['source'],
+  ) as RecentActivityEntry['source'],
   eventId: row.eventId ?? null,
   createdAt: row.createdAt,
 })

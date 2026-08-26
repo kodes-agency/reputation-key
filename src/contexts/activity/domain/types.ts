@@ -93,7 +93,7 @@ export type ActivityPayload = Readonly<{
   bulkId?: string
 }>
 
-export type ActivityLog = Readonly<{
+export type RecentActivityEntry = Readonly<{
   id: ActivityLogId
   actorId: UserId
   actorName: string
@@ -109,3 +109,6 @@ export type ActivityLog = Readonly<{
   eventId: string | null
   createdAt: Date
 }>
+
+/** @deprecated Use RecentActivityEntry; retained during the compatibility window. */
+export type ActivityLog = RecentActivityEntry

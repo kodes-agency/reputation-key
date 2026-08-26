@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest'
 import { getActivityTimeline } from './get-activity-timeline'
-import type { ActivityLog } from '../domain/types'
+import type { RecentActivityEntry } from '../domain/types'
 import type { ActivityRepository } from '../ports/activity-repository.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import { activityLogId, userId, propertyId, organizationId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
-function makeEntry(overrides: Partial<ActivityLog> = {}): ActivityLog {
+function makeEntry(overrides: Partial<RecentActivityEntry> = {}): RecentActivityEntry {
   return {
     id: activityLogId('al-1'),
     actorId: userId('user-1'),
@@ -27,7 +27,9 @@ function makeEntry(overrides: Partial<ActivityLog> = {}): ActivityLog {
   }
 }
 
-function createInMemoryActivityRepo(entries: ActivityLog[] = []): ActivityRepository {
+function createInMemoryActivityRepo(
+  entries: RecentActivityEntry[] = [],
+): ActivityRepository {
   return {
     insert: async (_entry) => {},
     findDuplicate: async () => false,

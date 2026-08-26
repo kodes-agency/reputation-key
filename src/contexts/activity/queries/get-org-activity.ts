@@ -3,7 +3,7 @@ import type {
   ActivityFilter,
   Pagination,
 } from '../ports/activity-repository.port'
-import type { ActivityLog } from '../domain/types'
+import type { RecentActivityEntry } from '../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -14,9 +14,9 @@ import { canForContext } from '#/shared/domain/permissions'
  *  Used by get-activity-timeline.ts for resource-scoped queries that can't
  *  push the filter into SQL (the resource is the primary lookup key). */
 export const filterByPropertyAccess = (
-  entries: readonly ActivityLog[],
+  entries: readonly RecentActivityEntry[],
   accessiblePropertyIds: readonly PropertyId[] | null,
-): readonly ActivityLog[] => {
+): readonly RecentActivityEntry[] => {
   if (accessiblePropertyIds === null) return entries
   const allowed = new Set(accessiblePropertyIds.map((p) => p as string))
   return entries.filter(
@@ -40,7 +40,7 @@ export const getOrgActivity =
   async (
     input: GetOrgActivityInput,
     ctx: AuthContext,
-  ): Promise<readonly ActivityLog[]> => {
+  ): Promise<readonly RecentActivityEntry[]> => {
     const pagination: Pagination = {
       limit: input.limit ?? 50,
       offset: input.offset ?? 0,
@@ -48,7 +48,7 @@ export const getOrgActivity =
 
     // Org-wide bypass mirrors the original action check (organization.update) — PM holds
     // it and sees the full feed; Staff (and assigned-scoped callers) are scoped.
-    let entries: readonly ActivityLog[]
+    let entries: readonly RecentActivityEntry[]
     if (canForContext(ctx, 'organization.update')) {
       const filter: ActivityFilter = input.propertyId
         ? { propertyId: input.propertyId }
