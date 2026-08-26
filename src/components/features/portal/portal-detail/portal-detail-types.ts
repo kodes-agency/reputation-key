@@ -17,6 +17,7 @@ import type {
 import type { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
 import type { PortalDetailTab } from './portal-detail-rules'
+import type { GoogleReviewDestinationStatus } from '../portal-settings/google-review-destination-status'
 
 export type PortalDetailPortal = Readonly<{
   id: string
@@ -35,6 +36,7 @@ export type PortalDetailPortal = Readonly<{
 export type PortalDetailResources = Readonly<{
   portal: PortalDetailPortal
   propertyId: string
+  googleReviewDestination: GoogleReviewDestinationStatus
   categories: readonly LinkTreeCategory[]
   links: readonly LinkTreeLink[]
   updateMutation: Action<UpdatePortalVariables>

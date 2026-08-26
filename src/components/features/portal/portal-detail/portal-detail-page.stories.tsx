@@ -184,6 +184,10 @@ const baseArgs = {
   portal,
   organizationName: 'Acme Hotels',
   propertyId: 'prop-1',
+  googleReviewDestination: {
+    state: 'verified' as const,
+    retrievedAt: new Date('2026-08-20T10:00:00.000Z'),
+  },
   categories,
   links,
   updateMutation: idleMutation,
@@ -204,6 +208,13 @@ export const SettingsTab: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('heading', { name: /settings/i })).toBeInTheDocument()
+    await expect(
+      canvas.getByRole('heading', { name: 'Google review destination' }),
+    ).toBeInTheDocument()
+    await expect(canvas.getByText('Ready')).toBeInTheDocument()
+    await expect(
+      canvas.queryByRole('textbox', { name: /google review/i }),
+    ).not.toBeInTheDocument()
   },
 }
 

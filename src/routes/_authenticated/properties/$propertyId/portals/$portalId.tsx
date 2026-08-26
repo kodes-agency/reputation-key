@@ -350,6 +350,10 @@ function PortalDetailRoute() {
         portal={portal}
         tokenStatus={tokenStatus}
         propertyId={propertyId}
+        googleReviewDestination={{
+          state: property.googleReviewDestination?.state ?? 'unavailable',
+          retrievedAt: property.googleReviewDestination?.retrievedAt ?? null,
+        }}
         categories={categories}
         links={links}
         activeTab={tab}

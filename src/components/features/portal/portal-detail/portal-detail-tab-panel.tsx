@@ -56,6 +56,7 @@ export function PortalDetailTabPanel(props: Props) {
 type SettingsPanelProps = Pick<
   PortalDetailResources,
   | 'portal'
+  | 'googleReviewDestination'
   | 'updateMutation'
   | 'completeReviewMutation'
   | 'requestUploadUrl'
@@ -68,6 +69,7 @@ type SettingsPanelProps = Pick<
 
 function SettingsPanel({
   portal,
+  googleReviewDestination,
   updateMutation,
   completeReviewMutation,
   requestUploadUrl,
@@ -82,6 +84,7 @@ function SettingsPanel({
   return (
     <PortalSettings
       portal={portal}
+      googleReviewDestination={googleReviewDestination}
       mutation={updateMutation}
       completeReviewMutation={completeReviewMutation}
       theme={theme}

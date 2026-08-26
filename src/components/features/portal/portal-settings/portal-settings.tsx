@@ -24,9 +24,12 @@ import type {
   PortalResponsibleManagerState,
   ResponsibleManagerMember,
 } from '../portal-detail/portal-detail-types'
+import { GoogleReviewDestinationCard } from './google-review-destination-card'
+import type { GoogleReviewDestinationStatus } from './google-review-destination-status'
 
 type Props = Readonly<{
   portal: PortalData
+  googleReviewDestination: GoogleReviewDestinationStatus
   mutation: Action<UpdatePortalVariables>
   completeReviewMutation: Action<CompleteReviewVariables, CompleteReviewResult>
   theme: PortalThemeDraft
@@ -56,6 +59,7 @@ type Props = Readonly<{
 
 export function PortalSettings({
   portal,
+  googleReviewDestination,
   mutation,
   completeReviewMutation,
   theme,
@@ -89,6 +93,8 @@ export function PortalSettings({
       </div>
 
       <PortalPublicationRow portal={portal} mutation={mutation} canManage={canManage} />
+
+      <GoogleReviewDestinationCard destination={googleReviewDestination} />
 
       {responsibleManagers &&
         responsibleManagerMembers &&
