@@ -10,12 +10,14 @@ import {
   portalTokens,
 } from '#/shared/db/schema/portal.schema'
 import type {
+  PortalPublicationActivationRecord,
   PortalPublicationCursor,
   PortalPublicationRepository,
   ResolvedPortalPublication,
 } from '../../application/ports/portal-publication.repository'
 import { verifyPortalPublicationSnapshot } from '../../application/portal-publication-snapshot'
 import type {
+  PortalPublicationActivation,
   PortalPublicationConfiguration,
   PortalPublicationSnapshot,
   PortalPublicationSource,
@@ -86,6 +88,29 @@ const publicationConfigurationSchema = z
   .readonly()
 
 type SnapshotRow = typeof portalPublicationSnapshots.$inferSelect
+type ActivationRow = typeof portalPublicationActivations.$inferSelect
+
+const activationKindSchema = z.enum(['publish', 'rollback'])
+const deactivationReasonSchema = z.enum(['disabled', 'archived', 'replaced']).nullable()
+
+function activationFromRow(row: ActivationRow): PortalPublicationActivation | null {
+  const kind = activationKindSchema.safeParse(row.kind)
+  const deactivationReason = deactivationReasonSchema.safeParse(row.deactivationReason)
+  if (!kind.success || !deactivationReason.success) return null
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    propertyId: row.propertyId,
+    portalId: row.portalId,
+    snapshotId: row.snapshotId,
+    activationSequence: row.activationSequence,
+    kind: kind.data,
+    activatedBy: row.activatedBy,
+    activatedAt: row.activatedAt,
+    deactivatedAt: row.deactivatedAt,
+    deactivationReason: deactivationReason.data,
+  }
+}
 
 function snapshotFromRow(row: SnapshotRow): PortalPublicationSnapshot | null {
   const parsed = publicationConfigurationSchema.safeParse(row.configuration)
@@ -273,6 +298,50 @@ export const createPortalPublicationRepository = (
         .orderBy(desc(portalPublicationActivations.activationSequence))
         .limit(1)
       return row ? snapshotFromRow(row.snapshot) : null
+    }),
+
+  listActivationHistory: async (organizationId, propertyId, portalId) =>
+    trace('portalPublication.listActivationHistory', async () => {
+      const rows = await db
+        .select({
+          activation: portalPublicationActivations,
+          snapshot: portalPublicationSnapshots,
+        })
+        .from(portalPublicationActivations)
+        .innerJoin(
+          portalPublicationSnapshots,
+          and(
+            eq(
+              portalPublicationSnapshots.organizationId,
+              portalPublicationActivations.organizationId,
+            ),
+            eq(
+              portalPublicationSnapshots.propertyId,
+              portalPublicationActivations.propertyId,
+            ),
+            eq(
+              portalPublicationSnapshots.portalId,
+              portalPublicationActivations.portalId,
+            ),
+            eq(portalPublicationSnapshots.id, portalPublicationActivations.snapshotId),
+          ),
+        )
+        .where(
+          and(
+            eq(portalPublicationActivations.organizationId, unbrand(organizationId)),
+            eq(portalPublicationActivations.propertyId, unbrand(propertyId)),
+            eq(portalPublicationActivations.portalId, unbrand(portalId)),
+          ),
+        )
+        .orderBy(desc(portalPublicationActivations.activationSequence))
+
+      return rows.flatMap(({ activation: activationRow, snapshot: snapshotRow }) => {
+        const activation = activationFromRow(activationRow)
+        const snapshot = snapshotFromRow(snapshotRow)
+        return activation && snapshot
+          ? ([{ activation, snapshot }] satisfies PortalPublicationActivationRecord[])
+          : []
+      })
     }),
 
   resolveActiveByTokenDigest: async (digest, asOf) =>

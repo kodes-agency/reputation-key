@@ -184,6 +184,18 @@ const baseArgs = {
   portal,
   organizationName: 'Acme Hotels',
   propertyId: 'prop-1',
+  publicationHistory: {
+    current: {
+      activationSequence: 1,
+      version: 1,
+      kind: 'publish' as const,
+      activatedAt: '2026-08-20T10:00:00.000Z',
+      deactivatedAt: null,
+      deactivationReason: null,
+    },
+    priorActivations: [],
+    hasPendingChanges: false,
+  },
   googleReviewDestination: {
     state: 'verified' as const,
     retrievedAt: new Date('2026-08-20T10:00:00.000Z'),
@@ -210,6 +222,9 @@ export const SettingsTab: Story = {
     await expect(canvas.getByRole('heading', { name: /settings/i })).toBeInTheDocument()
     await expect(
       canvas.getByRole('heading', { name: 'Google review destination' }),
+    ).toBeInTheDocument()
+    await expect(
+      canvas.getByRole('heading', { name: 'Publication history' }),
     ).toBeInTheDocument()
     await expect(canvas.getByText('Ready')).toBeInTheDocument()
     await expect(

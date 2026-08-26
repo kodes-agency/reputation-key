@@ -7,6 +7,7 @@ import { EditPortalForm } from '../portal-form/edit-portal-form'
 import { ThemePresetSelector } from './theme-preset-selector'
 import { ContentReviewCard } from './content-review-card'
 import { PortalPublicationRow } from './portal-publication-row'
+import { PortalPublicationHistoryCard } from './portal-publication-history-card'
 import { saveStatusMessage } from './portal-settings-rules'
 import { ResponsibleManagersCard } from './responsible-managers-card'
 import { Button } from '#/components/ui/button'
@@ -26,10 +27,12 @@ import type {
 } from '../portal-detail/portal-detail-types'
 import { GoogleReviewDestinationCard } from './google-review-destination-card'
 import type { GoogleReviewDestinationStatus } from './google-review-destination-status'
+import type { PortalPublicationHistory } from '#/contexts/portal/application/public-api'
 
 type Props = Readonly<{
   portal: PortalData
   googleReviewDestination: GoogleReviewDestinationStatus
+  publicationHistory: PortalPublicationHistory
   mutation: Action<UpdatePortalVariables>
   completeReviewMutation: Action<CompleteReviewVariables, CompleteReviewResult>
   theme: PortalThemeDraft
@@ -60,6 +63,7 @@ type Props = Readonly<{
 export function PortalSettings({
   portal,
   googleReviewDestination,
+  publicationHistory,
   mutation,
   completeReviewMutation,
   theme,
@@ -93,6 +97,8 @@ export function PortalSettings({
       </div>
 
       <PortalPublicationRow portal={portal} mutation={mutation} canManage={canManage} />
+
+      <PortalPublicationHistoryCard history={publicationHistory} />
 
       <GoogleReviewDestinationCard destination={googleReviewDestination} />
 

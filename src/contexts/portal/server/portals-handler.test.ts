@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   requireExecutionAllowed: vi.fn(),
   decide: vi.fn(),
   resolvePortalManagementScope: vi.fn(),
+  getPortalPublicationHistory: vi.fn(),
   updatePortal: vi.fn(),
   rotatePortalToken: vi.fn(),
   softDeletePortal: vi.fn(),
@@ -60,6 +61,7 @@ vi.mock('#/composition', () => ({
       listPortals: mocks.listPortals,
       listPortalManagementPropertyIds: mocks.listPortalManagementPropertyIds,
       resolvePortalManagementScope: mocks.resolvePortalManagementScope,
+      getPortalPublicationHistory: mocks.getPortalPublicationHistory,
       updatePortal: mocks.updatePortal,
       rotatePortalToken: mocks.rotatePortalToken,
       softDeletePortal: mocks.softDeletePortal,
@@ -69,6 +71,7 @@ vi.mock('#/composition', () => ({
 
 import {
   deletePortal,
+  getPortalPublicationHistory,
   listPortals,
   rotatePortalToken,
   updatePortal,
@@ -123,6 +126,31 @@ describe('listPortals handler (executable)', () => {
       propertyId: 'property-p2',
       portalId: 'portal-p2',
     })
+  })
+
+  it('returns the scoped manager publication history read model', async () => {
+    const history = {
+      current: {
+        activationSequence: 3,
+        version: 1,
+        kind: 'rollback',
+        activatedAt: '2026-08-26T14:00:00.000Z',
+        deactivatedAt: null,
+        deactivationReason: null,
+      },
+      priorActivations: [],
+      hasPendingChanges: true,
+    } as const
+    mocks.getPortalPublicationHistory.mockResolvedValue(history)
+
+    await withStartContext(() =>
+      getPortalPublicationHistory({ data: { portalId: 'portal-p2' } }),
+    )
+    expect(mocks.resolvePortalManagementScope).toHaveBeenCalled()
+    expect(mocks.getPortalPublicationHistory).toHaveBeenCalledWith(
+      { portalId: 'portal-p2' },
+      TEST_CTX,
+    )
   })
 
   it('resolves auth context and invokes the listPortals use case with caller context', async () => {

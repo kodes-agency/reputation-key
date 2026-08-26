@@ -1,8 +1,9 @@
 import type {
+  PortalPublicationActivation,
   PortalPublicationSnapshot,
   PortalPublicationSource,
 } from '../../domain/portal-publication-snapshot'
-import type { OrganizationId, PortalId } from '#/shared/domain/ids'
+import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 
 export type PortalPublicationCursor = Readonly<{
   nextSnapshotVersion: number
@@ -16,6 +17,11 @@ export type ResolvedPortalPublication = Readonly<{
     portalId: string
     version: number
   }>
+  snapshot: PortalPublicationSnapshot
+}>
+
+export type PortalPublicationActivationRecord = Readonly<{
+  activation: PortalPublicationActivation
   snapshot: PortalPublicationSnapshot
 }>
 
@@ -37,6 +43,11 @@ export type PortalPublicationRepository = Readonly<{
     organizationId: OrganizationId,
     portalId: PortalId,
   ) => Promise<PortalPublicationSnapshot | null>
+  listActivationHistory: (
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    portalId: PortalId,
+  ) => Promise<ReadonlyArray<PortalPublicationActivationRecord>>
   resolveActiveByTokenDigest: (
     digest: Readonly<{
       tokenIdentifier: string

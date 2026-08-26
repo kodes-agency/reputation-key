@@ -17,6 +17,7 @@ assignment, and governed access artifacts.
 - **Private Feedback Threshold** — Inclusive 1–5 threshold (default 3) captured with a guest rating. Ratings at or below it may add an optional private note after the same Google Review Action shown to every rating.
 - **Portal Publication Snapshot** — Immutable, manager-approved version of the exact rating-first public experience: resolved Portal content, ordered secondary links, threshold, locale/language pack, and verified Property-owned Google destination binding. Editing the working copy never mutates an active snapshot.
 - **Portal Publication Activation** — Append-only effective-dated routing history from a stable Portal token to one exact publication snapshot. Publish and rollback add activations; disable/archive close the current activation.
+- **Portal Publication History** — Manager read model that separates the current live activation from prior publish/rollback activity and reports whether saved Portal content differs from the live (or most recently active) immutable snapshot. Provider-owned Google destination refreshes do not masquerade as saved-content changes.
 - **Portal Group** — A named collection of portals within a property. Used for shared goal scoping. One portal belongs to at most one group. Metrics are always aggregated from member portals at query time (no pre-computed group metrics).
 - **Ungrouped Portal** — A portal not assigned to any portal group. It remains individually targetable by goals.
 - **Portal Creator** — Immutable provenance for who created a portal. Creation does not permanently confer notification responsibility.
@@ -52,6 +53,7 @@ assignment, and governed access artifacts.
 - Every transition from Draft/Disabled to Published atomically inserts a new immutable snapshot, activates that exact version, updates Portal state, and records the existing lifecycle outbox fact. Publication fails if the locked working copy differs from the approved snapshot.
 - A stable active/rotating Portal token resolves only the current open activation and its digest-verified immutable snapshot. Working-copy edits are prospective and cannot change the public response until another deliberate publication.
 - Rollback never rewrites history: it closes the current activation and appends a new activation to an older valid snapshot. Database guards reject snapshot rewrites and every activation rewrite except its one-time interval closure; deletion remains reserved for the future governed Erase path. Disable/archive closes the activation, and token revocation always prevents resolution.
+- Publication history reads require `portal.read`, re-use the same Property access guard as Portal detail, and query activations by the exact Organization/Property/Portal tuple. The manager surface never exposes destination URIs, publication digests, or actor identifiers.
 - If that destination later becomes stale, unavailable, or temporarily unreadable, the published private rating/feedback gateway remains available in a degraded state. No stale URI is serialized and Google selection is denied with gentle guest copy.
 - Public resolution fails closed when that Property destination is `awaiting_refresh` or `unavailable`; a stale URI is never rendered.
 - Each successful public resolution carries the immutable snapshot ID, version, and SHA-256 publication digest plus a per-render configuration digest covering the exact content, link order/destinations, current Google availability, threshold, locale, and language-pack version. The browser projection omits this evidence; Guest persists it atomically with a new private rating. A composite database reference prevents Guest evidence from pairing a real snapshot ID with the wrong version or digest. The current public language contract is explicitly `en` / `guest-ui-en-v1` until the revisioned multilingual publication model replaces it.
@@ -120,6 +122,7 @@ portal/
                        add-portal-to-group.ts, remove-portal-from-group.ts,
                        issue-portal-token.ts, rotate-portal-token.ts, revoke-portal-tokens.ts,
                        resolve-public-portal-token.ts, rollback-portal-publication.ts,
+                       get-portal-publication-history.ts,
                        complete-content-review.ts,
                        portal-responsible-managers.ts
     public-api.ts      re-exports port types, PortalPublicApi, PortalGroupPublicApi, event types/constructors
@@ -145,6 +148,7 @@ portal/
 - **`createPortal`** — Create a new portal for a property/entity. Validates property exists via PropertyPublicApi, then atomically commits the Portal, initial responsibility state, `portal.created`, and any responsibility-needed recovery fact.
 - **`updatePortal`** — Update portal settings (name, slug, description, hero image, theme, Private Feedback Threshold, publication state). `heroImageUrl: null` clears the hero image. A transition into Published requires a verified Property-owned Google destination and atomically creates/activates an immutable publication snapshot; disable/archive closes the active route. Ordinary edits to an already-published working copy remain prospective. The patch and identifier-only `portal.updated` fact share one optimistic, version-fenced commit.
 - **`rollbackPortalPublication`** — Deliberately route a currently Published Portal to an older digest-verified snapshot by appending a rollback activation; never mutates either snapshot or erases activation history.
+- **`getPortalPublicationHistory`** — Return the current live version, prior publish/rollback activations, and saved-content pending state after rechecking Portal read permission and Property access. A paused/archived Portal has no live version but retains earlier activity.
 - **`getPortal`** — Retrieve a single portal by ID, plus `tokenStatus` (C2): whether a public token still resolves (active, or rotating inside its grace window — same predicate as public token resolution), its version, issue time and grace end. Metadata only: the raw token and its digest are returned by issue/rotate alone.
 - **`listPortals`** — List portals for an org/property with filters.
 - **`softDeletePortal`** — Atomically soft-delete a Portal, revoke all live Portal tokens, and record `portal.deleted` plus `portal.token.revoked` when tokens were live. A fact conflict or stale Portal version rolls back the entire set.
@@ -179,7 +183,7 @@ Exported from `application/public-api.ts`:
 
 ## Server functions
 
-- **`portals.ts`** — CRUD, publication rollback, read, image-upload, and portal-token server functions for portals (create/update/list/get/delete portal, rollback publication, request/finalize upload, issue/rotate/revoke token).
+- **`portals.ts`** — CRUD, publication history/rollback, read, image-upload, and portal-token server functions for portals (create/update/list/get/delete portal, read/rollback publication, request/finalize upload, issue/rotate/revoke token).
 - **`portal-links.ts`** — CRUD server functions for portal links and link categories.
 - **`portal-groups.ts`** — CRUD server functions for portal groups and portal membership management.
 - **`portal-responsible-managers.ts`** — scoped list/update endpoints for responsible-manager assignments and CAS conflict handling.

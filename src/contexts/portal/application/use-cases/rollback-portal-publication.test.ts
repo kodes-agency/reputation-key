@@ -84,6 +84,7 @@ function setup(
     findSnapshotByVersion: async (_organizationId, _portalId, version) =>
       options.targetExists === false || version !== 1 ? null : versionOne,
     findActiveForPortal: async () => versionTwo,
+    listActivationHistory: async () => [],
     resolveActiveByTokenDigest: async () => null,
   }
   const useCase = rollbackPortalPublication({

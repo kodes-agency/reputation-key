@@ -57,6 +57,7 @@ type SettingsPanelProps = Pick<
   PortalDetailResources,
   | 'portal'
   | 'googleReviewDestination'
+  | 'publicationHistory'
   | 'updateMutation'
   | 'completeReviewMutation'
   | 'requestUploadUrl'
@@ -70,6 +71,7 @@ type SettingsPanelProps = Pick<
 function SettingsPanel({
   portal,
   googleReviewDestination,
+  publicationHistory,
   updateMutation,
   completeReviewMutation,
   requestUploadUrl,
@@ -85,6 +87,7 @@ function SettingsPanel({
     <PortalSettings
       portal={portal}
       googleReviewDestination={googleReviewDestination}
+      publicationHistory={publicationHistory}
       mutation={updateMutation}
       completeReviewMutation={completeReviewMutation}
       theme={theme}

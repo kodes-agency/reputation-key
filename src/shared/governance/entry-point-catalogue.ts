@@ -1658,6 +1658,17 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       notes: 'scoped via portalId',
     }),
     sf(
+      'getPortalPublicationHistory',
+      `${PORTAL}/portals.ts`,
+      'portal.read',
+      'portal.read',
+      'property',
+      {
+        notes:
+          'scoped via authoritative portalId; read model queries the exact organization/property/portal tuple',
+      },
+    ),
+    sf(
       'deletePortal',
       `${PORTAL}/portals.ts`,
       'portal.delete',

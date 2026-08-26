@@ -14,6 +14,7 @@ import {
   completeContentReview,
   finalizeUpload,
   getPortal,
+  getPortalPublicationHistory,
   listPortals,
   issuePortalToken,
   requestUploadUrl,
@@ -88,6 +89,13 @@ const responsibleManagersQuery = (portalId: string) =>
   queryOptions({
     queryKey: portalKeys.responsibleManagers(portalId),
     queryFn: () => listPortalResponsibleManagers({ data: { portalId } }),
+    staleTime: 30_000,
+  })
+
+const portalPublicationHistoryQuery = (portalId: string) =>
+  queryOptions({
+    queryKey: portalKeys.publicationHistory(portalId),
+    queryFn: () => getPortalPublicationHistory({ data: { portalId } }),
     staleTime: 30_000,
   })
 
@@ -179,6 +187,7 @@ export const Route = createFileRoute(
       ),
       context.queryClient.ensureQueryData(responsibleManagersQuery(params.portalId)),
       context.queryClient.ensureQueryData(membersQuery),
+      context.queryClient.ensureQueryData(portalPublicationHistoryQuery(params.portalId)),
     ])
     return {
       portal,
@@ -295,6 +304,9 @@ function PortalDetailRoute() {
     responsibleManagersQuery(portalId),
   )
   const { data: membersData } = useSuspenseQuery(membersQuery)
+  const { data: publicationHistory } = useSuspenseQuery(
+    portalPublicationHistoryQuery(portalId),
+  )
   const { portal, tokenStatus } = portalData
   const { categories, links } = linksData
   const { property } = propData
@@ -354,6 +366,7 @@ function PortalDetailRoute() {
           state: property.googleReviewDestination?.state ?? 'unavailable',
           retrievedAt: property.googleReviewDestination?.retrievedAt ?? null,
         }}
+        publicationHistory={publicationHistory}
         categories={categories}
         links={links}
         activeTab={tab}

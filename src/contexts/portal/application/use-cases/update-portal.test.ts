@@ -57,6 +57,7 @@ const setup = (
     }),
     findSnapshotByVersion: async () => null,
     findActiveForPortal: async () => null,
+    listActivationHistory: async () => [],
     resolveActiveByTokenDigest: async () => null,
   }
   const deps = {

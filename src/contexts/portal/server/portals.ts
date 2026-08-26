@@ -287,6 +287,29 @@ export const getPortal = createServerFn({ method: 'GET' })
     ),
   )
 
+export const getPortalPublicationHistory = createServerFn({ method: 'GET' })
+  .validator(portalIdSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalResource(ctx, data.portalId, 'portal.read', 'portal.read')
+
+        try {
+          return await getContainer().useCases.getPortalPublicationHistory(data, ctx)
+        } catch (error) {
+          if (isPortalError(error)) {
+            throwContextError('PortalError', error, portalErrorStatus(error.code))
+          }
+          throw catchUntagged(error)
+        }
+      },
+      'GET',
+      'portal.getPortalPublicationHistory',
+    ),
+  )
+
 // ── deletePortal (soft-delete) ─────────────────────────────────────
 
 export const deletePortal = createServerFn({ method: 'POST' })

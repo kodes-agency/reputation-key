@@ -243,6 +243,89 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
     ).resolves.toBeNull()
   })
 
+  it('lists publication and rollback activity only inside the exact property scope', async () => {
+    const first = snapshot(
+      1,
+      'First published name',
+      'f5000000-0000-4000-8000-000000000001',
+    )
+    const second = snapshot(
+      2,
+      'Second published name',
+      'f5000000-0000-4000-8000-000000000002',
+    )
+    await getDb()
+      .insert(portalPublicationSnapshots)
+      .values([snapshotRow(first), snapshotRow(second)])
+    await getDb()
+      .insert(portalPublicationActivations)
+      .values([
+        {
+          id: 'f5100000-0000-4000-8000-000000000001',
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+          snapshotId: first.id,
+          activationSequence: 1,
+          kind: 'publish',
+          activatedBy: 'manager-publication-1',
+          activatedAt: first.createdAt,
+          deactivatedAt: second.createdAt,
+          deactivationReason: 'replaced',
+        },
+        {
+          id: 'f5100000-0000-4000-8000-000000000002',
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+          snapshotId: second.id,
+          activationSequence: 2,
+          kind: 'publish',
+          activatedBy: 'manager-publication-1',
+          activatedAt: second.createdAt,
+          deactivatedAt: new Date(NOW.getTime() + 20_000),
+          deactivationReason: 'replaced',
+        },
+        {
+          id: 'f5100000-0000-4000-8000-000000000003',
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+          snapshotId: first.id,
+          activationSequence: 3,
+          kind: 'rollback',
+          activatedBy: 'manager-publication-2',
+          activatedAt: new Date(NOW.getTime() + 20_000),
+        },
+      ])
+
+    const repo = createPortalPublicationRepository(getDb())
+    const history = await repo.listActivationHistory(ORG, PROPERTY, PORTAL)
+
+    expect(
+      history.map(({ activation, snapshot: publication }) => ({
+        sequence: activation.activationSequence,
+        kind: activation.kind,
+        version: publication.version,
+        current: activation.deactivatedAt === null,
+      })),
+    ).toEqual([
+      { sequence: 3, kind: 'rollback', version: 1, current: true },
+      { sequence: 2, kind: 'publish', version: 2, current: false },
+      { sequence: 1, kind: 'publish', version: 1, current: false },
+    ])
+    await expect(
+      repo.listActivationHistory(
+        ORG,
+        propertyId('f4d00000-0000-4000-8000-000000000099'),
+        PORTAL,
+      ),
+    ).resolves.toEqual([])
+    await expect(
+      repo.listActivationHistory(OTHER_ORG, PROPERTY, PORTAL),
+    ).resolves.toEqual([])
+  })
+
   it('fails closed if durable snapshot content no longer matches its digest', async () => {
     const published = snapshot(
       1,

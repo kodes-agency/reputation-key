@@ -24,6 +24,10 @@ export { isValidExternalUrl } from '../domain/rules'
 export type { Portal } from '../domain/types'
 /** C2: portal token existence/metadata for management surfaces — never token material. */
 export type { PortalTokenStatus } from './use-cases/get-portal'
+export type {
+  PortalPublicationHistory,
+  PortalPublicationHistoryItem,
+} from './use-cases/get-portal-publication-history'
 
 import type {
   OrganizationId,

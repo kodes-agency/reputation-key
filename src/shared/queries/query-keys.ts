@@ -166,6 +166,8 @@ export const portalKeys = {
   links: (portalId: string) => [...portalKeys.detail(portalId), 'links'] as const,
   responsibleManagers: (portalId: string) =>
     [...portalKeys.detail(portalId), 'responsible-managers'] as const,
+  publicationHistory: (portalId: string) =>
+    [...portalKeys.detail(portalId), 'publication-history'] as const,
   groups: (propertyId: string) => [...portalKeys.all, 'groups', propertyId] as const,
   goalSubjects: (propertyId: string) =>
     [...portalKeys.all, 'goal-subjects', propertyId] as const,

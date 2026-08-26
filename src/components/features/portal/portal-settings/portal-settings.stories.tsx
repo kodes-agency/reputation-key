@@ -67,6 +67,22 @@ const idleReviewMutation = Object.assign(
 
 const baseArgs = {
   portal,
+  googleReviewDestination: {
+    state: 'verified' as const,
+    retrievedAt: '2026-08-20T10:00:00.000Z',
+  },
+  publicationHistory: {
+    current: {
+      activationSequence: 1,
+      version: 1,
+      kind: 'publish' as const,
+      activatedAt: '2026-08-20T10:00:00.000Z',
+      deactivatedAt: null,
+      deactivationReason: null,
+    },
+    priorActivations: [],
+    hasPendingChanges: false,
+  },
   mutation: idleMutation,
   completeReviewMutation: idleReviewMutation,
   theme: portal.theme,
