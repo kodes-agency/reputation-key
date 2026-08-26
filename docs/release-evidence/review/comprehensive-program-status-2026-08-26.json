@@ -74,20 +74,22 @@
     {
       "id": "FND-04",
       "status": "partial",
-      "summary": "A versioned pre-fix oracle index now binds 13 accepted reproductions to the frozen review SHA, exact SHA-256 structural failure artifacts, accepted conclusion semantics, and current executable regression proofs. It covers Portal upload, CSRF, Review re-observation, ambiguous writes, proxy handling, digest identity, public redirect/cache behavior, Reply interruption, Goal/Recognition runtime, architecture boundaries, production bundles, and baseline-gate interruption. Two named seams are closed; ten remain partial and Reply publication interruption remains open.",
+      "summary": "A versioned pre-fix oracle index binds 13 accepted reproductions to the frozen review SHA, exact SHA-256 structural failure artifacts, accepted conclusion semantics, and current executable regression proofs. It covers Portal upload, CSRF, Review re-observation, ambiguous writes, proxy handling, digest identity, public redirect/cache behavior, Reply interruption, Goal/Recognition runtime, architecture boundaries, production bundles, and baseline-gate interruption. Two named seams are closed and eleven are partial; the previously open Reply commit-to-delivery seam now has local atomic-intent and interruption-recovery proof, while deployed queue/provider observation remains outstanding.",
       "codeEvidence": [
         "docs/release-evidence/review/pre-fix-oracle-index-2026-08-26.json",
         "scripts/review/pre-fix-oracles.ts",
         "scripts/review/pre-fix-oracles.test.ts",
         "src/start.test.ts",
-        "src/shared/db/pool.test.ts"
+        "src/shared/db/pool.test.ts",
+        "src/contexts/review/infrastructure/outbox-consumers.ts"
       ],
       "testEvidence": [
         "Oracle authority validates exact case order, frozen/retained source digests, expected conclusions, current proof markers, and per-case result artifacts",
-        "All 13 named oracle commands were run successfully after the index was frozen; Review command-store integration was independently rerun after migration 0116"
+        "All 13 named oracle commands were run successfully after the index was frozen; Review command-store integration was independently rerun after migration 0116",
+        "Reply interruption recovery: 12 focused unit files / 279 tests, 1 real-PostgreSQL file / 6 commit-recovery and rollback tests, and 4 consumer/governance files / 46 tests; full typecheck passed after migration 0118"
       ],
       "remaining": [
-        "Close each oracle's explicitly recorded remaining release evidence; most importantly, make committed Reply publication intent independently deliverable after interruption, then retain one immutable candidate run covering database, Redis, browser, container, coverage, and hosted-CI gates without retry."
+        "Close each oracle's explicitly recorded deployment or package evidence, including commit-to-worker Reply recovery and observed-on-Google closure with the outbox dispatcher and queue Redis enabled; then retain one immutable candidate run covering database, Redis, browser, container, coverage, and hosted-CI gates without retry."
       ],
       "externalBlockers": []
     },
@@ -210,18 +212,21 @@
     {
       "id": "ARC-01",
       "status": "partial",
-      "summary": "Versioned envelopes and atomic helpers exist. Portal create/update/publication/delete and Portal Group deletion now commit state, required membership/token side effects, and lifecycle facts in one PostgreSQL transaction under revision fences; stale views and failed fact writes change nothing, while local post-commit delivery failure leaves the durable fact intact. Other active Portal mutations and durable Activity/Notification families remain incomplete.",
+      "summary": "Versioned envelopes and atomic helpers exist. Portal create/update/publication/delete and Portal Group deletion commit state, required membership/token side effects, and lifecycle facts in one PostgreSQL transaction under revision fences. Review approval, edit-and-republish, and retry now also commit monotonic publication intent with state; a durable receipt-coordinated consumer resumes queue delivery after interruption and rejects superseded cycles. Other active Portal mutations and durable Activity/Notification families remain incomplete.",
       "codeEvidence": [
         "src/shared/outbox/envelope.ts",
         "src/shared/outbox/commit.ts",
         "src/contexts/portal/application/ports/portal-command-store.port.ts",
         "src/contexts/portal/infrastructure/portal-command-store.ts",
         "src/contexts/portal/application/use-cases/soft-delete-portal-group.ts",
+        "src/contexts/review/infrastructure/outbox-consumers.ts",
+        "src/contexts/review/infrastructure/reply-command-store.ts",
         "Remaining Portal use cases calling emitAndRecord"
       ],
       "testEvidence": [
         "Durable Guest, analytics, AI, and identity fact tests",
-        "Portal Group atomic deletion: 3 focused files / 23 tests, including real PostgreSQL commit, failed-fact rollback, stale-revision refusal, membership closure, and post-commit local-delivery failure; targeted lint and formatting checks passed"
+        "Portal Group atomic deletion: 3 focused files / 23 tests, including real PostgreSQL commit, failed-fact rollback, stale-revision refusal, membership closure, and post-commit local-delivery failure; targeted lint and formatting checks passed",
+        "Review publication intent: 279 focused unit tests, 6 real-PostgreSQL interruption/rollback tests, and 46 consumer/governance tests; full typecheck passed"
       ],
       "remaining": [
         "Add command/content classification to the envelope; move remaining active Portal Group/link/membership/token writes from emitAndRecord into owned command transactions; close durable Activity/Notification and other orphan families; make consumer receipts and projections interruption-safe; prove recovery plus empty-projection replay parity."
@@ -431,17 +436,22 @@
     {
       "id": "RPL-01",
       "status": "partial",
-      "summary": "A durable publication overlay and ambiguity reconciliation exist, but confirmation intent is not atomically queued and Inbox closure does not wait for subsequently observed Google truth.",
+      "summary": "Approval, edit-and-republish, and retry now advance a monotonic publication cycle and atomically commit a durable publication-request fact with reply state. A receipt-coordinated Review consumer re-reads the exact cycle, admits a deterministic queue job after commit, and terminally settles superseded intents; the publish handler fences stale cycles before claim, after provider return, and at the exact-cycle acknowledgement. Inbox closure still does not wait for subsequently observed Google truth, and deployed queue/provider proof remains outstanding.",
       "codeEvidence": [
-        "src/contexts/reply/application/reply-operations.ts",
-        "src/contexts/reply/",
-        "src/components/reply/reply-form.tsx"
+        "drizzle/0118_reply_publication_cycles.sql",
+        "src/contexts/review/application/use-cases/reply-operations.ts",
+        "src/contexts/review/infrastructure/reply-command-store.ts",
+        "src/contexts/review/infrastructure/outbox-consumers.ts",
+        "src/contexts/review/infrastructure/jobs/publish-reply.job.ts"
       ],
       "testEvidence": [
-        "Publication state, authorization, retry, and ambiguity reconciliation suites"
+        "12 focused unit files / 279 tests",
+        "src/contexts/review/infrastructure/repositories/reply-command-store.test.ts: 6 real-PostgreSQL tests covering committed interruption recovery and invalid-intent rollback",
+        "4 consumer/governance/registration files / 46 tests",
+        "Full app/scripts/Railway typecheck, targeted lint, architecture/component boundaries, and Zod conformance passed"
       ],
       "remaining": [
-        "Add atomically committed publication intent and per-attempt history, material-revision fences, normalized provider fixtures, observed-live closure, external-reply reconciliation, operations UX/alerts, and settled Confirm & Publish language."
+        "Add per-attempt publication history and material-revision fences; normalize provider fixtures; make Inbox closure depend on observed Google truth; implement external-reply reconciliation, operations UX/alerts, and settled Confirm & Publish language; then prove the durable relay/queue/provider journey in a production-equivalent environment."
       ],
       "externalBlockers": []
     },

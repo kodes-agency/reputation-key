@@ -541,20 +541,36 @@
           "path": "src/contexts/review/infrastructure/reply-command-store.test.ts",
           "project": "unit",
           "contains": [
-            "approval: commits status + authorized state + cycle reset + approved fact, one tx"
+            "approval: commits state + lifecycle fact + durable publication intent in one tx"
           ]
         },
         {
           "path": "src/contexts/review/infrastructure/jobs/publish-reply.job.test.ts",
           "project": "unit",
           "contains": ["failure AFTER provider success BEFORE local ack"]
+        },
+        {
+          "path": "src/contexts/review/infrastructure/repositories/reply-command-store.test.ts",
+          "project": "integration",
+          "contains": [
+            "recovers the committed authorization after interruption before direct queue admission",
+            "rolls back authorization and its lifecycle fact when the publication-intent insert fails"
+          ]
+        },
+        {
+          "path": "src/contexts/review/infrastructure/outbox-consumers.test.ts",
+          "project": "unit",
+          "contains": [
+            "delivers the committed cycle with a deterministic job identity",
+            "marks a superseded cycle obsolete without admitting it"
+          ]
         }
       ],
-      "resolution": "open",
+      "resolution": "partial",
       "remaining": [
-        "Make committed publication intent independently deliverable after an interruption between commit and queue admission, then prove observed-live closure end to end."
+        "At the immutable release candidate, enable the existing outbox dispatcher with queue Redis and prove commit-to-worker recovery plus observed-on-Google closure end to end without a direct queue call."
       ],
-      "note": "Atomic authorization and provider/local-completion ambiguity have tests; the commit-to-delivery recovery edge remains open."
+      "note": "Approval, edit-and-republish, and retry now commit a monotonic publication-cycle intent atomically with reply state. A durable receipt-coordinated consumer resumes delivery after interruption and rejects superseded cycles; deployed queue/provider observation remains release evidence."
     },
     {
       "id": "GOAL_RECOGNITION_RUNTIME",
