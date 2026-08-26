@@ -253,6 +253,7 @@ export type ReviewProviderObservationWriter = Readonly<{
       connectionId: GoogleConnectionId
       sourceEpoch: number
       review: GoogleReview
+      subjects: ReviewProviderSubjectCandidates
     }>,
   ): Promise<Readonly<{ reviewId: ReviewId; sourceRevision: number; isNew: boolean }>>
 }>

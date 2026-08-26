@@ -294,7 +294,7 @@ const requestUploadSchema = z.object({
 
 const finalizeUploadSchema = z.object({
   portalId: z.string().min(1),
-  key: z.string().min(1),
+  uploadId: z.uuid(),
 })
 
 // ── requestUploadUrl ───────────────────────────────────────────────

@@ -7,6 +7,7 @@ export type SourcePurgeResult = Readonly<{
   subject: string
   batches: number
   rowsDeleted: number
+  rowsRedacted: number
 }>
 
 export type SourceContentPurge = Readonly<{

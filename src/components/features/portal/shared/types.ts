@@ -43,7 +43,7 @@ export type UpdatePortalVariables = {
     name?: string
     slug?: string
     description?: string | null
-    heroImageUrl?: string | null
+    heroImageUrl?: null
     theme?: PortalThemeDraft
     privateFeedbackThreshold?: number
     publicationState?: PortalPublicationState

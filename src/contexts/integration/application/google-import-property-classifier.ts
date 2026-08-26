@@ -5,7 +5,8 @@ import { resolveRegion } from '#/shared/domain/processing-profile'
 import type { GbpLocationCandidate } from './google-provider-contract'
 import type { ImportDiscoveryCandidate } from './ports/google-import-reference-store.port'
 import type { GoogleImportPropertyClassifier } from './google-import-discovery'
-import { MAX_GOOGLE_IMPORT_ITEMS } from './dto/google-import-v2.dto'
+
+const GOOGLE_PROVIDER_LOCATION_PAGE_SIZE = 100
 
 export type GoogleImportPropertyDiscoveryView = Readonly<{
   organizationId: OrganizationId
@@ -62,7 +63,7 @@ export function createGoogleImportPropertyClassifier(
   }>,
 ): GoogleImportPropertyClassifier {
   return async (input) => {
-    if (input.candidates.length > MAX_GOOGLE_IMPORT_ITEMS) {
+    if (input.candidates.length > GOOGLE_PROVIDER_LOCATION_PAGE_SIZE) {
       throw classificationFailure()
     }
     // An account with no locations is a legitimate empty page. The binding

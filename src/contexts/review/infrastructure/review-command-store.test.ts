@@ -56,7 +56,7 @@ function makeReview(): Omit<Review, 'createdAt' | 'updatedAt'> {
     sourceUpdatedAt: null,
     firstFetchedAt: NOW,
     lastFetchedAt: NOW,
-    contentExpiresAt: null,
+    contentExpiresAt: NOW,
     contentHash: null,
     sourceSeenGeneration: null,
     sourceEpoch: 0,
@@ -150,6 +150,8 @@ describe('createAtomicReviewCommandStore', () => {
       analysisSequence: 1,
       aiSourceByteLength: 1,
       aiSourceDigest: '0'.repeat(64),
+      sourceContentState: 'active',
+      sourceContentErasedAt: null,
       createdAt: NOW,
       updatedAt: NOW,
     }
@@ -166,8 +168,14 @@ describe('createAtomicReviewCommandStore', () => {
     let insertCalls = 0
     const txInsert = vi.fn(() => {
       insertCalls++
-      order.push(insertCalls === 1 ? 'tx.review' : 'tx.outbox')
-      if (insertCalls === 1) {
+      order.push(
+        insertCalls === 1
+          ? 'tx.review'
+          : insertCalls === 2
+            ? 'tx.source-content'
+            : 'tx.outbox',
+      )
+      if (insertCalls <= 2) {
         return { values }
       }
       return {
@@ -215,7 +223,14 @@ describe('createAtomicReviewCommandStore', () => {
     await store.upsertAndRecord(makeReview(), eventFactory, NOW)
 
     expect(transaction).toHaveBeenCalledTimes(1)
-    expect(order).toEqual(['tx.start', 'tx.review', 'tx.outbox', 'tx.commit', 'emit'])
+    expect(order).toEqual([
+      'tx.start',
+      'tx.review',
+      'tx.source-content',
+      'tx.outbox',
+      'tx.commit',
+      'emit',
+    ])
     expect(events.emit).toHaveBeenCalledTimes(1)
     // Every provider-refreshed content column must be in the conflict update
     // set. translatedText was missing, so a review whose Google translation

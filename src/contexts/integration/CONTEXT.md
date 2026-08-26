@@ -8,7 +8,7 @@ Owns Google OAuth connections, provider access, opaque property-import discovery
 
 - **GoogleConnection** — tenant-owned OAuth credentials keyed by the verified Google OIDC subject. Credentials and the subject are cleared on disconnect.
 - **Opaque import reference** — short-lived browser handle whose provider routing data exists only in the provider-ephemeral store.
-- **Import request/item** — durable tenant-scoped v2 intent and per-location work. Pending work keeps protected routing suffixes; terminal retention follows the v2 lifecycle.
+- **Import saga/batch/item** — one durable tenant-scoped import command, split into stable child batches of at most 100 and per-location work. The saga is the browser-visible job; batches are worker checkpoints. Pending work keeps protected routing suffixes; terminal retention follows the v2 lifecycle.
 - **Property Google binding** — Property-owned account/location suffixes, connection, lifecycle state, source epoch, confirmed profile, and validated Google review destination snapshot.
 - **Performance report** — live property-scoped Google Business Profile daily metrics, returned with source and retrieval metadata and never persisted.
 - **Token encryption** — access and refresh tokens are encrypted at rest through `TokenEncryptionPort`.
@@ -18,7 +18,10 @@ Owns Google OAuth connections, provider access, opaque property-import discovery
 - Provider calls require a current connection, capability approval, execution permit, quota admission, and generation checks.
 - Browser DTOs and durable events never expose provider account/location identifiers.
 - Import discovery data is bounded, short-lived, and stored only in provider-ephemeral Redis.
-- Durable import requests are tenant-scoped, idempotent, fenced per item, and converge through the v2 reducer.
+- A confirmed selection has no product-level 100-item cap. One transaction persists the replay-safe saga root, every stable child batch, every item checkpoint, and one identifier-only dispatch fact per child batch. Pre-confirmation provider references retain their 2,000-record/15-minute safety envelope, so arbitrary-fleet discovery still needs the GGL-01 server-side checkpoint follow-up recorded in the program status.
+- Browser status, retry, and cancellation address the saga root and aggregate every child batch. User cancellation is initiator-scoped, idempotent, and records `user_cancelled`; partial child completion remains visible rather than being rewritten as all-or-nothing success.
+- The child worker/security bound remains 100. Provider candidate pages are also bounded, while “Select all eligible locations” fetches through every remaining page before it changes the selection.
+- One credential is denied from spanning multiple Data Cells until the REG-01 credential-home broker explicitly authorizes that operation; the current composition root does not install that authorization.
 - Property create/relink effects use `PropertyGoogleBindingPublicApi`; Integration does not construct or insert Property entities directly.
 - Discovery reads Google's output-only `metadata.newReviewUri`, validates it against the approved HTTPS Google-host policy, carries it through opaque/durable import state, and hands it to the Property binding effect. It is never manually entered by an administrator.
 - Performance data is live-only and property-scoped; the base Dashboard does not depend on provider availability.
@@ -74,7 +77,7 @@ integration/
 ## Permissions
 
 - `integration.manage` — manage Google connections and authorized discovery.
-- `property.import_gbp_v2` — start, inspect, and retry v2 property imports.
+- `property.import_gbp_v2` — start, inspect, retry, and cancel v2 property import sagas.
 - `dashboard.performance_google` — retrieve live property Performance reporting.
 
 ## Background jobs

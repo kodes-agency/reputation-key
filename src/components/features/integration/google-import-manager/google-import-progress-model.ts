@@ -27,6 +27,7 @@ const OUTCOME_MESSAGES: Record<ImportOutcomeCode, string> = {
   reauthentication_required: 'Reconnect Google to continue.',
   reconnect_required: 'The Google connection must be restored.',
   authorization_changed: 'Import stopped because access changed.',
+  user_cancelled: 'Import cancelled.',
   policy_disabled: 'Import stopped because this feature is unavailable.',
   organization_suspended: 'Import stopped because the organization is suspended.',
   property_suspended: 'Import stopped because the property is suspended.',

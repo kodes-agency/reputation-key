@@ -13,6 +13,21 @@ import type {
   AiReviewSourceRequest,
   AiReviewSourceResult,
 } from './ai-review-source.port'
+import type { ReviewProviderSubject } from '#/shared/review-provider-subject-contract'
+
+export type StableReviewSourceIdentity = Readonly<{
+  id: ReviewId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  sourceEpoch: number
+  sourceRevision: number
+  analysisSequence: number
+  sourceContentState: 'active' | 'source_expired' | 'provider_deleted'
+  firstFetchedAt: Date | null
+  sourceSeenGeneration: string | null
+  sentimentLabel: string | null
+  sentimentScore: number | null
+}>
 
 export type ReviewRepository = Readonly<{
   findById(id: ReviewId, organizationId: OrganizationId): Promise<Review | null>
@@ -43,6 +58,14 @@ export type ReviewRepository = Readonly<{
     externalId: string,
     organizationId: OrganizationId,
   ): Promise<Review | null>
+  findStableIdentityByProviderSubjects(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      sourceEpoch: number
+      subjects: readonly [ReviewProviderSubject, ...ReviewProviderSubject[]]
+    }>,
+  ): Promise<StableReviewSourceIdentity | null>
   upsert(review: Omit<Review, 'createdAt' | 'updatedAt'>, now?: Date): Promise<Review>
   findByPropertyId(
     propertyId: PropertyId,

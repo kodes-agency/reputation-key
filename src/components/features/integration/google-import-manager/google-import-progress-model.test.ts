@@ -13,7 +13,7 @@ import {
 } from './google-import-progress-model'
 
 const progress = (processedCount: number, totalCount: number): ImportProgressDto => ({
-  contractVersion: 2,
+  contractVersion: 3,
   importJobId: '10000000-0000-4000-8000-000000000001',
   requestId: '10000000-0000-4000-8000-000000000002',
   status: 'processing',

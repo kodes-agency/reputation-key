@@ -21,6 +21,7 @@ import type {
   ReviewProviderSnapshotRun,
 } from '../../application/ports/review-provider-snapshot.repository'
 import { reviewSourceTransitioned } from '../../domain/events'
+import { eraseReviewSourceContent } from '../review-source-content-store'
 
 const ACTIVE_STATES = ['scanning', 'confirming', 'deleting'] as const
 const TERMINAL_RECORD_RETENTION = sql`interval '30 days'`
@@ -894,44 +895,26 @@ export const createReviewProviderSnapshotRepository = (
           observed += 1
           continue
         }
-        if (mapping.state === 'linked') {
-          const expired = await tx
-            .update(reviews)
-            .set({
-              // SAFE-03 containment: a provider deletion must make source
-              // content immediately ineligible without deleting the stable
-              // Review identity. Replies and RepKey workflow history remain
-              // attached while REV-01 introduces field-level raw-content
-              // erasure/version storage.
-              contentExpiresAt: sql`LEAST(
-                COALESCE(${reviews.contentExpiresAt}, transaction_timestamp()),
-                transaction_timestamp()
-              )`,
-              updatedAt: sql`transaction_timestamp()`,
-            })
+        const erased = await eraseReviewSourceContent(tx, {
+          reviewId: reviewId(candidate.reviewId),
+          organizationId: organizationId(run.organizationId),
+          propertyId: propertyId(run.propertyId),
+          sourceEpoch: run.sourceEpoch,
+          expectedSourceRevision: candidate.expectedSourceRevision,
+          state: 'provider_deleted',
+        })
+        if (!erased) {
+          await tx
+            .update(reviewProviderDeletionCandidates)
+            .set({ state: 'observed', updatedAt: sql`transaction_timestamp()` })
             .where(
               and(
-                eq(reviews.id, candidate.reviewId),
-                eq(reviews.organizationId, run.organizationId),
-                eq(reviews.propertyId, run.propertyId),
-                eq(reviews.sourceEpoch, run.sourceEpoch),
-                eq(reviews.sourceRevision, candidate.expectedSourceRevision),
+                eq(reviewProviderDeletionCandidates.runId, run.id),
+                eq(reviewProviderDeletionCandidates.reviewId, candidate.reviewId),
               ),
             )
-            .returning({ id: reviews.id })
-          if (!expired[0]) {
-            await tx
-              .update(reviewProviderDeletionCandidates)
-              .set({ state: 'observed', updatedAt: sql`transaction_timestamp()` })
-              .where(
-                and(
-                  eq(reviewProviderDeletionCandidates.runId, run.id),
-                  eq(reviewProviderDeletionCandidates.reviewId, candidate.reviewId),
-                ),
-              )
-            observed += 1
-            continue
-          }
+          observed += 1
+          continue
         }
         emitted.push(await recordSourceTransition(tx, mapping, 'provider_deleted'))
         await tx
@@ -1050,27 +1033,15 @@ export const createReviewProviderSnapshotRepository = (
               eq(reviewProviderSubjects.locatorHmac, mapping.locatorHmac),
             ),
           )
-        const expired = await tx
-          .update(reviews)
-          .set({
-            // SAFE-03 containment mirrors provider-deletion apply: provider
-            // content remains denied by the hard-expiry read predicate, while
-            // the stable Review identity and RepKey Reply/history survive.
-            contentExpiresAt: sql`LEAST(
-              COALESCE(${reviews.contentExpiresAt}, transaction_timestamp()),
-              transaction_timestamp()
-            )`,
-            updatedAt: sql`transaction_timestamp()`,
-          })
-          .where(
-            and(
-              eq(reviews.id, row.id),
-              eq(reviews.sourceEpoch, mapping.sourceEpoch),
-              eq(reviews.sourceRevision, mapping.lastSourceRevision),
-            ),
-          )
-          .returning({ id: reviews.id })
-        if (!expired[0]) throw new Error('Expired Review changed before transition')
+        const erased = await eraseReviewSourceContent(tx, {
+          reviewId: reviewId(row.id),
+          organizationId: organizationId(mapping.organizationId),
+          propertyId: propertyId(mapping.propertyId),
+          sourceEpoch: mapping.sourceEpoch,
+          expectedSourceRevision: mapping.lastSourceRevision,
+          state: 'source_expired',
+        })
+        if (!erased) throw new Error('Expired Review changed before transition')
         transitioned += 1
       }
       return {

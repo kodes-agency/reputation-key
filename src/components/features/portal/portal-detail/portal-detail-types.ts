@@ -49,10 +49,10 @@ export type PortalDetailResources = Readonly<{
   tokenStatus: PortalTokenStatus
   requestUploadUrl: (input: {
     data: { portalId: string; contentType: string; fileSize: number }
-  }) => Promise<{ uploadUrl: string; key: string }>
+  }) => Promise<{ uploadUrl: string; uploadId: string }>
   finalizeUpload: (input: {
-    data: { portalId: string; key: string }
-  }) => Promise<{ heroImageUrl: string }>
+    data: { portalId: string; uploadId: string }
+  }) => Promise<{ heroImageUrl: string | null; processing: boolean }>
   getPortalAnalytics: typeof getPortalAnalyticsFn
   responsibleManagers?: PortalResponsibleManagerState
   responsibleManagerMembers?: readonly ResponsibleManagerMember[]

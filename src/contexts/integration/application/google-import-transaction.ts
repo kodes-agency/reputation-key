@@ -25,6 +25,7 @@ import {
   type GoogleImportSemanticItem,
 } from './google-import-replay'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
+import { planGoogleImportSagaBatches } from './google-import-saga'
 
 const EFFECT_DEADLINE_MS = 24 * 60 * 60 * 1_000
 type ImportInputItem = StartPropertyImportV2Input['items'][number]
@@ -114,6 +115,19 @@ export function createGoogleImportTransaction(
     replayKeys: VersionedHmacKeyring
     clock: () => Date
     idGen?: () => string
+    /**
+     * REG-01 gate. Until credential-home brokerage exists, a single Google
+     * credential must not fan out work to more than one Data Cell.
+     */
+    authorizeMultiCellImport?: (
+      input: Readonly<{
+        organizationId: string
+        connectionIds: readonly string[]
+        processingRegions: readonly string[]
+      }>,
+    ) => Promise<boolean>
+    /** Explicit request cancellation. Absent means the capability is unavailable. */
+    cancelImportSaga?: (organizationId: string, importJobId: string) => Promise<unknown>
   }>,
 ) {
   const replay = createGoogleImportReplayDigests(deps.replayKeys)
@@ -217,42 +231,50 @@ export function createGoogleImportTransaction(
     }
 
     const candidateRefs = input.items.map((item) => item.candidateRef)
-    let claimed
-    try {
-      claimed = await deps.references.claimCandidates({
-        candidateRefs,
-        organizationId: scope.organizationId,
-        userId: scope.userId,
-        requestId: input.requestId,
-      })
-    } catch {
-      return fail('temporarily_unavailable')
-    }
-    if (!claimed.ok) {
-      return fail(
-        claimed.code === 'runtime_unavailable'
-          ? 'temporarily_unavailable'
-          : 'invalid_reference',
-      )
-    }
-
+    const referenceBatches = planGoogleImportSagaBatches(candidateRefs)
+    const claimIdentities: Array<{
+      candidateRefs: readonly string[]
+      organizationId: string
+      userId: string
+      requestId: string
+    }> = []
+    const claimedCandidates: ClaimedImportCandidate[] = []
     let releaseClaims = true
-    const claimIdentity = {
-      candidateRefs,
-      organizationId: scope.organizationId,
-      userId: scope.userId,
-      requestId: input.requestId,
-    }
     const consumeClaims = async (): Promise<void> => {
       releaseClaims = false
-      await deps.references.consumeCandidateClaims(claimIdentity)
+      for (const identity of claimIdentities) {
+        await deps.references.consumeCandidateClaims(identity)
+      }
     }
     try {
-      if (claimed.candidates.length !== input.items.length) {
+      for (const batch of referenceBatches) {
+        const identity = {
+          candidateRefs: batch.items,
+          organizationId: scope.organizationId,
+          userId: scope.userId,
+          requestId: input.requestId,
+        }
+        let claimed
+        try {
+          claimed = await deps.references.claimCandidates(identity)
+        } catch {
+          return fail('temporarily_unavailable')
+        }
+        if (!claimed.ok) {
+          return fail(
+            claimed.code === 'runtime_unavailable'
+              ? 'temporarily_unavailable'
+              : 'invalid_reference',
+          )
+        }
+        claimIdentities.push(identity)
+        claimedCandidates.push(...claimed.candidates)
+      }
+      if (claimedCandidates.length !== input.items.length) {
         return fail('invalid_reference')
       }
       const byReference = new Map<string, ClaimedImportCandidate>()
-      for (const candidate of claimed.candidates) {
+      for (const candidate of claimedCandidates) {
         if (
           byReference.has(candidate.candidateRef) ||
           candidate.authorization.organizationId !== scope.organizationId ||
@@ -359,8 +381,30 @@ export function createGoogleImportTransaction(
         }),
       )
 
+      const processingRegions = [...new Set(items.map((item) => item.processingRegion))]
+      if (processingRegions.length > 1) {
+        const connectionIds = [...new Set(items.map((item) => item.connectionId))]
+        if (
+          !deps.authorizeMultiCellImport ||
+          !(await deps.authorizeMultiCellImport({
+            organizationId: scope.organizationId,
+            connectionIds,
+            processingRegions,
+          }))
+        ) {
+          return fail('temporarily_unavailable')
+        }
+      }
+
       // Close routing/profile races before publishing a durable dispatch intent.
       await authorizeEntries(ordered, actor)
+      const batches = planGoogleImportSagaBatches(items).map((batch) => ({
+        id: idGen(),
+        requestId: idGen(),
+        ordinal: batch.ordinal,
+        items: batch.items,
+        outboxEventId: idGen(),
+      }))
       const intent = {
         id: importJobId,
         organizationId: scope.organizationId,
@@ -368,13 +412,12 @@ export function createGoogleImportTransaction(
         initiatedBy: scope.userId,
         wireReplay: replay.signWire(scope, input),
         semanticReplay: replay.signSemantic(scope, semanticRequest),
-        items,
+        batches,
         now,
-        outboxEventId: idGen(),
       }
       let committedResult
       try {
-        committedResult = await deps.store.commitIntent(intent)
+        committedResult = await deps.store.commitSaga(intent)
       } catch {
         let recovered
         try {
@@ -417,7 +460,9 @@ export function createGoogleImportTransaction(
       return { importJobId, replayed: false }
     } finally {
       if (releaseClaims) {
-        await deps.references.releaseCandidateClaims(claimIdentity)
+        for (const identity of claimIdentities) {
+          await deps.references.releaseCandidateClaims(identity)
+        }
       }
     }
   }
@@ -524,5 +569,30 @@ export function createGoogleImportTransaction(
     }
   }
 
-  return Object.freeze({ start, retry, recover, status })
+  const cancel = async (importJobId: string, actor: AuthContext) => {
+    let current
+    try {
+      current = await deps.store.getProgress(
+        actor.organizationId,
+        actor.userId,
+        importJobId,
+      )
+    } catch {
+      return fail('temporarily_unavailable')
+    }
+    if (!current) return fail('invalid_reference')
+    if (current.status !== 'queued' && current.status !== 'processing') {
+      return status(importJobId, actor)
+    }
+    if (!deps.cancelImportSaga) return fail('temporarily_unavailable')
+    try {
+      await deps.cancelImportSaga(String(actor.organizationId), importJobId)
+      return status(importJobId, actor)
+    } catch (error) {
+      if (error instanceof GoogleImportTransactionError) throw error
+      return fail('temporarily_unavailable')
+    }
+  }
+
+  return Object.freeze({ start, retry, recover, status, cancel })
 }

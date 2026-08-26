@@ -81,7 +81,7 @@ import {
 } from '#/shared/auth/google-content-approval'
 import { parseGoogleContentRuntimeBindings } from '#/shared/auth/google-content-runtime-bindings'
 import type { PerformanceContentAuthorizer } from '#/contexts/integration/application/google-performance-authorizer'
-import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
+import type { PortalStoragePort } from '#/contexts/portal/application/ports/storage.port'
 import { buildIdentityContext } from '#/contexts/identity/build'
 import { CAPABILITY_POLICY_VERSION } from '#/shared/auth/beta-capabilities'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
@@ -341,7 +341,7 @@ export type ProviderOverrides = Readonly<{
   /** Worker-only keyed pseudonym authority for AI operations. */
   aiSubjectHmac?: AiSubjectHmacPort
   /** Object storage adapter (portal context). */
-  storage?: StoragePort
+  storage?: PortalStoragePort
 }>
 
 function createAiRuntimeProviders(
@@ -1717,6 +1717,7 @@ export function createContainer(options?: {
     },
     storage: portal.internal.storage,
     portalRepo: portal.internal.repos.portalRepo,
+    portalUploadStore: portal.internal.repos.portalUploadStore,
     portalLinkRepo: portal.internal.repos.portalLinkRepo,
     reviewRepo: review.internal.repos.reviewRepo,
     providerEphemeralReadiness,

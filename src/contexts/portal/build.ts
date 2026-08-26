@@ -19,7 +19,7 @@ import { createS3StorageAdapter } from './infrastructure/adapters/s3-storage.ada
 import { createPortalTokenRepository } from './infrastructure/repositories/portal-token.repository'
 import { createPortalScopeRepository } from './infrastructure/repositories/portal-scope.repository'
 import { createPortalResponsibleManagerRepository } from './infrastructure/repositories/portal-responsible-manager.repository'
-import type { StoragePort } from './application/ports/storage.port'
+import type { PortalStoragePort } from './application/ports/storage.port'
 import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-codec'
 import { createPortal } from './application/use-cases/create-portal'
 import { updatePortal } from './application/use-cases/update-portal'
@@ -55,6 +55,7 @@ import {
 } from './application/use-cases/portal-responsible-managers'
 import { createPortalWorkflowFactStore } from './infrastructure/portal-workflow-fact-store'
 import { createAtomicPortalCommandStore } from './infrastructure/portal-command-store'
+import { createPortalUploadIssuanceStore } from './infrastructure/portal-upload-issuance-store'
 import { decidePublicExecution } from '#/shared/auth/execution-policy'
 import { portalId, portalGroupId, userId } from '#/shared/domain/ids'
 import { listEligiblePortalManagers } from './application/portal-manager-eligibility'
@@ -85,12 +86,13 @@ type PortalContextDeps = Readonly<{
   }>
   /** BQC-6.1: optional storage adapter override (simulations/tests inject an
    * in-memory storage; absent = the S3 adapter built from storageConfig). */
-  storage?: StoragePort
+  storage?: PortalStoragePort
 }>
 
 export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalRepo = createPortalRepository(deps.db)
   const portalCommandStore = createAtomicPortalCommandStore(deps.db, deps.events)
+  const portalUploadStore = createPortalUploadIssuanceStore(deps.db)
   const portalLinkRepo = createPortalLinkRepository(deps.db)
   const portalGroupRepo = createPortalGroupRepository(deps.db)
   const portalTokenRepo = createPortalTokenRepository(deps.db)
@@ -224,12 +226,15 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     }),
     requestUploadUrl: requestUploadUrl({
       portalRepo,
+      uploadStore: portalUploadStore,
       storage,
       staffPublicApi: deps.staffPublicApi,
       idGen: deps.idGen,
+      clock: deps.clock,
     }),
     finalizeUpload: finalizeUpload({
       portalRepo,
+      uploadStore: portalUploadStore,
       storage,
       staffPublicApi: deps.staffPublicApi,
       clock: deps.clock,
@@ -386,6 +391,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
         portalGroupRepo,
         portalTokenRepo,
         portalResponsibleManagerRepo,
+        portalUploadStore,
         linkResolver,
       },
       useCases,

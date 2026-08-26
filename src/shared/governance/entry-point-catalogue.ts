@@ -962,6 +962,17 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       },
     ),
     sf(
+      'cancelPropertyImportV2',
+      `${INTEGRATION}/gbp-import.ts`,
+      'integration.manage',
+      'property.import_gbp_v2',
+      'organization',
+      {
+        notes:
+          'initiator-scoped, idempotent cancellation of every active child batch in one import saga',
+      },
+    ),
+    sf(
       'recoverPropertyImportV2',
       `${INTEGRATION}/gbp-import.ts`,
       'integration.manage',
@@ -1649,7 +1660,10 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'portal.update',
       'portal.upload',
       'property',
-      { externalEffect: true, notes: 'issues S3 presigned upload URL' },
+      {
+        externalEffect: true,
+        notes: 'persists a scoped, single-purpose issuance; returns no object key',
+      },
     ),
     sf(
       'finalizeUpload',
@@ -1657,7 +1671,10 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'portal.update',
       'portal.upload',
       'property',
-      { externalEffect: true, notes: 'verifies uploaded object in S3' },
+      {
+        externalEffect: true,
+        notes: 'CAS-consumes an opaque issuance after exact S3 metadata verification',
+      },
     ),
     sf(
       'issuePortalToken',
@@ -2452,7 +2469,8 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'property',
     {
       externalEffect: true,
-      notes: 'R2/S3 fetch+upload (sharp resize); registration-gated; no-op when dark',
+      notes:
+        'issuance-only private read + derived writes (sharp re-encode); stale-fenced; registration-gated; no-op when dark',
     },
   ),
   job(

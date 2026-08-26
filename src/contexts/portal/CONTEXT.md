@@ -2,12 +2,15 @@
 
 ## Bounded context
 
-Portal page management — creation, configuration, theming, link management, image uploads, and portal groups.
+Property-owned public review gateways. The private rating-first → Google Review
+Action journey is primary; optional secondary links are a subordinate link tree.
+The context also owns publication lifecycle, Portal Groups, responsible-manager
+assignment, and governed access artifacts.
 
 ## Glossary
 
-- **Portal** — A rating-first public review gateway for a property, team, or staff participant, with an optional secondary link tree.
-- **EntityType** — The kind of entity a portal belongs to: `property`, `team`, or `staff`.
+- **Portal** — A Property-owned, rating-first public review gateway with an optional secondary link tree and optional Staff performance attribution.
+- **EntityType** — Legacy targeting field. New beta behavior is Property-owned; `team` must not create Team authority, and Staff association is attribution rather than ownership or access.
 - **PortalLinkCategory** — Grouping container for links within a portal. Has title and sort key.
 - **PortalLink** — An external link within a portal category. Has label, URL, icon, and sort key.
 - **PortalTheme** — Visual customization: `primaryColor`, optional `backgroundColor`, `textColor`.
@@ -18,11 +21,12 @@ Portal page management — creation, configuration, theming, link management, im
 - **Portal Responsible Manager** — An effective-dated AccountAdmin or eligible PropertyManager assigned to receive and manage that portal's workflow notifications. Multiple managers are supported; assignment does not grant access or staff-performance attribution.
 - **Responsibility Needed** — Visible recovery state when a non-archived portal has no assigned responsible manager. It is not an implicit AccountAdmin assignment.
 - **Soft Delete** — Portals and portal groups are soft-deleted (marked `deletedAt`), not hard-deleted, to preserve referential integrity.
+- **Portal Upload Issuance** — Opaque, single-use authorization for one Portal hero source object, bound to Organization, Property, Portal, MIME, exact declared size, purpose, and 15-minute expiry. Browser callers never submit or receive its object key as API data.
 
 ## Relationships
 
 - Portal → Property (required `propertyId`).
-- Portal → Team or Staff (via `entityType` + `entityId`).
+- Retained `entityType`/`entityId` values may reference historical Team or Staff rows for reconciliation. They never change Property ownership, authorization, grouping, or notification responsibility.
 - Portal → Portal Group (optional, via `portal_group_members`). One portal belongs to at most one group.
 - Portal Group → Property (required `propertyId`). One property has many groups.
 - Portal has many PortalLinkCategories, each with many PortalLinks.
@@ -37,7 +41,7 @@ Portal page management — creation, configuration, theming, link management, im
 - Portal slugs must be unique within a property.
 - Private Feedback Threshold must be an integer 1–5.
 - Portal links belong to a category; categories belong to a portal.
-- Only PM+ roles can create/update/delete portals.
+- Portal commands require the named permission, current Property access, and the relevant capability; raw role rank is not command authority.
 - Portal group names must be unique within a property.
 - One portal belongs to at most one portal group (enforced by unique index on `portal_group_members.portalId`).
 - A portal group belongs to exactly one property.
@@ -52,6 +56,7 @@ Portal page management — creation, configuration, theming, link management, im
 - Losing the last manager sets `responsibilityNeededSince` and atomically records one identifier-only recovery fact. Adding any manager clears the state; nobody is auto-promoted.
 - Core Portal creation, update/publication transition, and soft deletion use one Portal-owned command store. Authoritative Portal state, initial responsibility, live-token revocation on delete, and every required lifecycle outbox fact commit in the same PostgreSQL transaction. The in-process bus runs only after commit.
 - Portal lifecycle facts are identifier-only. They carry Property/Portal scope, publication-state codes where relevant, and `sourceAggregateVersion = updatedAt.toISOString()`; they never copy Portal name, slug, description, theme, or link content. The outbox event UUID is the replay uniqueness key and optimistic `updatedAt` fencing rejects stale commands.
+- Portal hero source keys are server-derived from an opaque issuance ID. Finalization accepts only that ID, rechecks current scope/state/expiry and exact storage MIME/size, and atomically consumes it once. A newer consumed issuance supersedes an older worker; only the current consumed issuance may publish newly derived WebP keys. Client Portal updates may remove a hero image but may never set a non-null URL.
 
 ## Events produced
 
@@ -91,7 +96,7 @@ portal/
   domain/              types.ts, constructors.ts, events.ts, errors.ts, rules.ts
   application/
     ports/             portal.repository.ts, portal-group.repository.ts, portal-link.repository.ts,
-                       portal-command-store.port.ts,
+                       portal-command-store.port.ts, portal-upload-issuance-store.port.ts,
                        portal-token.repository.ts, portal-token-codec.port.ts,
                        storage.port.ts, link-resolver.port.ts
     dto/               create-portal.dto.ts, update-portal.dto.ts,
@@ -111,6 +116,7 @@ portal/
     public-api.ts      re-exports port types, PortalPublicApi, PortalGroupPublicApi, event types/constructors
   infrastructure/
     portal-command-store.ts (atomic core lifecycle state + outbox facts)
+    portal-upload-issuance-store.ts (single-use scoped issuance + stale-worker fence)
     repositories/      portal.repository.ts, portal-group.repository.ts, portal-link.repository.ts,
                        portal-token.repository.ts, portal-scope.repository.ts,
                        portal-responsible-manager.repository.ts,
@@ -134,7 +140,7 @@ portal/
 - **`createLink`** / **`updateLink`** / **`deleteLink`** — Manage portal links.
 - **`createLinkCategory`** / **`updateLinkCategory`** / **`deleteLinkCategory`** — Manage link categories.
 - **`reorderLinks`** / **`reorderCategories`** — Reorder items by sort key.
-- **`requestUploadUrl`** / **`finalizeUpload`** — S3 presigned URL flow for hero images.
+- **`requestUploadUrl`** / **`finalizeUpload`** — Persist and consume a scoped hero upload issuance. The API returns/accepts `uploadId`, never an object key; the previous hero remains visible while a private source is decoded and re-encoded.
 - **`listPortalLinks`** — List all links for a portal (flat, with category info).
 - **`createPortalGroup`** — Create a new portal group for a property. Validates name uniqueness and portal memberships. Optionally adds initial portals (pre-validated).
 - **`updatePortalGroup`** — Update group name. Validates name uniqueness (excluding self).
@@ -177,4 +183,4 @@ Exported from `application/public-api.ts`:
 
 ## Background jobs
 
-- **process-image** — Resizes and converts uploaded portal hero images to multiple variants.
+- **process-image** — Reloads the scoped issuance, privately reads only its source, resource-bounds decode/re-encode, writes server-derived WebP variants, and atomically publishes only if the issuance is still current.

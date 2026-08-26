@@ -276,6 +276,9 @@ describe.sequential('AI suggested draft acceptance (real PostgreSQL)', () => {
     })
   }
   const clear = async () => {
+    // Replies deliberately restrict Review deletion; remove test-owned child
+    // rows before the Property cascade reaches the stable Review.
+    await db.execute(sql`DELETE FROM replies WHERE organization_id = ${ORGANIZATION_ID}`)
     await db.delete(properties).where(eq(properties.id, PROPERTY_ID))
     await db.execute(sql`DELETE FROM organization WHERE id = ${ORGANIZATION_ID}`)
   }

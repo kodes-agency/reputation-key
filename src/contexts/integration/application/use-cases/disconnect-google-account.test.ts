@@ -47,7 +47,8 @@ describe('disconnectGoogleAccount', () => {
     const forConnection = vi.fn(async () => ({
       subject: 'reviews.purge.connection',
       batches: 1,
-      rowsDeleted: 3,
+      rowsDeleted: 0,
+      rowsRedacted: 3,
     }))
     const useCase = disconnectGoogleAccount({
       ...baseDeps,

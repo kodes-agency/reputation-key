@@ -302,6 +302,13 @@ export const notificationPreferences = pgTable(
       'notification_preferences_quiet_pair',
       sql`(${t.quietHoursStart} IS NULL) = (${t.quietHoursEnd} IS NULL)`,
     ),
+    check(
+      'notification_preferences_required_enabled',
+      sql`${t.enabled} OR (
+        ${t.category} <> 'mandatory'
+        AND NOT (${t.category} = 'urgent_operational' AND ${t.channel} = 'in_app')
+      )`,
+    ),
   ],
 )
 

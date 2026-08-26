@@ -1,12 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { toast } from 'sonner'
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
-import { MAX_GOOGLE_IMPORT_ITEMS } from '#/contexts/integration/application/dto/google-import-v2.dto'
 import type { GoogleImportManagerProps } from './google-import-manager-contract'
 import type { ImportReviewDraft } from './google-import-review-model'
 import { createImportReviewDraft } from './google-import-review-model'
 import {
   filterLoadedCandidates,
+  selectAllEligibleCandidates,
   toggleLoadedCandidates,
   toggleSelectedCandidate,
 } from './google-import-selection'
@@ -55,6 +54,8 @@ export function useGoogleImportDiscoveryController({
   const [accountRef, setAccountRef] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [search, setSearch] = useState('')
+  const [selectAllPending, setSelectAllPending] = useState(false)
+  const [selectAllError, setSelectAllError] = useState<string | null>(null)
   const [reviewDraft, setReviewDraft] = useState<ImportReviewDraft | null>(null)
   const [reviewCandidates, setReviewCandidates] = useState<readonly ImportCandidateDto[]>(
     [],
@@ -64,6 +65,8 @@ export function useGoogleImportDiscoveryController({
     setAccountRef(null)
     setSelectedIds(new Set())
     setSearch('')
+    setSelectAllPending(false)
+    setSelectAllError(null)
     setReviewDraft(null)
     setReviewCandidates([])
     onClearStartError()
@@ -123,20 +126,43 @@ export function useGoogleImportDiscoveryController({
     setAccountRef(nextAccountRef)
     setSelectedIds(new Set())
     setSearch('')
+    setSelectAllError(null)
   }
   const toggleCandidate = (candidate: ImportCandidateDto, checked: boolean) => {
     const result = toggleSelectedCandidate(selectedIds, candidate, checked)
-    if (result.limitReached) {
-      toast.error(`You can import up to ${MAX_GOOGLE_IMPORT_ITEMS} properties at once.`)
-    }
     if (result.changed) setSelectedIds(new Set(result.selectedIds))
   }
   const toggleLoaded = (checked: boolean) => {
     const result = toggleLoadedCandidates(selectedIds, visibleCandidates, checked)
-    if (result.limitReached) {
-      toast.error(`Selection stopped at the ${MAX_GOOGLE_IMPORT_ITEMS}-property limit.`)
-    }
     if (result.changed) setSelectedIds(new Set(result.selectedIds))
+  }
+  const selectAllEligible = async () => {
+    if (selectAllPending) return
+    setSelectAllPending(true)
+    setSelectAllError(null)
+    try {
+      const selected = await selectAllEligibleCandidates(
+        {
+          candidates: content.candidates,
+          hasNextPage: content.candidatesQuery.hasNextPage,
+        },
+        async () => {
+          const result = await content.candidatesQuery.fetchNextPage()
+          if (result.error) throw result.error
+          return {
+            candidates: result.data?.pages.flatMap((page) => page.items) ?? [],
+            hasNextPage: result.hasNextPage,
+          }
+        },
+      )
+      setSelectedIds(new Set(selected))
+    } catch {
+      setSelectAllError(
+        'Not every Google location could be loaded. Your current selection was kept.',
+      )
+    } finally {
+      setSelectAllPending(false)
+    }
   }
   const review = () => {
     const selected = content.candidates.filter((candidate) =>
@@ -158,6 +184,8 @@ export function useGoogleImportDiscoveryController({
     accountRef,
     selectedIds,
     search,
+    selectAllPending,
+    selectAllError,
     setSearch,
     visibleCandidates,
     reviewDraft,
@@ -167,6 +195,7 @@ export function useGoogleImportDiscoveryController({
     selectAccount,
     toggleCandidate,
     toggleLoaded,
+    selectAllEligible,
     review,
   }
 }

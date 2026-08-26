@@ -32,6 +32,12 @@ describe('Google property import v2 contract', () => {
       retryable: true,
       userAction: 'retry',
     })
+    expect(getImportOutcomePresentation('user_cancelled')).toEqual({
+      status: 'cancelled',
+      reducerClass: 'cancellation',
+      retryable: false,
+      userAction: 'none',
+    })
     expect(getImportOutcomePresentation('future_outcome')).toBeNull()
   })
 

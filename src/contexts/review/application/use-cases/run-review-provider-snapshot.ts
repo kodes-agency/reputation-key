@@ -217,6 +217,7 @@ const persistPageObservations = async (
       connectionId: input.connectionId,
       sourceEpoch: input.sourceEpoch,
       review,
+      subjects,
     })
     observations.push({ ...persisted, review, subjects })
   }

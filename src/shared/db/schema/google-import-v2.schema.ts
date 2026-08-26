@@ -52,6 +52,7 @@ export const googleImportV2OutcomeEnum = pgEnum('google_import_v2_outcome', [
   'reauthentication_required',
   'reconnect_required',
   'authorization_changed',
+  'user_cancelled',
   'policy_disabled',
   'organization_suspended',
   'property_suspended',
@@ -65,6 +66,51 @@ const replayVersion = (name: string) => varchar(name, { length: 32 })
 const replayDigest = (name: string) => varchar(name, { length: 43 })
 const timestamptz = (name: string) => timestamp(name, { withTimezone: true })
 
+export const gbpImportSagas = pgTable(
+  'gbp_import_sagas',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    requestId: uuid('request_id').notNull(),
+    initiatedBy: varchar('initiated_by', { length: 255 }).notNull(),
+    totalCount: integer('total_count').notNull(),
+    batchCount: integer('batch_count').notNull(),
+    wireReplayKeyVersion: replayVersion('wire_replay_key_version').notNull(),
+    wireReplayDigest: replayDigest('wire_replay_digest').notNull(),
+    semanticReplayKeyVersion: replayVersion('semantic_replay_key_version').notNull(),
+    semanticReplayDigest: replayDigest('semantic_replay_digest').notNull(),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    uniqueIndex('gbp_import_sagas_org_request_unique').on(t.organizationId, t.requestId),
+    uniqueIndex('gbp_import_sagas_org_id_key').on(t.organizationId, t.id),
+    index('gbp_import_sagas_initiated_request_idx').on(
+      t.organizationId,
+      t.initiatedBy,
+      t.requestId,
+    ),
+    check(
+      'gbp_import_sagas_batch_shape_valid',
+      sql`(
+        ${t.totalCount} >= 1
+        AND ${t.batchCount} >= 1
+        AND ${t.totalCount} > (${t.batchCount} - 1) * 100
+        AND ${t.totalCount} <= ${t.batchCount} * 100
+      )`,
+    ),
+    check(
+      'gbp_import_sagas_replay_encoding_valid',
+      sql`(
+        ${t.wireReplayKeyVersion} ~ '^[a-z][a-z0-9_-]{0,31}$'
+        AND ${t.semanticReplayKeyVersion} ~ '^[a-z][a-z0-9_-]{0,31}$'
+        AND ${t.wireReplayDigest} ~ '^[A-Za-z0-9_-]{43}$'
+        AND ${t.semanticReplayDigest} ~ '^[A-Za-z0-9_-]{43}$'
+      )`,
+    ),
+  ],
+)
+
 export const gbpImportRequests = pgTable(
   'gbp_import_requests',
   {
@@ -72,6 +118,8 @@ export const gbpImportRequests = pgTable(
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     requestId: uuid('request_id').notNull(),
     initiatedBy: varchar('initiated_by', { length: 255 }).notNull(),
+    sagaId: uuid('saga_id'),
+    batchOrdinal: integer('batch_ordinal'),
     status: googleImportV2ParentStatusEnum('status').notNull().default('queued'),
     totalCount: integer('total_count').notNull(),
     processedCount: integer('processed_count').notNull().default(0),
@@ -99,6 +147,18 @@ export const gbpImportRequests = pgTable(
       t.requestId,
     ),
     uniqueIndex('gbp_import_requests_org_id_key').on(t.organizationId, t.id),
+    uniqueIndex('gbp_import_requests_saga_batch_unique').on(
+      t.organizationId,
+      t.sagaId,
+      t.batchOrdinal,
+    ),
+    foreignKey({
+      name: 'gbp_import_requests_saga_tenant_fk',
+      columns: [t.organizationId, t.sagaId],
+      foreignColumns: [gbpImportSagas.organizationId, gbpImportSagas.id],
+    })
+      .onDelete('cascade')
+      .onUpdate('no action'),
     index('gbp_import_requests_initiated_request_idx').on(
       t.organizationId,
       t.initiatedBy,
@@ -149,6 +209,13 @@ export const gbpImportRequests = pgTable(
         AND ${t.cancelledCount} >= 0
         AND ${t.processedCount} = ${t.importedCount} + ${t.relinkedCount} + ${t.alreadyExistsCount} + ${t.regionUnavailableCount} + ${t.failedCount} + ${t.cancelledCount}
         AND ${t.totalCount} = ${t.pendingCount} + ${t.processingCount} + ${t.processedCount}
+      )`,
+    ),
+    check(
+      'gbp_import_requests_saga_batch_valid',
+      sql`(
+        (${t.sagaId} IS NULL AND ${t.batchOrdinal} IS NULL)
+        OR (${t.sagaId} IS NOT NULL AND ${t.batchOrdinal} >= 0)
       )`,
     ),
   ],
@@ -319,7 +386,7 @@ export const gbpImportRequestItems = pgTable(
         OR (${t.status} = 'already_exists' AND ${t.outcomeCode} = 'already_exists')
         OR (${t.status} = 'region_unavailable' AND ${t.outcomeCode} = 'region_unavailable')
         OR (${t.status} = 'failed' AND ${t.outcomeCode} IN ('active_binding_conflict', 'stale_binding', 'reauthentication_required', 'reconnect_required', 'temporarily_unavailable', 'cleanup_required', 'internal_error'))
-        OR (${t.status} = 'cancelled' AND ${t.outcomeCode} IN ('authorization_changed', 'policy_disabled', 'organization_suspended', 'property_suspended', 'property_deleted'))
+        OR (${t.status} = 'cancelled' AND ${t.outcomeCode}::text IN ('authorization_changed', 'user_cancelled', 'policy_disabled', 'organization_suspended', 'property_suspended', 'property_deleted'))
       )`,
     ),
     check(

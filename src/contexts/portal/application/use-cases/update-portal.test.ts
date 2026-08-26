@@ -235,19 +235,24 @@ describe('updatePortal', () => {
     expect(portalRepo.all()[0].heroImageUrl).toBeNull()
   })
 
-  it('replaces the hero image when heroImageUrl is a new url', async () => {
+  it('rejects a caller-supplied hero image URL', async () => {
     const { useCase, portalRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({ heroImageUrl: 'https://cdn.example.com/old.jpg' })
     portalRepo.seed([portal])
 
-    const updated = await useCase(
-      { portalId: portal.id, heroImageUrl: 'https://cdn.example.com/new.jpg' },
-      ctx,
+    await expect(
+      useCase(
+        {
+          portalId: portal.id,
+          heroImageUrl: 'https://cdn.example.com/new.jpg',
+        } as unknown as Parameters<typeof useCase>[0],
+        ctx,
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isPortalError(error) && error.code === 'invalid_url',
     )
-
-    expect(updated.heroImageUrl).toBe('https://cdn.example.com/new.jpg')
-    expect(portalRepo.all()[0].heroImageUrl).toBe('https://cdn.example.com/new.jpg')
+    expect(portalRepo.all()[0].heroImageUrl).toBe('https://cdn.example.com/old.jpg')
   })
 
   it('leaves the hero image untouched when heroImageUrl is absent', async () => {

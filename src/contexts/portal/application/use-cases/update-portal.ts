@@ -55,6 +55,13 @@ export function resolvePortalContentFields(
   PortalPatch,
   'name' | 'description' | 'heroImageUrl' | 'theme' | 'privateFeedbackThreshold'
 > {
+  const requestedHeroImageUrl = (input as { heroImageUrl?: unknown }).heroImageUrl
+  if (requestedHeroImageUrl !== undefined && requestedHeroImageUrl !== null) {
+    throw portalError(
+      'invalid_url',
+      'Portal hero image URLs are server-owned upload derivatives',
+    )
+  }
   return {
     name:
       input.name !== undefined ? unwrap(validatePortalName(input.name)) : existing.name,
@@ -63,8 +70,7 @@ export function resolvePortalContentFields(
         ? unwrap(validateDescription(input.description))
         : existing.description,
     // `null` clears the hero image; `undefined` (absent key) leaves it untouched.
-    heroImageUrl:
-      input.heroImageUrl !== undefined ? input.heroImageUrl : existing.heroImageUrl,
+    heroImageUrl: input.heroImageUrl === null ? null : existing.heroImageUrl,
     theme:
       input.theme !== undefined
         ? unwrap(validatePortalTheme(input.theme))

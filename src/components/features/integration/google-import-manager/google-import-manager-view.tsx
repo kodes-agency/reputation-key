@@ -177,10 +177,13 @@ export function GoogleImportManagerView({
           hasMoreCandidates={discovery.candidatesQuery.hasNextPage}
           accountsError={visibleError(discovery.accountsQuery.error)}
           candidatesError={visibleError(discovery.candidatesQuery.error)}
+          selectAllError={discovery.selectAllError}
+          isSelectingAll={discovery.selectAllPending}
           onSearchChange={discovery.setSearch}
           onSelectAccount={discovery.selectAccount}
           onToggleCandidate={discovery.toggleCandidate}
           onToggleLoaded={discovery.toggleLoaded}
+          onSelectAllEligible={() => void discovery.selectAllEligible()}
           onLoadMoreAccounts={() => void discovery.accountsQuery.fetchNextPage()}
           onLoadMoreCandidates={() => void discovery.candidatesQuery.fetchNextPage()}
           onReview={discovery.review}

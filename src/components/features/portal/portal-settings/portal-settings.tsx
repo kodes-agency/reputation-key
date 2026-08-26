@@ -33,9 +33,10 @@ type Props = Readonly<{
   onThemeChange: (theme: PortalThemeDraft) => void
   requestUploadUrl: (input: {
     data: { portalId: string; contentType: string; fileSize: number }
-  }) => Promise<{ uploadUrl: string; key: string }>
-  finalizeUpload: (input: { data: { portalId: string; key: string } }) => Promise<{
-    heroImageUrl: string
+  }) => Promise<{ uploadUrl: string; uploadId: string }>
+  finalizeUpload: (input: { data: { portalId: string; uploadId: string } }) => Promise<{
+    heroImageUrl: string | null
+    processing: boolean
   }>
   formRef: React.RefObject<FormLike | null>
   responsibleManagers?: PortalResponsibleManagerState

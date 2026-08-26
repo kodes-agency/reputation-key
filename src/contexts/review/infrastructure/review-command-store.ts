@@ -16,6 +16,8 @@ import { reviewError } from '../domain/errors'
 import { reviewFromRow, reviewToRow } from './mappers/review.mapper'
 import type { ReviewCommandStore } from '../application/ports/review-command-store.port'
 import { reviewCreated, reviewSourceTransitioned } from '../domain/events'
+import { upsertReviewSourceContent } from './review-source-content-store'
+import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 
 export function createAtomicReviewCommandStore(
   db: Database,
@@ -75,6 +77,8 @@ export function createAtomicReviewCommandStore(
                 analysisSequence: row.analysisSequence,
                 aiSourceByteLength: row.aiSourceByteLength,
                 aiSourceDigest: row.aiSourceDigest,
+                sourceContentState: 'active',
+                sourceContentErasedAt: null,
                 updatedAt,
               },
             })
@@ -88,6 +92,12 @@ export function createAtomicReviewCommandStore(
           }
 
           const saved = reviewFromRow(result[0])
+          if (!(await upsertReviewSourceContent(tx, sequencedReview))) {
+            throw reviewError(
+              'repo_upsert_failed',
+              'Provider Review observation requires a fetch-based expiry',
+            )
+          }
           const candidateEvent = typeof event === 'function' ? event(saved) : event
           const recordedEvent =
             candidateEvent._tag === 'review.created' ||
@@ -146,7 +156,10 @@ export function createAtomicReviewCommandStore(
                 AND ${reviews.organizationId} = ${review.organizationId}
                 AND ${reviews.propertyId} = ${review.propertyId}
                 AND ${reviews.sourceEpoch} = ${review.sourceEpoch}
-                AND ${reviews.contentExpiresAt} <= transaction_timestamp()`,
+                AND (
+                  ${reviews.sourceContentState} IN ('source_expired', 'provider_deleted')
+                  OR ${reviews.contentExpiresAt} <= transaction_timestamp()
+                )`,
             )
             .for('update')
           const existingRow = existingRows[0]
@@ -156,7 +169,16 @@ export function createAtomicReviewCommandStore(
               'Review is not expired at the database boundary',
             )
           }
-          const existing = reviewFromRow(existingRow)
+          // A lifecycle tombstone intentionally has no provider fields, so it
+          // cannot be mapped back to the active Review domain shape. Only the
+          // stable identity/revision controls are needed to restore content.
+          const existing = {
+            id: reviewId(existingRow.id),
+            organizationId: organizationId(existingRow.organizationId),
+            propertyId: propertyId(existingRow.propertyId),
+            sourceEpoch: existingRow.sourceEpoch,
+            sourceRevision: existingRow.sourceRevision,
+          }
           const expiredEvent = reviewSourceTransitioned({
             reviewId: existing.id,
             organizationId: existing.organizationId,
@@ -221,6 +243,8 @@ export function createAtomicReviewCommandStore(
               analysisSequence: recreatedRow.analysisSequence,
               aiSourceByteLength: recreatedRow.aiSourceByteLength,
               aiSourceDigest: recreatedRow.aiSourceDigest,
+              sourceContentState: 'active',
+              sourceContentErasedAt: null,
               updatedAt: occurredAt,
             })
             .where(
@@ -234,6 +258,12 @@ export function createAtomicReviewCommandStore(
             throw reviewError(
               'repo_upsert_failed',
               'Re-observed Review update returned no row',
+            )
+          }
+          if (!(await upsertReviewSourceContent(tx, recreated))) {
+            throw reviewError(
+              'repo_upsert_failed',
+              'Re-observed Review requires a fetch-based expiry',
             )
           }
           const createdEvent = reviewCreated({

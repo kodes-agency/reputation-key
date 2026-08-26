@@ -42,6 +42,8 @@ const sampleRow: ReviewRow = {
   analysisSequence: 11,
   aiSourceByteLength: 32,
   aiSourceDigest: 'a'.repeat(64),
+  sourceContentState: 'active',
+  sourceContentErasedAt: null,
   replyStateRevision: 0,
   createdAt: now,
   updatedAt: now,

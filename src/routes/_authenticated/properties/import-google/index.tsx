@@ -10,6 +10,7 @@ import {
   listGoogleConnections,
 } from '#/contexts/integration/server/google-connections'
 import {
+  cancelPropertyImportV2,
   getPropertyImportV2Status,
   listImportAccounts,
   listImportCandidates,
@@ -108,6 +109,7 @@ function ImportPage() {
         recoverImport={recoverPropertyImportV2}
         getImportStatus={getPropertyImportV2Status}
         retryImportItem={retryPropertyImportItem}
+        cancelImport={cancelPropertyImportV2}
       />
     </PageShell>
   )

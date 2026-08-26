@@ -167,6 +167,107 @@ export const portalTokens = pgTable(
 
 // ── portal_link_categories ─────────────────────────────────────────
 
+/**
+ * A single-purpose, tenant/Property/Portal-bound authorization for one hero
+ * source object. Browser callers receive only `id`; the private object key is
+ * server-derived and fenced again by database checks.
+ */
+export const portalUploadIssuances = pgTable(
+  'portal_upload_issuances',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    purpose: varchar('purpose', { length: 32 }).notNull().default('hero_image'),
+    objectKey: varchar('object_key', { length: 500 }).notNull(),
+    contentType: varchar('content_type', { length: 64 }).notNull(),
+    declaredSizeBytes: integer('declared_size_bytes').notNull(),
+    maxSizeBytes: integer('max_size_bytes').notNull(),
+    state: varchar('state', { length: 20 }).notNull().default('issued'),
+    issuedAt: timestamp('issued_at', { withTimezone: true }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    consumedAt: timestamp('consumed_at', { withTimezone: true }),
+    finalizedAt: timestamp('finalized_at', { withTimezone: true }),
+    supersededAt: timestamp('superseded_at', { withTimezone: true }),
+    rejectedAt: timestamp('rejected_at', { withTimezone: true }),
+    expiredAt: timestamp('expired_at', { withTimezone: true }),
+    heroDerivativeKey: varchar('hero_derivative_key', { length: 500 }),
+    thumbnailDerivativeKey: varchar('thumbnail_derivative_key', { length: 500 }),
+    heroImageUrl: varchar('hero_image_url', { length: 500 }),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    uniqueIndex('portal_upload_issuances_object_key_unique').on(t.objectKey),
+    uniqueIndex('portal_upload_issuances_one_processing_per_portal')
+      .on(t.organizationId, t.portalId, t.purpose)
+      .where(sql`state = 'consumed'`),
+    index('portal_upload_issuances_scope_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.portalId,
+      t.id,
+    ),
+    index('portal_upload_issuances_expiry_idx').on(t.state, t.expiresAt),
+    foreignKey({
+      name: 'portal_upload_issuances_portal_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
+    }).onDelete('restrict'),
+    check('portal_upload_issuances_purpose_valid', sql`${t.purpose} = 'hero_image'`),
+    check(
+      'portal_upload_issuances_content_type_valid',
+      sql`${t.contentType} IN ('image/jpeg', 'image/png', 'image/webp')`,
+    ),
+    check(
+      'portal_upload_issuances_size_envelope_valid',
+      sql`${t.declaredSizeBytes} BETWEEN 1 AND ${t.maxSizeBytes} AND ${t.maxSizeBytes} = 10485760`,
+    ),
+    check('portal_upload_issuances_expiry_valid', sql`${t.expiresAt} > ${t.issuedAt}`),
+    check(
+      'portal_upload_issuances_source_key_valid',
+      sql`${t.objectKey} = 'private/portal-uploads/' || ${t.id}::text || '/source.' || CASE ${t.contentType} WHEN 'image/jpeg' THEN 'jpg' WHEN 'image/png' THEN 'png' WHEN 'image/webp' THEN 'webp' ELSE NULL END`,
+    ),
+    check(
+      'portal_upload_issuances_state_valid',
+      sql`${t.state} IN ('issued', 'consumed', 'finalized', 'superseded', 'rejected', 'expired')`,
+    ),
+    check(
+      'portal_upload_issuances_lifecycle_valid',
+      sql`(
+        (${t.state} = 'issued' AND ${t.consumedAt} IS NULL AND ${t.finalizedAt} IS NULL AND ${t.supersededAt} IS NULL AND ${t.rejectedAt} IS NULL AND ${t.expiredAt} IS NULL)
+        OR (${t.state} = 'consumed' AND ${t.consumedAt} IS NOT NULL AND ${t.finalizedAt} IS NULL AND ${t.supersededAt} IS NULL AND ${t.rejectedAt} IS NULL AND ${t.expiredAt} IS NULL)
+        OR (${t.state} = 'finalized' AND ${t.consumedAt} IS NOT NULL AND ${t.finalizedAt} IS NOT NULL AND ${t.supersededAt} IS NULL AND ${t.rejectedAt} IS NULL AND ${t.expiredAt} IS NULL AND ${t.heroDerivativeKey} IS NOT NULL AND ${t.thumbnailDerivativeKey} IS NOT NULL AND ${t.heroImageUrl} IS NOT NULL)
+        OR (${t.state} = 'superseded' AND ${t.consumedAt} IS NOT NULL AND ${t.finalizedAt} IS NULL AND ${t.supersededAt} IS NOT NULL AND ${t.rejectedAt} IS NULL AND ${t.expiredAt} IS NULL)
+        OR (${t.state} = 'rejected' AND ${t.consumedAt} IS NULL AND ${t.finalizedAt} IS NULL AND ${t.supersededAt} IS NULL AND ${t.rejectedAt} IS NOT NULL AND ${t.expiredAt} IS NULL)
+        OR (${t.state} = 'expired' AND ${t.consumedAt} IS NULL AND ${t.finalizedAt} IS NULL AND ${t.supersededAt} IS NULL AND ${t.rejectedAt} IS NULL AND ${t.expiredAt} IS NOT NULL)
+      )`,
+    ),
+    check(
+      'portal_upload_issuances_derivative_keys_valid',
+      sql`(
+        (${t.heroDerivativeKey} IS NULL AND ${t.thumbnailDerivativeKey} IS NULL)
+        OR (
+          ${t.heroDerivativeKey} = 'public/portal-heroes/' || ${t.id}::text || '/hero.webp'
+          AND ${t.thumbnailDerivativeKey} = 'public/portal-heroes/' || ${t.id}::text || '/thumbnail.webp'
+          AND ${t.heroDerivativeKey} <> ${t.objectKey}
+          AND ${t.thumbnailDerivativeKey} <> ${t.objectKey}
+        )
+      )`,
+    ),
+    check(
+      'portal_upload_issuances_publication_valid',
+      sql`(
+        (${t.state} = 'finalized' AND ${t.heroDerivativeKey} IS NOT NULL AND ${t.thumbnailDerivativeKey} IS NOT NULL AND ${t.heroImageUrl} IS NOT NULL)
+        OR (${t.state} <> 'finalized' AND ${t.heroDerivativeKey} IS NULL AND ${t.thumbnailDerivativeKey} IS NULL AND ${t.heroImageUrl} IS NULL)
+      )`,
+    ),
+  ],
+)
+
+// ── portal_link_categories ────────────────────────────────────────────────
+
 export const portalLinkCategories = pgTable(
   'portal_link_categories',
   {

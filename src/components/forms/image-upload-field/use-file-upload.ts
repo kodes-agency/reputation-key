@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 type UseFileUploadOptions = Readonly<{
   acceptedTypes: ReadonlyArray<string>
   maxFileSize: number
-  onUpload: (file: File, onProgress: (percent: number) => void) => Promise<string>
+  onUpload: (file: File, onProgress: (percent: number) => void) => Promise<string | null>
   onImageUrlChange: (url: string | null) => void
 }>
 
@@ -48,7 +48,9 @@ export function useFileUpload({
       setUploadProgress(0)
       try {
         const url = await onUpload(file, (p) => setUploadProgress(p))
-        onImageUrlChange(url)
+        // Issuance-bound Portal uploads keep the previous image visible while
+        // the private source is decoded and a public derivative is prepared.
+        if (url !== null) onImageUrlChange(url)
       } catch (err: unknown) {
         const message =
           (err instanceof Error ? err.message : '') ||

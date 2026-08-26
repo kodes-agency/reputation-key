@@ -38,17 +38,17 @@
 
 ### 3. Google Review Content (Google-sourced PII, 30-day TTL)
 
-| Field              | Table                             | Purpose                | Retention                                 | Deletion               |
-| ------------------ | --------------------------------- | ---------------------- | ----------------------------------------- | ---------------------- |
-| Reviewer name      | `reviews.reviewerName`            | Inbox display          | 30 days from fetch (`content_expires_at`) | TTL purge job          |
-| Reviewer photo URL | `reviews.reviewerProfilePhotoUrl` | Inbox display          | 30 days from fetch                        | TTL purge job          |
-| Review text        | `reviews.text`                    | Triage, reply drafting | 30 days from fetch                        | TTL purge job          |
-| Rating             | `reviews.rating`                  | Aggregation, display   | Retained (not PII)                        | Property archive/purge |
-| Language code      | `reviews.languageCode`            | Display                | 30 days from fetch                        | TTL purge job          |
-| Google review ID   | `reviews.externalId`              | Sync dedup             | Retained (identifier)                     | Property archive/purge |
-| Review snippet     | `inbox_items.snippet`             | Inbox preview          | 30 days from source                       | TTL purge job          |
+| Field              | Table                                               | Purpose                | Retention                                 | Deletion                                                      |
+| ------------------ | --------------------------------------------------- | ---------------------- | ----------------------------------------- | ------------------------------------------------------------- |
+| Reviewer name      | `review_source_contents.reviewer_name`              | Inbox display          | 30 days from fetch (`content_expires_at`) | Field-level erasure                                           |
+| Reviewer photo URL | `review_source_contents.reviewer_profile_photo_url` | Inbox display          | 30 days from fetch                        | Field-level erasure                                           |
+| Review text        | `review_source_contents.text`                       | Triage, reply drafting | 30 days from fetch                        | Field-level erasure                                           |
+| Rating             | `review_source_contents.rating`                     | Aggregation, display   | 30 days from fetch                        | Field-level erasure                                           |
+| Language code      | `review_source_contents.language_code`              | Display                | 30 days from fetch                        | Field-level erasure                                           |
+| Google review ID   | `review_source_contents.external_id`                | Sync dedup             | 30 days from fetch                        | Field-level erasure; HMAC subject mapping reconnects identity |
+| Review snippet     | `inbox_items.snippet`                               | Inbox preview          | 30 days from source                       | TTL purge job                                                 |
 
-**ADR 0031 compliance:** Raw content stored for max 30 days; `source_created_at` and `content_expires_at` track the lifecycle. `content_hash` detects changes. Refresh threshold at 25 days provides 5-day safety margin.
+**ADR 0031 compliance:** During the rolling expand phase, writers atomically dual-write `review_source_contents` and nullable compatibility fields on `reviews`. Expiry/provider deletion deletes the source-content row and nulls every raw compatibility field; the stable Review ID and RepKey-owned Replies remain. Reader cutover and compatibility-column contraction require the governed parity seal.
 
 ### 4. User-Authored Content
 

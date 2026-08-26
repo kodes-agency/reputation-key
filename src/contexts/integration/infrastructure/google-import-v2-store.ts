@@ -4,6 +4,7 @@ import {
   gbpImportItemRetryReceipts,
   gbpImportRequestItems,
   gbpImportRequests,
+  gbpImportSagas,
 } from '#/shared/db/schema/google-import-v2.schema'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { organizationId } from '#/shared/domain/ids'
@@ -24,6 +25,10 @@ import {
   type GoogleImportV2Store,
 } from '../application/ports/google-import-v2-store.port'
 import { reduceGoogleImportParent } from '../application/google-import-v2-reducer'
+import {
+  GOOGLE_IMPORT_BATCH_SIZE,
+  reduceGoogleImportSaga,
+} from '../application/google-import-saga'
 import type {
   IntegrationPropertyImportRequested,
   IntegrationPropertyImportRetentionReleased,
@@ -232,7 +237,13 @@ function lifecycleScopePredicate(scope: GoogleImportV2LifecycleScope) {
         ),
       )
     case 'request':
-      return and(tenant, eq(gbpImportRequests.id, scope.importJobId))
+      return and(
+        tenant,
+        or(
+          eq(gbpImportRequests.id, scope.importJobId),
+          eq(gbpImportRequests.sagaId, scope.importJobId),
+        ),
+      )
   }
 }
 
@@ -252,12 +263,143 @@ const lifecycleAuthorityPresent = or(
   isNotNull(gbpImportRequestItems.expectedProfileVersion),
 )
 
+type GoogleImportItemRow = typeof gbpImportRequestItems.$inferSelect
+
+function progressItemFromRow(row: GoogleImportItemRow): ImportProgressItemDto {
+  const presentation = row.outcomeCode
+    ? getImportOutcomePresentation(row.outcomeCode)
+    : null
+  const retryable =
+    (presentation?.retryable ?? false) &&
+    row.connectionId !== null &&
+    row.providerAccountSuffix !== null &&
+    row.providerLocationSuffix !== null
+  return {
+    itemId: row.id,
+    propertyName: row.propertyName,
+    action: row.action,
+    status: row.status as GbpImportItemStatus,
+    outcomeCode: row.outcomeCode,
+    messageKey: `property_import.${row.outcomeCode ?? row.status}`,
+    retryable,
+    retryRevision: row.retryRevision,
+    userAction: retryable ? (presentation?.userAction ?? 'none') : 'none',
+  }
+}
+
+async function loadSagaProgress(
+  db: Database,
+  saga: typeof gbpImportSagas.$inferSelect,
+): Promise<ImportProgressDto> {
+  const batches = await db
+    .select()
+    .from(gbpImportRequests)
+    .where(
+      and(
+        eq(gbpImportRequests.organizationId, saga.organizationId),
+        eq(gbpImportRequests.sagaId, saga.id),
+      ),
+    )
+    .orderBy(asc(gbpImportRequests.batchOrdinal), asc(gbpImportRequests.id))
+  if (
+    batches.length !== saga.batchCount ||
+    batches.some((batch, index) => batch.batchOrdinal !== index)
+  ) {
+    throw new Error('Google import saga child-batch checkpoint is incomplete')
+  }
+  const reduction = reduceGoogleImportSaga(
+    batches.map((batch) => ({
+      status: batch.status,
+      totalCount: batch.totalCount,
+      processedCount: batch.processedCount,
+      counts: {
+        pending: batch.pendingCount,
+        processing: batch.processingCount,
+        imported: batch.importedCount,
+        relinked: batch.relinkedCount,
+        already_exists: batch.alreadyExistsCount,
+        region_unavailable: batch.regionUnavailableCount,
+        failed: batch.failedCount,
+        cancelled: batch.cancelledCount,
+      },
+    })),
+  )
+  if (reduction.totalCount !== saga.totalCount) {
+    throw new Error('Google import saga total does not match its child batches')
+  }
+  const rows = await db
+    .select({ item: gbpImportRequestItems })
+    .from(gbpImportRequestItems)
+    .innerJoin(
+      gbpImportRequests,
+      and(
+        eq(gbpImportRequests.organizationId, gbpImportRequestItems.organizationId),
+        eq(gbpImportRequests.id, gbpImportRequestItems.importJobId),
+      ),
+    )
+    .where(
+      and(
+        eq(gbpImportRequestItems.organizationId, saga.organizationId),
+        eq(gbpImportRequests.sagaId, saga.id),
+      ),
+    )
+    .orderBy(
+      asc(gbpImportRequests.batchOrdinal),
+      asc(gbpImportRequestItems.createdAt),
+      asc(gbpImportRequestItems.id),
+    )
+  if (rows.length !== saga.totalCount) {
+    throw new Error('Google import saga item checkpoint is incomplete')
+  }
+  const items = rows.map(({ item }) => progressItemFromRow(item))
+  const updatedAt = batches.reduce(
+    (latest, batch) =>
+      batch.updatedAt.getTime() > latest.getTime() ? batch.updatedAt : latest,
+    saga.updatedAt,
+  )
+  const purgeAt = batches.every((batch) => batch.purgeAt !== null)
+    ? new Date(Math.max(...batches.map((batch) => batch.purgeAt!.getTime())))
+    : null
+  return {
+    contractVersion: GOOGLE_PROPERTY_IMPORT_CONTRACT_VERSION,
+    importJobId: saga.id,
+    requestId: saga.requestId,
+    status: reduction.status,
+    totalCount: reduction.totalCount,
+    processedCount: reduction.processedCount,
+    counts: reduction.counts,
+    items,
+    canRetry: items.some((item) => item.retryable),
+    pollAfterMs: googleImportProgressPollAfterMs(
+      reduction.status,
+      updatedAt.getTime(),
+      Date.now(),
+    ),
+    purgeAt: purgeAt?.toISOString() ?? null,
+    updatedAt: updatedAt.toISOString(),
+  }
+}
+
 async function loadProgress(
   db: Database,
   organizationId: string,
   importJobId: string,
   initiatedBy?: string,
 ): Promise<ImportProgressDto | null> {
+  const [saga] = await db
+    .select()
+    .from(gbpImportSagas)
+    .where(
+      and(
+        eq(gbpImportSagas.organizationId, organizationId),
+        eq(gbpImportSagas.id, importJobId),
+      ),
+    )
+    .limit(1)
+  if (saga) {
+    if (initiatedBy !== undefined && saga.initiatedBy !== initiatedBy) return null
+    return loadSagaProgress(db, saga)
+  }
   const [parent] = await db
     .select()
     .from(gbpImportRequests)
@@ -282,27 +424,7 @@ async function loadProgress(
       ),
     )
     .orderBy(asc(gbpImportRequestItems.createdAt), asc(gbpImportRequestItems.id))
-  const items: ImportProgressItemDto[] = rows.map((row) => {
-    const presentation = row.outcomeCode
-      ? getImportOutcomePresentation(row.outcomeCode)
-      : null
-    const retryable =
-      (presentation?.retryable ?? false) &&
-      row.connectionId !== null &&
-      row.providerAccountSuffix !== null &&
-      row.providerLocationSuffix !== null
-    return {
-      itemId: row.id,
-      propertyName: row.propertyName,
-      action: row.action,
-      status: row.status as GbpImportItemStatus,
-      outcomeCode: row.outcomeCode,
-      messageKey: `property_import.${row.outcomeCode ?? row.status}`,
-      retryable,
-      retryRevision: row.retryRevision,
-      userAction: retryable ? (presentation?.userAction ?? 'none') : 'none',
-    }
-  })
+  const items = rows.map(progressItemFromRow)
   const counts = {
     pending: parent.pendingCount,
     processing: parent.processingCount,
@@ -338,6 +460,37 @@ async function loadProgress(
 export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
   return Object.freeze({
     findReplay: async (organizationId, requestId) => {
+      const [saga] = await db
+        .select({
+          importJobId: gbpImportSagas.id,
+          initiatedBy: gbpImportSagas.initiatedBy,
+          wireReplayKeyVersion: gbpImportSagas.wireReplayKeyVersion,
+          wireReplayDigest: gbpImportSagas.wireReplayDigest,
+          semanticReplayKeyVersion: gbpImportSagas.semanticReplayKeyVersion,
+          semanticReplayDigest: gbpImportSagas.semanticReplayDigest,
+        })
+        .from(gbpImportSagas)
+        .where(
+          and(
+            eq(gbpImportSagas.organizationId, organizationId),
+            eq(gbpImportSagas.requestId, requestId),
+          ),
+        )
+        .limit(1)
+      if (saga) {
+        return {
+          importJobId: saga.importJobId,
+          initiatedBy: saga.initiatedBy,
+          wireReplay: {
+            keyVersion: saga.wireReplayKeyVersion,
+            digest: saga.wireReplayDigest,
+          },
+          semanticReplay: {
+            keyVersion: saga.semanticReplayKeyVersion,
+            digest: saga.semanticReplayDigest,
+          },
+        }
+      }
       const [row] = await db
         .select({
           importJobId: gbpImportRequests.id,
@@ -373,6 +526,94 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
                 digest: row.semanticReplayDigest,
               }
             : null,
+      }
+    },
+
+    commitSaga: async (intent) => {
+      const batches = [...intent.batches].sort(
+        (left, right) => left.ordinal - right.ordinal,
+      )
+      if (
+        batches.length === 0 ||
+        batches.some(
+          (batch, index) =>
+            batch.ordinal !== index ||
+            batch.items.length < 1 ||
+            batch.items.length > GOOGLE_IMPORT_BATCH_SIZE ||
+            (index < batches.length - 1 &&
+              batch.items.length !== GOOGLE_IMPORT_BATCH_SIZE),
+        ) ||
+        new Set(batches.flatMap((batch) => batch.items.map((item) => item.id))).size !==
+          batches.reduce((total, batch) => total + batch.items.length, 0)
+      ) {
+        throw new Error('invalid Google import saga batch plan')
+      }
+      const totalCount = batches.reduce((total, batch) => total + batch.items.length, 0)
+      try {
+        await db.transaction(async (tx) => {
+          await tx.insert(gbpImportSagas).values({
+            id: intent.id,
+            organizationId: intent.organizationId,
+            requestId: intent.requestId,
+            initiatedBy: intent.initiatedBy,
+            totalCount,
+            batchCount: batches.length,
+            wireReplayKeyVersion: intent.wireReplay.keyVersion,
+            wireReplayDigest: intent.wireReplay.digest,
+            semanticReplayKeyVersion: intent.semanticReplay.keyVersion,
+            semanticReplayDigest: intent.semanticReplay.digest,
+            createdAt: intent.now,
+            updatedAt: intent.now,
+          })
+
+          for (const batch of batches) {
+            await tx.insert(gbpImportRequests).values({
+              id: batch.id,
+              organizationId: intent.organizationId,
+              requestId: batch.requestId,
+              initiatedBy: intent.initiatedBy,
+              sagaId: intent.id,
+              batchOrdinal: batch.ordinal,
+              totalCount: batch.items.length,
+              pendingCount: batch.items.length,
+              // Keep the established lifecycle fencing path authoritative for
+              // every child while replay recovery resolves through the saga.
+              wireReplayKeyVersion: intent.wireReplay.keyVersion,
+              wireReplayDigest: intent.wireReplay.digest,
+              semanticReplayKeyVersion: intent.semanticReplay.keyVersion,
+              semanticReplayDigest: intent.semanticReplay.digest,
+              createdAt: intent.now,
+              updatedAt: intent.now,
+            })
+            await tx.insert(gbpImportRequestItems).values(
+              batch.items.map((item) => {
+                const { authorization: _authorization, ...persisted } = item
+                return {
+                  ...persisted,
+                  ...authorizationColumns(item),
+                  organizationId: intent.organizationId,
+                  importJobId: batch.id,
+                  createdAt: intent.now,
+                  updatedAt: intent.now,
+                }
+              }),
+            )
+            await insertOutboxRow(
+              tx,
+              requestedEvent({
+                eventId: batch.outboxEventId,
+                organizationId: intent.organizationId,
+                importJobId: batch.id,
+                now: intent.now,
+              }),
+              { recordedAt: intent.now },
+            )
+          }
+        })
+        return 'committed' as const
+      } catch (error) {
+        if (isPgUniqueViolation(error)) return 'conflict' as const
+        throw error
       }
     },
 
@@ -430,6 +671,7 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
           .select({
             organizationId: gbpImportRequestItems.organizationId,
             importJobId: gbpImportRequestItems.importJobId,
+            sagaId: gbpImportRequests.sagaId,
             itemId: gbpImportRequestItems.id,
             initiatedBy: gbpImportRequests.initiatedBy,
             parentPurgeAt: gbpImportRequests.purgeAt,
@@ -478,6 +720,7 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
           .for('update')
           .limit(1)
         if (!row) return { kind: 'rejected', reason: 'missing' } as const
+        const progressId = row.sagaId ?? row.importJobId
         if (row.initiatedBy !== input.initiatingUserId) {
           return { kind: 'rejected', reason: 'not_initiator' } as const
         }
@@ -512,7 +755,7 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
           }
           return {
             kind: 'replayed',
-            importJobId: row.importJobId,
+            importJobId: progressId,
             retryRevision: receipt.acceptedRetryRevision,
           } as const
         }
@@ -537,7 +780,7 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
           return { kind: 'rejected', reason: 'not_retryable' } as const
         }
         const authorizationDecision = await input.authorize({
-          importJobId: row.importJobId,
+          importJobId: progressId,
           itemId: row.itemId,
           connectionId: row.connectionId,
           existingPropertyId: row.existingPropertyId,
@@ -630,7 +873,7 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
         )
         return {
           kind: 'accepted',
-          importJobId: row.importJobId,
+          importJobId: progressId,
           retryRevision,
         } as const
       }),
@@ -1269,6 +1512,7 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
         .select({
           organizationId: gbpImportRequestItems.organizationId,
           importJobId: gbpImportRequestItems.importJobId,
+          sagaId: gbpImportRequests.sagaId,
           itemId: gbpImportRequestItems.id,
           initiatedBy: gbpImportRequests.initiatedBy,
           connectionId: gbpImportRequestItems.connectionId,
@@ -1304,7 +1548,10 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
         .where(
           and(
             eq(gbpImportRequestItems.organizationId, organizationId),
-            eq(gbpImportRequestItems.importJobId, importJobId),
+            or(
+              eq(gbpImportRequestItems.importJobId, importJobId),
+              eq(gbpImportRequests.sagaId, importJobId),
+            ),
             eq(gbpImportRequests.initiatedBy, userId),
             eq(gbpImportRequestItems.status, 'failed'),
             eq(gbpImportRequestItems.outcomeCode, 'temporarily_unavailable'),
@@ -1316,13 +1563,12 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
           ),
         )
         .orderBy(asc(gbpImportRequestItems.createdAt), asc(gbpImportRequestItems.id))
-        .limit(100)
       return rows.flatMap((row) => {
         const authorization = authorizationFromRow(row)
         return authorization && row.connectionId
           ? [
               {
-                importJobId: row.importJobId,
+                importJobId: row.sagaId ?? row.importJobId,
                 itemId: row.itemId,
                 connectionId: row.connectionId,
                 existingPropertyId: row.existingPropertyId,
@@ -1441,6 +1687,7 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
         const [parent] = await tx
           .select({
             totalCount: gbpImportRequests.totalCount,
+            sagaId: gbpImportRequests.sagaId,
           })
           .from(gbpImportRequests)
           .where(
@@ -1494,7 +1741,22 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
             ),
           )
           .returning({ id: gbpImportRequests.id })
-        return deleted ? ('purged' as const) : ('lost' as const)
+        if (!deleted) return 'lost' as const
+        if (parent.sagaId) {
+          await tx.delete(gbpImportSagas).where(
+            and(
+              eq(gbpImportSagas.organizationId, input.organizationId),
+              eq(gbpImportSagas.id, parent.sagaId),
+              sql`NOT EXISTS (
+                  SELECT 1
+                  FROM ${gbpImportRequests}
+                  WHERE ${gbpImportRequests.organizationId} = ${input.organizationId}
+                    AND ${gbpImportRequests.sagaId} = ${parent.sagaId}
+                )`,
+            ),
+          )
+        }
+        return 'purged' as const
       }),
 
     listLifecycleScopeParents: async (scope, limit) => {

@@ -78,6 +78,8 @@ function DiscoveryHarness() {
       hasMoreCandidates
       accountsError={null}
       candidatesError={null}
+      selectAllError={null}
+      isSelectingAll={false}
       onSearchChange={setSearch}
       onSelectAccount={setSelectedAccountRef}
       onToggleCandidate={(candidate, checked) => {
@@ -95,6 +97,7 @@ function DiscoveryHarness() {
             : new Set(),
         )
       }}
+      onSelectAllEligible={() => {}}
       onLoadMoreAccounts={() => {}}
       onLoadMoreCandidates={() => {}}
       onReview={() => {}}
@@ -143,10 +146,13 @@ export const Loading: Story = {
     hasMoreCandidates: false,
     accountsError: null,
     candidatesError: null,
+    selectAllError: null,
+    isSelectingAll: false,
     onSearchChange: () => {},
     onSelectAccount: () => {},
     onToggleCandidate: () => {},
     onToggleLoaded: () => {},
+    onSelectAllEligible: () => {},
     onLoadMoreAccounts: () => {},
     onLoadMoreCandidates: () => {},
     onReview: () => {},

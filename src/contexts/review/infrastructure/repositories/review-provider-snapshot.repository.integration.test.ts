@@ -51,6 +51,8 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
     await db.execute(
       sql`DELETE FROM outbox_events WHERE organization_id = ${ORGANIZATION_ID}`,
     )
+    await db.execute(sql`DELETE FROM replies WHERE organization_id = ${ORGANIZATION_ID}`)
+    await db.execute(sql`DELETE FROM reviews WHERE organization_id = ${ORGANIZATION_ID}`)
     await db
       .delete(reviewProviderSnapshotRuns)
       .where(eq(reviewProviderSnapshotRuns.propertyId, PROPERTY_ID))
@@ -197,6 +199,20 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       )
     `)
     await db.execute(sql`
+      INSERT INTO review_source_contents (
+        review_id, organization_id, property_id, platform, external_id,
+        external_location_id, rating, text, reviewed_at, first_fetched_at,
+        last_fetched_at, content_expires_at, source_epoch, source_revision,
+        ai_source_byte_length, ai_source_digest, created_at, updated_at
+      ) VALUES (
+        ${REVIEW_ID}, ${ORGANIZATION_ID}, ${PROPERTY_ID}, 'google',
+        'safe03-provider-review', 'safe03-provider-location', 2,
+        'provider-controlled source', ${STARTED_AT}, ${STARTED_AT},
+        ${STARTED_AT}, ${EXPIRES_AT}, 0, 1, 26, ${'2'.repeat(64)},
+        ${STARTED_AT}, ${STARTED_AT}
+      )
+    `)
+    await db.execute(sql`
       INSERT INTO review_provider_snapshot_runs (
         id, organization_id, property_id, source_epoch, state, phase,
         started_at, expires_at, created_at, updated_at
@@ -236,7 +252,32 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
 
     expect(applied).toMatchObject({ applied: 1, observed: 0, done: true })
     const reviewRows = await db.execute(sql`
-      SELECT id, content_expires_at FROM reviews WHERE id = ${REVIEW_ID}
+      SELECT
+        id,
+        source_content_state,
+        source_content_erased_at,
+        external_id,
+        external_location_id,
+        google_connection_id,
+        reviewer_name,
+        reviewer_profile_photo_url,
+        rating,
+        text,
+        translated_text,
+        language_code,
+        reviewed_at,
+        source_created_at,
+        source_updated_at,
+        content_hash,
+        ai_source_byte_length,
+        ai_source_digest
+      FROM reviews
+      WHERE id = ${REVIEW_ID}
+    `)
+    const sourceContentRows = await db.execute(sql`
+      SELECT review_id
+      FROM review_source_contents
+      WHERE review_id = ${REVIEW_ID}
     `)
     const replyRows = await db.execute(sql`
       SELECT id, review_id FROM replies WHERE id = ${REPLY_ID}
@@ -245,9 +286,31 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
     expect(replyRows.rows).toEqual([
       expect.objectContaining({ id: REPLY_ID, review_id: REVIEW_ID }),
     ])
-    const contentExpiresAt = new Date(String(reviewRows.rows[0]!.content_expires_at))
-    expect(Number.isNaN(contentExpiresAt.getTime())).toBe(false)
-    expect(contentExpiresAt.getTime()).toBeLessThanOrEqual(Date.now())
+    expect(sourceContentRows.rows).toHaveLength(0)
+    expect(reviewRows.rows[0]).toMatchObject({
+      id: REVIEW_ID,
+      source_content_state: 'provider_deleted',
+      external_id: null,
+      external_location_id: null,
+      google_connection_id: null,
+      reviewer_name: null,
+      reviewer_profile_photo_url: null,
+      rating: null,
+      text: null,
+      translated_text: null,
+      language_code: null,
+      reviewed_at: null,
+      source_created_at: null,
+      source_updated_at: null,
+      content_hash: null,
+      ai_source_byte_length: null,
+      ai_source_digest: null,
+    })
+    expect(
+      Number.isNaN(
+        new Date(String(reviewRows.rows[0]!.source_content_erased_at)).getTime(),
+      ),
+    ).toBe(false)
   })
 
   it('expires provider source without deleting stable Review and Reply rows', async () => {
@@ -284,6 +347,20 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
       )
     `)
     await db.execute(sql`
+      INSERT INTO review_source_contents (
+        review_id, organization_id, property_id, platform, external_id,
+        external_location_id, rating, text, reviewed_at, first_fetched_at,
+        last_fetched_at, content_expires_at, source_epoch, source_revision,
+        ai_source_byte_length, ai_source_digest, created_at, updated_at
+      ) VALUES (
+        ${EXPIRING_REVIEW_ID}, ${ORGANIZATION_ID}, ${PROPERTY_ID}, 'google',
+        'safe03-expiring-review', 'safe03-provider-location', 4,
+        'expiring provider source', ${STARTED_AT}, ${STARTED_AT},
+        ${STARTED_AT}, ${EXPIRES_AT}, 0, 1, 24, ${'3'.repeat(64)},
+        ${STARTED_AT}, ${STARTED_AT}
+      )
+    `)
+    await db.execute(sql`
       INSERT INTO review_provider_subjects (
         organization_id, property_id, source_epoch, key_version,
         locator_hmac, verifier_hmac, review_id, last_source_revision,
@@ -303,13 +380,32 @@ describe('review provider snapshot repository (real PostgreSQL)', () => {
     })
 
     expect(result.transitioned).toBe(1)
-    const reviewRows = await db.execute(
-      sql`SELECT id FROM reviews WHERE id = ${EXPIRING_REVIEW_ID}`,
-    )
+    const reviewRows = await db.execute(sql`
+      SELECT id, source_content_state, rating, text, reviewer_name,
+             external_id, external_location_id, ai_source_digest
+      FROM reviews
+      WHERE id = ${EXPIRING_REVIEW_ID}
+    `)
+    const sourceContentRows = await db.execute(sql`
+      SELECT review_id FROM review_source_contents
+      WHERE review_id = ${EXPIRING_REVIEW_ID}
+    `)
     const replyRows = await db.execute(
       sql`SELECT id FROM replies WHERE id = ${EXPIRING_REPLY_ID}`,
     )
-    expect(reviewRows.rows).toEqual([expect.objectContaining({ id: EXPIRING_REVIEW_ID })])
+    expect(reviewRows.rows).toEqual([
+      expect.objectContaining({
+        id: EXPIRING_REVIEW_ID,
+        source_content_state: 'source_expired',
+        rating: null,
+        text: null,
+        reviewer_name: null,
+        external_id: null,
+        external_location_id: null,
+        ai_source_digest: null,
+      }),
+    ])
+    expect(sourceContentRows.rows).toHaveLength(0)
     expect(replyRows.rows).toEqual([expect.objectContaining({ id: EXPIRING_REPLY_ID })])
   })
 })

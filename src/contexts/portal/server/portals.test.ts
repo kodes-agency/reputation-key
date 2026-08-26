@@ -284,4 +284,19 @@ describe('updatePortal input validation', () => {
     })
     expect(result.success).toBe(true)
   })
+
+  it('accepts hero removal but rejects a caller-supplied hero URL', () => {
+    expect(
+      updatePortalInputSchema.safeParse({
+        portalId: 'portal-123',
+        heroImageUrl: null,
+      }).success,
+    ).toBe(true)
+    expect(
+      updatePortalInputSchema.safeParse({
+        portalId: 'portal-123',
+        heroImageUrl: 'https://attacker.example/image.png',
+      }).success,
+    ).toBe(false)
+  })
 })

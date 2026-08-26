@@ -47,6 +47,7 @@ const PROTECTED_COLUMN_PATTERNS: ReadonlyArray<RegExp> = [
 // the stale-entry test pins this list to reality.)
 const GOVERNED_TABLES: ReadonlyArray<string> = [
   'reviews',
+  'review_source_contents',
   'replies',
   'google_connections',
   'properties',

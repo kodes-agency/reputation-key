@@ -6,7 +6,7 @@ export const GOOGLE_PROPERTY_IMPORT_REQUESTED_EVENT =
 export const PROPERTY_IMPORT_RETENTION_RELEASED_EVENT =
   'integration.property_import.retention_released' as const
 export const GOOGLE_PROPERTY_IMPORT_ITEM_JOB = 'import-gbp-property-item-v2' as const
-export const GOOGLE_PROPERTY_IMPORT_CONTRACT_VERSION = 2 as const
+export const GOOGLE_PROPERTY_IMPORT_CONTRACT_VERSION = 3 as const
 
 export type IntegrationPropertyImportRequestedV1 = Readonly<{
   organizationId: string
@@ -55,6 +55,7 @@ export const IMPORT_OUTCOME_CODES = [
   'reauthentication_required',
   'reconnect_required',
   'authorization_changed',
+  'user_cancelled',
   'policy_disabled',
   'organization_suspended',
   'property_suspended',
@@ -161,6 +162,12 @@ export const IMPORT_OUTCOME_PRESENTATION = {
     userAction: 'reconnect',
   },
   authorization_changed: {
+    status: 'cancelled',
+    reducerClass: 'cancellation',
+    retryable: false,
+    userAction: 'none',
+  },
+  user_cancelled: {
     status: 'cancelled',
     reducerClass: 'cancellation',
     retryable: false,

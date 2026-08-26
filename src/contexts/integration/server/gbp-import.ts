@@ -17,6 +17,7 @@ import {
   renewImportAuthorizationLeaseInputSchema,
 } from '../application/dto/google-import-discovery.dto'
 import {
+  cancelPropertyImportInputSchema,
   getPropertyImportStatusInputSchema,
   recoverPropertyImportInputSchema,
   retryPropertyImportItemInputSchema,
@@ -270,6 +271,29 @@ export const retryPropertyImportItem = createServerFn({ method: 'POST' })
       },
       'POST',
       'integration.retryPropertyImportItem',
+    ),
+  )
+
+export const cancelPropertyImportV2 = createServerFn({ method: 'POST' })
+  .validator(cancelPropertyImportInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        disableProviderContentCaching()
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'integration.manage',
+          capability: 'property.import_gbp_v2',
+        })
+        try {
+          return await requireGoogleImportTransaction().cancel(data.importJobId, ctx)
+        } catch (error) {
+          return translateTransactionError(error)
+        }
+      },
+      'POST',
+      'integration.cancelPropertyImportV2',
     ),
   )
 

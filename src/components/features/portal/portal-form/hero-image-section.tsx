@@ -6,7 +6,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
 type Props = Readonly<{
   heroImageUrl: string | null
   onImageUrlChange: (url: string | null) => void
-  onUpload: (file: File, onProgress: (progress: number) => void) => Promise<string>
+  onUpload: (file: File, onProgress: (progress: number) => void) => Promise<string | null>
   disabled: boolean
 }>
 

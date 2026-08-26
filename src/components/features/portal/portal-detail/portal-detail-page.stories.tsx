@@ -110,9 +110,12 @@ const tokenStatus: PortalTokenStatus = {
 
 const requestUploadUrl = async (_input: {
   data: { portalId: string; contentType: string; fileSize: number }
-}) => ({ uploadUrl: 'https://upload.example.com/presigned', key: 'hero-key' })
-const finalizeUpload = async (_input: { data: { portalId: string; key: string } }) => ({
+}) => ({ uploadUrl: 'https://upload.example.com/presigned', uploadId: 'upload-id' })
+const finalizeUpload = async (_input: {
+  data: { portalId: string; uploadId: string }
+}) => ({
   heroImageUrl: 'https://cdn.example.com/hero.png',
+  processing: false,
 })
 
 // Empty analytics payload — exercises the "no data" rendering path of the

@@ -1,17 +1,15 @@
-// Review context — source-content lifecycle purges (BQC-1.7).
+// Review context — source-content lifecycle erasure (BQC-1.7 / REV-01).
 //
-// Bounded, retryable erasure of Google source content for disconnect and
-// approved property/organization purge. Reviews (and their replies via FK
-// cascade per batch) are deleted in bounded batches through the retention
-// executor; every purge records content-free evidence in retention_runs.
-//
-// Replies die with their parent review rows (replies.review_id FK cascade),
-// so no unbounded cascade transaction is ever issued. Audit evidence
-// required by policy (disconnect/property events, activity log, the
-// evidence rows themselves) is never deleted here.
+// Disconnect and approved tenant/property erasure scrub provider-controlled
+// Review fields in bounded transactions. The stable Review, manager Replies,
+// Inbox history, and content-free evidence remain. The independently erasable
+// review_source_contents row is removed in the same transaction.
 
+import { and, asc, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { reviews } from '#/shared/db/schema/review.schema'
 import {
+  DEFAULT_MAX_BATCHES_PER_RUN,
   executeRetentionRule,
   type RetentionRule,
 } from '#/shared/db/retention/execute-retention-rule'
@@ -20,11 +18,18 @@ import {
   failRetentionRun,
   openRetentionRun,
 } from '#/shared/db/retention/evidence'
-import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  propertyId,
+  reviewId,
+  type OrganizationId,
+  type PropertyId,
+} from '#/shared/domain/ids'
 import type {
   SourceContentPurge,
   SourcePurgeResult,
 } from '../application/ports/source-content-purge.port'
+import { eraseReviewSourceContent } from './review-source-content-store'
 
 type PurgeDeps = Readonly<{
   db: Database
@@ -32,38 +37,105 @@ type PurgeDeps = Readonly<{
   batchSize?: number
 }>
 
-function reviewsRule(
-  subject: string,
-  equals: Readonly<{ column: string; value: string }>,
-  orgId: string,
-): RetentionRule {
-  return {
-    subject,
-    table: 'reviews',
-    keyColumns: ['id'],
-    tsColumn: 'id',
-    olderThanMs: 0,
-    equalsWhere: [{ column: 'organization_id', value: orgId }, equals],
+type ReviewScrubScope =
+  | Readonly<{ kind: 'connection'; organizationId: string; connectionId: string }>
+  | Readonly<{ kind: 'property'; organizationId: string; propertyId: string }>
+  | Readonly<{ kind: 'organization'; organizationId: string }>
+
+function reviewScope(scope: ReviewScrubScope) {
+  const tenant = eq(reviews.organizationId, scope.organizationId)
+  switch (scope.kind) {
+    case 'connection':
+      return and(tenant, eq(reviews.googleConnectionId, scope.connectionId))
+    case 'property':
+      return and(tenant, eq(reviews.propertyId, scope.propertyId))
+    case 'organization':
+      return tenant
   }
 }
 
 export const createSourceContentPurge = (deps: PurgeDeps): SourceContentPurge => {
   const batchSize = deps.batchSize ?? 500
 
-  async function run(subject: string, rule: RetentionRule): Promise<SourcePurgeResult> {
+  async function scrubReviews(
+    subject: string,
+    scope: ReviewScrubScope,
+  ): Promise<SourcePurgeResult> {
+    const runId = await openRetentionRun(deps.db, subject, batchSize, deps.clock())
+    try {
+      let batches = 0
+      let rowsRedacted = 0
+      while (batches < DEFAULT_MAX_BATCHES_PER_RUN) {
+        const count = await deps.db.transaction(async (tx) => {
+          const rows = await tx
+            .select({
+              id: reviews.id,
+              organizationId: reviews.organizationId,
+              propertyId: reviews.propertyId,
+              sourceEpoch: reviews.sourceEpoch,
+              sourceRevision: reviews.sourceRevision,
+            })
+            .from(reviews)
+            .where(and(eq(reviews.sourceContentState, 'active'), reviewScope(scope)))
+            .orderBy(asc(reviews.id))
+            .limit(batchSize)
+            .for('update', { skipLocked: true })
+
+          for (const row of rows) {
+            const erased = await eraseReviewSourceContent(tx, {
+              reviewId: reviewId(row.id),
+              organizationId: organizationId(row.organizationId),
+              propertyId: propertyId(row.propertyId),
+              sourceEpoch: row.sourceEpoch,
+              expectedSourceRevision: row.sourceRevision,
+              state: 'source_expired',
+            })
+            if (!erased) throw new Error('Review changed during source erasure')
+          }
+          return rows.length
+        })
+        if (count === 0) break
+        batches += 1
+        rowsRedacted += count
+        if (count < batchSize) break
+      }
+      await closeRetentionRun(deps.db, runId, {
+        finishedAt: deps.clock(),
+        batches,
+        rowsDeleted: 0,
+        rowsRedacted,
+        outcome: 'completed',
+      })
+      return { subject, batches, rowsDeleted: 0, rowsRedacted }
+    } catch (err) {
+      await failRetentionRun(deps.db, runId, deps.clock(), err)
+      throw err
+    }
+  }
+
+  async function deleteRows(
+    subject: string,
+    rule: RetentionRule,
+  ): Promise<SourcePurgeResult> {
     const runId = await openRetentionRun(deps.db, subject, batchSize, deps.clock())
     try {
       const result = await executeRetentionRule(deps.db, rule, {
-        cutoff: deps.clock(), // unused for equality purges
+        cutoff: deps.clock(),
         batchSize,
       })
       await closeRetentionRun(deps.db, runId, {
         finishedAt: deps.clock(),
         batches: result.batches,
         rowsDeleted: result.rowsDeleted,
+        rowsRedacted: result.rowsRedacted,
         outcome: 'completed',
       })
-      return { subject, ...result }
+      return {
+        subject,
+        batches: result.batches,
+        rowsDeleted: result.rowsDeleted,
+        rowsRedacted: result.rowsRedacted,
+      }
     } catch (err) {
       await failRetentionRun(deps.db, runId, deps.clock(), err)
       throw err
@@ -71,52 +143,28 @@ export const createSourceContentPurge = (deps: PurgeDeps): SourceContentPurge =>
   }
 
   return {
-    /** Disconnect: every review sourced through the revoked connection. */
-    forConnection: async (
-      orgId: OrganizationId,
-      connectionId: string,
-    ): Promise<SourcePurgeResult> =>
-      run(
-        'reviews.purge.connection',
-        reviewsRule(
-          'reviews.purge.connection',
-          { column: 'google_connection_id', value: connectionId },
-          orgId as string,
-        ),
-      ),
-
-    /** Approved property purge: every review for the property. */
-    forProperty: async (
-      orgId: OrganizationId,
-      propertyId: PropertyId,
-    ): Promise<SourcePurgeResult> =>
-      run(
-        'reviews.purge.property',
-        reviewsRule(
-          'reviews.purge.property',
-          { column: 'property_id', value: propertyId as string },
-          orgId as string,
-        ),
-      ),
-
-    /** Approved organization purge: every review across the organization. */
-    forOrganization: async (orgId: OrganizationId): Promise<SourcePurgeResult> =>
-      run('reviews.purge.organization', {
-        subject: 'reviews.purge.organization',
-        table: 'reviews',
-        keyColumns: ['id'],
-        tsColumn: 'id',
-        olderThanMs: 0,
-        equalsWhere: [{ column: 'organization_id', value: orgId as string }],
+    forConnection: async (orgId: OrganizationId, connectionId: string) =>
+      scrubReviews('reviews.purge.connection', {
+        kind: 'connection',
+        organizationId: orgId as string,
+        connectionId,
       }),
 
-    /** Property purge companion: inbox workflow rows for the property
-     *  (content-free since BQC-1.2; rows must not orphan on property delete). */
-    inboxForProperty: async (
-      orgId: OrganizationId,
-      propertyId: PropertyId,
-    ): Promise<SourcePurgeResult> =>
-      run('inbox_items.purge.property', {
+    forProperty: async (orgId: OrganizationId, property: PropertyId) =>
+      scrubReviews('reviews.purge.property', {
+        kind: 'property',
+        organizationId: orgId as string,
+        propertyId: property as string,
+      }),
+
+    forOrganization: async (orgId: OrganizationId) =>
+      scrubReviews('reviews.purge.organization', {
+        kind: 'organization',
+        organizationId: orgId as string,
+      }),
+
+    inboxForProperty: async (orgId: OrganizationId, property: PropertyId) =>
+      deleteRows('inbox_items.purge.property', {
         subject: 'inbox_items.purge.property',
         table: 'inbox_items',
         keyColumns: ['id'],
@@ -124,7 +172,7 @@ export const createSourceContentPurge = (deps: PurgeDeps): SourceContentPurge =>
         olderThanMs: 0,
         equalsWhere: [
           { column: 'organization_id', value: orgId as string },
-          { column: 'property_id', value: propertyId as string },
+          { column: 'property_id', value: property as string },
         ],
       }),
   }

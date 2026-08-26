@@ -55,6 +55,23 @@ export type ProtectedFieldRule = Readonly<{
   mustEliminate: boolean
 }>
 
+const REVIEW_SOURCE_CONTENT_FIELDS = [
+  ['external_id', 'raw_provider_identifier', 'Google review identifier'],
+  ['external_location_id', 'raw_provider_identifier', 'Google location resource'],
+  ['google_connection_id', 'raw_provider_identifier', 'Google connection binding'],
+  ['reviewer_name', 'raw_source_content', 'Reviewer display name'],
+  ['reviewer_profile_photo_url', 'raw_source_content', 'Reviewer profile photo'],
+  ['rating', 'raw_source_content', 'Google star rating'],
+  ['text', 'raw_source_content', 'Original Google review text'],
+  ['translated_text', 'raw_source_content', 'Google-provided translation'],
+  ['language_code', 'raw_source_content', 'Google review language'],
+  ['reviewed_at', 'raw_source_content', 'Provider review timestamp'],
+  ['content_hash', 'local_operational_fact', 'Active-cache change baseline'],
+  ['ai_source_digest', 'local_operational_fact', 'Active-cache AI source digest'],
+] as const satisfies ReadonlyArray<
+  readonly [string, ProtectedFieldClassification, string]
+>
+
 /**
  * The registry. Every protected field/copy in the system has exactly one
  * entry. The inventory narrative lives in
@@ -76,6 +93,23 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
       'SAFE-03 quarantine: compliant field erasure requires REV-01; legacy disconnect/property/org row deletion remains release-blocked',
     mustEliminate: false,
   },
+
+  ...REVIEW_SOURCE_CONTENT_FIELDS.map(
+    ([field, classification, purpose]): ProtectedFieldRule => ({
+      relation: 'review_source_contents',
+      kind: 'table',
+      field,
+      classification,
+      owner: 'review',
+      purpose,
+      creationPath: 'atomic Review observation dual-write',
+      readPath: 'Review-owned authorized source-content reads after cutover',
+      refreshRule: 'successful-fetch clock (30d TTL)',
+      deletionMechanism:
+        'atomic field-level expiry/provider-deletion erasure; stable Review and RepKey Replies remain',
+      mustEliminate: false,
+    }),
+  ),
   {
     relation: 'reviews',
     kind: 'table',

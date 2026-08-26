@@ -25,10 +25,11 @@ import {
   sql,
 } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { reviews } from '#/shared/db/schema/review.schema'
+import { reviews, reviewProviderSubjects } from '#/shared/db/schema/review.schema'
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { Review, ReviewPlatform } from '../../domain/types'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
+import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { reviewFromRow, reviewToRow } from '../mappers/review.mapper'
 import { reviewError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
@@ -38,6 +39,7 @@ import type {
   AiReviewSourceResult,
 } from '../../application/ports/ai-review-source.port'
 import { computeAiReviewSourceProvenance } from '../../application/ai-review-source'
+import { upsertReviewSourceContent } from '../review-source-content-store'
 
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
 const MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1 = 16_384
@@ -405,44 +407,143 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
     })
   },
 
+  findStableIdentityByProviderSubjects: async (input) => {
+    return trace('review.findStableIdentityByProviderSubjects', async () => {
+      const matches = new Map<
+        string,
+        {
+          id: string
+          organizationId: string
+          propertyId: string
+          sourceEpoch: number
+          sourceRevision: number
+          analysisSequence: number
+          sourceContentState: string
+          firstFetchedAt: Date | null
+          sourceSeenGeneration: string | null
+          sentimentLabel: string | null
+          sentimentScore: number | null
+        }
+      >()
+      for (const subject of input.subjects) {
+        const rows = await db
+          .select({
+            verifierHmac: reviewProviderSubjects.verifierHmac,
+            id: reviews.id,
+            organizationId: reviews.organizationId,
+            propertyId: reviews.propertyId,
+            sourceEpoch: reviews.sourceEpoch,
+            sourceRevision: reviews.sourceRevision,
+            analysisSequence: reviews.analysisSequence,
+            sourceContentState: reviews.sourceContentState,
+            firstFetchedAt: reviews.firstFetchedAt,
+            sourceSeenGeneration: reviews.sourceSeenGeneration,
+            sentimentLabel: reviews.sentimentLabel,
+            sentimentScore: reviews.sentimentScore,
+          })
+          .from(reviewProviderSubjects)
+          .innerJoin(
+            reviews,
+            and(
+              eq(reviews.id, reviewProviderSubjects.reviewId),
+              eq(reviews.organizationId, reviewProviderSubjects.organizationId),
+              eq(reviews.propertyId, reviewProviderSubjects.propertyId),
+              eq(reviews.sourceEpoch, reviewProviderSubjects.sourceEpoch),
+            ),
+          )
+          .where(
+            and(
+              eq(reviewProviderSubjects.organizationId, input.organizationId),
+              eq(reviewProviderSubjects.propertyId, input.propertyId),
+              eq(reviewProviderSubjects.sourceEpoch, input.sourceEpoch),
+              eq(reviewProviderSubjects.keyVersion, subject.keyVersion),
+              eq(reviewProviderSubjects.locatorHmac, Buffer.from(subject.locatorHmac)),
+            ),
+          )
+          .limit(1)
+        const row = rows[0]
+        if (!row) continue
+        const expected = Buffer.from(subject.verifierHmac)
+        const actual = Buffer.from(row.verifierHmac)
+        if (
+          expected.byteLength !== actual.byteLength ||
+          !timingSafeEqual(expected, actual)
+        ) {
+          throw new Error('Review provider subject verifier collision')
+        }
+        matches.set(row.id, row)
+      }
+      if (matches.size > 1) throw new Error('Review provider subject identity collision')
+      const row = matches.values().next().value
+      if (!row) return null
+      if (
+        row.sourceContentState !== 'active' &&
+        row.sourceContentState !== 'source_expired' &&
+        row.sourceContentState !== 'provider_deleted'
+      ) {
+        throw new Error('Review source content state is invalid')
+      }
+      return {
+        id: reviewId(row.id),
+        organizationId: organizationId(row.organizationId),
+        propertyId: propertyId(row.propertyId),
+        sourceEpoch: row.sourceEpoch,
+        sourceRevision: row.sourceRevision,
+        analysisSequence: row.analysisSequence,
+        sourceContentState: row.sourceContentState,
+        firstFetchedAt: row.firstFetchedAt,
+        sourceSeenGeneration: row.sourceSeenGeneration,
+        sentimentLabel: row.sentimentLabel,
+        sentimentScore: row.sentimentScore,
+      }
+    })
+  },
+
   upsert: async (review: Omit<Review, 'createdAt' | 'updatedAt'>, now?: Date) => {
     return trace('review.upsert', async () => {
       const row = reviewToRow(review)
       const updatedAt = now ?? new Date()
-      const result = await db
-        .insert(reviews)
-        .values(row)
-        .onConflictDoUpdate({
-          target: [reviews.platform, reviews.externalId, reviews.organizationId],
-          set: {
-            propertyId: row.propertyId,
-            externalLocationId: row.externalLocationId,
-            googleConnectionId: row.googleConnectionId,
-            reviewerName: row.reviewerName,
-            reviewerProfilePhotoUrl: row.reviewerProfilePhotoUrl,
-            rating: row.rating,
-            text: row.text,
-            languageCode: row.languageCode,
-            reviewedAt: row.reviewedAt,
-            expiresAt: row.expiresAt,
-            // BQC-1.3: every successful fetch advances the fetch clock and
-            // hash/baseline fields (ADR 0031). firstFetchedAt is preserved
-            // by omission — only the first observation sets it.
-            sourceCreatedAt: row.sourceCreatedAt,
-            sourceUpdatedAt: row.sourceUpdatedAt,
-            lastFetchedAt: row.lastFetchedAt,
-            contentExpiresAt: row.contentExpiresAt,
-            contentHash: row.contentHash,
-            sourceSeenGeneration: row.sourceSeenGeneration,
-            sourceEpoch: row.sourceEpoch,
-            sourceRevision: row.sourceRevision,
-            analysisSequence: row.analysisSequence,
-            aiSourceByteLength: row.aiSourceByteLength,
-            aiSourceDigest: row.aiSourceDigest,
-            updatedAt,
-          },
-        })
-        .returning()
+      const result = await db.transaction(async (tx) => {
+        const rows = await tx
+          .insert(reviews)
+          .values(row)
+          .onConflictDoUpdate({
+            target: [reviews.platform, reviews.externalId, reviews.organizationId],
+            set: {
+              propertyId: row.propertyId,
+              externalLocationId: row.externalLocationId,
+              googleConnectionId: row.googleConnectionId,
+              reviewerName: row.reviewerName,
+              reviewerProfilePhotoUrl: row.reviewerProfilePhotoUrl,
+              rating: row.rating,
+              text: row.text,
+              translatedText: row.translatedText,
+              languageCode: row.languageCode,
+              reviewedAt: row.reviewedAt,
+              expiresAt: row.expiresAt,
+              // BQC-1.3: every successful fetch advances the fetch clock and
+              // hash/baseline fields (ADR 0031). firstFetchedAt is preserved
+              // by omission — only the first observation sets it.
+              sourceCreatedAt: row.sourceCreatedAt,
+              sourceUpdatedAt: row.sourceUpdatedAt,
+              lastFetchedAt: row.lastFetchedAt,
+              contentExpiresAt: row.contentExpiresAt,
+              contentHash: row.contentHash,
+              sourceSeenGeneration: row.sourceSeenGeneration,
+              sourceEpoch: row.sourceEpoch,
+              sourceRevision: row.sourceRevision,
+              analysisSequence: row.analysisSequence,
+              aiSourceByteLength: row.aiSourceByteLength,
+              aiSourceDigest: row.aiSourceDigest,
+              sourceContentState: 'active',
+              sourceContentErasedAt: null,
+              updatedAt,
+            },
+          })
+          .returning()
+        await upsertReviewSourceContent(tx, review)
+        return rows
+      })
 
       if (!result[0]) {
         throw reviewError('repo_upsert_failed', 'Review upsert failed — no row returned')

@@ -12,6 +12,7 @@ import type { GoogleImportCommandAuthorizer } from './google-import-discovery'
 import type {
   GoogleImportV2Intent,
   GoogleImportV2RetryCandidate,
+  GoogleImportV2SagaIntent,
   GoogleImportV2StoredReplay,
   GoogleImportV2Store,
 } from './ports/google-import-v2-store.port'
@@ -149,10 +150,14 @@ function propertyApi(): PropertyGoogleBindingPublicApi {
 }
 
 function referenceStore(claims: readonly ClaimedImportCandidate[]) {
+  const byReference = new Map(claims.map((claim) => [claim.candidateRef, claim]))
   const claimCandidates = vi.fn<GoogleImportReferenceStore['claimCandidates']>(
-    async () => ({
+    async (input) => ({
       ok: true,
-      candidates: claims,
+      candidates: input.candidateRefs.flatMap((candidateRef) => {
+        const claim = byReference.get(candidateRef)
+        return claim ? [claim] : []
+      }),
     }),
   )
   const releaseCandidateClaims = vi.fn(async () => true)
@@ -188,6 +193,7 @@ function referenceStore(claims: readonly ClaimedImportCandidate[]) {
 function memoryStore() {
   const replays = new Map<string, GoogleImportV2StoredReplay>()
   const intents: GoogleImportV2Intent[] = []
+  const sagaIntents: GoogleImportV2SagaIntent[] = []
   const findReplay = vi.fn(
     async (organization: string, requestId: string) =>
       replays.get(`${organization}:${requestId}`) ?? null,
@@ -196,6 +202,18 @@ function memoryStore() {
     const key = `${intent.organizationId}:${intent.requestId}`
     if (replays.has(key)) return 'conflict' as const
     intents.push(intent)
+    replays.set(key, {
+      importJobId: intent.id,
+      initiatedBy: intent.initiatedBy,
+      wireReplay: intent.wireReplay,
+      semanticReplay: intent.semanticReplay,
+    })
+    return 'committed' as const
+  })
+  const commitSaga = vi.fn(async (intent: GoogleImportV2SagaIntent) => {
+    const key = `${intent.organizationId}:${intent.requestId}`
+    if (replays.has(key)) return 'conflict' as const
+    sagaIntents.push(intent)
     replays.set(key, {
       importJobId: intent.id,
       initiatedBy: intent.initiatedBy,
@@ -214,6 +232,7 @@ function memoryStore() {
   const getProgress = vi.fn<GoogleImportV2Store['getProgress']>(async () => null)
   const store: GoogleImportV2Store = {
     findReplay,
+    commitSaga,
     commitIntent,
     retryItem,
     claimItem: vi.fn(async () => ({
@@ -243,15 +262,22 @@ function memoryStore() {
     store,
     replays,
     intents,
+    sagaIntents,
     findReplay,
     commitIntent,
+    commitSaga,
     retryItem,
     listRetryCandidates,
     getProgress,
   }
 }
 
-function setup(candidateRefs: readonly string[] = [REF_A]) {
+function setup(
+  candidateRefs: readonly string[] = [REF_A],
+  overrides?: Readonly<{
+    cancelImportSaga?: (organizationId: string, importJobId: string) => Promise<void>
+  }>,
+) {
   const refs = referenceStore(
     candidateRefs.map((reference, index) =>
       createClaim(reference, `location-${index + 1}`),
@@ -271,6 +297,9 @@ function setup(candidateRefs: readonly string[] = [REF_A]) {
     authorizeGoogleImportCommand,
     replayKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
     clock: () => NOW,
+    ...(overrides?.cancelImportSaga
+      ? { cancelImportSaga: overrides.cancelImportSaga }
+      : {}),
     idGen: () => {
       generated += 1
       return generated === 1
@@ -289,7 +318,7 @@ async function expectCode(promise: Promise<unknown>, code: string): Promise<void
 }
 
 describe('Google import transaction', () => {
-  it('commits one durable intent, closes the authorization race, and consumes claims', async () => {
+  it('commits one durable parent saga, closes the authorization race, and consumes claims', async () => {
     const fixture = setup()
 
     await expect(fixture.transaction.start(startInput(), actor)).resolves.toEqual({
@@ -297,24 +326,79 @@ describe('Google import transaction', () => {
       replayed: false,
     })
 
-    expect(fixture.commitIntent).toHaveBeenCalledTimes(1)
-    expect(fixture.intents[0]).toMatchObject({
+    expect(fixture.commitSaga).toHaveBeenCalledTimes(1)
+    expect(fixture.sagaIntents[0]).toMatchObject({
       id: JOB_ID,
       organizationId: ORG_ID,
       requestId: REQUEST_ID,
       initiatedBy: USER_ID,
-      items: [
+      batches: [
         {
-          providerAccountSuffix: 'account-1',
-          providerLocationSuffix: 'location-1',
-          processingRegion: 'us',
-          effectDeadlineAt: new Date('2026-08-13T10:00:00.000Z'),
+          ordinal: 0,
+          items: [
+            {
+              providerAccountSuffix: 'account-1',
+              providerLocationSuffix: 'location-1',
+              processingRegion: 'us',
+              effectDeadlineAt: new Date('2026-08-13T10:00:00.000Z'),
+            },
+          ],
         },
       ],
     })
     expect(fixture.authorizeGoogleImportCommand).toHaveBeenCalledTimes(2)
     expect(fixture.consumeCandidateClaims).toHaveBeenCalledTimes(1)
     expect(fixture.releaseCandidateClaims).not.toHaveBeenCalled()
+  })
+
+  it('claims and persists every location through resumable 100-item child batches', async () => {
+    const candidateRefs = Array.from(
+      { length: 205 },
+      (_, index) => `v1.${index.toString(36).padStart(43, '0')}`,
+    )
+    const fixture = setup(candidateRefs)
+
+    await expect(
+      fixture.transaction.start(startInput(candidateRefs), actor),
+    ).resolves.toEqual({ importJobId: JOB_ID, replayed: false })
+
+    expect(
+      fixture.claimCandidates.mock.calls.map(([input]) => input.candidateRefs.length),
+    ).toEqual([100, 100, 5])
+    expect(fixture.sagaIntents[0]?.batches.map((batch) => batch.items.length)).toEqual([
+      100, 100, 5,
+    ])
+    expect(fixture.sagaIntents[0]?.batches.map((batch) => batch.ordinal)).toEqual([
+      0, 1, 2,
+    ])
+    expect(fixture.consumeCandidateClaims).toHaveBeenCalledTimes(3)
+    expect(fixture.commitIntent).not.toHaveBeenCalled()
+  })
+
+  it('fails closed before commit when a selected Data Cell is not accepting', async () => {
+    const fixture = setup([REF_A, REF_B])
+    const input = startInput([REF_A, REF_B])
+    const multiCellInput = startPropertyImportInputSchema.parse({
+      ...input,
+      items: [
+        input.items[0]!,
+        {
+          ...input.items[1]!,
+          profile: {
+            ...input.items[1]!.profile,
+            countryCode: 'GB',
+            timezone: 'Europe/London',
+          },
+        },
+      ],
+    })
+
+    await expectCode(
+      fixture.transaction.start(multiCellInput, actor),
+      'invalid_reference',
+    )
+    expect(fixture.commitSaga).not.toHaveBeenCalled()
+    expect(fixture.releaseCandidateClaims).toHaveBeenCalledTimes(1)
   })
 
   it('replays reordered exact requests after candidate references are gone', async () => {
@@ -343,7 +427,7 @@ describe('Google import transaction', () => {
       importJobId: JOB_ID,
       replayed: true,
     })
-    expect(fixture.commitIntent).toHaveBeenCalledTimes(1)
+    expect(fixture.commitSaga).toHaveBeenCalledTimes(1)
     expect(fixture.consumeCandidateClaims).toHaveBeenCalledTimes(2)
   })
 
@@ -381,13 +465,13 @@ describe('Google import transaction', () => {
       .mockResolvedValueOnce({ ok: false, code: 'authorization_changed' })
 
     await expectCode(fixture.transaction.start(startInput(), actor), 'unauthorized')
-    expect(fixture.commitIntent).not.toHaveBeenCalled()
+    expect(fixture.commitSaga).not.toHaveBeenCalled()
     expect(fixture.releaseCandidateClaims).toHaveBeenCalledTimes(1)
   })
 
   it('recovers a committed intent after an ambiguous commit response', async () => {
     const fixture = setup()
-    fixture.commitIntent.mockImplementationOnce(async (intent) => {
+    fixture.commitSaga.mockImplementationOnce(async (intent) => {
       fixture.replays.set(`${intent.organizationId}:${intent.requestId}`, {
         importJobId: intent.id,
         initiatedBy: intent.initiatedBy,
@@ -407,7 +491,7 @@ describe('Google import transaction', () => {
 
   it('releases claims after a confirmed rolled-back database failure', async () => {
     const fixture = setup()
-    fixture.commitIntent.mockRejectedValueOnce(new Error('database unavailable'))
+    fixture.commitSaga.mockRejectedValueOnce(new Error('database unavailable'))
 
     await expectCode(
       fixture.transaction.start(startInput(), actor),
@@ -418,7 +502,7 @@ describe('Google import transaction', () => {
 
   it('retains claims when both commit and recovery reads are unavailable', async () => {
     const fixture = setup()
-    fixture.commitIntent.mockRejectedValueOnce(new Error('commit response lost'))
+    fixture.commitSaga.mockRejectedValueOnce(new Error('commit response lost'))
     fixture.findReplay
       .mockResolvedValueOnce(null)
       .mockRejectedValueOnce(new Error('recovery unavailable'))
@@ -435,7 +519,7 @@ describe('Google import transaction', () => {
     fixture.claimCandidates.mockResolvedValueOnce({ ok: false, code: 'expired' })
 
     await expectCode(fixture.transaction.start(startInput(), actor), 'invalid_reference')
-    expect(fixture.commitIntent).not.toHaveBeenCalled()
+    expect(fixture.commitSaga).not.toHaveBeenCalled()
   })
 
   it('keeps recovery and status tenant/user scoped', async () => {
@@ -453,6 +537,64 @@ describe('Google import transaction', () => {
       'invalid_reference',
     )
     await expectCode(fixture.transaction.status(JOB_ID, actor), 'invalid_reference')
+  })
+
+  it('cancels only the initiating user saga and treats repeated cancellation as success', async () => {
+    const cancelImportSaga = vi.fn(async () => undefined)
+    const fixture = setup([REF_A], { cancelImportSaga })
+    const activeProgress = {
+      contractVersion: 3 as const,
+      importJobId: JOB_ID,
+      requestId: REQUEST_ID,
+      status: 'processing' as const,
+      totalCount: 1,
+      processedCount: 0,
+      counts: {
+        pending: 1,
+        processing: 0,
+        imported: 0,
+        relinked: 0,
+        already_exists: 0,
+        region_unavailable: 0,
+        failed: 0,
+        cancelled: 0,
+      },
+      items: [],
+      canRetry: false,
+      pollAfterMs: 2_000,
+      purgeAt: null,
+      updatedAt: NOW.toISOString(),
+    }
+    const cancelledProgress = {
+      ...activeProgress,
+      status: 'cancelled' as const,
+      processedCount: 1,
+      counts: { ...activeProgress.counts, pending: 0, cancelled: 1 },
+      pollAfterMs: null,
+    }
+    fixture.getProgress
+      .mockResolvedValueOnce(activeProgress)
+      .mockResolvedValueOnce(cancelledProgress)
+      .mockResolvedValueOnce(cancelledProgress)
+      .mockResolvedValueOnce(cancelledProgress)
+
+    await expect(fixture.transaction.cancel(JOB_ID, actor)).resolves.toEqual(
+      cancelledProgress,
+    )
+    await expect(fixture.transaction.cancel(JOB_ID, actor)).resolves.toEqual(
+      cancelledProgress,
+    )
+    expect(cancelImportSaga).toHaveBeenCalledTimes(1)
+    expect(cancelImportSaga).toHaveBeenCalledWith(ORG_ID, JOB_ID)
+
+    fixture.getProgress.mockResolvedValueOnce(null)
+    await expectCode(
+      fixture.transaction.cancel(JOB_ID, {
+        ...actor,
+        userId: userId(OTHER_USER_ID),
+      }),
+      'invalid_reference',
+    )
   })
   it('accepts a retry only after fresh original-initiator authorization', async () => {
     const fixture = setup()
@@ -545,7 +687,7 @@ describe('Google import transaction', () => {
     }
     fixture.listRetryCandidates.mockResolvedValue([candidate])
     fixture.getProgress.mockResolvedValue({
-      contractVersion: 2,
+      contractVersion: 3,
       importJobId: JOB_ID,
       requestId: REQUEST_ID,
       status: 'completed_with_issues',

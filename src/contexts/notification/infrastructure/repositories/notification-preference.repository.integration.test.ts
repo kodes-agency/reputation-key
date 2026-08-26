@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
-import { properties } from '#/shared/db/schema'
+import { notificationPreferences, properties } from '#/shared/db/schema'
 import {
   notificationPreferenceId,
   organizationId,
@@ -84,5 +84,51 @@ describe.sequential('notification preference mute repository (real PostgreSQL)',
       createdAt: CREATED,
       updatedAt: MUTED,
     })
+  })
+
+  it('enforces required channels at the database boundary', async () => {
+    const base = {
+      userId: USER,
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      enabled: false,
+      cadence: 'immediate',
+      urgentBypassEnabled: false,
+      quietHoursStart: null,
+      quietHoursEnd: null,
+      createdAt: CREATED,
+      updatedAt: CREATED,
+    }
+
+    await expect(
+      db.insert(notificationPreferences).values({
+        ...base,
+        id: notificationPreferenceId('84000000-0000-4000-8000-000000000004'),
+        category: 'mandatory',
+        channel: 'email',
+      }),
+    ).rejects.toMatchObject({
+      cause: { constraint: 'notification_preferences_required_enabled' },
+    })
+
+    await expect(
+      db.insert(notificationPreferences).values({
+        ...base,
+        id: notificationPreferenceId('84000000-0000-4000-8000-000000000005'),
+        category: 'urgent_operational',
+        channel: 'in_app',
+      }),
+    ).rejects.toMatchObject({
+      cause: { constraint: 'notification_preferences_required_enabled' },
+    })
+
+    await expect(
+      db.insert(notificationPreferences).values({
+        ...base,
+        id: notificationPreferenceId('84000000-0000-4000-8000-000000000006'),
+        category: 'urgent_operational',
+        channel: 'email',
+      }),
+    ).resolves.toBeDefined()
   })
 })

@@ -26,10 +26,24 @@ export const reviewFromRow = (row: ReviewRow): Review => {
       value: row.platform,
     })
   }
-  if (!VALID_RATINGS.has(row.rating)) {
+  if (!VALID_RATINGS.has(row.rating ?? 0)) {
     throw reviewError('invalid_row', `Invalid review rating from DB: ${row.rating}`, {
       field: 'rating',
       value: row.rating,
+    })
+  }
+  if (
+    row.sourceContentState !== 'active' ||
+    row.externalId == null ||
+    row.externalLocationId == null ||
+    row.reviewedAt == null ||
+    row.expiresAt == null ||
+    row.aiSourceByteLength == null ||
+    row.aiSourceDigest == null
+  ) {
+    throw reviewError('invalid_row', 'Review source content is unavailable', {
+      field: 'sourceContentState',
+      value: row.sourceContentState,
     })
   }
 
@@ -103,4 +117,6 @@ export const reviewToRow = (
   analysisSequence: review.analysisSequence,
   aiSourceByteLength: review.aiSourceByteLength,
   aiSourceDigest: review.aiSourceDigest,
+  sourceContentState: 'active',
+  sourceContentErasedAt: null,
 })

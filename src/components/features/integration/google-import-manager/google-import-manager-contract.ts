@@ -3,6 +3,7 @@ import type {
   ImportProgressDto,
 } from '#/contexts/integration/application/public-api'
 import type {
+  cancelPropertyImportV2,
   getPropertyImportV2Status,
   listImportAccounts,
   listImportCandidates,
@@ -32,4 +33,5 @@ export type GoogleImportManagerProps = Readonly<{
   recoverImport: typeof recoverPropertyImportV2
   getImportStatus: typeof getPropertyImportV2Status
   retryImportItem: typeof retryPropertyImportItem
+  cancelImport: typeof cancelPropertyImportV2
 }>

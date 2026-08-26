@@ -7,7 +7,6 @@ const ISO_COUNTRY_CODES = new Set(
   ),
 )
 export const GOOGLE_IMPORT_COUNTRY_CODES = Object.freeze([...ISO_COUNTRY_CODES].sort())
-export const MAX_GOOGLE_IMPORT_ITEMS = 100
 
 const OPAQUE_REFERENCE = /^[a-z][a-z0-9_-]{0,31}\.[A-Za-z0-9_-]{43}$/
 const whitespace = /\s+/gu
@@ -178,14 +177,14 @@ const googleImportReviewItemSchema = z
  */
 export const googleImportReviewDraftSchema = z
   .object({
-    items: z.array(googleImportReviewItemSchema).min(1).max(MAX_GOOGLE_IMPORT_ITEMS),
+    items: z.array(googleImportReviewItemSchema).min(1),
   })
   .strict()
 
 export const startPropertyImportInputSchema = z
   .object({
     requestId: z.uuid(),
-    items: z.array(startItemSchema).min(1).max(MAX_GOOGLE_IMPORT_ITEMS),
+    items: z.array(startItemSchema).min(1),
     confirmation: z.literal('apply'),
   })
   .strict()
@@ -209,6 +208,10 @@ export const getPropertyImportStatusInputSchema = z
   .object({ importJobId: z.uuid() })
   .strict()
 
+export const cancelPropertyImportInputSchema = z
+  .object({ importJobId: z.uuid() })
+  .strict()
+
 export const retryPropertyImportItemInputSchema = z
   .object({
     itemId: z.uuid(),
@@ -223,6 +226,7 @@ export type RecoverPropertyImportInput = z.infer<typeof recoverPropertyImportInp
 export type GetPropertyImportStatusInput = z.infer<
   typeof getPropertyImportStatusInputSchema
 >
+export type CancelPropertyImportInput = z.infer<typeof cancelPropertyImportInputSchema>
 export type RetryPropertyImportItemInput = z.infer<
   typeof retryPropertyImportItemInputSchema
 >

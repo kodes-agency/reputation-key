@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  cancelPropertyImportInputSchema,
   googleImportReviewDraftSchema,
   recoverPropertyImportInputSchema,
   retryPropertyImportItemInputSchema,
@@ -199,23 +200,17 @@ describe('Google import v2 DTOs', () => {
     expect(startPropertyImportInputSchema.safeParse(input).success).toBe(false)
   })
 
-  it('accepts 100 unique items and rejects 101', () => {
-    const items = Array.from({ length: 101 }, (_, index) => ({
+  it('accepts a no-cap parent selection larger than one worker batch', () => {
+    const items = Array.from({ length: 250 }, (_, index) => ({
       ...createRequest().items[0],
       candidateRef: `v1.${index.toString(36).padStart(43, '0')}`,
     }))
     expect(
-      startPropertyImportInputSchema.safeParse({
-        ...createRequest(),
-        items: items.slice(0, 100),
-      }).success,
-    ).toBe(true)
-    expect(
       startPropertyImportInputSchema.safeParse({ ...createRequest(), items }).success,
-    ).toBe(false)
+    ).toBe(true)
   })
 
-  it('pins recovery, status, and retry identifiers', () => {
+  it('pins recovery, status, cancellation, and retry identifiers', () => {
     const requestId = '00000000-0000-4000-8000-000000000001'
     const importJobId = '00000000-0000-4000-8000-000000000002'
     const itemId = '00000000-0000-4000-8000-000000000003'
@@ -223,6 +218,9 @@ describe('Google import v2 DTOs', () => {
 
     expect(recoverPropertyImportInputSchema.parse({ requestId })).toEqual({ requestId })
     expect(getPropertyImportStatusInputSchema.parse({ importJobId })).toEqual({
+      importJobId,
+    })
+    expect(cancelPropertyImportInputSchema.parse({ importJobId })).toEqual({
       importJobId,
     })
     expect(

@@ -103,6 +103,35 @@ describe('atomic review re-observation', () => {
          'staff-user-1', false, 'human', 1)`,
       [REPLY, REVIEW, ORG],
     )
+    // The lifecycle process has erased provider-controlled content, leaving
+    // only the stable Review identity and manager Reply history.
+    await getPool().query(`DELETE FROM review_source_contents WHERE review_id = $1`, [
+      REVIEW,
+    ])
+    await getPool().query(
+      `UPDATE reviews
+       SET external_id = NULL,
+           external_location_id = NULL,
+           google_connection_id = NULL,
+           reviewer_name = NULL,
+           reviewer_profile_photo_url = NULL,
+           rating = NULL,
+           text = NULL,
+           translated_text = NULL,
+           language_code = NULL,
+           reviewed_at = NULL,
+           expires_at = NULL,
+           source_created_at = NULL,
+           source_updated_at = NULL,
+           content_hash = NULL,
+           ai_source_byte_length = NULL,
+           ai_source_digest = NULL,
+           content_expires_at = $3,
+           source_content_state = 'provider_deleted',
+           source_content_erased_at = $2
+       WHERE id = $1`,
+      [REVIEW, OBSERVED_AT, REFRESHED_UNTIL],
+    )
 
     const refreshed = await store.reobserveExpiredAndRecord(
       {
@@ -134,7 +163,8 @@ describe('atomic review re-observation', () => {
       analysis_sequence: string
       text: string
     }>(
-      `SELECT created_at, source_revision, analysis_sequence, text
+      `SELECT created_at, source_revision, analysis_sequence, text,
+              source_content_state, source_content_erased_at
        FROM reviews
        WHERE id = $1 AND organization_id = $2`,
       [REVIEW, ORG],
@@ -153,7 +183,26 @@ describe('atomic review re-observation', () => {
       source_revision: '2',
       analysis_sequence: '3',
       text: 'Re-observed review',
+      source_content_state: 'active',
+      source_content_erased_at: null,
     })
+    const sourceContent = await getPool().query<{
+      review_id: string
+      source_revision: string
+      text: string
+    }>(
+      `SELECT review_id, source_revision, text
+       FROM review_source_contents
+       WHERE review_id = $1`,
+      [REVIEW],
+    )
+    expect(sourceContent.rows).toEqual([
+      {
+        review_id: REVIEW,
+        source_revision: '2',
+        text: 'Re-observed review',
+      },
+    ])
     expect(refreshed).toMatchObject({
       id: REVIEW,
       sourceRevision: 2,

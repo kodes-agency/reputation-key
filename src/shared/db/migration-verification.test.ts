@@ -45,6 +45,7 @@ const EXPECTED_TABLES = [
   'ratings',
   'scan_events',
   'google_connections',
+  'gbp_import_sagas',
   'gbp_import_requests',
   'gbp_import_request_items',
   'gbp_import_item_retry_receipts',

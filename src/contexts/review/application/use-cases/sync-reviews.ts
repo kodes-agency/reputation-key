@@ -16,6 +16,7 @@ import type { ReviewCommandStore } from '../ports/review-command-store.port'
 import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 import type { ReviewProviderObservationWriter } from '../ports/review-provider-snapshot.repository'
 import { computeAiReviewSourceProvenance } from '../ai-review-source'
+import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
 
 export type ReviewProviderObservationWriterDeps = Readonly<{
   reviewRepo: ReviewRepository
@@ -43,12 +44,27 @@ export const createReviewProviderObservationWriter = (
       input.review.externalId,
       input.organizationId,
     )
+    const stableIdentity = await deps.reviewRepo.findStableIdentityByProviderSubjects({
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      sourceEpoch: input.sourceEpoch,
+      subjects: input.subjects,
+    })
     if (
       existing != null &&
       (existing.propertyId !== input.propertyId ||
         existing.sourceEpoch !== input.sourceEpoch)
     ) {
       throw new Error('Review provider observation scope mismatch')
+    }
+    if (
+      stableIdentity != null &&
+      (stableIdentity.propertyId !== input.propertyId ||
+        stableIdentity.organizationId !== input.organizationId ||
+        stableIdentity.sourceEpoch !== input.sourceEpoch ||
+        (existing != null && existing.id !== stableIdentity.id))
+    ) {
+      throw new Error('Review provider subject identity mismatch')
     }
 
     const contentHash = computeReviewContentHash({
@@ -64,8 +80,43 @@ export const createReviewProviderObservationWriter = (
       reviewedAtEpochMillis: input.review.reviewedAt.getTime(),
       reviewerDisplayName: input.review.reviewerName,
     })
+    const lifecycle =
+      existing != null
+        ? defaultReviewLifecycle({
+            reviewedAt: input.review.reviewedAt,
+            now,
+            contentHash,
+            sourceEpoch: input.sourceEpoch,
+            existing,
+            aiSourceByteLength: provenance.byteLength,
+            aiSourceDigest: provenance.digest,
+          })
+        : stableIdentity != null
+          ? {
+              sourceCreatedAt: input.review.reviewedAt,
+              sourceUpdatedAt: null,
+              firstFetchedAt: stableIdentity.firstFetchedAt ?? now,
+              lastFetchedAt: now,
+              contentExpiresAt: contentExpiresAtFromFetch(now),
+              contentHash,
+              sourceSeenGeneration: stableIdentity.sourceSeenGeneration,
+              sourceEpoch: stableIdentity.sourceEpoch,
+              sourceRevision: stableIdentity.sourceRevision,
+              analysisSequence: stableIdentity.analysisSequence,
+              aiSourceByteLength: provenance.byteLength,
+              aiSourceDigest: provenance.digest,
+            }
+          : defaultReviewLifecycle({
+              reviewedAt: input.review.reviewedAt,
+              now,
+              contentHash,
+              sourceEpoch: input.sourceEpoch,
+              existing: null,
+              aiSourceByteLength: provenance.byteLength,
+              aiSourceDigest: provenance.digest,
+            })
     const review: Omit<Review, 'createdAt' | 'updatedAt'> = {
-      id: existing?.id ?? deps.idGen(),
+      id: existing?.id ?? stableIdentity?.id ?? deps.idGen(),
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       platform: 'google',
@@ -80,25 +131,18 @@ export const createReviewProviderObservationWriter = (
       languageCode: input.review.languageCode,
       reviewedAt: input.review.reviewedAt,
       expiresAt: calculateExpiresAt(input.review.reviewedAt, now),
-      sentimentLabel: existing?.sentimentLabel ?? null,
-      sentimentScore: existing?.sentimentScore ?? null,
-      ...defaultReviewLifecycle({
-        reviewedAt: input.review.reviewedAt,
-        now,
-        contentHash,
-        sourceEpoch: input.sourceEpoch,
-        existing: existing ?? null,
-        aiSourceByteLength: provenance.byteLength,
-        aiSourceDigest: provenance.digest,
-      }),
+      sentimentLabel: existing?.sentimentLabel ?? stableIdentity?.sentimentLabel ?? null,
+      sentimentScore: existing?.sentimentScore ?? stableIdentity?.sentimentScore ?? null,
+      ...lifecycle,
     }
     const expired =
-      existing?.contentExpiresAt != null &&
-      existing.contentExpiresAt.getTime() <= now.getTime()
+      (stableIdentity != null && stableIdentity.sourceContentState !== 'active') ||
+      (existing?.contentExpiresAt != null &&
+        existing.contentExpiresAt.getTime() <= now.getTime())
     const contentUnchanged =
       existing != null && !expired && existing.aiSourceDigest === review.aiSourceDigest
     const persisted = await persistObservation(deps, review, now, {
-      isNew: existing == null,
+      isNew: existing == null && stableIdentity == null,
       contentUnchanged,
       expired,
     })
@@ -115,7 +159,7 @@ export const createReviewProviderObservationWriter = (
       sourceRevision: persisted.sourceRevision,
       // `existing == null` is the new-vs-seen decision; the snapshot
       // orchestrator turns it into the discovery ladder's activity stamp.
-      isNew: existing == null,
+      isNew: existing == null && stableIdentity == null,
     }
   },
 })

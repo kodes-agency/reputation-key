@@ -170,7 +170,7 @@ export async function bootstrap(
   // ── Portal image processing job (portal dark / portal.upload blocked) ──
   const processImageHandler = createProcessImageJob({
     storage: container.storage,
-    portalRepo: container.portalRepo,
+    uploadStore: container.portalUploadStore,
     clock: container.clock,
   })
   registerCapabilityGatedJob(PROCESS_IMAGE_JOB_NAME, 'portal.upload', async (job) => {

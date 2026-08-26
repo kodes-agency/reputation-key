@@ -19,19 +19,23 @@ import type {
   UpdatePortalVariables,
 } from '../shared/types'
 
-// heroImageUrl is a form value rather than local component state (contract C3):
-// uploading persisted through `finalizeUpload` but REMOVING persisted nowhere,
-// because the key was absent from the submit payload of a `.strict()` schema.
+// heroImageUrl remains display/removal form state. New non-null values are
+// server-owned derivatives published by the upload worker; this form may send
+// only explicit `null` removal.
 const editFormSchema = updatePortalInputSchema
   .pick({
     name: true,
     slug: true,
     description: true,
-    heroImageUrl: true,
     privateFeedbackThreshold: true,
   })
   .required()
-  .extend({ description: z.string().max(500) })
+  .extend({
+    description: z.string().max(500),
+    // Display state can contain the current server-published derivative even
+    // though updatePortal accepts only `null` removal.
+    heroImageUrl: z.url().nullable(),
+  })
 
 type FormValues = z.infer<typeof editFormSchema>
 
@@ -43,9 +47,10 @@ type Props = Readonly<{
   formRef?: React.RefObject<FormLike | null>
   requestUploadUrl: (input: {
     data: { portalId: string; contentType: string; fileSize: number }
-  }) => Promise<{ uploadUrl: string; key: string }>
-  finalizeUpload: (input: { data: { portalId: string; key: string } }) => Promise<{
-    heroImageUrl: string
+  }) => Promise<{ uploadUrl: string; uploadId: string }>
+  finalizeUpload: (input: { data: { portalId: string; uploadId: string } }) => Promise<{
+    heroImageUrl: string | null
+    processing: boolean
   }>
 }>
 
@@ -78,7 +83,11 @@ export function EditPortalForm({
         name: value.name,
         slug: value.slug,
         description: value.description || null,
-        heroImageUrl: value.heroImageUrl,
+        // A non-null image URL is server-owned derivative state. The form may
+        // request removal, but it may never submit a replacement URL.
+        ...(portal.heroImageUrl !== null && value.heroImageUrl === null
+          ? { heroImageUrl: null }
+          : {}),
         theme,
         privateFeedbackThreshold: value.privateFeedbackThreshold,
       }
@@ -119,12 +128,12 @@ export function EditPortalForm({
         heroImageUrl={heroImageUrl}
         onImageUrlChange={(url) => form.setFieldValue('heroImageUrl', url)}
         onUpload={async (file, onProgress) => {
-          const { uploadUrl, key } = await requestUploadUrl({
+          const { uploadUrl, uploadId } = await requestUploadUrl({
             data: { portalId: portal.id, contentType: file.type, fileSize: file.size },
           })
           await putFilePresigned(uploadUrl, file, onProgress)
           const { heroImageUrl: url } = await finalizeUpload({
-            data: { portalId: portal.id, key },
+            data: { portalId: portal.id, uploadId },
           })
           return url
         }}

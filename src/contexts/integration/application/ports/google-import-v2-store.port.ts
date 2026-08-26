@@ -105,6 +105,25 @@ export type GoogleImportV2Intent = Readonly<{
   outboxEventId: string
 }>
 
+export type GoogleImportV2SagaBatchIntent = Readonly<{
+  id: string
+  requestId: string
+  ordinal: number
+  items: readonly GoogleImportV2ItemIntent[]
+  outboxEventId: string
+}>
+
+export type GoogleImportV2SagaIntent = Readonly<{
+  id: string
+  organizationId: string
+  requestId: string
+  initiatedBy: string
+  wireReplay: GoogleImportReplayDigest
+  semanticReplay: GoogleImportReplayDigest
+  batches: readonly GoogleImportV2SagaBatchIntent[]
+  now: Date
+}>
+
 export type GoogleImportV2StoredReplay = Readonly<{
   importJobId: string
   initiatedBy: string
@@ -192,6 +211,8 @@ export type GoogleImportV2Store = Readonly<{
     organizationId: string,
     requestId: string,
   ): Promise<GoogleImportV2StoredReplay | null>
+  commitSaga(intent: GoogleImportV2SagaIntent): Promise<'committed' | 'conflict'>
+  /** Legacy single-batch writer retained for pre-0111 compatibility tests. */
   commitIntent(intent: GoogleImportV2Intent): Promise<'committed' | 'conflict'>
   retryItem(
     input: Readonly<{

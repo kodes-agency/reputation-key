@@ -3,7 +3,6 @@ import type {
   ImportAccountDto,
   ImportCandidateDto,
 } from '#/contexts/integration/application/public-api'
-import { MAX_GOOGLE_IMPORT_ITEMS } from '#/contexts/integration/application/dto/google-import-v2.dto'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import {
@@ -32,10 +31,13 @@ type Props = Readonly<{
   hasMoreCandidates: boolean
   accountsError: string | null
   candidatesError: string | null
+  selectAllError: string | null
+  isSelectingAll: boolean
   onSearchChange: (value: string) => void
   onSelectAccount: (accountRef: string) => void
   onToggleCandidate: (candidate: ImportCandidateDto, checked: boolean) => void
   onToggleLoaded: (checked: boolean) => void
+  onSelectAllEligible: () => void
   onLoadMoreAccounts: () => void
   onLoadMoreCandidates: () => void
   onReview: () => void
@@ -65,8 +67,8 @@ export function GoogleImportDiscoveryPanel(props: Props) {
             {selectedAccount ? selectedAccount.displayName : 'Locations'}
           </CardTitle>
           <CardDescription>
-            Search and select from loaded locations. Up to {MAX_GOOGLE_IMPORT_ITEMS}{' '}
-            properties can be imported at once.
+            Search and select locations. Large selections continue in resumable background
+            batches.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -93,6 +95,14 @@ export function GoogleImportDiscoveryPanel(props: Props) {
                   className="pl-9"
                 />
               </div>
+
+              {props.selectAllError ? (
+                <Alert>
+                  <AlertCircle aria-hidden="true" />
+                  <AlertTitle>Some locations could not be loaded</AlertTitle>
+                  <AlertDescription>{props.selectAllError}</AlertDescription>
+                </Alert>
+              ) : null}
 
               {props.candidatesError ? (
                 <Alert variant="destructive">
@@ -122,10 +132,27 @@ export function GoogleImportDiscoveryPanel(props: Props) {
                     loaded
                   </p>
                   <p className="mt-0.5 text-xs">
-                    Searching and select all never fetch additional pages.
+                    Select all eligible loads every remaining Google page first.
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 sm:flex-row">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={
+                      props.isSelectingAll ||
+                      props.isLoadingCandidates ||
+                      props.candidates.length === 0
+                    }
+                    onClick={props.onSelectAllEligible}
+                  >
+                    {props.isSelectingAll ? (
+                      <Loader2 className="animate-spin" aria-hidden="true" />
+                    ) : null}
+                    {props.isSelectingAll
+                      ? 'Loading all locations…'
+                      : 'Select all eligible locations'}
+                  </Button>
                   {props.hasMoreCandidates ? (
                     <Button
                       type="button"

@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   aiPropertyAggregateContributions,
@@ -236,7 +236,7 @@ export function createAiPropertyAggregateStoreAdapter(
             sentiment: aiReviewAnalyses.sentiment,
             primaryCategory: aiReviewAnalyses.primaryCategory,
             attention: aiReviewAnalyses.attention,
-            rating: reviews.rating,
+            rating: sql<number>`${reviews.rating}`,
             localDate: sql<string | null>`resolve_ai_property_local_date_v1(
               ${reviews.reviewedAt},
               ${aiPropertyProcessingProfiles.timezone},
@@ -253,6 +253,9 @@ export function createAiPropertyAggregateStoreAdapter(
               eq(reviews.sourceEpoch, input.sourceEpoch),
               eq(reviews.sourceRevision, input.sourceRevision),
               eq(reviews.analysisSequence, input.analysisSequence),
+              eq(reviews.sourceContentState, 'active'),
+              isNotNull(reviews.rating),
+              isNotNull(reviews.reviewedAt),
             ),
           )
           .innerJoin(

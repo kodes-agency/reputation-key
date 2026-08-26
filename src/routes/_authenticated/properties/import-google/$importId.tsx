@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { useServerFn } from '@tanstack/react-start'
 import {
+  cancelPropertyImportV2,
   getPropertyImportV2Status,
   listImportAccounts,
   listImportCandidates,
@@ -92,6 +93,7 @@ function ImportProgressPage() {
         recoverImport={recoverPropertyImportV2}
         getImportStatus={getPropertyImportV2Status}
         retryImportItem={retryPropertyImportItem}
+        cancelImport={cancelPropertyImportV2}
       />
     </PageShell>
   )

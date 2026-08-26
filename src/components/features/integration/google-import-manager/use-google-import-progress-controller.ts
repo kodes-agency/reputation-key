@@ -45,7 +45,7 @@ export async function sendRetryWithOneReplay<T>(send: () => Promise<T>): Promise
 
 type Props = Pick<
   GoogleImportManagerProps,
-  'initialProgress' | 'getImportStatus' | 'retryImportItem'
+  'initialProgress' | 'getImportStatus' | 'retryImportItem' | 'cancelImport'
 > &
   Readonly<{
     step: GoogleImportStep
@@ -56,6 +56,7 @@ export function useGoogleImportProgressController({
   initialProgress,
   getImportStatus,
   retryImportItem,
+  cancelImport,
   step,
   setStep,
 }: Props) {
@@ -147,6 +148,28 @@ export function useGoogleImportProgressController({
     },
   })
 
+  const { mutate: cancelImportRequest, isPending: isCancelling } = useMutation({
+    mutationFn: async () => {
+      if (!activeImportId) return
+      try {
+        const cancelled = await cancelImport({
+          data: { importJobId: activeImportId },
+        })
+        queryClient.setQueryData(
+          googleImportStatusQuery(activeImportId, getImportStatus).queryKey,
+          cancelled,
+        )
+      } catch {
+        const recovered = await refresh()
+        if (!recovered || !isImportParentTerminal(recovered.status)) {
+          toast.error(
+            'The import could not be cancelled. Refresh its status and try again.',
+          )
+        }
+      }
+    },
+  })
+
   useEffect(() => {
     const progress = progressQuery.data
     if (!progress || !isImportParentTerminal(progress.status)) return
@@ -164,13 +187,20 @@ export function useGoogleImportProgressController({
     [retryItem, retryPending],
   )
 
+  const cancel = useCallback(() => {
+    if (isCancelling || !activeImportId) return
+    cancelImportRequest()
+  }, [activeImportId, cancelImportRequest, isCancelling])
+
   return {
     progress: progressQuery.data ?? null,
     pollingError: progressQuery.isError,
     isRefreshing: progressQuery.isFetching,
     retryingItemId: retryPending ? (retryVariables?.itemId ?? null) : null,
+    isCancelling,
     loadProgress,
     refresh,
     retry,
+    cancel,
   }
 }

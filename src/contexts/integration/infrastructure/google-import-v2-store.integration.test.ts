@@ -5,11 +5,16 @@ import {
   gbpImportItemRetryReceipts,
   gbpImportRequestItems,
   gbpImportRequests,
+  gbpImportSagas,
 } from '#/shared/db/schema/google-import-v2.schema'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
-import type { GoogleImportV2Intent } from '../application/ports/google-import-v2-store.port'
+import type {
+  GoogleImportV2Intent,
+  GoogleImportV2SagaIntent,
+} from '../application/ports/google-import-v2-store.port'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { createGoogleImportV2Lifecycle } from '../application/google-import-v2-lifecycle'
 import { createGoogleImportV2Store } from './google-import-v2-store'
 
 const NOW = new Date('2026-08-12T10:00:00.000Z')
@@ -91,13 +96,18 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
   const store = createGoogleImportV2Store(db)
   const clear = async () => {
     await db.delete(gbpImportRequests).where(eq(gbpImportRequests.organizationId, ORG_ID))
+    await db.delete(gbpImportSagas).where(eq(gbpImportSagas.organizationId, ORG_ID))
     await db.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORG_ID))
     await db.delete(googleConnections).where(eq(googleConnections.organizationId, ORG_ID))
     await db.execute(sql`DELETE FROM organization WHERE id = ${ORG_ID}`)
   }
-  const resetIntent = async () => {
+  const resetStorage = async () => {
     await db.delete(gbpImportRequests).where(eq(gbpImportRequests.organizationId, ORG_ID))
+    await db.delete(gbpImportSagas).where(eq(gbpImportSagas.organizationId, ORG_ID))
     await db.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORG_ID))
+  }
+  const resetIntent = async () => {
+    await resetStorage()
     await expect(store.commitIntent(intent())).resolves.toBe('committed')
   }
 
@@ -122,6 +132,120 @@ describe('Google import v2 fenced store (real PostgreSQL)', () => {
   })
 
   afterAll(clear)
+
+  it('persists and reports all 205 items through three replay-safe child batches', async () => {
+    await resetStorage()
+    const sagaId = '20000000-0000-4000-8000-000000000001'
+    const clientRequestId = '20000000-0000-4000-8000-000000000002'
+    const base = intent().items[0]!
+    const items = Array.from({ length: 205 }, (_, index) => ({
+      ...base,
+      id: `21000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+      destinationPropertyId: `22000000-0000-4000-8000-${String(index + 1).padStart(12, '0')}`,
+      providerLocationSuffix: `location-${index + 1}`,
+      propertyName: `Cafe ${index + 1}`,
+    }))
+    const batchSizes = [100, 100, 5] as const
+    let offset = 0
+    const saga: GoogleImportV2SagaIntent = {
+      id: sagaId,
+      organizationId: ORG_ID,
+      requestId: clientRequestId,
+      initiatedBy: USER_ID,
+      wireReplay: { keyVersion: 'v1', digest: 'D'.repeat(43) },
+      semanticReplay: { keyVersion: 'v1', digest: 'E'.repeat(43) },
+      batches: batchSizes.map((size, ordinal) => {
+        const batch = {
+          id: `23000000-0000-4000-8000-${String(ordinal + 1).padStart(12, '0')}`,
+          requestId: `24000000-0000-4000-8000-${String(ordinal + 1).padStart(12, '0')}`,
+          ordinal,
+          items: items.slice(offset, offset + size),
+          outboxEventId: `25000000-0000-4000-8000-${String(ordinal + 1).padStart(12, '0')}`,
+        }
+        offset += size
+        return batch
+      }),
+      now: NOW,
+    }
+
+    await expect(
+      store.commitSaga({
+        ...saga,
+        batches: saga.batches.map((batch) =>
+          batch.ordinal === 0 ? { ...batch, items: batch.items.slice(0, 99) } : batch,
+        ),
+      }),
+    ).rejects.toThrow('invalid Google import saga batch plan')
+    await expect(store.commitSaga(saga)).resolves.toBe('committed')
+    await expect(store.commitSaga(saga)).resolves.toBe('conflict')
+    await expect(store.findReplay(ORG_ID, clientRequestId)).resolves.toMatchObject({
+      importJobId: sagaId,
+      initiatedBy: USER_ID,
+    })
+
+    const progress = await store.getProgress(ORG_ID, USER_ID, sagaId)
+    expect(progress).toMatchObject({
+      importJobId: sagaId,
+      requestId: clientRequestId,
+      status: 'queued',
+      totalCount: 205,
+      processedCount: 0,
+      counts: { pending: 205, processing: 0 },
+    })
+    expect(progress?.items).toHaveLength(205)
+    await expect(
+      db
+        .select({ ordinal: gbpImportRequests.batchOrdinal })
+        .from(gbpImportRequests)
+        .where(eq(gbpImportRequests.sagaId, sagaId))
+        .orderBy(gbpImportRequests.batchOrdinal),
+    ).resolves.toEqual([{ ordinal: 0 }, { ordinal: 1 }, { ordinal: 2 }])
+    await expect(
+      db
+        .select({ id: outboxEvents.id })
+        .from(outboxEvents)
+        .where(eq(outboxEvents.organizationId, ORG_ID)),
+    ).resolves.toHaveLength(3)
+    await expect(
+      store.listLifecycleScopeParents(
+        { kind: 'request', organizationId: ORG_ID, importJobId: sagaId },
+        100,
+      ),
+    ).resolves.toHaveLength(3)
+
+    const lifecycle = createGoogleImportV2Lifecycle({
+      store,
+      propertyBindingApi: {
+        readReceipt: vi.fn(async () => null),
+        sweepReleasedExpired: vi.fn(async () => 0),
+        countUnreleasedExpired: vi.fn(async () => 0),
+        cleanupOrganization: vi.fn(async () => 0),
+      },
+      clock: () => NOW,
+      newEventId: () => '26000000-0000-4000-8000-000000000001',
+    })
+    await expect(lifecycle.cancelRequest(ORG_ID, sagaId)).resolves.toMatchObject({
+      parentsFenced: 3,
+      itemsVisited: 205,
+      itemsCancelled: 205,
+    })
+    const cancelled = await store.getProgress(ORG_ID, USER_ID, sagaId)
+    expect(cancelled).toMatchObject({
+      status: 'cancelled',
+      processedCount: 205,
+      counts: { pending: 0, processing: 0, cancelled: 205 },
+    })
+    expect(cancelled?.items).toHaveLength(205)
+    expect(cancelled?.items[0]).toMatchObject({
+      status: 'cancelled',
+      outcomeCode: 'user_cancelled',
+    })
+    await expect(lifecycle.cancelRequest(ORG_ID, sagaId)).resolves.toMatchObject({
+      parentsFenced: 0,
+      itemsVisited: 0,
+      itemsCancelled: 0,
+    })
+  })
 
   it('rejects duplicate claims and never invokes a stale fenced effect', async () => {
     await resetIntent()

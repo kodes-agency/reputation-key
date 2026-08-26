@@ -21,14 +21,21 @@
     {
       "id": "FND-02",
       "status": "partial",
-      "summary": "Capability and people authorities improved, but ADRs, context documents, root claims, and capability fate records still contradict the accepted program.",
+      "summary": "The key Review/Inbox, Data Cell, and action-history contradictions now have accepted superseding ADRs and an exhaustive machine-checked ADR index; context/root documentation and the complete capability/entry-point fate authority are still unfinished.",
       "codeEvidence": [
-        "docs/adr/0052-people-authority.md",
+        "docs/adr/0052-beta-people-access-attribution-and-manager-responsibility.md",
+        "docs/adr/README.md",
+        "docs/adr/0054-data-cell-catalogue-and-routing.md",
+        "docs/adr/0055-stable-review-and-inbox-handling-cycles.md",
+        "docs/adr/0056-operational-action-history-integrity-claims.md",
         "src/shared/auth/beta-capabilities.ts"
       ],
-      "testEvidence": ["src/shared/governance/context-acceptance-matrix.test.ts"],
+      "testEvidence": [
+        "src/shared/governance/context-acceptance-matrix.test.ts",
+        "src/shared/governance/adr-index.test.ts"
+      ],
       "remaining": [
-        "Create an ADR index and complete route/job/consumer/schedule/data fate ledger; repair ADR 0003, 0004, 0045, 0048, root documentation, and the missing AI context/public API."
+        "Complete the route/job/consumer/schedule/data fate ledger, align remaining root and nearest-context claims, normalize legacy ADR metadata where needed, and add the missing AI context/public API authority."
       ],
       "externalBlockers": []
     },
@@ -69,17 +76,27 @@
     {
       "id": "SAFE-01",
       "status": "partial",
-      "summary": "The unsafe Portal upload path is safely dark and the public Guest edge is stronger, but upload issuance/finalization still accepts arbitrary storage keys.",
+      "summary": "Portal hero uploads are safely dark and now use persisted, opaque, Organization/Property/Portal-bound, single-use issuances; exact storage metadata and server-derived source/derivative keys are enforced, and stale workers cannot replace a newer image. The broader public-edge package is not complete.",
       "codeEvidence": [
         "src/shared/auth/beta-capabilities.ts",
-        "src/contexts/portal/application/use-cases/finalize-upload.ts"
+        "drizzle/0110_portal_upload_issuances.sql",
+        "src/contexts/portal/application/use-cases/request-upload-url.ts",
+        "src/contexts/portal/application/use-cases/finalize-upload.ts",
+        "src/contexts/portal/infrastructure/portal-upload-issuance-store.ts",
+        "src/contexts/portal/infrastructure/jobs/process-image.job.ts"
       ],
       "testEvidence": [
         "src/start.test.ts",
+        "src/contexts/portal/application/use-cases/request-upload-url.test.ts",
+        "src/contexts/portal/application/use-cases/finalize-upload.test.ts",
+        "src/contexts/portal/infrastructure/jobs/process-image.job.test.ts",
+        "src/contexts/portal/infrastructure/portal-upload-issuance-store.integration.test.ts",
         "Guest cache, safe-link, rating-first, dedupe, and shared Redis limiter tests"
       ],
       "remaining": [
-        "Implement issued-upload ownership, single-use CAS finalization, derivative-only writes, cross-tenant/replay/expiry/stale-worker tests, real-Redis evidence, and security review before activating portal.upload."
+        "Keep portal.upload disabled until SAFE-01's CSRF, redirect/address-resolution, stable abuse/session keys, real-Redis rate/dedupe proof, cache/Vary review, public-model minimization, analytics privacy review, durable job-enqueue/orphan cleanup, end-to-end object-store adversarial drill, and signed security review are complete.",
+        "Before activation, bind processing to an immutable source version/ETag (or equivalently revoke/copy the source at consumption) so reuse of a still-valid presigned PUT cannot replace same-size/same-MIME bytes between finalization and worker read.",
+        "Guest media remains beta-disabled and still uses its separate legacy arbitrary-key StoragePort surface; migrate it to capability-oriented issued storage before any future activation."
       ],
       "externalBlockers": []
     },
@@ -287,17 +304,26 @@
     {
       "id": "GGL-01",
       "status": "partial",
-      "summary": "Google lifecycle and resumable import foundations are substantial, but connections are not organization-only, imports cap at 100, and push handling falls back to full-property sync.",
+      "summary": "Confirmed imports no longer have a product-level 100-location cap: select-all fetches every remaining provider page, then one replay-safe saga persists stable 100-item child batches, per-item checkpoints, aggregate progress, retry, and idempotent initiator cancellation. GGL-01 remains partial because connection ownership, credential-home brokerage, connector departure, and targeted push are not complete.",
       "codeEvidence": [
-        "src/contexts/integration/infrastructure/db/google-connection.schema.ts",
-        "src/contexts/integration/infrastructure/db/google-import-v2.schema.ts",
-        "src/contexts/integration/application/handle-gbp-notification.ts"
+        "drizzle/0111_google_import_parent_saga.sql",
+        "src/shared/db/schema/google-import-v2.schema.ts",
+        "src/contexts/integration/application/google-import-saga.ts",
+        "src/contexts/integration/application/google-import-transaction.ts",
+        "src/contexts/integration/infrastructure/google-import-v2-store.ts",
+        "src/components/features/integration/google-import-manager/use-google-import-discovery-controller.ts"
       ],
       "testEvidence": [
-        "OAuth, credential CAS, import checkpoint, Pub/Sub JWT, and pusher validation suites"
+        "205-location planner and transaction regressions prove 100/100/5 stable batches and bounded opaque-reference claims",
+        "Fresh PostgreSQL migration and store integration prove atomic saga/items/outbox persistence, root replay/progress, 205-item cancellation, and repeated-cancel convergence",
+        "Select-all unit regression proves every remaining page loads before 205 eligible locations are selected",
+        "Data Cell transaction regression proves non-accepting regions fail before commit; the composition root also withholds the optional multi-cell credential-broker authorization"
       ],
       "remaining": [
-        "Migrate to organization ownership, add connector-departure preflight, introduce super-parent imports with bounded batches, persist identifier-only push receipts, and route targeted Review fetches through the correct credential home."
+        "Migrate connections to organization-only ownership and add connector-departure reauthorization/disconnect preflight.",
+        "Implement REG-01 credential home/broker; multi-cell imports are deliberately denied until then.",
+        "Replace the pre-confirmation provider-reference 2,000-record/15-minute safety envelope with a server-side discovery checkpoint/streaming handoff for arbitrary fleets and expired/hidden browser sessions; the durable saga currently begins only after confirmation.",
+        "Persist identifier-only push receipts and route targeted Review fetches through the completed credential-home and REV-01 source contracts."
       ],
       "externalBlockers": [
         "Live targeted-push and credential-home proof depends on Google sandbox/configuration and deployed Railway cells."
@@ -414,16 +440,18 @@
     {
       "id": "NTF-01",
       "status": "partial",
-      "summary": "Delivery mechanics are strong, but private feedback is misclassified, Action Required in-app notifications can be disabled, recipient/trigger matrices are incomplete, and the Bell exposes Clear all.",
+      "summary": "Private feedback now uses the Action-needed delivery class, required in-app channels are enforced through domain, repository, UI, backfill, and database constraints, and the compact Bell no longer offers bulk dismissal; the end-to-end trigger and recipient contract is still incomplete.",
       "codeEvidence": [
         "src/contexts/notification/domain/notification-delivery-policy.ts",
-        "src/components/notification/notification-popover-content.tsx"
+        "src/contexts/notification/infrastructure/repositories/notification-preference.repository.ts",
+        "src/components/notification/notification-popover-content.tsx",
+        "drizzle/0109_notification_required_channels.sql"
       ],
       "testEvidence": [
-        "Coalescing, responsibility resolution, outbox, digest, quiet-hours, unsubscribe, pagination, and gap reconciliation tests"
+        "Required-channel upgrade/constraint proof plus coalescing, responsibility resolution, outbox, digest, quiet-hours, unsubscribe, pagination, and gap reconciliation tests"
       ],
       "remaining": [
-        "Correct class/channel mutability, migrate preferences, remove Clear all, complete trigger/recipient/eligibility matrices, instrument lag, and retain deployed latency evidence."
+        "Complete and execute the trigger/recipient/eligibility matrix, close every durable producer-to-delivery gap, instrument lag and repair behavior, and retain deployed latency/outage evidence."
       ],
       "externalBlockers": []
     },

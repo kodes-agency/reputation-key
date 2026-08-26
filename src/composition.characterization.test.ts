@@ -20,7 +20,7 @@ import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-
 import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google-oauth-port'
 import { createInMemoryGbpApiPort } from '#/shared/testing/in-memory-gbp-api-port'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
-import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
+import type { PortalStoragePort } from '#/contexts/portal/application/ports/storage.port'
 
 const FIXED_DATE = new Date('2026-01-15T12:00:00.000Z')
 
@@ -69,6 +69,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'portalLinkRepo',
   'portalPublicApi',
   'portalRepo',
+  'portalUploadStore',
   'propertyProcessingScopeApi',
   'providerEphemeralReadiness',
   'providerEphemeralRedis',
@@ -326,7 +327,7 @@ describe('provider DI slots (BQC-6.1)', () => {
   function buildWithProviders(providers: {
     googleOAuth?: ReturnType<typeof createInMemoryGoogleOAuthPort>
     gbpApi?: ReturnType<typeof createInMemoryGbpApiPort>
-    storage?: StoragePort
+    storage?: PortalStoragePort
   }): Container {
     const clock: Clock = () => FIXED_DATE
     // createContainer registers all event schemas at construction; the
@@ -348,7 +349,18 @@ describe('provider DI slots (BQC-6.1)', () => {
     })
   }
 
-  const fakeStorage: StoragePort = {
+  const fakeStorage: PortalStoragePort = {
+    createIssuedPortalUpload: async () => ({ uploadUrl: 'memory://upload' }),
+    confirmIssuedPortalUpload: async (issuance) => ({
+      contentType: issuance.contentType,
+      sizeBytes: issuance.declaredSizeBytes,
+    }),
+    readIssuedPortalUpload: async () => Buffer.alloc(0),
+    writePortalUploadDerivative: async (issuance, derivative) => {
+      const objectKey = `public/portal-heroes/${issuance.id}/${derivative}.webp`
+      return { objectKey, publicUrl: `memory://${objectKey}` }
+    },
+    deleteIssuedPortalUpload: async () => {},
     createPresignedUploadUrl: async (key) => ({ uploadUrl: 'memory://upload', key }),
     confirmUpload: async (key) => `memory://${key}`,
     deleteObject: async () => {},

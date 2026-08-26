@@ -361,7 +361,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   if (!deps.jobQueue) throw new Error('jobQueue required')
   const jobQueue = deps.jobQueue
 
-  // One import request fans out up to 100 item jobs in a single addBulk, so
+  // One child import batch fans out up to 100 item jobs in a single addBulk, so
   // the queue depth is intentionally far above what the pool can execute at
   // once. Safety comes from the worker side, not from throttling here:
   // DEFAULT_QUEUE_CONCURRENCY * WORST_CASE_POOL_CLIENTS_PER_JOB <= pool max
@@ -676,6 +676,9 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         replayKeys: deps.googleImportReplayKeys,
         clock: deps.clock,
         idGen: randomUUID,
+        ...(googleImportV2Lifecycle
+          ? { cancelImportSaga: googleImportV2Lifecycle.cancelRequest }
+          : {}),
       })
     }
   }
