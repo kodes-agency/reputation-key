@@ -27,7 +27,7 @@ import {
   createJobWorker,
   DEFAULT_QUEUE_CONCURRENCY,
 } from '#/shared/jobs/worker'
-import { createJobQueue, type Queue } from '#/shared/jobs/queue'
+import { createJobQueue, createWorkerBarrierQueue, type Queue } from '#/shared/jobs/queue'
 import { assertConfiguredJobRedisRuntime } from '#/shared/jobs/redis-runtime'
 import {
   assertProductionRedisTopology,
@@ -182,7 +182,7 @@ async function main() {
   // BQC-3.6: the dead-letter quarantine queue — created here (same pattern
   // as the domain-events queue below), NEVER processed by a worker. Jobs
   // whose attempt budget is spent land here with a content-safe envelope.
-  const quarantineQueue = createJobQueue(QUARANTINE_QUEUE_NAME)
+  const quarantineQueue = createWorkerBarrierQueue(QUARANTINE_QUEUE_NAME)
 
   // BQC-4.2: the worker declares its processing cell (PROCESSING_CELL, ADR
   // 0048 — 'us' is the only approved beta cell). The routing gate re-resolves

@@ -2,7 +2,11 @@
 
 import { describe, it, expect, beforeEach } from 'vitest'
 import { toOutboxEvent, tryToOutboxEvent, OutboxPayloadError } from './event-adapter'
-import { clearEventSchemas, registerEventSchema } from '#/shared/events/schema-registry'
+import {
+  clearEventSchemas,
+  registerEventSchema,
+  validateEventPayload,
+} from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { z } from 'zod/v4'
 import type { DomainEvent } from '#/shared/events/events'
@@ -99,6 +103,29 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
     expect(row.eventVersion).toBe(2)
     expect(row.payload).toHaveProperty('connectedBy', 'user-1')
     expect(row.payload).not.toHaveProperty('outboxEventVersion')
+  })
+
+  it('supports the invitation v1 sentinel and rejects the retired key from v2', () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+    const base = {
+      invitationId: 'invitation-1',
+      organizationId: 'org-1',
+      role: 'PropertyManager',
+    }
+    expect(
+      validateEventPayload('identity.member.invited', 1, {
+        ...base,
+        email: '[redacted]',
+      }),
+    ).toMatchObject({ email: '[redacted]' })
+    expect(validateEventPayload('identity.member.invited', 2, base)).toEqual(base)
+    expect(() =>
+      validateEventPayload('identity.member.invited', 2, {
+        ...base,
+        email: 'synthetic-secret@example.test',
+      }),
+    ).toThrow(/expected never/i)
   })
 
   it('registers the emitted Guest vocabulary with content-minimal payloads', () => {

@@ -66,7 +66,11 @@ vi.mock('bullmq', () => {
 
 import { Redis } from 'ioredis'
 import { Queue } from 'bullmq'
-import { createJobQueue, closeJobQueueConnections } from './queue'
+import {
+  createJobQueue,
+  createWorkerBarrierQueue,
+  closeJobQueueConnections,
+} from './queue'
 
 type FakeRedisInstance = Redis & {
   url: string
@@ -158,6 +162,19 @@ describe('createJobQueue', () => {
     createJobQueue('default')
 
     expect(fakeConnections()[0].url).toBe('redis://queue:6379')
+  })
+
+  it('creates a worker barrier queue with no ambiguous command timeout', () => {
+    process.env.REDIS_URL = 'redis://unit-test:6379'
+    resetEnv()
+
+    const queue = createWorkerBarrierQueue('quarantine')
+
+    expect(queue).toBeDefined()
+    expect(fakeConnections()).toHaveLength(1)
+    expect(fakeConnections()[0].options).toEqual({ maxRetriesPerRequest: null })
+    expect(fakeConnections()[0].options).not.toHaveProperty('commandTimeout')
+    expect(fakeQueues()[0].opts.connection).toBe(fakeConnections()[0])
   })
 
   it('routes BullMQ error events through structured logging', () => {

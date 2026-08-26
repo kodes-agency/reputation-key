@@ -169,7 +169,11 @@ describe.sequential('identityCommandStore (integration)', () => {
     )
     expect(facts.rows).toHaveLength(1)
     expect(facts.rows[0].id).toBe(event.eventId)
-    expect(facts.rows[0].payload).not.toHaveProperty('email')
+    // Expand-phase v1 compatibility: the database guard supplies only the
+    // structural sentinel required by the old parser. The operator cutover
+    // converts this row to v2 and removes the key after every replica is new.
+    expect(facts.rows[0].payload).toHaveProperty('email', '[redacted]')
+    expect(JSON.stringify(facts.rows[0].payload)).not.toContain('idcmd-new@test.com')
   })
 
   it('inviteMember rolls back the invitation when the fact insert fails (unregistered type)', async () => {

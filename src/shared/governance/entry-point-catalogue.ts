@@ -3701,6 +3701,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ops/identity-invitation-fact-contract.ts',
+    'scripts/ops/identity-invitation-fact-contract.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:identity-invitation-facts — report-first rolling v1→v2 fact issuance, bounded PostgreSQL/live-queue/quarantine redaction, zero-copy verification, and pre-verification rollback; mutations require quiesced queues and typed confirmation',
+    },
+  ),
+  ops(
     'scripts/local-stack/provision-ai-admission-role.ts',
     'scripts/local-stack/provision-ai-admission-role.ts',
     'tenant_cross',

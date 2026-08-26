@@ -14,7 +14,7 @@
 //   #  Context      Verdict          Criterion (phase §5.10)                              Pin
 //   1  Identity     enabled/limited  grant/public interface sole access source;           NEW grant sole-access scan (this file);
 //                                     owner/session rules deterministic; invitation       content-free-facts register (F2 below)
-//                                     content owned
+//                                     content owned; invitation facts content-free
 //   2  Property     enabled/limited  lifecycle + processing profile behind command/       cross-context-public-api.test.ts;
 //                                     query interfaces                                    NEW properties-table WATCH register
 //   3  Integration  enabled/limited  Google adapter behind explicit port; jobs use        provider-target-selection.test.ts
@@ -53,7 +53,6 @@
 //
 // Registered gaps (findings, NOT blockers — owned, returned to owner, unfixed here):
 //   F1  replyRejected.reason → activity detail + notification body (owner: BQC-1)
-//   F2  memberInvited.email → activity detail (owner: BQC-1)
 //   F3  feedback comment lookup without retention clock (owner: BQC-1)
 //   WATCH  properties-table direct reads by portal/badge/leaderboard repositories
 //          bypassing property public-api (owners: Property + dark contexts)
@@ -294,12 +293,17 @@ describe('row 8 — Notification (enabled/limited): in-app delivery; outbound no
   })
 })
 
-describe('row 9 — Activity (enabled/limited): collaboration facts and security audit have sole writers', () => {
+describe('row 9 — Activity (enabled/limited): collaboration facts and security audit have governed writers', () => {
   // Retention sweep deletes via generic table-name config (no activity-specific
   // writer); the scans target write patterns, not the config string.
-  it('only the activity drizzle repository writes activity_log', () => {
+  it('only the Activity repository and the bounded invitation privacy migrator write activity_log', () => {
     expect(offendersMatching(ACTIVITY_LOG_WRITE, () => false)).toEqual([
       'src/contexts/activity/infrastructure/activity-repository.drizzle.ts',
+      // Temporary, operator-audited migration exception. It can update only
+      // invited-member payload.detail to JSON null in bounded batches while
+      // both processing queues are paused. Remove with the v1 invitation-fact
+      // contraction after every Data Cell has sealed v2 + restore proof.
+      'src/shared/ops/identity-invitation-fact-contract.ts',
     ])
   })
 

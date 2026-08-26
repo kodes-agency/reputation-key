@@ -126,6 +126,7 @@
     "ops:google-content-approval-sign": "tsx scripts/ops/google-content-approval-sign.ts",
     "ops:google-admission-role": "tsx scripts/ops/provision-google-admission-role.ts",
     "ops:google-import-lifecycle": "tsx scripts/ops/google-import-lifecycle.ts",
+    "ops:identity-invitation-facts": "tsx scripts/ops/identity-invitation-fact-contract.ts",
     "release:google-import-drill": "tsx scripts/local-stack/google-import-release-drill.ts",
     "ops:ai-canary": "tsx scripts/ops/ai-canary-authorization.ts",
     "ops:ai-control": "tsx scripts/ops/ai-execution-control.ts",

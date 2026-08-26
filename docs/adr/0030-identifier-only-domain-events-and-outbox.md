@@ -32,6 +32,16 @@ Historical note: PRE17C planning text once reserved “ADR 0030” for OpenTelem
 3. **Strip at the durable boundary.** Before insert into `outbox_events`, adapters remove a denylist of content field names (and must not re-introduce them). Prefer tightening toward allowlist schemas at insert over time (expand → switch); denylist + Zod validation at relay remains the current expand-phase control.
 4. **Consumers re-fetch.** Outbox consumers and projections that need display text call the owning context’s repository/public API under normal authorization. They never treat the event payload as a content cache.
 5. **Telemetry and health.** Operational metrics and traces that mention reviews or outbox work remain identifier-only (counts, ages, statuses)—no content strings.
+6. **Rolling contraction compatibility.** When an old parser requires a
+   forbidden-content field, expand code may preserve the field name only with
+   a fixed non-content sentinel, under a database-governed issuance version
+   and an operator-verified removal plan. Raw content is never retained for
+   parser compatibility. The temporary v1 schema, guard, sentinel, and
+   operator tooling must name their contraction condition and may be removed
+   only after every retained PostgreSQL/queue/quarantine copy is verified
+   content-free. Privacy verification and schema contraction are separate:
+   a late v1 `[redacted]` envelope is content-free but still blocks removing
+   the v1 parser until a producer/relay barrier proves `compatibilityV1: 0`.
 
 ## Consequences
 
@@ -39,6 +49,11 @@ Historical note: PRE17C planning text once reserved “ADR 0030” for OpenTelem
 - Inbox, metric, activity, and notification projections must use lookup ports for any text they store denormalized under a separate retention policy.
 - Security reviews treat content-in-event as a P0 leak class (see threat model “Review text in outbox events”).
 - BQR-2/BQR-3 may replace the denylist with insert-time allowlist schemas and finish raw-content lifecycle without changing this decision.
+- The `identity.member.invited` v1 `[redacted]` sentinel is a temporary rolling
+  compatibility shape. Its contraction waits for every Railway Data Cell to
+  seal the privacy check using the invitation-fact cutover runbook, establish
+  a producer/relay publication barrier, report no compatibility-v1 copies,
+  and pass the observation plus restore proof.
 
 ## Alternatives considered
 

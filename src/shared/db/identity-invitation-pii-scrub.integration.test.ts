@@ -59,7 +59,9 @@ describe('identity invitation PII scrub migration', () => {
          WHERE id = '86000000-0000-4000-8000-000000000002'`,
       )
 
-      expect(fact.rows[0]!.payload).not.toHaveProperty('email')
+      // On a latest-schema database, the later rolling guard re-adds only its
+      // content-free v1 compatibility sentinel when 0105 updates the row.
+      expect(fact.rows[0]!.payload).toMatchObject({ email: '[redacted]' })
       expect(activity.rows[0]!.payload).toMatchObject({ detail: null })
       expect(JSON.stringify([fact.rows, activity.rows])).not.toContain(
         'invitee@example.test',

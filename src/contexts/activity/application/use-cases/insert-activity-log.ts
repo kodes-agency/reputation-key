@@ -38,7 +38,16 @@ export type InsertActivityLogDeps = Readonly<{
 export const insertActivityLog =
   (deps: InsertActivityLogDeps) =>
   async (input: InsertActivityLogInput): Promise<void> => {
-    const { userId, propertyId, ...activityFields } = input
+    // Rolling invitation-fact safety: a retained legacy queue job may resume
+    // after losing its BullMQ lock. Enforce the identifier-only invariant at
+    // the persistence use-case boundary as well as at producers/scrubbers.
+    const safeInput =
+      input.action === 'invited' &&
+      input.resourceType === 'member' &&
+      input.payload.detail !== null
+        ? { ...input, payload: { ...input.payload, detail: null } }
+        : input
+    const { userId, propertyId, ...activityFields } = safeInput
     const { action, resourceType, resourceId, organizationId, payload, eventId } =
       activityFields
 

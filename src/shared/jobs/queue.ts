@@ -17,7 +17,14 @@ import { getJobRedisUrl } from './redis-topology'
 
 export type { Queue }
 
-export const JOB_QUEUE_COMMAND_TIMEOUT_MS = 5_000
+const JOB_QUEUE_COMMAND_TIMEOUT_MS = 5_000
+
+const DEFAULT_JOB_OPTIONS = Object.freeze({
+  removeOnComplete: { count: 100 },
+  removeOnFail: { count: 50 },
+  attempts: 3,
+  backoff: { type: 'exponential' as const, delay: 30_000 },
+})
 
 // BQC-7.1: BullMQ marks a user-supplied ioredis instance as `shared` and
 // deliberately does NOT close it on queue.close() (queue-base.js:
@@ -35,6 +42,21 @@ function connectionStore(): Set<Redis> {
   const store = globalThis as ConnectionStore
   store[CONNECTIONS_KEY] ??= new Set()
   return store[CONNECTIONS_KEY]
+}
+
+function createQueueOnConnection(name: string, connection: Redis): Queue {
+  connectionStore().add(connection)
+  const queue = new Queue(name, {
+    connection: connection as unknown as import('bullmq').ConnectionOptions,
+    defaultJobOptions: DEFAULT_JOB_OPTIONS,
+  })
+  queue.on('error', (err) => {
+    getLogger().error(
+      { component: 'bullmq-queue', queue: name, err },
+      'BullMQ queue error',
+    )
+  })
+  return queue
 }
 
 /**
@@ -59,27 +81,28 @@ export function createJobQueue(name: string): Queue | undefined {
     connectTimeout: JOB_QUEUE_COMMAND_TIMEOUT_MS,
     maxRetriesPerRequest: 1,
   })
-  connectionStore().add(connection)
+  return createQueueOnConnection(name, connection)
+}
 
-  const queue = new Queue(name, {
-    connection: connection as unknown as import('bullmq').ConnectionOptions,
-    defaultJobOptions: {
-      removeOnComplete: { count: 100 },
-      removeOnFail: { count: 50 },
-      attempts: 3,
-      // Delayed retries so a transient DB/Redis blip doesn't burn all attempts
-      // within milliseconds. BullMQ's native retry handling honors these job
-      // options; the Worker intentionally installs no custom backoffStrategy.
-      backoff: { type: 'exponential', delay: 30_000 },
-    },
+/**
+ * Create the worker-owned publication barrier queue.
+ *
+ * Unlike request/relay producers, a terminal handler must not settle merely
+ * because a client command timer expired: ioredis cannot cancel an already
+ * queued command. This connection retries indefinitely and has no command
+ * timeout; the worker drain budget remains the outer process stop-control.
+ * Invitation fields are independently sanitized before add, so privacy remains
+ * safe even if a suspended process loses its BullMQ lock.
+ */
+export function createWorkerBarrierQueue(name: string): Queue | undefined {
+  const env = getEnv()
+  const redisUrl = getJobRedisUrl(env)
+  if (!redisUrl) return undefined
+
+  const connection = new Redis(redisUrl, {
+    maxRetriesPerRequest: null,
   })
-  queue.on('error', (err) => {
-    getLogger().error(
-      { component: 'bullmq-queue', queue: name, err },
-      'BullMQ queue error',
-    )
-  })
-  return queue
+  return createQueueOnConnection(name, connection)
 }
 
 /**

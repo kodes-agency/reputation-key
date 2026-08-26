@@ -421,10 +421,22 @@ const staffUnassignedSchema = z.object({
 
 // ── Identity event schemas ──────────────────────────────────────────
 
-const memberInvitedSchema = z.object({
+const memberInvitedV2Schema = z.object({
   invitationId: z.string(),
   organizationId: z.string(),
   role: z.string(),
+  // Recognize and reject the retired key instead of letting Zod's normal
+  // unknown-key stripping make a directly injected v2 envelope look valid.
+  email: z.never().optional(),
+})
+
+// Rolling expand compatibility: the old v1 dispatcher requires an `email`
+// string. New producers never supply it; the database issuance trigger adds
+// only the structural `[redacted]` sentinel while v1 remains active. Optional
+// lets the new producer validate its pre-trigger payload and lets the new
+// dispatcher consume already-scrubbed v1 rows during cutover.
+const memberInvitedV1Schema = memberInvitedV2Schema.extend({
+  email: z.string().optional(),
 })
 
 const invitationAcceptedSchema = z.object({
@@ -833,7 +845,12 @@ export function registerAllEventSchemas(): void {
   registerEventSchema({
     type: 'identity.member.invited',
     version: EVENT_VERSION,
-    schema: memberInvitedSchema,
+    schema: memberInvitedV1Schema,
+  })
+  registerEventSchema({
+    type: 'identity.member.invited',
+    version: 2,
+    schema: memberInvitedV2Schema,
   })
   registerEventSchema({
     type: 'identity.invitation.accepted',

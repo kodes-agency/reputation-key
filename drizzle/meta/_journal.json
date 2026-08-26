@@ -743,6 +743,13 @@
       "when": 1788278400000,
       "tag": "0105_identity_invitation_pii_scrub",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1788364800000,
+      "tag": "0106_identity_invitation_fact_expand",
+      "breakpoints": true
     }
   ]
 }

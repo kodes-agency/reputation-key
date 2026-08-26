@@ -46,6 +46,20 @@ const NO_TRIGGER_DSL = 'drizzle-orm 0.45 has no CREATE FUNCTION/TRIGGER DSL'
 
 export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
   {
+    name: 'guard_identity_invitation_fact_contract_v1',
+    kind: 'function',
+    owner: 'identity',
+    source: 'drizzle/0106_identity_invitation_fact_expand.sql',
+    reason: `${NO_TRIGGER_DSL}; serializes rolling v1/v2 invitation-fact issuance and rejects legacy PII writers after cutover.`,
+  },
+  {
+    name: 'identity_invitation_fact_contract_guard',
+    kind: 'trigger',
+    owner: 'identity',
+    source: 'drizzle/0106_identity_invitation_fact_expand.sql',
+    reason: NO_TRIGGER_DSL,
+  },
+  {
     name: 'guard_property_data_cell_assignment_v1',
     kind: 'function',
     owner: 'property',

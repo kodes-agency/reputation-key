@@ -13,6 +13,7 @@
 // Job name remains eventType; job ID remains the outbox event UUID (dedup).
 
 import type { UnpublishedEvent } from './infrastructure/outbox-repository'
+import { sanitizeIdentityInvitationQueuePayload } from './identity-invitation-fact-contract'
 import { dataCellById, type DataCellId } from '#/shared/domain/data-cell-catalogue'
 
 /**
@@ -68,11 +69,16 @@ export function buildConsumerEvent(
   routing?: Readonly<{ dataCellId: DataCellId; routingPolicyVersion: number }>,
 ): ConsumerEvent {
   const payload = isRecord(event.payload) ? event.payload : {}
+  const durablePayload = sanitizeIdentityInvitationQueuePayload(
+    event.eventType,
+    event.eventVersion,
+    event.payload,
+  )
   return {
     eventId: event.id,
     eventType: event.eventType,
     eventVersion: event.eventVersion,
-    payload: event.payload,
+    payload: durablePayload,
     organizationId: event.organizationId,
     propertyId: event.propertyId,
     sourceContext: event.sourceContext,

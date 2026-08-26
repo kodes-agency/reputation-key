@@ -49,11 +49,12 @@ vi.mock('bullmq', () => {
   return { Worker: FakeWorker }
 })
 
-import { Worker } from 'bullmq'
+import { Worker, type Job, type Queue } from 'bullmq'
 import { createJobWorker } from './worker'
 
 type FakeWorker = Worker & {
   listeners: Map<string, (...args: unknown[]) => void>
+  handler: unknown
 }
 
 function fakeWorkers(): FakeWorker[] {
@@ -114,5 +115,107 @@ describe('worker observability', () => {
       },
       'job failed',
     )
+  })
+
+  it('keeps a final attempt active until a delayed quarantine write settles', async () => {
+    let releaseQuarantine!: () => void
+    const quarantineQueue = {
+      add: vi.fn(
+        () =>
+          new Promise((resolve) => {
+            releaseQuarantine = () => resolve({ id: 'quarantine-job' })
+          }),
+      ),
+    } as unknown as Queue
+    const failure = new Error('synthetic private marker')
+    createJobWorker(
+      'default',
+      vi.fn(async () => {
+        throw failure
+      }),
+      1,
+      quarantineQueue,
+    )
+    const runtimeHandler = fakeWorkers().at(-1)!.handler as (job: Job) => Promise<unknown>
+    let settled = false
+    const execution = runtimeHandler({
+      id: 'job-1',
+      name: 'sync-property-reviews',
+      queueName: 'default',
+      data: { propertyId: 'property-1', organizationId: 'organization-1' },
+      attemptsMade: 2,
+      opts: { attempts: 3 },
+    } as Job).finally(() => {
+      settled = true
+    })
+
+    await vi.waitFor(() => expect(quarantineQueue.add).toHaveBeenCalledTimes(1))
+    expect(settled).toBe(false)
+    expect(quarantineQueue.add).toHaveBeenCalledWith(
+      'sync-property-reviews',
+      expect.objectContaining({
+        attemptsMade: 3,
+        publicationState: 'pending_failure',
+      }),
+      expect.objectContaining({ jobId: 'quarantine:default:job-1' }),
+    )
+
+    releaseQuarantine()
+    await expect(execution).rejects.toBe(failure)
+    expect(settled).toBe(true)
+  })
+
+  it('confirms only terminal failed events, including early UnrecoverableError', async () => {
+    const updateProgress = vi.fn(async () => undefined)
+    const quarantineQueue = {
+      add: vi.fn(async () => ({ id: 'quarantine-job' })),
+      getJob: vi.fn(async () => ({ updateProgress })),
+    } as unknown as Queue
+    createJobWorker(
+      'default',
+      vi.fn(async () => undefined),
+      1,
+      quarantineQueue,
+    )
+    const failed = fakeWorkers().at(-1)!.listeners.get('failed')!
+
+    const retryable = new Error('transient')
+    failed(
+      {
+        id: 'job-1',
+        name: 'sync-property-reviews',
+        queueName: 'default',
+        attemptsMade: 1,
+        opts: { attempts: 8 },
+      },
+      retryable,
+    )
+    expect(quarantineQueue.getJob).not.toHaveBeenCalled()
+    expect(captureObservabilityException).not.toHaveBeenCalledWith(
+      retryable,
+      expect.objectContaining({ source: 'bullmq-job' }),
+    )
+
+    const unrecoverable = Object.assign(new Error('schema poison'), {
+      name: 'UnrecoverableError',
+    })
+    failed(
+      {
+        id: 'job-2',
+        name: 'sync-property-reviews',
+        queueName: 'default',
+        attemptsMade: 1,
+        opts: { attempts: 8 },
+      },
+      unrecoverable,
+    )
+
+    await vi.waitFor(() => expect(updateProgress).toHaveBeenCalledTimes(1))
+    expect(quarantineQueue.getJob).toHaveBeenCalledWith('quarantine:default:job-2')
+    expect(captureObservabilityException).toHaveBeenCalledWith(unrecoverable, {
+      source: 'bullmq-job',
+      queue: 'default',
+      jobName: 'sync-property-reviews',
+    })
   })
 })

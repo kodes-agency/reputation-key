@@ -38,6 +38,7 @@ function printEntry(entry: QuarantinedEntry): void {
     e.jobName.padEnd(28),
     `queue=${e.originalQueue}`.padEnd(20),
     `attempts=${e.attemptsMade}`.padEnd(12),
+    `state=${entry.publicationState}`.padEnd(31),
     e.quarantinedAt,
   )
   console.log(
@@ -96,8 +97,12 @@ async function main(): Promise<void> {
         printEntry(entry)
 
         if (ctx.dryRun) {
+          const pendingNote =
+            entry.publicationState === 'pending_failure'
+              ? '; apply will first require the original job to still be failed'
+              : ''
           io.out(
-            `\nreport only — re-run with --apply to redrive to '${entry.envelope.originalQueue}'\n`,
+            `\nreport only — re-run with --apply to redrive to '${entry.envelope.originalQueue}'${pendingNote}\n`,
           )
           return
         }

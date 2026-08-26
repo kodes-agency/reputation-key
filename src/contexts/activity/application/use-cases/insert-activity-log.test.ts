@@ -50,4 +50,43 @@ describe('insertActivityLog', () => {
     expect(sim).toBeDefined()
     // In real use: use sim.container for wired deps with fakes/clock
   })
+
+  it('removes legacy invitation detail again at the persistence boundary', async () => {
+    const marker = 'late-invitee@example.test'
+    const insert = vi.fn().mockResolvedValue(undefined)
+    const repo = { insert, findDuplicate: vi.fn().mockResolvedValue(null) } as any // eslint-disable-line @typescript-eslint/no-explicit-any
+    const deps = {
+      repo,
+      userLookup: { lookup: vi.fn() } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      clock: () => new Date('2026-08-26T00:00:00Z'),
+      logger: {
+        info: vi.fn(),
+        warn: vi.fn(),
+        error: vi.fn(),
+        debug: vi.fn(),
+        child: vi.fn(),
+      } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
+      idGen: () => activityLogId('act-late-invite'),
+    }
+
+    await insertActivityLog(deps)({
+      action: 'invited',
+      resourceType: 'member',
+      resourceId: 'invitation-1',
+      propertyId: null,
+      organizationId: organizationId('o1'),
+      userId: null,
+      source: 'web',
+      eventId: 'event-late-invite',
+      payload: { subject: 'member', from: null, to: 'member', detail: marker },
+    })
+
+    expect(repo.findDuplicate).toHaveBeenCalledWith(
+      expect.objectContaining({ payload: expect.objectContaining({ detail: null }) }),
+    )
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({ payload: expect.objectContaining({ detail: null }) }),
+    )
+    expect(JSON.stringify(insert.mock.calls)).not.toContain(marker)
+  })
 })

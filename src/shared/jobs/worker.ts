@@ -4,14 +4,19 @@
 // BQC-3.6: retry behavior comes from JOB OPTIONS (queue defaults + explicit
 // per-job jobEnqueueOptions), never from a worker-level backoffStrategy — a
 // custom strategy would override the job-level backoff (with jitter) that the
-// event/job family catalogue declares. Exhausted jobs are copied to the
-// dead-letter quarantine queue from the 'failed' handler.
+// event/job family catalogue declares. Terminal jobs are staged in the
+// dead-letter quarantine queue before leaving the active set and become
+// redrivable only after BullMQ confirms the failed transition.
 
 import { Worker, type Job, type Queue } from 'bullmq'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
-import { isAttemptsExhausted, quarantineExhaustedJob } from './failure-quarantine'
+import {
+  confirmQuarantineFailure,
+  isTerminalFailedEvent,
+  quarantineFinalAttemptJob,
+} from './failure-quarantine'
 import type { JobHandler } from './registry'
 import { Redis } from 'ioredis'
 import { getJobRedisUrl } from './redis-topology'
@@ -103,7 +108,39 @@ export function createJobWorker<T>(
     maxRetriesPerRequest: null,
   })
 
-  const worker = new Worker<T>(name, handler, {
+  // Await the terminal-attempt dead-letter write while this process retains
+  // the BullMQ lock. A suspended process can outlive that lock, so invitation
+  // privacy does not rely on `active: 0`: the quarantine builder sanitizes the
+  // payload and failure reason before add. The copy remains non-redrivable
+  // until the `failed` event (or proof-based operator reconciliation).
+  const handlerWithQuarantineBarrier: JobHandler<T> = async (job) => {
+    try {
+      return await handler(job)
+    } catch (err) {
+      if (quarantineQueue) {
+        try {
+          const outcome = await quarantineFinalAttemptJob(quarantineQueue, job, err)
+          if (outcome.quarantined) {
+            logger.error(
+              { queue: name, jobName: job.name },
+              'terminal job failure — staged quarantine candidate',
+            )
+          }
+        } catch (quarantineErr: unknown) {
+          // The original failure still proceeds. A transport rejection may be
+          // ambiguous, but every invitation field was sanitized before add,
+          // so a late command cannot reopen the privacy guarantee.
+          logger.error(
+            { err: quarantineErr, queue: name, jobName: job.name },
+            'failed to quarantine exhausted job',
+          )
+        }
+      }
+      throw err
+    }
+  }
+
+  const worker = new Worker<T>(name, handlerWithQuarantineBarrier, {
     connection: connection as unknown as import('bullmq').ConnectionOptions,
     concurrency,
     // Ordering invariant documented on the constants above: the domain claim
@@ -138,32 +175,26 @@ export function createJobWorker<T>(
       },
       'job failed',
     )
-    if (job && isAttemptsExhausted(job)) {
+    const terminal = job ? isTerminalFailedEvent(job, err) : false
+    if (job && terminal) {
       captureObservabilityException(err, {
         source: 'bullmq-job',
         queue: name,
         jobName: job.name,
       })
     }
-    // BQC-3.6: attempts exhausted → dead-letter quarantine (content-safe).
-    // Fire-and-forget with its own error containment — a quarantine write
-    // failure must never take down the worker's failure path.
-    if (quarantineQueue && job) {
-      void quarantineExhaustedJob(quarantineQueue, job, err)
-        .then((outcome) => {
-          if (outcome.quarantined) {
-            logger.error(
-              { queue: name, jobName: job.name },
-              'job exhausted attempts — moved to quarantine',
-            )
-          }
-        })
-        .catch((quarantineErr: unknown) => {
+    // The payload copy was staged while this job was still active. Confirm it
+    // only after BullMQ has completed moveToFailed; redrive refuses a
+    // provisional copy if this confirmation never lands.
+    if (quarantineQueue && job && terminal) {
+      void confirmQuarantineFailure(quarantineQueue, job).catch(
+        (confirmationErr: unknown) => {
           logger.error(
-            { err: quarantineErr, queue: name, jobName: job.name },
-            'failed to quarantine exhausted job',
+            { err: confirmationErr, queue: name, jobName: job.name },
+            'failed to confirm terminal quarantine candidate',
           )
-        })
+        },
+      )
     }
   })
 

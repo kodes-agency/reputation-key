@@ -637,6 +637,7 @@ describe('countRegionAttempts (quarantine policyReason split)', () => {
   function entry(policyReason: string | undefined) {
     return {
       quarantineJobId: 'q1',
+      publicationState: 'confirmed_failed' as const,
       envelope: {
         originalQueue: 'default',
         originalJobId: 'j1',
