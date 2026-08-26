@@ -2,7 +2,7 @@
   "version": 1,
   "fragmentId": "ui",
   "frozenSha": "718fad1807b7422885584660bd3580f2a3a49113",
-  "comparisonSha": "da48647cdd1f5a92246897ca049a6f88dcdce686",
+  "comparisonSha": "66afe661d5a2007ee12df13fa1057d4ee73609ca",
   "sourceRegisterSha256": "77eb6bb21ea555197a3c7e10edac5f0e5356cabac0f953adecf8408c4f622135",
   "assessedAt": "2026-08-26",
   "families": ["UI"],
@@ -408,14 +408,14 @@
         "contains": ["beforeLoad: () => {", "throw redirect({", "to: '/unavailable'"],
         "omits": []
       },
-      "current.ui06.state": {
+      "current.ui06.contraction": {
         "kind": "git_file",
-        "path": "src/components/features/settings/recognition-settings-page.tsx",
-        "sha256": "320b6db4e7924b3f58f149e88d022f944314f326a477107ae687236a0dbbc54d",
+        "path": "src/shared/architecture/legacy-recognition-active-surfaces.test.ts",
+        "sha256": "10e9310ba8e05ce3a662e2109f97e43a55363386023467e594f7aafd471ccd40",
         "contains": [
-          "const [metricVersionId, setMetricVersionId] = useState(",
-          "const [selectedGroups, setSelectedGroups] = useState<string[]>(",
-          "const [jurisdiction, setJurisdiction] = useState(current?.jurisdiction ?? '')"
+          "it('retains no legacy Recognition settings presentation owner or importer'",
+          "retainedModules: [],",
+          "settingsBarrelExportsLegacyUi: false"
         ],
         "omits": []
       },
@@ -903,19 +903,19 @@
       "frozenSeverity": "High",
       "frozenSourceLine": 393,
       "frozenSummary": "Recognition settings use loader-held/mirrored state and invalidate a key no query owns; mutations can leave stale UI",
-      "disposition": "confirmed",
-      "reachability": "dark",
-      "impact": "Recognition is not available in the beta navigation, so the stale-state behavior cannot affect beta users; the legacy screen still needs a coherent data ownership model before any future activation.",
+      "disposition": "closed",
+      "reachability": "not_reachable",
+      "impact": "The defective Recognition settings presentation owner has been removed. The retained bookmark route redirects to the unavailable page, and executable source guards reject reintroduction of the deleted settings modules or importers.",
       "ownerPackage": "REC-01",
       "targetPackages": ["EXP-02", "REC-01"],
       "frozenEvidence": ["frozen.ui06.recognition-state"],
-      "currentEvidence": ["current.ui06.route", "current.ui06.state"],
+      "currentEvidence": ["current.ui06.route", "current.ui06.contraction"],
       "closure": {
-        "kind": "planned_in_package",
-        "package": "REC-01",
-        "expected": "Before recognition is activated, replace initial-prop mirrors with one authoritative Query/Form flow and align mutation invalidation with an owned query key."
+        "kind": "verified_current",
+        "evidence": ["current.ui06.route", "current.ui06.contraction"],
+        "expected": "The stale-state component is absent, has no importer or barrel export, and its retained route cannot render Recognition settings."
       },
-      "note": "The current route redirects to the unavailable page, but the retained component is byte-identical to the frozen initial-state implementation."
+      "note": "The old mirrored-state implementation was contracted rather than repaired because Recognition remains outside the beta capability set; any future replacement must be designed against the later Manager Achievement Board contract."
     },
     {
       "id": "UI-07",
