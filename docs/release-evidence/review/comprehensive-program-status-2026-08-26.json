@@ -827,9 +827,10 @@
     {
       "id": "GOV-02",
       "status": "partial",
-      "summary": "The exact 17-context inventory, capability ownership, required documentation shape, root map, ADR index, and owned exception register are now executable. Standards are separated into invariant, maintainability, and guidance tiers, but the complete standards matrix and remaining narrative reconciliation are unfinished.",
+      "summary": "The exact 17-context inventory, capability ownership, required documentation shape, root map, ADR index, and owned exception register are executable. The complete 17-context by 11-dimension standards matrix is now a checked repository authority: all 187 cells carry an applicability, disposition, rationale, and concrete evidence pointer, with 53 currently evidenced, 117 unresolved, and 17 intentionally not applicable. Standards remain separated into invariant, maintainability, and guidance tiers; unresolved cells and wider narrative reconciliation are not treated as conformance.",
       "codeEvidence": [
         "src/shared/governance/context-standards-authority.ts",
+        "src/shared/governance/context-standards-matrix.ts",
         "docs/governance/standards-exceptions.json",
         "docs/standards.md",
         "docs/adr/README.md",
@@ -838,10 +839,11 @@
       ],
       "testEvidence": [
         "src/shared/governance/context-standards-authority.test.ts with incomplete-document and invalid-exception negative fixtures",
+        "src/shared/governance/context-standards-matrix.test.ts — exact 17 × 11 shape, cell invariants, stable ordering, and independently executed evidence pointers",
         "Context acceptance, ADR index, capability fate, and architecture-boundary checks"
       ],
       "remaining": [
-        "Reconcile remaining Shared, Routes, Components, Database, operational, historical-plan, and REUI claims; regenerate the full 17-context by 11-rule conformance matrix from executable evidence; finish mechanical event/error/build/repository consistency checks; archive or clearly supersede every stale current-looking plan."
+        "Resolve or explicitly accept all 117 unresolved context cells, including event envelopes and constructor assertions, use-case triples, layer error flow, repository naming/signatures/tenant scope, filename coverage, and material-touch factory migration; reconcile remaining Shared, Routes, Components, Database, operational, historical-plan, and REUI claims; archive or clearly supersede every stale current-looking plan."
       ],
       "externalBlockers": []
     },
