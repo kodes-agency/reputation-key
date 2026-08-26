@@ -12,7 +12,7 @@ import {
   type DetailedPeerCertificate,
   type TLSSocket,
 } from 'node:tls'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 
 import {
   isApplicationJsonUtf8,

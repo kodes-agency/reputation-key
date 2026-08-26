@@ -1,5 +1,5 @@
 import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import type { Database } from '#/shared/db'
 import {
   authorizationExecutionPermits,

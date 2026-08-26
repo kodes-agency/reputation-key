@@ -5,20 +5,20 @@ import { z } from 'zod/v4'
 const badgeTargetTypeSchema = z.enum(['portal', 'portal_group'])
 
 export const getVisibleTargetBadgesSchema = z.object({
-  propertyId: z.string().uuid(),
+  propertyId: z.uuid(),
   targetType: badgeTargetTypeSchema,
-  targetId: z.string().uuid(),
+  targetId: z.uuid(),
 })
 
 export const getStaffVisibleBadgesSchema = z.object({
-  propertyId: z.string().uuid(),
+  propertyId: z.uuid(),
   limit: z.number().int().positive().max(50).optional(),
 })
 
 export const setOrganizationBadgeEnablementSchema = z.object({
   // organizationId is resolved from the authenticated session in the handler,
   // never from client input (per cross-context architecture contract).
-  badgeDefinitionId: z.string().uuid(),
+  badgeDefinitionId: z.uuid(),
   enabled: z.boolean(),
 })
 

@@ -17,7 +17,7 @@
 // container, but never import context infrastructure directly.
 
 import { createFileRoute } from '@tanstack/react-router'
-import { z, ZodError } from 'zod'
+import { z, ZodError } from 'zod/v4'
 import { getContainer } from '#/composition'
 import { svixHeaders, verifySvixSignature } from '#/shared/auth/svix-signature.verifier'
 import { getEnv } from '#/shared/config/env'

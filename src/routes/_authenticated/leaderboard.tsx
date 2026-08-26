@@ -2,8 +2,8 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { z } from 'zod/v4'
 
 const achievementBoardSearch = z.object({
-  propertyId: z.string().uuid().optional(),
-  portalGroupId: z.string().uuid().optional(),
+  propertyId: z.uuid().optional(),
+  portalGroupId: z.uuid().optional(),
 })
 
 /**

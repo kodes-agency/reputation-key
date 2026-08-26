@@ -47,10 +47,10 @@ export const reviewErrorStatus = (code: ReviewErrorCode): number =>
 
 // ── DTOs ─────────────────────────────────────────────────────────────
 
-export const reviewIdDto = z.object({ reviewId: z.string().uuid() })
+export const reviewIdDto = z.object({ reviewId: z.uuid() })
 
 export const draftReplyDto = z.object({
-  reviewId: z.string().uuid(),
+  reviewId: z.uuid(),
   text: z.string().min(1).max(MAX_REPLY_LENGTH),
   replyLanguageTag: z
     .string()
@@ -64,7 +64,7 @@ export const draftReplyDto = z.object({
 })
 
 export const rejectReplyDto = z.object({
-  reviewId: z.string().uuid(),
+  reviewId: z.uuid(),
   reason: z.string().max(1000).optional(),
 })
 

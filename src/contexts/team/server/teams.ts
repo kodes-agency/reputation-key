@@ -56,8 +56,8 @@ const propertyIdSchema = z.object({
 })
 
 const membershipInputSchema = z.object({
-  teamId: z.string().uuid(),
-  staffParticipationId: z.string().uuid(),
+  teamId: z.uuid(),
+  staffParticipationId: z.uuid(),
 })
 
 const removeMembershipInputSchema = membershipInputSchema.extend({
@@ -65,7 +65,7 @@ const removeMembershipInputSchema = membershipInputSchema.extend({
 })
 
 const clearLeadInputSchema = z.object({
-  teamId: z.string().uuid(),
+  teamId: z.uuid(),
   reason: z.string().trim().min(1).max(500).optional(),
 })
 

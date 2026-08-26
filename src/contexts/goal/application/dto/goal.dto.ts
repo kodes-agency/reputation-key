@@ -42,8 +42,8 @@ export const createGoalSchema = z.object({
     .number()
     .positive('Target value must be positive')
     .refine((v) => Number.isFinite(v), { message: 'Target value must be finite' }),
-  periodStart: z.string().datetime({ local: true }).optional(),
-  periodEnd: z.string().datetime({ local: true }).optional(),
+  periodStart: z.iso.datetime({ local: true }).optional(),
+  periodEnd: z.iso.datetime({ local: true }).optional(),
   recurrenceRule: z
     .object({
       frequency: recurrenceFrequencySchema,

@@ -21,7 +21,7 @@ import {
 } from '#/shared/events/schema-registry'
 import { registerConsumer, clearConsumers, type ConsumerEvent } from './consumer-registry'
 import { buildConsumerEvent, parseConsumerEvent } from './envelope'
-import { z, ZodError } from 'zod'
+import { z, ZodError } from 'zod/v4'
 import type { UnpublishedEvent } from './infrastructure/outbox-repository'
 
 // ── Test setup ──────────────────────────────────────────────────────

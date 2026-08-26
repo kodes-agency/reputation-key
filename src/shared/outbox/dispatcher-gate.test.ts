@@ -18,7 +18,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { Job } from 'bullmq'
 import { UnrecoverableError } from 'bullmq'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { registerEventSchema, clearEventSchemas } from '#/shared/events/schema-registry'
 import { createDispatcherHandler } from './dispatcher'
 import { registerConsumer, clearConsumers, type ConsumerEvent } from './consumer-registry'

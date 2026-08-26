@@ -1,5 +1,5 @@
 import type { KeyObject } from 'node:crypto'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { zodTextFormat } from 'openai/helpers/zod'
 import { canonicalizeRfc8785 } from '../../src/shared/merchant-ai-notice-contract'
 import { encodeCanonicalAiReviewSource } from '../../src/shared/ai-review-source-contract'

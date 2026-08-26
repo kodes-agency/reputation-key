@@ -18,7 +18,7 @@ import { updateOrganization as updateOrganizationUseCase } from '../application/
 // Per architecture: authorization lives in the use case, not the server function.
 
 const nullableEmailInput = z
-  .union([z.string().email(), z.literal('')])
+  .union([z.email(), z.literal('')])
   .nullable()
   .optional()
   .transform((value) => (value === '' ? null : value))

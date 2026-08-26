@@ -18,14 +18,14 @@ export const TIME_RANGE_OPTIONS: { value: TimeRangePreset; label: string }[] = [
 
 // GET dashboard data — query params
 export const getDashboardDataDto = z.object({
-  propertyId: z.string().uuid(),
-  portalId: z.string().uuid().optional(),
+  propertyId: z.uuid(),
+  portalId: z.uuid().optional(),
   timeRange: timeRangePreset.default('all'),
 })
 
 // GET portal analytics — query params
 export const getPortalAnalyticsDto = z.object({
-  propertyId: z.string().uuid(),
-  portalId: z.string().uuid(),
+  propertyId: z.uuid(),
+  portalId: z.uuid(),
   timeRange: timeRangePreset.default('all'),
 })

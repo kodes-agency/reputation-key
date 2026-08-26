@@ -45,8 +45,7 @@ describe('lint chain', () => {
     expect(lint).toBeTruthy()
     // Composition, not duplication: lint:ci runs `pnpm lint` and then adds.
     // Anything added to `lint` is therefore automatically covered in CI.
-    expect(lintCi).toMatch(/^pnpm lint\b/)
-    expect(lintCi.length).toBeGreaterThan((lint as string).length)
+    expect(lintCi).toMatch(/^pnpm lint\s+&&\s+\S/)
   })
 
   it('keeps the byte-attested artifact gates in lint:ci', () => {

@@ -9,7 +9,7 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { isNotificationError, NOTIFICATION_LIST_FILTERS } from '../application/public-api'
 import { requiredCapabilityForPreferenceChannel } from '../domain/notification-delivery-policy'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -91,7 +91,7 @@ export const getNotificationsFn = createServerFn({ method: 'GET' })
 // ── markNotificationReadFn ────────────────────────────────────────
 
 const markNotificationReadDto = z.object({
-  notificationId: z.string().uuid(),
+  notificationId: z.uuid(),
 })
 
 export const markNotificationReadFn = createServerFn({ method: 'POST' })
@@ -124,7 +124,7 @@ export const markNotificationReadFn = createServerFn({ method: 'POST' })
 // ── markNotificationUnreadFn ──────────────────────────────────────
 
 const markNotificationUnreadDto = z.object({
-  notificationId: z.string().uuid(),
+  notificationId: z.uuid(),
 })
 
 /**
@@ -205,7 +205,7 @@ export const dismissAllNotificationsFn = createServerFn({ method: 'POST' }).hand
 // ── dismissNotificationFn ─────────────────────────────────────────
 
 const dismissNotificationDto = z.object({
-  notificationId: z.string().uuid(),
+  notificationId: z.uuid(),
 })
 
 export const dismissNotificationFn = createServerFn({ method: 'POST' })
@@ -270,7 +270,7 @@ const notificationCategory = z.enum([
 ])
 const notificationChannel = z.enum(['in_app', 'email'])
 const updateNotificationPreferenceDto = z.object({
-  propertyId: z.string().uuid(),
+  propertyId: z.uuid(),
   category: notificationCategory,
   channel: notificationChannel,
   enabled: z.boolean(),
@@ -319,7 +319,7 @@ export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
   )
 
 const muteNotificationCategoryDto = z.object({
-  propertyId: z.string().uuid(),
+  propertyId: z.uuid(),
   category: notificationCategory,
 })
 

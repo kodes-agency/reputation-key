@@ -2,7 +2,7 @@
 // Import discovery uses the authorized Account Management and Business Information
 // adapters; this narrow port exists only for the best-effort notification lifecycle.
 
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import type { GbpApiPort, GbpAccount } from '../../application/ports/gbp-api.port'
 import { createGbpApiError } from '../../domain/gbp-api-error'
 import type { GbpApiErrorKind } from '../../domain/gbp-api-error'

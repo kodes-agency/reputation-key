@@ -1,7 +1,7 @@
 // Integration context — Google OAuth 2.0 / OIDC adapter.
 // Handles code exchange, signed ID-token validation, token refresh, and revoke.
 
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { createLocalJWKSet, jwtVerify } from 'jose'
 import type { GoogleOAuthPort } from '../../application/ports/google-oauth.port'
 import { integrationError } from '../../domain/errors'

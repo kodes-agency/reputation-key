@@ -4,7 +4,7 @@ import { createHash, timingSafeEqual, type KeyObject } from 'node:crypto'
 import OpenAI from 'openai'
 import { zodTextFormat } from 'openai/helpers/zod'
 import { Agent, request as undiciRequest, type Dispatcher } from 'undici'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { AI_OPERATION_PROFILES } from '../../src/shared/ai-operation-profiles'
 import {
   explainJsonBytesRejection,

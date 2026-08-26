@@ -10,26 +10,26 @@ import { isStaffError } from '../application/public-api'
 import { staffErrorStatus } from './staff-shared'
 
 const createInput = z.object({
-  propertyId: z.string().uuid(),
+  propertyId: z.uuid(),
   displayName: z.string().trim().min(1).max(255),
 })
 
 const listInput = z.object({
-  propertyId: z.string().uuid().optional(),
+  propertyId: z.uuid().optional(),
   userId: z.string().min(1).max(255).optional(),
   activeOnly: z.boolean().optional().default(false),
 })
 
 const archiveInput = z.object({
-  staffParticipationId: z.string().uuid(),
+  staffParticipationId: z.uuid(),
   reason: z.string().trim().min(1).max(500),
   expectedRevision: z.number().int().positive(),
 })
 
 const responsibilitiesInput = z.object({
-  staffParticipationId: z.string().uuid(),
-  primaryPortalId: z.string().uuid().nullable(),
-  supportingPortalIds: z.array(z.string().uuid()).max(500),
+  staffParticipationId: z.uuid(),
+  primaryPortalId: z.uuid().nullable(),
+  supportingPortalIds: z.array(z.uuid()).max(500),
   expectedRevision: z.number().int().positive(),
 })
 

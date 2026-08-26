@@ -10,7 +10,7 @@
 
 import { createFileRoute } from '@tanstack/react-router'
 import { JOSEError } from 'jose/errors'
-import { z, ZodError } from 'zod'
+import { z, ZodError } from 'zod/v4'
 import { verifyPubSubJwt } from '#/shared/auth/pubsub-jwt.verifier'
 import { getContainer } from '#/composition'
 import { getEnv, type Env } from '#/shared/config/env'

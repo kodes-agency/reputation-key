@@ -2,27 +2,27 @@ import { z } from 'zod/v4'
 
 export const getRecognitionBoardSchema = z
   .object({
-    propertyId: z.string().uuid(),
-    portalGroupId: z.string().uuid().optional(),
+    propertyId: z.uuid(),
+    portalGroupId: z.uuid().optional(),
   })
   .strict()
 
 export const getRecognitionSettingsSchema = z
   .object({
-    propertyId: z.string().uuid(),
+    propertyId: z.uuid(),
   })
   .strict()
 
 export const activateRecognitionSchema = z
   .object({
-    propertyId: z.string().uuid(),
+    propertyId: z.uuid(),
     policyVersion: z.string().min(1).max(80),
     jurisdiction: z.string().min(1).max(80),
     noticeStatus: z.literal('completed'),
     consultationStatus: z.enum(['completed', 'not_required']),
     audience: z.literal('property_managers_and_scoped_staff'),
-    selectedPortalGroupIds: z.array(z.string().uuid()).min(1),
-    metricDefinitionVersionId: z.string().uuid(),
+    selectedPortalGroupIds: z.array(z.uuid()).min(1),
+    metricDefinitionVersionId: z.uuid(),
     aggregation: z.enum(['sum', 'latest', 'ratio']),
     periodKind: z.enum(['weekly', 'monthly', 'quarterly']),
     minimumExposure: z.number().int().min(1),
@@ -33,7 +33,7 @@ export const activateRecognitionSchema = z
   .strict()
 export const deactivateRecognitionSchema = z
   .object({
-    propertyId: z.string().uuid(),
+    propertyId: z.uuid(),
     reason: z.string().trim().min(1).max(500),
   })
   .strict()

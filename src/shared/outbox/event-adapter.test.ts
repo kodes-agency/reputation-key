@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { toOutboxEvent, tryToOutboxEvent, OutboxPayloadError } from './event-adapter'
 import { clearEventSchemas, registerEventSchema } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import type { DomainEvent } from '#/shared/events/events'
 import {
   feedbackId,

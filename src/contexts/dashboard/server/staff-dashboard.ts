@@ -20,8 +20,8 @@ import { resolvePropertyPeriod } from './resolve-property-period'
 /** Local error constructor — server must not import domain error constructors. */
 
 const getStaffDashboardDataDto = z.object({
-  propertyId: z.string().uuid(),
-  portalId: z.string().uuid().optional(),
+  propertyId: z.uuid(),
+  portalId: z.uuid().optional(),
   timeRange: timeRangePreset.default('all'),
 })
 

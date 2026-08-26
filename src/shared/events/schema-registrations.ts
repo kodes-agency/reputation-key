@@ -11,7 +11,7 @@
 // Orphan events (15 of 40 — emitted but never consumed) are NOT registered.
 // They will be removed from producers in a follow-up cleanup.
 
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { registerEventSchema, isEventRegistered } from './schema-registry'
 
 // ── Review event schemas ────────────────────────────────────────────
@@ -235,7 +235,7 @@ const propertyDeletedSchema = z.object({
 const propertyResponsibilityNeededSchema = z.object({
   propertyId: z.string(),
   organizationId: z.string(),
-  occurredAt: z.string().datetime(),
+  occurredAt: z.iso.datetime(),
 })
 
 const propertyGoogleBindingChangedSchema = z
@@ -474,8 +474,8 @@ const merchantAiChangedSchema = z
     eventId: z.string().optional(),
     correlationId: z.string().nullable().optional(),
     organizationId: z.string(),
-    propertyId: z.string().uuid(),
-    authorizationLineageId: z.string().uuid(),
+    propertyId: z.uuid(),
+    authorizationLineageId: z.uuid(),
     state: z.enum(['disabled', 'enabled', 'revoked']),
     reviewAnalysisEpoch: z.number().int().safe().positive(),
     replyDraftingEpoch: z.number().int().safe().positive(),
@@ -554,7 +554,7 @@ const portalResponsibilityNeededSchema = z.object({
   portalId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
-  occurredAt: z.string().datetime(),
+  occurredAt: z.iso.datetime(),
 })
 
 const portalTokenIssuedSchema = z.object({
@@ -571,7 +571,7 @@ const portalTokenRotatedSchema = z.object({
   propertyId: z.string(),
   previousVersion: z.number().int().positive(),
   version: z.number().int().positive(),
-  gracePeriodEnds: z.string().datetime(),
+  gracePeriodEnds: z.iso.datetime(),
 })
 
 const portalTokenRevokedSchema = z.object({

@@ -9,9 +9,9 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { isPropertyError } from '../domain/errors'
 import { propertyErrorStatus } from './property-shared'
 
-const listInput = z.object({ propertyId: z.string().uuid() })
+const listInput = z.object({ propertyId: z.uuid() })
 const updateInput = z.object({
-  propertyId: z.string().uuid(),
+  propertyId: z.uuid(),
   managerUserIds: z.array(z.string().min(1).max(255)).max(500),
   expectedRevision: z.number().int().positive(),
 })

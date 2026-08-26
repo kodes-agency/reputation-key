@@ -2,7 +2,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { z } from 'zod/v4'
 
 const recognitionSettingsSearch = z.object({
-  propertyId: z.string().uuid().optional(),
+  propertyId: z.uuid().optional(),
 })
 
 /**

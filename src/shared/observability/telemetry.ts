@@ -12,7 +12,7 @@
 // never turn into a RepKey application outage.
 
 import * as Sentry from '@sentry/node'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { getLogger } from '#/shared/observability/logger'
 import { isSensitiveObservabilityField } from '#/shared/observability/sensitive-field-policy'
 

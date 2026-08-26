@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { parseGoogleProviderRouteDescriptor } from '../../src/shared/google-provider-control/route-catalogue'
 import type { GoogleEgressGateway, GoogleEgressGatewayResult } from './service'
 

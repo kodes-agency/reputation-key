@@ -1,6 +1,6 @@
 import { generateKeyPairSync } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { createVersionedHmacKeyring } from './security/versioned-hmac-keyring'
 import { MERCHANT_AI_NOTICE_VERSION } from './merchant-ai-notice-contract'
 import {

@@ -11,7 +11,7 @@ import type { GoalProgramBundle } from '#/contexts/goal/application/public-api'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 
 const progressSearch = z.object({
-  propertyId: z.string().uuid().optional(),
+  propertyId: z.uuid().optional(),
 })
 
 const staffGoalsQuery = (propertyId: string) =>

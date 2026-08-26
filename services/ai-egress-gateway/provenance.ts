@@ -1,5 +1,5 @@
 import { createHash, sign, verify, type KeyObject } from 'node:crypto'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import { canonicalizeRfc8785 } from '../../src/shared/merchant-ai-notice-contract'
 import { aiInternalSafeIdSchema } from '../../src/shared/ai-internal-transport-contract'
 import { OPENAI_KNOWN_MODEL_SNAPSHOTS, OPENAI_PROMPT_VERSIONS } from './contracts'

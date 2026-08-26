@@ -8,7 +8,7 @@
 // only. Review text, reviewer identity, reply text, prompt content, and
 // provider output are never in event payloads.
 
-import type { z } from 'zod'
+import type { z } from 'zod/v4'
 
 // ── Registry types ──────────────────────────────────────────────────
 

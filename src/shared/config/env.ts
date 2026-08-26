@@ -186,7 +186,7 @@ const baseEnvSchema = z.object({
     .optional(),
   // App/worker -> Google egress gateway. All six values are an all-or-none
   // protected transport configuration validated by the composition root.
-  GOOGLE_EGRESS_GATEWAY_ORIGIN: z.string().url().optional(),
+  GOOGLE_EGRESS_GATEWAY_ORIGIN: z.url().optional(),
   GOOGLE_EGRESS_GATEWAY_SERVER_NAME: z.string().min(1).optional(),
   GOOGLE_INTERNAL_MTLS_CA_PATH: z.string().min(1).optional(),
   GOOGLE_INTERNAL_MTLS_CERT_PATH: z.string().min(1).optional(),
@@ -216,7 +216,7 @@ const baseEnvSchema = z.object({
 
   // Web/worker -> AI egress gateway. All transport and settlement-verification
   // values are configured together; composition rejects partial configuration.
-  AI_EGRESS_GATEWAY_ORIGIN: z.string().url().optional(),
+  AI_EGRESS_GATEWAY_ORIGIN: z.url().optional(),
   AI_EGRESS_GATEWAY_SERVER_NAME: z.string().min(1).optional(),
   AI_INTERNAL_MTLS_CA_B64: z.string().min(1).optional(),
   AI_INTERNAL_MTLS_CERT_B64: z.string().min(1).optional(),

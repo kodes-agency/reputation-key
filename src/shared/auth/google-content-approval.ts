@@ -1,5 +1,5 @@
 import { createHash, verify as verifySignature } from 'node:crypto'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import {
   GOOGLE_CONTENT_APPROVAL_ROLES,
   GOOGLE_CONTENT_APPROVAL_STATUSES,
@@ -95,7 +95,7 @@ export type GoogleContentRolePublicKeys = Readonly<
 
 const sha256Schema = z.string().regex(/^[a-f0-9]{64}$/)
 const imageDigestSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/)
-const instantSchema = z.string().datetime({ offset: true })
+const instantSchema = z.iso.datetime({ offset: true })
 
 const approvalBindingSchema = z
   .object({

@@ -48,7 +48,7 @@ export const guestErrorStatus = (code: GuestErrorCode): number =>
 
 const recordScanSchema = z.object({
   token: z.string().min(1).max(256),
-  csrfNonce: z.string().uuid(),
+  csrfNonce: z.uuid(),
   source: z.enum(['qr', 'nfc', 'direct']),
 })
 

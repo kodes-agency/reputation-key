@@ -38,36 +38,36 @@ export const getInboxItemsDto = z.object({
 
 // POST update status (open ⇄ closed — ADR 0023)
 export const updateStatusDto = z.object({
-  inboxItemId: z.string().uuid(),
+  inboxItemId: z.uuid(),
   status: z.enum(['open', 'closed']),
 })
 
 // POST bulk reopen. Bulk Close is deliberately unavailable for the initial
 // beta because it needs per-cycle compatibility preview and revision fencing.
 export const bulkUpdateStatusDto = z.object({
-  inboxItemIds: z.array(z.string().uuid()).min(1).max(INBOX_BULK_LIMIT),
+  inboxItemIds: z.array(z.uuid()).min(1).max(INBOX_BULK_LIMIT),
   status: z.literal('open'),
 })
 
 // POST escalate inbox item (set escalation flag)
 export const escalateInboxItemDto = z.object({
-  inboxItemId: z.string().uuid(),
+  inboxItemId: z.uuid(),
 })
 
 // POST resolve escalation (clear escalation flag)
 export const resolveEscalationDto = z.object({
-  inboxItemId: z.string().uuid(),
+  inboxItemId: z.uuid(),
 })
 
 // POST assign
 export const assignInboxItemDto = z.object({
-  inboxItemId: z.string().uuid(),
-  assignedToUserId: z.string().uuid().nullable(),
+  inboxItemId: z.uuid(),
+  assignedToUserId: z.uuid().nullable(),
 })
 
 // POST add note
 export const addInboxNoteDto = z.object({
-  inboxItemId: z.string().uuid(),
+  inboxItemId: z.uuid(),
   text: z.string().min(1).max(5000),
 })
 
@@ -79,12 +79,12 @@ export const stampLastInboxViewDto = z.object({})
 
 // GET inbox item detail
 export const getInboxItemDetailDto = z.object({
-  inboxItemId: z.string().uuid(),
+  inboxItemId: z.uuid(),
 })
 
 // GET inbox notes
 export const getInboxNotesDto = z.object({
-  inboxItemId: z.string().uuid(),
+  inboxItemId: z.uuid(),
 })
 
 // GET folder counts — for the email-style sidebar (open, escalated, closed).

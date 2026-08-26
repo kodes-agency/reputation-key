@@ -10,7 +10,7 @@ import { catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { propertyId } from '#/shared/domain/ids'
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import type { ResourceType } from '../domain/types'
 
 // ── getActivityTimelineFn ───────────────────────────────────────────

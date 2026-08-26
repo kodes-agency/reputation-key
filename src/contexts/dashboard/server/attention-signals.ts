@@ -21,7 +21,7 @@ import { assertDashboardPropertyAccessible } from './assert-property-access'
 import { resolvePropertyPeriod } from './resolve-property-period'
 
 const getAttentionSignalsDto = z.object({
-  propertyId: z.string().uuid(),
+  propertyId: z.uuid(),
   timeRange: timeRangePreset.default('all'),
 })
 

@@ -25,8 +25,8 @@ import type { BadgeAwardWithTarget } from '#/contexts/badge/application/public-a
 import type { StaffRecentReview } from '#/contexts/review/application/public-api'
 
 const homeSearch = z.object({
-  propertyId: z.string().uuid().optional(),
-  portalId: z.string().uuid().optional(),
+  propertyId: z.uuid().optional(),
+  portalId: z.uuid().optional(),
 })
 
 /** Real server fns for the staff-home prop channel (loader + page hook). */

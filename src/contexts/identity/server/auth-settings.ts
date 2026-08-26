@@ -94,7 +94,7 @@ export const updateProfileFn = createServerFn({ method: 'POST' })
 // ── Update user image ──────────────────────────────────────────────
 
 const updateUserImageSchema = z.object({
-  imageUrl: z.string().url(),
+  imageUrl: z.url(),
 })
 
 export const updateUserImageFn = createServerFn({ method: 'POST' })

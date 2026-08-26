@@ -120,7 +120,7 @@ const roleSchema = z.enum([
 ])
 const displayStringSchema = z.string().min(1).max(4_096)
 const optionalDisplayStringSchema = z.string().min(1).max(4_096).nullable()
-const googleReviewUriSchema = z.string().url().max(2_048).startsWith('https://')
+const googleReviewUriSchema = z.url().max(2_048).startsWith('https://')
 const providerSuffixSchema = z.string().min(1).max(255).refine(isProviderSuffix)
 const profileSchema = z.object({
   name: displayStringSchema,

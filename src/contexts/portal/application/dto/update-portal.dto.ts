@@ -12,7 +12,7 @@ export const updatePortalInputSchema = z
     // Nullable, not merely optional: `null` is the explicit "remove the hero image"
     // signal from the edit form, while an absent key means "leave unchanged".
     // The schema is .strict(), so until this key existed every removal was rejected.
-    heroImageUrl: z.string().url().nullable().optional(),
+    heroImageUrl: z.url().nullable().optional(),
     theme: z
       .object({
         primaryColor: z.string(),

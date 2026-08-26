@@ -5,7 +5,7 @@
 // manages lifecycle. Adding a new job requires only a new definition and
 // composition registration — not editing src/worker/index.ts.
 
-import type { z } from 'zod'
+import type { z } from 'zod/v4'
 import type { JobHandler } from './registry'
 
 // ── Queue classes ───────────────────────────────────────────────────

@@ -34,7 +34,7 @@ export type { PublicPortalLoaderData } from '../application/dto/public-portal.dt
 
 const baseMutationSchema = z.object({
   token: z.string().min(1).max(256),
-  csrfNonce: z.string().uuid(),
+  csrfNonce: z.uuid(),
 })
 
 const ratingMutationSchema = baseMutationSchema.extend({
@@ -630,9 +630,9 @@ export const withdrawGuestResponseFn = createServerFn({ method: 'POST' })
   )
 
 const moderationSchema = z.object({
-  propertyId: z.string().uuid(),
-  portalId: z.string().uuid(),
-  responseId: z.string().uuid(),
+  propertyId: z.uuid(),
+  portalId: z.uuid(),
+  responseId: z.uuid(),
   action: z.enum(['quarantine', 'delete']),
 })
 

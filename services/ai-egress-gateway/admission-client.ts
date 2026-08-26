@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from 'zod/v4'
 import {
   AI_INTERNAL_RESPONSE_MAX_BYTES,
   AI_SETTLE_MAX_BYTES,

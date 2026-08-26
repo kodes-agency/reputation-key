@@ -17,7 +17,7 @@ import {
 } from '../application/use-cases/goal-programs'
 import type { GoalProgramBundle, GoalSubject } from '../application/public-api'
 
-const uuid = z.string().uuid()
+const uuid = z.uuid()
 const metricSchema = z.enum([
   'qualified_scans',
   'portal_rating_count',
