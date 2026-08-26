@@ -60,41 +60,55 @@ assignment, and governed access artifacts.
 - Soft-deleting a portal revokes its active/rotating portal tokens; a deleted portal never has a live token.
 - The eligible creator is the initial Portal Responsible Manager. AccountAdmins are organization-wide eligible; PropertyManagers require both current property access and active participation for that property.
 - Responsible-manager assignment never grants property access, portal access, or staff attribution.
-- Responsible-manager updates preserve unchanged effective-dated intervals and use `responsibleManagerRevision` compare-and-swap; stale writes fail with `revision_conflict`.
-- Losing the last manager sets `responsibilityNeededSince` and atomically records one identifier-only recovery fact. Adding any manager clears the state; nobody is auto-promoted.
+- Responsible-manager updates preserve unchanged effective-dated intervals and use `responsibleManagerRevision` compare-and-swap; stale writes fail with `revision_conflict`. If a regressed business clock would close an interval at or before its start, the transient interval is removed instead of storing an invalid zero-length history row. Every changed selection or offboarding release atomically records one identifier-only `portal.responsible_managers.updated` per affected Portal with the resulting assignment count and the DB-returned Portal revision.
+- Losing the last manager sets `responsibilityNeededSince` and atomically records a separate identifier-only recovery fact at that same committed revision. Adding any manager clears the state; nobody is auto-promoted.
 - Core Portal creation, update/publication transition, and soft deletion use one Portal-owned command store. Authoritative Portal state, initial responsibility, live-token revocation on delete, and every required lifecycle outbox fact commit in the same PostgreSQL transaction. The in-process bus runs only after commit.
 - Portal Group soft deletion uses the same command boundary: the Group archive, effective-dated membership closure, and `portal_group.deleted` outbox fact commit together under an `updatedAt` revision fence. A failed fact write or stale manager view changes none of them.
 - Portal Group create/rename/membership commands use that boundary too. Group state, effective-dated membership changes, an `updatedAt` compare-and-swap fence, and identifier-only versioned facts commit together.
-- Portal link/category creation and reorder commands fence the parent Portal `updatedAt`; content rows, the parent revision, and identifier-only versioned facts share one transaction. This prevents a content edit from crossing publication or another content mutation unnoticed.
+- Portal link/category create, update, delete, and reorder commands fence the parent Portal `updatedAt`; update/delete discovery reads the child and parent revision from one database snapshot. Content rows, the parent revision, and identifier-only versioned facts share one transaction. This prevents a content edit from crossing publication or another content mutation unnoticed.
 - Portal token issue/rotation/revocation use the parent Portal revision and one lock order. Token state, Portal revision, and the versioned lifecycle fact commit together; retries cannot duplicate a token or fact.
-- Portal lifecycle facts are identifier-only. They carry Property/Portal scope, publication-state codes where relevant, and `sourceAggregateVersion = updatedAt.toISOString()`; they never copy Portal name, slug, description, theme, or link content. The outbox event UUID is the replay uniqueness key and optimistic `updatedAt` fencing rejects stale commands.
-- Portal hero source keys are server-derived from an opaque issuance ID and the presigned PUT is first-write-only. Finalization accepts only that ID, rechecks current scope/state/expiry and exact storage MIME/size/ETag, and atomically consumes it with the durable processing fact. The worker reads with that observed ETag as an immutable-version fence. A newer consumed issuance supersedes an older worker; only the current consumed issuance may publish newly derived WebP keys. Client Portal updates may remove a hero image but may never set a non-null URL.
+- `portals.updatedAt` is a monotonic command revision, not raw wall-clock time. Every command captures `occurredAt = clock()` for business timestamps, then separately allocates a revision strictly after the locked aggregate value. Delayed workflow, upload, and responsibility writers use the same database allocator. Durable facts carry the DB-committed revision even when the clock regresses, while snapshots, activations, memberships, tokens, content rows, and deletion intervals retain actual occurrence time. Publication and content edits acquire the Portal row before working-copy table locks.
+- Portal lifecycle facts are identifier-only. They carry Property/Portal scope, publication-state codes where relevant, and `sourceAggregateVersion = committed updatedAt.toISOString()`; `occurredAt` is independent business time and need not equal that revision. They never copy Portal name, slug, description, theme, manager IDs, or link content. The outbox event UUID is the replay uniqueness key and optimistic `updatedAt` fencing rejects stale commands.
+- `PortalRepository` is a read-only production port. Authoritative mutations are available only through Portal command stores; direct PostgreSQL seeding/mutation lives under explicit test scaffolding and is guarded from production wiring by an architecture test.
+- Portal hero source keys are server-derived from an opaque issuance ID and the presigned PUT is first-write-only. Finalization accepts only that ID, rechecks current scope/state/expiry and exact storage MIME/size/ETag, and atomically consumes it with the durable processing fact. The worker reads with that observed ETag as an immutable-version fence. A newer consumed issuance supersedes an older worker; only the current consumed issuance may publish newly derived WebP keys. Hero URL publication, issuance finalization, and identifier-only `portal.hero_image.published` commit together; replay returns `already_finalized` without another fact. Client Portal updates may remove a hero image but may never set a non-null URL.
 
 ## Events produced
 
 - **`portal.created`** — portalId, organizationId, propertyId, publicationState, sourceAggregateVersion, occurredAt.
 - **`portal.updated`** — portalId, organizationId, propertyId, previousPublicationState, publicationState, sourceAggregateVersion, occurredAt.
 - **`portal.deleted`** — portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
-- **`portal.responsibility_became_needed`** — portalId, organizationId, propertyId, occurredAt. Identifier-only, atomically recorded with the unowned transition; Notification sends one content-free recovery alert to each current AccountAdmin.
+- **`portal.responsibility_became_needed`** — portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt. Identifier-only, atomically recorded with the unowned transition; Notification sends one content-free recovery alert to each current AccountAdmin.
+- **`portal.responsible_managers.updated`** — portalId, organizationId, propertyId, assignmentCount, sourceAggregateVersion, occurredAt. Identifier-only; manager IDs remain private Portal state.
 - **`portal.hero_image.processing_requested`** — uploadId, portalId, organizationId, propertyId, sourceETag, occurredAt. Content-free durable hand-off committed atomically with issuance consumption; the consumer binds the source read to the observed ETag.
+- **`portal.hero_image.published`** — uploadId, portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt. Identifier-only completion fact committed with hero URL publication and issuance finalization.
+- **`portal.content_review.completed`** — reviewId, revision, organizationId, propertyId, portalId, portalGroupId, supersedesSourceEventId, sourceAggregateVersion, occurredAt.
+- **`portal.configuration_completeness.recorded`** — the content-review identifiers plus completedFields and requiredFields.
+- **`portal.approved_destination_ratio.recorded`** — the content-review identifiers plus approvedDestinations and configuredDestinations.
 - **`portal.token.issued`** — portalId, organizationId, propertyId, tokenIdentifier, version, sourceAggregateVersion, occurredAt.
 - **`portal.token.rotated`** — portalId, organizationId, propertyId, previousVersion, version, gracePeriodEnds, sourceAggregateVersion, occurredAt.
 - **`portal.token.revoked`** — portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt. Identifier-only audit fact; no consumers.
 - **`portal_group.created`** — portalGroupId, organizationId, propertyId, sourceAggregateVersion, occurredAt. The in-process event also carries the new name; the durable fact does not.
 - **`portal_group.updated`** — portalGroupId, organizationId, propertyId, sourceAggregateVersion, occurredAt. The in-process event also carries the new name; the durable fact does not.
-- **`portal_group.deleted`** — portalGroupId, organizationId, propertyId, occurredAt.
+- **`portal_group.deleted`** — portalGroupId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
 - **`portal_group.portal_added`** — portalGroupId, portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
 - **`portal_group.portal_removed`** — portalGroupId, portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
 - **`portal_link_category.created`** — portalId, categoryId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
 - **`portal_link_category.reordered`** — portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
+- **`portal_link_category.updated`** — portalId, categoryId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
+- **`portal_link_category.deleted`** — portalId, categoryId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
 - **`portal_link.created`** — portalId, linkId, categoryId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
 - **`portal_link.reordered`** — portalId, categoryId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
+- **`portal_link.updated`** — portalId, linkId, categoryId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
+- **`portal_link.deleted`** — portalId, linkId, categoryId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
   > **Subscriber status:** `portal.created` and `portal.updated` are durable lifecycle/audit
   > facts with no product projection today. `portal.deleted` is durable and has the retained
   > Goal cleanup subscriber. The link/category/group events
   > (`portal_group.created`, `portal_group.updated`, `portal_group.portal_added`,
   > `portal_group.portal_removed`, `portal_link_category.created`,
-  > `portal_link_category.reordered`, `portal_link.created`, `portal_link.reordered`) are
+  > `portal_link_category.reordered`, `portal_link_category.updated`,
+  > `portal_link_category.deleted`, `portal_link.created`, `portal_link.reordered`,
+  > `portal_link.updated`, `portal_link.deleted`,
+  > `portal.responsible_managers.updated`, and `portal.hero_image.published`) are
   > durable identifier-only audit facts with no current subscriber. Display names, titles,
   > labels, and URLs are excluded from their outbox allowlists.
 
@@ -170,9 +184,9 @@ portal/
 - **`removePortalFromGroup`** — Remove a portal from its group. Validates portal was in the group.
 - **`issuePortalToken`** / **`rotatePortalToken`** / **`revokePortalTokens`** — Portal token lifecycle for public QR links.
 - **`resolvePublicPortalToken`** — Resolve an active/rotating token to the exact current immutable publication snapshot, honouring rotation grace periods and failing closed on missing/tampered snapshot evidence. A changed destination binding degrades only the Google action; private rating/feedback remains available.
-- **`completeContentReview`** — Record a completed portal content review and emit the derived workflow facts.
+- **`completeContentReview`** — Lock the Portal first, then read its child configuration in a new statement so a lock wait cannot pair a new Portal revision with a stale statement snapshot. Record the completed review and its three derived workflow facts at one DB-returned Portal revision, then emit after commit. Deterministic replay neither duplicates facts nor advances the revision.
 - **`listPortalResponsibleManagers`** — Return current assignments, currently eligible candidates, responsibility-needed state, and the CAS revision.
-- **`updatePortalResponsibleManagers`** — Replace the manager set after revalidating every selected manager; supports multiple or zero and preserves effective-dated history.
+- **`updatePortalResponsibleManagers`** — Replace the manager set after revalidating every selected manager; supports multiple or zero, preserves effective-dated history, and records the assignment-count fact plus any last-manager recovery fact in the same revision transaction.
 
 ## Public API
 

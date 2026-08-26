@@ -13,6 +13,7 @@ import {
   varchar,
   jsonb,
   integer,
+  boolean,
   timestamp,
   index,
   uniqueIndex,
@@ -186,6 +187,19 @@ export const portalPublicationSnapshots = pgTable(
     guestLocale: varchar('guest_locale', { length: 35 }).notNull(),
     languagePackVersion: varchar('language_pack_version', { length: 100 }).notNull(),
     privateFeedbackThreshold: integer('private_feedback_threshold').notNull(),
+    contactRequestEnabled: boolean('contact_request_enabled').notNull().default(false),
+    contactNoticeId: varchar('contact_notice_id', { length: 100 }),
+    contactNoticeVersion: varchar('contact_notice_version', { length: 100 }),
+    contactNoticeDigest: varchar('contact_notice_digest', { length: 64 }),
+    contactNoticeLocale: varchar('contact_notice_locale', { length: 35 }),
+    contactRequestPurpose: varchar('contact_request_purpose', { length: 50 })
+      .notNull()
+      .default('manager_follow_up'),
+    contactRetentionPolicyVersion: varchar('contact_retention_policy_version', {
+      length: 100,
+    })
+      .notNull()
+      .default('guest-contact-retention-30d-v1'),
     destinationUri: varchar('destination_uri', { length: 500 }).notNull(),
     destinationRetrievedAt: timestamp('destination_retrieved_at', {
       withTimezone: true,
@@ -215,6 +229,21 @@ export const portalPublicationSnapshots = pgTable(
       t.version,
       t.configurationDigest,
     ),
+    uniqueIndex('portal_publication_snapshots_contact_evidence_binding_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.portalId,
+      t.id,
+      t.version,
+      t.configurationDigest,
+      t.contactRequestEnabled,
+      t.contactNoticeId,
+      t.contactNoticeVersion,
+      t.contactNoticeDigest,
+      t.contactNoticeLocale,
+      t.contactRequestPurpose,
+      t.contactRetentionPolicyVersion,
+    ),
     index('portal_publication_snapshots_portal_created_idx').on(
       t.organizationId,
       t.portalId,
@@ -242,6 +271,25 @@ export const portalPublicationSnapshots = pgTable(
     check(
       'portal_publication_snapshots_threshold_valid',
       sql`${t.privateFeedbackThreshold} BETWEEN 1 AND 5`,
+    ),
+    check(
+      'portal_publication_snapshots_contact_evidence_valid',
+      sql`${t.contactRequestEnabled} = false OR (
+        ${t.contactNoticeId} IS NOT NULL
+        AND char_length(${t.contactNoticeId}) BETWEEN 1 AND 100
+        AND ${t.contactNoticeVersion} IS NOT NULL
+        AND char_length(${t.contactNoticeVersion}) BETWEEN 1 AND 100
+        AND ${t.contactNoticeDigest} ~ '^[0-9a-f]{64}$'
+        AND ${t.contactNoticeLocale} ~ '^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$'
+      )`,
+    ),
+    check(
+      'portal_publication_snapshots_contact_purpose_valid',
+      sql`${t.contactRequestPurpose} = 'manager_follow_up'`,
+    ),
+    check(
+      'portal_publication_snapshots_contact_retention_valid',
+      sql`${t.contactRetentionPolicyVersion} = 'guest-contact-retention-30d-v1'`,
     ),
     check(
       'portal_publication_snapshots_destination_binding_valid',

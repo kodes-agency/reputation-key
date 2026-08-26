@@ -29,13 +29,14 @@ export const revokePortalTokens =
     })
     const reason = input.reason.trim()
     if (!reason) throw portalError('token_unavailable', 'Revocation reason is required')
-    const at = nextPortalCommandAt(deps.clock(), portal.updatedAt)
+    const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, portal.updatedAt)
     const event = portalTokenRevoked({
       portalId: portal.id,
       organizationId: portal.organizationId,
       propertyId: portal.propertyId,
-      sourceAggregateVersion: at.toISOString(),
-      occurredAt: at,
+      sourceAggregateVersion: revision.toISOString(),
+      occurredAt,
     })
     return deps.commandStore.revokePortalTokens({
       organizationId: ctx.organizationId,
@@ -44,7 +45,8 @@ export const revokePortalTokens =
       expectedPortalUpdatedAt: portal.updatedAt,
       revokedBy: ctx.userId,
       reason,
-      at,
+      revision,
+      occurredAt,
       event,
     })
   }

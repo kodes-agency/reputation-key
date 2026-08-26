@@ -9,12 +9,15 @@ import {
   organizationId,
   propertyId,
   reviewId,
+  feedbackId,
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Permission } from '#/shared/domain/permissions'
+import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
@@ -23,6 +26,16 @@ const USER_ID = userId('user-1')
 
 const ctxFor = (role: Role): AuthContext =>
   ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
+
+const ctxWith = (...permissions: Permission[]): AuthContext => ({
+  organizationId: ORG_ID,
+  userId: USER_ID,
+  role: 'Staff',
+  effectivePermissions: new Set(permissions),
+  scopeByPermission: new Map(
+    permissions.map((permission) => [permission, 'organization' as const]),
+  ),
+})
 
 function seedOpen(overrides?: Partial<InboxItem>): InboxItem {
   return {
@@ -59,7 +72,7 @@ const allAccess: StaffPublicApi = {
   countAssignmentsByTeam: async () => 0,
 }
 
-const setup = () => {
+const setup = (staffPublicApi: StaffPublicApi = allAccess) => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
   const commandStore = createSequentialInboxCommandStore({ repo, events })
@@ -67,7 +80,7 @@ const setup = () => {
     repo,
     commandStore,
     clock: () => FIXED_TIME,
-    staffPublicApi: allAccess,
+    staffPublicApi,
   })
   return { useCase, repo, events }
 }
@@ -146,5 +159,44 @@ describe('escalateInboxItem', () => {
     await expect(
       useCase({ inboxItemId: ITEM_ID }, ctxFor('Guest' as unknown as Role)),
     ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
+  })
+
+  it('requires feedback.handle to escalate private feedback', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(
+      seedOpen({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
+    )
+
+    await expect(
+      useCase({ inboxItemId: ITEM_ID }, ctxWith('inbox.write', 'feedback.read')),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
+  })
+
+  it('intersects feedback.handle scope before escalating', async () => {
+    const { useCase, repo } = setup({
+      ...allAccess,
+      getAccessiblePropertyIds: async () => [propertyId('prop-other')],
+    })
+    repo.items.push(
+      seedOpen({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
+    )
+
+    await expect(
+      useCase(
+        { inboxItemId: ITEM_ID },
+        createScopedAuthContext({
+          organizationId: ORG_ID,
+          userId: USER_ID,
+          permissions: [
+            ['inbox.write', 'organization'],
+            ['feedback.handle', 'assigned-properties'],
+          ],
+        }),
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
   })
 })

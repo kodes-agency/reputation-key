@@ -8,6 +8,7 @@ import {
   handleInboxReviewCreated,
   handleInboxReviewExpired,
   handleInboxReviewUpdated,
+  handleInboxReplyObserved,
   handleInboxReplyPublished,
   type InboxConsumerDeps,
 } from './outbox-consumers'
@@ -29,6 +30,7 @@ import type {
 } from '../application/ports/review-source-lookup.port'
 import type { ApplyReceiptStatus } from '../application/ports/inbox-command-store.port'
 import type { ReviewHandlingCycleStore } from '../application/ports/review-handling-cycle.store'
+import type { ReplyObservationAuthorityPort } from '../application/ports/reply-observation-authority.port'
 import { createNextReviewHandlingCycle } from '../domain/handling-cycles'
 import { inboxError } from '../domain/errors'
 import {
@@ -138,6 +140,9 @@ function makeDeps(overrides: {
   snippetResult?: ReviewSnippetResult
   sourceMeta?: ReviewSourceMeta | null
   feedback?: FeedbackSnippet | null
+  observationCurrent?: boolean
+  handlingCycleMissing?: boolean
+  handlingCycleMaterialReviewRevision?: number
 }) {
   const item = overrides.item === undefined ? makeItem() : overrides.item
   const repo = createInMemoryInboxRepo()
@@ -176,14 +181,15 @@ function makeDeps(overrides: {
   } satisfies FeedbackLookupPort
 
   let handlingCycleHead =
-    item?.sourceType === 'review'
+    item?.sourceType === 'review' && overrides.handlingCycleMissing !== true
       ? {
           inboxItemId: item.id,
           organizationId: item.organizationId,
           propertyId: item.propertyId,
           reviewId: REV,
           currentCycleNumber: 1,
-          currentMaterialReviewRevision: 1,
+          currentMaterialReviewRevision:
+            overrides.handlingCycleMaterialReviewRevision ?? 1,
           stateRevision: 1,
           status: item.status,
         }
@@ -216,9 +222,27 @@ function makeDeps(overrides: {
     }),
   } satisfies ReviewHandlingCycleStore
 
+  const replyObservationAuthority = {
+    withExactCurrent: vi.fn(async (expectation, apply) => {
+      if (overrides.observationCurrent === false) {
+        return { status: 'obsolete' as const }
+      }
+      return {
+        status: 'current' as const,
+        value: await apply({
+          ...expectation,
+          state: expectation.resolution === 'absent' ? 'absent' : 'live',
+          observedAt: expectation.occurredAt,
+          authority: 'review.current-google-reply-observation.v1',
+        }),
+      }
+    }),
+  } satisfies ReplyObservationAuthorityPort
+
   const deps: InboxConsumerDeps = {
     commandStore,
     handlingCycleStore,
+    replyObservationAuthority,
     reviewLookup,
     reviewSourceLookup,
     inboxRepo: repo,
@@ -232,7 +256,27 @@ function makeDeps(overrides: {
     idGen: () => INBOX,
     clock: () => NOW,
   }
-  return { deps, guestDeps, repo, events, receipts, handlingCycleStore }
+  return {
+    deps,
+    guestDeps,
+    repo,
+    events,
+    receipts,
+    handlingCycleStore,
+    replyObservationAuthority,
+    materializeHandlingCycle: (materializedItem: InboxItem) => {
+      handlingCycleHead = {
+        inboxItemId: materializedItem.id,
+        organizationId: materializedItem.organizationId,
+        propertyId: materializedItem.propertyId,
+        reviewId: REV,
+        currentCycleNumber: 1,
+        currentMaterialReviewRevision: 1,
+        stateRevision: 1,
+        status: materializedItem.status,
+      }
+    },
+  }
 }
 
 describe('handleInboxGuestFeedbackSubmitted (durable private feedback)', () => {
@@ -636,8 +680,8 @@ describe('handleInboxReviewUpdated (BQC-3.4 — BQC-3.1 orphan resolved)', () =>
   })
 })
 
-describe('handleInboxReplyPublished (BQC-3.4 durable milestone/auto-close)', () => {
-  it('stamps firstReplyPublishedAt, closes the open item, emits the fact', async () => {
+describe('handleInboxReplyPublished (compatibility receipt only)', () => {
+  it('does not let an internal workflow fact close the Inbox item', async () => {
     const { deps, repo, events, receipts } = makeDeps({})
     const result = await handleInboxReplyPublished(
       deps,
@@ -650,16 +694,16 @@ describe('handleInboxReplyPublished (BQC-3.4 durable milestone/auto-close)', () 
     )
 
     expect(result).toEqual({ status: 'applied' })
-    expect(repo.items[0]!.status).toBe('closed')
-    expect(repo.items[0]!.closedAt).toEqual(NOW)
-    expect(repo.items[0]!.firstReplyPublishedAt).toEqual(NOW)
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(1)
+    expect(repo.items[0]!.status).toBe('open')
+    expect(repo.items[0]!.closedAt).toBeNull()
+    expect(repo.items[0]!.firstReplyPublishedAt).toBeNull()
+    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
     expect(receipts).toEqual([
       { eventId: 'evt-1', consumerName: 'inbox.on-reply-published', status: 'applied' },
     ])
   })
 
-  it('already closed but milestone missing: stamps only, no fact', async () => {
+  it('does not backfill a milestone without current provider observation', async () => {
     const { deps, repo, events, receipts } = makeDeps({
       item: makeItem({ status: 'closed', closedAt: NOW }),
     })
@@ -673,7 +717,7 @@ describe('handleInboxReplyPublished (BQC-3.4 durable milestone/auto-close)', () 
     )
 
     expect(result).toEqual({ status: 'applied' })
-    expect(repo.items[0]!.firstReplyPublishedAt).toEqual(NOW)
+    expect(repo.items[0]!.firstReplyPublishedAt).toBeNull()
     expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
     expect(receipts).toHaveLength(1)
   })
@@ -719,5 +763,231 @@ describe('handleInboxReplyPublished (BQC-3.4 durable milestone/auto-close)', () 
     expect(receipts).toEqual([
       { eventId: 'evt-1', consumerName: 'inbox.on-reply-published', status: 'applied' },
     ])
+  })
+})
+
+describe('handleInboxReplyObserved (provider-observation authority)', () => {
+  const observationPayload = (overrides: Record<string, unknown> = {}) => ({
+    reviewId: 'rev-1',
+    organizationId: 'org-1',
+    propertyId: 'prop-1',
+    observationRevision: 1,
+    sourceEpoch: 0,
+    materialReviewRevision: 1,
+    change: 'added',
+    resolution: 'confirmed_on_google',
+    provenance: 'repkey_confirmed',
+    matchedReplyId: 'reply-1',
+    matchedPublicationCycle: 1,
+    occurredAt: NOW.toISOString(),
+    ...overrides,
+  })
+
+  it('closes and stamps once from an exact observed confirmation', async () => {
+    const { deps, repo, events, receipts } = makeDeps({})
+
+    const result = await handleInboxReplyObserved(
+      deps,
+      makeEvent('review.reply.observed', observationPayload()),
+    )
+
+    expect(result).toEqual({ status: 'applied' })
+    expect(repo.items[0]).toMatchObject({
+      status: 'closed',
+      closedAt: NOW,
+      firstReplyPublishedAt: NOW,
+    })
+    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(1)
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-reply-observed', status: 'applied' },
+    ])
+  })
+
+  it('closes and receipts an unchanged external-live head for a newer attempt', async () => {
+    const { deps, repo, receipts } = makeDeps({})
+
+    await handleInboxReplyObserved(
+      deps,
+      makeEvent(
+        'review.reply.observed',
+        observationPayload({
+          change: 'unchanged',
+          resolution: 'external_current_live',
+          provenance: 'external_or_unknown',
+          matchedReplyId: null,
+          matchedPublicationCycle: null,
+        }),
+      ),
+    )
+
+    expect(repo.items[0]!.status).toBe('closed')
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-reply-observed', status: 'applied' },
+    ])
+  })
+
+  it('records an obsolete observation even when no Inbox item exists', async () => {
+    const { deps, repo, receipts, replyObservationAuthority } = makeDeps({
+      item: null,
+      observationCurrent: false,
+    })
+
+    const result = await handleInboxReplyObserved(
+      deps,
+      makeEvent('review.reply.observed', observationPayload()),
+    )
+
+    expect(result).toEqual({ status: 'obsolete' })
+    expect(replyObservationAuthority.withExactCurrent).toHaveBeenCalledOnce()
+    expect(repo.items).toEqual([])
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-reply-observed', status: 'obsolete' },
+    ])
+  })
+
+  it('retries without a receipt while the Inbox Handling Cycle lags the observation', async () => {
+    const { deps, repo, receipts } = makeDeps({})
+
+    await expect(
+      handleInboxReplyObserved(
+        deps,
+        makeEvent(
+          'review.reply.observed',
+          observationPayload({ materialReviewRevision: 2 }),
+        ),
+      ),
+    ).rejects.toMatchObject({ code: 'revision_conflict' })
+    expect(repo.items[0]!.status).toBe('open')
+    expect(receipts).toEqual([])
+  })
+
+  it('receipts an observation as obsolete when the Inbox Handling Cycle is newer', async () => {
+    const { deps, repo, receipts } = makeDeps({
+      handlingCycleMaterialReviewRevision: 2,
+    })
+
+    await expect(
+      handleInboxReplyObserved(
+        deps,
+        makeEvent('review.reply.observed', observationPayload()),
+      ),
+    ).resolves.toEqual({ status: 'obsolete' })
+    expect(repo.items[0]!.status).toBe('open')
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-reply-observed', status: 'obsolete' },
+    ])
+  })
+
+  it('reopens a closed item after an observed provider deletion', async () => {
+    const first = new Date('2026-06-12T12:00:00Z')
+    const { deps, repo, events } = makeDeps({
+      item: makeItem({
+        status: 'closed',
+        closedAt: first,
+        firstReplyPublishedAt: first,
+      }),
+    })
+
+    await handleInboxReplyObserved(
+      deps,
+      makeEvent(
+        'review.reply.observed',
+        observationPayload({
+          observationRevision: 2,
+          matchedReplyId: null,
+          matchedPublicationCycle: null,
+          change: 'deleted',
+          resolution: 'absent',
+          provenance: 'none',
+        }),
+      ),
+    )
+
+    expect(repo.items[0]).toMatchObject({
+      status: 'open',
+      closedAt: null,
+      firstReplyPublishedAt: first,
+    })
+    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(1)
+  })
+
+  it.each([
+    ['external edit', 'external_current_live'],
+    ['legacy divergence', 'diverged'],
+  ] as const)(
+    'does not reopen closed work for a live %s observation',
+    async (_name, resolution) => {
+      const first = new Date('2026-06-12T12:00:00Z')
+      const { deps, repo, events } = makeDeps({
+        item: makeItem({
+          status: 'closed',
+          closedAt: first,
+          firstReplyPublishedAt: first,
+        }),
+      })
+
+      await handleInboxReplyObserved(
+        deps,
+        makeEvent(
+          'review.reply.observed',
+          observationPayload({
+            observationRevision: 2,
+            change: 'edited',
+            resolution,
+            provenance: 'external_or_unknown',
+            matchedReplyId: null,
+            matchedPublicationCycle: null,
+          }),
+        ),
+      )
+
+      expect(repo.items[0]).toMatchObject({
+        status: 'closed',
+        closedAt: first,
+        firstReplyPublishedAt: first,
+      })
+      expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    },
+  )
+
+  it('retries a current observation that arrives before its Inbox item', async () => {
+    const { deps, repo, receipts, replyObservationAuthority, materializeHandlingCycle } =
+      makeDeps({ item: null })
+    const event = makeEvent('review.reply.observed', observationPayload())
+
+    await expect(handleInboxReplyObserved(deps, event)).rejects.toMatchObject({
+      code: 'not_found',
+    })
+    expect(replyObservationAuthority.withExactCurrent).toHaveBeenCalledOnce()
+    expect(receipts).toEqual([])
+
+    const item = makeItem()
+    repo.items.push(item)
+    materializeHandlingCycle(item)
+    await expect(handleInboxReplyObserved(deps, event)).resolves.toEqual({
+      status: 'applied',
+    })
+    expect(repo.items[0]).toMatchObject({
+      status: 'closed',
+      firstReplyPublishedAt: NOW,
+    })
+    expect(receipts).toEqual([
+      { eventId: 'evt-1', consumerName: 'inbox.on-reply-observed', status: 'applied' },
+    ])
+  })
+
+  it('retries without a receipt while the Inbox Handling Cycle is missing', async () => {
+    const { deps, receipts, replyObservationAuthority } = makeDeps({
+      handlingCycleMissing: true,
+    })
+
+    await expect(
+      handleInboxReplyObserved(
+        deps,
+        makeEvent('review.reply.observed', observationPayload()),
+      ),
+    ).rejects.toMatchObject({ code: 'not_found' })
+    expect(replyObservationAuthority.withExactCurrent).toHaveBeenCalledOnce()
+    expect(receipts).toEqual([])
   })
 })

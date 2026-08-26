@@ -17,12 +17,25 @@ export type Cursor = Readonly<{
 
 export type InboxSort = 'newest' | 'oldest'
 
+/**
+ * Visibility for one Inbox source family after intersecting the Inbox
+ * permission scope with the owning context's permission scope.
+ * `propertyIds === undefined` means organization-wide; an empty scope is
+ * omitted by the authorizer and therefore matches no rows.
+ */
+export type InboxSourceScope = Readonly<{
+  sourceType: SourceType
+  propertyIds?: ReadonlyArray<PropertyId>
+}>
+
 export type InboxFilters = Readonly<{
   propertyId?: PropertyId
   propertyIds?: ReadonlyArray<PropertyId>
   status?: InboxStatus | ReadonlyArray<InboxStatus>
   isEscalated?: boolean
   sourceType?: SourceType
+  /** Authorization-owned source/property predicates; never client supplied. */
+  sourceScopes?: ReadonlyArray<InboxSourceScope>
   platform?: string
   ratingMin?: number
   ratingMax?: number
@@ -63,14 +76,14 @@ export type InboxRepository = Readonly<{
     id: InboxItemId,
     orgId: OrganizationId,
     status: InboxStatus,
-    timestampFields: Partial<Record<string, Date>>,
+    timestampFields: Partial<Record<string, Date | null>>,
     now?: Date,
   ): Promise<InboxItem>
   bulkUpdateStatus(
     ids: ReadonlyArray<InboxItemId>,
     orgId: OrganizationId,
     status: InboxStatus,
-    timestampFields: Partial<Record<string, Date>>,
+    timestampFields: Partial<Record<string, Date | null>>,
     now?: Date,
   ): Promise<{ updated: number }>
   updateAssignment(
@@ -83,6 +96,7 @@ export type InboxRepository = Readonly<{
     orgId: OrganizationId,
     status: InboxStatus,
     propertyIds?: ReadonlyArray<PropertyId>,
+    sourceScopes?: ReadonlyArray<InboxSourceScope>,
   ): Promise<number>
   setEscalation(
     id: InboxItemId,
@@ -100,12 +114,14 @@ export type InboxRepository = Readonly<{
   countEscalatedActive(
     orgId: OrganizationId,
     propertyIds?: ReadonlyArray<PropertyId>,
+    sourceScopes?: ReadonlyArray<InboxSourceScope>,
   ): Promise<number>
   /** Count `open` items created after `since` (null since = all open). */
   countOpenSince(
     orgId: OrganizationId,
     since: Date | null,
     propertyIds?: ReadonlyArray<PropertyId>,
+    sourceScopes?: ReadonlyArray<InboxSourceScope>,
   ): Promise<number>
   findDetailById(id: InboxItemId, orgId: OrganizationId): Promise<InboxItemDetail | null>
   /**

@@ -30,9 +30,12 @@ describe('Contact Request beta containment', () => {
       ...sourceFiles(join(ROOT, 'src/routes')),
       ...sourceFiles(join(ROOT, 'src/components')),
       ...sourceFiles(join(ROOT, 'src/contexts/guest/server')),
+      ...sourceFiles(join(ROOT, 'src/worker')),
+      ...sourceFiles(join(ROOT, 'src/shared/jobs')),
+      join(ROOT, 'src/contexts/guest/application/public-api.ts'),
+      join(ROOT, 'src/contexts/guest/build.ts'),
       join(ROOT, 'src/composition.ts'),
       join(ROOT, 'src/bootstrap.ts'),
-      join(ROOT, 'src/worker/index.ts'),
     ]
 
     expect(
@@ -51,11 +54,17 @@ describe('Contact Request beta containment', () => {
     const consumers = [
       'src/contexts/activity',
       'src/contexts/ai',
+      'src/contexts/dashboard',
       'src/contexts/inbox',
       'src/contexts/metric',
       'src/contexts/notification',
+      'src/contexts/review',
+      'src/shared/email',
       'src/shared/events',
+      'src/shared/observability',
       'src/shared/outbox',
+      'src/shared/projections',
+      'src/shared/queries',
     ].flatMap((path) => sourceFiles(join(ROOT, path)))
 
     expect(
@@ -65,6 +74,27 @@ describe('Contact Request beta containment', () => {
         'encryptedContact',
         'contactDetails',
       ]),
+    ).toEqual([])
+  })
+
+  it('keeps owning-context manager authority out of Guest persistence', () => {
+    const repository = join(
+      ROOT,
+      'src/contexts/guest/infrastructure/repositories/contact-request.repository.ts',
+    )
+
+    expect(
+      markerViolations(
+        [repository],
+        [
+          '#/shared/db/schema/auth',
+          '#/shared/db/schema/policy.schema',
+          'portalResponsibleManagers',
+          'member.role',
+          "'owner'",
+          "'admin'",
+        ],
+      ),
     ).toEqual([])
   })
 })

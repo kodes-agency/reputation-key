@@ -12,6 +12,7 @@ import {
   reviewReplyApproved,
   reviewReplyPublicationRequested,
   reviewReplyPublicationCancelled,
+  reviewReplyObserved,
   reviewReplyPublishFailed,
   reviewReplyPublished,
   reviewReplyRejected,
@@ -22,6 +23,9 @@ import {
 } from './events'
 
 const occurredAt = new Date('2026-08-16T12:00:00.000Z')
+const OBSERVED_REVIEW_ID = reviewId('11111111-1111-4111-8111-111111111111')
+const OBSERVED_PROPERTY_ID = propertyId('22222222-2222-4222-8222-222222222222')
+const OBSERVED_REPLY_ID = replyId('33333333-3333-4333-8333-333333333333')
 const baseReview = {
   reviewId: reviewId('review-1'),
   propertyId: propertyId('property-1'),
@@ -36,6 +40,32 @@ const sourceVersion = {
 const baseReply = {
   replyId: replyId('reply-1'),
   ...baseReview,
+}
+const baseObserved = {
+  reviewId: OBSERVED_REVIEW_ID,
+  propertyId: OBSERVED_PROPERTY_ID,
+  organizationId: organizationId('organization-1'),
+  occurredAt,
+  observationRevision: 2,
+  sourceEpoch: 1,
+  materialReviewRevision: 3,
+  change: 'edited' as const,
+  resolution: 'diverged' as const,
+  provenance: 'external_or_unknown' as const,
+  matchedReplyId: null,
+  matchedPublicationCycle: null,
+}
+const basePublicationRequested = {
+  replyId: OBSERVED_REPLY_ID,
+  reviewId: OBSERVED_REVIEW_ID,
+  propertyId: OBSERVED_PROPERTY_ID,
+  organizationId: organizationId('organization-1'),
+  userId: userId('user-1'),
+  publicationCycle: 1,
+  sourceEpoch: 0,
+  materialReviewRevision: 1,
+  baseObservationRevision: 0,
+  occurredAt,
 }
 
 const expectEnvelope = (event: {
@@ -91,9 +121,7 @@ describe('review domain events', () => {
       source: 'import',
     })
     const publicationRequested = reviewReplyPublicationRequested({
-      ...baseReply,
-      userId: userId('user-1'),
-      publicationCycle: 1,
+      ...basePublicationRequested,
     })
     const rejected = reviewReplyRejected({
       ...baseReply,
@@ -110,8 +138,12 @@ describe('review domain events', () => {
     const updated = reviewReplyUpdated({ ...baseReply, userId: null })
     const cancelled = reviewReplyPublicationCancelled({
       ...baseReply,
+      replyId: OBSERVED_REPLY_ID,
+      reviewId: OBSERVED_REVIEW_ID,
+      propertyId: OBSERVED_PROPERTY_ID,
       cause: 'disconnect',
     })
+    const observed = reviewReplyObserved(baseObserved)
 
     expect(submitted).toMatchObject({ _tag: 'review.reply.submitted', source: 'web' })
     expect(approved).toMatchObject({ _tag: 'review.reply.approved', source: 'import' })
@@ -124,6 +156,12 @@ describe('review domain events', () => {
     expect(failed._tag).toBe('review.reply.publish_failed')
     expect(updated._tag).toBe('review.reply.updated')
     expect(cancelled._tag).toBe('review.reply.publication_cancelled')
+    expect(observed).toMatchObject({
+      _tag: 'review.reply.observed',
+      observationRevision: 2,
+      change: 'edited',
+      resolution: 'diverged',
+    })
     for (const event of [
       submitted,
       approved,
@@ -133,9 +171,31 @@ describe('review domain events', () => {
       failed,
       updated,
       cancelled,
+      observed,
     ]) {
       expectEnvelope(event)
     }
+  })
+
+  it.each([
+    ['invalid occurredAt', { occurredAt: new Date(Number.NaN) }, 'valid Date'],
+    ['empty organizationId', { organizationId: organizationId('') }, 'nonempty'],
+    ['non-UUID replyId', { replyId: replyId('reply-1') }, 'replyId'],
+    ['non-UUID reviewId', { reviewId: reviewId('review-1') }, 'reviewId'],
+    ['non-UUID propertyId', { propertyId: propertyId('property-1') }, 'propertyId'],
+    ['invalid cause', { cause: 'unknown' }, 'cancellation cause'],
+  ])('rejects publication cancellation with %s', (_name, override, message) => {
+    expect(() =>
+      reviewReplyPublicationCancelled({
+        replyId: OBSERVED_REPLY_ID,
+        reviewId: OBSERVED_REVIEW_ID,
+        propertyId: OBSERVED_PROPERTY_ID,
+        organizationId: organizationId('organization-1'),
+        cause: 'disconnect',
+        occurredAt,
+        ...override,
+      } as Parameters<typeof reviewReplyPublicationCancelled>[0]),
+    ).toThrow(message)
   })
 
   it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
@@ -143,13 +203,122 @@ describe('review domain events', () => {
     (publicationCycle) => {
       expect(() =>
         reviewReplyPublicationRequested({
-          ...baseReply,
-          userId: userId('user-1'),
+          ...basePublicationRequested,
           publicationCycle,
         }),
       ).toThrow('publicationCycle must be a positive safe integer')
     },
   )
+
+  it.each([
+    ['invalid occurredAt', { occurredAt: new Date(Number.NaN) }, 'valid Date'],
+    ['empty organizationId', { organizationId: organizationId('') }, 'nonempty'],
+    ['empty userId', { userId: userId('  ') }, 'nonempty'],
+    ['non-UUID replyId', { replyId: replyId('reply-1') }, 'replyId'],
+    ['non-UUID reviewId', { reviewId: reviewId('review-1') }, 'reviewId'],
+    ['non-UUID propertyId', { propertyId: propertyId('property-1') }, 'propertyId'],
+  ])('rejects publication request with %s', (_name, override, message) => {
+    expect(() =>
+      reviewReplyPublicationRequested({
+        ...basePublicationRequested,
+        ...override,
+      } as Parameters<typeof reviewReplyPublicationRequested>[0]),
+    ).toThrow(message)
+  })
+
+  it.each([
+    {
+      name: 'confirmed resolution without RepKey provenance',
+      override: {
+        change: 'added',
+        resolution: 'confirmed_on_google',
+        provenance: 'external_or_unknown',
+        matchedReplyId: OBSERVED_REPLY_ID,
+        matchedPublicationCycle: 1,
+      },
+    },
+    {
+      name: 'confirmed resolution without an exact Reply match',
+      override: {
+        change: 'added',
+        resolution: 'confirmed_on_google',
+        provenance: 'repkey_confirmed',
+        matchedReplyId: null,
+        matchedPublicationCycle: null,
+      },
+    },
+    {
+      name: 'divergence carrying RepKey provenance and a match',
+      override: {
+        resolution: 'diverged',
+        provenance: 'repkey_confirmed',
+        matchedReplyId: OBSERVED_REPLY_ID,
+        matchedPublicationCycle: 1,
+      },
+    },
+    {
+      name: 'absence without a deletion',
+      override: {
+        change: 'added',
+        resolution: 'absent',
+        provenance: 'none',
+      },
+    },
+  ])('rejects semantically impossible observation: $name', ({ override }) => {
+    expect(() =>
+      reviewReplyObserved({
+        ...baseObserved,
+        ...override,
+      } as Parameters<typeof reviewReplyObserved>[0]),
+    ).toThrow('review reply observation semantics are invalid')
+  })
+
+  it('accepts an externally edited current-live reply without RepKey attribution', () => {
+    expect(
+      reviewReplyObserved({
+        ...baseObserved,
+        change: 'edited',
+        resolution: 'external_current_live',
+        provenance: 'external_or_unknown',
+      }),
+    ).toMatchObject({ change: 'edited', resolution: 'external_current_live' })
+  })
+
+  it('accepts an unchanged external-current-live head for a newer attempt', () => {
+    expect(
+      reviewReplyObserved({
+        ...baseObserved,
+        change: 'unchanged',
+        resolution: 'external_current_live',
+        provenance: 'external_or_unknown',
+      }),
+    ).toMatchObject({ change: 'unchanged', resolution: 'external_current_live' })
+  })
+
+  it.each([
+    ['invalid occurredAt', { occurredAt: new Date(Number.NaN) }, 'valid Date'],
+    ['empty organizationId', { organizationId: organizationId('') }, 'nonempty'],
+    ['non-UUID reviewId', { reviewId: reviewId('review-1') }, 'reviewId'],
+    ['non-UUID propertyId', { propertyId: propertyId('property-1') }, 'propertyId'],
+    [
+      'non-UUID matchedReplyId',
+      {
+        change: 'added',
+        resolution: 'confirmed_on_google',
+        provenance: 'repkey_confirmed',
+        matchedReplyId: replyId('reply-1'),
+        matchedPublicationCycle: 1,
+      },
+      'matchedReplyId',
+    ],
+  ])('rejects observation with %s', (_name, override, message) => {
+    expect(() =>
+      reviewReplyObserved({
+        ...baseObserved,
+        ...override,
+      } as Parameters<typeof reviewReplyObserved>[0]),
+    ).toThrow(message)
+  })
 
   it.each([
     ['occurredAt', { occurredAt: '2026-08-16' }, 'occurredAt must be a Date'],

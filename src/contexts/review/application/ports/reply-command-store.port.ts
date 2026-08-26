@@ -10,7 +10,7 @@
 // guarded write (status + publication_state), so a lost TOCTOU race
 // (cancellation, a racing claim, a purge) records no fact and returns null.
 
-import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { Reply } from '../../domain/types'
 import type { PublicationFailureClass } from '../../domain/reply-publication-workflow'
 import type {
@@ -71,6 +71,28 @@ export type PublicationAuthorizationFacts = Readonly<{
   publicationIntent: ReviewReplyPublicationRequested
 }>
 
+/** Immutable Review/provider-truth tuple that a manager authorized. */
+export type PublicationAuthorizationFence = Readonly<{
+  propertyId: PropertyId
+  sourceEpoch: number
+  materialReviewRevision: number
+  /** Zero means no Google reply observation head existed at authorization. */
+  baseObservationRevision: number
+}>
+
+/** Provider write response; it is evidence of an accepted request, not proof
+ * that this exact reply is currently live on Google. */
+export type ProviderOutcomePendingObservation = Readonly<{
+  providerCorrelationId: string | null
+  providerRespondedAt: Date
+}>
+
+/** Immutable scope/content fences captured when one provider attempt starts. */
+export type PublicationAttemptStart = PublicationAuthorizationFence &
+  Readonly<{
+    providerOperationKey: string
+  }>
+
 export type ReplyCommandStore = Readonly<{
   /**
    * Guarded transition + review.reply.submitted fact, one transaction.
@@ -100,13 +122,28 @@ export type ReplyCommandStore = Readonly<{
   ): Promise<Reply | null>
   /**
    * BQC-3.8: publish-job claim — status='approved' AND publication_state IN
-   * ('authorized','sending') → 'sending', attempts+1. 'sending' re-claim is
-   * the SAME BullMQ job retrying after an ambiguous attempt (jobId
+   * ('authorized','sending') → 'sending', attempts+1. A 'sending' re-claim is
+   * admitted only after this same BullMQ job has durably recorded targeted
+   * provider readback proving the prior attempt's exact reply absent (jobId
    * idempotency serializes attempts — no second worker can hold the claim).
    * No fact. Returns null when the guard misses (cancelled meanwhile, or the
    * row is no longer in a claimable state).
    */
-  markPublicationSending(reply: Reply, now?: Date): Promise<Reply | null>
+  markPublicationSending(
+    reply: Reply,
+    attempt: PublicationAttemptStart,
+    now?: Date,
+  ): Promise<Reply | null>
+  /**
+   * Persist a successful provider write response while keeping the local
+   * Reply un-published. Only an exact, current provider observation may make
+   * the later pending_observation → published transition.
+   */
+  markProviderOutcomePendingObservation(
+    reply: Reply,
+    outcome: ProviderOutcomePendingObservation,
+    now?: Date,
+  ): Promise<Reply | null>
   /**
    * BQC-3.8: classified terminal rejection — status → publish_failed +
    * publication_state='terminal' + last_error_class + the publish_failed

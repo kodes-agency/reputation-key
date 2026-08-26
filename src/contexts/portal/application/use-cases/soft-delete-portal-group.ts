@@ -10,6 +10,7 @@ import { portalGroupDeleted } from '../../domain/events'
 import { portalGroupId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
+import { nextPortalCommandAt } from '../portal-command-version'
 
 export type SoftDeletePortalGroupDeps = Readonly<{
   portalGroupRepo: PortalGroupRepository
@@ -38,19 +39,22 @@ export const softDeletePortalGroup =
       existing.propertyId,
     )
 
-    const now = deps.clock()
+    const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, existing.updatedAt)
     const event = portalGroupDeleted({
       portalGroupId: gid,
       organizationId: ctx.organizationId,
       propertyId: existing.propertyId,
-      occurredAt: now,
+      sourceAggregateVersion: revision.toISOString(),
+      occurredAt,
     })
     await deps.commandStore.deletePortalGroup({
       organizationId: ctx.organizationId,
       propertyId: existing.propertyId,
       portalGroupId: gid,
       expectedUpdatedAt: existing.updatedAt,
-      at: now,
+      revision,
+      occurredAt,
       event,
     })
   }

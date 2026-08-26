@@ -40,7 +40,10 @@ const REVIEW_ID = reviewId('74000000-0000-4000-8000-000000000002')
 const ACTOR_USER_ID = userId('ai-suggested-draft-user')
 const LINEAGE_ID = '74000000-0000-4000-8000-000000000003'
 const SOURCE_EPOCH = 2
-const SOURCE_REVISION = 3
+// Material Review Revisions are repository-owned and start at one. Fixtures
+// must bind AI provenance to that canonical revision instead of attempting to
+// inject an arbitrary provider counter through the upsert input.
+const SOURCE_REVISION = 1
 const SUGGESTION = 'Thank you for sharing your experience.'
 const REQUEST_BINDING_HMAC = 'A'.repeat(43)
 

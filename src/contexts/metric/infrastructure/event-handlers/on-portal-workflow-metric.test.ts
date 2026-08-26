@@ -42,6 +42,7 @@ const common = {
   propertyId: propId,
   portalId: pid,
   portalGroupId: groupId,
+  sourceAggregateVersion: '2026-08-09T13:00:00.001Z',
   occurredAt,
   supersedesSourceEventId: null,
 }

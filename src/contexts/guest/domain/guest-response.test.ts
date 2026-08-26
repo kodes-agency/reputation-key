@@ -91,6 +91,29 @@ describe('GuestResponse', () => {
       ).toEqual({ code: 'feedback_not_eligible' })
     })
 
+    it('uses Unicode code points for the 2000-character feedback limit', () => {
+      const response = submitResponse(
+        createResponse(baseParams),
+        { rating: 3 },
+        NOW,
+      ) as GuestResponse
+
+      expect(
+        submitPrivateFeedback(
+          response,
+          { text: '😀'.repeat(2000), textConsent: true },
+          NOW,
+        ),
+      ).not.toHaveProperty('code')
+      expect(
+        submitPrivateFeedback(
+          response,
+          { text: '😀'.repeat(2001), textConsent: true },
+          NOW,
+        ),
+      ).toEqual({ code: 'text_too_long', length: 2001, max: 2000 })
+    })
+
     it('withdraws only feedback during the 24-hour window and keeps the rating', () => {
       const rated = submitResponse(
         createResponse(baseParams),
@@ -207,6 +230,22 @@ describe('GuestResponse', () => {
       const r = createResponse(baseParams)
       const result = submitResponse(r, { text: 'x'.repeat(MAX_TEXT_LENGTH + 1) }, NOW)
       expect(result).toHaveProperty('code', 'text_too_long')
+    })
+
+    it('normalizes private-feedback line endings and preserves paragraphs', () => {
+      const r = createResponse(baseParams)
+      const result = submitResponse(
+        r,
+        {
+          rating: 2,
+          text: '  First line\r\nsecond line\r\r\nThird paragraph  ',
+          responseConsent: true,
+          textConsent: true,
+        },
+        NOW,
+      ) as GuestResponse
+
+      expect(result.text).toBe('First line\nsecond line\n\nThird paragraph')
     })
 
     it('rejects submission on deleted response', () => {

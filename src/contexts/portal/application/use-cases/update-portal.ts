@@ -30,6 +30,7 @@ import type {
   VerifiedPublicationDestination,
 } from '../../domain/portal-publication-snapshot'
 import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
+import { nextPortalCommandAt } from '../portal-command-version'
 
 export type UpdatePortalDeps = Readonly<{
   portalRepo: PortalRepository
@@ -335,21 +336,24 @@ export const updatePortal =
       return existing
     }
 
-    const updatedAt = deps.clock()
+    const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, existing.updatedAt)
     const publication = await buildPublicationMutation(
       deps,
       existing,
       patch,
       publicationDestination,
       ctx,
-      updatedAt,
+      occurredAt,
     )
     await deps.commandStore.updatePortal({
       organizationId: ctx.organizationId,
       propertyId: existing.propertyId,
       portalId: pid,
       expectedUpdatedAt: existing.updatedAt,
-      patch: { ...patch, updatedAt },
+      revision,
+      occurredAt,
+      patch,
       publication,
       event: portalUpdated({
         portalId: pid,
@@ -357,12 +361,12 @@ export const updatePortal =
         propertyId: existing.propertyId,
         previousPublicationState: existing.publicationState,
         publicationState: patch.publicationState,
-        sourceAggregateVersion: updatedAt.toISOString(),
-        occurredAt: updatedAt,
+        sourceAggregateVersion: revision.toISOString(),
+        occurredAt,
       }),
     })
 
-    return buildUpdatedPortal(existing, patch, updatedAt)
+    return buildUpdatedPortal(existing, patch, revision)
   }
 
 export type UpdatePortal = ReturnType<typeof updatePortal>

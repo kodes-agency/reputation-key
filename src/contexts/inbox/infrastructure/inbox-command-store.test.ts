@@ -756,14 +756,11 @@ describe('createAtomicInboxCommandStore', () => {
   })
 
   describe('applyReplyPublishedOnce', () => {
-    it('close + milestone: commits update + status_changed fact + receipt, then emits', async () => {
+    it('records a compatibility receipt without mutating or emitting', async () => {
       const order: string[] = []
       const receiptRows: Array<Record<string, unknown>> = []
-      const { db } = createMockDb({
-        order,
-        updateRows: [makeItemRow({ status: 'closed' })],
-        receiptRows,
-      })
+      const outboxRows: Array<Record<string, unknown>> = []
+      const { db } = createMockDb({ order, receiptRows, outboxRows })
       const events = makeEvents(order)
       const store = createAtomicInboxCommandStore(db, events)
 
@@ -779,63 +776,9 @@ describe('createAtomicInboxCommandStore', () => {
 
       expect(outcome).toBe('applied')
       expect(receiptRows).toHaveLength(1)
-      expect(order).toEqual([
-        'tx.start',
-        'tx.state',
-        'tx.outbox',
-        'tx.receipt',
-        'tx.commit',
-        'emit',
-      ])
-    })
-
-    it('milestone only (already closed): commits update + receipt, no fact', async () => {
-      const order: string[] = []
-      const outboxRows: Array<Record<string, unknown>> = []
-      const { db } = createMockDb({
-        order,
-        updateRows: [makeItemRow({ status: 'closed' })],
-        outboxRows,
-      })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
-
-      const outcome = await store.applyReplyPublishedOnce({
-        eventId: 'evt-reply-published-1',
-        consumerName: 'inbox.on-reply-published',
-        item: makeItem({ status: 'closed' }),
-        occurredAt: NOW,
-        closeItem: false,
-        stampMilestone: true,
-        fact: null,
-      })
-
-      expect(outcome).toBe('applied')
       expect(outboxRows).toHaveLength(0)
       expect(events.emit).not.toHaveBeenCalled()
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.receipt', 'tx.commit'])
-    })
-
-    it('guard misses: receipt only, no fact', async () => {
-      const order: string[] = []
-      const outboxRows: Array<Record<string, unknown>> = []
-      const { db } = createMockDb({ order, updateRows: [], outboxRows })
-      const events = makeEvents(order)
-      const store = createAtomicInboxCommandStore(db, events)
-
-      const outcome = await store.applyReplyPublishedOnce({
-        eventId: 'evt-reply-published-1',
-        consumerName: 'inbox.on-reply-published',
-        item: makeItem(),
-        occurredAt: NOW,
-        closeItem: true,
-        stampMilestone: true,
-        fact: statusChangedEvent(),
-      })
-
-      expect(outcome).toBe('applied')
-      expect(outboxRows).toHaveLength(0)
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.receipt', 'tx.commit'])
+      expect(order).toEqual(['tx.start', 'tx.receipt', 'tx.commit'])
     })
   })
 

@@ -13,6 +13,7 @@ import type { PortalPublicationRepository } from '../ports/portal-publication.re
 import type { UpdatePortalCommand } from '../ports/portal-command-store.port'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
+const NEXT_TIME = new Date(FIXED_TIME.getTime() + 1)
 
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
@@ -185,8 +186,8 @@ describe('updatePortal', () => {
     )
   })
 
-  it('emits portal.updated event', async () => {
-    const { useCase, portalRepo, events } = setup()
+  it('keeps occurrence time from the clock while allocating a later revision', async () => {
+    const { useCase, portalRepo, events, lastUpdateCommand } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({})
     portalRepo.seed([portal])
@@ -199,7 +200,12 @@ describe('updatePortal', () => {
       propertyId: portal.propertyId,
       previousPublicationState: portal.publicationState,
       publicationState: portal.publicationState,
-      sourceAggregateVersion: FIXED_TIME.toISOString(),
+      sourceAggregateVersion: NEXT_TIME.toISOString(),
+      occurredAt: FIXED_TIME,
+    })
+    expect(lastUpdateCommand()).toMatchObject({
+      occurredAt: FIXED_TIME,
+      revision: NEXT_TIME,
     })
     expect(emitted[0]).not.toHaveProperty('name')
     expect(emitted[0]).not.toHaveProperty('slug')

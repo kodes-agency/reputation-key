@@ -1288,6 +1288,9 @@ export function createContainer(options?: {
     outboxRepo,
     clock,
     staffPublicApi: staff.publicApi,
+    publicationActorAuthority: async (tx, authorityInput) =>
+      (await identity.internal.decidePublicationActorAuthority(tx, authorityInput))
+        .allowed,
     googleReviewApi: integration.internal.googleReviewApi,
     jobQueue: infra.jobQueue,
     logger: getLogger(),
@@ -1381,6 +1384,7 @@ export function createContainer(options?: {
       property: property.publicApi,
       reply: review.internal.repos.replyRepo,
       review: review.internal.repos.reviewRepo,
+      replyObservationAuthority: review.publicApi.replyObservationAuthority,
     },
     logger: getLogger(),
   })
@@ -1722,6 +1726,7 @@ export function createContainer(options?: {
     reviewRepo: review.internal.repos.reviewRepo,
     providerEphemeralReadiness,
     replyRepo: review.internal.repos.replyRepo,
+    replyCommandStore: review.internal.repos.replyCommandStore,
     badgePublicApi: badge.publicApi,
     leaderboardPublicApi: leaderboard.publicApi,
     reviewQueue: review.internal.repos.queue,

@@ -4,6 +4,17 @@ import type { ReviewCategory } from '#/contexts/inbox/application/ports/ai-revie
 import type { InboxItem } from '#/contexts/inbox/domain/types'
 import { unbrandAll } from '#/shared/domain/ids'
 
+const matchesSourceScopes = (
+  item: InboxItem,
+  scopes: Parameters<InboxRepository['countByStatus']>[3],
+): boolean =>
+  scopes === undefined ||
+  scopes.some(
+    (scope) =>
+      scope.sourceType === item.sourceType &&
+      (scope.propertyIds === undefined || scope.propertyIds.includes(item.propertyId)),
+  )
+
 export function createInMemoryInboxRepo(): InboxRepository & {
   items: InboxItem[]
   categories: Map<string, ReviewCategory>
@@ -34,10 +45,15 @@ export function createInMemoryInboxRepo(): InboxRepository & {
         )
       if (filters.propertyId)
         filtered = filtered.filter((i) => i.propertyId === filters.propertyId)
-      if (filters.propertyIds && filters.propertyIds.length > 0)
-        filtered = filtered.filter((i) => filters.propertyIds!.includes(i.propertyId))
+      if (filters.propertyIds)
+        filtered =
+          filters.propertyIds.length === 0
+            ? []
+            : filtered.filter((i) => filters.propertyIds!.includes(i.propertyId))
       if (filters.sourceType)
         filtered = filtered.filter((i) => i.sourceType === filters.sourceType)
+      if (filters.sourceScopes)
+        filtered = filtered.filter((i) => matchesSourceScopes(i, filters.sourceScopes))
       if (filters.platform)
         filtered = filtered.filter((i) => i.platform === filters.platform)
       if (filters.ratingMin !== undefined)
@@ -129,14 +145,13 @@ export function createInMemoryInboxRepo(): InboxRepository & {
       items[idx] = { ...item, assignedTo, updatedAt: new Date() }
       return items[idx]
     },
-    countByStatus: async (orgId, status, propertyIds) =>
+    countByStatus: async (orgId, status, propertyIds, sourceScopes) =>
       items.filter(
         (i) =>
           i.organizationId === orgId &&
           i.status === status &&
-          (!propertyIds ||
-            propertyIds.length === 0 ||
-            propertyIds.includes(i.propertyId)),
+          (!propertyIds || propertyIds.includes(i.propertyId)) &&
+          matchesSourceScopes(i, sourceScopes),
       ).length,
     setEscalation: async (id, orgId, escalatedBy, now) => {
       const item = items.find((i) => i.id === id && i.organizationId === orgId)
@@ -168,25 +183,23 @@ export function createInMemoryInboxRepo(): InboxRepository & {
       }
       return items[idx]
     },
-    countEscalatedActive: async (orgId, propertyIds) =>
+    countEscalatedActive: async (orgId, propertyIds, sourceScopes) =>
       items.filter(
         (i) =>
           i.organizationId === orgId &&
           i.isEscalated &&
           i.escalationResolvedAt === null &&
-          (!propertyIds ||
-            propertyIds.length === 0 ||
-            propertyIds.includes(i.propertyId)),
+          (!propertyIds || propertyIds.includes(i.propertyId)) &&
+          matchesSourceScopes(i, sourceScopes),
       ).length,
-    countOpenSince: async (orgId, since, propertyIds) =>
+    countOpenSince: async (orgId, since, propertyIds, sourceScopes) =>
       items.filter(
         (i) =>
           i.organizationId === orgId &&
           i.status === 'open' &&
           (!since || i.createdAt.getTime() >= since.getTime()) &&
-          (!propertyIds ||
-            propertyIds.length === 0 ||
-            propertyIds.includes(i.propertyId)),
+          (!propertyIds || propertyIds.includes(i.propertyId)) &&
+          matchesSourceScopes(i, sourceScopes),
       ).length,
     updateSourceMeta: async (id, orgId, fields, now) => {
       const item = items.find((i) => i.id === id && i.organizationId === orgId)

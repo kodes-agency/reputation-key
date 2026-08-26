@@ -12,6 +12,8 @@ import {
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { propertyId, type PropertyId } from '#/shared/domain/ids'
 import { isPortalError } from '../../domain/errors'
+import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
@@ -24,19 +26,25 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const portalLinkRepo = createInMemoryPortalLinkRepo()
+  const events = createCapturingEventBus()
   const deps = {
     portalRepo,
     portalLinkRepo,
     staffPublicApi: staffApiMock(accessible),
+    commandStore: createInMemoryPortalCommandStore({
+      portalRepo,
+      portalLinkRepo,
+      events,
+    }),
     clock: () => FIXED_TIME,
   }
   const useCase = updateLinkCategory(deps)
-  return { useCase, portalRepo, portalLinkRepo }
+  return { useCase, portalRepo, portalLinkRepo, events }
 }
 
 describe('updateLinkCategory', () => {
   it('updates category title', async () => {
-    const { useCase, portalRepo, portalLinkRepo } = setup()
+    const { useCase, portalRepo, portalLinkRepo, events } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const category = buildTestPortalLinkCategory({})
     portalLinkRepo.seedCategories([category])
@@ -45,6 +53,9 @@ describe('updateLinkCategory', () => {
     const updated = await useCase({ categoryId: category.id, title: 'New Title' }, ctx)
 
     expect(updated.title).toBe('New Title')
+    expect(events.capturedByTag('portal_link_category.updated')).toEqual([
+      expect.objectContaining({ categoryId: category.id, occurredAt: FIXED_TIME }),
+    ])
   })
 
   it('rejects users who cannot update', async () => {

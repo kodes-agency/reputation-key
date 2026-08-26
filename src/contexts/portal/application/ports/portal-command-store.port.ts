@@ -31,9 +31,13 @@ import type {
   PortalGroupUpdated,
   PortalRemovedFromGroup,
   PortalLinkCategoryCreated,
+  PortalLinkCategoryDeleted,
   PortalLinkCategoryReordered,
+  PortalLinkCategoryUpdated,
   PortalLinkCreated,
+  PortalLinkDeleted,
   PortalLinkReordered,
+  PortalLinkUpdated,
   PortalTokenIssued,
   PortalTokenRotated,
   PortalTokenRevoked,
@@ -57,7 +61,11 @@ export type UpdatePortalCommand = Readonly<{
   portalId: PortalId
   /** Optimistic fence captured by the application pre-read. */
   expectedUpdatedAt: Date
-  patch: Readonly<Partial<Portal>>
+  /** Monotonic aggregate revision; may be later than business occurrence time. */
+  revision: Date
+  /** Actual business time returned by the command clock. */
+  occurredAt: Date
+  patch: Readonly<Omit<Partial<Portal>, 'updatedAt'>>
   publication?: PortalPublicationMutation
   event: PortalUpdated
 }>
@@ -88,7 +96,8 @@ export type DeletePortalCommand = Readonly<{
   expectedUpdatedAt: Date
   revokedBy: UserId
   reason: string
-  at: Date
+  revision: Date
+  occurredAt: Date
   event: PortalDeleted
   /** Recorded only when the transaction actually revokes a live token. */
   tokenRevokedEvent: PortalTokenRevoked
@@ -100,7 +109,8 @@ export type DeletePortalGroupCommand = Readonly<{
   portalGroupId: PortalGroupId
   /** Optimistic fence captured by the application pre-read. */
   expectedUpdatedAt: Date
-  at: Date
+  revision: Date
+  occurredAt: Date
   event: PortalGroupDeleted
 }>
 
@@ -122,7 +132,8 @@ export type UpdatePortalGroupCommand = Readonly<{
   portalGroupId: PortalGroupId
   expectedUpdatedAt: Date
   name: string
-  at: Date
+  revision: Date
+  occurredAt: Date
   event: PortalGroupUpdated
 }>
 
@@ -132,7 +143,8 @@ export type ChangePortalGroupMembershipCommand = Readonly<{
   portalGroupId: PortalGroupId
   portalId: PortalId
   expectedUpdatedAt: Date
-  at: Date
+  revision: Date
+  occurredAt: Date
   changedBy: UserId
 }>
 
@@ -147,7 +159,8 @@ type PortalContentCommandBase = Readonly<{
   propertyId: PropertyId
   portalId: PortalId
   expectedPortalUpdatedAt: Date
-  at: Date
+  revision: Date
+  occurredAt: Date
 }>
 
 export type CreatePortalLinkCategoryCommand = PortalContentCommandBase &
@@ -162,6 +175,19 @@ export type ReorderPortalLinkCategoriesCommand = PortalContentCommandBase &
     event: PortalLinkCategoryReordered
   }>
 
+export type UpdatePortalLinkCategoryCommand = PortalContentCommandBase &
+  Readonly<{
+    categoryId: PortalLinkCategoryId
+    title: string
+    event: PortalLinkCategoryUpdated
+  }>
+
+export type DeletePortalLinkCategoryCommand = PortalContentCommandBase &
+  Readonly<{
+    categoryId: PortalLinkCategoryId
+    event: PortalLinkCategoryDeleted
+  }>
+
 export type CreatePortalLinkCommand = PortalContentCommandBase &
   Readonly<{
     link: PortalLink
@@ -173,6 +199,21 @@ export type ReorderPortalLinksCommand = PortalContentCommandBase &
     categoryId: PortalLinkCategoryId
     updates: ReadonlyArray<Readonly<{ id: PortalLinkId; sortKey: string }>>
     event: PortalLinkReordered
+  }>
+
+export type UpdatePortalLinkCommand = PortalContentCommandBase &
+  Readonly<{
+    linkId: PortalLinkId
+    categoryId: PortalLinkCategoryId
+    patch: Readonly<{ label: string; url: string; iconKey: string | null }>
+    event: PortalLinkUpdated
+  }>
+
+export type DeletePortalLinkCommand = PortalContentCommandBase &
+  Readonly<{
+    linkId: PortalLinkId
+    categoryId: PortalLinkCategoryId
+    event: PortalLinkDeleted
   }>
 
 type PortalTokenCommandBase = PortalContentCommandBase
@@ -206,8 +247,12 @@ export type PortalCommandStore = Readonly<{
   addPortalToGroup(command: AddPortalToGroupCommand): Promise<void>
   removePortalFromGroup(command: RemovePortalFromGroupCommand): Promise<void>
   createPortalLinkCategory(command: CreatePortalLinkCategoryCommand): Promise<void>
+  updatePortalLinkCategory(command: UpdatePortalLinkCategoryCommand): Promise<void>
+  deletePortalLinkCategory(command: DeletePortalLinkCategoryCommand): Promise<void>
   reorderPortalLinkCategories(command: ReorderPortalLinkCategoriesCommand): Promise<void>
   createPortalLink(command: CreatePortalLinkCommand): Promise<void>
+  updatePortalLink(command: UpdatePortalLinkCommand): Promise<void>
+  deletePortalLink(command: DeletePortalLinkCommand): Promise<void>
   reorderPortalLinks(command: ReorderPortalLinksCommand): Promise<void>
   issuePortalToken(command: IssuePortalTokenCommand): Promise<void>
   rotatePortalToken(command: RotatePortalTokenCommand): Promise<void>

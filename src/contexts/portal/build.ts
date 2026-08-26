@@ -208,12 +208,15 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       portalLinkRepo,
       staffPublicApi: deps.staffPublicApi,
+      commandStore: portalCommandStore,
       clock: deps.clock,
     }),
     deleteLinkCategory: deleteLinkCategory({
       portalRepo,
       portalLinkRepo,
       staffPublicApi: deps.staffPublicApi,
+      commandStore: portalCommandStore,
+      clock: deps.clock,
     }),
     reorderCategories: reorderCategories({
       portalRepo,
@@ -234,12 +237,15 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       portalLinkRepo,
       staffPublicApi: deps.staffPublicApi,
+      commandStore: portalCommandStore,
       clock: deps.clock,
     }),
     deleteLink: deleteLink({
       portalRepo,
       portalLinkRepo,
       staffPublicApi: deps.staffPublicApi,
+      commandStore: portalCommandStore,
+      clock: deps.clock,
     }),
     reorderLinks: reorderLinks({
       portalRepo,

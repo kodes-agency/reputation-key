@@ -8,12 +8,15 @@ import {
   inboxNoteId,
   propertyId,
   reviewId,
+  feedbackId,
 } from '#/shared/domain/ids'
 import type { InboxNote, InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { isInboxError } from '../../domain/errors'
+import type { Permission } from '#/shared/domain/permissions'
+import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 
 const ORG_ID = organizationId('org-1')
 const OTHER_ORG_ID = organizationId('org-2')
@@ -34,7 +37,7 @@ const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
   countAssignmentsByTeam: async () => 0,
 })
 
-const makeItem = (): InboxItem => ({
+const makeItem = (overrides: Partial<InboxItem> = {}): InboxItem => ({
   id: ITEM_ID,
   organizationId: ORG_ID,
   propertyId: PROP_ID,
@@ -58,6 +61,7 @@ const makeItem = (): InboxItem => ({
   firstReplyPublishedAt: null,
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
+  ...overrides,
 })
 
 function createInMemoryNoteRepo() {
@@ -75,6 +79,16 @@ function createInMemoryNoteRepo() {
 
 const ctxFor = (role: Role): AuthContext =>
   ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
+
+const ctxWith = (...permissions: Permission[]): AuthContext => ({
+  organizationId: ORG_ID,
+  userId: USER_ID,
+  role: 'Staff',
+  effectivePermissions: new Set(permissions),
+  scopeByPermission: new Map(
+    permissions.map((permission) => [permission, 'organization' as const]),
+  ),
+})
 
 describe('getInboxNotes', () => {
   it('returns notes for an inbox item', async () => {
@@ -173,5 +187,50 @@ describe('getInboxNotes', () => {
 
     expect(result).toHaveLength(1)
     expect(result[0]!.text).toBe('PM-visible note')
+  })
+
+  it('does not expose notes attached to private feedback without feedback.read', async () => {
+    const noteRepo = createInMemoryNoteRepo()
+    const repo = createInMemoryInboxRepo()
+    repo.items.push(
+      makeItem({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
+    )
+
+    const useCase = getInboxNotes({ noteRepo, repo, staffPublicApi: adminStaffApi })
+
+    await expect(
+      useCase({ inboxItemId: ITEM_ID }, ctxWith('inbox.read', 'review.read')),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
+  })
+
+  it('intersects feedback.read property scope before returning notes', async () => {
+    const noteRepo = createInMemoryNoteRepo()
+    const repo = createInMemoryInboxRepo()
+    repo.items.push(
+      makeItem({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
+    )
+    const useCase = getInboxNotes({
+      noteRepo,
+      repo,
+      staffPublicApi: createScopedStaffApi(['other-prop']),
+    })
+
+    await expect(
+      useCase(
+        { inboxItemId: ITEM_ID },
+        createScopedAuthContext({
+          organizationId: ORG_ID,
+          userId: USER_ID,
+          permissions: [
+            ['inbox.read', 'organization'],
+            ['feedback.read', 'assigned-properties'],
+          ],
+        }),
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
   })
 })

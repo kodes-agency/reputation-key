@@ -11,7 +11,11 @@ export type StartReviewHandlingCycleInput = Readonly<{
   organizationId: OrganizationId
   expected: ReviewHandlingCycleExpectation
   materialReviewRevision: number
-  openedReason: 'material_revision_changed' | 'manual_reopen'
+  openedReason:
+    | 'material_revision_changed'
+    | 'manual_reopen'
+    | 'provider_reply_deleted'
+    | 'provider_reply_diverged'
   openedBy: UserId | null
 }>
 

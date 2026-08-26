@@ -148,6 +148,20 @@ export const createInMemoryPortalLinkRepo = (): InMemoryPortalLinkRepo => {
       return link && link.organizationId === orgId ? link : null
     },
 
+    findCategoryCommandTarget: async (orgId, id) => {
+      const category = categoryStore.get(String(id))
+      return category && category.organizationId === orgId
+        ? { category, portalUpdatedAt: null }
+        : null
+    },
+
+    findLinkCommandTarget: async (orgId, id) => {
+      const link = linkStore.get(String(id))
+      return link && link.organizationId === orgId
+        ? { link, portalUpdatedAt: null }
+        : null
+    },
+
     // ── Test-only helpers ───────────────────────────────────────────
 
     seedCategories: (categories) => {

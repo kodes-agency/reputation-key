@@ -8,6 +8,7 @@ import { getDb } from '#/shared/db'
 import { buildTestPortal } from '#/shared/testing/fixtures'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
+import { createPostgresPortalFixtureStore } from '../testing/postgres-portal-fixture-store'
 
 const ORG_A = organizationId('org-aaaaaaaaaaaa')
 const ORG_B = organizationId('org-bbbbbbbbbbbb')
@@ -20,6 +21,8 @@ const { getPool } = setupIntegrationDb({
   orgB: ORG_B,
   tables: ['portal_links', 'portal_link_categories', 'portals'],
 })
+
+const fixtures = () => createPostgresPortalFixtureStore(getDb())
 
 beforeEach(async () => {
   const pool = getPool()
@@ -50,7 +53,7 @@ describe('portalRepository (integration)', () => {
         slug: 'test-portal',
       })
 
-      await repo.insert(ORG_A, portal)
+      await fixtures().insert(ORG_A, portal)
 
       const found = await repo.findById(ORG_A, portal.id)
       expect(found).not.toBeNull()
@@ -69,7 +72,7 @@ describe('portalRepository (integration)', () => {
         slug: 'slug-test',
       })
 
-      await repo.insert(ORG_A, portal)
+      await fixtures().insert(ORG_A, portal)
 
       const found = await repo.findBySlug(ORG_A, 'slug-test')
       expect(found).not.toBeNull()
@@ -87,7 +90,7 @@ describe('portalRepository (integration)', () => {
         slug: 'tenant-test',
       })
 
-      await repo.insert(ORG_A, portal)
+      await fixtures().insert(ORG_A, portal)
 
       const foundInA = await repo.findById(ORG_A, portal.id)
       expect(foundInA).not.toBeNull()
@@ -109,7 +112,7 @@ describe('portalRepository (integration)', () => {
         slug: 'shared-slug',
       })
 
-      await repo.insert(ORG_A, portal)
+      await fixtures().insert(ORG_A, portal)
 
       const existsInA = await repo.slugExists(
         ORG_A,
@@ -147,8 +150,8 @@ describe('portalRepository (integration)', () => {
         slug: 'portal-b',
       })
 
-      await repo.insert(ORG_A, portalA)
-      await repo.insert(ORG_B, portalB)
+      await fixtures().insert(ORG_A, portalA)
+      await fixtures().insert(ORG_B, portalB)
 
       const listA = await repo.list(ORG_A)
       expect(listA).toHaveLength(1)
@@ -174,7 +177,7 @@ describe('portalRepository (integration)', () => {
         slug: 'property-portal',
       })
 
-      await repo.insert(ORG_A, portal)
+      await fixtures().insert(ORG_A, portal)
 
       const found = await repo.listByProperty(ORG_A, propId)
       expect(found).toHaveLength(1)
@@ -194,8 +197,8 @@ describe('portalRepository (integration)', () => {
         slug: 'to-delete',
       })
 
-      await repo.insert(ORG_A, portal)
-      await repo.softDelete(ORG_A, portal.id)
+      await fixtures().insert(ORG_A, portal)
+      await fixtures().softDelete(ORG_A, portal.id)
 
       const found = await repo.findById(ORG_A, portal.id)
       expect(found).toBeNull()
@@ -215,8 +218,8 @@ describe('portalRepository (integration)', () => {
         slug: 'reuse-slug',
       })
 
-      await repo.insert(ORG_A, portal)
-      await repo.softDelete(ORG_A, portal.id)
+      await fixtures().insert(ORG_A, portal)
+      await fixtures().softDelete(ORG_A, portal.id)
 
       const newPortal = buildTestPortal({
         id: crypto.randomUUID(),
@@ -226,7 +229,7 @@ describe('portalRepository (integration)', () => {
         slug: 'reuse-slug',
       })
 
-      await repo.insert(ORG_A, newPortal)
+      await fixtures().insert(ORG_A, newPortal)
 
       const found = await repo.findBySlug(ORG_A, 'reuse-slug')
       expect(found).not.toBeNull()
@@ -246,8 +249,8 @@ describe('portalRepository (integration)', () => {
         slug: 'original',
       })
 
-      await repo.insert(ORG_A, portal)
-      await repo.update(ORG_A, portal.id, { name: 'Updated' })
+      await fixtures().insert(ORG_A, portal)
+      await fixtures().update(ORG_A, portal.id, { name: 'Updated' })
 
       const found = await repo.findById(ORG_A, portal.id)
       expect(found!.name).toBe('Updated')
@@ -265,7 +268,7 @@ describe('portalRepository (integration)', () => {
         propertyId: PROPERTY_A,
         slug: 'stable-public-order',
       })
-      await repo.insert(ORG_A, portal)
+      await fixtures().insert(ORG_A, portal)
       const pool = getPool()
       const categoryA = 'ad000000-0000-4000-8000-000000000010'
       const categoryB = 'ad000000-0000-4000-8000-000000000020'

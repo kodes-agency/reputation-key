@@ -47,14 +47,15 @@ export const addPortalToGroup =
       throw portalError('portal_already_grouped', 'portal is already in a group')
     }
 
-    const now = nextPortalCommandAt(deps.clock(), group.updatedAt)
+    const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, group.updatedAt)
     const event = portalAddedToGroup({
       portalGroupId: gid,
       portalId: pid,
       organizationId: ctx.organizationId,
       propertyId: group.propertyId,
-      sourceAggregateVersion: now.toISOString(),
-      occurredAt: now,
+      sourceAggregateVersion: revision.toISOString(),
+      occurredAt,
     })
     await deps.commandStore.addPortalToGroup({
       organizationId: ctx.organizationId,
@@ -62,7 +63,8 @@ export const addPortalToGroup =
       portalGroupId: gid,
       portalId: pid,
       expectedUpdatedAt: group.updatedAt,
-      at: now,
+      revision,
+      occurredAt,
       changedBy: ctx.userId,
       event,
     })

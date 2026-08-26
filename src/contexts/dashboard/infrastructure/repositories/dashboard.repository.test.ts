@@ -29,7 +29,9 @@ const PORTAL_A = portalId('b0000000-0000-0000-0000-000000000001')
 const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
   orgB: ORG_B,
-  tables: ['reviews', 'replies', 'metric_readings'],
+  // Child rows must be removed before their Review parents now that reply
+  // history is deliberately retained with a restrictive foreign key.
+  tables: ['replies', 'reviews', 'metric_readings'],
 })
 
 /** Helper: seed a property row (FK dependency for reviews). */

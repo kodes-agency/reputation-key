@@ -199,7 +199,9 @@ describe('row 1 — Identity (enabled/limited): property_access_grant sole acces
     const offenders = offendersMatching(
       GRANT_TABLE_ACCESS,
       (p) =>
-        p.startsWith('src/contexts/identity/') || p.startsWith('src/shared/db/schema/'),
+        p.startsWith('src/contexts/identity/') ||
+        p.startsWith('src/shared/db/schema/') ||
+        p === 'src/shared/governance/data-fate-authority.ts',
     )
     expect(
       offenders,

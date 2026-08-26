@@ -138,16 +138,26 @@ describe('createAtomicReviewCommandStore', () => {
     const execute = vi.fn().mockResolvedValue({
       rows: [{ analysis_sequence: '1' }],
     })
+    const select = vi.fn(() => ({
+      from: vi.fn(() => ({
+        leftJoin: vi.fn(() => ({
+          where: vi.fn(() => ({
+            for: vi.fn().mockResolvedValue([]),
+          })),
+        })),
+      })),
+    }))
 
     const transaction = vi.fn(
       async (
         fn: (tx: {
           insert: typeof txInsert
           execute: typeof execute
+          select: typeof select
         }) => Promise<unknown>,
       ) => {
         order.push('tx.start')
-        const result = await fn({ insert: txInsert, execute })
+        const result = await fn({ insert: txInsert, execute, select })
         order.push('tx.commit')
         return result
       },

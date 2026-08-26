@@ -56,6 +56,7 @@ export type Permission =
   | 'notification.read'
   | 'notification.update'
   | 'feedback.read'
+  | 'feedback.handle'
   | 'feedback.respond'
   | 'feedback.contact_read'
   | 'integration.manage'

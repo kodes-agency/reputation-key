@@ -53,6 +53,11 @@ export type GoogleReviewGetRequest = Readonly<{
 export type GoogleReviewGetResult =
   Readonly<{ status: 'found'; review: GoogleReview }> | Readonly<{ status: 'not_found' }>
 
+export type GoogleReplyPublicationResult = Readonly<{
+  /** Provider-supplied request correlation when available; null is honest. */
+  providerCorrelationId: string | null
+}>
+
 export type GoogleReviewApiPort = Readonly<{
   listReviewsPage(input: GoogleReviewPageRequest): Promise<GoogleReviewPage>
   getReview(input: GoogleReviewGetRequest): Promise<GoogleReviewGetResult>
@@ -69,5 +74,5 @@ export type GoogleReviewApiPort = Readonly<{
     connectionId: GoogleConnectionId,
     reviewName: string,
     text: string,
-  ): Promise<void>
+  ): Promise<GoogleReplyPublicationResult>
 }>

@@ -1,7 +1,8 @@
 // Inbox context — update inbox status use case
 // Transitions status open ⇄ closed (ADR 0023). No source-type-conditional
-// transitions — whether a review was replied to is a query on review data,
-// not an inbox status. Escalation is a separate, orthogonal action.
+// transition graph — whether a review was replied to is a query on review
+// data, not an inbox status. Source type still governs authorization.
+// Escalation is a separate, orthogonal action.
 
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { InboxCommandStore } from '../ports/inbox-command-store.port'
@@ -13,7 +14,11 @@ import { canForContext } from '#/shared/domain/permissions'
 import { validateTransition, timestampFieldsForStatus } from '../../domain/rules'
 import { inboxItemStatusChanged } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
-import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
+import {
+  loadInboxItemOrThrow,
+  assertInboxSourcePropertyAccessible,
+  canHandleInboxSource,
+} from '../inbox-access'
 
 export type UpdateInboxStatusInput = Readonly<{
   inboxItemId: InboxItemId
@@ -44,10 +49,14 @@ export const updateInboxStatus =
       input.inboxItemId,
       ctx.organizationId,
     )
-    await assertPropertyAccessible(
+    if (!canHandleInboxSource(ctx, item.sourceType)) {
+      throw inboxError('forbidden', 'No permission to handle this inbox source')
+    }
+    await assertInboxSourcePropertyAccessible(
       deps.staffPublicApi,
       ctx,
-      'inbox.write',
+      'handle',
+      item.sourceType,
       item.propertyId,
     )
 

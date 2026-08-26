@@ -134,6 +134,7 @@ describe('getRedis', () => {
     process.env.REDIS_URL = 'redis://unit-test:6379'
     process.env.NODE_ENV = 'production'
     process.env.BETTER_AUTH_URL = 'https://app.example.test'
+    process.env.PROCESSING_CELL = 'us'
     resetEnv()
 
     getRedis()

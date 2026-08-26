@@ -1,7 +1,5 @@
-// BQC-4.1: ADR 0048 must exist and remain the cited authority for
-// property-region routing decisions (phase BQC-4 §3): supported region
-// identifiers, resolution precedence, locked transitions, fail-closed
-// behavior, and routing-policy versioning.
+// BQC-4.1: preserve the historical ADR and follow its explicit supersession
+// pointer to the accepted current Data Cell routing authority.
 
 import { describe, it, expect } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
@@ -18,23 +16,22 @@ describe('BQC-4.1: ADR 0048 property region routing', () => {
     expect(files.length, 'expected exactly one ADR 0048 file').toBe(1)
   })
 
-  it('ADR 0048 is accepted and records the routing decisions', () => {
+  it('ADR 0048 points to accepted ADR 0054, which records current routing decisions', () => {
     const files = readdirSync(ADR_DIR).filter((f) => f.startsWith('0048-'))
-    const body = readFileSync(join(ADR_DIR, files[0]!), 'utf-8')
+    const historical = readFileSync(join(ADR_DIR, files[0]!), 'utf-8')
+    expect(historical).toMatch(/status:\s*superseded/i)
+    expect(historical).toMatch(/superseded_by:\s*0054/i)
+
+    const currentFiles = readdirSync(ADR_DIR).filter((f) => f.startsWith('0054-'))
+    expect(currentFiles.length, 'expected exactly one ADR 0054 file').toBe(1)
+    const body = readFileSync(join(ADR_DIR, currentFiles[0]!), 'utf-8')
     expect(body).toMatch(/status:\s*accepted/i)
-    // region identifiers + beta approval state
     expect(body).toContain('us')
     expect(body).toContain('europe')
     expect(body).toContain('global')
-    expect(body).toContain('unresolved')
-    // global is a denied placeholder, europe denied until evidence passes
-    expect(body).toMatch(/denied placeholder/i)
-    // fail closed — never another region (ADR 0031)
     expect(body).toMatch(/fail[s]?\s+closed|fails closed|fail closed/i)
-    // resolution precedence: google_address > manual > organization_default
-    expect(body).toContain('google_address')
-    expect(body).toContain('organization_default')
-    // routing-policy version bumps on every resolution change
-    expect(body).toContain('routing_policy_version')
+    expect(body).toContain('credential-home cell')
+    expect(body).toContain('routing directory')
+    expect(body).toContain('Cross-cell fallback')
   })
 })

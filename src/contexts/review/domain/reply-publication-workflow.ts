@@ -153,15 +153,14 @@ export function nextPublicationCycle(current: number): number {
 //   terminal_rejection — Google answered 4xx (or the connection is gone).
 //                        Retrying cannot succeed: mark publish_failed without
 //                        burning BullMQ attempts.
-//   retryable          — 429/5xx, token-refresh, or a pre-response network
-//                        failure. Safe to retry: the GBP reply PUT is an
-//                        UPSERT (one reply per review), so a retry can never
-//                        create a duplicate Google-visible reply.
-//   ambiguous          — timeout/abort or unknown error AFTER the request
-//                        may have landed. The reply may exist on Google.
-//                        Retry is still upsert-safe, but when attempts run
-//                        out the honest state is publish_failed + reconcile
-//                        (reconcileReplyPublication) before any new publish.
+//   retryable          — a provably pre-dispatch transient failure (for
+//                        example token refresh/admission) or an explicit
+//                        provider rate-limit answer. The next attempt may send.
+//   ambiguous          — transport rejection, executor failure/deadline after
+//                        execution started, 5xx, timeout/abort, or any unknown
+//                        post-dispatch outcome. The reply may exist on Google;
+//                        preserve `sending` so the next attempt performs a
+//                        targeted read before any repeat write.
 
 export type PublicationFailureClass = 'terminal_rejection' | 'retryable' | 'ambiguous'
 
@@ -179,6 +178,9 @@ export type PublicationFailureClass = 'terminal_rejection' | 'retryable' | 'ambi
 //                                                publish job may claim the row
 //   sending      publishing                      a worker claimed the row; the
 //                                                Google call is in flight
+//   pending_observation provider_outcome_pending Google accepted the write,
+//                                                but no provider read has yet
+//                                                proved the current live text
 //   published    published                       provider confirmed (terminal)
 //   terminal     rejected_terminal /             provider rejected permanently
 //                manual_review                   (terminal)
@@ -195,6 +197,7 @@ export type PersistedPublicationState =
   | 'requested'
   | 'authorized'
   | 'sending'
+  | 'pending_observation'
   | 'published'
   | 'terminal'
   | 'ambiguous'
@@ -209,7 +212,8 @@ export type PublicationStateEvent =
   | 'claim' // publish job claims a row ('sending' → 'sending' = the SAME BullMQ
   //   job re-claiming its in-flight workflow after an ambiguous attempt;
   //   jobId idempotency serializes attempts, so no second worker can race this)
-  | 'publish' // provider confirmed — local ack or reconciliation heal
+  | 'provider_accepted' // write response persisted; provider read still required
+  | 'publish' // exact current provider observation confirmed
   | 'fail_terminal' // classified terminal_rejection
   | 'fail_ambiguous' // classified ambiguous on the final attempt
   | 'requeue' // classified retryable — back to 'authorized' for the next attempt
@@ -226,12 +230,13 @@ export const PERSISTED_PUBLICATION_TRANSITIONS: Readonly<
   authorized: { claim: 'sending', cancel: 'cancelled' },
   sending: {
     claim: 'sending',
-    publish: 'published',
+    provider_accepted: 'pending_observation',
     fail_terminal: 'terminal',
     fail_ambiguous: 'ambiguous',
     requeue: 'authorized',
     cancel: 'cancelled',
   },
+  pending_observation: { publish: 'published', cancel: 'cancelled' },
   published: {},
   // publish from terminal/ambiguous is the reconciliation heal: the provider
   // shows the reply, so the honest local state is published (never a new send).
@@ -270,6 +275,10 @@ export function nextPublicationState(
  * gives the provider read path time to converge after an ambiguous send.
  */
 export const AMBIGUOUS_RECONCILE_DELAY_MS = 15 * 60 * 1000
+
+/** A successful write response still needs a provider read after a short
+ * convergence window before it can become published. */
+export const PROVIDER_OBSERVATION_RECONCILE_DELAY_MS = 60 * 1000
 
 /** Integration context codes that always fail BEFORE the reply PUT. */
 const PRE_REQUEST_TERMINAL_CODES: ReadonlySet<string> = new Set([
@@ -341,7 +350,7 @@ function classifyGbpApiError(context: unknown): PublicationFailureClass {
       : undefined
   if (typeof status !== 'number') return 'ambiguous'
   if (status >= 400 && status < 500) return 'terminal_rejection'
-  if (status >= 500) return 'retryable'
+  if (status >= 500) return 'ambiguous'
   return 'ambiguous'
 }
 
@@ -356,14 +365,13 @@ export function classifyPublicationFailure(err: unknown): PublicationFailureClas
     if (err.kind === 'auth_failed' || err.kind === 'permission_denied') {
       return 'terminal_rejection'
     }
-    if (err.kind === 'rate_limited' || err.kind === 'upstream_error') {
-      return 'retryable'
-    }
+    if (err.kind === 'rate_limited') return 'retryable'
     return 'ambiguous'
   }
   if (!isIntegrationErrorShape(err)) {
-    // fetch network failures (TypeError) surface before a response arrives.
-    return err instanceof TypeError ? 'retryable' : 'ambiguous'
+    // A transport rejection provides no evidence that the provider did not
+    // accept the PUT. Conservatively preserve the uncertain in-flight state.
+    return 'ambiguous'
   }
   if (err.code === 'gbp_api_rate_limited') return 'retryable'
   if (err.code === 'gbp_api_error') return classifyGbpApiError(err.context)

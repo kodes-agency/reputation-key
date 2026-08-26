@@ -25,7 +25,6 @@ import type { InboxRepository } from '../../application/ports/inbox.repository'
 import { onReviewCreated } from './on-review-created'
 import { onFeedbackSubmitted } from './on-feedback-submitted'
 import { onFeedbackRetracted } from './on-feedback-retracted'
-import { onReplyPublished } from './on-reply-published'
 import { onReplySubmitted } from './on-reply-submitted'
 import { onReviewExpired } from './on-review-expired'
 
@@ -71,19 +70,10 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
     { consumer: 'inbox.event-handlers' },
   )
 
-  if (cutover('review.reply.published') !== 'switch') {
-    deps.events.on(
-      'review.reply.published',
-      onReplyPublished({
-        repo: deps.repo,
-        events: deps.events,
-      }),
-
-      { consumer: 'inbox.event-handlers' },
-    )
-  }
-  // BQC-3.9: review.reply.published switched — legacy bus path retired for
-  // this family; inbox.on-reply-published is authoritative.
+  // `review.reply.published` is deliberately not registered here. Provider
+  // acceptance/publication workflow facts cannot close Inbox work; only the
+  // durable `review.reply.observed` consumer may apply the exact current
+  // Google observation head.
 
   deps.events.on(
     'review.reply.submitted',

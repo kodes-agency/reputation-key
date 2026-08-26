@@ -63,18 +63,22 @@ const replyEventSchema = z.object({
   occurredAt: z.string().optional(),
 })
 
+const databaseUuidSchema = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu)
+
 // BQC-3.8: publication cancellation — identifier-only (reply/review/property/
 // org + cause). No reply text, no actor content.
 const replyPublicationCancelledSchema = z.object({
-  replyId: z.string(),
-  reviewId: z.string(),
-  organizationId: z.string(),
-  propertyId: z.string(),
-  cause: z.enum(['disconnect', 'policy']),
-  occurredAt: z.string().optional(),
+  replyId: databaseUuidSchema,
+  reviewId: databaseUuidSchema,
+  organizationId: z.string().trim().min(1),
+  propertyId: databaseUuidSchema,
+  cause: z.enum(['disconnect', 'policy', 'source_changed', 'provider_truth']),
+  occurredAt: z.iso.datetime(),
 })
 
-const replyPublicationRequestedSchema = z.object({
+const replyPublicationRequestedV1Schema = z.object({
   replyId: z.string(),
   reviewId: z.string(),
   organizationId: z.string(),
@@ -83,6 +87,79 @@ const replyPublicationRequestedSchema = z.object({
   publicationCycle: z.number().int().positive().safe(),
   occurredAt: z.string(),
 })
+
+// New writes use a standalone strict identifier contract. Keep v1 unchanged
+// above so historical rows remain replayable without weakening current facts.
+const replyPublicationRequestedV2Schema = z.object({
+  replyId: databaseUuidSchema,
+  reviewId: databaseUuidSchema,
+  organizationId: z.string().trim().min(1),
+  propertyId: databaseUuidSchema,
+  userId: z.string().trim().min(1),
+  publicationCycle: z.number().int().positive().safe(),
+  sourceEpoch: z.number().int().nonnegative().safe(),
+  materialReviewRevision: z.number().int().positive().safe(),
+  baseObservationRevision: z.number().int().nonnegative().safe(),
+  occurredAt: z.iso.datetime(),
+})
+
+const replyObservedSchema = z
+  .object({
+    reviewId: databaseUuidSchema,
+    organizationId: z.string().trim().min(1),
+    propertyId: databaseUuidSchema,
+    observationRevision: z.number().int().positive().safe(),
+    sourceEpoch: z.number().int().nonnegative().safe(),
+    materialReviewRevision: z.number().int().positive().safe(),
+    change: z.enum(['added', 'edited', 'deleted', 'unchanged']),
+    resolution: z.enum([
+      'confirmed_on_google',
+      'external_current_live',
+      'diverged',
+      'absent',
+    ]),
+    provenance: z.enum(['repkey_confirmed', 'external_or_unknown', 'none']),
+    matchedReplyId: databaseUuidSchema.nullable(),
+    matchedPublicationCycle: z.number().int().positive().safe().nullable(),
+    occurredAt: z.iso.datetime(),
+  })
+  .refine(
+    (value) =>
+      (value.matchedReplyId === null) === (value.matchedPublicationCycle === null),
+    { message: 'matched Reply and publication cycle must be present together' },
+  )
+  .refine(
+    (value) => {
+      const hasMatch =
+        value.matchedReplyId !== null && value.matchedPublicationCycle !== null
+      const hasNoMatch =
+        value.matchedReplyId === null && value.matchedPublicationCycle === null
+
+      switch (value.resolution) {
+        case 'confirmed_on_google':
+          return (
+            value.change !== 'deleted' &&
+            value.provenance === 'repkey_confirmed' &&
+            hasMatch
+          )
+        case 'external_current_live':
+          return (
+            value.change !== 'deleted' &&
+            value.provenance === 'external_or_unknown' &&
+            hasNoMatch
+          )
+        case 'diverged':
+          return (
+            value.change !== 'deleted' &&
+            value.provenance === 'external_or_unknown' &&
+            hasNoMatch
+          )
+        case 'absent':
+          return value.change === 'deleted' && value.provenance === 'none' && hasNoMatch
+      }
+    },
+    { message: 'review reply observation semantics are invalid' },
+  )
 
 // ── Inbox event schemas ─────────────────────────────────────────────
 
@@ -544,7 +621,7 @@ const connectionVisibilityChangedSchema = z.object({
 
 // ── Portal event schemas ───────────────────────────────────────────
 
-const portalWorkflowFactSchema = z.object({
+const portalWorkflowFactV1Schema = z.object({
   reviewId: z.string().min(1),
   revision: z.number().int().positive(),
   organizationId: z.string().min(1),
@@ -555,12 +632,30 @@ const portalWorkflowFactSchema = z.object({
   occurredAt: z.string(),
 })
 
-const portalContentReviewCompletedSchema = portalWorkflowFactSchema
-const portalConfigurationCompletenessRecordedSchema = portalWorkflowFactSchema.extend({
-  completedFields: z.number().int().nonnegative(),
-  requiredFields: z.number().int().positive(),
+const portalWorkflowFactV2Schema = portalWorkflowFactV1Schema.extend({
+  sourceAggregateVersion: z.iso.datetime(),
+  occurredAt: z.iso.datetime(),
 })
-const portalApprovedDestinationRatioRecordedSchema = portalWorkflowFactSchema.extend({
+
+const portalContentReviewCompletedV1Schema = portalWorkflowFactV1Schema
+const portalContentReviewCompletedV2Schema = portalWorkflowFactV2Schema
+const portalConfigurationCompletenessRecordedV1Schema = portalWorkflowFactV1Schema.extend(
+  {
+    completedFields: z.number().int().nonnegative(),
+    requiredFields: z.number().int().positive(),
+  },
+)
+const portalConfigurationCompletenessRecordedV2Schema = portalWorkflowFactV2Schema.extend(
+  {
+    completedFields: z.number().int().nonnegative(),
+    requiredFields: z.number().int().positive(),
+  },
+)
+const portalApprovedDestinationRatioRecordedV1Schema = portalWorkflowFactV1Schema.extend({
+  approvedDestinations: z.number().int().nonnegative(),
+  configuredDestinations: z.number().int().nonnegative(),
+})
+const portalApprovedDestinationRatioRecordedV2Schema = portalWorkflowFactV2Schema.extend({
   approvedDestinations: z.number().int().nonnegative(),
   configuredDestinations: z.number().int().nonnegative(),
 })
@@ -583,11 +678,17 @@ const portalUpdatedSchema = portalCreatedSchema.extend({
 
 const portalDeletedSchema = portalLifecycleFactSchema
 
-const portalResponsibilityNeededSchema = z.object({
+const portalResponsibilityNeededV1Schema = z.object({
   portalId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
   occurredAt: z.iso.datetime(),
+})
+
+const portalResponsibilityNeededV2Schema = portalLifecycleFactSchema
+
+const portalResponsibleManagersUpdatedSchema = portalLifecycleFactSchema.extend({
+  assignmentCount: z.number().int().nonnegative(),
 })
 
 const portalHeroImageProcessingRequestedSchema = z.object({
@@ -597,6 +698,10 @@ const portalHeroImageProcessingRequestedSchema = z.object({
   propertyId: z.uuid(),
   sourceETag: z.string().regex(/^[A-Za-z0-9"'-]{1,200}$/),
   occurredAt: z.iso.datetime(),
+})
+
+const portalHeroImagePublishedSchema = portalLifecycleFactSchema.extend({
+  uploadId: z.uuid(),
 })
 
 const portalTokenIssuedSchema = z.object({
@@ -628,10 +733,15 @@ const portalTokenRevokedSchema = z.object({
   occurredAt: z.iso.datetime().optional(),
 })
 
-const portalGroupDeletedSchema = z.object({
+const portalGroupDeletedV1Schema = z.object({
   portalGroupId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
+})
+
+const portalGroupDeletedV2Schema = portalGroupDeletedV1Schema.extend({
+  sourceAggregateVersion: z.iso.datetime(),
+  occurredAt: z.iso.datetime(),
 })
 
 const portalGroupCreatedSchema = z.object({
@@ -672,6 +782,9 @@ const portalLinkCategoryReorderedSchema = z.object({
   occurredAt: z.iso.datetime(),
 })
 
+const portalLinkCategoryUpdatedSchema = portalLinkCategoryCreatedSchema
+const portalLinkCategoryDeletedSchema = portalLinkCategoryCreatedSchema
+
 const portalLinkCreatedSchema = z.object({
   portalId: z.string(),
   linkId: z.string(),
@@ -690,6 +803,9 @@ const portalLinkReorderedSchema = z.object({
   sourceAggregateVersion: z.iso.datetime(),
   occurredAt: z.iso.datetime(),
 })
+
+const portalLinkUpdatedSchema = portalLinkCreatedSchema
+const portalLinkDeletedSchema = portalLinkCreatedSchema
 
 // ── Registration ────────────────────────────────────────────────────
 
@@ -742,7 +858,12 @@ export function registerAllEventSchemas(): void {
   registerEventSchema({
     type: 'review.reply.publication_requested',
     version: EVENT_VERSION,
-    schema: replyPublicationRequestedSchema,
+    schema: replyPublicationRequestedV1Schema,
+  })
+  registerEventSchema({
+    type: 'review.reply.publication_requested',
+    version: 2,
+    schema: replyPublicationRequestedV2Schema,
   })
   registerEventSchema({
     type: 'review.reply.rejected',
@@ -753,6 +874,11 @@ export function registerAllEventSchemas(): void {
     type: 'review.reply.published',
     version: EVENT_VERSION,
     schema: replyEventSchema,
+  })
+  registerEventSchema({
+    type: 'review.reply.observed',
+    version: EVENT_VERSION,
+    schema: replyObservedSchema,
   })
   registerEventSchema({
     type: 'review.reply.publish_failed',
@@ -1018,7 +1144,17 @@ export function registerAllEventSchemas(): void {
   registerEventSchema({
     type: 'portal.responsibility_became_needed',
     version: EVENT_VERSION,
-    schema: portalResponsibilityNeededSchema,
+    schema: portalResponsibilityNeededV1Schema,
+  })
+  registerEventSchema({
+    type: 'portal.responsibility_became_needed',
+    version: 2,
+    schema: portalResponsibilityNeededV2Schema,
+  })
+  registerEventSchema({
+    type: 'portal.responsible_managers.updated',
+    version: 2,
+    schema: portalResponsibleManagersUpdatedSchema,
   })
   registerEventSchema({
     type: 'portal.hero_image.processing_requested',
@@ -1026,19 +1162,39 @@ export function registerAllEventSchemas(): void {
     schema: portalHeroImageProcessingRequestedSchema,
   })
   registerEventSchema({
+    type: 'portal.hero_image.published',
+    version: EVENT_VERSION,
+    schema: portalHeroImagePublishedSchema,
+  })
+  registerEventSchema({
     type: 'portal.content_review.completed',
     version: EVENT_VERSION,
-    schema: portalContentReviewCompletedSchema,
+    schema: portalContentReviewCompletedV1Schema,
+  })
+  registerEventSchema({
+    type: 'portal.content_review.completed',
+    version: 2,
+    schema: portalContentReviewCompletedV2Schema,
   })
   registerEventSchema({
     type: 'portal.configuration_completeness.recorded',
     version: EVENT_VERSION,
-    schema: portalConfigurationCompletenessRecordedSchema,
+    schema: portalConfigurationCompletenessRecordedV1Schema,
+  })
+  registerEventSchema({
+    type: 'portal.configuration_completeness.recorded',
+    version: 2,
+    schema: portalConfigurationCompletenessRecordedV2Schema,
   })
   registerEventSchema({
     type: 'portal.approved_destination_ratio.recorded',
     version: EVENT_VERSION,
-    schema: portalApprovedDestinationRatioRecordedSchema,
+    schema: portalApprovedDestinationRatioRecordedV1Schema,
+  })
+  registerEventSchema({
+    type: 'portal.approved_destination_ratio.recorded',
+    version: 2,
+    schema: portalApprovedDestinationRatioRecordedV2Schema,
   })
   registerEventSchema({
     type: 'portal.token.issued',
@@ -1066,6 +1222,16 @@ export function registerAllEventSchemas(): void {
     schema: portalLinkCategoryReorderedSchema,
   })
   registerEventSchema({
+    type: 'portal_link_category.updated',
+    version: EVENT_VERSION,
+    schema: portalLinkCategoryUpdatedSchema,
+  })
+  registerEventSchema({
+    type: 'portal_link_category.deleted',
+    version: EVENT_VERSION,
+    schema: portalLinkCategoryDeletedSchema,
+  })
+  registerEventSchema({
     type: 'portal_link.created',
     version: EVENT_VERSION,
     schema: portalLinkCreatedSchema,
@@ -1074,6 +1240,16 @@ export function registerAllEventSchemas(): void {
     type: 'portal_link.reordered',
     version: EVENT_VERSION,
     schema: portalLinkReorderedSchema,
+  })
+  registerEventSchema({
+    type: 'portal_link.updated',
+    version: EVENT_VERSION,
+    schema: portalLinkUpdatedSchema,
+  })
+  registerEventSchema({
+    type: 'portal_link.deleted',
+    version: EVENT_VERSION,
+    schema: portalLinkDeletedSchema,
   })
   registerEventSchema({
     type: 'portal_group.created',
@@ -1098,6 +1274,11 @@ export function registerAllEventSchemas(): void {
   registerEventSchema({
     type: 'portal_group.deleted',
     version: EVENT_VERSION,
-    schema: portalGroupDeletedSchema,
+    schema: portalGroupDeletedV1Schema,
+  })
+  registerEventSchema({
+    type: 'portal_group.deleted',
+    version: 2,
+    schema: portalGroupDeletedV2Schema,
   })
 }

@@ -551,6 +551,17 @@ export const guestContactRequests = pgTable(
     propertyId: uuid('property_id').notNull(),
     portalId: uuid('portal_id').notNull(),
     responseId: uuid('response_id').notNull(),
+    publicationSnapshotId: uuid('publication_snapshot_id').notNull(),
+    publicationVersion: integer('publication_version').notNull(),
+    publicationDigest: varchar('publication_digest', { length: 64 }).notNull(),
+    contactRequestEnabled: boolean('contact_request_enabled').notNull(),
+    noticeId: varchar('notice_id', { length: 100 }).notNull(),
+    noticeVersion: varchar('notice_version', { length: 100 }).notNull(),
+    noticeDigest: varchar('notice_digest', { length: 64 }).notNull(),
+    noticeLocale: varchar('notice_locale', { length: 35 }).notNull(),
+    retentionPolicyVersion: varchar('retention_policy_version', {
+      length: 100,
+    }).notNull(),
     purpose: varchar('purpose', { length: 50 }).notNull(),
     consentGranted: boolean('consent_granted').notNull().default(false),
     encryptedContact: text('encrypted_contact'),
@@ -588,6 +599,39 @@ export const guestContactRequests = pgTable(
       columns: [t.organizationId, t.propertyId, t.portalId],
       foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
     }).onDelete('restrict'),
+    foreignKey({
+      name: 'guest_contact_requests_publication_evidence_fk',
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.portalId,
+        t.publicationSnapshotId,
+        t.publicationVersion,
+        t.publicationDigest,
+        t.contactRequestEnabled,
+        t.noticeId,
+        t.noticeVersion,
+        t.noticeDigest,
+        t.noticeLocale,
+        t.purpose,
+        t.retentionPolicyVersion,
+      ],
+      foreignColumns: [
+        portalPublicationSnapshots.organizationId,
+        portalPublicationSnapshots.propertyId,
+        portalPublicationSnapshots.portalId,
+        portalPublicationSnapshots.id,
+        portalPublicationSnapshots.version,
+        portalPublicationSnapshots.configurationDigest,
+        portalPublicationSnapshots.contactRequestEnabled,
+        portalPublicationSnapshots.contactNoticeId,
+        portalPublicationSnapshots.contactNoticeVersion,
+        portalPublicationSnapshots.contactNoticeDigest,
+        portalPublicationSnapshots.contactNoticeLocale,
+        portalPublicationSnapshots.contactRequestPurpose,
+        portalPublicationSnapshots.contactRetentionPolicyVersion,
+      ],
+    }).onDelete('restrict'),
     check(
       'guest_contact_requests_purpose_valid',
       sql`${t.purpose} = 'manager_follow_up'`,
@@ -595,6 +639,17 @@ export const guestContactRequests = pgTable(
     check(
       'guest_contact_requests_key_id_valid',
       sql`${t.encryptionKeyId} IS NULL OR ${t.encryptionKeyId} ~ '^[a-z0-9][a-z0-9._-]{0,49}$'`,
+    ),
+    check(
+      'guest_contact_requests_publication_evidence_valid',
+      sql`${t.publicationVersion} >= 1
+        AND ${t.publicationDigest} ~ '^[0-9a-f]{64}$'
+        AND ${t.contactRequestEnabled} = true
+        AND char_length(${t.noticeId}) BETWEEN 1 AND 100
+        AND char_length(${t.noticeVersion}) BETWEEN 1 AND 100
+        AND ${t.noticeDigest} ~ '^[0-9a-f]{64}$'
+        AND ${t.noticeLocale} ~ '^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$'
+        AND ${t.retentionPolicyVersion} = 'guest-contact-retention-30d-v1'`,
     ),
     check(
       'guest_contact_requests_retention_exact',
@@ -630,7 +685,7 @@ export const guestContactRequests = pgTable(
 export const guestContactRequestRevealAudits = pgTable(
   'guest_contact_request_reveal_audits',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid('id').primaryKey(),
     contactRequestId: uuid('contact_request_id').notNull(),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     propertyId: uuid('property_id').notNull(),

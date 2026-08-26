@@ -3,12 +3,7 @@
 // Every method takes organizationId as the first parameter (tenant isolation).
 
 import type { Portal, PortalId } from '../../domain/types'
-import type {
-  OrganizationId,
-  PropertyId,
-  PortalGroupId,
-  UserId,
-} from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId, PortalGroupId } from '#/shared/domain/ids'
 
 export type PublicPortalRepositoryResult = Readonly<{
   portal: Readonly<{
@@ -53,18 +48,6 @@ export type PortalRepository = Readonly<{
     slug: string,
     excludeId?: PortalId,
   ) => Promise<boolean>
-  /** Local/test insertion only; active application creation uses PortalCommandStore. */
-  insert: (
-    orgId: OrganizationId,
-    portal: Portal,
-    initialResponsibleManagerId?: UserId | null,
-  ) => Promise<void>
-  update: (
-    orgId: OrganizationId,
-    id: PortalId,
-    patch: Readonly<Partial<Portal>>,
-  ) => Promise<void>
-  softDelete: (orgId: OrganizationId, id: PortalId) => Promise<void>
   resolvePortalContext: (
     portalIdParam: PortalId,
   ) => Promise<ResolvePortalContextResult | null>

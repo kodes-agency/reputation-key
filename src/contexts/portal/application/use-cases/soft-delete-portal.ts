@@ -9,6 +9,7 @@ import { portalDeleted, portalTokenRevoked } from '../../domain/events'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import { nextPortalCommandAt } from '../portal-command-version'
 
 export type SoftDeletePortalInput = Readonly<{
   portalId: string
@@ -45,6 +46,7 @@ export const softDeletePortal =
     )
 
     const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, existing.updatedAt)
     await deps.commandStore.deletePortal({
       organizationId: ctx.organizationId,
       propertyId: existing.propertyId,
@@ -52,19 +54,20 @@ export const softDeletePortal =
       expectedUpdatedAt: existing.updatedAt,
       revokedBy: ctx.userId,
       reason: DELETION_REVOCATION_REASON,
-      at: occurredAt,
+      revision,
+      occurredAt,
       event: portalDeleted({
         portalId: pid,
         organizationId: ctx.organizationId,
         propertyId: existing.propertyId,
-        sourceAggregateVersion: occurredAt.toISOString(),
+        sourceAggregateVersion: revision.toISOString(),
         occurredAt,
       }),
       tokenRevokedEvent: portalTokenRevoked({
         portalId: pid,
         organizationId: ctx.organizationId,
         propertyId: existing.propertyId,
-        sourceAggregateVersion: occurredAt.toISOString(),
+        sourceAggregateVersion: revision.toISOString(),
         occurredAt,
       }),
     })

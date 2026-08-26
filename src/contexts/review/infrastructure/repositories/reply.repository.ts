@@ -16,6 +16,35 @@ import { replyFromRow, replyToRow } from '../mappers/reply.mapper'
 import { buildReplySetClause } from '../reply-set-clause'
 import { reviewError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
+
+type DuePublicationState = 'pending_observation' | 'ambiguous'
+
+async function findDuePublicationBatch(
+  db: Database,
+  states: readonly DuePublicationState[],
+  now: Date,
+  cursor: Readonly<{ reconcileDueAt: Date; id: string }> | null,
+  limit: number,
+): Promise<ReadonlyArray<Reply>> {
+  const rows = await db
+    .select()
+    .from(replies)
+    .where(
+      and(
+        inArray(replies.publicationState, [...states]),
+        isNotNull(replies.reconcileDueAt),
+        lte(replies.reconcileDueAt, now),
+        cursor
+          ? // Keyset: strictly after (reconcileDueAt, id) — no skip/repeat.
+            sql`(${replies.reconcileDueAt}, ${replies.id}) > (${cursor.reconcileDueAt}, ${cursor.id})`
+          : undefined,
+      ),
+    )
+    .orderBy(asc(replies.reconcileDueAt), asc(replies.id))
+    .limit(limit)
+  return rows.map(replyFromRow)
+}
+
 export const createReplyRepository = (db: Database): ReplyRepository => ({
   findById: async (id: ReplyId, organizationId: OrganizationId) => {
     return trace('reply.findById', async () => {
@@ -106,25 +135,38 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
     })
   },
 
-  findAmbiguousPublicationBatch: async (now, cursor, limit) => {
-    return trace('reply.findAmbiguousPublicationBatch', async () => {
-      const rows = await db
-        .select()
-        .from(replies)
+  findDuePublicationReconciliationBatch: (now, cursor, limit) =>
+    trace('reply.findDuePublicationReconciliationBatch', () =>
+      findDuePublicationBatch(
+        db,
+        ['pending_observation', 'ambiguous'],
+        now,
+        cursor,
+        limit,
+      ),
+    ),
+
+  findAmbiguousPublicationBatch: (now, cursor, limit) =>
+    trace('reply.findAmbiguousPublicationBatch', () =>
+      findDuePublicationBatch(db, ['ambiguous'], now, cursor, limit),
+    ),
+
+  deferPublicationReconciliation: async (command) => {
+    return trace('reply.deferPublicationReconciliation', async () => {
+      const deferred = await db
+        .update(replies)
+        .set({ reconcileDueAt: command.nextDueAt, updatedAt: command.updatedAt })
         .where(
           and(
-            eq(replies.publicationState, 'ambiguous'),
-            isNotNull(replies.reconcileDueAt),
-            lte(replies.reconcileDueAt, now),
-            cursor
-              ? // Keyset: strictly after (reconcileDueAt, id) — no skip/repeat.
-                sql`(${replies.reconcileDueAt}, ${replies.id}) > (${cursor.reconcileDueAt}, ${cursor.id})`
-              : undefined,
+            eq(replies.id, command.replyId),
+            eq(replies.organizationId, command.organizationId),
+            eq(replies.publicationCycle, command.publicationCycle),
+            eq(replies.publicationState, command.publicationState),
+            eq(replies.reconcileDueAt, command.currentDueAt),
           ),
         )
-        .orderBy(asc(replies.reconcileDueAt), asc(replies.id))
-        .limit(limit)
-      return rows.map(replyFromRow)
+        .returning({ id: replies.id })
+      return deferred.length === 1
     })
   },
 
@@ -138,7 +180,12 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
           and(
             inArray(replies.reviewId, [...reviewIds]),
             eq(replies.organizationId, organizationId),
-            inArray(replies.publicationState, ['requested', 'authorized', 'sending']),
+            inArray(replies.publicationState, [
+              'requested',
+              'authorized',
+              'sending',
+              'pending_observation',
+            ]),
           ),
         )
       return rows.map(replyFromRow)

@@ -40,6 +40,18 @@ describe('persisted-model lifecycle authority', () => {
     expect(byKey.get('review.schema.ts#reviewSourceContents')).toBe(
       'erasable_source_content',
     )
+    expect(byKey.get('review.schema.ts#replyPublicationAuthorizations')).toBe(
+      'active_authority',
+    )
+    expect(byKey.get('review.schema.ts#replyPublicationAttempts')).toBe(
+      'active_authority',
+    )
+    expect(byKey.get('review.schema.ts#googleReplyObservationHeads')).toBe(
+      'active_authority',
+    )
+    expect(byKey.get('review.schema.ts#googleReplyObservations')).toBe(
+      'recoverable_archive',
+    )
     expect(byKey.get('guest.schema.ts#guestResponsePrivateFeedback')).toBe(
       'erasable_source_content',
     )

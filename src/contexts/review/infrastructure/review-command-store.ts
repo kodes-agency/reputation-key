@@ -4,23 +4,141 @@
 // After commit: in-process EventBus emit for expand-phase legacy consumers.
 // Crash after commit but before emit leaves a durable outbox row for relay.
 
-import { sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
-import { reviews } from '#/shared/db/schema/review.schema'
+import {
+  replies,
+  replyPublicationAttempts,
+  replyPublicationAuthorizations,
+  reviews,
+} from '#/shared/db/schema/review.schema'
 import { trace } from '#/shared/observability/trace'
 import type { Review } from '../domain/types'
 import { reviewError } from '../domain/errors'
 import type { ReviewCommandStore } from '../application/ports/review-command-store.port'
-import { reviewSourceTransitioned, reviewUpdated } from '../domain/events'
+import {
+  reviewReplyPublicationCancelled,
+  reviewSourceTransitioned,
+  reviewUpdated,
+} from '../domain/events'
 import { eraseReviewSourceContent } from './review-source-content-store'
-import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import { organizationId, propertyId, replyId, reviewId } from '#/shared/domain/ids'
 import {
   persistReviewObservation,
   type PersistedReviewObservation,
 } from './repositories/review-observation.repository'
+import { lockReplyTruthScope } from './reply-truth-serialization'
+import type { Tx } from '#/shared/outbox/commit'
+
+const SOURCE_ACTIVE_PUBLICATION_STATES = [
+  'requested',
+  'authorized',
+  'sending',
+  'pending_observation',
+  'ambiguous',
+] as const
+
+/** Settle publication work whose immutable authorization names an older
+ * Review source. The attempt remains append-only evidence but can no longer
+ * be confirmed or resent. */
+async function supersedeStaleReviewPublications(
+  tx: Tx,
+  review: Review,
+  occurredAt: Date,
+): Promise<DomainEvent[]> {
+  const staleRows = await tx
+    .select({
+      id: replies.id,
+      reviewId: replies.reviewId,
+      organizationId: replies.organizationId,
+      stateRevision: replies.stateRevision,
+      publicationCycle: replies.publicationCycle,
+      publicationAttempts: replies.publicationAttempts,
+    })
+    .from(replies)
+    .leftJoin(
+      replyPublicationAuthorizations,
+      and(
+        eq(replyPublicationAuthorizations.organizationId, replies.organizationId),
+        eq(replyPublicationAuthorizations.reviewId, replies.reviewId),
+        eq(replyPublicationAuthorizations.replyId, replies.id),
+        eq(replyPublicationAuthorizations.publicationCycle, replies.publicationCycle),
+      ),
+    )
+    .where(
+      and(
+        eq(replies.organizationId, review.organizationId),
+        eq(replies.reviewId, review.id),
+        eq(replies.source, 'internal'),
+        inArray(replies.publicationState, [...SOURCE_ACTIVE_PUBLICATION_STATES]),
+        or(
+          isNull(replyPublicationAuthorizations.replyId),
+          ne(replyPublicationAuthorizations.propertyId, review.propertyId),
+          ne(replyPublicationAuthorizations.sourceEpoch, review.sourceEpoch),
+          ne(
+            replyPublicationAuthorizations.materialReviewRevision,
+            review.sourceRevision,
+          ),
+        ),
+      ),
+    )
+    .for('update', { of: replies })
+
+  const facts: DomainEvent[] = []
+  for (const stale of staleRows) {
+    if (stale.publicationAttempts > 0) {
+      await tx
+        .update(replyPublicationAttempts)
+        .set({
+          outcome: 'superseded',
+          confirmedObservationRevision: null,
+          updatedAt: occurredAt,
+        })
+        .where(
+          and(
+            eq(replyPublicationAttempts.organizationId, stale.organizationId),
+            eq(replyPublicationAttempts.replyId, stale.id),
+            eq(replyPublicationAttempts.publicationCycle, stale.publicationCycle),
+            eq(replyPublicationAttempts.attemptNumber, stale.publicationAttempts),
+          ),
+        )
+    }
+    const cancelled = await tx
+      .update(replies)
+      .set({
+        status: 'draft',
+        publicationState: 'cancelled',
+        publicationLastErrorClass: null,
+        reconcileDueAt: null,
+        updatedAt: occurredAt,
+      })
+      .where(
+        and(
+          eq(replies.id, stale.id),
+          eq(replies.organizationId, stale.organizationId),
+          eq(replies.stateRevision, stale.stateRevision),
+          eq(replies.publicationCycle, stale.publicationCycle),
+          inArray(replies.publicationState, [...SOURCE_ACTIVE_PUBLICATION_STATES]),
+        ),
+      )
+      .returning({ id: replies.id })
+    if (!cancelled[0]) continue
+    facts.push(
+      reviewReplyPublicationCancelled({
+        replyId: replyId(stale.id),
+        reviewId: review.id,
+        propertyId: review.propertyId,
+        organizationId: review.organizationId,
+        cause: 'source_changed',
+        occurredAt,
+      }),
+    )
+  }
+  return facts
+}
 
 type PersistObservation = (
   tx: Parameters<Parameters<Database['transaction']>[0]>[0],
@@ -56,6 +174,7 @@ export function createAtomicReviewCommandStore(
             )
           }
           const updatedAt = now ?? new Date()
+          await lockReplyTruthScope(tx, review.organizationId, review.id)
           const observation = await persistObservation(tx, {
             review: { ...review, analysisSequence },
             observedAt: updatedAt,
@@ -63,7 +182,7 @@ export function createAtomicReviewCommandStore(
           })
           const saved = observation.review
           if (observation.duplicate || observation.outOfOrder) {
-            return { saved, event: null }
+            return { saved, events: [] as DomainEvent[] }
           }
           const candidateEvent = typeof event === 'function' ? event(saved) : event
           const recordedEvent =
@@ -76,17 +195,26 @@ export function createAtomicReviewCommandStore(
                 }
               : candidateEvent
           await insertOutboxRow(tx, recordedEvent)
+          const cancellationEvents = await supersedeStaleReviewPublications(
+            tx,
+            saved,
+            updatedAt,
+          )
+          for (const cancellationEvent of cancellationEvents) {
+            await insertOutboxRow(tx, cancellationEvent)
+          }
 
-          return { saved, event: recordedEvent }
+          return { saved, events: [recordedEvent, ...cancellationEvents] }
         })
 
-        if (committed.event) await emitAfterCommit(events, committed.event)
+        for (const event of committed.events) await emitAfterCommit(events, event)
         return committed.saved
       })
     },
     reobserveExpiredAndRecord: async (review, _now, observationKey) => {
       return trace('review.commandStore.reobserveExpiredAndRecord', async () => {
         const committed = await db.transaction(async (tx) => {
+          await lockReplyTruthScope(tx, review.organizationId, review.id)
           const existingRows = await tx
             .select()
             .from(reviews)
@@ -221,6 +349,15 @@ export function createAtomicReviewCommandStore(
           })
           await insertOutboxRow(tx, updatedEvent)
           recordedEvents.push(updatedEvent)
+          const cancellationEvents = await supersedeStaleReviewPublications(
+            tx,
+            observation.review,
+            occurredAt,
+          )
+          for (const cancellationEvent of cancellationEvents) {
+            await insertOutboxRow(tx, cancellationEvent)
+          }
+          recordedEvents.push(...cancellationEvents)
           return {
             review: observation.review,
             events: recordedEvents,

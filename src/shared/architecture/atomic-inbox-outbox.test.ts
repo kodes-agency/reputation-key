@@ -61,6 +61,6 @@ describe('BQC-3.4: atomic inbox outbox producer', () => {
     expect(src).toContain('applySourceCreatedOnce')
     expect(src).toContain('applyReviewExpiredOnce')
     expect(src).toContain('applyReviewUpdatedOnce')
-    expect(src).toContain('applyReplyPublishedOnce')
+    expect(src).toContain('applyReplyObservedOnce')
   })
 })

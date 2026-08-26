@@ -68,6 +68,8 @@ function setup(categories = sampleCategories, links = sampleLinks) {
       reorderLinks: async () => {},
       findCategoryById: async () => null,
       findLinkById: async () => null,
+      findCategoryCommandTarget: async () => null,
+      findLinkCommandTarget: async () => null,
     },
     portalRepo,
     staffPublicApi: staffApiMock(null),

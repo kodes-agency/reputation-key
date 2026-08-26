@@ -671,7 +671,7 @@ describe('GoogleReviewApiAdapter direct-egress guard', () => {
 
     await expect(
       api.replyToReview(ORG_ID, CONNECTION_ID, GOOGLE_REVIEW_PRIMARY_RESOURCE, 'thanks'),
-    ).resolves.toBeUndefined()
+    ).resolves.toEqual({ providerCorrelationId: null })
     expect(fetchSpy).toHaveBeenCalledTimes(1)
     fetchSpy.mockRestore()
   })

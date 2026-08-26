@@ -16,8 +16,8 @@
 //   - timeout BEFORE the request (provider-classified pre-request failure);
 //   - timeout DURING the request (abort → ambiguous);
 //   - failure AFTER provider success BEFORE the local acknowledgement
-//     (markPublished throws → retry re-claims 'sending' → upsert-idempotent
-//     second send → published exactly once).
+//     (local outcome write fails → retry performs a targeted read first and
+//     never blindly repeats the provider write).
 
 import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
@@ -44,6 +44,10 @@ const JOB_DATA = {
   replyId: 'reply-1',
   organizationId: 'org-1',
   publicationCycle: 1,
+  propertyId: 'prop-1',
+  sourceEpoch: 0,
+  materialReviewRevision: 1,
+  baseObservationRevision: 0,
 }
 
 const approvedReply = {
@@ -78,6 +82,10 @@ const review = {
   googleConnectionId: 'conn-1',
   externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
   externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
+  sourceEpoch: 0,
+  sourceRevision: 1,
+  replyStateRevision: 1,
+  contentExpiresAt: new Date('2026-08-16T00:00:00Z'),
 }
 
 /** Error shape thrown by the Google review API adapter (integration context). */
@@ -121,6 +129,13 @@ function abortError(): Error {
   return err
 }
 
+function governedExecutorLostResponse(): Error {
+  return Object.assign(new Error('governed provider execution failed after dispatch'), {
+    _tag: 'GbpApiError',
+    kind: 'upstream_error',
+  })
+}
+
 function makeDeps() {
   const replyCommandStore = {
     submitReply: vi.fn(),
@@ -129,6 +144,12 @@ function makeDeps() {
       ...reply,
       ...updates,
     })),
+    markProviderOutcomePendingObservation: vi.fn(
+      async (reply: object, _outcome: object) => ({
+        ...reply,
+        publicationState: 'pending_observation',
+      }),
+    ),
     markPublicationAuthorized: vi.fn(),
     markPublicationSending: vi.fn(async (reply: typeof approvedReply) =>
       reply.publicationState === 'authorized' || reply.publicationState === 'sending'
@@ -164,7 +185,28 @@ function makeDeps() {
   return {
     replyRepo: { findById: vi.fn().mockResolvedValue(approvedReply) },
     reviewRepo: { findById: vi.fn().mockResolvedValue(review) },
-    googleReviewApi: { replyToReview: vi.fn().mockResolvedValue(undefined) },
+    googleReviewApi: {
+      replyToReview: vi.fn().mockResolvedValue({ providerCorrelationId: 'google-1' }),
+      getReview: vi.fn().mockResolvedValue({
+        status: 'found',
+        review: {
+          reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+          replyText: 'Thanks!',
+          replyUpdatedAt: NOW,
+        },
+      }),
+    },
+    googleReplyObservationStore: {
+      allocateReadGeneration: vi.fn(async () => 1),
+      record: vi.fn().mockResolvedValue({
+        observationRevision: 1,
+        change: 'added',
+        resolution: 'confirmed_on_google',
+        matchedReplyId: 'reply-1',
+        matchedPublicationCycle: 1,
+        duplicate: false,
+      }),
+    },
     replyCommandStore,
     clock: () => NOW,
     idGen: () => 'reply-1',
@@ -189,7 +231,7 @@ describe('publish-reply job handler', () => {
     expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
   })
 
-  it('success → claims the row, sends, marks published via the command store with the durable fact', async () => {
+  it('success → records the provider outcome pending observation and does not publish', async () => {
     const deps = makeDeps()
     const handler = createPublishReplyHandler(deps as never)
 
@@ -202,11 +244,17 @@ describe('publish-reply job handler', () => {
       GOOGLE_REVIEW_PRIMARY_RESOURCE,
       'Thanks!',
     )
-    expect(deps.replyCommandStore.markPublished).toHaveBeenCalledTimes(1)
-    const event = deps.replyCommandStore.markPublished.mock.calls[0]![2] as {
-      _tag: string
-    }
-    expect(event._tag).toBe('review.reply.published')
+    expect(
+      deps.replyCommandStore.markProviderOutcomePendingObservation,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({ publicationState: 'sending', publicationCycle: 1 }),
+      {
+        providerCorrelationId: 'google-1',
+        providerRespondedAt: NOW,
+      },
+      NOW,
+    )
+    expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
   })
@@ -233,8 +281,7 @@ describe('publish-reply job handler', () => {
 
     await handler(
       makeJob(0, {
-        replyId: 'reply-1',
-        organizationId: 'org-1',
+        ...JOB_DATA,
         publicationCycle: 1,
       }),
     )
@@ -301,7 +348,7 @@ describe('publish-reply job handler', () => {
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
   })
 
-  it('5xx provider error → retry-queued + rethrows (final attempt included)', async () => {
+  it('5xx provider error → ambiguous, preserving sending until targeted readback', async () => {
     const deps = makeDeps()
     deps.googleReviewApi.replyToReview.mockRejectedValue(gbpApiError(500))
     const handler = createPublishReplyHandler(deps as never)
@@ -310,23 +357,77 @@ describe('publish-reply job handler', () => {
       _tag: 'IntegrationError',
       code: 'gbp_api_error',
     })
-    expect(deps.replyCommandStore.markPublicationRetryQueued).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublicationRetryQueued).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
 
     await expect(handler(makeJob(2))).rejects.toMatchObject({
       _tag: 'IntegrationError',
       code: 'gbp_api_error',
     })
-    expect(deps.replyCommandStore.markPublicationRetryQueued).toHaveBeenCalledTimes(2)
+    expect(deps.replyCommandStore.markPublicationRetryQueued).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationAmbiguous).toHaveBeenCalledTimes(1)
     expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
   })
 
-  it('network TypeError → retryable (requeue + rethrow)', async () => {
+  it('network TypeError → ambiguous (state stays sending before final attempt)', async () => {
     const deps = makeDeps()
     deps.googleReviewApi.replyToReview.mockRejectedValue(new TypeError('fetch failed'))
     const handler = createPublishReplyHandler(deps as never)
 
     await expect(handler(makeJob(0))).rejects.toThrow(TypeError)
-    expect(deps.replyCommandStore.markPublicationRetryQueued).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublicationRetryQueued).not.toHaveBeenCalled()
+    expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['direct transport rejection', () => new TypeError('fetch failed')],
+    ['governed executor lost response', governedExecutorLostResponse],
+    ['5xx response without no-write evidence', () => gbpApiError(500)],
+  ])('%s performs a targeted GET before any resend', async (_label, makeFailure) => {
+    let current = { ...approvedReply }
+    const deps = makeDeps()
+    deps.replyRepo.findById.mockImplementation(async () => current)
+    deps.replyCommandStore.markPublicationSending.mockImplementation(async () => {
+      if (
+        current.publicationState !== 'authorized' &&
+        current.publicationState !== 'sending'
+      ) {
+        return null
+      }
+      current = {
+        ...current,
+        publicationState: 'sending',
+        publicationAttempts: current.publicationAttempts + 1,
+      }
+      return current
+    })
+    deps.replyCommandStore.markPublicationRetryQueued.mockImplementation(async () => {
+      current = { ...current, publicationState: 'authorized' }
+      return current
+    })
+    deps.googleReviewApi.getReview.mockResolvedValue({
+      status: 'found',
+      review: {
+        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+        replyText: null,
+        replyUpdatedAt: NOW,
+      },
+    })
+    deps.googleReviewApi.replyToReview
+      .mockRejectedValueOnce(makeFailure())
+      .mockResolvedValueOnce({ providerCorrelationId: 'google-resend' })
+    const handler = createPublishReplyHandler(deps as never)
+
+    await expect(handler(makeJob(0))).rejects.toBeInstanceOf(Error)
+    expect(current.publicationState).toBe('sending')
+
+    await expect(handler(makeJob(1))).resolves.toBeUndefined()
+
+    expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledTimes(2)
+    expect(deps.googleReviewApi.getReview).toHaveBeenCalledTimes(1)
+    const readOrder = deps.googleReviewApi.getReview.mock.invocationCallOrder[0]!
+    const resendOrder = deps.googleReviewApi.replyToReview.mock.invocationCallOrder[1]!
+    expect(readOrder).toBeLessThan(resendOrder)
   })
 
   it('§6 timeout BEFORE the request: token refresh failure → retryable (provider never saw a request)', async () => {
@@ -449,20 +550,26 @@ describe('publish-reply job handler', () => {
 
   it('acknowledgement compare-and-set fences a cycle change after the post-call read', async () => {
     const deps = makeDeps()
-    deps.replyCommandStore.markPublished.mockResolvedValueOnce(null as never)
+    deps.replyCommandStore.markProviderOutcomePendingObservation.mockResolvedValueOnce(
+      null as never,
+    )
     const handler = createPublishReplyHandler(deps as never)
 
     await expect(handler(makeJob())).resolves.toBeUndefined()
 
     expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledTimes(1)
-    expect(deps.replyCommandStore.markPublished).toHaveBeenCalledTimes(1)
-    expect(deps.replyCommandStore.markPublished.mock.calls[0]![0]).toMatchObject({
+    expect(
+      deps.replyCommandStore.markProviderOutcomePendingObservation,
+    ).toHaveBeenCalledTimes(1)
+    expect(
+      deps.replyCommandStore.markProviderOutcomePendingObservation.mock.calls[0]![0],
+    ).toMatchObject({
       publicationCycle: 1,
       publicationState: 'sending',
     })
   })
 
-  it('§6 failure AFTER provider success BEFORE local ack: markPublished throws → rethrow → retry re-claims sending → upsert-idempotent second send → published once', async () => {
+  it('§6 failure AFTER provider success BEFORE local outcome persistence: retry reads back and never blindly sends a second PUT', async () => {
     // Stateful fake: the row persists publication_state across the two runs,
     // exactly as the atomic store would leave it ('sending' after run 1's
     // claim; the failed markPublished never committed).
@@ -482,12 +589,9 @@ describe('publish-reply job handler', () => {
       }
       return current
     })
-    deps.replyCommandStore.markPublished
-      .mockRejectedValueOnce(new Error('db write failed')) // local ack fails AFTER provider success
-      .mockImplementation(async () => {
-        current = { ...current, status: 'published', publicationState: 'published' }
-        return current
-      })
+    deps.replyCommandStore.markProviderOutcomePendingObservation.mockRejectedValueOnce(
+      new Error('db write failed'),
+    ) // local outcome persistence fails AFTER provider success
     const handler = createPublishReplyHandler(deps as never)
 
     // Run 1: provider call succeeds, the local ack fails → ambiguous
@@ -496,23 +600,118 @@ describe('publish-reply job handler', () => {
     expect(current.publicationState).toBe('sending')
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
 
-    // Run 2: the retry re-claims (sending → sending — the SAME job's
-    // in-flight workflow) and sends AGAIN: the GBP reply PUT is an UPSERT,
-    // so the second send is idempotent on the provider.
+    // Run 2: persisted sending means the prior outcome is uncertain. The
+    // worker first reads the targeted review; an exact current observation is
+    // handed to the observation authority and the provider write is not
+    // repeated.
     await expect(handler(makeJob(1))).resolves.toBeUndefined()
 
-    expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledTimes(2)
-    expect(deps.googleReviewApi.replyToReview).toHaveBeenNthCalledWith(
-      2,
-      'org-1',
-      'conn-1',
-      GOOGLE_REVIEW_PRIMARY_RESOURCE,
-      'Thanks!',
+    expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledTimes(1)
+    expect(deps.googleReviewApi.getReview).toHaveBeenCalledTimes(1)
+    expect(deps.googleReviewApi.getReview.mock.invocationCallOrder[0]).toBeLessThan(
+      deps.googleReplyObservationStore.allocateReadGeneration.mock
+        .invocationCallOrder[0]!,
     )
-    expect(deps.replyCommandStore.markPublished).toHaveBeenCalledTimes(2)
-    expect(current.status).toBe('published')
-    expect(current.publicationState).toBe('published')
+    expect(deps.googleReplyObservationStore.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reviewId: 'rev-1',
+        observedText: 'Thanks!',
+        source: 'targeted_reconciliation',
+      }),
+    )
+    expect(
+      deps.replyCommandStore.markProviderOutcomePendingObservation,
+    ).toHaveBeenCalledTimes(1)
+    expect(deps.replyCommandStore.markPublished).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationTerminal).not.toHaveBeenCalled()
     expect(deps.replyCommandStore.markPublicationAmbiguous).not.toHaveBeenCalled()
+  })
+
+  it('a persisted uncertain attempt resends only after targeted readback proves absence', async () => {
+    const deps = makeDeps()
+    deps.replyRepo.findById.mockResolvedValue({
+      ...approvedReply,
+      publicationState: 'sending',
+      publicationAttempts: 1,
+    })
+    deps.googleReviewApi.getReview.mockResolvedValue({
+      status: 'found',
+      review: {
+        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+        replyText: null,
+        replyUpdatedAt: NOW,
+      },
+    })
+    const handler = createPublishReplyHandler(deps as never)
+
+    await expect(handler(makeJob(1))).resolves.toBeUndefined()
+
+    expect(deps.googleReviewApi.getReview).toHaveBeenCalledTimes(1)
+    expect(deps.googleReplyObservationStore.record).toHaveBeenCalledWith(
+      expect.objectContaining({ observedText: null }),
+    )
+    expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledTimes(1)
+    expect(deps.googleReviewApi.getReview.mock.invocationCallOrder[0]).toBeLessThan(
+      deps.googleReviewApi.replyToReview.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('a failed targeted readback keeps an uncertain attempt from sending', async () => {
+    const deps = makeDeps()
+    deps.replyRepo.findById.mockResolvedValue({
+      ...approvedReply,
+      publicationState: 'sending',
+      publicationAttempts: 1,
+    })
+    deps.googleReviewApi.getReview.mockRejectedValue(new Error('readback unavailable'))
+    const handler = createPublishReplyHandler(deps as never)
+
+    await expect(handler(makeJob(1))).rejects.toThrow('readback unavailable')
+
+    expect(deps.replyCommandStore.markPublicationSending).not.toHaveBeenCalled()
+    expect(deps.googleReviewApi.replyToReview).not.toHaveBeenCalled()
+  })
+
+  it('gives consecutive uncertain readbacks distinct fenced identities', async () => {
+    const deps = makeDeps()
+    let current = {
+      ...approvedReply,
+      publicationState: 'sending' as const,
+      publicationAttempts: 1,
+    }
+    deps.replyRepo.findById.mockImplementation(async () => current)
+    deps.googleReviewApi.getReview.mockResolvedValue({
+      status: 'found',
+      review: {
+        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+        replyText: null,
+        replyUpdatedAt: null,
+      },
+    })
+    deps.googleReplyObservationStore.allocateReadGeneration
+      .mockResolvedValueOnce(10)
+      .mockResolvedValueOnce(11)
+    deps.googleReviewApi.replyToReview.mockRejectedValue(abortError())
+    const handler = createPublishReplyHandler(deps as never)
+
+    await expect(handler(makeJob(1))).rejects.toThrow('aborted')
+    current = { ...current, publicationAttempts: 2 }
+    await expect(handler(makeJob(2))).rejects.toThrow('aborted')
+
+    const first = deps.googleReplyObservationStore.record.mock.calls[0]?.[0]
+    const second = deps.googleReplyObservationStore.record.mock.calls[1]?.[0]
+    expect(first).toMatchObject({
+      readGeneration: 10,
+      observedText: null,
+      publicationTarget: { publicationCycle: 1, attemptNumber: 1 },
+    })
+    expect(second).toMatchObject({
+      readGeneration: 11,
+      observedText: null,
+      publicationTarget: { publicationCycle: 1, attemptNumber: 2 },
+    })
+    expect(first?.observationKey).not.toBe(second?.observationKey)
+    expect(deps.googleReviewApi.getReview).toHaveBeenCalledTimes(2)
+    expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledTimes(2)
   })
 })

@@ -247,6 +247,12 @@ const MUTATING_QUERY_NAMES = new Set([
   'getPropertyGooglePerformance',
 ])
 const ATOMIC_PORTAL_MUTATIONS = new Set([
+  'createPortal',
+  'updatePortal',
+  'rollbackPortalPublication',
+  'completeContentReview',
+  'deletePortal',
+  'finalizeUpload',
   'createPortalGroup',
   'updatePortalGroup',
   'addPortalToGroup',
@@ -260,10 +266,22 @@ const ATOMIC_PORTAL_MUTATIONS = new Set([
   'revokePortalTokens',
 ])
 const LOCAL_ONLY_PORTAL_MUTATIONS = new Set([
+  'requestUploadUrl',
   'updateLink',
   'deleteLink',
   'updateLinkCategory',
   'deleteLinkCategory',
+])
+const ATOMIC_GUEST_MUTATIONS = new Set([
+  'submitGuestResponseFn',
+  'correctGuestResponseFn',
+  'submitPrivateFeedbackFn',
+  'withdrawPrivateFeedbackFn',
+  'selectGoogleReviewFn',
+  'selectSecondaryLinkFn',
+  'withdrawGuestResponseFn',
+  'moderateGuestResponseFn',
+  'recordScanFn',
 ])
 const MUTATION_DEBT_EXPIRY = '2026-10-31'
 const ENTRY_POINT_OWNERS = new Set<EntryPointOwner>([
@@ -334,7 +352,7 @@ function mutationForEntry(
       stateOwner: 'portal',
       disposition: 'atomic_state_and_fact',
       reason:
-        'PortalCommandStore commits the revision-fenced state change, required side effects, and versioned outbox fact in one PostgreSQL transaction.',
+        'The owning Portal transaction commits its revision-fenced state or command receipt, required side effects, and every required versioned outbox fact together.',
     }
   }
   if (LOCAL_ONLY_PORTAL_MUTATIONS.has(name)) {
@@ -343,7 +361,27 @@ function mutationForEntry(
       stateOwner: 'portal',
       disposition: 'local_only_with_reason',
       reason:
-        'The Portal contract declares no durable fact for this link/category edit; it is a context-local state write.',
+        name === 'requestUploadUrl'
+          ? 'Creates one scoped, expiring upload issuance; no domain fact is required until verified finalization atomically stages processing.'
+          : 'The Portal contract declares no durable fact for this link/category edit; it is a context-local state write.',
+    }
+  }
+  if (ATOMIC_GUEST_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'guest',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The Guest command or observation store atomically fences and persists the response/action receipt with every required content-minimal fact.',
+    }
+  }
+  if (name === 'startNewGuestResponseFn') {
+    return {
+      kind: 'mutation',
+      stateOwner: 'guest',
+      disposition: 'local_only_with_reason',
+      reason:
+        'Issues a fresh signed response-integrity session without changing the prior Guest Response or requiring a durable domain fact.',
     }
   }
   return {
@@ -2897,7 +2935,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'BQC-3.8 ambiguous-publication reconcile sweep; provider re-read only — never a send; distinct action: shares nothing with property-scoped system:review.sync (strictest-scope merge would missing_scope-deny this tenant-cross sweep)',
+        'BQC-3.8 provider-pending and ambiguous publication reconcile sweep; provider re-read only — never a send; exact observations heal and every non-confirming/error row is guardedly rescheduled; distinct action: shares nothing with property-scoped system:review.sync (strictest-scope merge would missing_scope-deny this tenant-cross sweep)',
     },
   ),
   job(
@@ -3083,10 +3121,16 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:inbox.update',
     'none',
     'organization',
-    ['review.created', 'review.expired', 'review.updated', 'review.reply.published'],
+    [
+      'review.created',
+      'review.expired',
+      'review.updated',
+      'review.reply.published',
+      'review.reply.observed',
+    ],
     {
       notes:
-        'durable outbox consumers (receipt-idempotent, applyOnce co-commits state + receipt — BQC-3.4); dispatch disabled — BQR-0 containment',
+        'durable outbox consumers: publication is receipt-only; exact current reply observation applyOnce co-commits close/reopen state, facts, and receipt',
     },
   ),
   consumer(
@@ -3381,11 +3425,13 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'review.created',
       'guest.feedback.submitted',
       'guest.feedback.retracted',
-      'review.reply.published',
       'review.reply.submitted',
       'review.expired',
     ],
-    { notes: 'in-process twin of the durable consumers' },
+    {
+      notes:
+        'in-process lifecycle handlers; provider-reply close/reopen authority is intentionally durable-only',
+    },
   ),
 ]
 
@@ -3442,7 +3488,9 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:review.reconcile',
     'none',
     'tenant_cross',
-    { notes: 'every 30 min (BQC-3.8 ambiguous-outcome reconcile sweep)' },
+    {
+      notes: 'every 5 min (BQC-3.8 provider-pending and ambiguous observation sweep)',
+    },
   ),
   schedule(
     'retention-sweep-recurring',

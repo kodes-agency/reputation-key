@@ -56,7 +56,7 @@ function event(overrides: Partial<ConsumerEvent> = {}): ConsumerEvent {
   return {
     eventId: EVENT_ID,
     eventType: 'review.reply.publication_requested',
-    eventVersion: 1,
+    eventVersion: 2,
     payload: {
       replyId: '97000000-0000-0000-0000-000000000002',
       reviewId: '97000000-0000-0000-0000-000000000003',
@@ -64,6 +64,9 @@ function event(overrides: Partial<ConsumerEvent> = {}): ConsumerEvent {
       organizationId: 'org-publication-recovery',
       userId: 'manager-publication-recovery',
       publicationCycle: 4,
+      sourceEpoch: 3,
+      materialReviewRevision: 7,
+      baseObservationRevision: 11,
       occurredAt: NOW.toISOString(),
     },
     organizationId: 'org-publication-recovery',
@@ -121,6 +124,10 @@ describe('reply publication requested durable consumer', () => {
         replyId: '97000000-0000-0000-0000-000000000002',
         organizationId: 'org-publication-recovery',
         publicationCycle: 4,
+        propertyId: '97000000-0000-0000-0000-000000000004',
+        sourceEpoch: 3,
+        materialReviewRevision: 7,
+        baseObservationRevision: 11,
         initiator: { kind: 'user', id: 'manager-publication-recovery' },
       },
       { idempotencyKey: 'reply-97000000-0000-0000-0000-000000000002-v4' },
@@ -145,6 +152,27 @@ describe('reply publication requested durable consumer', () => {
       ON_REPLY_PUBLICATION_REQUESTED_CONSUMER,
       'obsolete',
     )
+  })
+
+  it('settles a legacy intent without provider-truth fences as obsolete', async () => {
+    const subject = deps()
+    const legacy = event({
+      eventVersion: 1,
+      payload: {
+        replyId: '97000000-0000-0000-0000-000000000002',
+        reviewId: '97000000-0000-0000-0000-000000000003',
+        propertyId: '97000000-0000-0000-0000-000000000004',
+        organizationId: 'org-publication-recovery',
+        userId: 'manager-publication-recovery',
+        publicationCycle: 4,
+        occurredAt: NOW.toISOString(),
+      },
+    })
+
+    await expect(
+      handleReplyPublicationRequested(subject as never, legacy),
+    ).resolves.toEqual({ status: 'obsolete' })
+    expect(subject.queue.addPublishJob).not.toHaveBeenCalled()
   })
 
   it('writes no receipt when queue admission fails so delivery can retry', async () => {

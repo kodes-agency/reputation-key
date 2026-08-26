@@ -8,7 +8,8 @@
 //      batch transaction — a forced outbox failure rolls the WHOLE batch
 //      back (no cancelled row, no fact).
 //   3. An ambiguous row written by the store (markPublicationAmbiguous) is
-//      findable by the reconcile sweep query (findAmbiguousPublicationBatch)
+//      findable by the reconcile sweep query
+//      (findDuePublicationReconciliationBatch)
 //      exactly when reconcile_due_at has passed — future-due rows are not.
 //   4. Purge-deleted rows are tolerated by cancellation (guarded update
 //      matches nothing: no count, no fact).
@@ -32,6 +33,7 @@ import {
 import type { Reply, Review } from '../../domain/types'
 import {
   reviewReplyPublicationCancelled,
+  reviewReplyPublicationRequested,
   reviewReplyPublishFailed,
   type ReviewReplyPublicationCancelled,
 } from '../../domain/events'
@@ -39,6 +41,8 @@ import { AMBIGUOUS_RECONCILE_DELAY_MS } from '../../domain/reply-publication-wor
 import { createReviewRepository } from './review.repository'
 import { createReplyRepository } from './reply.repository'
 import { createAtomicReplyCommandStore } from '../reply-command-store'
+import type { PublicationAttemptStart } from '../../application/ports/reply-command-store.port'
+import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
 
 const ORG_A = organizationId('org-pub-state-bbbb-2222222222222222')
 const PROP_A = propertyId('3c000000-0000-0000-0000-000000000001')
@@ -76,6 +80,20 @@ async function seedOrgAndProperty(p: Pool) {
 }
 
 async function truncateAll(p: Pool) {
+  await p.query('DELETE FROM google_reply_observation_heads WHERE organization_id = $1', [
+    ORG_A,
+  ])
+  await p.query('DELETE FROM google_reply_observations WHERE organization_id = $1', [
+    ORG_A,
+  ])
+  await p.query('DELETE FROM reply_publication_attempts WHERE organization_id = $1', [
+    ORG_A,
+  ])
+  await withPublicationAuthorizationFixtureMutation(() =>
+    p.query('DELETE FROM reply_publication_authorizations WHERE organization_id = $1', [
+      ORG_A,
+    ]),
+  )
   await p.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_A])
   await p.query('DELETE FROM replies WHERE organization_id = $1', [ORG_A])
   await p.query('DELETE FROM reviews WHERE organization_id = $1', [ORG_A])
@@ -104,7 +122,7 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     sourceUpdatedAt: null,
     firstFetchedAt: NOW,
     lastFetchedAt: NOW,
-    contentExpiresAt: null,
+    contentExpiresAt: new Date(NOW.getTime() + 25 * 24 * 60 * 60 * 1000),
     contentHash: null,
     sourceSeenGeneration: null,
     sourceEpoch: 0,
@@ -142,6 +160,19 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
     reconcileDueAt: null,
     createdAt: NOW,
     updatedAt: NOW,
+    ...overrides,
+  }
+}
+
+function publicationAttempt(
+  overrides: Partial<PublicationAttemptStart> = {},
+): PublicationAttemptStart {
+  return {
+    providerOperationKey: `publish:${REPLY_A}:1:1`,
+    propertyId: PROP_A,
+    sourceEpoch: 0,
+    materialReviewRevision: 1,
+    baseObservationRevision: 0,
     ...overrides,
   }
 }
@@ -241,7 +272,7 @@ describe.sequential('publication state machine (integration, migration 0015)', (
         id: REPLY_B,
         reviewId: reviewId('3c000000-0000-0000-0000-000000000011'),
         publicationState: 'sending',
-        publicationAttempts: 1,
+        publicationAttempts: 0,
       }),
     )
     await reviewRepo.upsert(
@@ -269,7 +300,7 @@ describe.sequential('publication state machine (integration, migration 0015)', (
           id: REPLY_B,
           reviewId: reviewId('3c000000-0000-0000-0000-000000000011'),
           publicationState: 'sending',
-          publicationAttempts: 1,
+          publicationAttempts: 0,
         }),
         event: eventB,
         now: NOW,
@@ -343,7 +374,7 @@ describe.sequential('publication state machine (integration, migration 0015)', (
         id: REPLY_B,
         reviewId: reviewId('3c000000-0000-0000-0000-000000000011'),
         publicationState: 'sending',
-        publicationAttempts: 1,
+        publicationAttempts: 0,
       }),
     )
 
@@ -361,7 +392,7 @@ describe.sequential('publication state machine (integration, migration 0015)', (
             id: REPLY_B,
             reviewId: reviewId('3c000000-0000-0000-0000-000000000011'),
             publicationState: 'sending',
-            publicationAttempts: 1,
+            publicationAttempts: 0,
           }),
           event: ghostEvent(cancelledEvent(REPLY_B, 'disconnect')),
           now: NOW,
@@ -396,15 +427,42 @@ describe.sequential('publication state machine (integration, migration 0015)', (
     const db = getDb()
     const reviewRepo = createReviewRepository(db)
     const replyRepo = createReplyRepository(db)
-    const store = createAtomicReplyCommandStore(db, silentEvents)
+    const store = createAtomicReplyCommandStore(db, silentEvents, async () => true)
 
-    await reviewRepo.upsert(makeReview())
-    await replyRepo.upsert(makeReply({ publicationState: 'authorized' }))
+    const review = await reviewRepo.upsert(makeReview())
+    const pending = makeReply({
+      status: 'pending_approval',
+      publicationState: null,
+      publicationCycle: 0,
+    })
+    await replyRepo.upsert(pending)
+    const authorized = await store.markPublicationAuthorized(
+      pending,
+      { status: 'approved', approvedBy: USER_A, approvedAt: NOW },
+      {
+        lifecycleEvent: null,
+        publicationIntent: reviewReplyPublicationRequested({
+          replyId: REPLY_A,
+          reviewId: REVIEW_A,
+          propertyId: PROP_A,
+          organizationId: ORG_A,
+          userId: USER_A,
+          publicationCycle: 1,
+          sourceEpoch: review.sourceEpoch,
+          materialReviewRevision: review.sourceRevision,
+          baseObservationRevision: 0,
+          occurredAt: NOW,
+        }),
+      },
+      NOW,
+    )
+    expect(authorized).not.toBeNull()
 
     // Claim, then fail ambiguous on the final attempt — the store persists
     // publication_state='ambiguous' + reconcile_due_at = NOW + 15min.
     const claimed = await store.markPublicationSending(
-      makeReply({ publicationState: 'authorized' }),
+      authorized!,
+      publicationAttempt(),
       NOW,
     )
     expect(claimed?.publicationState).toBe('sending')
@@ -430,7 +488,7 @@ describe.sequential('publication state machine (integration, migration 0015)', (
     )
 
     // Not yet due → the sweep query skips the row.
-    const notYetDue = await replyRepo.findAmbiguousPublicationBatch(
+    const notYetDue = await replyRepo.findDuePublicationReconciliationBatch(
       new Date(NOW.getTime() + AMBIGUOUS_RECONCILE_DELAY_MS - 60 * 1000),
       null,
       500,
@@ -438,19 +496,21 @@ describe.sequential('publication state machine (integration, migration 0015)', (
     expect(notYetDue).toHaveLength(0)
 
     // Due → the sweep query finds exactly this row.
-    const due = await replyRepo.findAmbiguousPublicationBatch(
+    const due = await replyRepo.findDuePublicationReconciliationBatch(
       new Date(NOW.getTime() + AMBIGUOUS_RECONCILE_DELAY_MS),
       null,
       500,
     )
     expect(due.map((r) => r.id)).toEqual([REPLY_A])
 
-    // The publish_failed fact committed with the state write.
+    // Authorization intent and publish_failed fact are both durable.
     const outbox = await pool.query(
       `SELECT event_type FROM outbox_events WHERE organization_id = $1`,
       [ORG_A],
     )
-    expect(outbox.rows.map((r) => r.event_type)).toEqual(['review.reply.publish_failed'])
+    expect(outbox.rows.map((r) => r.event_type).sort()).toEqual(
+      ['review.reply.publication_requested', 'review.reply.publish_failed'].sort(),
+    )
   })
 
   it('cancelPublications tolerates purge-deleted rows (guarded update matches nothing)', async () => {
@@ -496,6 +556,7 @@ describe.sequential('publication state machine (integration, migration 0015)', (
     // …and a racing worker's claim (issued against the pre-cancel read) misses.
     const claim = await store.markPublicationSending(
       makeReply({ publicationState: 'authorized' }),
+      publicationAttempt(),
       NOW,
     )
     expect(claim).toBeNull()

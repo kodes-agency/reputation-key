@@ -201,6 +201,7 @@ const persistPageObservations = async (
   input: RunReviewProviderSnapshotInput,
   reviews: readonly GoogleReview[],
   observationScope: string,
+  replyReadGeneration: number,
 ): Promise<readonly ReviewProviderPersistedObservation[]> => {
   const observations: ReviewProviderPersistedObservation[] = []
   for (const review of reviews) {
@@ -221,6 +222,7 @@ const persistPageObservations = async (
       observationKey: sha256Hex(
         `repkey-review-provider-observation-key-v1\0${observationScope}\0${review.reviewName}`,
       ),
+      replyReadGeneration,
       review,
       subjects,
     })
@@ -422,6 +424,16 @@ const runListPage = async (
   if (!fetched.ok) return fetched.outcome
   const page = fetched.page
 
+  // Allocate immediately after acquiring the page response. Validation and
+  // source-fence checks may still reject it (leaving an intentional gap), but
+  // no later asynchronous work may reorder this response behind another one.
+  let replyReadGeneration: number
+  try {
+    replyReadGeneration = await deps.observationWriter.allocateReplyReadGeneration()
+  } catch {
+    return failAndDiscard(deps, input, run.id, 'observation_failed')
+  }
+
   const invalid = validatePage(
     run,
     page.reviews,
@@ -441,6 +453,7 @@ const runListPage = async (
       input,
       page.reviews,
       `${run.id}\0${position.phase}\0${position.pageIndex}`,
+      replyReadGeneration,
     )
   } catch {
     return failAndDiscard(deps, input, run.id, 'observation_failed')
@@ -480,11 +493,10 @@ const confirmTargetedCandidate = async (
     }
     return failAndDiscard(deps, input, run.id, failureCodeForProviderError(error))
   }
-  if (!(await sameScope(deps, input))) {
-    return failAndDiscard(deps, input, run.id, 'source_changed')
-  }
-
   if (result.status === 'not_found') {
+    if (!(await sameScope(deps, input))) {
+      return failAndDiscard(deps, input, run.id, 'source_changed')
+    }
     const status = await deps.repository.confirmLinkedCandidateMissing({
       runId: run.id,
       reviewId: candidate.reviewId,
@@ -496,6 +508,17 @@ const confirmTargetedCandidate = async (
     return failAndDiscard(deps, input, run.id, 'review_mutation')
   }
 
+  // Allocate immediately after a found response and before any asynchronous
+  // source check, so concurrent responses cannot be reordered by that check.
+  let replyReadGeneration: number
+  try {
+    replyReadGeneration = await deps.observationWriter.allocateReplyReadGeneration()
+  } catch {
+    return failAndDiscard(deps, input, run.id, 'observation_failed')
+  }
+  if (!(await sameScope(deps, input))) {
+    return failAndDiscard(deps, input, run.id, 'source_changed')
+  }
   if (result.review.reviewName !== candidate.reviewName) {
     return failAndDiscard(deps, input, run.id, 'malformed_page')
   }
@@ -507,6 +530,7 @@ const confirmTargetedCandidate = async (
       input,
       [result.review],
       `${run.id}\0targeted\0${candidate.reviewId}\0${candidate.expectedSourceRevision}`,
+      replyReadGeneration,
     )
     if (!persisted) throw new Error('observation missing')
     observation = persisted

@@ -7,6 +7,7 @@ import type { PortalCommandStore } from '../ports/portal-command-store.port'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { portalError } from '../../domain/errors'
 import { portalUpdated } from '../../domain/events'
+import { nextPortalCommandAt } from '../portal-command-version'
 
 export type RollbackPortalPublicationDeps = Readonly<{
   portalRepo: PortalRepository
@@ -60,13 +61,16 @@ export const rollbackPortalPublication =
       )
     }
 
-    const at = deps.clock()
+    const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, portal.updatedAt)
     await deps.commandStore.updatePortal({
       organizationId: ctx.organizationId,
       propertyId: portal.propertyId,
       portalId: pid,
       expectedUpdatedAt: portal.updatedAt,
-      patch: { updatedAt: at },
+      revision,
+      occurredAt,
+      patch: {},
       publication: {
         kind: 'rollback',
         snapshotId: target.id,
@@ -80,7 +84,7 @@ export const rollbackPortalPublication =
           activationSequence: cursor.nextActivationSequence,
           kind: 'rollback',
           activatedBy: unbrand(ctx.userId),
-          activatedAt: at,
+          activatedAt: occurredAt,
           deactivatedAt: null,
           deactivationReason: null,
         },
@@ -91,15 +95,15 @@ export const rollbackPortalPublication =
         propertyId: portal.propertyId,
         previousPublicationState: 'published',
         publicationState: 'published',
-        sourceAggregateVersion: at.toISOString(),
-        occurredAt: at,
+        sourceAggregateVersion: revision.toISOString(),
+        occurredAt,
       }),
     })
     return {
       snapshotId: target.id,
       version: target.version,
       configurationDigest: target.configurationDigest,
-      activatedAt: at,
+      activatedAt: occurredAt,
     }
   }
 

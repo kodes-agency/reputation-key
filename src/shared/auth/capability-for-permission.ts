@@ -74,6 +74,9 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   'ac.update': 'identity.invite',
   'ac.delete': 'identity.invite',
   'feedback.read': 'portal.guest_response',
+  // Handling is an Inbox workflow over already-submitted feedback. It must
+  // remain available when new Guest Response collection is paused.
+  'feedback.handle': 'inbox.use',
   'feedback.respond': 'portal.guest_response',
   'feedback.contact_read': 'portal.guest_contact',
 }

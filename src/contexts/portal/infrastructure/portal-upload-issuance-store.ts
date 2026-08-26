@@ -15,7 +15,11 @@ import {
 } from '../domain/upload-issuance'
 import { trace } from '#/shared/observability/trace'
 import { insertOutboxRow } from '#/shared/outbox/commit'
-import type { PortalHeroImageProcessingRequested } from '../domain/events'
+import {
+  portalHeroImagePublished,
+  type PortalHeroImageProcessingRequested,
+} from '../domain/events'
+import { nextLockedPortalRevision } from './portal-command-revision'
 
 const STATES: ReadonlySet<string> = new Set([
   'issued',
@@ -268,7 +272,10 @@ export function createPortalUploadIssuanceStore(db: Database): PortalUploadIssua
 
           const portalRows = await tx
             .update(portals)
-            .set({ heroImageUrl: derivative.heroImageUrl, updatedAt: at })
+            .set({
+              heroImageUrl: derivative.heroImageUrl,
+              updatedAt: nextLockedPortalRevision(at),
+            })
             .where(
               and(
                 eq(portals.organizationId, unbrand(scope.organizationId)),
@@ -276,7 +283,7 @@ export function createPortalUploadIssuanceStore(db: Database): PortalUploadIssua
                 eq(portals.id, unbrand(scope.portalId)),
               ),
             )
-            .returning({ id: portals.id })
+            .returning({ id: portals.id, updatedAt: portals.updatedAt })
           if (portalRows.length !== 1) {
             throw new Error('Portal upload publication lost its locked Portal')
           }
@@ -295,6 +302,16 @@ export function createPortalUploadIssuanceStore(db: Database): PortalUploadIssua
           if (issuanceRows.length !== 1) {
             throw new Error('Portal upload publication lost its locked issuance')
           }
+          const published = portalHeroImagePublished({
+            eventId: issuance.id,
+            uploadId: issuance.id,
+            organizationId: scope.organizationId,
+            propertyId: scope.propertyId,
+            portalId: scope.portalId,
+            sourceAggregateVersion: portalRows[0].updatedAt.toISOString(),
+            occurredAt: at,
+          })
+          await insertOutboxRow(tx, published, { recordedAt: at })
           return {
             outcome: 'published' as const,
             heroImageUrl: derivative.heroImageUrl,

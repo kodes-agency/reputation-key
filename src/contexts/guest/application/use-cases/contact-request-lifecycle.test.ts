@@ -1,12 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { contactRequestLifecycle } from './contact-request-lifecycle'
 import type { ContactRequestRepository } from '../ports/contact-request.repository'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
+import { organizationId, userId } from '#/shared/domain/ids'
 
 const NOW = new Date('2026-08-26T09:00:00.000Z')
 const SCOPE = Object.freeze({
   organizationId: '10000000-0000-4000-8000-000000000001',
   propertyId: '10000000-0000-4000-8000-000000000002',
   portalId: '10000000-0000-4000-8000-000000000003',
+})
+const AUTHORITY = Object.freeze({
+  signedSession: 'signed-session-cookie',
+  csrfNonce: '10000000-0000-4000-8000-000000000006',
+})
+const MANAGER_CTX = buildTestAuthContext({
+  organizationId: organizationId(SCOPE.organizationId),
+  userId: userId('manager-1'),
 })
 
 const repository = (): ContactRequestRepository => ({
@@ -24,22 +34,37 @@ const repository = (): ContactRequestRepository => ({
 describe('Contact Request lifecycle', () => {
   let repo: ContactRequestRepository
 
+  const buildLifecycle = (
+    overrides: Partial<Parameters<typeof contactRequestLifecycle>[0]> = {},
+  ) =>
+    contactRequestLifecycle({
+      repo,
+      clock: () => NOW,
+      idGen: () => '10000000-0000-4000-8000-000000000004',
+      revealAuditIdGen: () => '10000000-0000-4000-8000-000000000099',
+      policy: {
+        decide: vi.fn().mockResolvedValue({ allowed: true, reason: 'allowed' }),
+      },
+      managerAuthority: {
+        resolve: vi.fn().mockResolvedValue('portal_creator'),
+      },
+      responseAuthority: { authorize: vi.fn().mockResolvedValue(true) },
+      ...overrides,
+    })
+
   beforeEach(() => {
     repo = repository()
   })
 
   it('requires explicit purpose and consent instead of inferring either from an email', async () => {
-    const lifecycle = contactRequestLifecycle({
-      repo,
-      clock: () => NOW,
-      idGen: () => '10000000-0000-4000-8000-000000000004',
-    })
+    const lifecycle = buildLifecycle()
 
     await expect(
       lifecycle.submit({
         ...SCOPE,
         responseId: '10000000-0000-4000-8000-000000000005',
         email: 'guest@example.com',
+        authority: AUTHORITY,
       }),
     ).rejects.toMatchObject({ code: 'consent_required' })
     expect(repo.create).not.toHaveBeenCalled()
@@ -50,17 +75,14 @@ describe('Contact Request lifecycle', () => {
         responseId: '10000000-0000-4000-8000-000000000005',
         email: 'guest@example.com',
         consent: true,
+        authority: AUTHORITY,
       }),
     ).rejects.toMatchObject({ code: 'purpose_required' })
     expect(repo.create).not.toHaveBeenCalled()
   })
 
   it('validates and normalizes the email before fixing the 30-day lifecycle', async () => {
-    const lifecycle = contactRequestLifecycle({
-      repo,
-      clock: () => NOW,
-      idGen: () => '10000000-0000-4000-8000-000000000004',
-    })
+    const lifecycle = buildLifecycle()
 
     await expect(
       lifecycle.submit({
@@ -69,6 +91,7 @@ describe('Contact Request lifecycle', () => {
         email: 'not-an-email',
         consent: true,
         purpose: 'manager_follow_up',
+        authority: AUTHORITY,
       }),
     ).rejects.toMatchObject({ code: 'invalid_contact' })
 
@@ -80,6 +103,7 @@ describe('Contact Request lifecycle', () => {
         name: '  Guest Name  ',
         consent: true,
         purpose: 'manager_follow_up',
+        authority: AUTHORITY,
       }),
     ).resolves.toEqual({ status: 'submitted' })
     expect(repo.create).toHaveBeenCalledTimes(1)
@@ -96,11 +120,10 @@ describe('Contact Request lifecycle', () => {
     })
   })
 
-  it('rejects unapproved contact purposes at runtime', async () => {
-    const lifecycle = contactRequestLifecycle({
-      repo,
-      clock: () => NOW,
-      idGen: () => '10000000-0000-4000-8000-000000000004',
+  it('requires signed-session and CSRF authority bound to the exact response before submit', async () => {
+    const authorize = vi.fn().mockResolvedValue(false)
+    const lifecycle = buildLifecycle({
+      responseAuthority: { authorize },
     })
 
     await expect(
@@ -109,7 +132,31 @@ describe('Contact Request lifecycle', () => {
         responseId: '10000000-0000-4000-8000-000000000005',
         email: 'guest@example.com',
         consent: true,
+        purpose: 'manager_follow_up',
+        authority: AUTHORITY,
+      }),
+    ).rejects.toMatchObject({ _tag: 'ContactRequestError', code: 'not_authorized' })
+    expect(authorize).toHaveBeenCalledWith({
+      action: 'submit',
+      scope: SCOPE,
+      responseId: '10000000-0000-4000-8000-000000000005',
+      authority: AUTHORITY,
+      at: NOW,
+    })
+    expect(repo.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects unapproved contact purposes at runtime', async () => {
+    const lifecycle = buildLifecycle()
+
+    await expect(
+      lifecycle.submit({
+        ...SCOPE,
+        responseId: '10000000-0000-4000-8000-000000000005',
+        email: 'guest@example.com',
+        consent: true,
         purpose: 'marketing' as never,
+        authority: AUTHORITY,
       }),
     ).rejects.toMatchObject({ code: 'invalid_purpose' })
     expect(repo.create).not.toHaveBeenCalled()
@@ -125,16 +172,15 @@ describe('Contact Request lifecycle', () => {
       submittedAt: NOW,
       expiresAt: new Date('2026-09-25T09:00:00.000Z'),
     })
-    const lifecycle = contactRequestLifecycle({
-      repo,
-      clock: () => NOW,
-      idGen: () => 'unused',
-    })
+    const lifecycle = buildLifecycle()
 
-    const result = await lifecycle.getMasked({
-      ...SCOPE,
-      contactRequestId: '10000000-0000-4000-8000-000000000004',
-    })
+    const result = await lifecycle.getMasked(
+      {
+        ...SCOPE,
+        contactRequestId: '10000000-0000-4000-8000-000000000004',
+      },
+      MANAGER_CTX,
+    )
 
     expect(result).toEqual({
       id: '10000000-0000-4000-8000-000000000004',
@@ -145,6 +191,52 @@ describe('Contact Request lifecycle', () => {
       expiresAt: '2026-09-25T09:00:00.000Z',
     })
     expect(result).not.toHaveProperty('email')
+    expect(repo.findMasked).toHaveBeenCalledWith({
+      scope: SCOPE,
+      contactRequestId: '10000000-0000-4000-8000-000000000004',
+      authorization: {
+        actorId: 'manager-1',
+        basis: 'portal_creator',
+        checkedAt: NOW,
+      },
+      asOf: NOW,
+    })
+  })
+
+  it('requires the central policy to allow inbox.read and feedback.read for masked reads', async () => {
+    vi.mocked(repo.findMasked).mockResolvedValue({
+      id: '10000000-0000-4000-8000-000000000004',
+      scope: SCOPE,
+      responseId: '10000000-0000-4000-8000-000000000005',
+      purpose: 'manager_follow_up',
+      maskedContact: '••••••••',
+      submittedAt: NOW,
+      expiresAt: new Date('2026-09-25T09:00:00.000Z'),
+    })
+    const decide = vi.fn(async (request: { action: string }) => ({
+      allowed: request.action !== 'feedback.read',
+      reason: request.action === 'feedback.read' ? 'permission_denied' : 'allowed',
+    }))
+    const lifecycle = buildLifecycle({ policy: { decide } })
+    const ctx = buildTestAuthContext({
+      organizationId: organizationId(SCOPE.organizationId),
+      userId: userId('manager-1'),
+    })
+
+    await expect(
+      lifecycle.getMasked(
+        {
+          ...SCOPE,
+          contactRequestId: '10000000-0000-4000-8000-000000000004',
+        },
+        ctx,
+      ),
+    ).rejects.toMatchObject({ _tag: 'ContactRequestError', code: 'not_authorized' })
+    expect(decide.mock.calls.map(([request]) => request.action)).toEqual([
+      'inbox.read',
+      'feedback.read',
+    ])
+    expect(repo.findMasked).not.toHaveBeenCalled()
   })
 
   it('reveals contact only through the audited repository command with an explicit access purpose', async () => {
@@ -153,63 +245,179 @@ describe('Contact Request lifecycle', () => {
       email: 'guest@example.com',
       name: 'Guest Name',
     })
-    const lifecycle = contactRequestLifecycle({
-      repo,
-      clock: () => NOW,
-      idGen: () => 'unused',
-    })
+    const lifecycle = buildLifecycle()
 
     await expect(
-      lifecycle.reveal({
-        ...SCOPE,
-        contactRequestId: '10000000-0000-4000-8000-000000000004',
-        actorId: 'manager-1',
-      }),
+      lifecycle.reveal(
+        {
+          ...SCOPE,
+          contactRequestId: '10000000-0000-4000-8000-000000000004',
+        },
+        MANAGER_CTX,
+      ),
     ).rejects.toMatchObject({
       code: 'access_purpose_required',
     })
     expect(repo.reveal).not.toHaveBeenCalled()
 
     await expect(
-      lifecycle.reveal({
-        ...SCOPE,
-        contactRequestId: '10000000-0000-4000-8000-000000000004',
-        actorId: 'manager-1',
-        accessPurpose: 'respond_to_contact_request',
-      }),
+      lifecycle.reveal(
+        {
+          ...SCOPE,
+          contactRequestId: '10000000-0000-4000-8000-000000000004',
+          accessPurpose: 'respond_to_contact_request',
+        },
+        MANAGER_CTX,
+      ),
     ).resolves.toEqual({ email: 'guest@example.com', name: 'Guest Name' })
     expect(repo.reveal).toHaveBeenCalledWith({
       scope: SCOPE,
       contactRequestId: '10000000-0000-4000-8000-000000000004',
-      actorId: 'manager-1',
+      authorization: {
+        actorId: 'manager-1',
+        basis: 'portal_creator',
+        checkedAt: NOW,
+      },
+      auditId: '10000000-0000-4000-8000-000000000099',
       accessPurpose: 'respond_to_contact_request',
       at: NOW,
     })
   })
 
-  it('maps unavailable reveal and withdrawal races to stable lifecycle errors', async () => {
-    vi.mocked(repo.reveal).mockResolvedValue({ outcome: 'unavailable' })
-    vi.mocked(repo.withdraw).mockResolvedValue({ outcome: 'unavailable' })
-    const lifecycle = contactRequestLifecycle({
-      repo,
-      clock: () => NOW,
-      idGen: () => 'unused',
+  it('fails closed when the owning contexts do not resolve a current manager basis', async () => {
+    const resolve = vi.fn().mockResolvedValue(null)
+    const lifecycle = buildLifecycle({ managerAuthority: { resolve } })
+
+    await expect(
+      lifecycle.getMasked(
+        {
+          ...SCOPE,
+          contactRequestId: '10000000-0000-4000-8000-000000000004',
+        },
+        MANAGER_CTX,
+      ),
+    ).rejects.toMatchObject({ _tag: 'ContactRequestError', code: 'not_authorized' })
+    expect(resolve).toHaveBeenCalledWith({
+      scope: SCOPE,
+      actorId: 'manager-1',
+      at: NOW,
+    })
+    expect(repo.findMasked).not.toHaveBeenCalled()
+  })
+
+  it.each(['account_admin', 'portal_creator', 'responsible_manager'] as const)(
+    'passes the freshly resolved %s basis into the reveal audit',
+    async (basis) => {
+      vi.mocked(repo.reveal).mockResolvedValue({
+        outcome: 'revealed',
+        email: 'guest@example.com',
+      })
+      const resolve = vi.fn().mockResolvedValue(basis)
+      const lifecycle = buildLifecycle({ managerAuthority: { resolve } })
+
+      await lifecycle.reveal(
+        {
+          ...SCOPE,
+          contactRequestId: '10000000-0000-4000-8000-000000000004',
+          accessPurpose: 'respond_to_contact_request',
+        },
+        MANAGER_CTX,
+      )
+
+      expect(resolve).toHaveBeenCalledWith({
+        scope: SCOPE,
+        actorId: 'manager-1',
+        at: NOW,
+      })
+      expect(repo.reveal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          authorization: { actorId: 'manager-1', basis, checkedAt: NOW },
+          at: NOW,
+        }),
+      )
+    },
+  )
+
+  it('requires all three manager permissions and derives the reveal actor from AuthContext', async () => {
+    vi.mocked(repo.reveal).mockResolvedValue({
+      outcome: 'revealed',
+      email: 'guest@example.com',
+    })
+    const decide = vi.fn(async (request: { action: string }) => ({
+      allowed: request.action !== 'feedback.contact_read',
+      reason:
+        request.action === 'feedback.contact_read' ? 'capability_blocked' : 'allowed',
+    }))
+    const lifecycle = buildLifecycle({ policy: { decide } })
+    const ctx = buildTestAuthContext({
+      organizationId: organizationId(SCOPE.organizationId),
+      userId: userId('manager-from-context'),
     })
 
     await expect(
-      lifecycle.reveal({
-        ...SCOPE,
-        contactRequestId: '10000000-0000-4000-8000-000000000004',
-        actorId: 'manager-1',
-        accessPurpose: 'respond_to_contact_request',
-      }),
+      lifecycle.reveal(
+        {
+          ...SCOPE,
+          contactRequestId: '10000000-0000-4000-8000-000000000004',
+          accessPurpose: 'respond_to_contact_request',
+        },
+        ctx,
+      ),
+    ).rejects.toMatchObject({ _tag: 'ContactRequestError', code: 'not_authorized' })
+    expect(decide.mock.calls.map(([request]) => request.action)).toEqual([
+      'inbox.read',
+      'feedback.read',
+      'feedback.contact_read',
+    ])
+    expect(repo.reveal).not.toHaveBeenCalled()
+  })
+
+  it('maps unavailable reveal and withdrawal races to stable lifecycle errors', async () => {
+    vi.mocked(repo.reveal).mockResolvedValue({ outcome: 'unavailable' })
+    vi.mocked(repo.withdraw).mockResolvedValue({ outcome: 'unavailable' })
+    const lifecycle = buildLifecycle()
+
+    await expect(
+      lifecycle.reveal(
+        {
+          ...SCOPE,
+          contactRequestId: '10000000-0000-4000-8000-000000000004',
+          accessPurpose: 'respond_to_contact_request',
+        },
+        MANAGER_CTX,
+      ),
     ).rejects.toMatchObject({ code: 'unavailable' })
     await expect(
       lifecycle.withdraw({
         ...SCOPE,
+        responseId: '10000000-0000-4000-8000-000000000005',
         contactRequestId: '10000000-0000-4000-8000-000000000004',
+        authority: AUTHORITY,
       }),
     ).rejects.toMatchObject({ code: 'unavailable' })
+  })
+
+  it('requires the same response authority before withdrawing contact', async () => {
+    vi.mocked(repo.withdraw).mockResolvedValue({ outcome: 'withdrawn' })
+    const authorize = vi.fn().mockResolvedValue(false)
+    const lifecycle = buildLifecycle({ responseAuthority: { authorize } })
+
+    await expect(
+      lifecycle.withdraw({
+        ...SCOPE,
+        responseId: '10000000-0000-4000-8000-000000000005',
+        contactRequestId: '10000000-0000-4000-8000-000000000004',
+        authority: AUTHORITY,
+      }),
+    ).rejects.toMatchObject({ _tag: 'ContactRequestError', code: 'not_authorized' })
+    expect(authorize).toHaveBeenCalledWith({
+      action: 'withdraw',
+      scope: SCOPE,
+      responseId: '10000000-0000-4000-8000-000000000005',
+      authority: AUTHORITY,
+      at: NOW,
+    })
+    expect(repo.withdraw).not.toHaveBeenCalled()
   })
 
   it('runs bounded purge batches and returns durable checkpoint evidence', async () => {
@@ -222,11 +430,7 @@ describe('Contact Request lifecycle', () => {
       },
       completedThrough: null,
     })
-    const lifecycle = contactRequestLifecycle({
-      repo,
-      clock: () => NOW,
-      idGen: () => 'unused',
-    })
+    const lifecycle = buildLifecycle()
 
     await expect(lifecycle.purgeExpired({ batchSize: 0 })).rejects.toMatchObject({
       code: 'invalid_batch_size',

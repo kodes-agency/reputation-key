@@ -72,7 +72,7 @@ export type EventConsumerRef = Readonly<{
 export type EventFamilyRow = Readonly<{
   /** The event type (`_tag` literal). */
   eventType: string
-  /** Schema version; 1 for every family today. */
+  /** Latest schema version emitted for new facts; older registered versions remain replayable. */
   version: number
   /** Repo-relative file containing the emission. */
   producer: string
@@ -190,7 +190,12 @@ type EventBase = Readonly<{
 type EventOpts = Partial<
   Pick<
     EventFamilyRow,
-    'alsoProducers' | 'projectionOwner' | 'ownerSlice' | 'notes' | 'repairCommand'
+    | 'alsoProducers'
+    | 'projectionOwner'
+    | 'ownerSlice'
+    | 'notes'
+    | 'repairCommand'
+    | 'version'
   >
 >
 
@@ -204,7 +209,7 @@ function ev(
   const durableConsumed = base.consumers.some((c) => c.kind === 'durable')
   return {
     eventType,
-    version: 1,
+    version: opts.version ?? 1,
     producer,
     stateOwner: base.stateOwner,
     schemaRegistered: base.schemaRegistered,
@@ -497,6 +502,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       disposition: 'enabled',
     },
     {
+      version: 2,
       repairCommand: 'reconcileReplyPublication',
       notes:
         'identifier-only recovery intent committed with the authorized reply cycle; the worker reloads current state and only admits that exact cycle under a deterministic reply+cycle job id',
@@ -536,7 +542,6 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
         bus('activity.event-handlers', ACTIVITY_HANDLERS),
         bus('notification.event-handlers', NOTIFICATION_HANDLERS),
         durable('notification.on-review-reply-published', NOTIFICATION_WORKFLOW_OUTBOX),
-        bus('inbox.event-handlers', INBOX_HANDLERS),
         durable('inbox.on-reply-published', INBOX_OUTBOX),
       ],
       disposition: 'enabled',
@@ -545,7 +550,26 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       projectionOwner: 'inbox',
       repairCommand: 'reconcileReplyPublication',
       notes:
-        'atomic command-store outbox write (BQC-3.3 ReplyCommandStore); BQC-3.4 durable milestone/auto-close consumer co-commits state + receipt',
+        'internal publication lifecycle fact retained for activity/notification compatibility; its Inbox consumer records a receipt only and cannot close work',
+    },
+  ),
+  ev(
+    'review.reply.observed',
+    REVIEW_EVENTS,
+    {
+      stateOwner: 'review',
+      capability: 'property.connect_gbp',
+      action: 'system:review.sync',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('inbox.on-reply-observed', INBOX_OUTBOX)],
+      disposition: 'enabled',
+    },
+    {
+      projectionOwner: 'inbox',
+      repairCommand: 'reconcileReplyPublication',
+      notes:
+        'identifier-only current Google reply observation; the Inbox command store re-reads the exact Review-owned observation head and alone authorizes close/reopen',
     },
   ),
   ev(
@@ -1114,6 +1138,23 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     },
   ),
   ev(
+    'portal.hero_image.published',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.upload',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'identifier-only completion fact committed with the hero URL and issuance finalization; replay uses the issuance id as the event id',
+    },
+  ),
+  ev(
     'portal.responsibility_became_needed',
     PORTAL_EVENTS,
     {
@@ -1134,6 +1175,23 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       notes:
         'identifier-only transition fact; one content-free recovery alert per AccountAdmin, with deterministic queue deduplication',
+    },
+  ),
+  ev(
+    'portal.responsible_managers.updated',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.write',
+      action: 'none',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'identifier-only assignment-count fact committed with manager intervals and the Portal revision; manager ids remain private state',
     },
   ),
   ev('portal.content_review.completed', PORTAL_EVENTS, {
@@ -1252,6 +1310,24 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     consumers: [],
     disposition: 'denied_dark',
   }),
+  ev('portal_link_category.updated', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'none',
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [],
+    disposition: 'denied_dark',
+  }),
+  ev('portal_link_category.deleted', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'none',
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [],
+    disposition: 'denied_dark',
+  }),
   ev('portal_link.created', PORTAL_EVENTS, {
     stateOwner: 'portal',
     capability: 'portal.write',
@@ -1262,6 +1338,24 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     disposition: 'denied_dark',
   }),
   ev('portal_link.reordered', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'none',
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [],
+    disposition: 'denied_dark',
+  }),
+  ev('portal_link.updated', PORTAL_EVENTS, {
+    stateOwner: 'portal',
+    capability: 'portal.write',
+    action: 'none',
+    schemaRegistered: true,
+    recordedInOutbox: true,
+    consumers: [],
+    disposition: 'denied_dark',
+  }),
+  ev('portal_link.deleted', PORTAL_EVENTS, {
     stateOwner: 'portal',
     capability: 'portal.write',
     action: 'none',
@@ -1902,14 +1996,14 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       queue: 'background',
       capability: 'none',
       action: 'system:review.reconcile',
-      schedule: 'every:1800000',
+      schedule: 'every:300000',
       registration: 'enabled',
     },
     {
       retryBackoff: 'exponential:300000',
       timeoutMs: 300_000,
       notes:
-        'BQC-3.8 ambiguous-outcome sweep (500×10, keyset on reconcile_due_at); per-row provider re-read via reconcileReplyPublication — never a send; throws on any row failure; 5m bounds a stalled batch',
+        'BQC-3.8 provider-pending and ambiguous sweep (500×10, keyset on reconcile_due_at); PostgreSQL session advisory lease makes the run globally single-flight across replicas; per-row provider re-read via reconcileReplyPublication — never a send; exact observations heal, while non-confirming reads and isolated failures are guardedly rescheduled; 240s monotonic start deadline leaves 60s inside the 300s worker timeout for an already-started bounded provider read, checkpoint, reporting, and lease release; an unstarted suffix remains due',
     },
   ),
   job(

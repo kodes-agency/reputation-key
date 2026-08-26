@@ -18,11 +18,12 @@ import type {
   InboxItemUnassigned,
   InboxNoteAdded,
 } from '../../domain/events'
+import type { CurrentReplyObservationPermit } from './reply-observation-authority.port'
 
 /** Status mutation + the timestamp fields derived for the target status. */
 export type InboxStatusUpdate = Readonly<{
   status: InboxStatus
-  timestampFields: Partial<Record<string, Date>>
+  timestampFields: Partial<Record<string, Date | null>>
 }>
 
 /** Receipt statuses — mirror the outbox consumer receipt contract. */
@@ -86,11 +87,9 @@ export type ApplyReviewUpdatedCommand = Readonly<{
   now: Date
 }>
 
-/**
- * review.reply.published apply command: firstReplyPublishedAt milestone
- * stamping + guarded auto-close + status_changed fact (only when the close
- * landed) + receipt — one transaction.
- */
+/** Legacy review.reply.published compatibility envelope. The apply method is
+ * receipt-only; these former mutation fields are ignored so older delivery
+ * shapes cannot regain Inbox closure authority. */
 export type ApplyReplyPublishedCommand = Readonly<{
   eventId: string
   consumerName: string
@@ -102,6 +101,16 @@ export type ApplyReplyPublishedCommand = Readonly<{
   stampMilestone: boolean
   /** status_changed fact — present only when the close actually transitions. */
   fact: InboxItemStatusChanged | null
+}>
+
+export type ApplyReplyObservedCommand = Readonly<{
+  eventId: string
+  consumerName: string
+  item: InboxItem
+  /** Issued only while Review holds the exact current-head fence. */
+  currentObservation: CurrentReplyObservationPermit
+  closeFact: InboxItemStatusChanged
+  reopenFact: InboxItemStatusChanged
 }>
 
 export type InboxCommandStore = Readonly<{
@@ -204,8 +213,15 @@ export type InboxCommandStore = Readonly<{
   applySourceWithdrawnOnce(command: ApplySourceWithdrawnCommand): Promise<'applied'>
   /** review.updated: metadata-only sourceDate/platform refresh + receipt. */
   applyReviewUpdatedOnce(command: ApplyReviewUpdatedCommand): Promise<'applied'>
-  /** review.reply.published: milestone stamp + guarded close + fact + receipt. */
+  /** review.reply.published compatibility receipt; never mutates Inbox state. */
   applyReplyPublishedOnce(command: ApplyReplyPublishedCommand): Promise<'applied'>
+  /**
+   * Apply a Review-issued exact-current permit: atomically close or reopen the
+   * current Handling Cycle, record the status fact, and commit the receipt.
+   */
+  applyReplyObservedOnce(
+    command: ApplyReplyObservedCommand,
+  ): Promise<'applied' | 'obsolete'>
   /**
    * Receipt-only write for apply paths with no state change (obsolete
    * source, missing item no-ops). Idempotent via the (eventId, consumerName)

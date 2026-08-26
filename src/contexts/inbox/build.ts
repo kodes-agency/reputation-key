@@ -10,6 +10,7 @@ import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
+import type { ReviewReplyObservationAuthority } from '#/contexts/review/application/public-api'
 import { inboxItemId } from '#/shared/domain/ids'
 import type { InboxRepository } from './application/ports/inbox.repository'
 import type { InboxNoteRepository } from './application/ports/inbox-note.repository'
@@ -38,8 +39,8 @@ import type { GetInboxItems } from './application/use-cases/get-inbox-items'
 import type { AddInboxNote } from './application/use-cases/add-inbox-note'
 import type { GetLastVisitCount } from './application/use-cases/get-last-visit-count'
 import type { StampLastInboxView } from './application/use-cases/stamp-last-inbox-view'
-import type { GetInboxItemDetailUseCase } from './application/use-cases/get-inbox-item-detail'
-import type { GetInboxNotesUseCase } from './application/use-cases/get-inbox-notes'
+import type { GetInboxItemDetail } from './application/use-cases/get-inbox-item-detail'
+import type { GetInboxNotes } from './application/use-cases/get-inbox-notes'
 import type { GetInboxFolderCounts } from './application/use-cases/get-folder-counts'
 import type { RebuildInboxProjection } from './application/use-cases/rebuild-inbox-projection'
 import type { StartReviewHandlingCycle } from './application/use-cases/start-review-handling-cycle'
@@ -55,6 +56,7 @@ import { createFeedbackLookupAdapter } from './infrastructure/adapters/feedback-
 import { createPropertyLookupAdapter } from './infrastructure/adapters/property-lookup.adapter'
 import { createReplyLookupAdapter } from './infrastructure/adapters/reply-lookup.adapter'
 import { createReviewSourceLookupAdapter } from './infrastructure/adapters/review-source-lookup.adapter'
+import { createReplyObservationAuthorityAdapter } from './infrastructure/adapters/reply-observation-authority.adapter'
 import { wireUseCases } from './build-use-cases'
 
 export type InboxContextBuildInput = Readonly<{
@@ -76,6 +78,7 @@ export type InboxContextBuildInput = Readonly<{
     property: PropertyLookupSource
     reply: ReplyLookupSource
     review: ReviewSourceLookupSource
+    replyObservationAuthority: ReviewReplyObservationAuthority
   }>
   logger: LoggerPort
 }>
@@ -106,8 +109,8 @@ export type InboxContextApi = Readonly<{
       addInboxNote: AddInboxNote
       getLastVisitCount: GetLastVisitCount
       stampLastInboxView: StampLastInboxView
-      getInboxItemDetail: GetInboxItemDetailUseCase
-      getInboxNotes: GetInboxNotesUseCase
+      getInboxItemDetail: GetInboxItemDetail
+      getInboxNotes: GetInboxNotes
       getInboxFolderCounts: GetInboxFolderCounts
       rebuildInboxProjection: RebuildInboxProjection
       startReviewHandlingCycle: StartReviewHandlingCycle
@@ -147,6 +150,9 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     findByOrganizationId: (orgId) => input.sources.review.findByOrganizationId(orgId),
     findByPropertyId: (pid, orgId) => input.sources.review.findByPropertyId(pid, orgId),
   })
+  const replyObservationAuthority = createReplyObservationAuthorityAdapter(
+    input.sources.replyObservationAuthority,
+  )
 
   const inboxRepo = createInboxRepository(input.db, {
     reviewLookup: input.reviewLookup,
@@ -193,6 +199,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     registerInboxConsumers({
       commandStore,
       handlingCycleStore,
+      replyObservationAuthority,
       reviewLookup: input.reviewLookup,
       reviewSourceLookup,
       inboxRepo,

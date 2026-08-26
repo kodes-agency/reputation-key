@@ -42,8 +42,8 @@ export type ConsumerEvent = Readonly<{
   /** BQC-3.7: causal chain identifier. Null today — no producer sets it. */
   causationId?: string | null
   /**
-   * BQC-3.7: source aggregate version for version fencing. Null today — no
-   * event family versions its aggregate (see event-job-catalogue ordering).
+   * BQC-3.7: source aggregate version for version fencing. Optional only for
+   * legacy or unversioned event families.
    */
   sourceAggregateVersion?: string | number | null
   /** REG-01: freshly resolved immutable Property cell; optional for old jobs. */

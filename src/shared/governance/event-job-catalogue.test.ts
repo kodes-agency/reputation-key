@@ -588,6 +588,23 @@ describe('BQC-3.1 event/job family catalogue', () => {
     ).toEqual([])
   })
 
+  it('keeps publication reconciliation inside its non-cancelling worker timeout', () => {
+    const row = JOB_FAMILY_ROWS.find(
+      (candidate) => candidate.jobName === 'reconcile-ambiguous-publications',
+    )
+    expect(row).toBeDefined()
+    const source = readRel(
+      'src/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job.ts',
+    )
+    const deadline = /RECONCILIATION_MAX_RUN_MS\s*=\s*([\d_]+)/.exec(source)?.[1]
+    expect(deadline).toBeDefined()
+    const internalDeadlineMs = Number(deadline!.replaceAll('_', ''))
+
+    expect(row!.timeoutMs - internalDeadlineMs).toBeGreaterThanOrEqual(60_000)
+    expect(row!.notes).toContain('PostgreSQL session advisory lease')
+    expect(row!.notes).toContain('unstarted suffix remains due')
+  })
+
   it('has unique names, existing referenced files, and version ≥ 1', () => {
     const tags = EVENT_FAMILY_ROWS.map((r) => r.eventType)
     const dupeTags = tags.filter((t, i) => tags.indexOf(t) !== i)

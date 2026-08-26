@@ -10,15 +10,13 @@ import {
   portalLinkCategories,
   portalLinks,
   portalGroupMembers,
-  portalResponsibleManagers,
 } from '#/shared/db/schema/portal.schema'
 import type {
   PortalRepository,
   PublicPortalRepositoryResult,
   ResolvePortalContextResult,
 } from '../../application/ports/portal.repository'
-import { portalFromRow, portalToRow } from '../mappers/portal.mapper'
-import type { Portal } from '../../domain/types'
+import { portalFromRow } from '../mappers/portal.mapper'
 import { portalError } from '../../domain/errors'
 import {
   unbrand,
@@ -28,19 +26,6 @@ import {
 } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import { isPubliclyAvailable } from '../../domain/portal-publication'
-
-/** Mutable set-values type for Drizzle .set() — strips readonly from Portal fields. */
-type SetValues = {
-  name?: string
-  slug?: string
-  description?: string | null
-  heroImageUrl?: string | null
-  theme?: Record<string, unknown>
-  privateFeedbackThreshold?: number
-  publicationState?: Portal['publicationState']
-  updatedAt?: Date
-  deletedAt?: Date | null
-}
 
 async function loadPublicPortal(
   db: Database,
@@ -165,59 +150,6 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
         .where(and(...conditions))
         .limit(1)
       return rows.length > 0
-    })
-  },
-
-  insert: async (orgId, portal, initialResponsibleManagerId) => {
-    return trace('portal.insert', async () => {
-      if (portal.organizationId !== orgId) {
-        throw portalError('forbidden', 'Tenant mismatch on portal insert')
-      }
-      await db.transaction(async (tx) => {
-        await tx.insert(portals).values(portalToRow(portal))
-        if (initialResponsibleManagerId) {
-          await tx.insert(portalResponsibleManagers).values({
-            organizationId: orgId,
-            propertyId: portal.propertyId,
-            portalId: portal.id,
-            userId: initialResponsibleManagerId,
-            effectiveFrom: portal.createdAt,
-            createdBy: initialResponsibleManagerId,
-          })
-        }
-      })
-    })
-  },
-
-  update: async (orgId, id, patch) => {
-    return trace('portal.update', async () => {
-      const setValues: SetValues = {}
-      if (patch.updatedAt !== undefined) setValues.updatedAt = patch.updatedAt
-      if (patch.name !== undefined) setValues.name = patch.name
-      if (patch.slug !== undefined) setValues.slug = patch.slug
-      if (patch.description !== undefined) setValues.description = patch.description
-      if (patch.heroImageUrl !== undefined) setValues.heroImageUrl = patch.heroImageUrl
-      if (patch.theme !== undefined)
-        setValues.theme = patch.theme as Record<string, unknown>
-      if (patch.privateFeedbackThreshold !== undefined)
-        setValues.privateFeedbackThreshold = patch.privateFeedbackThreshold
-      if (patch.publicationState !== undefined)
-        setValues.publicationState = patch.publicationState
-
-      await db
-        .update(portals)
-        .set(setValues)
-        .where(and(...baseWhere(portals, orgId), eq(portals.id, unbrand(id))))
-    })
-  },
-
-  softDelete: async (orgId, id) => {
-    return trace('portal.softDelete', async () => {
-      const now = new Date()
-      await db
-        .update(portals)
-        .set({ deletedAt: now, updatedAt: now })
-        .where(and(...baseWhere(portals, orgId), eq(portals.id, unbrand(id))))
     })
   },
 

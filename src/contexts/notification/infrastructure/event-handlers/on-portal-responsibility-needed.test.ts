@@ -17,6 +17,7 @@ const event: PortalResponsibilityNeeded = {
   portalId: portalId('portal-1'),
   organizationId: NOTIF_TEST_IDS.orgId,
   propertyId: NOTIF_TEST_IDS.propId,
+  sourceAggregateVersion: NOTIF_TEST_IDS.now.toISOString(),
   occurredAt: NOTIF_TEST_IDS.now,
 }
 

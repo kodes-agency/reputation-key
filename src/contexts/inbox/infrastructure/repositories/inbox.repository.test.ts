@@ -29,6 +29,7 @@ import { getEnv } from '#/shared/config/env'
 const ORG_A = organizationId('org-inbox-test-aaaa-1111111111111111')
 const ORG_B = organizationId('org-inbox-test-bbbb-2222222222222222')
 const PROP_A = propertyId('1a000000-0000-0000-0000-000000000001')
+const PROP_A_2 = propertyId('1a000000-0000-0000-0000-000000000002')
 const PROP_B = propertyId('1b000000-0000-0000-0000-000000000002')
 const USER_A = userId('user-inbox-test-aaaa-1111111111111111')
 const REVIEW_ID_A = '11111111-1111-1111-1111-111111111111'
@@ -126,6 +127,7 @@ async function seedOrgs(pool: Pool, ids: string[]) {
 async function seedProperties(pool: Pool) {
   const props = [
     { id: PROP_A as string, org: ORG_A as string, slug: 'inbox-test-prop-a' },
+    { id: PROP_A_2 as string, org: ORG_A as string, slug: 'inbox-test-prop-a-2' },
     { id: PROP_B as string, org: ORG_B as string, slug: 'inbox-test-prop-b' },
   ]
   for (const p of props) {
@@ -355,6 +357,84 @@ describe('inbox repository — count by status', () => {
 
     const addressedCount = await repo.countByStatus(ORG_A, 'closed')
     expect(addressedCount).toBe(1)
+  })
+
+  it('narrows status, escalation, and last-visit counts by source family', async () => {
+    await repo.create(
+      makeInboxItem({
+        sourceType: 'review',
+        sourceId: reviewId(crypto.randomUUID()),
+        status: 'open',
+      }),
+      ORG_A,
+    )
+    await repo.create(
+      makeInboxItem({
+        sourceType: 'feedback',
+        sourceId: feedbackId(crypto.randomUUID()),
+        status: 'open',
+        isEscalated: true,
+        escalatedAt: new Date(),
+      }),
+      ORG_A,
+    )
+
+    await expect(
+      Promise.all([
+        repo.countByStatus(ORG_A, 'open', undefined, [{ sourceType: 'review' }]),
+        repo.countEscalatedActive(ORG_A, undefined, [{ sourceType: 'review' }]),
+        repo.countOpenSince(ORG_A, null, undefined, [{ sourceType: 'review' }]),
+        repo.countByStatus(ORG_A, 'open', undefined, [{ sourceType: 'feedback' }]),
+        repo.countEscalatedActive(ORG_A, undefined, [{ sourceType: 'feedback' }]),
+        repo.countOpenSince(ORG_A, null, undefined, [{ sourceType: 'feedback' }]),
+        repo.countByStatus(ORG_A, 'open', undefined, []),
+      ]),
+    ).resolves.toEqual([1, 0, 1, 1, 1, 1, 0])
+  })
+
+  it('applies a different property envelope to each source family', async () => {
+    await repo.create(
+      makeInboxItem({
+        propertyId: PROP_A_2,
+        sourceType: 'review',
+        sourceId: reviewId(crypto.randomUUID()),
+      }),
+      ORG_A,
+    )
+    await repo.create(
+      makeInboxItem({
+        propertyId: PROP_A,
+        sourceType: 'feedback',
+        sourceId: feedbackId(crypto.randomUUID()),
+      }),
+      ORG_A,
+    )
+    await repo.create(
+      makeInboxItem({
+        propertyId: PROP_A_2,
+        sourceType: 'feedback',
+        sourceId: feedbackId(crypto.randomUUID()),
+      }),
+      ORG_A,
+    )
+    const sourceScopes = [
+      { sourceType: 'review' as const },
+      { sourceType: 'feedback' as const, propertyIds: [PROP_A] },
+    ]
+
+    const [count, page] = await Promise.all([
+      repo.countByStatus(ORG_A, 'open', undefined, sourceScopes),
+      repo.findFilteredPaginated({ sourceScopes }, ORG_A, undefined, 50),
+    ])
+
+    expect(count).toBe(2)
+    expect(page.totalCount).toBe(2)
+    expect(page.items.map((item) => [item.sourceType, item.propertyId])).toEqual(
+      expect.arrayContaining([
+        ['review', PROP_A_2],
+        ['feedback', PROP_A],
+      ]),
+    )
   })
 })
 

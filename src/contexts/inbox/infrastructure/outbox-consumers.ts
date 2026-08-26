@@ -11,9 +11,8 @@
 //
 // BQC-3.4: review.updated gained a metadata-only refresh consumer (sourceDate/
 // platform only — content never copied onto inbox items, BQC-1.2);
-// review.reply.published gained the durable milestone/auto-close consumer.
-// The in-process bus handlers stay as the expand-phase dual path (the
-// dispatcher is off in production).
+// review.reply.published is receipt-only, while review.reply.observed is the
+// durable exact-head authority for automatic Review close/reopen effects.
 
 import {
   registerConsumer,
@@ -25,22 +24,19 @@ import type { ReviewSourceLookupPort } from '../application/ports/review-source-
 import type { InboxRepository } from '../application/ports/inbox.repository'
 import type { InboxCommandStore } from '../application/ports/inbox-command-store.port'
 import type { ReviewHandlingCycleStore } from '../application/ports/review-handling-cycle.store'
+import type { ReplyObservationAuthorityPort } from '../application/ports/reply-observation-authority.port'
 import type { InboxItemId } from '#/shared/domain/ids'
 import { createInboxItem as buildInboxItem } from '../domain/constructors'
+import { inboxError } from '../domain/errors'
 import { inboxItemCreated, inboxItemStatusChanged } from '../domain/events'
 import { validateTransition } from '../domain/rules'
-import {
-  organizationId,
-  propertyId,
-  reviewId,
-  userId,
-  unbrand,
-} from '#/shared/domain/ids'
+import { organizationId, propertyId, reviewId, unbrand } from '#/shared/domain/ids'
 import { getLogger } from '#/shared/observability/logger'
 
 export type InboxConsumerDeps = Readonly<{
   commandStore: InboxCommandStore
   handlingCycleStore: ReviewHandlingCycleStore
+  replyObservationAuthority: ReplyObservationAuthorityPort
   reviewLookup: ReviewLookupPort
   reviewSourceLookup: ReviewSourceLookupPort
   inboxRepo: InboxRepository
@@ -52,6 +48,7 @@ const ON_REVIEW_CREATED = 'inbox.on-review-created'
 const ON_REVIEW_EXPIRED = 'inbox.on-review-expired'
 const ON_REVIEW_UPDATED = 'inbox.on-review-updated'
 const ON_REPLY_PUBLISHED = 'inbox.on-reply-published'
+const ON_REPLY_OBSERVED = 'inbox.on-reply-observed'
 
 type ReviewIdPayload = Readonly<{
   reviewId: string
@@ -67,11 +64,17 @@ type ReviewCreatedPayload = ReviewIdPayload &
     sourceRevision?: number
   }>
 
-type ReplyPublishedPayload = ReviewIdPayload &
+type ReplyObservedPayload = ReviewIdPayload &
   Readonly<{
-    replyId?: string
-    userId?: string | null
-    occurredAt?: string | Date
+    observationRevision: number
+    sourceEpoch: number
+    materialReviewRevision: number
+    change: 'added' | 'edited' | 'deleted' | 'unchanged'
+    resolution: 'confirmed_on_google' | 'external_current_live' | 'diverged' | 'absent'
+    provenance: 'repkey_confirmed' | 'external_or_unknown' | 'none'
+    matchedReplyId: string | null
+    matchedPublicationCycle: number | null
+    occurredAt: string | Date
   }>
 
 function asReviewCreatedPayload(payload: unknown): ReviewCreatedPayload {
@@ -83,8 +86,8 @@ function asReviewIdPayload(payload: unknown): ReviewIdPayload {
   return payload as ReviewIdPayload
 }
 
-function asReplyPublishedPayload(payload: unknown): ReplyPublishedPayload {
-  return payload as ReplyPublishedPayload
+function asReplyObservedPayload(payload: unknown): ReplyObservedPayload {
+  return payload as ReplyObservedPayload
 }
 
 /**
@@ -295,68 +298,124 @@ export async function handleInboxReviewUpdated(
   return { status: 'applied' }
 }
 
-/**
- * BQC-3.4: durable review.reply.published consumer — stamps the
- * firstReplyPublishedAt milestone and auto-closes open items (ADR 0023).
- * The in-process bus handler stays as the expand-phase dual path.
- */
+/** Compatibility consumer for the internal publication lifecycle fact.
+ * It records delivery only; exact current observed Google truth exclusively
+ * owns Inbox close/reopen transitions. */
 export async function handleInboxReplyPublished(
   deps: InboxConsumerDeps,
   event: ConsumerEvent,
 ): Promise<ConsumerResult> {
-  const payload = asReplyPublishedPayload(event.payload)
+  // Compatibility receipt only. `review.reply.published` is an internal
+  // workflow fact and can no longer prove provider state; only the exact
+  // current `review.reply.observed` head may mutate Inbox status.
+  await deps.commandStore.recordReceipt(event.eventId, ON_REPLY_PUBLISHED, 'applied')
+  return { status: 'applied' }
+}
+
+/** Apply the Review-owned current provider observation to the one current
+ * Handling Cycle. Review holds its exact-head fence while the Inbox command
+ * store atomically commits the state, fact, and receipt. */
+export async function handleInboxReplyObserved(
+  deps: InboxConsumerDeps,
+  event: ConsumerEvent,
+): Promise<ConsumerResult> {
+  const payload = asReplyObservedPayload(event.payload)
+  if (
+    payload.organizationId !== event.organizationId ||
+    payload.propertyId !== event.propertyId
+  ) {
+    throw new Error('Reply observation envelope attribution does not match payload')
+  }
+  const occurredAt = new Date(payload.occurredAt)
+  if (Number.isNaN(occurredAt.getTime())) {
+    throw new Error('Reply observation occurredAt is invalid')
+  }
   const orgId = organizationId(payload.organizationId)
   const rId = reviewId(payload.reviewId)
-
-  const item = await deps.inboxRepo.findBySource('review', unbrand(rId), orgId)
-  if (!item) {
-    return appliedNoopReceipt(
-      deps,
-      event,
-      ON_REPLY_PUBLISHED,
-      { reviewId: payload.reviewId, eventId: event.eventId },
-      'inbox.on-reply-published: no inbox item found — applied no-op',
-    )
-  }
-
-  const occurredAt =
-    payload.occurredAt != null ? new Date(payload.occurredAt) : deps.clock()
-
-  // A published reply always records the firstReplyPublishedAt milestone,
-  // even when the item is already `closed`. The status transition itself is
-  // still routed through the domain rule so this handler inherits any future
-  // graph changes.
-  const closeItem = validateTransition(item.status, 'closed').isOk()
-  const stampMilestone = item.firstReplyPublishedAt === null
-
-  // Already closed AND the milestone is already stamped — nothing to persist.
-  if (!closeItem && !stampMilestone) {
-    await deps.commandStore.recordReceipt(event.eventId, ON_REPLY_PUBLISHED, 'applied')
-    return { status: 'applied' }
-  }
-
-  // One tx: milestone stamp (+ guarded close) + status_changed fact (only
-  // when the close lands) + receipt.
-  await deps.commandStore.applyReplyPublishedOnce({
-    eventId: event.eventId,
-    consumerName: ON_REPLY_PUBLISHED,
-    item,
-    occurredAt,
-    closeItem,
-    stampMilestone,
-    fact: closeItem
-      ? inboxItemStatusChanged({
+  const authority = await deps.replyObservationAuthority.withExactCurrent(
+    {
+      organizationId: payload.organizationId,
+      propertyId: payload.propertyId,
+      reviewId: payload.reviewId,
+      observationRevision: payload.observationRevision,
+      sourceEpoch: payload.sourceEpoch,
+      materialReviewRevision: payload.materialReviewRevision,
+      change: payload.change,
+      resolution: payload.resolution,
+      provenance: payload.provenance,
+      matchedReplyId: payload.matchedReplyId,
+      matchedPublicationCycle: payload.matchedPublicationCycle,
+      occurredAt,
+    },
+    async (currentObservation) => {
+      // The observed fact may overtake review.created because durable
+      // consumers run concurrently. Only an obsolete Review head is a final
+      // no-op: a current head with no Inbox projection must remain retryable.
+      // Resolve the item while Review holds its observation fence so a later
+      // head cannot replace this permit before the Inbox transaction commits.
+      const item = await deps.inboxRepo.findBySource('review', unbrand(rId), orgId)
+      if (!item) {
+        throw inboxError(
+          'not_found',
+          'Current reply observation is waiting for its Review Inbox item',
+        )
+      }
+      const cycleHead = await deps.handlingCycleStore.findHead(item.id, orgId)
+      if (cycleHead === null) {
+        throw inboxError(
+          'not_found',
+          'Current reply observation is waiting for its Inbox Handling Cycle',
+        )
+      }
+      if (
+        cycleHead.currentMaterialReviewRevision <
+        currentObservation.materialReviewRevision
+      ) {
+        throw inboxError(
+          'revision_conflict',
+          'Current reply observation is waiting for the Inbox material revision',
+        )
+      }
+      if (
+        cycleHead.currentMaterialReviewRevision >
+        currentObservation.materialReviewRevision
+      ) {
+        await deps.commandStore.recordReceipt(
+          event.eventId,
+          ON_REPLY_OBSERVED,
+          'obsolete',
+        )
+        return 'obsolete' as const
+      }
+      return deps.commandStore.applyReplyObservedOnce({
+        eventId: event.eventId,
+        consumerName: ON_REPLY_OBSERVED,
+        item,
+        currentObservation,
+        closeFact: inboxItemStatusChanged({
           inboxItemId: item.id,
           organizationId: item.organizationId,
           propertyId: item.propertyId,
-          oldStatus: item.status,
+          oldStatus: 'open',
           newStatus: 'closed',
-          userId: payload.userId ? userId(payload.userId) : undefined,
-          occurredAt,
-        })
-      : null,
-  })
-  return { status: 'applied' }
+          occurredAt: currentObservation.observedAt,
+        }),
+        reopenFact: inboxItemStatusChanged({
+          inboxItemId: item.id,
+          organizationId: item.organizationId,
+          propertyId: item.propertyId,
+          oldStatus: 'closed',
+          newStatus: 'open',
+          occurredAt: currentObservation.observedAt,
+        }),
+      })
+    },
+  )
+  if (authority.status === 'obsolete') {
+    await deps.commandStore.recordReceipt(event.eventId, ON_REPLY_OBSERVED, 'obsolete')
+    return { status: 'obsolete' }
+  }
+  return { status: authority.value }
 }
 
 /**
@@ -396,5 +455,12 @@ export function registerInboxConsumers(deps: InboxConsumerDeps): void {
     handler: (event) => handleInboxReplyPublished(deps, event),
   })
 
-  logger.info('Inbox consumers registered with outbox dispatcher (4 consumers)')
+  registerConsumer({
+    eventType: 'review.reply.observed',
+    consumerName: 'inbox.on-reply-observed',
+    module: 'inbox.outbox-consumers',
+    handler: (event) => handleInboxReplyObserved(deps, event),
+  })
+
+  logger.info('Inbox consumers registered with outbox dispatcher (5 consumers)')
 }

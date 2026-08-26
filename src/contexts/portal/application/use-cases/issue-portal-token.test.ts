@@ -10,6 +10,8 @@ import { issueToken } from '../../domain/portal-token'
 import { issuePortalToken } from './issue-portal-token'
 
 const NOW = new Date('2026-08-16T12:00:00.000Z')
+const CURRENT_REVISION = new Date('2026-08-20T12:00:00.000Z')
+const NEXT_REVISION = new Date(CURRENT_REVISION.getTime() + 1)
 const staffPublicApi = {
   getAccessiblePropertyIds: vi.fn(async () => null),
 } as unknown as StaffPublicApi
@@ -23,7 +25,7 @@ const material = {
 describe('issuePortalToken', () => {
   it('persists a tenant-bound token, emits its event, and returns only public material', async () => {
     const portalRepo = createInMemoryPortalRepo()
-    const portal = buildTestPortal()
+    const portal = buildTestPortal({ updatedAt: CURRENT_REVISION })
     portalRepo.seed([portal])
     const insert = vi.fn(async () => undefined)
     const events = createCapturingEventBus()
@@ -64,7 +66,15 @@ describe('issuePortalToken', () => {
         printBatch: 'batch-1',
       }),
     )
-    expect(events.capturedByTag('portal.token.issued')).toHaveLength(1)
+    expect(events.capturedByTag('portal.token.issued')).toEqual([
+      expect.objectContaining({
+        sourceAggregateVersion: NEXT_REVISION.toISOString(),
+        occurredAt: NOW,
+      }),
+    ])
+    await expect(
+      portalRepo.findById(portal.organizationId, portal.id),
+    ).resolves.toMatchObject({ updatedAt: NEXT_REVISION })
   })
 
   it('requires rotation while a non-revoked token exists', async () => {

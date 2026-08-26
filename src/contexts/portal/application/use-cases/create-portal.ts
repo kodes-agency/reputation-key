@@ -95,6 +95,7 @@ export const createPortal =
           portalId: portal.id,
           organizationId: portal.organizationId,
           propertyId: portal.propertyId,
+          sourceAggregateVersion: portal.updatedAt.toISOString(),
           occurredAt: portal.createdAt,
         })
 

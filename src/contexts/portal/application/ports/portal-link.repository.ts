@@ -64,4 +64,17 @@ export type PortalLinkRepository = Readonly<{
     id: PortalLinkCategoryId,
   ) => Promise<PortalLinkCategory | null>
   findLinkById: (orgId: OrganizationId, id: PortalLinkId) => Promise<PortalLink | null>
+  /** Child state and its parent revision from one database snapshot. */
+  findCategoryCommandTarget: (
+    orgId: OrganizationId,
+    id: PortalLinkCategoryId,
+  ) => Promise<Readonly<{
+    category: PortalLinkCategory
+    portalUpdatedAt: Date | null
+  }> | null>
+  /** Child state and its parent revision from one database snapshot. */
+  findLinkCommandTarget: (
+    orgId: OrganizationId,
+    id: PortalLinkId,
+  ) => Promise<Readonly<{ link: PortalLink; portalUpdatedAt: Date | null }> | null>
 }>

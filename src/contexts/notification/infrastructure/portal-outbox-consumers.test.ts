@@ -19,11 +19,12 @@ const EVENT_ID = '30000000-0000-4000-8000-000000000002'
 const event = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent => ({
   eventId: EVENT_ID,
   eventType: 'portal.responsibility_became_needed',
-  eventVersion: 1,
+  eventVersion: 2,
   payload: {
     portalId: 'portal-1',
     organizationId: unbrand(NOTIF_TEST_IDS.orgId),
     propertyId: unbrand(NOTIF_TEST_IDS.propId),
+    sourceAggregateVersion: NOTIF_TEST_IDS.now.toISOString(),
     occurredAt: NOTIF_TEST_IDS.now.toISOString(),
   },
   organizationId: unbrand(NOTIF_TEST_IDS.orgId),
@@ -81,6 +82,42 @@ describe('portal notification durable consumer', () => {
       ON_PORTAL_RESPONSIBILITY_NEEDED_CONSUMER,
       'applied',
     )
+  })
+
+  it('replays a legacy v1 envelope using its occurrence as the historical version', async () => {
+    const deps = makeDeps()
+    deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
+    const legacy = event({
+      eventVersion: 1,
+      payload: {
+        portalId: 'portal-1',
+        organizationId: unbrand(NOTIF_TEST_IDS.orgId),
+        propertyId: unbrand(NOTIF_TEST_IDS.propId),
+        occurredAt: NOTIF_TEST_IDS.now.toISOString(),
+      },
+    })
+
+    await expect(
+      handleNotificationPortalResponsibilityNeeded(deps, legacy),
+    ).resolves.toEqual({ status: 'applied' })
+    expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
+      EVENT_ID,
+      ON_PORTAL_RESPONSIBILITY_NEEDED_CONSUMER,
+      'applied',
+    )
+  })
+
+  it('rejects a v2 envelope without the committed aggregate revision', async () => {
+    const deps = makeDeps()
+    const { sourceAggregateVersion: _omitted, ...payload } = event().payload as Record<
+      string,
+      unknown
+    >
+
+    await expect(
+      handleNotificationPortalResponsibilityNeeded(deps, event({ payload })),
+    ).rejects.toThrow()
+    expect(deps.receipts.insertReceipt).not.toHaveBeenCalled()
   })
 
   it('fails closed on organization or property attribution mismatch', async () => {

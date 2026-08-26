@@ -63,7 +63,8 @@ export const rotatePortalToken =
     }
 
     const material = deps.tokenCodec.issue()
-    const now = nextPortalCommandAt(deps.clock(), portal.updatedAt)
+    const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, portal.updatedAt)
     const result = rotateToken(
       current,
       {
@@ -74,7 +75,7 @@ export const rotatePortalToken =
         version: current.version + 1,
       },
       graceSeconds * 1000,
-      now,
+      occurredAt,
     )
     if (!('oldToken' in result)) {
       throw portalError('token_unavailable', 'Portal token cannot be rotated')
@@ -90,8 +91,8 @@ export const rotatePortalToken =
       previousVersion: current.version,
       version: result.newToken.version,
       gracePeriodEnds,
-      sourceAggregateVersion: now.toISOString(),
-      occurredAt: now,
+      sourceAggregateVersion: revision.toISOString(),
+      occurredAt,
     })
     await deps.commandStore.rotatePortalToken({
       organizationId: ctx.organizationId,
@@ -100,7 +101,8 @@ export const rotatePortalToken =
       expectedPortalUpdatedAt: portal.updatedAt,
       oldToken: result.oldToken,
       newToken: result.newToken,
-      at: now,
+      revision,
+      occurredAt,
       event,
     })
     return {

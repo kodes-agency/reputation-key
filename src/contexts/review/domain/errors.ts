@@ -10,6 +10,7 @@ export type ReviewErrorCode =
   | 'connection_not_found'
   | 'connection_inactive'
   | 'sync_failed'
+  | 'invalid_input'
   | 'invalid_rating'
   | 'invalid_reply'
   | 'review_not_found'

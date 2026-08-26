@@ -1,32 +1,47 @@
 import type { ReviewRepository } from '../ports/review.repository'
-import type { ReplyRepository } from '../ports/reply.repository'
-import type { ReviewId, ReplyId, OrganizationId, PropertyId } from '#/shared/domain/ids'
-import {
-  defaultReviewLifecycle,
-  type Review,
-  type GoogleReview,
-} from '../../domain/types'
-import { reviewCreated, reviewUpdated, reviewReplyPublished } from '../../domain/events'
-import {
-  calculateExpiresAt,
-  computeReviewContentHash,
-  MAX_REPLY_LENGTH,
-} from '../../domain/rules'
+import type { ReviewId } from '#/shared/domain/ids'
+import { defaultReviewLifecycle, type Review } from '../../domain/types'
+import { reviewCreated, reviewUpdated } from '../../domain/events'
+import { calculateExpiresAt, computeReviewContentHash } from '../../domain/rules'
 import type { ReviewCommandStore } from '../ports/review-command-store.port'
-import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 import type { ReviewProviderObservationWriter } from '../ports/review-provider-snapshot.repository'
+import type { GoogleReplyObservationStore } from '../ports/google-reply-observation-store.port'
 import { computeAiReviewSourceProvenance } from '../ai-review-source'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
+import { sha256Hex } from '#/shared/domain/sha256'
 
 export type ReviewProviderObservationWriterDeps = Readonly<{
   reviewRepo: ReviewRepository
-  replyRepo: ReplyRepository
   clock: () => Date
   idGen: () => ReviewId
-  replyIdGen: () => ReplyId
   commandStore: ReviewCommandStore
-  replyCommandStore: ReplyCommandStore
+  googleReplyObservationStore: GoogleReplyObservationStore
 }>
+
+export function providerReplyObservationKey(
+  input: Readonly<{
+    providerObservationKey: string
+    sourceEpoch: number
+    materialReviewRevision: number
+    replyUpdatedAt: Date | null
+    replyText: string | null
+  }>,
+): string {
+  const replyIdentity =
+    input.replyText === null
+      ? 'reply-state:absent'
+      : `reply-state:live:${sha256Hex(input.replyText)}`
+  return sha256Hex(
+    [
+      'provider-reply-observation-v1',
+      input.providerObservationKey,
+      String(input.sourceEpoch),
+      String(input.materialReviewRevision),
+      input.replyUpdatedAt?.toISOString() ?? 'none',
+      replyIdentity,
+    ].join('\0'),
+  )
+}
 
 /**
  * Request-scoped Google observation writer used by the provider snapshot
@@ -37,6 +52,8 @@ export type ReviewProviderObservationWriterDeps = Readonly<{
 export const createReviewProviderObservationWriter = (
   deps: ReviewProviderObservationWriterDeps,
 ): ReviewProviderObservationWriter => ({
+  allocateReplyReadGeneration: () =>
+    deps.googleReplyObservationStore.allocateReadGeneration(),
   persist: async (input) => {
     const now = deps.clock()
     const existing = await deps.reviewRepo.findByExternalId(
@@ -149,14 +166,26 @@ export const createReviewProviderObservationWriter = (
       expired,
       observationKey: input.observationKey,
     })
-    await mirrorReply(
-      deps,
-      persisted.id,
-      input.organizationId,
-      input.propertyId,
-      input.review,
-      now,
-    )
+    await deps.googleReplyObservationStore.record({
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      reviewId: persisted.id,
+      sourceEpoch: persisted.sourceEpoch,
+      materialReviewRevision: persisted.sourceRevision,
+      readGeneration: input.replyReadGeneration,
+      observationKey: providerReplyObservationKey({
+        providerObservationKey: input.observationKey,
+        sourceEpoch: persisted.sourceEpoch,
+        materialReviewRevision: persisted.sourceRevision,
+        replyUpdatedAt: input.review.replyUpdatedAt,
+        replyText: input.review.replyText,
+      }),
+      source: 'provider_snapshot',
+      observedText: input.review.replyText,
+      providerUpdatedAt: input.review.replyUpdatedAt,
+      observedAt: now,
+      contentExpiresAt: persisted.contentExpiresAt ?? contentExpiresAtFromFetch(now),
+    })
     return {
       reviewId: persisted.id,
       sourceRevision: persisted.sourceRevision,
@@ -203,99 +232,4 @@ async function persistObservation(
     now,
     state.observationKey,
   )
-}
-
-async function mirrorReply(
-  deps: ReviewProviderObservationWriterDeps,
-  reviewId: ReviewId,
-  organizationId: OrganizationId,
-  propertyId: PropertyId,
-  review: GoogleReview,
-  now: Date,
-): Promise<void> {
-  const existing = await deps.replyRepo.findGoogleSyncByReviewId(reviewId, organizationId)
-  if (review.replyText == null) {
-    if (existing != null) {
-      await deps.replyCommandStore.mirrorSyncedReply({
-        reply: null,
-        reviewId,
-        organizationId,
-        event: null,
-        now,
-      })
-    }
-    return
-  }
-
-  const text = review.replyText.slice(0, MAX_REPLY_LENGTH)
-  if (existing != null) {
-    await deps.replyCommandStore.mirrorSyncedReply({
-      reply: {
-        id: existing.id,
-        reviewId,
-        organizationId,
-        text,
-        status: existing.status,
-        source: 'google_sync',
-        createdBy: existing.createdBy,
-        approvedBy: existing.approvedBy,
-        rejectedBy: existing.rejectedBy,
-        rejectionReason: existing.rejectionReason,
-        aiGenerated: existing.aiGenerated,
-        stateRevision: existing.stateRevision,
-        publishedAt: review.replyUpdatedAt ?? existing.publishedAt,
-        submittedAt: existing.submittedAt,
-        approvedAt: existing.approvedAt,
-        publicationState: existing.publicationState,
-        publicationCycle: existing.publicationCycle,
-        publicationAttempts: existing.publicationAttempts,
-        publicationLastErrorClass: existing.publicationLastErrorClass,
-        reconcileDueAt: existing.reconcileDueAt,
-      },
-      reviewId,
-      organizationId,
-      event: null,
-      now,
-    })
-    return
-  }
-
-  const newReplyId = deps.replyIdGen()
-  await deps.replyCommandStore.mirrorSyncedReply({
-    reply: {
-      id: newReplyId,
-      reviewId,
-      organizationId,
-      text,
-      status: 'published',
-      source: 'google_sync',
-      createdBy: null,
-      approvedBy: null,
-      rejectedBy: null,
-      rejectionReason: null,
-      aiGenerated: false,
-      stateRevision: 1,
-      submittedAt: null,
-      approvedAt: null,
-      publishedAt: review.replyUpdatedAt ?? now,
-      publicationState: 'published',
-      publicationCycle: 0,
-      publicationAttempts: 0,
-      publicationLastErrorClass: null,
-      reconcileDueAt: null,
-    },
-    reviewId,
-    organizationId,
-    event: reviewReplyPublished({
-      source: 'import',
-      authorId: null,
-      userId: null,
-      replyId: newReplyId,
-      reviewId,
-      organizationId,
-      propertyId,
-      occurredAt: now,
-    }),
-    now,
-  })
 }

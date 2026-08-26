@@ -57,17 +57,18 @@
     {
       "id": "FND-03",
       "status": "partial",
-      "summary": "The executable entry-point catalogue covers 440 routes, request handlers, server-only implementation boundaries, jobs, consumers, schedules, operator commands, production scripts, migration utilities, and sidecar/release gates. Every row now has a context/cell owner, mutation disposition, and registration-reachability classification: 108 read-only, 1 proven atomic state-and-fact, 23 local-only with reason, 11 explicitly identified non-atomic Portal defects, and 297 owned time-bounded debts; registrations classify as 368 direct, 41 source-composed, 29 boot-registry, and 2 declared-only. Event/job catalogues also exist. Catalogue completeness and classification are not treated as runtime execution proof.",
+      "summary": "The executable entry-point catalogue covers 440 routes, request handlers, server-only implementation boundaries, jobs, consumers, schedules, operator commands, production scripts, migration utilities, and sidecar/release gates. Every row has a context/cell owner, mutation disposition, and registration-reachability classification: 108 read-only, 27 proven atomic state-and-fact, 25 local-only with reason, zero known non-atomic Portal rows, and 280 owned time-bounded debts; registrations classify as 368 direct, 41 source-composed, 29 boot-registry, and 2 declared-only. Event/job catalogues agree with the newly durable Portal fact families. Catalogue completeness and classification are not treated as runtime execution proof.",
       "codeEvidence": [
         "src/shared/governance/entry-point-catalogue.ts",
         "src/shared/governance/event-job-catalogue.ts"
       ],
       "testEvidence": [
-        "src/shared/governance/entry-point-catalogue.test.ts — 16/16 tests; 440 rows and zero validator issues, stable full-order digest fbb2e69fe9723585c411ee38d45a592a66eac092d0c1f476c0a26e5950a38bd6",
-        "src/shared/governance/event-job-catalogue.test.ts"
+        "src/shared/governance/entry-point-catalogue.test.ts — 440 rows and zero validator issues",
+        "Portal five-blocker revision/atomicity regression matrix: 7 files / 53 tests; independent post-fix review found no remaining concrete defect",
+        "Entry-point and event/job catalogue matrix: 2 files / 38 tests passed after Review observation registration reconciliation"
       ],
       "remaining": [
-        "Individually prove and reclassify the 297 time-bounded mutation debts; repair the 11 named non-atomic Portal paths; compose or remove the declared-only Badge and Goal consumers; retain deployed boot/readiness evidence for registry work and deployed execution/delivery evidence for composed registrations."
+        "Individually prove and reclassify the 280 time-bounded mutation debts; compose or remove the declared-only Badge and Goal consumers; add executed reachability/deny proof across active and dark rows; retain deployed boot/readiness evidence for registry work and deployed execution/delivery evidence for composed registrations."
       ],
       "externalBlockers": []
     },
@@ -226,24 +227,26 @@
     {
       "id": "ARC-01",
       "status": "partial",
-      "summary": "Versioned envelopes and atomic helpers exist. Portal create/update/publication/delete and Portal Group deletion commit state, required membership/token side effects, and lifecycle facts in one PostgreSQL transaction under revision fences. Review approval, edit-and-republish, and retry now also commit monotonic publication intent with state; a durable receipt-coordinated consumer resumes queue delivery after interruption and rejects superseded cycles. Other active Portal mutations and durable Activity/Notification families remain incomplete.",
+      "summary": "Versioned envelopes and atomic helpers exist. All eleven previously identified Portal Group, link/category, membership, and token commands now join Portal create/update/publication/delete in committing state, required side effects, and registered lifecycle facts through the typed PortalCommandStore under revision fences. Review approval, edit-and-republish, and retry also commit monotonic publication intent with state; a durable receipt-coordinated consumer resumes queue delivery after interruption and rejects superseded cycles. Durable Activity/Notification and other owned mutation debts remain incomplete.",
       "codeEvidence": [
         "src/shared/outbox/envelope.ts",
         "src/shared/outbox/commit.ts",
         "src/contexts/portal/application/ports/portal-command-store.port.ts",
         "src/contexts/portal/infrastructure/portal-command-store.ts",
-        "src/contexts/portal/application/use-cases/soft-delete-portal-group.ts",
+        "src/contexts/portal/application/portal-command-version.ts",
+        "src/contexts/portal/domain/events.ts",
+        "src/shared/events/schema-registrations.ts",
         "src/contexts/review/infrastructure/outbox-consumers.ts",
-        "src/contexts/review/infrastructure/reply-command-store.ts",
-        "Remaining Portal use cases calling emitAndRecord"
+        "src/contexts/review/infrastructure/reply-command-store.ts"
       ],
       "testEvidence": [
         "Durable Guest, analytics, AI, and identity fact tests",
-        "Portal Group atomic deletion: 3 focused files / 23 tests, including real PostgreSQL commit, failed-fact rollback, stale-revision refusal, membership closure, and post-commit local-delivery failure; targeted lint and formatting checks passed",
+        "Portal command atomicity and revision proof: 70 files / 506 tests in the integrated unit rerun plus 55 fresh-PostgreSQL tests, including fact-conflict rollback, stale-revision refusal, joined child snapshots, Portal-first workflow locks, membership intervals, category/link ordering, and token issue/rotate/revoke",
+        "Five-blocker regression set: 7 files / 53 tests; final independent review found no remaining concrete Portal defect",
         "Review publication intent: 279 focused unit tests, 6 real-PostgreSQL interruption/rollback tests, and 46 consumer/governance tests; full typecheck passed"
       ],
       "remaining": [
-        "Add command/content classification to the envelope; move remaining active Portal Group/link/membership/token writes from emitAndRecord into owned command transactions; close durable Activity/Notification and other orphan families; make consumer receipts and projections interruption-safe; prove recovery plus empty-projection replay parity."
+        "Add command/content classification to the envelope; close durable Activity/Notification and the remaining owned mutation debts; make consumer receipts and projections interruption-safe; prove recovery plus empty-projection replay parity."
       ],
       "externalBlockers": []
     },
@@ -370,7 +373,9 @@
       "remaining": [
         "Run and retain a scoped production reconciliation artifact, resolve every non-exact row through separately reviewed effective-dated/CAS corrections, and prove zero unexplained rows; cut beta readers and release gates off legacy assignments/grants and mutating conversion paths; add Guest event-time Primary Staff Attribution snapshots; finish concurrent-edit and negative-matrix journeys; remove remaining Team entry points; and complete deferred Staff-user audit/support outcomes."
       ],
-      "externalBlockers": []
+      "externalBlockers": [
+        "Final reconciliation requires scoped production data and reviewed authority to apply effective-dated corrections or retire legacy paths."
+      ]
     },
     {
       "id": "GGL-01",
@@ -422,17 +427,24 @@
       "remaining": [
         "Complete backfill reconciliation, shadow-reader parity, report-only production observation, restore/erasure evidence, and final lifecycle-apply approval; separate provider-controlled Google reply text and converge all purge entry points on one checkpointed lifecycle authority."
       ],
-      "externalBlockers": []
+      "externalBlockers": [
+        "Final lifecycle apply and restore/erasure evidence require an authorized production-data reconciliation and approval of destructive retention actions."
+      ]
     },
     {
       "id": "IBX-01",
       "status": "partial",
-      "summary": "Review Inbox items now have an expand-only Handling Cycle model: cycle one is created in the same transaction as a newly projected Review item, later openings append numbered rows anchored to an existing Material Review Revision, and one locked compare-and-swap head fences the expected cycle, source revision, and state revision. The durable Review-update path opens a new cycle only for a later material revision and converges under duplicate or concurrent delivery. On the client, draft/reply-state changes patch only the selected detail, status changes patch that item before invalidating only affected folder/count/visit/activity data, and the status observer is keyed by item identity. Existing Inbox workflow columns remain the compatibility projection and have not yet cut over to the cycle authority.",
+      "summary": "Review Inbox items have an expand-only Handling Cycle model with locked compare-and-swap heads and durable material-revision reopening. Inbox authorization now intersects the Inbox permission with the owning source permission independently for Review and private-feedback rows: list results and authoritative totals, folder/visit counts, detail, notes, status, escalation, bulk reopen, and assignment all use the same source-specific Property envelope. Base Staff cannot read or handle private feedback, self claim/release remains available without inbox.manage, and managing another assignee additionally requires inbox.manage at the item Property. Assignment is never an access authority. Provider publication facts are receipt-only; only an exact current Google reply observation may close or reopen work. Existing workflow columns remain a compatibility projection, and target-assignee authority plus command revision fencing are not complete.",
       "codeEvidence": [
         "drizzle/0117_inbox_handling_cycles_expand.sql",
         "src/contexts/inbox/domain/handling-cycles.ts",
         "src/contexts/inbox/infrastructure/review-handling-cycle.store.ts",
         "src/contexts/inbox/infrastructure/outbox-consumers.ts",
+        "src/contexts/inbox/application/inbox-access.ts",
+        "src/contexts/inbox/application/ports/inbox.repository.ts",
+        "src/contexts/inbox/infrastructure/repositories/inbox.repository.ts",
+        "src/shared/domain/property-access.ts",
+        "src/shared/domain/permissions.ts",
         "src/components/inbox/inbox-cache-policy.ts",
         "src/components/inbox/inbox-item-status-observer.ts"
       ],
@@ -440,34 +452,54 @@
         "31 affected unit files / 279 tests passed",
         "Review Handling Cycle and migration verification: 2 PostgreSQL files / 13 tests passed; fresh journal verification 8/8 passed through migration 0117",
         "All three TypeScript configurations passed for the Handling Cycle commit; targeted lint, architecture, filename, component-boundary, technology-stack, and fallow checks passed",
-        "Inbox UI matrix: 8 files / 59 tests passed; 17 focused cache/request-count assertions prove autosave adds zero requests and A-to-B-to-A selection makes exactly one detail and notes request per transition"
+        "Inbox UI matrix: 8 files / 59 tests passed; 17 focused cache/request-count assertions prove autosave adds zero requests and A-to-B-to-A selection makes exactly one detail and notes request per transition",
+        "Source-authorization matrix: 35 files / 331 tests in the integrated rerun; independent Spec review: 15 files / 159 tests with no actionable defect",
+        "Fresh PostgreSQL integrated repository/observation matrix contributed to 6 files / 102 tests through journal 123; distinct Review and feedback Property envelopes are covered",
+        "Integrated checkpoint gates: 872 unit files / 8,875 tests and 132 PostgreSQL-backed files / 758 tests passed; full typecheck, lint, architecture, technology-stack, Zod, product-state, formatting, and diff-integrity checks passed"
       ],
       "remaining": [
-        "Backfill and classify legacy Review items and cut reads/commands from compatibility status to the cycle head; add Guest Response cycles, source-specific Google/private-feedback closure and correction history, governed reopen reasons, eligibility-loss unassignment, target snapshots/reminders, cycle lifecycle facts and receipt-coordinated recovery, revision fencing for status/assignment/escalation/notes/bulk commands, all-or-none bounded bulk operations, current-user UI/history, response-cutoff watermark, and the full replay/browser evidence matrix, including hosted browser proof for the scoped cache policy."
+        "Backfill and classify legacy Review items and cut reads/commands from compatibility status to the cycle head; add Guest Response cycles, private-feedback closure/correction history, governed reopen reasons, eligibility-loss unassignment, target snapshots/reminders, cycle lifecycle facts and receipt-coordinated recovery, revision fencing for status/assignment/escalation/notes/bulk commands, all-or-none bounded bulk operations, current-user UI/history, response-cutoff watermark, and the full replay/browser evidence matrix, including hosted browser proof for the scoped cache policy.",
+        "Replace the target-assignee caller-scope shortcut with an owning-context current-membership, source-permission, Property-grant, and active-participation decision that is rechecked in the assignment transaction; assignment must continue to grant no authority."
       ],
       "externalBlockers": []
     },
     {
       "id": "RPL-01",
       "status": "partial",
-      "summary": "Approval, edit-and-republish, and retry now advance a monotonic publication cycle and atomically commit a durable publication-request fact with reply state. A receipt-coordinated Review consumer re-reads the exact cycle, admits a deterministic queue job after commit, and terminally settles superseded intents; the publish handler fences stale cycles before claim, after provider return, and at the exact-cycle acknowledgement. Inbox closure still does not wait for subsequently observed Google truth, and deployed queue/provider proof remains outstanding.",
+      "summary": "Approval, edit-and-republish, and retry advance a monotonic publication cycle and atomically commit a durable publication-request fact with reply state. Migration 0122 adds tenant- and material-revision-bound publication-attempt history plus append-only Google reply observations and one current head. Provider write acceptance moves only to pending_observation; exact current live provider evidence is the sole publication authority. A persisted uncertain send performs a targeted provider read before any resend, and absence is required before a guarded retry. Exact duplicate observation evidence remains replay-safe after the Review advances, while key reuse with changed evidence is refused. Inbox publication consumers are receipt-only; the exact observed head alone closes work, and deletion/divergence reopens a new Handling Cycle.",
       "codeEvidence": [
         "drizzle/0118_reply_publication_cycles.sql",
+        "drizzle/0122_reply_google_observation_truth.sql",
+        "src/contexts/review/domain/google-reply-observation.ts",
+        "src/contexts/review/application/ports/google-reply-observation-store.port.ts",
+        "src/contexts/review/infrastructure/google-reply-observation-store.ts",
         "src/contexts/review/application/use-cases/reply-operations.ts",
+        "src/contexts/review/application/use-cases/reconcile-reply-publication.ts",
+        "src/contexts/review/application/ports/publication-reconciliation-run-lease.port.ts",
         "src/contexts/review/infrastructure/reply-command-store.ts",
+        "src/contexts/review/infrastructure/publication-reconciliation-run-lease.ts",
         "src/contexts/review/infrastructure/outbox-consumers.ts",
-        "src/contexts/review/infrastructure/jobs/publish-reply.job.ts"
+        "src/contexts/review/infrastructure/jobs/publish-reply.job.ts",
+        "src/contexts/review/infrastructure/jobs/reconcile-ambiguous-publications.job.ts",
+        "src/contexts/inbox/infrastructure/inbox-command-store.ts",
+        "src/contexts/inbox/infrastructure/outbox-consumers.ts",
+        "scripts/ops/reconcile-publication.ts"
       ],
       "testEvidence": [
         "12 focused unit files / 279 tests",
         "src/contexts/review/infrastructure/repositories/reply-command-store.test.ts: 6 real-PostgreSQL tests covering committed interruption recovery and invalid-intent rollback",
         "4 consumer/governance/registration files / 46 tests",
-        "Full app/scripts/Railway typecheck, targeted lint, architecture/component boundaries, and Zod conformance passed"
+        "RPL observation, publication, Inbox, and governance matrix: 13 files / 246 tests; receipt-only Inbox/governance tightening: 8 files / 114 tests",
+        "Fresh PostgreSQL migration/observation/Inbox proof: 3 files / 26 tests; integrated database rerun through journal 123: 6 files / 102 tests",
+        "Full app/scripts/Railway typecheck, full lint, architecture/component/filename controls, technology-stack authority, Zod conformance, formatting, and diff-integrity checks passed",
+        "Integrated checkpoint gates: 872 unit files / 8,875 tests and 132 PostgreSQL-backed files / 758 tests passed; independent Standards and Spec review found no remaining actionable P0-P3 defect in the publication truth chain"
       ],
       "remaining": [
-        "Add per-attempt publication history and material-revision fences; normalize provider fixtures; make Inbox closure depend on observed Google truth; implement external-reply reconciliation, operations UX/alerts, and settled Confirm & Publish language; then prove the durable relay/queue/provider journey in a production-equivalent environment."
+        "Add provider-reply observation content retention reporting/apply evidence, operations UX/alerts, and settled Confirm & Publish language; finish provider fixture contract coverage; then prove the durable relay/queue/provider observation journey and interruption recovery in a production-equivalent environment."
       ],
-      "externalBlockers": []
+      "externalBlockers": [
+        "The final relay, queue, Google write/readback, and observation-settlement journey requires an authorized production-equivalent provider environment."
+      ]
     },
     {
       "id": "AI-01",
@@ -623,7 +655,7 @@
     {
       "id": "POR-01",
       "status": "partial",
-      "summary": "Rating-first Portal foundations now include database-enforced immutable EN publication snapshots, append-only activation/rollback history, snapshot-backed token resolution, exact Guest evidence binding, and an automatically derived Property-owned Google review destination. Managers receive an exact scoped history showing the live immutable version, prior publish/rollback activity, and pending saved content. Portal Group deletion now atomically archives the Group, closes effective memberships, and records its durable lifecycle fact under a revision fence.",
+      "summary": "Rating-first Portal foundations now include database-enforced immutable EN publication snapshots, append-only activation/rollback history, snapshot-backed token resolution, exact Guest evidence binding, and an automatically derived Property-owned Google review destination. Managers receive an exact scoped history showing the live immutable version, prior publish/rollback activity, and pending saved content. The eleven previously non-atomic Portal Group, link/category, membership, and token commands now commit their state and registered facts together under revision fences.",
       "codeEvidence": [
         "src/contexts/portal/",
         "src/contexts/portal/application/portal-publication-snapshot.ts",
@@ -642,26 +674,45 @@
         "Portal snapshot/digest, publication transition, rollback, token revocation, tamper fail-closed, exact Guest evidence, responsibility, and Guest-flow tests; real PostgreSQL publication repository and atomic command-store suites",
         "Google review destination presentation: 1 file / 3 tests; Portal detail Storybook: 1 file / 5 tests; targeted lint and typecheck passed",
         "Publication-history commits 9a08c667 and b27ed616: focused Portal unit/PostgreSQL/server matrix 5 files / 45 tests, Portal Storybook 3 files / 19 tests, composition characterization 1 file / 8 tests, and targeted standards checks passed",
-        "Portal Group deletion commit 9a94fcc0: 3 focused files / 23 tests, including PostgreSQL commit/rollback, stale revision, membership closure, and post-commit recovery authority"
+        "Portal Group deletion commit 9a94fcc0: 3 focused files / 23 tests, including PostgreSQL commit/rollback, stale revision, membership closure, and post-commit recovery authority",
+        "Portal command/revision completion: 70 files / 506 tests in the integrated unit rerun, 55 fresh-PostgreSQL tests, and an independent five-blocker post-fix review with no remaining concrete defect"
       ],
       "remaining": [
-        "Implement Brand Profile and EN/BG/locales, broader Approved Destinations governance, Portal Health intervals, stable public address and governed Access Artifacts, archive/restore, explicit ownership, remaining Portal Group/link/membership/token fact atomicity, dedicated publication facts, legacy classification, and the full public cache/privacy matrix; add bounded history pagination before activation volume becomes material."
+        "Implement Brand Profile and EN/BG/locales, broader Approved Destinations governance, Portal Health intervals, stable public address and governed Access Artifacts, archive/restore, explicit ownership, dedicated publication facts, legacy classification, and the full public cache/privacy matrix; add bounded history pagination before activation volume becomes material."
       ],
       "externalBlockers": []
     },
     {
       "id": "GST-01",
       "status": "partial",
-      "summary": "Private rating/feedback is strong, but Contact Request, Staff attribution, legacy migration, canonical network-abuse records, and artifact-qualified scans are absent.",
+      "summary": "Private rating/feedback remains the canonical rating-first flow. Contact Request now has a beta-dark, migration-compatible foundation with email-only explicit consent and purpose, application-boundary DTO normalization, versioned scope-and-response-bound encryption, masked ordinary reads, audited just-in-time reveal, exact 30-day expiry, immutable publication/notice evidence, and atomic retirement on contact withdrawal, feedback withdrawal, or terminal response state. Manager authorization no longer queries foreign-owned identity, access-grant, or Portal tables inside Guest persistence: central permission conjunctions and an injected owning-context authority port distinguish current AccountAdmin, Portal creator, and Responsible Manager authority. The capability remains deliberately uncomposed and unreachable. Staff attribution, legacy Guest Response reconciliation, canonical network-abuse records, artifact-qualified scans, and operational retention wiring remain open.",
       "codeEvidence": [
-        "src/contexts/guest/",
-        "src/contexts/guest/infrastructure/db/guest.schema.ts"
+        "drizzle/0120_guest_contact_requests.sql",
+        "drizzle/0121_guest_contact_request_corrections.sql",
+        "src/contexts/guest/domain/contact-request.ts",
+        "src/contexts/guest/domain/private-feedback-text.ts",
+        "src/contexts/guest/application/dto/private-feedback.dto.ts",
+        "src/contexts/guest/application/ports/contact-request-execution-policy.port.ts",
+        "src/contexts/guest/application/ports/contact-request-manager-authority.port.ts",
+        "src/contexts/guest/application/ports/contact-request-response-authority.port.ts",
+        "src/contexts/guest/application/use-cases/contact-request-lifecycle.ts",
+        "src/contexts/guest/application/dto/contact-request.dto.ts",
+        "src/contexts/guest/infrastructure/adapters/contact-request-encryption.adapter.ts",
+        "src/contexts/guest/infrastructure/repositories/contact-request.repository.ts",
+        "src/shared/db/schema/guest.schema.ts",
+        "src/shared/auth/beta-capabilities.ts"
       ],
       "testEvidence": [
-        "Rating-first, threshold, correction/withdrawal, fact, rate-limit, receipt, Google-action, and secondary-action suites"
+        "Rating-first, threshold, correction/withdrawal, fact, layered-limit, receipt, Google-action, and secondary-action suites",
+        "Contact Request repository: 10 real-PostgreSQL tests; focused Unicode, lifecycle, policy, encryption, and containment matrix: 8 files / 62 tests",
+        "Complete Guest context after correction: 33 files / 268 tests passed",
+        "Fresh journal and archived-HEAD-0120 upgrade databases both migrated through 0122 with zero schema drift and migration verification 8/8; the pre-existing-row guard independently aborted with SQLSTATE 23514",
+        "Targeted Guest lint, architecture, filename, component-boundary, Zod, product-state, formatting, and diff-integrity checks passed"
       ],
       "remaining": [
-        "Add separately encrypted/audited Contact Requests with 30-day purge, event-time Staff attribution, legacy reconciliation, shared-device/privacy matrices, integrity moderation, and Access-Artifact-backed Qualified Scans."
+        "Add event-time Staff attribution, legacy Guest Response reconciliation, canonical seven-day network-abuse records and cleanup, shared-device/privacy matrices, integrity moderation, and Access-Artifact-backed Qualified Scans.",
+        "Keep Contact Request unreachable while concrete signed-session/CSRF and owning-context manager-authority adapters remain uncomposed; add the retention registry, report/apply worker, schedule, completion evidence, and an explicit disposition for the documented cross-transaction authority-revocation interval before activation.",
+        "Obtain and bind the approved notice, retention, manager-handling, and delivery-channel operating evidence before any external beta activation."
       ],
       "externalBlockers": [
         "Contact Request notices, retention, and privacy handling require counsel approval before external beta activation."
@@ -765,7 +816,7 @@
     {
       "id": "EXP-02",
       "status": "partial",
-      "summary": "The three known production literal query keys use tested hierarchical factories, and an executable product-state inventory covers production components/routes. It currently governs 75 query-key sites, one explicitly owned login bootstrap whole-router invalidation, and 46 conservatively classified useState candidates; the newly exposed Inbox status observer is explicitly classified as a component-lifetime coordinator rather than server state. UI-06 is formally closed by contracting its unreachable mirrored-state owner, UI-11 by selected-item request-count and identity proofs, and UI-21 by moving provider-content clearing, view epochs, expiry timing, and content-free stale outcomes into Integration application ownership. The broader inventory remains a bounded syntax/classification slice rather than semantic completion.",
+      "summary": "An executable product-state inventory now owns all 72 exported query-key factory members, 80 production query-key sites, the one approved whole-router invalidation, and 45 conservatively classified state-mirror candidates. Login, both shell sign-outs, and invitation-driven active-Organization changes clear tenant-scoped client state; active server drafts remount on profile-image, Organization-logo, response-SLA, and notification Property-access changes. The obsolete 22-module Goal UI mirror is contracted while the one live progress component remains under the supported Goal surface. This is still a bounded syntax/classification and local-browser slice rather than proof of every semantic sibling invalidation or hosted workflow.",
       "codeEvidence": [
         "src/shared/queries/query-keys.ts",
         "scripts/ci/check-product-state-consistency.ts",
@@ -774,18 +825,23 @@
         "src/components/inbox/inbox-cache-policy.ts",
         "src/components/inbox/inbox-item-status-observer.ts",
         "src/contexts/integration/application/google-import-content-lifecycle.ts",
-        "src/shared/architecture/google-import-content-lifecycle-ownership.test.ts"
+        "src/shared/architecture/google-import-content-lifecycle-ownership.test.ts",
+        "src/shared/queries/tenant-cache-transition.ts",
+        "src/shared/architecture/product-state-remount-boundaries.test.ts",
+        "src/shared/architecture/tenant-cache-transition-ownership.test.ts",
+        "src/shared/architecture/legacy-policy-ui-active-surfaces.test.ts"
       ],
       "testEvidence": [
-        "Product-state and query-key unit matrix: 2 files / 11 tests passed",
-        "Executable inventory passed with 75 query-key sites, 1 owned broad invalidation, and 46 classified candidates; focused checker 5/5 tests passed",
-        "Focused lint, application TypeScript, scripts TypeScript, and diff checks passed for the inventory slice",
+        "Executable inventory passed with 72/72 owned query-key members, 80 query-key sites, 1 approved broad invalidation, and 45 classified state candidates",
+        "Product-state/query/tenant/remount/legacy-surface unit matrix: 8 independently rerun files / 36 tests passed; the implementation run covered 10 files / 42 tests",
+        "Local Chromium Storybook matrix: 4 files / 14 states passed",
+        "Focused lint, scripts TypeScript, architecture/component/filename controls, formatting, and diff checks passed for commit 63c4db7d",
         "Inbox UI matrix: 8 files / 59 tests passed; deterministic QueryObserver request-count and selected-item identity regressions passed",
         "Provider-content lifecycle: 2 lifecycle/ownership files / 7 tests, 9 focused Integration UI/architecture files / 49 tests, and 3 Chromium Storybook files / 14 stories passed; full application typecheck and boundary controls passed",
         "UI finding fragment validates 21/21 rows at 66afe661d5a2007ee12df13fa1057d4ee73609ca with 20 closed and 1 superseded"
       ],
       "remaining": [
-        "Semantically review the remaining mirror candidates and every query factory, expand coverage beyond production components/routes where warranted, freeze feature DTOs, replace remaining legacy Bell/delete/goal policy components, and retain hosted browser evidence for the resolved Inbox request-scope seam."
+        "Semantically verify every inventoried candidate and query factory beyond the syntax guard, expand coverage beyond production components/routes where warranted, freeze feature DTOs, invalidate Goal subject/name sibling projections after Portal Group mutations, and retain authenticated hosted-browser evidence for the tenant/remount and Inbox request-scope seams."
       ],
       "externalBlockers": []
     },

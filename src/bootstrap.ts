@@ -64,7 +64,8 @@ import {
   createPublishReplyHandler,
   JOB_NAME as PUBLISH_REPLY_JOB_NAME,
 } from '#/contexts/review/infrastructure/jobs/publish-reply.job'
-import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/reply-command-store'
+import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
+import { createPublicationReconciliationRunLease } from '#/contexts/review/infrastructure/publication-reconciliation-run-lease'
 import { activityLogId, replyId } from '#/shared/domain/ids'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
@@ -358,10 +359,7 @@ export async function bootstrap(
   // BQC-3.3: one stateless atomic store for reply publication. The legacy
   // purge method remains on the compatibility port but SAFE-03 denies it
   // before SQL/outbox; the registered purge handler below is also a no-op.
-  const replyCommandStore = createAtomicReplyCommandStore(
-    container.db,
-    container.eventBus,
-  )
+  const replyCommandStore = container.replyCommandStore
 
   const purgeHandler = createPurgeExpiredReviewsHandler({
     reviewRepo: container.reviewRepo,
@@ -380,6 +378,10 @@ export async function bootstrap(
     replyRepo: container.replyRepo,
     reviewRepo: container.reviewRepo,
     googleReviewApi: container.googleReviewApi,
+    googleReplyObservationStore: createGoogleReplyObservationStore(
+      container.db,
+      container.eventBus,
+    ),
     replyCommandStore,
     clock: container.clock,
     idGen: () => replyId(crypto.randomUUID()),
@@ -418,11 +420,11 @@ export async function bootstrap(
     'registered property AI trend scheduler job handler',
   )
 
-  // ── Reconcile ambiguous reply publications (BQC-3.8) ──────────────
-  // Sweep over replies whose Google send outcome was ambiguous on the final
-  // attempt (publication_state='ambiguous', reconcile_due_at <= now); each
-  // due row re-reads provider state via the composition-wired reconcile use
-  // case (provider read only — never a send).
+  // ── Reconcile provider-pending reply publications (BQC-3.8) ──────────
+  // Sweep over due replies awaiting an exact provider observation, including
+  // acknowledged writes and ambiguous final attempts. Each row re-reads
+  // provider state via the composition-wired reconcile use case (provider
+  // read only — never a send).
   const {
     createReconcileAmbiguousPublicationsHandler,
     JOB_NAME: RECONCILE_AMBIGUOUS_JOB_NAME,
@@ -432,6 +434,7 @@ export async function bootstrap(
     replyRepo: container.replyRepo,
     reconcileReplyPublication: container.useCases.reconcileReplyPublication,
     clock: container.clock,
+    runLease: createPublicationReconciliationRunLease(),
   })
   container.jobRegistry.register(RECONCILE_AMBIGUOUS_JOB_NAME, async (job) => {
     await reconcileAmbiguousHandler(job)

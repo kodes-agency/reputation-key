@@ -10,6 +10,9 @@ import { portalLinkCategoryId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPortalPropertyAccess } from '../assert-property-access'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import { nextPortalCommandAt } from '../portal-command-version'
+import { portalLinkCategoryUpdated } from '../../domain/events'
 
 export type UpdateLinkCategoryInput = Readonly<{
   categoryId: string
@@ -20,6 +23,7 @@ export type UpdateLinkCategoryDeps = Readonly<{
   portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
   staffPublicApi: StaffPublicApi
+  commandStore: PortalCommandStore
   clock: () => Date
 }>
 
@@ -34,15 +38,16 @@ export const updateLinkCategory =
       throw portalError('forbidden', 'this role cannot update portal categories')
     }
 
-    const existing = await deps.portalLinkRepo.findCategoryById(
+    const target = await deps.portalLinkRepo.findCategoryCommandTarget(
       ctx.organizationId,
       portalLinkCategoryId(input.categoryId),
     )
-    if (!existing) {
+    if (!target) {
       throw portalError('category_not_found', 'category not found')
     }
+    const existing = target.category
     // Enforce property-assignment scoping (D6-001.)
-    await assertPortalPropertyAccess(
+    const portal = await assertPortalPropertyAccess(
       deps.portalRepo,
       deps.staffPublicApi,
       ctx,
@@ -53,17 +58,28 @@ export const updateLinkCategory =
     if (input.title !== undefined) {
       const r = validateCategoryTitle(input.title)
       if (r.isErr()) throw r.error
-      const updatedAt = deps.clock()
-      await deps.portalLinkRepo.updateCategory(
-        ctx.organizationId,
-        existing.portalId,
-        portalLinkCategoryId(input.categoryId),
-        {
-          title: r.value,
-          updatedAt,
-        },
-      )
-      return { ...existing, title: r.value, updatedAt }
+      const occurredAt = deps.clock()
+      const expectedPortalUpdatedAt = target.portalUpdatedAt ?? portal.updatedAt
+      const revision = nextPortalCommandAt(occurredAt, expectedPortalUpdatedAt)
+      await deps.commandStore.updatePortalLinkCategory({
+        organizationId: ctx.organizationId,
+        propertyId: portal.propertyId,
+        portalId: existing.portalId,
+        expectedPortalUpdatedAt,
+        revision,
+        occurredAt,
+        categoryId: existing.id,
+        title: r.value,
+        event: portalLinkCategoryUpdated({
+          portalId: existing.portalId,
+          categoryId: existing.id,
+          organizationId: ctx.organizationId,
+          propertyId: portal.propertyId,
+          sourceAggregateVersion: revision.toISOString(),
+          occurredAt,
+        }),
+      })
+      return { ...existing, title: r.value, updatedAt: occurredAt }
     }
 
     return existing

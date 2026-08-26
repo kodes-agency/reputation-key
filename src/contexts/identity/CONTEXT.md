@@ -36,6 +36,7 @@ Authentication, session management, organization membership, and invitation work
 - Invitation acceptance atomically claims the user's Organization binding; a conflicting binding cannot create membership.
 - Registration requires the exact pending, unexpired, email-bound manager invitation. A failed authoritative acceptance compensates the newly created auth user.
 - Public registration, self-service Organization creation, Team, custom roles, and Staff User login are blocked beta capabilities.
+- Current actor-to-Property authority is decided from one transactionally consistent Identity snapshot: it reads the Organization permission generation optimistically, locks current membership/role and the singular Property grant, then locks and rechecks the generation before a protected cross-context command commits. A changed generation denies the command. Membership, role, or grant revocation therefore linearizes before or after the command without inverting the mutation-trigger lock order; a stale session role or earlier authorization fact cannot preserve present authority.
 - Cannot change role of a member with equal or higher role.
 - Cannot assign a role higher than your own.
 - Organization slugs must be unique and match `^[a-z0-9][a-z0-9-]*[a-z0-9]$`.

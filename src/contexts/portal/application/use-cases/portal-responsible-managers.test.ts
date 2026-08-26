@@ -8,6 +8,10 @@ import {
   updatePortalResponsibleManagers,
 } from './portal-responsible-managers'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import {
+  portalResponsibilityNeeded,
+  portalResponsibleManagersUpdated,
+} from '../../domain/events'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')
 const PORTAL = buildTestPortal({ responsibleManagerRevision: 1 })
@@ -52,6 +56,24 @@ const setup = () => {
         assignments: active,
         revision: input.expectedRevision + 1,
         becameResponsibilityNeeded: hadManagers && active.length === 0,
+        updatedEvent: portalResponsibleManagersUpdated({
+          portalId: PORTAL.id,
+          organizationId: PORTAL.organizationId,
+          propertyId: PORTAL.propertyId,
+          assignmentCount: active.length,
+          sourceAggregateVersion: NOW.toISOString(),
+          occurredAt: NOW,
+        }),
+        responsibilityNeededEvent:
+          hadManagers && active.length === 0
+            ? portalResponsibilityNeeded({
+                portalId: PORTAL.id,
+                organizationId: PORTAL.organizationId,
+                propertyId: PORTAL.propertyId,
+                sourceAggregateVersion: NOW.toISOString(),
+                occurredAt: NOW,
+              })
+            : null,
       }
     },
   }
@@ -118,7 +140,7 @@ describe('Portal Responsible Managers', () => {
   })
 
   it('supports multiple assigned managers without granting access', async () => {
-    const { deps } = setup()
+    const { deps, events } = setup()
     const result = await updatePortalResponsibleManagers(deps)(
       {
         portalId: PORTAL.id,
@@ -129,6 +151,14 @@ describe('Portal Responsible Managers', () => {
     )
 
     expect(result.assignments.map((row) => row.userId)).toEqual(['admin-1', 'manager-1'])
+    expect(events.capturedByTag('portal.responsible_managers.updated')).toEqual([
+      expect.objectContaining({
+        portalId: PORTAL.id,
+        assignmentCount: 2,
+        sourceAggregateVersion: NOW.toISOString(),
+        occurredAt: NOW,
+      }),
+    ])
   })
 
   it('rejects a manager who lacks the role-specific property eligibility', async () => {
@@ -166,6 +196,7 @@ describe('Portal Responsible Managers', () => {
         portalId: PORTAL.id,
         organizationId: PORTAL.organizationId,
         propertyId: PORTAL.propertyId,
+        sourceAggregateVersion: NOW.toISOString(),
         occurredAt: NOW,
       }),
     ])

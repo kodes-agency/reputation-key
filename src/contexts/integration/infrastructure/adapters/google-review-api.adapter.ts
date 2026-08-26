@@ -906,8 +906,9 @@ export const createGoogleReviewApiAdapter = (
           nowMs,
         }),
       )
+      const providerCorrelationId = response.headers.providerCorrelationId ?? null
       response.body.fill(0)
-      return
+      return { providerCorrelationId }
     }
     deps.assertDirectEgressAllowed?.('reviews.reply')
     const timeout = withTimeout(30_000)
@@ -932,6 +933,12 @@ export const createGoogleReviewApiAdapter = (
         response.status === 429 || response.status >= 500,
       )
     }
+    const providerCorrelationId =
+      response.headers.get('x-guploader-uploadid') ??
+      response.headers.get('x-request-id') ??
+      null
+    await response.body?.cancel()
+    return { providerCorrelationId }
   }
 
   return Object.freeze({

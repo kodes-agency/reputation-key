@@ -35,6 +35,9 @@ type PublicationRequestedPayload = Readonly<{
   organizationId: string
   userId: string
   publicationCycle: number
+  sourceEpoch?: number
+  materialReviewRevision?: number
+  baseObservationRevision?: number
 }>
 
 function parsePublicationRequested(event: ConsumerEvent): PublicationRequestedPayload {
@@ -81,6 +84,10 @@ export async function handleReplyPublicationRequested(
     !current ||
     current.reviewId !== payload.reviewId ||
     current.publicationCycle !== payload.publicationCycle ||
+    event.eventVersion !== 2 ||
+    payload.sourceEpoch === undefined ||
+    payload.materialReviewRevision === undefined ||
+    payload.baseObservationRevision === undefined ||
     current.status !== 'approved' ||
     (current.publicationState !== 'authorized' && current.publicationState !== 'sending')
   ) {
@@ -92,6 +99,10 @@ export async function handleReplyPublicationRequested(
       replyId: payload.replyId,
       organizationId: payload.organizationId,
       publicationCycle: payload.publicationCycle,
+      propertyId: payload.propertyId,
+      sourceEpoch: payload.sourceEpoch,
+      materialReviewRevision: payload.materialReviewRevision,
+      baseObservationRevision: payload.baseObservationRevision,
       initiator: { kind: 'user', id: userId(payload.userId) },
     },
     {

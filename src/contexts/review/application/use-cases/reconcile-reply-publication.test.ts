@@ -3,7 +3,7 @@
 // Manual/operator recovery for an ambiguous publish outcome: make one targeted
 // provider read; if Google shows the reply, heal the
 // divergence atomically (markPublished + durable fact); otherwise the reply
-// stays publish_failed ('still_failed'). Never calls the publish endpoint —
+// records absent/divergent truth without publishing. Never calls the publish endpoint —
 // never duplicates a Google-visible reply.
 
 import {
@@ -17,8 +17,7 @@ import type { ReconcileReplyPublicationDeps } from './reconcile-reply-publicatio
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewRepository } from '../ports/review.repository'
 import type { GoogleReviewApiPort } from '../ports/google-review-api.port'
-import type { ReplyCommandStore } from '../ports/reply-command-store.port'
-import type { EventBus } from '#/shared/events/event-bus'
+import type { RecordGoogleReplyObservation } from '../ports/google-reply-observation-store.port'
 import type { Reply, Review, GoogleReview } from '../../domain/types'
 import {
   organizationId,
@@ -92,7 +91,7 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     contentHash: null,
     sourceSeenGeneration: null,
     sourceEpoch: 0,
-    sourceRevision: 0,
+    sourceRevision: 1,
     analysisSequence: 0,
     aiSourceByteLength: 1,
     aiSourceDigest: '0'.repeat(64),
@@ -120,20 +119,25 @@ function makeGoogleReview(overrides: Partial<GoogleReview> = {}): GoogleReview {
   }
 }
 
+type FoundProviderReview = Readonly<{
+  status: 'found'
+  review: GoogleReview
+}>
+
+function deferredProviderRead() {
+  let resolve!: (value: FoundProviderReview) => void
+  const promise = new Promise<FoundProviderReview>((done) => {
+    resolve = done
+  })
+  return { promise, resolve }
+}
+
 function makeDeps(overrides: {
   reply?: Reply | null
   review?: Review | null
   googleReview?: GoogleReview | null
   googleError?: Error
 }) {
-  const emitted: Array<Record<string, unknown>> = []
-  const events = {
-    emit: vi.fn(async (event: Record<string, unknown>) => {
-      emitted.push(event)
-    }),
-    on: vi.fn(),
-  } as unknown as EventBus
-
   const replyRepo = {
     findById: vi.fn(async () => overrides.reply ?? null),
   } as unknown as ReplyRepository
@@ -150,43 +154,39 @@ function makeDeps(overrides: {
             ? { status: 'found' as const, review: overrides.googleReview }
             : { status: 'not_found' as const },
         ),
-    replyToReview: vi.fn(async () => {}),
+    replyToReview: vi.fn(async () => ({ providerCorrelationId: null })),
   } as unknown as GoogleReviewApiPort
-
-  // In-process command-store fake (application zone must not import infra):
-  // applies the guarded transition, then emits post-commit.
-  const commandStore: ReplyCommandStore = {
-    submitReply: vi.fn(),
-    rejectReply: vi.fn(),
-    markPublished: vi.fn(async (reply: Reply, updates, event) => {
-      const saved: Reply = { ...reply, ...updates, updatedAt: NOW }
-      await events.emit(event)
-      return saved
-    }),
-    markPublicationAuthorized: vi.fn(),
-    markPublicationSending: vi.fn(),
-    markPublicationTerminal: vi.fn(),
-    markPublicationAmbiguous: vi.fn(),
-    markPublicationRetryQueued: vi.fn(),
-    editPublishedReply: vi.fn(),
-    cancelPublications: vi.fn(),
-    mirrorSyncedReply: vi.fn(),
-    purgeExpiredReview: vi.fn(),
+  const observationStore = {
+    allocateReadGeneration: vi.fn(async () => 1),
+    findCurrentHead: vi.fn(async () => null),
+    record: vi.fn(async (input: RecordGoogleReplyObservation) => ({
+      observationRevision: 1,
+      change: input.observedText === null ? ('deleted' as const) : ('added' as const),
+      resolution:
+        input.observedText === 'Thank you!'
+          ? ('confirmed_on_google' as const)
+          : input.observedText === null
+            ? ('absent' as const)
+            : ('external_current_live' as const),
+      matchedReplyId: input.observedText === 'Thank you!' ? REPLY_ID : null,
+      matchedPublicationCycle: input.observedText === 'Thank you!' ? 1 : null,
+      duplicate: false,
+    })),
   }
 
   const deps: ReconcileReplyPublicationDeps = {
     replyRepo,
     reviewRepo,
     googleReviewApi,
-    commandStore,
+    observationStore,
     clock: () => NOW,
   }
-  return { deps, emitted, googleReviewApi, commandStore }
+  return { deps, googleReviewApi, observationStore }
 }
 
 describe('reconcileReplyPublication', () => {
-  it('provider shows the reply → marks published atomically and emits the durable fact', async () => {
-    const { deps, emitted, commandStore } = makeDeps({
+  it('provider shows the exact reply → delegates to the observation authority', async () => {
+    const { deps, observationStore } = makeDeps({
       reply: makeReply(),
       review: makeReview(),
       googleReview: makeGoogleReview({ replyText: 'Thank you!' }),
@@ -198,22 +198,20 @@ describe('reconcileReplyPublication', () => {
     })
 
     expect(result.isOk()).toBe(true)
-    if (result.isOk()) expect(result.value.outcome).toBe('published')
-    expect(commandStore.markPublished).toHaveBeenCalledTimes(1)
-    const event = emitted[0]
-    expect(event).toMatchObject({
-      _tag: 'review.reply.published',
-      replyId: REPLY_ID,
-      reviewId: REVIEW_ID,
-      propertyId: PROP_ID,
-      organizationId: ORG_ID,
-      userId: null,
-      authorId: USER_ID,
-    })
+    if (result.isOk()) expect(result.value.outcome).toBe('confirmed_on_google')
+    expect(observationStore.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reviewId: REVIEW_ID,
+        sourceEpoch: 0,
+        materialReviewRevision: 1,
+        observedText: 'Thank you!',
+        source: 'targeted_reconciliation',
+      }),
+    )
   })
 
-  it('provider has the review but no reply → still_failed, no state change, no event', async () => {
-    const { deps, emitted, commandStore } = makeDeps({
+  it('provider has the review but no reply → records an absent observation', async () => {
+    const { deps, observationStore } = makeDeps({
       reply: makeReply(),
       review: makeReview(),
       googleReview: makeGoogleReview({ replyText: null }),
@@ -225,13 +223,68 @@ describe('reconcileReplyPublication', () => {
     })
 
     expect(result.isOk()).toBe(true)
-    if (result.isOk()) expect(result.value.outcome).toBe('still_failed')
-    expect(commandStore.markPublished).not.toHaveBeenCalled()
-    expect(emitted).toHaveLength(0)
+    if (result.isOk()) expect(result.value.outcome).toBe('absent')
+    expect(observationStore.record).toHaveBeenCalledWith(
+      expect.objectContaining({ observedText: null }),
+    )
   })
 
-  it('provider no longer returns the review → still_failed', async () => {
-    const { deps, commandStore } = makeDeps({
+  it('binds the targeted observation identity to the current source fences', async () => {
+    const first = makeDeps({
+      reply: makeReply(),
+      review: makeReview({ sourceEpoch: 2, sourceRevision: 4 }),
+      googleReview: makeGoogleReview({ replyText: 'Thank you!' }),
+    })
+    const second = makeDeps({
+      reply: makeReply(),
+      review: makeReview({ sourceEpoch: 3, sourceRevision: 5 }),
+      googleReview: makeGoogleReview({ replyText: 'Thank you!' }),
+    })
+
+    await reconcileReplyPublication(first.deps)({
+      replyId: REPLY_ID,
+      organizationId: ORG_ID,
+    })
+    await reconcileReplyPublication(second.deps)({
+      replyId: REPLY_ID,
+      organizationId: ORG_ID,
+    })
+
+    const firstKey = first.observationStore.record.mock.calls[0]?.[0].observationKey
+    const secondKey = second.observationStore.record.mock.calls[0]?.[0].observationKey
+    expect(firstKey).toMatch(/^[0-9a-f]{64}$/u)
+    expect(secondKey).toMatch(/^[0-9a-f]{64}$/u)
+    expect(firstKey).not.toBe(secondKey)
+  })
+
+  it("does not confuse a live reply whose text is 'absent' with no reply", async () => {
+    const live = makeDeps({
+      reply: makeReply(),
+      review: makeReview(),
+      googleReview: makeGoogleReview({ replyText: 'absent', replyUpdatedAt: null }),
+    })
+    const absent = makeDeps({
+      reply: makeReply(),
+      review: makeReview(),
+      googleReview: makeGoogleReview({ replyText: null, replyUpdatedAt: null }),
+    })
+
+    await reconcileReplyPublication(live.deps)({
+      replyId: REPLY_ID,
+      organizationId: ORG_ID,
+    })
+    await reconcileReplyPublication(absent.deps)({
+      replyId: REPLY_ID,
+      organizationId: ORG_ID,
+    })
+
+    expect(live.observationStore.record.mock.calls[0]?.[0].observationKey).not.toBe(
+      absent.observationStore.record.mock.calls[0]?.[0].observationKey,
+    )
+  })
+
+  it('provider no longer returns the review → does not invent reply deletion', async () => {
+    const { deps, observationStore } = makeDeps({
       reply: makeReply(),
       review: makeReview(),
       googleReview: null,
@@ -243,8 +296,9 @@ describe('reconcileReplyPublication', () => {
     })
 
     expect(result.isOk()).toBe(true)
-    if (result.isOk()) expect(result.value.outcome).toBe('still_failed')
-    expect(commandStore.markPublished).not.toHaveBeenCalled()
+    if (result.isOk()) expect(result.value.outcome).toBe('provider_review_missing')
+    expect(observationStore.record).not.toHaveBeenCalled()
+    expect(observationStore.allocateReadGeneration).not.toHaveBeenCalled()
   })
 
   it('never calls the publish endpoint (no duplicate Google-visible reply)', async () => {
@@ -278,6 +332,53 @@ describe('reconcileReplyPublication', () => {
     })
   })
 
+  it('orders read generations by provider response acquisition, not request start', async () => {
+    const { deps, googleReviewApi, observationStore } = makeDeps({
+      reply: makeReply(),
+      review: makeReview(),
+      googleReview: makeGoogleReview(),
+    })
+    const firstRequest = deferredProviderRead()
+    const secondRequest = deferredProviderRead()
+    let providerCalls = 0
+    vi.mocked(googleReviewApi.getReview).mockImplementation(() =>
+      providerCalls++ === 0 ? firstRequest.promise : secondRequest.promise,
+    )
+    let generation = 0
+    observationStore.allocateReadGeneration.mockImplementation(async () => ++generation)
+
+    const firstRun = reconcileReplyPublication(deps)({
+      replyId: REPLY_ID,
+      organizationId: ORG_ID,
+    })
+    const secondRun = reconcileReplyPublication(deps)({
+      replyId: REPLY_ID,
+      organizationId: ORG_ID,
+    })
+    await vi.waitFor(() => expect(googleReviewApi.getReview).toHaveBeenCalledTimes(2))
+
+    secondRequest.resolve({
+      status: 'found',
+      review: makeGoogleReview({ replyText: 'response acquired first' }),
+    })
+    await vi.waitFor(() => expect(observationStore.record).toHaveBeenCalledTimes(1))
+    firstRequest.resolve({
+      status: 'found',
+      review: makeGoogleReview({ replyText: 'response acquired second' }),
+    })
+    await Promise.all([firstRun, secondRun])
+
+    const recorded = observationStore.record.mock.calls.map(([input]) => input)
+    expect(
+      recorded.find((input) => input.observedText === 'response acquired first')
+        ?.readGeneration,
+    ).toBe(1)
+    expect(
+      recorded.find((input) => input.observedText === 'response acquired second')
+        ?.readGeneration,
+    ).toBe(2)
+  })
+
   it('reply not found → err reply_not_found', async () => {
     const { deps } = makeDeps({ reply: null, review: makeReview() })
 
@@ -291,7 +392,7 @@ describe('reconcileReplyPublication', () => {
   })
 
   it('reply not in publish_failed → err invalid_transition (nothing to reconcile)', async () => {
-    const { deps, commandStore } = makeDeps({
+    const { deps, observationStore } = makeDeps({
       reply: makeReply({ status: 'published' }),
       review: makeReview(),
     })
@@ -303,7 +404,7 @@ describe('reconcileReplyPublication', () => {
 
     expect(result.isErr()).toBe(true)
     if (result.isErr()) expect(result.error).toMatchObject({ code: 'invalid_transition' })
-    expect(commandStore.markPublished).not.toHaveBeenCalled()
+    expect(observationStore.record).not.toHaveBeenCalled()
   })
 
   it('review missing → err review_not_found', async () => {
@@ -318,7 +419,7 @@ describe('reconcileReplyPublication', () => {
     if (result.isErr()) expect(result.error).toMatchObject({ code: 'review_not_found' })
   })
 
-  it('review has no Google connection → still_failed (cannot re-read provider)', async () => {
+  it('review has no Google connection → provider_review_missing (cannot re-read)', async () => {
     const { deps, googleReviewApi } = makeDeps({
       reply: makeReply(),
       review: makeReview({ googleConnectionId: null }),
@@ -330,7 +431,7 @@ describe('reconcileReplyPublication', () => {
     })
 
     expect(result.isOk()).toBe(true)
-    if (result.isOk()) expect(result.value.outcome).toBe('still_failed')
+    if (result.isOk()) expect(result.value.outcome).toBe('provider_review_missing')
     expect(googleReviewApi.getReview).not.toHaveBeenCalled()
   })
 

@@ -6,12 +6,27 @@ import {
   reviewId,
 } from '#/shared/domain/ids'
 import type { ReviewRepository } from '../ports/review.repository'
-import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReviewCommandStore } from '../ports/review-command-store.port'
-import type { ReplyCommandStore } from '../ports/reply-command-store.port'
-import { createReviewProviderObservationWriter } from './sync-reviews'
+import type { GoogleReplyObservationStore } from '../ports/google-reply-observation-store.port'
+import {
+  createReviewProviderObservationWriter,
+  providerReplyObservationKey,
+} from './sync-reviews'
 
 describe('Review provider observation identity', () => {
+  it('does not conflate an absent reply with the literal live reply "absent"', () => {
+    const common = {
+      providerObservationKey: 'f'.repeat(64),
+      sourceEpoch: 4,
+      materialReviewRevision: 8,
+      replyUpdatedAt: null,
+    }
+
+    expect(providerReplyObservationKey({ ...common, replyText: null })).not.toBe(
+      providerReplyObservationKey({ ...common, replyText: 'absent' }),
+    )
+  })
+
   it('re-observes an erased provider subject on the same stable ReviewId', async () => {
     const org = organizationId('org-review-writer')
     const property = propertyId('73000000-0000-4000-8000-000000000001')
@@ -42,18 +57,25 @@ describe('Review provider observation identity', () => {
           sentimentScore: -0.8,
         })),
       } as unknown as ReviewRepository,
-      replyRepo: {
-        findGoogleSyncByReviewId: vi.fn(async () => null),
-      } as unknown as ReplyRepository,
       clock: () => now,
       idGen: vi.fn(() => {
         throw new Error('must not allocate a replacement ReviewId')
       }),
-      replyIdGen: vi.fn(),
       commandStore: {
         reobserveExpiredAndRecord,
       } as unknown as ReviewCommandStore,
-      replyCommandStore: {} as ReplyCommandStore,
+      googleReplyObservationStore: {
+        allocateReadGeneration: vi.fn(async () => 1),
+        findCurrentHead: vi.fn(async () => null),
+        record: vi.fn(async () => ({
+          observationRevision: 1,
+          change: 'unchanged' as const,
+          resolution: 'unchanged' as const,
+          matchedReplyId: null,
+          matchedPublicationCycle: null,
+          duplicate: false,
+        })),
+      } satisfies GoogleReplyObservationStore,
     })
     const subject = {
       contractVersion: 'review-provider-subject-v1' as const,
@@ -68,6 +90,7 @@ describe('Review provider observation identity', () => {
       connectionId: connection,
       sourceEpoch: 4,
       observationKey: 'f'.repeat(64),
+      replyReadGeneration: 1,
       subjects: [subject],
       review: {
         reviewName: 'accounts/a/locations/l/reviews/r',

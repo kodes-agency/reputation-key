@@ -52,6 +52,8 @@ function makeEvent(overrides: Partial<PortalGroupDeleted> = {}): PortalGroupDele
     correlationId: null,
     portalGroupId: portalGroupId('pg-1'),
     organizationId: organizationId('org-1'),
+    propertyId: propertyId('prop-1'),
+    sourceAggregateVersion: FIXED_TIME.toISOString(),
     occurredAt: FIXED_TIME,
     ...overrides,
   } as PortalGroupDeleted

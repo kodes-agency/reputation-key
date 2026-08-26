@@ -17,7 +17,8 @@ import {
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalGroup } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
+import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const GROUP_ID = portalGroupId('pg-00000000-0000-0000-0000-000000000001')
@@ -70,10 +71,10 @@ const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
         store.set(String(id), { ...g, ...patch })
       }
     },
-    softDelete: async (orgId, id) => {
+    softDelete: async (orgId, id, at) => {
       const g = store.get(String(id))
       if (g && String(g.organizationId) === String(orgId)) {
-        store.set(String(id), { ...g, deletedAt: new Date() })
+        store.set(String(id), { ...g, deletedAt: at })
       }
     },
     addPortal: async (_orgId, groupId, pid) => {
@@ -100,16 +101,11 @@ const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
 const setup = (accessible: ReadonlyArray<PropertyId> | null) => {
   const portalGroupRepo = createInMemoryPortalGroupRepo()
   const events = createCapturingEventBus()
-  const commandStore = {
-    deletePortalGroup: async (command) => {
-      await portalGroupRepo.softDelete(
-        command.organizationId,
-        command.portalGroupId,
-        command.at,
-      )
-      await events.emit(command.event)
-    },
-  } satisfies Pick<PortalCommandStore, 'deletePortalGroup'>
+  const commandStore = createInMemoryPortalCommandStore({
+    portalRepo: createInMemoryPortalRepo(),
+    portalGroupRepo,
+    events,
+  })
   const deps = {
     portalGroupRepo,
     commandStore,
@@ -140,7 +136,10 @@ describe('softDeletePortalGroup', () => {
     await useCase({ portalGroupId: String(GROUP_ID) }, ctx)
 
     const deleted = portalGroupRepo.all()[0]
-    expect(deleted.deletedAt).not.toBeNull()
+    expect(deleted).toMatchObject({
+      deletedAt: FIXED_TIME,
+      updatedAt: new Date(FIXED_TIME.getTime() + 1),
+    })
 
     const emitted = events.capturedByTag('portal_group.deleted')
     expect(emitted).toHaveLength(1)

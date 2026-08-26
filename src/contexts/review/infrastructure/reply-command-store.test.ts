@@ -18,11 +18,17 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
-  createAtomicReplyCommandStore,
+  createAtomicReplyCommandStore as createProductionReplyCommandStore,
   createSequentialReplyCommandStore,
 } from './reply-command-store'
 import type { Database } from '#/shared/db'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
+import {
+  googleReplyObservationHeads,
+  replyPublicationAuthorizations,
+  replyPublicationAttempts,
+  reviews,
+} from '#/shared/db/schema/review.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -47,6 +53,8 @@ import {
   reviewReplyUpdated,
 } from '../domain/events'
 import { AMBIGUOUS_RECONCILE_DELAY_MS } from '../domain/reply-publication-workflow'
+import type { PublicationAttemptStart } from '../application/ports/reply-command-store.port'
+import { googleReplyTextDigest } from '../domain/google-reply-observation'
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => ({
@@ -69,10 +77,14 @@ vi.mock('#/shared/observability/trace', () => ({
 
 const NOW = new Date('2025-06-01T12:00:00.000Z')
 const ORG_ID = organizationId('org-1')
-const PROP_ID = propertyId('prop-1')
-const REVIEW_ID = reviewId('rev-1')
-const REPLY_ID = replyId('reply-1')
+const PROP_ID = propertyId('41000000-0000-4000-8000-000000000001')
+const REVIEW_ID = reviewId('41000000-0000-4000-8000-000000000010')
+const REPLY_ID = replyId('41000000-0000-4000-8000-000000000020')
 const USER_ID = userId('user-1')
+
+function createAtomicReplyCommandStore(db: Database, events: EventBus) {
+  return createProductionReplyCommandStore(db, events, async () => true)
+}
 
 function makeReply(overrides: Partial<Reply> = {}): Reply {
   return {
@@ -102,6 +114,19 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
   }
 }
 
+function publicationAttempt(
+  overrides: Partial<PublicationAttemptStart> = {},
+): PublicationAttemptStart {
+  return {
+    providerOperationKey: 'publish:reply-1:1:1',
+    propertyId: PROP_ID,
+    sourceEpoch: 0,
+    materialReviewRevision: 1,
+    baseObservationRevision: 0,
+    ...overrides,
+  }
+}
+
 /** DB row shape as drizzle returns it (camelCase keys, timestamps present). */
 function makeRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -116,6 +141,7 @@ function makeRow(overrides: Record<string, unknown> = {}) {
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
+    stateRevision: 1,
     submittedAt: NOW,
     approvedAt: null,
     publishedAt: null,
@@ -131,6 +157,8 @@ function makeRow(overrides: Record<string, unknown> = {}) {
 }
 
 type MockTx = {
+  execute: ReturnType<typeof vi.fn>
+  select: ReturnType<typeof vi.fn>
   update: ReturnType<typeof vi.fn>
   insert: ReturnType<typeof vi.fn>
   delete: ReturnType<typeof vi.fn>
@@ -155,20 +183,76 @@ function createMockDb(opts: {
   const queue = [...(opts.updateRowsQueue ?? [])]
   const nextRows = () => queue.shift() ?? []
   const updateRecorder = (marker: string) =>
-    (() => {
+    ((table: unknown) => {
       order.push(marker)
       return {
         set: vi.fn((payload: Record<string, unknown>) => {
           opts.setPayloads?.push(payload)
           return {
             where: vi.fn(() => ({
-              returning: vi.fn().mockResolvedValue(nextRows()),
+              returning: vi
+                .fn()
+                .mockResolvedValue(
+                  table === replyPublicationAttempts ? [{ id: 'attempt-1' }] : nextRows(),
+                ),
             })),
           }
         }),
       }
     }) as unknown as MockTx['update']
+  const terminal = (rows: unknown[]) => ({
+    where: vi.fn(() => ({
+      for: vi.fn(() => ({ limit: vi.fn().mockResolvedValue(rows) })),
+      limit: vi.fn().mockResolvedValue(rows),
+    })),
+  })
+  const rowsForTable = (table: unknown): unknown[] => {
+    if (table === reviews) {
+      return [
+        {
+          propertyId: PROP_ID,
+          sourceEpoch: 0,
+          materialReviewRevision: 1,
+          sourceContentState: 'active',
+        },
+      ]
+    }
+    if (table === googleReplyObservationHeads) return []
+    if (table === replyPublicationAuthorizations) {
+      return [
+        {
+          organizationId: ORG_ID,
+          propertyId: PROP_ID,
+          reviewId: REVIEW_ID,
+          replyId: REPLY_ID,
+          publicationCycle: 1,
+          sourceEpoch: 0,
+          materialReviewRevision: 1,
+          baseObservationRevision: 0,
+          authorizedByUserId: USER_ID,
+          replyStateRevision: 1,
+          normalizationVersion: 'google-reply-v1',
+          expectedReplyDigest: googleReplyTextDigest('Thank you!'),
+          authorizedAt: NOW,
+          createdAt: NOW,
+        },
+      ]
+    }
+    if (table === replyPublicationAttempts) return []
+    return []
+  }
   const tx: MockTx = {
+    execute: vi.fn().mockResolvedValue({ rows: [] }),
+    select: vi.fn(() => ({
+      from: vi.fn((table: unknown) => {
+        const rows = rowsForTable(table)
+        const query = terminal(rows)
+        return {
+          ...query,
+          innerJoin: vi.fn(() => query),
+        }
+      }),
+    })),
     update: updateRecorder('tx.state'),
     delete: vi.fn(() => {
       order.push('tx.state')
@@ -235,6 +319,9 @@ const publicationRequestedEvent = (publicationCycle = 1) =>
     organizationId: ORG_ID,
     userId: USER_ID,
     publicationCycle,
+    sourceEpoch: 0,
+    materialReviewRevision: 1,
+    baseObservationRevision: 0,
     occurredAt: NOW,
   })
 
@@ -448,6 +535,7 @@ describe('createAtomicReplyCommandStore', () => {
       expect(order).toEqual([
         'tx.start',
         'tx.state',
+        'tx.state',
         'tx.outbox',
         'tx.outbox',
         'tx.commit',
@@ -501,7 +589,13 @@ describe('createAtomicReplyCommandStore', () => {
 
       expect(result?.publicationState).toBe('authorized')
       expect(result?.publicationCycle).toBe(1)
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit'])
+      expect(order).toEqual([
+        'tx.start',
+        'tx.state',
+        'tx.state',
+        'tx.outbox',
+        'tx.commit',
+      ])
       expect(outboxRows.map((row) => row.eventType)).toEqual([
         'review.reply.publication_requested',
       ])
@@ -594,6 +688,7 @@ describe('createAtomicReplyCommandStore', () => {
       expect(order).toEqual([
         'tx.start',
         'tx.state',
+        'tx.state',
         'tx.outbox',
         'tx.outbox',
         'tx.commit',
@@ -652,18 +747,61 @@ describe('createAtomicReplyCommandStore', () => {
 
       const result = await store.markPublicationSending(
         makeReply({ status: 'approved', publicationState: 'authorized' }),
+        publicationAttempt(),
         NOW,
       )
 
       expect(result?.publicationState).toBe('sending')
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.state', 'tx.commit'])
       expect(setPayloads[0]).toMatchObject({ publicationState: 'sending' })
       // attempts+1 is an atomic SQL fragment, not a caller-computed value.
       expect(typeof setPayloads[0]!.publicationAttempts).not.toBe('number')
       expect(events.emit).not.toHaveBeenCalled()
     })
 
-    it('sending → sending re-claim is allowed (same job retrying an ambiguous attempt)', async () => {
+    it('atomically cancels the cycle when the named manager lost current authority', async () => {
+      const order: string[] = []
+      const outboxRows: Array<Record<string, unknown>> = []
+      const setPayloads: Array<Record<string, unknown>> = []
+      const { db } = createMockDb({
+        order,
+        updateRowsQueue: [
+          [
+            makeRow({
+              status: 'draft',
+              publicationState: 'cancelled',
+              publicationCycle: 1,
+            }),
+          ],
+        ],
+        outboxRows,
+        setPayloads,
+      })
+      const events = makeEvents(order)
+      const store = createProductionReplyCommandStore(db, events, async () => false)
+
+      const result = await store.markPublicationSending(
+        makeReply({
+          status: 'approved',
+          publicationState: 'authorized',
+          publicationCycle: 1,
+        }),
+        publicationAttempt(),
+        NOW,
+      )
+
+      expect(result).toBeNull()
+      expect(setPayloads[0]).toMatchObject({
+        status: 'draft',
+        publicationState: 'cancelled',
+      })
+      expect(outboxRows).toHaveLength(1)
+      expect(outboxRows[0]?.eventType).toBe('review.reply.publication_cancelled')
+      expect(outboxRows[0]?.payload).toMatchObject({ cause: 'policy' })
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+    })
+
+    it('denies a sending re-claim without a newer targeted absence observation', async () => {
       const order: string[] = []
       const { db } = createMockDb({
         order,
@@ -679,10 +817,14 @@ describe('createAtomicReplyCommandStore', () => {
       })
       const store = createAtomicReplyCommandStore(db, makeEvents(order))
 
-      const result = await store.markPublicationSending(sendingReply(), NOW)
+      const result = await store.markPublicationSending(
+        sendingReply(),
+        publicationAttempt({ providerOperationKey: 'publish:reply-1:1:2' }),
+        NOW,
+      )
 
-      expect(result?.publicationAttempts).toBe(2)
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
+      expect(result).toBeNull()
+      expect(order).toEqual(['tx.start', 'tx.commit'])
     })
 
     it('guard miss (cancelled/racing) returns null — no write, no fact', async () => {
@@ -693,6 +835,7 @@ describe('createAtomicReplyCommandStore', () => {
 
       const result = await store.markPublicationSending(
         makeReply({ status: 'approved', publicationState: 'authorized' }),
+        publicationAttempt(),
         NOW,
       )
 
@@ -708,6 +851,7 @@ describe('createAtomicReplyCommandStore', () => {
 
       const result = await store.markPublicationSending(
         makeReply({ status: 'draft', publicationState: 'cancelled' }),
+        publicationAttempt(),
         NOW,
       )
 
@@ -745,7 +889,14 @@ describe('createAtomicReplyCommandStore', () => {
 
       expect(result?.status).toBe('publish_failed')
       expect(result?.publicationState).toBe('terminal')
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual([
+        'tx.start',
+        'tx.state',
+        'tx.state',
+        'tx.outbox',
+        'tx.commit',
+        'emit',
+      ])
       expect(setPayloads[0]).toMatchObject({
         status: 'publish_failed',
         publicationState: 'terminal',
@@ -772,7 +923,7 @@ describe('createAtomicReplyCommandStore', () => {
       )
 
       expect(result?.publicationState).toBe('terminal')
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.state', 'tx.commit'])
       expect(events.emit).not.toHaveBeenCalled()
     })
 
@@ -841,7 +992,14 @@ describe('createAtomicReplyCommandStore', () => {
       )
 
       expect(result?.publicationState).toBe('ambiguous')
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(order).toEqual([
+        'tx.start',
+        'tx.state',
+        'tx.state',
+        'tx.outbox',
+        'tx.commit',
+        'emit',
+      ])
       expect(setPayloads[0]).toMatchObject({
         status: 'publish_failed',
         publicationState: 'ambiguous',
@@ -887,7 +1045,7 @@ describe('createAtomicReplyCommandStore', () => {
       const result = await store.markPublicationRetryQueued(sendingReply(), NOW)
 
       expect(result?.publicationState).toBe('authorized')
-      expect(order).toEqual(['db.state'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.state', 'tx.commit'])
       expect(setPayloads[0]).toMatchObject({ publicationState: 'authorized' })
       // last_error_class / attempts deliberately NOT in the set clause.
       expect(setPayloads[0]).not.toHaveProperty('publicationLastErrorClass')
@@ -903,7 +1061,7 @@ describe('createAtomicReplyCommandStore', () => {
       const result = await store.markPublicationRetryQueued(sendingReply(), NOW)
 
       expect(result).toBeNull()
-      expect(order).toEqual(['db.state'])
+      expect(order).toEqual(['tx.start', 'tx.state', 'tx.commit'])
     })
   })
 
@@ -1338,6 +1496,7 @@ describe('createSequentialReplyCommandStore', () => {
 
     const result = await store.markPublicationSending(
       makeReply({ status: 'approved', publicationState: 'authorized' }),
+      publicationAttempt(),
       NOW,
     )
 
@@ -1362,6 +1521,7 @@ describe('createSequentialReplyCommandStore', () => {
     await expect(
       store.markPublicationSending(
         makeReply({ status: 'approved', publicationState: 'authorized' }),
+        publicationAttempt(),
         NOW,
       ),
     ).rejects.toMatchObject({ code: 'build_config_error' })

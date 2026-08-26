@@ -1,11 +1,12 @@
 // Inbox context — bulk update inbox status use case
 // Initial-beta bulk reopen for multiple inbox items. Bulk Close is intentionally
 // absent until it has cycle compatibility preview and revision fencing.
-// No source-type guards; escalation is orthogonal and handled separately.
+// Each candidate is checked against its owning source permission; escalation
+// remains orthogonal and is handled separately.
 
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { InboxCommandStore } from '../ports/inbox-command-store.port'
-import type { InboxItemId, PropertyId } from '#/shared/domain/ids'
+import type { InboxItemId } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -16,8 +17,13 @@ import {
   type InboxItemBulkStatusChanged,
 } from '../../domain/events'
 import { canForContext } from '#/shared/domain/permissions'
-import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import {
+  canHandleInboxSource,
+  isInboxSourcePropertyWithinScopes,
+  resolveInboxSourceScopes,
+} from '../inbox-access'
+import type { InboxSourceScope } from '../ports/inbox.repository'
 
 export type BulkUpdateInboxStatusInput = Readonly<{
   inboxItemIds: ReadonlyArray<InboxItemId>
@@ -42,7 +48,7 @@ export type BulkUpdateInboxStatus = (
 // failed and the whole operation must no-op. (PM holds inbox.manage but is NOT
 // org-wide — CONTEXT.md L72.)
 type AccessResolution = Readonly<
-  { ok: true; accessible: ReadonlyArray<PropertyId> | null } | { ok: false }
+  { ok: true; sourceScopes: ReadonlyArray<InboxSourceScope> } | { ok: false }
 >
 
 /** Resolves the accessible-property filter once for the whole batch. On lookup
@@ -54,12 +60,7 @@ const resolveAccessiblePropertyIds = async (
   try {
     return {
       ok: true,
-      accessible: await getAccessiblePropertyIdsForPermission(
-        (orgId, uId, orgWide) =>
-          deps.staffPublicApi.getAccessiblePropertyIds(orgId, uId, orgWide),
-        ctx,
-        'inbox.write',
-      ),
+      sourceScopes: await resolveInboxSourceScopes(deps.staffPublicApi, ctx, 'handle'),
     }
   } catch (err) {
     deps.logger.warn(
@@ -75,15 +76,19 @@ const selectValidBulkItems = (
   items: ReadonlyArray<InboxItem>,
   ids: ReadonlyArray<InboxItemId>,
   newStatus: BulkUpdateInboxStatusInput['newStatus'],
-  accessible: ReadonlyArray<PropertyId> | null,
+  sourceScopes: ReadonlyArray<InboxSourceScope>,
+  ctx: AuthContext,
 ): InboxItem[] => {
   const itemMap = new Map(items.map((item) => [item.id as string, item]))
   const valid: InboxItem[] = []
   for (const id of ids) {
     const item = itemMap.get(id as string)
     if (!item) continue
-    // Enforce role-scoped property access (using pre-computed list)
-    if (accessible !== null && !accessible.includes(item.propertyId)) continue
+    if (!canHandleInboxSource(ctx, item.sourceType)) continue
+    if (
+      !isInboxSourcePropertyWithinScopes(sourceScopes, item.sourceType, item.propertyId)
+    )
+      continue
     if (validateTransition(item.status, newStatus).isOk()) {
       valid.push(item)
     }
@@ -131,7 +136,8 @@ export const bulkUpdateInboxStatus =
       items,
       input.inboxItemIds,
       input.newStatus,
-      access.accessible,
+      access.sourceScopes,
+      ctx,
     )
     if (validItems.length === 0) return { updated: 0 }
 

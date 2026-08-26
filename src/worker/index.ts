@@ -315,14 +315,14 @@ async function main() {
       isLegacyDestructiveReviewLifecycleEnabled(),
     )
 
-    // BQC-3.8: reconcile ambiguous reply publications every 30 minutes. A row
-    // becomes due 15 minutes after the final ambiguous send attempt
-    // (reconcile_due_at); the sweep heals provider-confirmed rows to
-    // published and leaves the rest for operator retry.
+    // BQC-3.8: reconcile provider-pending and ambiguous reply publications
+    // every five minutes. Exact provider observations heal rows to published;
+    // non-confirming reads and isolated failures are guardedly rescheduled by
+    // their state-specific convergence window.
     planSchedule({
       jobName: RECONCILE_AMBIGUOUS_JOB_NAME,
-      repeat: { every: 30 * 60 * 1000 },
-      label: 'every 30 minutes',
+      repeat: { every: 5 * 60 * 1000 },
+      label: 'every 5 minutes',
     })
 
     // BQC-1.6: bounded retention with content-free evidence, daily (offset

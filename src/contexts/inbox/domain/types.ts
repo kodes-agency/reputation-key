@@ -15,7 +15,12 @@ export type InboxStatus = 'open' | 'closed'
 export type SourceType = 'review' | 'feedback'
 
 export type ReviewHandlingCycleOpenReason =
-  'legacy_backfill' | 'review_observed' | 'material_revision_changed' | 'manual_reopen'
+  | 'legacy_backfill'
+  | 'review_observed'
+  | 'material_revision_changed'
+  | 'manual_reopen'
+  | 'provider_reply_deleted'
+  | 'provider_reply_diverged'
 
 /** Immutable opening fact for one numbered Review work episode. */
 export type ReviewHandlingCycle = Readonly<{

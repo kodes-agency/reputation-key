@@ -547,7 +547,7 @@
         {
           "path": "src/contexts/review/infrastructure/jobs/publish-reply.job.test.ts",
           "project": "unit",
-          "contains": ["failure AFTER provider success BEFORE local ack"]
+          "contains": ["failure AFTER provider success BEFORE local outcome persistence"]
         },
         {
           "path": "src/contexts/review/infrastructure/repositories/reply-command-store.test.ts",

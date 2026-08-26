@@ -46,6 +46,27 @@ const NO_TRIGGER_DSL = 'drizzle-orm 0.45 has no CREATE FUNCTION/TRIGGER DSL'
 
 export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
   {
+    name: 'reject_reply_publication_authorization_mutation_v1',
+    kind: 'function',
+    owner: 'review',
+    source: 'drizzle/0122_reply_google_observation_truth.sql',
+    reason: `${NO_TRIGGER_DSL}; rejects every rewrite, direct deletion, and truncation of immutable manager publication authority evidence.`,
+  },
+  {
+    name: 'reply_publication_authorizations_immutable',
+    kind: 'trigger',
+    owner: 'review',
+    source: 'drizzle/0122_reply_google_observation_truth.sql',
+    reason: NO_TRIGGER_DSL,
+  },
+  {
+    name: 'reply_publication_authorizations_truncate_guard',
+    kind: 'trigger',
+    owner: 'review',
+    source: 'drizzle/0122_reply_google_observation_truth.sql',
+    reason: NO_TRIGGER_DSL,
+  },
+  {
     name: 'mirror_legacy_ai_review_backfill_memberships_v1',
     kind: 'function',
     owner: 'ai',
@@ -221,6 +242,13 @@ export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
     owner: 'identity',
     source: DAC_TRIGGERS_SIDECAR,
     reason: NO_TRIGGER_DSL,
+  },
+  {
+    name: 'property_access_grant_perm_ver_iud',
+    kind: 'trigger',
+    owner: 'identity',
+    source: DAC_TRIGGERS_SIDECAR,
+    reason: `${NO_TRIGGER_DSL}; serializes canonical assigned-Property grant changes with permission-sensitive delayed commands.`,
   },
   {
     name: 'member_last_owner_del',
@@ -1100,14 +1128,14 @@ export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
     name: 'retire_guest_contact_on_response_terminal_v1',
     kind: 'function',
     owner: 'guest',
-    source: 'drizzle/0120_guest_contact_requests.sql',
-    reason: `${NO_TRIGGER_DSL}; atomically purges separately encrypted Contact Request material when its Guest Response becomes terminal.`,
+    source: 'drizzle/0121_guest_contact_request_corrections.sql',
+    reason: `${NO_TRIGGER_DSL}; atomically purges separately encrypted Contact Request material when private feedback is withdrawn or its Guest Response becomes terminal.`,
   },
   {
     name: 'guest_responses_retire_contact_request',
     kind: 'trigger',
     owner: 'guest',
-    source: 'drizzle/0120_guest_contact_requests.sql',
+    source: 'drizzle/0121_guest_contact_request_corrections.sql',
     reason: NO_TRIGGER_DSL,
   },
 ]

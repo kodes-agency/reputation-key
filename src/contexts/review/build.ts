@@ -13,6 +13,7 @@ import type { PropertyRoutingPort } from './application/ports/property-routing.p
 import type { ReviewRepository } from './application/ports/review.repository'
 import type { ReviewObservationRepository } from './application/ports/review-observation.repository'
 import type { ReplyRepository } from './application/ports/reply.repository'
+import type { ReplyCommandStore } from './application/ports/reply-command-store.port'
 import type { ReviewQueuePort } from './application/ports/review-queue.port'
 import type {
   PublishReplyJobData,
@@ -27,7 +28,13 @@ import { createReplyRepository } from './infrastructure/repositories/reply.repos
 import { createServingStats } from './infrastructure/serving-stats'
 import type { ReviewServingStats } from './application/ports/serving-stats.port'
 import { createAtomicReviewCommandStore } from './infrastructure/review-command-store'
-import { createAtomicReplyCommandStore } from './infrastructure/reply-command-store'
+import {
+  createAtomicReplyCommandStore,
+  type ReplyPublicationActorAuthority,
+} from './infrastructure/reply-command-store'
+import { createGoogleReplyObservationStore } from './infrastructure/google-reply-observation-store'
+import { createReviewReplyObservationAuthority } from './infrastructure/reply-observation-authority'
+import type { ReviewReplyObservationAuthority } from './application/ports/reply-observation-authority.port'
 import { createReviewProviderObservationWriter } from './application/use-cases/sync-reviews'
 import { createAiReviewSource } from './application/ai-review-source'
 import { createAiSuggestedDraftStore } from './infrastructure/ai-suggested-draft-store'
@@ -77,6 +84,8 @@ export type ReviewContextBuildInput = Readonly<{
   jobQueue: Queue | undefined
   logger: LoggerPort
   staffPublicApi: StaffPublicApi
+  /** Identity-owned current actor/member/permission/Property decision. */
+  publicationActorAuthority: ReplyPublicationActorAuthority
   /**
    * BQC-4.1: fail-closed region gate for review sync (ADR 0048). The property
    * context owns the routing fact — the build wraps its public API into
@@ -98,12 +107,14 @@ export type ReviewContextBuildInput = Readonly<{
 
 export type ReviewContextApi = Readonly<{
   /** BQC-1.4: the governed read interface for review content. */
-  publicApi: EligibleReads
+  publicApi: EligibleReads &
+    Readonly<{ replyObservationAuthority: ReviewReplyObservationAuthority }>
   internal: Readonly<{
     repos: Readonly<{
       reviewRepo: ReviewRepository
       observationRepo: ReviewObservationRepository
       replyRepo: ReplyRepository
+      replyCommandStore: ReplyCommandStore
       queue: ReviewQueuePort
       replyQueue: ReplyQueuePort
     }>
@@ -266,7 +277,16 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   // BQC-3.3: atomic reply state + outbox writes for the reply command family.
   // This closes the replyDeps wiring gap — reply facts were previously
   // bus-only in production because replyDeps never received outboxRepo.
-  const replyCommandStore = createAtomicReplyCommandStore(input.db, input.events)
+  const replyCommandStore = createAtomicReplyCommandStore(
+    input.db,
+    input.events,
+    input.publicationActorAuthority,
+  )
+  const googleReplyObservationStore = createGoogleReplyObservationStore(
+    input.db,
+    input.events,
+  )
+  const replyObservationAuthority = createReviewReplyObservationAuthority(input.db)
 
   const replyDeps = {
     replyRepo,
@@ -277,6 +297,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       ? createAiSuggestedDraftStore(input.db, input.aiReplyProvenancePublicKeys)
       : undefined,
     googleReviewApi: input.googleReviewApi,
+    googleReplyObservationStore,
     clock: input.clock,
     idGen: () => replyId(crypto.randomUUID()),
     staffPublicApi: input.staffPublicApi,
@@ -299,12 +320,10 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
 
   const observationWriter = createReviewProviderObservationWriter({
     reviewRepo,
-    replyRepo,
     clock: input.clock,
     idGen: () => reviewId(crypto.randomUUID()),
-    replyIdGen: () => replyId(crypto.randomUUID()),
     commandStore,
-    replyCommandStore,
+    googleReplyObservationStore,
   })
   const useCases = {
     runReviewProviderSnapshot: runReviewProviderSnapshot({
@@ -330,7 +349,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       replyRepo,
       reviewRepo,
       googleReviewApi: input.googleReviewApi,
-      commandStore: replyCommandStore,
+      observationStore: googleReplyObservationStore,
       clock: input.clock,
     }),
     getStaffRecentActivity: getStaffRecentActivity({
@@ -341,12 +360,16 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
   }
 
   return {
-    publicApi: createEligibleReads({ reviewRepo, clock: input.clock }),
+    publicApi: {
+      ...createEligibleReads({ reviewRepo, clock: input.clock }),
+      replyObservationAuthority,
+    },
     internal: {
       repos: {
         reviewRepo,
         observationRepo,
         replyRepo,
+        replyCommandStore,
         queue,
         replyQueue,
       },

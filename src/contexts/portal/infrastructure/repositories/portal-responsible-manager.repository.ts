@@ -5,8 +5,12 @@ import { portalError } from '../../domain/errors'
 import type { PortalResponsibleManager } from '../../domain/portal-responsible-manager'
 import type { PortalResponsibleManagerRepository } from '../../application/ports/portal-responsible-manager.repository'
 import { insertOutboxRow } from '#/shared/outbox/commit'
-import { portalResponsibilityNeeded } from '../../domain/events'
+import {
+  portalResponsibilityNeeded,
+  portalResponsibleManagersUpdated,
+} from '../../domain/events'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
+import { nextLockedPortalRevision } from '../portal-command-revision'
 
 const fromRow = (
   row: typeof portalResponsibleManagers.$inferSelect,
@@ -93,6 +97,12 @@ export const createPortalResponsibleManagerRepository = (
       const desired = new Set(input.managerUserIds)
       const current = new Set(currentRows.map((row) => row.userId))
       const rowsToEnd = currentRows.filter((row) => !desired.has(row.userId))
+      const transientRowsToEnd = rowsToEnd.filter(
+        (row) => row.effectiveFrom.getTime() >= input.at.getTime(),
+      )
+      const historicalRowsToEnd = rowsToEnd.filter(
+        (row) => row.effectiveFrom.getTime() < input.at.getTime(),
+      )
       const usersToInsert = input.managerUserIds.filter((userId) => !current.has(userId))
 
       if (rowsToEnd.length === 0 && usersToInsert.length === 0) {
@@ -100,10 +110,24 @@ export const createPortalResponsibleManagerRepository = (
           assignments: currentRows.map(fromRow),
           revision: portal.revision,
           becameResponsibilityNeeded: false,
+          responsibilityNeededEvent: null,
+          updatedEvent: null,
         }
       }
 
-      if (rowsToEnd.length > 0) {
+      if (transientRowsToEnd.length > 0) {
+        await tx.delete(portalResponsibleManagers).where(
+          and(
+            eq(portalResponsibleManagers.organizationId, input.organizationId),
+            inArray(
+              portalResponsibleManagers.id,
+              transientRowsToEnd.map((row) => row.id),
+            ),
+            isNull(portalResponsibleManagers.effectiveTo),
+          ),
+        )
+      }
+      if (historicalRowsToEnd.length > 0) {
         await tx
           .update(portalResponsibleManagers)
           .set({
@@ -115,7 +139,7 @@ export const createPortalResponsibleManagerRepository = (
               eq(portalResponsibleManagers.organizationId, input.organizationId),
               inArray(
                 portalResponsibleManagers.id,
-                rowsToEnd.map((row) => row.id),
+                historicalRowsToEnd.map((row) => row.id),
               ),
               isNull(portalResponsibleManagers.effectiveTo),
             ),
@@ -141,26 +165,12 @@ export const createPortalResponsibleManagerRepository = (
           : null
       const becameResponsibilityNeeded =
         currentRows.length > 0 && input.managerUserIds.length === 0
-      if (becameResponsibilityNeeded) {
-        const event = input.responsibilityNeededEvent
-        if (
-          event.organizationId !== input.organizationId ||
-          event.propertyId !== input.propertyId ||
-          event.portalId !== input.portalId
-        ) {
-          throw portalError(
-            'forbidden',
-            'Tenant or resource mismatch on portal recovery event',
-          )
-        }
-        await insertOutboxRow(tx, event, { recordedAt: input.at })
-      }
       const [revised] = await tx
         .update(portals)
         .set({
           responsibleManagerRevision: nextRevision,
           responsibilityNeededSince,
-          updatedAt: input.at,
+          updatedAt: nextLockedPortalRevision(input.at),
         })
         .where(
           and(
@@ -169,12 +179,38 @@ export const createPortalResponsibleManagerRepository = (
             eq(portals.responsibleManagerRevision, input.expectedRevision),
           ),
         )
-        .returning({ revision: portals.responsibleManagerRevision })
+        .returning({
+          revision: portals.responsibleManagerRevision,
+          updatedAt: portals.updatedAt,
+        })
       if (!revised) {
         throw portalError(
           'revision_conflict',
           'responsible managers changed; reload them',
         )
+      }
+      const responsibilityNeededEvent = becameResponsibilityNeeded
+        ? portalResponsibilityNeeded({
+            organizationId: organizationId(input.organizationId),
+            propertyId: propertyId(input.propertyId),
+            portalId: portalId(input.portalId),
+            sourceAggregateVersion: revised.updatedAt.toISOString(),
+            occurredAt: input.at,
+          })
+        : null
+      const updatedEvent = portalResponsibleManagersUpdated({
+        organizationId: organizationId(input.organizationId),
+        propertyId: propertyId(input.propertyId),
+        portalId: portalId(input.portalId),
+        assignmentCount: input.managerUserIds.length,
+        sourceAggregateVersion: revised.updatedAt.toISOString(),
+        occurredAt: input.at,
+      })
+      await insertOutboxRow(tx, updatedEvent, { recordedAt: input.at })
+      if (responsibilityNeededEvent) {
+        await insertOutboxRow(tx, responsibilityNeededEvent, {
+          recordedAt: input.at,
+        })
       }
 
       const activeRows = await tx
@@ -192,6 +228,8 @@ export const createPortalResponsibleManagerRepository = (
         assignments: activeRows.map(fromRow),
         revision: revised.revision,
         becameResponsibilityNeeded,
+        responsibilityNeededEvent,
+        updatedEvent,
       }
     }),
 
@@ -216,8 +254,10 @@ export const createPortalResponsibleManagerRepository = (
       if (activeRows.length === 0) {
         return { released: 0, responsibilityNeededEvents: [] }
       }
-      const candidatePortalIds = [...new Set(activeRows.map((row) => row.portalId))]
-      await tx
+      const candidatePortalIds = [
+        ...new Set(activeRows.map((row) => row.portalId)),
+      ].sort()
+      const lockedPortals = await tx
         .select({ id: portals.id })
         .from(portals)
         .where(
@@ -226,25 +266,58 @@ export const createPortalResponsibleManagerRepository = (
             inArray(portals.id, candidatePortalIds),
           ),
         )
+        .orderBy(asc(portals.id))
         .for('update')
-      const releasedRows = await tx
-        .update(portalResponsibleManagers)
-        .set({ effectiveTo: input.at, endReason: input.endReason })
-        .where(
-          and(
-            eq(portalResponsibleManagers.organizationId, input.organizationId),
-            inArray(
-              portalResponsibleManagers.id,
-              activeRows.map((row) => row.id),
-            ),
-            isNull(portalResponsibleManagers.effectiveTo),
-          ),
+      if (lockedPortals.length !== candidatePortalIds.length) {
+        throw portalError(
+          'revision_conflict',
+          'Portal responsibility scope changed during release',
         )
-        .returning()
+      }
+      const transientRows = activeRows.filter(
+        (row) => row.effectiveFrom.getTime() >= input.at.getTime(),
+      )
+      const historicalRows = activeRows.filter(
+        (row) => row.effectiveFrom.getTime() < input.at.getTime(),
+      )
+      const deletedRows =
+        transientRows.length === 0
+          ? []
+          : await tx
+              .delete(portalResponsibleManagers)
+              .where(
+                and(
+                  eq(portalResponsibleManagers.organizationId, input.organizationId),
+                  inArray(
+                    portalResponsibleManagers.id,
+                    transientRows.map((row) => row.id),
+                  ),
+                  isNull(portalResponsibleManagers.effectiveTo),
+                ),
+              )
+              .returning()
+      const endedRows =
+        historicalRows.length === 0
+          ? []
+          : await tx
+              .update(portalResponsibleManagers)
+              .set({ effectiveTo: input.at, endReason: input.endReason })
+              .where(
+                and(
+                  eq(portalResponsibleManagers.organizationId, input.organizationId),
+                  inArray(
+                    portalResponsibleManagers.id,
+                    historicalRows.map((row) => row.id),
+                  ),
+                  isNull(portalResponsibleManagers.effectiveTo),
+                ),
+              )
+              .returning()
+      const releasedRows = [...deletedRows, ...endedRows]
       if (releasedRows.length === 0) {
         return { released: 0, responsibilityNeededEvents: [] }
       }
-      const portalIds = [...new Set(releasedRows.map((row) => row.portalId))]
+      const portalIds = [...new Set(releasedRows.map((row) => row.portalId))].sort()
 
       const recoveryEvents = []
       for (const rawPortalId of portalIds) {
@@ -258,7 +331,6 @@ export const createPortalResponsibleManagerRepository = (
               isNull(portalResponsibleManagers.effectiveTo),
             ),
           )
-          .limit(1)
         const [row] = releasedRows.filter(
           (candidate) => candidate.portalId === rawPortalId,
         )
@@ -270,21 +342,36 @@ export const createPortalResponsibleManagerRepository = (
               remaining.length === 0
                 ? sql`COALESCE(${portals.responsibilityNeededSince}, ${input.at})`
                 : null,
-            updatedAt: input.at,
+            updatedAt: nextLockedPortalRevision(input.at),
           })
           .where(
             and(
               eq(portals.organizationId, input.organizationId),
               eq(portals.id, rawPortalId),
-              isNull(portals.deletedAt),
             ),
           )
-          .returning({ id: portals.id })
-        if (updated && row && remaining.length === 0) {
+          .returning({ id: portals.id, updatedAt: portals.updatedAt })
+        if (!updated || !row) {
+          throw portalError(
+            'revision_conflict',
+            'Portal responsibility scope changed during release',
+          )
+        }
+        const updatedEvent = portalResponsibleManagersUpdated({
+          organizationId: organizationId(input.organizationId),
+          propertyId: propertyId(row.propertyId),
+          portalId: portalId(rawPortalId),
+          assignmentCount: remaining.length,
+          sourceAggregateVersion: updated.updatedAt.toISOString(),
+          occurredAt: input.at,
+        })
+        await insertOutboxRow(tx, updatedEvent, { recordedAt: input.at })
+        if (remaining.length === 0) {
           const event = portalResponsibilityNeeded({
             organizationId: organizationId(input.organizationId),
             propertyId: propertyId(row.propertyId),
             portalId: portalId(rawPortalId),
+            sourceAggregateVersion: updated.updatedAt.toISOString(),
             occurredAt: input.at,
           })
           await insertOutboxRow(tx, event, { recordedAt: input.at })

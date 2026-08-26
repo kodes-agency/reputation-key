@@ -10,12 +10,16 @@ const CORE_USE_CASES = [
   'src/contexts/portal/application/use-cases/create-portal.ts',
   'src/contexts/portal/application/use-cases/update-portal.ts',
   'src/contexts/portal/application/use-cases/soft-delete-portal.ts',
+  'src/contexts/portal/application/use-cases/update-link-category.ts',
+  'src/contexts/portal/application/use-cases/delete-link-category.ts',
+  'src/contexts/portal/application/use-cases/update-link.ts',
+  'src/contexts/portal/application/use-cases/delete-link.ts',
 ] as const
 
 const read = (path: string): string => readFileSync(path, 'utf8')
 
 describe('architecture: core Portal lifecycle facts are atomic', () => {
-  it('routes create, update, and delete through PortalCommandStore only', () => {
+  it('routes core and active content mutations through PortalCommandStore only', () => {
     for (const file of CORE_USE_CASES) {
       const source = read(file)
       expect(source, `${file} must call the Portal command store`).toContain(
@@ -39,7 +43,7 @@ describe('architecture: core Portal lifecycle facts are atomic', () => {
   it('constructs one atomic command store in the Portal composition boundary', () => {
     const source = read('src/contexts/portal/build.ts')
     expect(source).toContain('createAtomicPortalCommandStore(deps.db, deps.events)')
-    expect(source.match(/commandStore: portalCommandStore/g)).toHaveLength(3)
+    expect(source).toContain('commandStore: portalCommandStore')
   })
 
   it('catalogues every migrated lifecycle family as registered and replay-unique', () => {
@@ -58,5 +62,46 @@ describe('architecture: core Portal lifecycle facts are atomic', () => {
     )
     expect(source).not.toContain('insertOutboxRow')
     expect(source).not.toContain('responsibilityNeededEvent')
+  })
+
+  it('keeps the production PortalRepository read-only', () => {
+    const port = read('src/contexts/portal/application/ports/portal.repository.ts')
+    const implementation = read(
+      'src/contexts/portal/infrastructure/repositories/portal.repository.ts',
+    )
+
+    for (const mutation of ['insert', 'update', 'softDelete']) {
+      expect(port, `PortalRepository must not expose ${mutation}`).not.toMatch(
+        new RegExp(`\\b${mutation}\\s*:`),
+      )
+      expect(
+        implementation,
+        `production PortalRepository must not implement ${mutation}`,
+      ).not.toMatch(new RegExp(`\\b${mutation}\\s*:`))
+    }
+    expect(implementation).not.toContain('#/shared/testing/')
+    const fixturePath =
+      'src/contexts/portal/infrastructure/testing/postgres-portal-fixture-store.ts'
+    expect(read(fixturePath)).toContain('Test-only Portal state seeding/mutation')
+    expect(read('src/contexts/portal/build.ts')).not.toContain(fixturePath)
+  })
+
+  it('captures child state and the Portal revision in one update/delete snapshot', () => {
+    for (const file of [
+      'src/contexts/portal/application/use-cases/update-link.ts',
+      'src/contexts/portal/application/use-cases/delete-link.ts',
+    ]) {
+      expect(read(file)).toContain('findLinkCommandTarget')
+    }
+    for (const file of [
+      'src/contexts/portal/application/use-cases/update-link-category.ts',
+      'src/contexts/portal/application/use-cases/delete-link-category.ts',
+    ]) {
+      expect(read(file)).toContain('findCategoryCommandTarget')
+    }
+    const implementation = read(
+      'src/contexts/portal/infrastructure/repositories/portal-link.repository.ts',
+    )
+    expect(implementation).toContain('portalUpdatedAt: portals.updatedAt')
   })
 })

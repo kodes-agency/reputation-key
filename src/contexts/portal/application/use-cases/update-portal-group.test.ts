@@ -15,6 +15,8 @@ import {
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 
 const FIXED_TIME = new Date('2026-05-30T12:00:00Z')
+const CURRENT_REVISION = new Date('2026-06-01T12:00:00Z')
+const NEXT_REVISION = new Date(CURRENT_REVISION.getTime() + 1)
 const ORG = organizationId('org-00000000-0000-0000-0000-000000000001')
 const PROP = propertyId('a0000000-0000-4000-8000-000000000001')
 const GROUP_ID = portalGroupId('group-0000-0000-4000-8000-000000000001')
@@ -26,7 +28,7 @@ const existing = {
   name: 'Old Name',
   sortKey: null,
   createdAt: new Date('2026-05-01T00:00:00Z'),
-  updatedAt: new Date('2026-05-01T00:00:00Z'),
+  updatedAt: CURRENT_REVISION,
   deletedAt: null,
 }
 
@@ -75,8 +77,13 @@ describe('updatePortalGroup (use case)', () => {
       ctx,
     )
 
-    expect(result.name).toBe('New Name')
-    expect(events.capturedByTag('portal_group.updated')).toHaveLength(1)
+    expect(result).toMatchObject({ name: 'New Name', updatedAt: NEXT_REVISION })
+    expect(events.capturedByTag('portal_group.updated')).toEqual([
+      expect.objectContaining({
+        sourceAggregateVersion: NEXT_REVISION.toISOString(),
+        occurredAt: FIXED_TIME,
+      }),
+    ])
   })
 
   it('throws not_found for nonexistent group', async () => {

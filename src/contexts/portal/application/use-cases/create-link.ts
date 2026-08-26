@@ -67,7 +67,8 @@ export const createLink =
     const lastSortKey = existing.length > 0 ? existing[existing.length - 1].sortKey : null
     const sortKey = generateKeyBetween(lastSortKey, null)
 
-    const now = nextPortalCommandAt(deps.clock(), portal.updatedAt)
+    const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, portal.updatedAt)
     const result = buildPortalLink({
       id: portalLinkId(deps.idGen()),
       categoryId: portalLinkCategoryId(input.categoryId),
@@ -77,7 +78,7 @@ export const createLink =
       url: input.url,
       iconKey: input.iconKey,
       sortKey,
-      now,
+      now: occurredAt,
     })
 
     if (result.isErr()) throw result.error
@@ -88,8 +89,8 @@ export const createLink =
       categoryId: portalLinkCategoryId(input.categoryId),
       organizationId: ctx.organizationId,
       propertyId: portal.propertyId,
-      sourceAggregateVersion: now.toISOString(),
-      occurredAt: now,
+      sourceAggregateVersion: revision.toISOString(),
+      occurredAt,
     })
     await deps.commandStore.createPortalLink({
       organizationId: ctx.organizationId,
@@ -97,7 +98,8 @@ export const createLink =
       portalId: portal.id,
       expectedPortalUpdatedAt: portal.updatedAt,
       link: result.value,
-      at: now,
+      revision,
+      occurredAt,
       event,
     })
 

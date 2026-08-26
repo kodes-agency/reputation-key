@@ -4,7 +4,6 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { createPortalLinkRepository } from './portal-link.repository'
-import { createPortalRepository } from './portal.repository'
 import { getDb } from '#/shared/db'
 import {
   buildTestPortal,
@@ -19,6 +18,7 @@ import {
 } from '#/shared/domain/ids'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
+import { createPostgresPortalFixtureStore } from '../testing/postgres-portal-fixture-store'
 
 const ORG_A = organizationId('org-cccccccccccc')
 const ORG_B = organizationId('org-dddddddddddd')
@@ -87,7 +87,6 @@ beforeEach(async () => {
 
 describe('portalLinkRepository (integration)', () => {
   async function seedPortal(orgId: typeof ORG_A, slug: string, overrides = {}) {
-    const portalRepo = createPortalRepository(getDb())
     const portal = buildTestPortal({
       id: crypto.randomUUID(),
       organizationId: orgId,
@@ -95,7 +94,7 @@ describe('portalLinkRepository (integration)', () => {
       slug,
       ...overrides,
     })
-    await portalRepo.insert(orgId, portal)
+    await createPostgresPortalFixtureStore(getDb()).insert(orgId, portal)
     return portal
   }
 
@@ -117,6 +116,10 @@ describe('portalLinkRepository (integration)', () => {
       const categories = await repo.listCategories(ORG_A, portal.id)
       expect(categories).toHaveLength(1)
       expect(categories[0].title).toBe('Category A')
+      await expect(repo.findCategoryCommandTarget(ORG_A, cat.id)).resolves.toEqual({
+        category: cat,
+        portalUpdatedAt: portal.updatedAt,
+      })
     })
 
     it('tenant-isolates category list', async () => {
@@ -260,6 +263,10 @@ describe('portalLinkRepository (integration)', () => {
       const links = await repo.listLinks(ORG_A, portal.id, cat.id)
       expect(links).toHaveLength(1)
       expect(links[0].label).toBe('Booking')
+      await expect(repo.findLinkCommandTarget(ORG_A, link.id)).resolves.toEqual({
+        link,
+        portalUpdatedAt: portal.updatedAt,
+      })
     })
 
     it('tenant-isolates link list', async () => {

@@ -24,14 +24,15 @@ export const removePortalFromGroup =
   ): Promise<void> => {
     const { gid, pid, group } = await loadGroupAndPortalForMembership(deps, ctx, input)
 
-    const now = nextPortalCommandAt(deps.clock(), group.updatedAt)
+    const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, group.updatedAt)
     const event = portalRemovedFromGroup({
       portalGroupId: gid,
       portalId: pid,
       organizationId: ctx.organizationId,
       propertyId: group.propertyId,
-      sourceAggregateVersion: now.toISOString(),
-      occurredAt: now,
+      sourceAggregateVersion: revision.toISOString(),
+      occurredAt,
     })
     await deps.commandStore.removePortalFromGroup({
       organizationId: ctx.organizationId,
@@ -39,7 +40,8 @@ export const removePortalFromGroup =
       portalGroupId: gid,
       portalId: pid,
       expectedUpdatedAt: group.updatedAt,
-      at: now,
+      revision,
+      occurredAt,
       changedBy: ctx.userId,
       event,
     })

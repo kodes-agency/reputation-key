@@ -201,22 +201,51 @@ export function createSequentialInboxCommandStore(deps: {
     },
 
     applyReplyPublishedOnce: async (command) => {
+      await receipt(command.eventId, command.consumerName, 'applied')
+      return 'applied'
+    },
+
+    applyReplyObservedOnce: async (command) => {
+      const observation = command.currentObservation
       const current = await deps.repo.findById(
         command.item.id,
         command.item.organizationId,
       )
-      if (current && current.status === command.item.status) {
-        const fields: Partial<Record<string, Date>> = {}
-        if (command.closeItem) fields.closedAt = command.occurredAt
-        if (command.stampMilestone) fields.firstReplyPublishedAt = command.occurredAt
+      if (!current) {
+        await receipt(command.eventId, command.consumerName, 'obsolete')
+        return 'obsolete'
+      }
+      const shouldClose =
+        observation.state === 'live' &&
+        (observation.resolution === 'confirmed_on_google' ||
+          observation.resolution === 'external_current_live')
+      const shouldReopen =
+        observation.state === 'absent' &&
+        observation.resolution === 'absent' &&
+        observation.change === 'deleted'
+      if (shouldClose && current.status === 'open') {
         await deps.repo.updateStatus(
-          command.item.id,
-          command.item.organizationId,
-          command.closeItem ? 'closed' : command.item.status,
-          fields,
-          command.occurredAt,
+          current.id,
+          current.organizationId,
+          'closed',
+          {
+            closedAt: observation.observedAt,
+            ...(current.firstReplyPublishedAt === null
+              ? { firstReplyPublishedAt: observation.observedAt }
+              : {}),
+          },
+          observation.observedAt,
         )
-        if (command.fact) await recordAndEmit(command.fact)
+        await recordAndEmit(command.closeFact)
+      } else if (shouldReopen && current.status === 'closed') {
+        await deps.repo.updateStatus(
+          current.id,
+          current.organizationId,
+          'open',
+          { closedAt: null },
+          observation.observedAt,
+        )
+        await recordAndEmit(command.reopenFact)
       }
       await receipt(command.eventId, command.consumerName, 'applied')
       return 'applied'

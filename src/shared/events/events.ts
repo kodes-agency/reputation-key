@@ -84,6 +84,7 @@ export type {
   ReviewReplyPublicationRequested,
   ReviewReplyPublicationCancelled,
   ReviewReplyUpdated,
+  ReviewReplyObserved,
 } from '#/contexts/review/domain/events'
 
 // Inbox context events

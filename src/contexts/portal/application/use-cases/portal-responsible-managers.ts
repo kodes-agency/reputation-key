@@ -7,7 +7,6 @@ import { listEligiblePortalManagers } from '../portal-manager-eligibility'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { portalError } from '../../domain/errors'
 import type { EventBus } from '#/shared/events/event-bus'
-import { portalResponsibilityNeeded } from '../../domain/events'
 
 type QueryDeps = PortalManagerEligibilityDeps &
   Readonly<{
@@ -79,12 +78,6 @@ export const updatePortalResponsibleManagers =
       )
     }
     const at = deps.clock()
-    const responsibilityNeededEvent = portalResponsibilityNeeded({
-      portalId: portal.id,
-      organizationId: portal.organizationId,
-      propertyId: portal.propertyId,
-      occurredAt: at,
-    })
     const updated = await deps.managerRepo.replace({
       organizationId: ctx.organizationId,
       propertyId: portal.propertyId,
@@ -93,10 +86,16 @@ export const updatePortalResponsibleManagers =
       expectedRevision: input.expectedRevision,
       actorId: ctx.userId,
       at,
-      responsibilityNeededEvent,
     })
-    if (updated.becameResponsibilityNeeded) {
-      await deps.events.emit(responsibilityNeededEvent)
+    if (updated.updatedEvent) {
+      await deps.events.emit(updated.updatedEvent)
     }
-    return updated
+    if (updated.responsibilityNeededEvent) {
+      await deps.events.emit(updated.responsibilityNeededEvent)
+    }
+    return {
+      assignments: updated.assignments,
+      revision: updated.revision,
+      becameResponsibilityNeeded: updated.becameResponsibilityNeeded,
+    } as const
   }

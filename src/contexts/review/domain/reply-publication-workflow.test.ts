@@ -238,8 +238,17 @@ describe('reply-publication-workflow (B1.10)', () => {
       },
     )
 
-    it.each([500, 502, 503])('gbp_api_error with %i → retryable', (status) => {
-      expect(classifyPublicationFailure(gbpError(status))).toBe('retryable')
+    it.each([500, 502, 503])('gbp_api_error with %i → ambiguous', (status) => {
+      expect(classifyPublicationFailure(gbpError(status))).toBe('ambiguous')
+    })
+
+    it('direct GoogleReviewApiError provider_unavailable → ambiguous', () => {
+      const err = Object.assign(new Error('Google provider unavailable'), {
+        _tag: 'GoogleReviewApiError',
+        code: 'provider_unavailable',
+        recoverable: true,
+      })
+      expect(classifyPublicationFailure(err)).toBe('ambiguous')
     })
 
     it('gbp_api_rate_limited (429) → retryable', () => {
@@ -271,16 +280,21 @@ describe('reply-publication-workflow (B1.10)', () => {
       },
     )
 
-    it.each(['rate_limited', 'upstream_error'])(
-      'gateway GbpApiError %s → retryable',
-      (kind) => {
-        const err = Object.assign(new Error(`GBP reply failed (${kind})`), {
-          _tag: 'GbpApiError',
-          kind,
-        })
-        expect(classifyPublicationFailure(err)).toBe('retryable')
-      },
-    )
+    it('gateway GbpApiError rate_limited → retryable', () => {
+      const err = Object.assign(new Error('GBP reply failed (rate_limited)'), {
+        _tag: 'GbpApiError',
+        kind: 'rate_limited',
+      })
+      expect(classifyPublicationFailure(err)).toBe('retryable')
+    })
+
+    it('gateway GbpApiError upstream_error → ambiguous', () => {
+      const err = Object.assign(new Error('GBP reply failed (upstream_error)'), {
+        _tag: 'GbpApiError',
+        kind: 'upstream_error',
+      })
+      expect(classifyPublicationFailure(err)).toBe('ambiguous')
+    })
 
     it('gateway GbpApiError parse_error → ambiguous', () => {
       const err = Object.assign(new Error('GBP reply response could not be parsed'), {
@@ -315,8 +329,8 @@ describe('reply-publication-workflow (B1.10)', () => {
       expect(classifyPublicationFailure(err)).toBe('ambiguous')
     })
 
-    it('TypeError (fetch network failure) → retryable', () => {
-      expect(classifyPublicationFailure(new TypeError('fetch failed'))).toBe('retryable')
+    it('TypeError (fetch transport outcome unknown) → ambiguous', () => {
+      expect(classifyPublicationFailure(new TypeError('fetch failed'))).toBe('ambiguous')
     })
 
     it('unknown error → ambiguous', () => {
@@ -352,8 +366,12 @@ describe('nextPublicationState (BQC-3.8 persisted machine)', () => {
     expect(nextPublicationState('published', 'claim')).toBeNull()
   })
 
-  it('publish confirms from sending, and heals from terminal/ambiguous/NULL (provider confirmation is authoritative)', () => {
-    expect(nextPublicationState('sending', 'publish')).toBe('published')
+  it('provider acceptance waits for observation; exact observation then publishes and can heal uncertain/legacy rows', () => {
+    expect(nextPublicationState('sending', 'provider_accepted')).toBe(
+      'pending_observation',
+    )
+    expect(nextPublicationState('sending', 'publish')).toBeNull()
+    expect(nextPublicationState('pending_observation', 'publish')).toBe('published')
     expect(nextPublicationState('terminal', 'publish')).toBe('published')
     expect(nextPublicationState('ambiguous', 'publish')).toBe('published')
     expect(nextPublicationState(null, 'publish')).toBe('published')
@@ -372,6 +390,7 @@ describe('nextPublicationState (BQC-3.8 persisted machine)', () => {
     expect(nextPublicationState('requested', 'cancel')).toBe('cancelled')
     expect(nextPublicationState('authorized', 'cancel')).toBe('cancelled')
     expect(nextPublicationState('sending', 'cancel')).toBe('cancelled')
+    expect(nextPublicationState('pending_observation', 'cancel')).toBe('cancelled')
     expect(nextPublicationState('published', 'cancel')).toBeNull()
     expect(nextPublicationState('terminal', 'cancel')).toBeNull()
     expect(nextPublicationState('ambiguous', 'cancel')).toBeNull()

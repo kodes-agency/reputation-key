@@ -246,6 +246,9 @@ export type ReviewProviderSnapshotRepository = Readonly<{
 
 /** Request-scoped source writer supplied by the normal Review sync path. */
 export type ReviewProviderObservationWriter = Readonly<{
+  /** Allocate after provider response acquisition; gaps are expected when
+   * later validation or persistence fails. */
+  allocateReplyReadGeneration(): Promise<number>
   persist(
     input: Readonly<{
       organizationId: OrganizationId
@@ -254,6 +257,7 @@ export type ReviewProviderObservationWriter = Readonly<{
       sourceEpoch: number
       /** Content-free idempotency digest for one logical provider observation. */
       observationKey: string
+      replyReadGeneration: number
       review: GoogleReview
       subjects: ReviewProviderSubjectCandidates
     }>,

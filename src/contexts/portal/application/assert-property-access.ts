@@ -13,6 +13,7 @@ import type { PortalId, PropertyId } from '#/shared/domain/ids'
 import type { Permission } from '#/shared/domain/permissions'
 import { isPropertyAccessibleForPermission } from '#/shared/domain/property-access'
 import { portalError } from '../domain/errors'
+import type { Portal } from '../domain/types'
 
 /** Assert the caller's staff_assignment includes `propertyId`.
  *  `permission` governs the scope decision (org-wide vs assigned) — pass the
@@ -45,10 +46,11 @@ export async function assertPortalPropertyAccess(
   ctx: AuthContext,
   permission: Permission,
   portalId: PortalId,
-): Promise<void> {
+): Promise<Portal> {
   const portal = await portalRepo.findById(ctx.organizationId, portalId)
   if (!portal) {
     throw portalError('portal_not_found', 'portal not found in this organization')
   }
   await assertPropertyAccess(staffPublicApi, ctx, permission, portal.propertyId)
+  return portal
 }

@@ -22,6 +22,7 @@ export const reviewErrorStatus = (code: ReviewErrorCode): number =>
   match(code)
     .with(
       'invalid_reply',
+      'invalid_input',
       'invalid_rating',
       'invalid_transition',
       'ai_suggestion_invalid',

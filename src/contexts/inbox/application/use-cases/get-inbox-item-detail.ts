@@ -15,7 +15,11 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
 import { inboxError } from '../../domain/errors'
-import { assertPropertyAccessible } from '../inbox-access'
+import {
+  assertInboxSourcePropertyAccessible,
+  canReadInboxSource,
+  loadInboxItemOrThrow,
+} from '../inbox-access'
 import {
   mapReplyLanguageMetadata,
   parseCanonicalReplyLanguageTag,
@@ -56,19 +60,32 @@ export const getInboxItemDetail =
     if (!canForContext(ctx, 'inbox.read')) {
       throw inboxError('forbidden', 'No inbox read permission')
     }
+    // Load projection-owned metadata before any owning-context content lookup.
+    // This lets source permission and Property scope be checked without reading
+    // private feedback text first.
+    const item = await loadInboxItemOrThrow(
+      deps.repo,
+      input.inboxItemId,
+      ctx.organizationId,
+    )
+    if (!canReadInboxSource(ctx, item.sourceType)) {
+      throw inboxError('forbidden', 'No access to this inbox source')
+    }
+
+    await assertInboxSourcePropertyAccessible(
+      deps.staffPublicApi,
+      ctx,
+      'read',
+      item.sourceType,
+      item.propertyId,
+    )
+
     const detail = await deps.repo.findDetailById(input.inboxItemId, ctx.organizationId)
     if (!detail) {
       throw inboxError('not_found', 'Inbox item not found', {
         inboxItemId: input.inboxItemId,
       })
     }
-
-    await assertPropertyAccessible(
-      deps.staffPublicApi,
-      ctx,
-      'inbox.read',
-      detail.item.propertyId,
-    )
 
     // Attach the review's effective reply (internal, else the google_sync
     // mirror — without the mirror fallback, replies published via the GBP UI
@@ -121,4 +138,4 @@ export const getInboxItemDetail =
     }
   }
 
-export type GetInboxItemDetailUseCase = ReturnType<typeof getInboxItemDetail>
+export type GetInboxItemDetail = ReturnType<typeof getInboxItemDetail>

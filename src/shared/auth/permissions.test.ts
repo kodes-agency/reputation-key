@@ -93,6 +93,7 @@ describe('owner role (AccountAdmin)', () => {
     'review.read',
     'reply.manage',
     'feedback.read',
+    'feedback.handle',
     'feedback.respond',
     'feedback.contact_read',
     'inbox.read',
@@ -151,6 +152,7 @@ describe('admin role (PropertyManager)', () => {
     'review.read',
     'reply.manage',
     'feedback.read',
+    'feedback.handle',
     'feedback.respond',
     'feedback.contact_read',
     'inbox.read',
@@ -265,9 +267,15 @@ describe('memberRole (Staff)', () => {
     expect(can('Staff', 'dashboard.fleet_read')).toBe(false)
     expect(can('Staff', 'property.admin')).toBe(false)
     expect(can('Staff', 'inbox.manage')).toBe(false)
+    expect(can('Staff', 'feedback.handle')).toBe(false)
     expect(can('Staff', 'ai.reply.generate')).toBe(false)
     expect(can('Staff', 'ai.trends.read')).toBe(false)
     expect(can('Staff', 'ai.manage')).toBe(false)
+  })
+
+  it('grants private-feedback handling to manager roles', () => {
+    expect(can('AccountAdmin', 'feedback.handle')).toBe(true)
+    expect(can('PropertyManager', 'feedback.handle')).toBe(true)
   })
 })
 

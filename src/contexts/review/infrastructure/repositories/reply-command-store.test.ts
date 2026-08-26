@@ -10,6 +10,7 @@
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
+import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -40,6 +41,8 @@ import {
   handleReplyPublicationRequested,
   ON_REPLY_PUBLICATION_REQUESTED_CONSUMER,
 } from '../outbox-consumers'
+import { decideCurrentMemberPropertyAuthority } from '#/contexts/identity/infrastructure/repositories/member-property-authority'
+import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
 
 const ORG_A = organizationId('org-reply-cmd-aaaa-1111111111111111')
 const PROP_A = propertyId('2b000000-0000-0000-0000-000000000001')
@@ -69,6 +72,20 @@ async function seedOrgAndProperty(p: Pool) {
 }
 
 async function truncateAll(p: Pool) {
+  await p.query('DELETE FROM google_reply_observation_heads WHERE organization_id = $1', [
+    ORG_A,
+  ])
+  await p.query('DELETE FROM google_reply_observations WHERE organization_id = $1', [
+    ORG_A,
+  ])
+  await p.query('DELETE FROM reply_publication_attempts WHERE organization_id = $1', [
+    ORG_A,
+  ])
+  await withPublicationAuthorizationFixtureMutation(() =>
+    p.query('DELETE FROM reply_publication_authorizations WHERE organization_id = $1', [
+      ORG_A,
+    ]),
+  )
   await p.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_A])
   await p.query('DELETE FROM replies WHERE organization_id = $1', [ORG_A])
   await p.query('DELETE FROM reviews WHERE organization_id = $1', [ORG_A])
@@ -97,7 +114,7 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     sourceUpdatedAt: null,
     firstFetchedAt: NOW,
     lastFetchedAt: NOW,
-    contentExpiresAt: null,
+    contentExpiresAt: new Date(NOW.getTime() + 25 * 24 * 60 * 60 * 1000),
     contentHash: null,
     sourceSeenGeneration: null,
     sourceEpoch: 0,
@@ -174,7 +191,7 @@ describe.sequential('replyCommandStore (integration)', () => {
     const db = getDb()
     const reviewRepo = createReviewRepository(db)
     const replyRepo = createReplyRepository(db)
-    const store = createAtomicReplyCommandStore(db, silentEvents)
+    const store = createAtomicReplyCommandStore(db, silentEvents, async () => true)
     const outboxRepo = createOutboxRepository(db)
     const queued: Array<Readonly<{ data: unknown; options: unknown }>> = []
 
@@ -201,6 +218,9 @@ describe.sequential('replyCommandStore (integration)', () => {
       organizationId: ORG_A,
       userId: USER_A,
       publicationCycle: 1,
+      sourceEpoch: 0,
+      materialReviewRevision: 1,
+      baseObservationRevision: 0,
       occurredAt: NOW,
     })
 
@@ -248,7 +268,11 @@ describe.sequential('replyCommandStore (integration)', () => {
         data: {
           replyId: REPLY_A,
           organizationId: ORG_A,
+          propertyId: PROP_A,
           publicationCycle: 1,
+          sourceEpoch: 0,
+          materialReviewRevision: 1,
+          baseObservationRevision: 0,
           initiator: { kind: 'user', id: USER_A },
         },
         options: { idempotencyKey: `reply-${REPLY_A}-v1` },
@@ -262,11 +286,193 @@ describe.sequential('replyCommandStore (integration)', () => {
     ).resolves.toBe(true)
   })
 
+  it('keeps committed publication authority append-only at the database boundary', async () => {
+    const db = getDb()
+    const reviewRepo = createReviewRepository(db)
+    const replyRepo = createReplyRepository(db)
+    const store = createAtomicReplyCommandStore(db, silentEvents, async () => true)
+
+    await reviewRepo.upsert(makeReview())
+    const pending = makeReply({ status: 'pending_approval', submittedAt: NOW })
+    await replyRepo.upsert(pending)
+    const publicationIntent = reviewReplyPublicationRequested({
+      replyId: REPLY_A,
+      reviewId: REVIEW_A,
+      propertyId: PROP_A,
+      organizationId: ORG_A,
+      userId: USER_A,
+      publicationCycle: 1,
+      sourceEpoch: 0,
+      materialReviewRevision: 1,
+      baseObservationRevision: 0,
+      occurredAt: NOW,
+    })
+    await store.markPublicationAuthorized(
+      pending,
+      { status: 'approved', approvedBy: USER_A, approvedAt: NOW },
+      {
+        lifecycleEvent: reviewReplyApproved({
+          replyId: REPLY_A,
+          reviewId: REVIEW_A,
+          propertyId: PROP_A,
+          organizationId: ORG_A,
+          userId: USER_A,
+          authorId: USER_A,
+          occurredAt: NOW,
+        }),
+        publicationIntent,
+      },
+      NOW,
+    )
+
+    for (const statement of [
+      `UPDATE reply_publication_authorizations
+       SET authorized_by_user_id = 'different-manager'
+       WHERE reply_id = '${REPLY_A}'`,
+      `DELETE FROM reply_publication_authorizations WHERE reply_id = '${REPLY_A}'`,
+      'TRUNCATE reply_publication_authorizations CASCADE',
+    ]) {
+      await expect(pool.query(statement)).rejects.toMatchObject({ code: '55000' })
+    }
+
+    const retained = await pool.query(
+      `SELECT authorized_by_user_id, expected_reply_digest
+       FROM reply_publication_authorizations
+       WHERE reply_id = $1 AND publication_cycle = 1`,
+      [REPLY_A],
+    )
+    expect(retained.rows).toEqual([
+      {
+        authorized_by_user_id: USER_A,
+        expected_reply_digest: expect.stringMatching(/^[0-9a-f]{64}$/),
+      },
+    ])
+  })
+
+  it('cancels a queued cycle when its named PropertyManager grant is revoked before claim', async () => {
+    const db = getDb()
+    const reviewRepo = createReviewRepository(db)
+    const replyRepo = createReplyRepository(db)
+
+    await db.execute(sql`
+      INSERT INTO "user" (id, name, email, "emailVerified")
+      VALUES (${USER_A}, 'Reply Authority Manager', 'reply-authority-manager@example.com', false)
+      ON CONFLICT (id) DO NOTHING
+    `)
+    await db.execute(sql`
+      INSERT INTO member (id, "userId", "organizationId", role, "createdAt")
+      VALUES ('member-reply-authority-manager', ${USER_A}, ${ORG_A}, 'admin', now())
+      ON CONFLICT (id) DO UPDATE SET role = EXCLUDED.role
+    `)
+    await db.execute(sql`
+      INSERT INTO property_access_grant (
+        organization_id, property_id, user_id, source, created_by
+      ) VALUES (${ORG_A}, ${PROP_A}::uuid, ${USER_A}, 'operator', 'test')
+      ON CONFLICT (organization_id, property_id, user_id)
+        WHERE revoked_at IS NULL
+      DO NOTHING
+    `)
+
+    const actorAuthority = async (
+      tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+      input: Readonly<{
+        organizationId: string
+        propertyId: string
+        userId: string
+        at: Date
+      }>,
+    ) =>
+      (
+        await decideCurrentMemberPropertyAuthority(tx, {
+          ...input,
+          permission: 'reply.manage',
+        })
+      ).allowed
+    const store = createAtomicReplyCommandStore(db, silentEvents, actorAuthority)
+
+    await reviewRepo.upsert(makeReview())
+    const pending = makeReply({ status: 'pending_approval', submittedAt: NOW })
+    await replyRepo.upsert(pending)
+    const publicationIntent = reviewReplyPublicationRequested({
+      replyId: REPLY_A,
+      reviewId: REVIEW_A,
+      propertyId: PROP_A,
+      organizationId: ORG_A,
+      userId: USER_A,
+      publicationCycle: 1,
+      sourceEpoch: 0,
+      materialReviewRevision: 1,
+      baseObservationRevision: 0,
+      occurredAt: NOW,
+    })
+    const authorized = await store.markPublicationAuthorized(
+      pending,
+      { status: 'approved', approvedBy: USER_A, approvedAt: NOW },
+      {
+        lifecycleEvent: reviewReplyApproved({
+          replyId: REPLY_A,
+          reviewId: REVIEW_A,
+          propertyId: PROP_A,
+          organizationId: ORG_A,
+          userId: USER_A,
+          authorId: USER_A,
+          occurredAt: NOW,
+        }),
+        publicationIntent,
+      },
+      NOW,
+    )
+    expect(authorized?.publicationState).toBe('authorized')
+
+    await db.execute(sql`
+      UPDATE property_access_grant
+      SET revoked_at = now()
+      WHERE organization_id = ${ORG_A}
+        AND property_id = ${PROP_A}::uuid
+        AND user_id = ${USER_A}
+        AND revoked_at IS NULL
+    `)
+
+    const current = await replyRepo.findById(REPLY_A, ORG_A)
+    expect(current).not.toBeNull()
+    const claim = await store.markPublicationSending(
+      current!,
+      {
+        providerOperationKey: 'revoked-manager-must-not-send:1',
+        propertyId: PROP_A,
+        sourceEpoch: 0,
+        materialReviewRevision: 1,
+        baseObservationRevision: 0,
+      },
+      new Date(NOW.getTime() + 1_000),
+    )
+
+    expect(claim).toBeNull()
+    await expect(replyRepo.findById(REPLY_A, ORG_A)).resolves.toMatchObject({
+      status: 'draft',
+      publicationState: 'cancelled',
+    })
+    const attempts = await pool.query(
+      'SELECT id FROM reply_publication_attempts WHERE organization_id = $1',
+      [ORG_A],
+    )
+    expect(attempts.rows).toHaveLength(0)
+    const cancellation = await pool.query(
+      `SELECT payload
+       FROM outbox_events
+       WHERE organization_id = $1
+         AND event_type = 'review.reply.publication_cancelled'`,
+      [ORG_A],
+    )
+    expect(cancellation.rows).toHaveLength(1)
+    expect(cancellation.rows[0].payload).toMatchObject({ cause: 'policy' })
+  })
+
   it('rolls back authorization and its lifecycle fact when the publication-intent insert fails', async () => {
     const db = getDb()
     const reviewRepo = createReviewRepository(db)
     const replyRepo = createReplyRepository(db)
-    const store = createAtomicReplyCommandStore(db, silentEvents)
+    const store = createAtomicReplyCommandStore(db, silentEvents, async () => true)
 
     await reviewRepo.upsert(makeReview())
     const pending = makeReply({ status: 'pending_approval', submittedAt: NOW })
@@ -289,6 +495,9 @@ describe.sequential('replyCommandStore (integration)', () => {
         organizationId: ORG_A,
         userId: USER_A,
         publicationCycle: 1,
+        sourceEpoch: 0,
+        materialReviewRevision: 1,
+        baseObservationRevision: 0,
         occurredAt: NOW,
       }),
     )

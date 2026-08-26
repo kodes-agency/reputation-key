@@ -25,7 +25,7 @@ import {
   type GuestResponseView,
 } from '../application/use-cases/guest-response-lifecycle'
 import type { PublicPortalData } from '../application/dto/public-portal.dto'
-import { MAX_TEXT_LENGTH } from '../domain/guest-response'
+import { privateFeedbackTextSchema } from '../application/dto/private-feedback.dto'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { guestRateLimitKey } from './guest-session'
 import { hashIp } from './hash-ip.server'
@@ -47,7 +47,7 @@ const ratingMutationSchema = baseMutationSchema.extend({
 })
 
 const privateFeedbackMutationSchema = baseMutationSchema.extend({
-  text: z.string().trim().min(1).max(MAX_TEXT_LENGTH),
+  text: privateFeedbackTextSchema,
   textConsent: z.literal(true),
   honeypot: z.string().max(256).optional(),
 })

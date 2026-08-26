@@ -59,14 +59,15 @@ export const updatePortalGroup =
     }
 
     // 4. Update
-    const now = nextPortalCommandAt(deps.clock(), existing.updatedAt)
+    const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, existing.updatedAt)
     const event = portalGroupUpdated({
       portalGroupId: gid,
       organizationId: ctx.organizationId,
       propertyId: existing.propertyId,
       name: newName,
-      sourceAggregateVersion: now.toISOString(),
-      occurredAt: now,
+      sourceAggregateVersion: revision.toISOString(),
+      occurredAt,
     })
     await deps.commandStore.updatePortalGroup({
       organizationId: ctx.organizationId,
@@ -74,12 +75,13 @@ export const updatePortalGroup =
       portalGroupId: gid,
       expectedUpdatedAt: existing.updatedAt,
       name: newName,
-      at: now,
+      revision,
+      occurredAt,
       event,
     })
 
     // 6. Return updated group
-    return { ...existing, name: newName, updatedAt: now }
+    return { ...existing, name: newName, updatedAt: revision }
   }
 
 export type UpdatePortalGroup = ReturnType<typeof updatePortalGroup>

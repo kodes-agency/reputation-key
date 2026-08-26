@@ -1,5 +1,7 @@
 // Inbox context — assign inbox item use case
-// Assigns an inbox item to a user. Validates role eligibility.
+// Claims, releases, or assigns an inbox item. Self-service claim/release uses
+// source handling rights; managing another assignee additionally needs
+// inbox.manage.
 
 import type { InboxRepository } from '../ports/inbox.repository'
 import type { InboxCommandStore } from '../ports/inbox-command-store.port'
@@ -11,7 +13,12 @@ import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
 import { isPropertyAccessible } from '#/shared/domain/property-access'
 import { inboxItemAssigned, inboxItemUnassigned } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
-import { loadInboxItemOrThrow, assertPropertyAccessible } from '../inbox-access'
+import {
+  loadInboxItemOrThrow,
+  assertInboxSourcePropertyAccessible,
+  assertPropertyAccessible,
+  canHandleInboxSource,
+} from '../inbox-access'
 
 export type AssignInboxItemInput = Readonly<{
   inboxItemId: InboxItemId
@@ -33,23 +40,43 @@ export const assignInboxItem =
       throw inboxError('forbidden', 'No inbox write permission')
     }
 
-    // 1. Validate assignment eligibility (inbox.manage — PM+ for built-in roles)
-    if (!canForContext(ctx, 'inbox.manage')) {
-      throw inboxError('assignment_not_allowed', 'Cannot assign inbox items')
-    }
-
-    // 2. Find item + enforce role-scoped property access
+    // 1. Find the projection-owned item before deciding whether this is a
+    // self-service claim/release or management of another assignee.
     const item = await loadInboxItemOrThrow(
       deps.repo,
       input.inboxItemId,
       ctx.organizationId,
     )
-    await assertPropertyAccessible(
+    if (!canHandleInboxSource(ctx, item.sourceType)) {
+      throw inboxError('forbidden', 'No permission to handle this inbox source')
+    }
+
+    const touchesAnotherAssignee =
+      (input.assignedToUserId !== null && input.assignedToUserId !== ctx.userId) ||
+      (item.assignedTo !== null && item.assignedTo !== ctx.userId)
+    if (touchesAnotherAssignee && !canForContext(ctx, 'inbox.manage')) {
+      throw inboxError(
+        'assignment_not_allowed',
+        'Managing another assignee is not available for this role',
+      )
+    }
+
+    // 2. Enforce role-scoped property access.
+    await assertInboxSourcePropertyAccessible(
       deps.staffPublicApi,
       ctx,
-      'inbox.write',
+      'handle',
+      item.sourceType,
       item.propertyId,
     )
+    if (touchesAnotherAssignee) {
+      await assertPropertyAccessible(
+        deps.staffPublicApi,
+        ctx,
+        'inbox.manage',
+        item.propertyId,
+      )
+    }
 
     // 2b. Verify the ASSIGNEE has access to the item's property (INBOX-04).
     //     The caller check above is not sufficient — the assignee must also

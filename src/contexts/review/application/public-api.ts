@@ -21,6 +21,7 @@ export type {
   ReviewExpired,
   ReviewSourceTransitioned,
   ReviewReplyPublished,
+  ReviewReplyObserved,
   ReviewReplySubmitted,
   ReviewReplyApproved,
   ReviewReplyPublicationRequested,
@@ -35,6 +36,7 @@ export {
   reviewUpdated,
   reviewExpired,
   reviewReplyPublished,
+  reviewReplyObserved,
   reviewReplySubmitted,
   reviewReplyApproved,
   reviewReplyPublicationRequested,
@@ -80,6 +82,12 @@ export type {
   SourceContentPurge,
   SourcePurgeResult,
 } from './ports/source-content-purge.port'
+export type {
+  ReviewCurrentReplyObservationPermit,
+  ReviewReplyObservationAuthority,
+  ReviewReplyObservationAuthorityResult,
+  ReviewReplyObservationExpectation,
+} from './ports/reply-observation-authority.port'
 
 // BQC-5.5: review-owned governed aggregate serving reads (ADR 0031
 // eligibility enforced at the owner, clock-injected). The dashboard build

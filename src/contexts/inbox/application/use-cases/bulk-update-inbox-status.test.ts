@@ -16,6 +16,8 @@ import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Permission } from '#/shared/domain/permissions'
+import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
@@ -24,6 +26,16 @@ const USER_ID = userId('user-1')
 
 const ctxFor = (role: Role, orgId = ORG_ID): AuthContext =>
   ({ organizationId: orgId, userId: USER_ID, role }) as AuthContext
+
+const ctxWith = (...permissions: Permission[]): AuthContext => ({
+  organizationId: ORG_ID,
+  userId: USER_ID,
+  role: 'Staff',
+  effectivePermissions: new Set(permissions),
+  scopeByPermission: new Map(
+    permissions.map((permission) => [permission, 'organization' as const]),
+  ),
+})
 
 function seedItem(
   id: string,
@@ -174,6 +186,75 @@ describe('bulkUpdateInboxStatus', () => {
     expect(result.updated).toBe(2)
     expect(repo.items[0].status).toBe('open')
     expect(repo.items[1].status).toBe('open')
+  })
+
+  it('updates only source families the caller is allowed to handle', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(seedItem('ii-review', 'closed', 'prop-1', 'review'))
+    repo.items.push(seedItem('ii-feedback', 'closed', 'prop-1', 'feedback'))
+
+    const result = await useCase(
+      {
+        inboxItemIds: [inboxItemId('ii-review'), inboxItemId('ii-feedback')],
+        newStatus: 'open',
+      },
+      ctxWith('inbox.write', 'review.read'),
+    )
+
+    expect(result.updated).toBe(1)
+    expectItemStatuses(repo, 'open', 'closed')
+  })
+
+  it('does not treat feedback.read as permission to handle private feedback', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(seedItem('ii-feedback', 'closed', 'prop-1', 'feedback'))
+
+    const result = await useCase(
+      {
+        inboxItemIds: [inboxItemId('ii-feedback')],
+        newStatus: 'open',
+      },
+      ctxWith('inbox.write', 'feedback.read'),
+    )
+
+    expect(result.updated).toBe(0)
+    expect(repo.items[0]!.status).toBe('closed')
+  })
+
+  it('intersects each source handling scope across a mixed batch', async () => {
+    const staffApi: StaffPublicApi = {
+      ...defaultStaffApi,
+      getAccessiblePropertyIds: async () => [propertyId('prop-1')],
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(
+      seedItem('review-2', 'closed', 'prop-2', 'review'),
+      seedItem('feedback-1', 'closed', 'prop-1', 'feedback'),
+      seedItem('feedback-2', 'closed', 'prop-2', 'feedback'),
+    )
+
+    const result = await useCase(
+      {
+        inboxItemIds: [
+          inboxItemId('review-2'),
+          inboxItemId('feedback-1'),
+          inboxItemId('feedback-2'),
+        ],
+        newStatus: 'open',
+      },
+      createScopedAuthContext({
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        permissions: [
+          ['inbox.write', 'organization'],
+          ['review.read', 'organization'],
+          ['feedback.handle', 'assigned-properties'],
+        ],
+      }),
+    )
+
+    expect(result.updated).toBe(2)
+    expectItemStatuses(repo, 'open', 'open', 'closed')
   })
 
   it('denies access to all items when Staff has no property assignments', async () => {

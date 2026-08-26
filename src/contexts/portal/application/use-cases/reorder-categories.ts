@@ -30,7 +30,8 @@ export const reorderCategories =
       permission: 'portal.update',
       forbiddenMessage: 'this role cannot reorder portal categories',
     })
-    const now = nextPortalCommandAt(deps.clock(), portal.updatedAt)
+    const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, portal.updatedAt)
     const updates = input.items.map((item) => ({
       id: portalLinkCategoryId(item.id),
       sortKey: item.sortKey,
@@ -39,8 +40,8 @@ export const reorderCategories =
       portalId: portal.id,
       organizationId: ctx.organizationId,
       propertyId: portal.propertyId,
-      sourceAggregateVersion: now.toISOString(),
-      occurredAt: now,
+      sourceAggregateVersion: revision.toISOString(),
+      occurredAt,
     })
     await deps.commandStore.reorderPortalLinkCategories({
       organizationId: ctx.organizationId,
@@ -48,7 +49,8 @@ export const reorderCategories =
       portalId: portal.id,
       expectedPortalUpdatedAt: portal.updatedAt,
       updates,
-      at: now,
+      revision,
+      occurredAt,
       event,
     })
   }

@@ -2,9 +2,13 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Every query filters by organization_id (tenant isolation).
 
-import { eq, and, inArray, type SQL } from 'drizzle-orm'
+import { eq, and, inArray, isNull, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { portalLinkCategories, portalLinks } from '#/shared/db/schema/portal.schema'
+import {
+  portalLinkCategories,
+  portalLinks,
+  portals,
+} from '#/shared/db/schema/portal.schema'
 import type { PortalLinkRepository } from '../../application/ports/portal-link.repository'
 import type {
   OrganizationId,
@@ -227,6 +231,51 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
         .where(and(linkOrg(orgId), linkIdEq(id)))
         .limit(1)
       return rows[0] ? linkFromRow(rows[0]) : null
+    })
+  },
+
+  findCategoryCommandTarget: async (orgId, id) => {
+    return trace('portalLink.findCategoryCommandTarget', async () => {
+      const [row] = await db
+        .select({ category: portalLinkCategories, portalUpdatedAt: portals.updatedAt })
+        .from(portalLinkCategories)
+        .innerJoin(
+          portals,
+          and(
+            eq(portals.organizationId, portalLinkCategories.organizationId),
+            eq(portals.id, portalLinkCategories.portalId),
+            isNull(portals.deletedAt),
+          ),
+        )
+        .where(and(catOrg(orgId), catIdEq(id)))
+        .limit(1)
+      return row
+        ? {
+            category: categoryFromRow(row.category),
+            portalUpdatedAt: row.portalUpdatedAt,
+          }
+        : null
+    })
+  },
+
+  findLinkCommandTarget: async (orgId, id) => {
+    return trace('portalLink.findLinkCommandTarget', async () => {
+      const [row] = await db
+        .select({ link: portalLinks, portalUpdatedAt: portals.updatedAt })
+        .from(portalLinks)
+        .innerJoin(
+          portals,
+          and(
+            eq(portals.organizationId, portalLinks.organizationId),
+            eq(portals.id, portalLinks.portalId),
+            isNull(portals.deletedAt),
+          ),
+        )
+        .where(and(linkOrg(orgId), linkIdEq(id)))
+        .limit(1)
+      return row
+        ? { link: linkFromRow(row.link), portalUpdatedAt: row.portalUpdatedAt }
+        : null
     })
   },
 })

@@ -13,6 +13,12 @@ export type PublishReplyJobData = JobEnqueueAttribution &
      * as legacy by the worker (legacy rows have cycle 0).
      */
     publicationCycle?: number
+    /** Property/Data Cell plus provider-truth tuple frozen by manager
+     * authorization. Optional only for recognizing bounded legacy jobs. */
+    propertyId?: string
+    sourceEpoch?: number
+    materialReviewRevision?: number
+    baseObservationRevision?: number
     /**
      * BQC-4.2: content-free routing envelope stamped at enqueue. Telemetry
      * only — the worker re-resolves routing at dispatch; a payload region is

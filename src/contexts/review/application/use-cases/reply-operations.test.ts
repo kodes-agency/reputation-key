@@ -14,7 +14,6 @@ import {
   deleteReply,
   getReply,
   retryPublish,
-  markReplyPublished,
   editPublishedReply,
 } from './reply-operations'
 import type { ReplyDeps } from './reply-operations'
@@ -43,11 +42,11 @@ import {
 } from '#/shared/domain/ids'
 const ORG_ID = organizationId('org-1')
 const OTHER_ORG_ID = organizationId('org-isolated')
-const REVIEW_ID = reviewId('rev-1')
-const REPLY_ID = replyId('reply-1')
+const REVIEW_ID = reviewId('51000000-0000-4000-8000-000000000010')
+const REPLY_ID = replyId('51000000-0000-4000-8000-000000000020')
 const USER_ID = toUserId('user-1')
 const ADMIN_ID = toUserId('admin-1')
-const PROP_ID = propertyId('prop-1')
+const PROP_ID = propertyId('51000000-0000-4000-8000-000000000001')
 const NOW = new Date('2025-06-01T12:00:00Z')
 
 function makeReview(overrides: Partial<Review> = {}): Review {
@@ -77,7 +76,7 @@ function makeReview(overrides: Partial<Review> = {}): Review {
     contentHash: null,
     sourceSeenGeneration: null,
     sourceEpoch: 0,
-    sourceRevision: 0,
+    sourceRevision: 1,
     analysisSequence: 0,
     aiSourceByteLength: 1,
     aiSourceDigest: '0'.repeat(64),
@@ -183,6 +182,7 @@ function makeReplyCommandStoreFake(
       ),
     // Job/sweep-facing methods are not exercised by the reply ops tests.
     markPublicationSending: vi.fn(),
+    markProviderOutcomePendingObservation: vi.fn(),
     markPublicationTerminal: vi.fn(),
     markPublicationAmbiguous: vi.fn(),
     markPublicationRetryQueued: vi.fn(),
@@ -252,8 +252,23 @@ function makeDeps(overrides: Partial<ReplyDeps> = {}): TestReplyDeps {
     } as unknown as ReplyQueuePort,
     googleReviewApi: {
       getReview: vi.fn(async () => ({ status: 'not_found' as const })),
-      replyToReview: vi.fn(async () => {}),
+      replyToReview: vi.fn(async () => ({ providerCorrelationId: null })),
     } as unknown as GoogleReviewApiPort,
+    googleReplyObservationStore: {
+      allocateReadGeneration: vi.fn(async () => 1),
+      findCurrentHead: vi.fn(async () => null),
+      record: vi.fn(async (input: { observedText: string | null }) => ({
+        observationRevision: 1,
+        change: input.observedText === null ? ('deleted' as const) : ('added' as const),
+        resolution:
+          input.observedText === null
+            ? ('absent' as const)
+            : ('confirmed_on_google' as const),
+        matchedReplyId: input.observedText === null ? null : REPLY_ID,
+        matchedPublicationCycle: input.observedText === null ? null : 1,
+        duplicate: false,
+      })),
+    },
     commandStore: undefined as unknown as ReplyCommandStore,
     aiSuggestedDraftStore: {
       accept: vi.fn(async () => {
@@ -685,6 +700,10 @@ describe('approveReply', () => {
         replyId: REPLY_ID,
         organizationId: ORG_ID,
         publicationCycle: 1,
+        propertyId: PROP_ID,
+        sourceEpoch: 0,
+        materialReviewRevision: 1,
+        baseObservationRevision: 0,
         // Named attribution for user-triggered delayed work.
         initiator: { kind: 'user', id: USER_ID },
       },
@@ -797,6 +816,10 @@ describe('editPublishedReply', () => {
         replyId: REPLY_ID,
         organizationId: ORG_ID,
         publicationCycle: 1,
+        propertyId: PROP_ID,
+        sourceEpoch: 0,
+        materialReviewRevision: 1,
+        baseObservationRevision: 0,
         initiator: { kind: 'user', id: USER_ID },
       },
       { idempotencyKey: buildIdempotencyKey(REPLY_ID, 1) },
@@ -1027,82 +1050,6 @@ describe('getReply', () => {
   })
 })
 
-// ── markReplyPublished ──────────────────────────────────────────────────
-
-describe('markReplyPublished', () => {
-  it('transitions approved → published and emits event with correct propertyId', async () => {
-    const approved = makeReply({ status: 'approved' })
-    const review = makeReview()
-    const deps = makeDeps({
-      replyRepo: {
-        ...makeDeps().replyRepo,
-        findById: vi.fn(async () => approved),
-      } as unknown as ReplyRepository,
-      reviewRepo: {
-        findById: vi.fn(async () => review),
-      } as unknown as ReviewRepository,
-    })
-    const result = await markReplyPublished(deps)({
-      replyId: REPLY_ID,
-      organizationId: ORG_ID,
-    })
-    expect(result.status).toBe('published')
-    expect(result.publishedAt).toBe(NOW)
-    expect(deps.events.emit).toHaveBeenCalledTimes(1)
-    const emittedEvent = (deps.events.emit as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(emittedEvent.propertyId).toBe(PROP_ID)
-  })
-
-  it('emits userId: null (system actor) — publish runs from the BullMQ job, not a user', async () => {
-    const approved = makeReply({ status: 'approved', createdBy: USER_ID })
-    const review = makeReview()
-    const deps = makeDeps({
-      replyRepo: {
-        ...makeDeps().replyRepo,
-        findById: vi.fn(async () => approved),
-      } as unknown as ReplyRepository,
-      reviewRepo: {
-        findById: vi.fn(async () => review),
-      } as unknown as ReviewRepository,
-    })
-    await markReplyPublished(deps)({ replyId: REPLY_ID, organizationId: ORG_ID })
-    expect(vi.mocked(deps.events.emit).mock.calls[0][0]).toMatchObject({
-      _tag: 'review.reply.published',
-      userId: null,
-      authorId: USER_ID,
-    })
-  })
-
-  it('rejects if reply not in approved status', async () => {
-    const draft = makeReply({ status: 'draft' })
-    const deps = makeDeps({
-      replyRepo: {
-        ...makeDeps().replyRepo,
-        findById: vi.fn(async () => draft),
-      } as unknown as ReplyRepository,
-    })
-    await expect(
-      markReplyPublished(deps)({ replyId: REPLY_ID, organizationId: ORG_ID }),
-    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
-  })
-
-  it('rejects if review not found', async () => {
-    const approved = makeReply({ status: 'approved' })
-    const deps = makeDeps({
-      replyRepo: {
-        ...makeDeps().replyRepo,
-        findById: vi.fn(async () => approved),
-      } as unknown as ReplyRepository,
-      reviewRepo: {
-        findById: vi.fn(async () => null),
-      } as unknown as ReviewRepository,
-    })
-    await expect(
-      markReplyPublished(deps)({ replyId: REPLY_ID, organizationId: ORG_ID }),
-    ).rejects.toMatchObject({ code: 'review_not_found', _tag: 'ReviewError' })
-  })
-})
-
 // ── retryPublish ────────────────────────────────────────────────────────
 
 describe('retryPublish', () => {
@@ -1123,6 +1070,10 @@ describe('retryPublish', () => {
         replyId: REPLY_ID,
         organizationId: ORG_ID,
         publicationCycle: 1,
+        propertyId: PROP_ID,
+        sourceEpoch: 0,
+        materialReviewRevision: 1,
+        baseObservationRevision: 0,
         initiator: { kind: 'user', id: USER_ID },
       },
       { idempotencyKey: buildIdempotencyKey(REPLY_ID, 1) },
@@ -1150,6 +1101,8 @@ describe('retryPublish', () => {
     const ambiguous = makeReply({
       status: 'publish_failed',
       publicationState: 'ambiguous',
+      publicationCycle: 1,
+      publicationAttempts: 1,
       publicationLastErrorClass: 'ambiguous',
       reconcileDueAt: NOW,
     })
@@ -1196,17 +1149,15 @@ describe('retryPublish', () => {
       reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
     })
     expect(deps.queue.addPublishJob).not.toHaveBeenCalled()
-    // The heal commits the published fact (once — no duplicate send).
-    expect(deps.events.emit).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(deps.events.emit).mock.calls[0][0]).toMatchObject({
-      _tag: 'review.reply.published',
-    })
+    expect(deps.googleReplyObservationStore.record).toHaveBeenCalledTimes(1)
   })
 
   it('ambiguous + provider does NOT show the reply → proceeds with re-approve + enqueue', async () => {
     const ambiguous = makeReply({
       status: 'publish_failed',
       publicationState: 'ambiguous',
+      publicationCycle: 1,
+      publicationAttempts: 1,
       publicationLastErrorClass: 'ambiguous',
       reconcileDueAt: NOW,
     })
@@ -1279,21 +1230,6 @@ describe('reply ops — TOCTOU guard (conditionalUpdate returns null → invalid
     })
     await expect(
       rejectReply(deps)({ reviewId: REVIEW_ID }, MANAGER_CTX),
-    ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
-    expect(deps.events.emit).not.toHaveBeenCalled()
-  })
-
-  it('markReplyPublished: lost race throws invalid_transition, no event', async () => {
-    const approved = makeReply({ status: 'approved', publicationState: 'sending' })
-    const deps = makeDeps({
-      replyRepo: {
-        ...makeDeps().replyRepo,
-        findById: vi.fn(async () => approved),
-        conditionalUpdate: nullConditional,
-      } as unknown as ReplyRepository,
-    })
-    await expect(
-      markReplyPublished(deps)({ replyId: REPLY_ID, organizationId: ORG_ID }),
     ).rejects.toMatchObject({ code: 'invalid_transition', _tag: 'ReviewError' })
     expect(deps.events.emit).not.toHaveBeenCalled()
   })

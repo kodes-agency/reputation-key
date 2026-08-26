@@ -16,6 +16,8 @@ import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Permission } from '#/shared/domain/permissions'
+import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
@@ -24,6 +26,16 @@ const USER_ID = userId('user-1')
 
 const ctxFor = (role: Role): AuthContext =>
   ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
+
+const ctxWith = (...permissions: Permission[]): AuthContext => ({
+  organizationId: ORG_ID,
+  userId: USER_ID,
+  role: 'Staff',
+  effectivePermissions: new Set(permissions),
+  scopeByPermission: new Map(
+    permissions.map((permission) => [permission, 'organization' as const]),
+  ),
+})
 
 function seedOpen(overrides?: Partial<InboxItem>): InboxItem {
   return {
@@ -154,6 +166,65 @@ describe('updateInboxStatus', () => {
     )
 
     expect(updated.status).toBe('closed')
+  })
+
+  it('requires feedback.handle to change private-feedback workflow status', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(
+      seedOpen({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
+    )
+
+    await expect(
+      useCase(
+        { inboxItemId: ITEM_ID, newStatus: 'closed' },
+        ctxWith('inbox.write', 'feedback.read'),
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
+    expect(repo.items[0]!.status).toBe('open')
+  })
+
+  it('allows private-feedback workflow status with feedback.handle', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(
+      seedOpen({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
+    )
+
+    const result = await useCase(
+      { inboxItemId: ITEM_ID, newStatus: 'closed' },
+      ctxWith('inbox.write', 'feedback.handle'),
+    )
+
+    expect(result.status).toBe('closed')
+  })
+
+  it('intersects feedback.handle scope before changing workflow status', async () => {
+    const staffApi: StaffPublicApi = {
+      ...staffApiAllAccess,
+      getAccessiblePropertyIds: async () => [propertyId('prop-other')],
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(
+      seedOpen({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
+    )
+
+    await expect(
+      useCase(
+        { inboxItemId: ITEM_ID, newStatus: 'closed' },
+        createScopedAuthContext({
+          organizationId: ORG_ID,
+          userId: USER_ID,
+          permissions: [
+            ['inbox.write', 'organization'],
+            ['feedback.handle', 'assigned-properties'],
+          ],
+        }),
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
+    expect(repo.items[0]!.status).toBe('open')
   })
 
   it('denies access without inbox.write permission for inaccessible property', async () => {

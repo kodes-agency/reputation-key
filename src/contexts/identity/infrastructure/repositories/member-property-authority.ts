@@ -28,7 +28,81 @@ export type MemberPropertyAuthorityLookup = (
   userId: string,
 ) => Promise<boolean>
 
-type MemberPropertyAuthorityDatabase = Pick<Database, 'execute' | 'select'>
+export type MemberPropertyAuthorityDatabase = Pick<Database, 'execute' | 'select'>
+
+async function readPermissionVersion(
+  db: MemberPropertyAuthorityDatabase,
+  organizationId: string,
+  lock: boolean,
+): Promise<string | null> {
+  const version = lock
+    ? await db.execute(sql`
+        SELECT version::text AS version
+        FROM permission_version
+        WHERE organization_id = ${organizationId}
+        FOR SHARE
+      `)
+    : await db.execute(sql`
+        SELECT version::text AS version
+        FROM permission_version
+        WHERE organization_id = ${organizationId}
+      `)
+  const value = version.rows[0]?.version
+  return typeof value === 'string' ? value : null
+}
+
+/**
+ * Resolve current membership and Property authority in the caller's
+ * transaction. Read the permission generation optimistically, lock the
+ * concrete membership/grant rows in the same order their mutations acquire
+ * them, then lock and re-read the generation. A changed generation denies the
+ * command; a matching locked generation is the serializable cutover point.
+ *
+ * Taking the generation lock first would invert the order of Identity's
+ * row-mutation + AFTER-trigger bump and can deadlock a mutation-first race.
+ * No in-transaction retry is needed: denying a changed generation is bounded,
+ * fail-closed, and the caller can start a fresh command from current state.
+ *
+ * A missing version row is denied. The registered Identity SQL sidecar
+ * backfills existing Organizations and every later membership/grant mutation
+ * creates or bumps the row; accepting an unversioned decision would reopen a
+ * revocation race during an incomplete deployment.
+ */
+export async function decideCurrentMemberPropertyAuthority(
+  db: MemberPropertyAuthorityDatabase,
+  input: Readonly<{
+    organizationId: string
+    propertyId: string
+    userId: string
+    permission: Permission
+    at: Date
+  }>,
+): Promise<MemberPropertyAuthorityDecision> {
+  const observedVersion = await readPermissionVersion(db, input.organizationId, false)
+  if (observedVersion === null) {
+    return { allowed: false, reason: 'membership_denied' }
+  }
+
+  const member = await db.execute(sql`
+    SELECT role
+    FROM member
+    WHERE "organizationId" = ${input.organizationId}
+      AND "userId" = ${input.userId}
+    FOR SHARE
+  `)
+  const memberRole = member.rows[0]?.role
+  const decision =
+    typeof memberRole !== 'string' || memberRole.length === 0
+      ? ({ allowed: false, reason: 'membership_denied' } as const)
+      : await decideMemberPropertyAuthority(db, {
+          ...input,
+          memberRole,
+        })
+
+  const currentVersion = await readPermissionVersion(db, input.organizationId, true)
+  if (currentVersion === observedVersion || !decision.allowed) return decision
+  return { allowed: false, reason: 'membership_denied' }
+}
 
 /**
  * Resolve a locked/current membership through the same effective-permission
@@ -89,21 +163,10 @@ export function createMemberPropertyAuthorityLookup(
   permission: Permission,
 ): MemberPropertyAuthorityLookup {
   return async (organizationId, propertyId, userId) => {
-    const member = await db.execute(sql`
-      SELECT role
-      FROM member
-      WHERE "organizationId" = ${organizationId}
-        AND "userId" = ${userId}
-      LIMIT 1
-    `)
-    const role = member.rows[0]?.role
-    if (typeof role !== 'string' || role.length === 0) return false
-
-    const decision = await decideMemberPropertyAuthority(db, {
+    const decision = await decideCurrentMemberPropertyAuthority(db, {
       organizationId,
       propertyId,
       userId,
-      memberRole: role,
       permission,
       at: new Date(),
     })

@@ -81,6 +81,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'refreshPolicyStore',
   'refreshReviewProviderSubjectKeys',
   'registerOutboxConsumers',
+  'replyCommandStore',
   'replyQueue',
   'replyRepo',
   'reviewQueue',

@@ -4,6 +4,7 @@ import type {
   ContactRequestScope,
   MaskedContactRequest,
 } from '../../domain/contact-request'
+import type { ContactRequestManagerAuthorization } from './contact-request-manager-authority.port'
 
 export type ContactRequestRepository = Readonly<{
   create(input: {
@@ -16,16 +17,22 @@ export type ContactRequestRepository = Readonly<{
     name?: string
     submittedAt: Date
     expiresAt: Date
-  }): Promise<Readonly<{ outcome: 'created' | 'duplicate' | 'source_unavailable' }>>
-  findMasked(
-    scope: ContactRequestScope,
-    contactRequestId: string,
-    asOf: Date,
-  ): Promise<MaskedContactRequest | null>
+  }): Promise<
+    Readonly<{
+      outcome: 'created' | 'duplicate' | 'source_unavailable' | 'contact_disabled'
+    }>
+  >
+  findMasked(input: {
+    scope: ContactRequestScope
+    contactRequestId: string
+    authorization: ContactRequestManagerAuthorization
+    asOf: Date
+  }): Promise<MaskedContactRequest | null>
   reveal(input: {
     scope: ContactRequestScope
     contactRequestId: string
-    actorId: string
+    authorization: ContactRequestManagerAuthorization
+    auditId: string
     accessPurpose: ContactRequestAccessPurpose
     at: Date
   }): Promise<
@@ -35,6 +42,7 @@ export type ContactRequestRepository = Readonly<{
   withdraw(input: {
     scope: ContactRequestScope
     contactRequestId: string
+    responseId: string
     at: Date
   }): Promise<Readonly<{ outcome: 'withdrawn' | 'not_found' | 'unavailable' }>>
   purgeExpired(input: { through: Date; batchSize: number }): Promise<

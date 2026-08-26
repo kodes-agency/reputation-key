@@ -85,7 +85,11 @@ import type { RoutingDecision } from '#/shared/routing/processing-router'
 import { createManagerMembershipRepository } from './infrastructure/repositories/manager-membership.repository'
 import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
 import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
-import { decideMemberPropertyAuthority } from './infrastructure/repositories/member-property-authority'
+import {
+  decideCurrentMemberPropertyAuthority,
+  decideMemberPropertyAuthority,
+  type MemberPropertyAuthorityDatabase,
+} from './infrastructure/repositories/member-property-authority'
 
 /** Callback invoked after an invitation is accepted.
  * The composition root provides the implementation that creates
@@ -360,6 +364,26 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     }>,
   ) => hasActiveGrant(tx, input)
 
+  /**
+   * Transaction-bound Identity authority for cross-context protected writes.
+   * The caller supplies its command transaction so membership, effective
+   * reply permission, Property scope, and the write share one revocation
+   * boundary instead of relying on enqueue-time attribution.
+   */
+  const decidePublicationActorAuthority = (
+    tx: MemberPropertyAuthorityDatabase,
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      userId: string
+      at: Date
+    }>,
+  ) =>
+    decideCurrentMemberPropertyAuthority(tx, {
+      ...input,
+      permission: 'reply.manage',
+    })
+
   const useCases = {
     inviteMember: inviteMember({
       identity: deps.identityPort,
@@ -458,6 +482,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       // Identity owns the grant table; callers supply their authorization
       // transaction so the grant read participates in the same commit check.
       hasActivePropertyGrant,
+      decidePublicationActorAuthority,
       // Property-scoped recipient resolution for other contexts (notification
       // fan-out). Identity owns the grant table, so the read lives here.
       propertyAccessHolders: createPropertyGrantHolderLookup(deps.db),

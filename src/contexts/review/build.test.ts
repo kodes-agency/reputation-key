@@ -83,6 +83,7 @@ function setup(
     add: vi.fn(async () => ({})),
   } as unknown as Queue & { add: ReturnType<typeof vi.fn> }
   const api = buildReviewContext({
+    publicationActorAuthority: async () => true,
     db: (over.db ?? dbReturningProperty(null)) as never,
     events: createCapturingEventBus(),
     outboxRepo: { insertReceipt: vi.fn() } as never,

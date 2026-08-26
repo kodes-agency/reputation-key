@@ -2,6 +2,7 @@
 // implementation; this fake keeps application tests at the command-store seam.
 
 import type { PortalCommandStore } from '#/contexts/portal/application/ports/portal-command-store.port'
+import type { InMemoryPortalRepo } from './in-memory-portal-repo'
 import type { PortalRepository } from '#/contexts/portal/application/ports/portal.repository'
 import type { PortalTokenRepository } from '#/contexts/portal/application/ports/portal-token.repository'
 import type { PortalGroupRepository } from '#/contexts/portal/application/ports/portal-group.repository'
@@ -16,9 +17,26 @@ export function createInMemoryPortalCommandStore(deps: {
   portalGroupRepo?: PortalGroupRepository
   portalLinkRepo?: PortalLinkRepository
 }): PortalCommandStore {
+  const mutablePortalRepo = deps.portalRepo as InMemoryPortalRepo
+  const fencePortal = async (
+    organizationId: Parameters<InMemoryPortalRepo['findById']>[0],
+    portalId: Parameters<InMemoryPortalRepo['findById']>[1],
+    expectedUpdatedAt: Date,
+    revision: Date,
+    patch: Readonly<Record<string, unknown>> = {},
+  ) => {
+    const current = await deps.portalRepo.findById(organizationId, portalId)
+    if (!current || current.updatedAt.getTime() !== expectedUpdatedAt.getTime()) {
+      throw portalError('revision_conflict', 'Portal changed during command')
+    }
+    await mutablePortalRepo.update(organizationId, portalId, {
+      ...patch,
+      updatedAt: revision,
+    })
+  }
   return {
     createPortal: async (command) => {
-      await deps.portalRepo.insert(
+      await mutablePortalRepo.insert(
         command.organizationId,
         command.portal,
         command.initialResponsibleManagerId,
@@ -29,22 +47,39 @@ export function createInMemoryPortalCommandStore(deps: {
       }
     },
     updatePortal: async (command) => {
-      await deps.portalRepo.update(
+      await fencePortal(
         command.organizationId,
         command.portalId,
+        command.expectedUpdatedAt,
+        command.revision,
         command.patch,
       )
       await deps.events.emit(command.event)
     },
     deletePortal: async (command) => {
-      await deps.portalRepo.softDelete(command.organizationId, command.portalId)
+      const current = await deps.portalRepo.findById(
+        command.organizationId,
+        command.portalId,
+      )
+      if (
+        !current ||
+        current.updatedAt.getTime() !== command.expectedUpdatedAt.getTime()
+      ) {
+        throw portalError('revision_conflict', 'Portal changed during command')
+      }
+      await mutablePortalRepo.softDelete(
+        command.organizationId,
+        command.portalId,
+        command.occurredAt,
+        command.revision,
+      )
       const revoked =
         (await deps.portalTokenRepo?.revokeForPortal({
           organizationId: command.organizationId,
           portalId: command.portalId,
           revokedBy: command.revokedBy,
           reason: command.reason,
-          at: command.at,
+          at: command.occurredAt,
         })) ?? 0
       await deps.events.emit(command.event)
       if (revoked > 0) await deps.events.emit(command.tokenRevokedEvent)
@@ -72,7 +107,7 @@ export function createInMemoryPortalCommandStore(deps: {
       }
       await deps.portalGroupRepo.update(command.organizationId, command.portalGroupId, {
         name: command.name,
-        updatedAt: command.at,
+        updatedAt: command.revision,
       })
       await deps.events.emit(command.event)
     },
@@ -84,7 +119,7 @@ export function createInMemoryPortalCommandStore(deps: {
         command.organizationId,
         command.portalGroupId,
         command.portalId,
-        command.at,
+        command.occurredAt,
         command.changedBy,
       )
       await deps.events.emit(command.event)
@@ -97,7 +132,7 @@ export function createInMemoryPortalCommandStore(deps: {
         command.organizationId,
         command.portalGroupId,
         command.portalId,
-        command.at,
+        command.occurredAt,
         'removed_from_group',
       )
       if (!removed) {
@@ -109,19 +144,60 @@ export function createInMemoryPortalCommandStore(deps: {
       if (!deps.portalLinkRepo) {
         throw new Error('in-memory Portal Link repository is not configured')
       }
-      await deps.portalRepo.update(command.organizationId, command.portalId, {
-        updatedAt: command.at,
-      })
+      await fencePortal(
+        command.organizationId,
+        command.portalId,
+        command.expectedPortalUpdatedAt,
+        command.revision,
+      )
       await deps.portalLinkRepo.insertCategory(command.organizationId, command.category)
+      await deps.events.emit(command.event)
+    },
+    updatePortalLinkCategory: async (command) => {
+      if (!deps.portalLinkRepo) {
+        throw new Error('in-memory Portal Link repository is not configured')
+      }
+      await fencePortal(
+        command.organizationId,
+        command.portalId,
+        command.expectedPortalUpdatedAt,
+        command.revision,
+      )
+      await deps.portalLinkRepo.updateCategory(
+        command.organizationId,
+        command.portalId,
+        command.categoryId,
+        { title: command.title, updatedAt: command.occurredAt },
+      )
+      await deps.events.emit(command.event)
+    },
+    deletePortalLinkCategory: async (command) => {
+      if (!deps.portalLinkRepo) {
+        throw new Error('in-memory Portal Link repository is not configured')
+      }
+      await fencePortal(
+        command.organizationId,
+        command.portalId,
+        command.expectedPortalUpdatedAt,
+        command.revision,
+      )
+      await deps.portalLinkRepo.deleteCategory(
+        command.organizationId,
+        command.portalId,
+        command.categoryId,
+      )
       await deps.events.emit(command.event)
     },
     reorderPortalLinkCategories: async (command) => {
       if (!deps.portalLinkRepo) {
         throw new Error('in-memory Portal Link repository is not configured')
       }
-      await deps.portalRepo.update(command.organizationId, command.portalId, {
-        updatedAt: command.at,
-      })
+      await fencePortal(
+        command.organizationId,
+        command.portalId,
+        command.expectedPortalUpdatedAt,
+        command.revision,
+      )
       await deps.portalLinkRepo.reorderCategories(
         command.organizationId,
         command.portalId,
@@ -133,19 +209,60 @@ export function createInMemoryPortalCommandStore(deps: {
       if (!deps.portalLinkRepo) {
         throw new Error('in-memory Portal Link repository is not configured')
       }
-      await deps.portalRepo.update(command.organizationId, command.portalId, {
-        updatedAt: command.at,
-      })
+      await fencePortal(
+        command.organizationId,
+        command.portalId,
+        command.expectedPortalUpdatedAt,
+        command.revision,
+      )
       await deps.portalLinkRepo.insertLink(command.organizationId, command.link)
+      await deps.events.emit(command.event)
+    },
+    updatePortalLink: async (command) => {
+      if (!deps.portalLinkRepo) {
+        throw new Error('in-memory Portal Link repository is not configured')
+      }
+      await fencePortal(
+        command.organizationId,
+        command.portalId,
+        command.expectedPortalUpdatedAt,
+        command.revision,
+      )
+      await deps.portalLinkRepo.updateLink(
+        command.organizationId,
+        command.portalId,
+        command.linkId,
+        { ...command.patch, updatedAt: command.occurredAt },
+      )
+      await deps.events.emit(command.event)
+    },
+    deletePortalLink: async (command) => {
+      if (!deps.portalLinkRepo) {
+        throw new Error('in-memory Portal Link repository is not configured')
+      }
+      await fencePortal(
+        command.organizationId,
+        command.portalId,
+        command.expectedPortalUpdatedAt,
+        command.revision,
+      )
+      await deps.portalLinkRepo.deleteLink(
+        command.organizationId,
+        command.portalId,
+        command.linkId,
+      )
       await deps.events.emit(command.event)
     },
     reorderPortalLinks: async (command) => {
       if (!deps.portalLinkRepo) {
         throw new Error('in-memory Portal Link repository is not configured')
       }
-      await deps.portalRepo.update(command.organizationId, command.portalId, {
-        updatedAt: command.at,
-      })
+      await fencePortal(
+        command.organizationId,
+        command.portalId,
+        command.expectedPortalUpdatedAt,
+        command.revision,
+      )
       await deps.portalLinkRepo.reorderLinks(
         command.organizationId,
         command.portalId,
@@ -158,9 +275,12 @@ export function createInMemoryPortalCommandStore(deps: {
       if (!deps.portalTokenRepo) {
         throw new Error('in-memory Portal Token repository is not configured')
       }
-      await deps.portalRepo.update(command.organizationId, command.portalId, {
-        updatedAt: command.at,
-      })
+      await fencePortal(
+        command.organizationId,
+        command.portalId,
+        command.expectedPortalUpdatedAt,
+        command.revision,
+      )
       await deps.portalTokenRepo.insert(command.token)
       await deps.events.emit(command.event)
     },
@@ -168,9 +288,12 @@ export function createInMemoryPortalCommandStore(deps: {
       if (!deps.portalTokenRepo) {
         throw new Error('in-memory Portal Token repository is not configured')
       }
-      await deps.portalRepo.update(command.organizationId, command.portalId, {
-        updatedAt: command.at,
-      })
+      await fencePortal(
+        command.organizationId,
+        command.portalId,
+        command.expectedPortalUpdatedAt,
+        command.revision,
+      )
       await deps.portalTokenRepo.saveRotation({
         oldToken: command.oldToken,
         newToken: command.newToken,
@@ -186,11 +309,11 @@ export function createInMemoryPortalCommandStore(deps: {
         portalId: command.portalId,
         revokedBy: command.revokedBy,
         reason: command.reason,
-        at: command.at,
+        at: command.occurredAt,
       })
       if (revoked > 0) {
-        await deps.portalRepo.update(command.organizationId, command.portalId, {
-          updatedAt: command.at,
+        await mutablePortalRepo.update(command.organizationId, command.portalId, {
+          updatedAt: command.revision,
         })
         await deps.events.emit(command.event)
       }
@@ -203,8 +326,11 @@ export function createInMemoryPortalCommandStore(deps: {
       await deps.portalGroupRepo.softDelete(
         command.organizationId,
         command.portalGroupId,
-        command.at,
+        command.occurredAt,
       )
+      await deps.portalGroupRepo.update(command.organizationId, command.portalGroupId, {
+        updatedAt: command.revision,
+      })
       await deps.events.emit(command.event)
     },
   }

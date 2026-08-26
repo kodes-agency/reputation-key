@@ -22,6 +22,7 @@ export type ReplyPublicationState =
   | 'requested'
   | 'authorized'
   | 'sending'
+  | 'pending_observation'
   | 'published'
   | 'terminal'
   | 'ambiguous'

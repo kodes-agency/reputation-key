@@ -4,7 +4,7 @@ import type {
 } from '../../domain/contact-request'
 
 export type ContactRequestEncryptionContext = ContactRequestScope &
-  Readonly<{ contactRequestId: string }>
+  Readonly<{ contactRequestId: string; responseId: string }>
 
 export type SealedContactRequestValue = Readonly<{
   keyId: string

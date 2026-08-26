@@ -26,6 +26,8 @@ import type {
   CreatePortalGroupCommand,
   CreatePortalLinkCategoryCommand,
   CreatePortalLinkCommand,
+  DeletePortalLinkCategoryCommand,
+  DeletePortalLinkCommand,
   AddPortalToGroupCommand,
   DeletePortalCommand,
   DeletePortalGroupCommand,
@@ -38,6 +40,8 @@ import type {
   PortalCommandStore,
   UpdatePortalCommand,
   UpdatePortalGroupCommand,
+  UpdatePortalLinkCategoryCommand,
+  UpdatePortalLinkCommand,
 } from '../application/ports/portal-command-store.port'
 import type { Portal, PortalTheme } from '../domain/types'
 import { portalError } from '../domain/errors'
@@ -60,6 +64,23 @@ type PortalSetValues = {
 
 const sameInstant = (left: Date, right: Date): boolean =>
   left.getTime() === right.getTime()
+
+function assertCommittedRevision(
+  persisted: Readonly<{ updatedAt: Date }> | undefined,
+  expected: Date,
+  aggregate: 'Portal' | 'Portal Group',
+  conflictMessage: string,
+): void {
+  if (!persisted) {
+    throw portalError('revision_conflict', conflictMessage)
+  }
+  if (!sameInstant(persisted.updatedAt, expected)) {
+    throw portalError(
+      'revision_conflict',
+      `${aggregate} database revision diverged from its durable fact version`,
+    )
+  }
+}
 
 function assertCreateCommand(command: CreatePortalCommand): void {
   const { portal, event, responsibilityNeededEvent, initialResponsibleManagerId } =
@@ -99,6 +120,8 @@ function assertCreateCommand(command: CreatePortalCommand): void {
     (responsibilityNeededEvent.organizationId !== command.organizationId ||
       responsibilityNeededEvent.propertyId !== portal.propertyId ||
       responsibilityNeededEvent.portalId !== portal.id ||
+      responsibilityNeededEvent.sourceAggregateVersion !==
+        portal.updatedAt.toISOString() ||
       !sameInstant(responsibilityNeededEvent.occurredAt, portal.createdAt))
   ) {
     throw portalError(
@@ -110,7 +133,6 @@ function assertCreateCommand(command: CreatePortalCommand): void {
 
 function buildPortalSetClause(patch: Readonly<Partial<Portal>>): PortalSetValues {
   const set: PortalSetValues = {}
-  if (patch.updatedAt !== undefined) set.updatedAt = patch.updatedAt
   if (patch.name !== undefined) set.name = patch.name
   if (patch.slug !== undefined) set.slug = patch.slug
   if (patch.description !== undefined) set.description = patch.description
@@ -131,13 +153,18 @@ function assertUpdateCommand(command: UpdatePortalCommand): void {
     command.event.propertyId !== command.propertyId ||
     command.event.portalId !== command.portalId ||
     command.event.publicationState !== nextPublicationState ||
-    command.event.sourceAggregateVersion !== command.event.occurredAt.toISOString() ||
-    command.patch.updatedAt === undefined ||
-    !sameInstant(command.patch.updatedAt, command.event.occurredAt)
+    command.event.sourceAggregateVersion !== command.revision.toISOString() ||
+    !sameInstant(command.event.occurredAt, command.occurredAt)
   ) {
     throw portalError(
       'forbidden',
       'Tenant, resource, or version mismatch on Portal update',
+    )
+  }
+  if (command.revision.getTime() <= command.expectedUpdatedAt.getTime()) {
+    throw portalError(
+      'revision_conflict',
+      'Portal command revision must advance monotonically',
     )
   }
 
@@ -180,8 +207,8 @@ function assertUpdateCommand(command: UpdatePortalCommand): void {
       activation.deactivationReason !== null ||
       activation.activatedBy !== snapshot.createdBy ||
       !verifyPortalPublicationSnapshot(snapshot) ||
-      !sameInstant(snapshot.createdAt, command.event.occurredAt) ||
-      !sameInstant(activation.activatedAt, command.event.occurredAt)
+      !sameInstant(snapshot.createdAt, command.occurredAt) ||
+      !sameInstant(activation.activatedAt, command.occurredAt)
     ) {
       throw portalError(
         'publication_snapshot_unavailable',
@@ -201,7 +228,7 @@ function assertUpdateCommand(command: UpdatePortalCommand): void {
       activation.portalId !== unbrand(command.portalId) ||
       activation.deactivatedAt !== null ||
       activation.deactivationReason !== null ||
-      !sameInstant(activation.activatedAt, command.event.occurredAt)
+      !sameInstant(activation.activatedAt, command.occurredAt)
     ) {
       throw portalError(
         'publication_snapshot_unavailable',
@@ -211,7 +238,7 @@ function assertUpdateCommand(command: UpdatePortalCommand): void {
   }
   if (
     publication?.kind === 'deactivate' &&
-    (!sameInstant(publication.at, command.event.occurredAt) ||
+    (!sameInstant(publication.at, command.occurredAt) ||
       previous !== 'published' ||
       next === 'published')
   ) {
@@ -370,7 +397,7 @@ async function closeActivePublication(
   const closed = await tx
     .update(portalPublicationActivations)
     .set({
-      deactivatedAt: command.event.occurredAt,
+      deactivatedAt: command.occurredAt,
       deactivationReason: reason,
     })
     .where(
@@ -395,17 +422,24 @@ function assertDeleteCommand(command: DeletePortalCommand): void {
     event.organizationId === command.organizationId &&
     event.propertyId === command.propertyId &&
     event.portalId === command.portalId &&
-    sameInstant(event.occurredAt, command.at)
+    sameInstant(event.occurredAt, command.occurredAt)
 
   if (
     !matches(command.event) ||
     !matches(command.tokenRevokedEvent) ||
-    command.event.sourceAggregateVersion !== command.at.toISOString() ||
+    command.event.sourceAggregateVersion !== command.revision.toISOString() ||
+    command.tokenRevokedEvent.sourceAggregateVersion !== command.revision.toISOString() ||
     command.reason.trim().length === 0
   ) {
     throw portalError(
       'forbidden',
       'Tenant, resource, or version mismatch on Portal delete',
+    )
+  }
+  if (command.revision.getTime() <= command.expectedUpdatedAt.getTime()) {
+    throw portalError(
+      'revision_conflict',
+      'Portal command revision must advance monotonically',
     )
   }
 }
@@ -416,9 +450,16 @@ function assertDeletePortalGroupCommand(command: DeletePortalGroupCommand): void
     event.organizationId !== command.organizationId ||
     event.propertyId !== command.propertyId ||
     event.portalGroupId !== command.portalGroupId ||
-    !sameInstant(event.occurredAt, command.at)
+    event.sourceAggregateVersion !== command.revision.toISOString() ||
+    !sameInstant(event.occurredAt, command.occurredAt)
   ) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal Group delete')
+  }
+  if (command.revision.getTime() <= command.expectedUpdatedAt.getTime()) {
+    throw portalError(
+      'revision_conflict',
+      'Portal Group command revision must advance monotonically',
+    )
   }
 }
 
@@ -460,8 +501,8 @@ function assertUpdatePortalGroupCommand(command: UpdatePortalGroupCommand): void
     command.event.propertyId !== command.propertyId ||
     command.event.portalGroupId !== command.portalGroupId ||
     command.event.name !== command.name ||
-    command.event.sourceAggregateVersion !== command.at.toISOString() ||
-    !sameInstant(command.event.occurredAt, command.at)
+    command.event.sourceAggregateVersion !== command.revision.toISOString() ||
+    !sameInstant(command.event.occurredAt, command.occurredAt)
   ) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal Group update')
   }
@@ -477,8 +518,8 @@ function assertMembershipCommand(
     command.event.propertyId !== command.propertyId ||
     command.event.portalGroupId !== command.portalGroupId ||
     command.event.portalId !== command.portalId ||
-    command.event.sourceAggregateVersion !== command.at.toISOString() ||
-    !sameInstant(command.event.occurredAt, command.at)
+    command.event.sourceAggregateVersion !== command.revision.toISOString() ||
+    !sameInstant(command.event.occurredAt, command.occurredAt)
   ) {
     throw portalError(
       'forbidden',
@@ -494,11 +535,12 @@ async function fencePortalGroup(
     propertyId: CreatePortalGroupCommand['group']['propertyId']
     portalGroupId: CreatePortalGroupCommand['group']['id']
     expectedUpdatedAt: Date
-    at: Date
+    revision: Date
+    occurredAt: Date
   }>,
   patch: Readonly<{ name?: string }> = {},
 ): Promise<void> {
-  if (command.at.getTime() <= command.expectedUpdatedAt.getTime()) {
+  if (command.revision.getTime() <= command.expectedUpdatedAt.getTime()) {
     throw portalError(
       'revision_conflict',
       'Portal Group command revision must advance monotonically',
@@ -506,7 +548,7 @@ async function fencePortalGroup(
   }
   const [updated] = await tx
     .update(portalGroups)
-    .set({ ...patch, updatedAt: command.at })
+    .set({ ...patch, updatedAt: command.revision })
     .where(
       and(
         eq(portalGroups.organizationId, unbrand(command.organizationId)),
@@ -516,19 +558,23 @@ async function fencePortalGroup(
         isNull(portalGroups.deletedAt),
       ),
     )
-    .returning({ id: portalGroups.id })
-  if (!updated) {
-    throw portalError(
-      'revision_conflict',
-      'Portal Group changed while the command was being committed',
-    )
-  }
+    .returning({ updatedAt: portalGroups.updatedAt })
+  assertCommittedRevision(
+    updated,
+    command.revision,
+    'Portal Group',
+    'Portal Group changed while the command was being committed',
+  )
 }
 
 type PortalContentCommand =
   | CreatePortalLinkCategoryCommand
+  | UpdatePortalLinkCategoryCommand
+  | DeletePortalLinkCategoryCommand
   | ReorderPortalLinkCategoriesCommand
   | CreatePortalLinkCommand
+  | UpdatePortalLinkCommand
+  | DeletePortalLinkCommand
   | ReorderPortalLinksCommand
 
 type PortalAggregateFence = Readonly<{
@@ -536,34 +582,62 @@ type PortalAggregateFence = Readonly<{
   propertyId: IssuePortalTokenCommand['propertyId']
   portalId: IssuePortalTokenCommand['portalId']
   expectedPortalUpdatedAt: Date
-  at: Date
+  revision: Date
+  occurredAt: Date
 }>
 
 function assertPortalContentCommand(command: PortalContentCommand): void {
   const event = command.event
+  let scoped = false
+  switch (event._tag) {
+    case 'portal_link_category.created':
+      scoped =
+        'category' in command &&
+        command.category.organizationId === command.organizationId &&
+        command.category.portalId === command.portalId &&
+        event.categoryId === command.category.id
+      break
+    case 'portal_link_category.updated':
+      scoped = 'title' in command && event.categoryId === command.categoryId
+      break
+    case 'portal_link_category.deleted':
+      scoped =
+        'categoryId' in command &&
+        !('linkId' in command) &&
+        event.categoryId === command.categoryId
+      break
+    case 'portal_link_category.reordered':
+      scoped = 'updates' in command && !('categoryId' in command)
+      break
+    case 'portal_link.created':
+      scoped =
+        'link' in command &&
+        command.link.organizationId === command.organizationId &&
+        command.link.portalId === command.portalId &&
+        event.linkId === command.link.id &&
+        event.categoryId === command.link.categoryId
+      break
+    case 'portal_link.updated':
+    case 'portal_link.deleted':
+      scoped =
+        'linkId' in command &&
+        event.linkId === command.linkId &&
+        event.categoryId === command.categoryId
+      break
+    case 'portal_link.reordered':
+      scoped =
+        'updates' in command &&
+        'categoryId' in command &&
+        event.categoryId === command.categoryId
+      break
+  }
   if (
     event.organizationId !== command.organizationId ||
     event.propertyId !== command.propertyId ||
     event.portalId !== command.portalId ||
-    event.sourceAggregateVersion !== command.at.toISOString() ||
-    !sameInstant(event.occurredAt, command.at) ||
-    ('category' in command &&
-      (command.category.organizationId !== command.organizationId ||
-        command.category.portalId !== command.portalId ||
-        event._tag !== 'portal_link_category.created' ||
-        event.categoryId !== command.category.id)) ||
-    ('link' in command &&
-      (command.link.organizationId !== command.organizationId ||
-        command.link.portalId !== command.portalId ||
-        event._tag !== 'portal_link.created' ||
-        event.linkId !== command.link.id ||
-        event.categoryId !== command.link.categoryId)) ||
-    ('categoryId' in command &&
-      (event._tag !== 'portal_link.reordered' ||
-        event.categoryId !== command.categoryId)) ||
-    ('updates' in command &&
-      !('categoryId' in command) &&
-      event._tag !== 'portal_link_category.reordered')
+    event.sourceAggregateVersion !== command.revision.toISOString() ||
+    !sameInstant(event.occurredAt, command.occurredAt) ||
+    !scoped
   ) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal content change')
   }
@@ -573,7 +647,7 @@ async function fencePortalContent(
   tx: Parameters<Parameters<Database['transaction']>[0]>[0],
   command: PortalAggregateFence,
 ): Promise<void> {
-  if (command.at.getTime() <= command.expectedPortalUpdatedAt.getTime()) {
+  if (command.revision.getTime() <= command.expectedPortalUpdatedAt.getTime()) {
     throw portalError(
       'revision_conflict',
       'Portal command revision must advance monotonically',
@@ -581,7 +655,7 @@ async function fencePortalContent(
   }
   const [updated] = await tx
     .update(portals)
-    .set({ updatedAt: command.at })
+    .set({ updatedAt: command.revision })
     .where(
       and(
         eq(portals.organizationId, unbrand(command.organizationId)),
@@ -591,13 +665,13 @@ async function fencePortalContent(
         isNull(portals.deletedAt),
       ),
     )
-    .returning({ id: portals.id })
-  if (!updated) {
-    throw portalError(
-      'revision_conflict',
-      'Portal content changed while the command was being committed',
-    )
-  }
+    .returning({ updatedAt: portals.updatedAt })
+  assertCommittedRevision(
+    updated,
+    command.revision,
+    'Portal',
+    'Portal content changed while the command was being committed',
+  )
 }
 
 function portalTokenToRow(
@@ -634,9 +708,9 @@ function assertIssueTokenCommand(command: IssuePortalTokenCommand): void {
     command.event.portalId !== command.portalId ||
     command.event.tokenIdentifier !== command.token.tokenIdentifier ||
     command.event.version !== command.token.version ||
-    command.event.sourceAggregateVersion !== command.at.toISOString() ||
-    !sameInstant(command.event.occurredAt, command.at) ||
-    !sameInstant(command.token.issuedAt, command.at)
+    command.event.sourceAggregateVersion !== command.revision.toISOString() ||
+    !sameInstant(command.event.occurredAt, command.occurredAt) ||
+    !sameInstant(command.token.issuedAt, command.occurredAt)
   ) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal token issue')
   }
@@ -661,10 +735,10 @@ function assertRotateTokenCommand(command: RotatePortalTokenCommand): void {
     command.event.portalId !== command.portalId ||
     command.event.previousVersion !== oldToken.version ||
     command.event.version !== newToken.version ||
-    command.event.sourceAggregateVersion !== command.at.toISOString() ||
+    command.event.sourceAggregateVersion !== command.revision.toISOString() ||
     !sameInstant(command.event.gracePeriodEnds, oldToken.gracePeriodEnds) ||
-    !sameInstant(command.event.occurredAt, command.at) ||
-    !sameInstant(newToken.issuedAt, command.at)
+    !sameInstant(command.event.occurredAt, command.occurredAt) ||
+    !sameInstant(newToken.issuedAt, command.occurredAt)
   ) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal token rotate')
   }
@@ -676,8 +750,8 @@ function assertRevokeTokenCommand(command: RevokePortalTokensCommand): void {
     command.event.organizationId !== command.organizationId ||
     command.event.propertyId !== command.propertyId ||
     command.event.portalId !== command.portalId ||
-    command.event.sourceAggregateVersion !== command.at.toISOString() ||
-    !sameInstant(command.event.occurredAt, command.at)
+    command.event.sourceAggregateVersion !== command.revision.toISOString() ||
+    !sameInstant(command.event.occurredAt, command.occurredAt)
   ) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal token revoke')
   }
@@ -692,7 +766,16 @@ export const createAtomicPortalCommandStore = (
       trace('portal.commandStore.createPortal', async () => {
         assertCreateCommand(command)
         await db.transaction(async (tx) => {
-          await tx.insert(portals).values(portalToRow(command.portal))
+          const [created] = await tx
+            .insert(portals)
+            .values(portalToRow(command.portal))
+            .returning({ updatedAt: portals.updatedAt })
+          assertCommittedRevision(
+            created,
+            command.portal.updatedAt,
+            'Portal',
+            'Portal creation did not return its command revision',
+          )
           if (command.initialResponsibleManagerId) {
             await tx.insert(portalResponsibleManagers).values({
               organizationId: command.organizationId,
@@ -722,18 +805,9 @@ export const createAtomicPortalCommandStore = (
       trace('portal.commandStore.updatePortal', async () => {
         assertUpdateCommand(command)
         await db.transaction(async (tx) => {
-          if (command.publication?.kind === 'publish') {
-            // Publication is rare and safety-sensitive. This bounded table lock
-            // prevents link/category writers from crossing the snapshot read;
-            // the post-update comparison then rejects any working copy that
-            // changed before the lock was acquired.
-            await tx.execute(
-              sql`LOCK TABLE ${portalLinkCategories}, ${portalLinks} IN SHARE ROW EXCLUSIVE MODE`,
-            )
-          }
           const [updated] = await tx
             .update(portals)
-            .set(buildPortalSetClause(command.patch))
+            .set({ ...buildPortalSetClause(command.patch), updatedAt: command.revision })
             .where(
               and(
                 eq(portals.organizationId, unbrand(command.organizationId)),
@@ -744,15 +818,22 @@ export const createAtomicPortalCommandStore = (
                 isNull(portals.deletedAt),
               ),
             )
-            .returning({ id: portals.id })
-          if (!updated) {
-            throw portalError(
-              'revision_conflict',
-              'Portal changed while the update was being committed',
-            )
-          }
+            .returning({ updatedAt: portals.updatedAt })
+          assertCommittedRevision(
+            updated,
+            command.revision,
+            'Portal',
+            'Portal changed while the update was being committed',
+          )
 
           if (command.publication?.kind === 'publish') {
+            // Every content path locks the Portal aggregate first. Taking the
+            // bounded working-copy table locks second preserves that universal
+            // order while still preventing child writers from crossing the
+            // committed snapshot comparison below.
+            await tx.execute(
+              sql`LOCK TABLE ${portalLinkCategories}, ${portalLinks} IN SHARE ROW EXCLUSIVE MODE`,
+            )
             await assertSnapshotMatchesCommittedWorkingCopy(
               tx,
               command as UpdatePortalCommand & {
@@ -834,7 +915,7 @@ export const createAtomicPortalCommandStore = (
         const revoked = await db.transaction(async (tx) => {
           const [deleted] = await tx
             .update(portals)
-            .set({ deletedAt: command.at, updatedAt: command.at })
+            .set({ deletedAt: command.occurredAt, updatedAt: command.revision })
             .where(
               and(
                 eq(portals.organizationId, unbrand(command.organizationId)),
@@ -844,20 +925,20 @@ export const createAtomicPortalCommandStore = (
                 isNull(portals.deletedAt),
               ),
             )
-            .returning({ id: portals.id })
-          if (!deleted) {
-            throw portalError(
-              'revision_conflict',
-              'Portal changed while the delete was being committed',
-            )
-          }
+            .returning({ updatedAt: portals.updatedAt })
+          assertCommittedRevision(
+            deleted,
+            command.revision,
+            'Portal',
+            'Portal changed while the delete was being committed',
+          )
 
           const revokedRows = await tx
             .update(portalTokens)
             .set({
               status: 'revoked',
-              revokedAt: command.at,
-              retiredAt: command.at,
+              revokedAt: command.occurredAt,
+              retiredAt: command.occurredAt,
               revokedBy: unbrand(command.revokedBy),
               revokedReason: command.reason.trim(),
               gracePeriodEnds: null,
@@ -875,10 +956,12 @@ export const createAtomicPortalCommandStore = (
             )
             .returning({ id: portalTokens.id })
 
-          await insertOutboxRow(tx, command.event, { recordedAt: command.at })
+          await insertOutboxRow(tx, command.event, {
+            recordedAt: command.occurredAt,
+          })
           if (revokedRows.length > 0) {
             await insertOutboxRow(tx, command.tokenRevokedEvent, {
-              recordedAt: command.at,
+              recordedAt: command.occurredAt,
             })
           }
           return revokedRows.length
@@ -895,7 +978,16 @@ export const createAtomicPortalCommandStore = (
       trace('portal.commandStore.createPortalGroup', async () => {
         assertCreatePortalGroupCommand(command)
         await db.transaction(async (tx) => {
-          await tx.insert(portalGroups).values(portalGroupToRow(command.group))
+          const [created] = await tx
+            .insert(portalGroups)
+            .values(portalGroupToRow(command.group))
+            .returning({ updatedAt: portalGroups.updatedAt })
+          assertCommittedRevision(
+            created,
+            command.group.updatedAt,
+            'Portal Group',
+            'Portal Group creation did not return its command revision',
+          )
           for (const membership of command.memberships) {
             await tx.execute(sql`
               SELECT id FROM portals
@@ -944,7 +1036,9 @@ export const createAtomicPortalCommandStore = (
         assertUpdatePortalGroupCommand(command)
         await db.transaction(async (tx) => {
           await fencePortalGroup(tx, command, { name: command.name })
-          await insertOutboxRow(tx, command.event, { recordedAt: command.at })
+          await insertOutboxRow(tx, command.event, {
+            recordedAt: command.occurredAt,
+          })
         })
         await emitAfterCommit(events, command.event)
       }),
@@ -1009,10 +1103,12 @@ export const createAtomicPortalCommandStore = (
             propertyId: unbrand(command.propertyId),
             portalId: unbrand(command.portalId),
             portalGroupId: unbrand(command.portalGroupId),
-            effectiveFrom: command.at,
+            effectiveFrom: command.occurredAt,
             createdBy: unbrand(command.changedBy),
           })
-          await insertOutboxRow(tx, command.event, { recordedAt: command.at })
+          await insertOutboxRow(tx, command.event, {
+            recordedAt: command.occurredAt,
+          })
         })
         await emitAfterCommit(events, command.event)
       }),
@@ -1053,17 +1149,22 @@ export const createAtomicPortalCommandStore = (
               'portal is not a member of this group',
             )
           }
-          if (active.effectiveFrom >= command.at) {
+          if (active.effectiveFrom >= command.occurredAt) {
             await tx
               .delete(portalGroupMemberships)
               .where(eq(portalGroupMemberships.id, active.id))
           } else {
             await tx
               .update(portalGroupMemberships)
-              .set({ effectiveTo: command.at, endReason: 'removed_from_group' })
+              .set({
+                effectiveTo: command.occurredAt,
+                endReason: 'removed_from_group',
+              })
               .where(eq(portalGroupMemberships.id, active.id))
           }
-          await insertOutboxRow(tx, command.event, { recordedAt: command.at })
+          await insertOutboxRow(tx, command.event, {
+            recordedAt: command.occurredAt,
+          })
         })
         await emitAfterCommit(events, command.event)
       }),
@@ -1074,7 +1175,66 @@ export const createAtomicPortalCommandStore = (
         await db.transaction(async (tx) => {
           await fencePortalContent(tx, command)
           await tx.insert(portalLinkCategories).values(categoryToRow(command.category))
-          await insertOutboxRow(tx, command.event, { recordedAt: command.at })
+          await insertOutboxRow(tx, command.event, {
+            recordedAt: command.occurredAt,
+          })
+        })
+        await emitAfterCommit(events, command.event)
+      }),
+
+    updatePortalLinkCategory: async (command) =>
+      trace('portal.commandStore.updatePortalLinkCategory', async () => {
+        assertPortalContentCommand(command)
+        await db.transaction(async (tx) => {
+          await fencePortalContent(tx, command)
+          const [updated] = await tx
+            .update(portalLinkCategories)
+            .set({ title: command.title, updatedAt: command.occurredAt })
+            .where(
+              and(
+                eq(portalLinkCategories.organizationId, unbrand(command.organizationId)),
+                eq(portalLinkCategories.portalId, unbrand(command.portalId)),
+                eq(portalLinkCategories.id, unbrand(command.categoryId)),
+              ),
+            )
+            .returning({ id: portalLinkCategories.id })
+          if (!updated) {
+            throw portalError(
+              'revision_conflict',
+              'Portal category changed during update',
+            )
+          }
+          await insertOutboxRow(tx, command.event, {
+            recordedAt: command.occurredAt,
+          })
+        })
+        await emitAfterCommit(events, command.event)
+      }),
+
+    deletePortalLinkCategory: async (command) =>
+      trace('portal.commandStore.deletePortalLinkCategory', async () => {
+        assertPortalContentCommand(command)
+        await db.transaction(async (tx) => {
+          await fencePortalContent(tx, command)
+          const [deleted] = await tx
+            .delete(portalLinkCategories)
+            .where(
+              and(
+                eq(portalLinkCategories.organizationId, unbrand(command.organizationId)),
+                eq(portalLinkCategories.portalId, unbrand(command.portalId)),
+                eq(portalLinkCategories.id, unbrand(command.categoryId)),
+              ),
+            )
+            .returning({ id: portalLinkCategories.id })
+          if (!deleted) {
+            throw portalError(
+              'revision_conflict',
+              'Portal category changed during delete',
+            )
+          }
+          await insertOutboxRow(tx, command.event, {
+            recordedAt: command.occurredAt,
+          })
         })
         await emitAfterCommit(events, command.event)
       }),
@@ -1106,7 +1266,7 @@ export const createAtomicPortalCommandStore = (
           for (const update of command.updates) {
             await tx
               .update(portalLinkCategories)
-              .set({ sortKey: update.sortKey, updatedAt: command.at })
+              .set({ sortKey: update.sortKey, updatedAt: command.occurredAt })
               .where(
                 and(
                   eq(
@@ -1118,7 +1278,9 @@ export const createAtomicPortalCommandStore = (
                 ),
               )
           }
-          await insertOutboxRow(tx, command.event, { recordedAt: command.at })
+          await insertOutboxRow(tx, command.event, {
+            recordedAt: command.occurredAt,
+          })
         })
         await emitAfterCommit(events, command.event)
       }),
@@ -1129,7 +1291,62 @@ export const createAtomicPortalCommandStore = (
         await db.transaction(async (tx) => {
           await fencePortalContent(tx, command)
           await tx.insert(portalLinks).values(linkToRow(command.link))
-          await insertOutboxRow(tx, command.event, { recordedAt: command.at })
+          await insertOutboxRow(tx, command.event, {
+            recordedAt: command.occurredAt,
+          })
+        })
+        await emitAfterCommit(events, command.event)
+      }),
+
+    updatePortalLink: async (command) =>
+      trace('portal.commandStore.updatePortalLink', async () => {
+        assertPortalContentCommand(command)
+        await db.transaction(async (tx) => {
+          await fencePortalContent(tx, command)
+          const [updated] = await tx
+            .update(portalLinks)
+            .set({ ...command.patch, updatedAt: command.occurredAt })
+            .where(
+              and(
+                eq(portalLinks.organizationId, unbrand(command.organizationId)),
+                eq(portalLinks.portalId, unbrand(command.portalId)),
+                eq(portalLinks.categoryId, unbrand(command.categoryId)),
+                eq(portalLinks.id, unbrand(command.linkId)),
+              ),
+            )
+            .returning({ id: portalLinks.id })
+          if (!updated) {
+            throw portalError('revision_conflict', 'Portal link changed during update')
+          }
+          await insertOutboxRow(tx, command.event, {
+            recordedAt: command.occurredAt,
+          })
+        })
+        await emitAfterCommit(events, command.event)
+      }),
+
+    deletePortalLink: async (command) =>
+      trace('portal.commandStore.deletePortalLink', async () => {
+        assertPortalContentCommand(command)
+        await db.transaction(async (tx) => {
+          await fencePortalContent(tx, command)
+          const [deleted] = await tx
+            .delete(portalLinks)
+            .where(
+              and(
+                eq(portalLinks.organizationId, unbrand(command.organizationId)),
+                eq(portalLinks.portalId, unbrand(command.portalId)),
+                eq(portalLinks.categoryId, unbrand(command.categoryId)),
+                eq(portalLinks.id, unbrand(command.linkId)),
+              ),
+            )
+            .returning({ id: portalLinks.id })
+          if (!deleted) {
+            throw portalError('revision_conflict', 'Portal link changed during delete')
+          }
+          await insertOutboxRow(tx, command.event, {
+            recordedAt: command.occurredAt,
+          })
         })
         await emitAfterCommit(events, command.event)
       }),
@@ -1159,7 +1376,7 @@ export const createAtomicPortalCommandStore = (
           for (const update of command.updates) {
             await tx
               .update(portalLinks)
-              .set({ sortKey: update.sortKey, updatedAt: command.at })
+              .set({ sortKey: update.sortKey, updatedAt: command.occurredAt })
               .where(
                 and(
                   eq(portalLinks.organizationId, unbrand(command.organizationId)),
@@ -1169,7 +1386,9 @@ export const createAtomicPortalCommandStore = (
                 ),
               )
           }
-          await insertOutboxRow(tx, command.event, { recordedAt: command.at })
+          await insertOutboxRow(tx, command.event, {
+            recordedAt: command.occurredAt,
+          })
         })
         await emitAfterCommit(events, command.event)
       }),
@@ -1210,7 +1429,9 @@ export const createAtomicPortalCommandStore = (
             )
           }
           await tx.insert(portalTokens).values(portalTokenToRow(command.token))
-          await insertOutboxRow(tx, command.event, { recordedAt: command.at })
+          await insertOutboxRow(tx, command.event, {
+            recordedAt: command.occurredAt,
+          })
         })
         await emitAfterCommit(events, command.event)
       }),
@@ -1242,7 +1463,9 @@ export const createAtomicPortalCommandStore = (
             throw portalError('revision_conflict', 'Portal token changed during rotation')
           }
           await tx.insert(portalTokens).values(portalTokenToRow(command.newToken))
-          await insertOutboxRow(tx, command.event, { recordedAt: command.at })
+          await insertOutboxRow(tx, command.event, {
+            recordedAt: command.occurredAt,
+          })
         })
         await emitAfterCommit(events, command.event)
       }),
@@ -1274,8 +1497,8 @@ export const createAtomicPortalCommandStore = (
             .update(portalTokens)
             .set({
               status: 'revoked',
-              revokedAt: command.at,
-              retiredAt: command.at,
+              revokedAt: command.occurredAt,
+              retiredAt: command.occurredAt,
               revokedBy: unbrand(command.revokedBy),
               revokedReason: command.reason.trim(),
               gracePeriodEnds: null,
@@ -1295,7 +1518,9 @@ export const createAtomicPortalCommandStore = (
           if (rows.length === 0) {
             throw portalError('revision_conflict', 'Portal token changed during revoke')
           }
-          await insertOutboxRow(tx, command.event, { recordedAt: command.at })
+          await insertOutboxRow(tx, command.event, {
+            recordedAt: command.occurredAt,
+          })
           return rows.length
         })
         if (revoked > 0) await emitAfterCommit(events, command.event)
@@ -1308,7 +1533,7 @@ export const createAtomicPortalCommandStore = (
         await db.transaction(async (tx) => {
           const [deleted] = await tx
             .update(portalGroups)
-            .set({ deletedAt: command.at, updatedAt: command.at })
+            .set({ deletedAt: command.occurredAt, updatedAt: command.revision })
             .where(
               and(
                 eq(portalGroups.organizationId, unbrand(command.organizationId)),
@@ -1318,13 +1543,13 @@ export const createAtomicPortalCommandStore = (
                 isNull(portalGroups.deletedAt),
               ),
             )
-            .returning({ id: portalGroups.id })
-          if (!deleted) {
-            throw portalError(
-              'revision_conflict',
-              'Portal Group changed while the delete was being committed',
-            )
-          }
+            .returning({ updatedAt: portalGroups.updatedAt })
+          assertCommittedRevision(
+            deleted,
+            command.revision,
+            'Portal Group',
+            'Portal Group changed while the delete was being committed',
+          )
 
           const membershipScope = [
             eq(portalGroupMemberships.organizationId, unbrand(command.organizationId)),
@@ -1337,20 +1562,25 @@ export const createAtomicPortalCommandStore = (
             .where(
               and(
                 ...membershipScope,
-                gte(portalGroupMemberships.effectiveFrom, command.at),
+                gte(portalGroupMemberships.effectiveFrom, command.occurredAt),
               ),
             )
           await tx
             .update(portalGroupMemberships)
-            .set({ effectiveTo: command.at, endReason: 'group_archived' })
+            .set({
+              effectiveTo: command.occurredAt,
+              endReason: 'group_archived',
+            })
             .where(
               and(
                 ...membershipScope,
-                lt(portalGroupMemberships.effectiveFrom, command.at),
+                lt(portalGroupMemberships.effectiveFrom, command.occurredAt),
               ),
             )
 
-          await insertOutboxRow(tx, command.event, { recordedAt: command.at })
+          await insertOutboxRow(tx, command.event, {
+            recordedAt: command.occurredAt,
+          })
         })
         await emitAfterCommit(events, command.event)
       }),

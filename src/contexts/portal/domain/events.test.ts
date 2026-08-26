@@ -3,18 +3,35 @@ import { describe, it, expect } from 'vitest'
 import {
   portalCreated,
   portalGroupCreated,
+  portalGroupDeleted,
   portalGroupUpdated,
+  portalHeroImagePublished,
+  portalLinkCategoryDeleted,
+  portalLinkCategoryUpdated,
+  portalLinkDeleted,
+  portalLinkUpdated,
+  portalResponsibleManagersUpdated,
+  portalResponsibilityNeeded,
   portalTokenIssued,
   portalTokenRevoked,
   portalTokenRotated,
   portalUpdated,
 } from './events'
-import { organizationId, propertyId, portalId, portalGroupId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  propertyId,
+  portalId,
+  portalGroupId,
+  portalLinkCategoryId,
+  portalLinkId,
+} from '#/shared/domain/ids'
 
 const ORG_ID = organizationId('org-1')
 const PROP_ID = propertyId('prop-1')
 const PORTAL_ID = portalId('port-1')
 const GROUP_ID = portalGroupId('group-1')
+const CATEGORY_ID = portalLinkCategoryId('category-1')
+const LINK_ID = portalLinkId('link-1')
 const NOW = new Date('2026-06-01T12:00:00Z')
 
 describe('portal events', () => {
@@ -74,18 +91,23 @@ describe('portal events', () => {
     expect(construct).toThrow(message)
   })
 
-  it('rejects a Portal lifecycle fact whose aggregate version drifts from time', () => {
-    expect(() =>
-      portalUpdated({
-        portalId: PORTAL_ID,
-        organizationId: ORG_ID,
-        propertyId: PROP_ID,
-        previousPublicationState: 'draft',
-        publicationState: 'published',
-        sourceAggregateVersion: '2026-06-01T12:01:00.000Z',
-        occurredAt: NOW,
-      }),
-    ).toThrow('sourceAggregateVersion must equal occurredAt in ISO format')
+  it('keeps business occurrence time separate from a monotonic aggregate revision', () => {
+    const revision = '2026-06-01T12:01:00.000Z'
+
+    const event = portalUpdated({
+      portalId: PORTAL_ID,
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      previousPublicationState: 'draft',
+      publicationState: 'published',
+      sourceAggregateVersion: revision,
+      occurredAt: NOW,
+    })
+
+    expect(event).toMatchObject({
+      sourceAggregateVersion: revision,
+      occurredAt: NOW,
+    })
   })
 
   it('emits token issuance, rotation, and revocation envelopes', () => {
@@ -124,5 +146,64 @@ describe('portal events', () => {
       _tag: 'portal.token.revoked',
       correlationId: null,
     })
+  })
+
+  it('emits identifier-only mutation and completion facts at the committed revision', () => {
+    const revision = '2026-06-01T12:01:00.000Z'
+    const base = {
+      portalId: PORTAL_ID,
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      sourceAggregateVersion: revision,
+      occurredAt: NOW,
+    }
+
+    expect([
+      portalLinkCategoryUpdated({ ...base, categoryId: CATEGORY_ID }),
+      portalLinkCategoryDeleted({ ...base, categoryId: CATEGORY_ID }),
+      portalLinkUpdated({
+        ...base,
+        linkId: LINK_ID,
+        categoryId: CATEGORY_ID,
+      }),
+      portalLinkDeleted({
+        ...base,
+        linkId: LINK_ID,
+        categoryId: CATEGORY_ID,
+      }),
+      portalResponsibleManagersUpdated({ ...base, assignmentCount: 2 }),
+      portalHeroImagePublished({
+        ...base,
+        uploadId: 'upload-1',
+        eventId: '00000000-0000-4000-8000-000000000001',
+      }),
+    ]).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sourceAggregateVersion: revision, occurredAt: NOW }),
+      ]),
+    )
+  })
+
+  it('versions group deletion and responsibility recovery facts independently of occurrence time', () => {
+    const sourceAggregateVersion = '2026-06-01T12:01:00.000Z'
+
+    expect(
+      portalGroupDeleted({
+        portalGroupId: GROUP_ID,
+        organizationId: ORG_ID,
+        propertyId: PROP_ID,
+        sourceAggregateVersion,
+        occurredAt: NOW,
+      }),
+    ).toMatchObject({ sourceAggregateVersion, occurredAt: NOW })
+    expect(
+      portalResponsibilityNeeded({
+        portalId: PORTAL_ID,
+        organizationId: ORG_ID,
+        propertyId: PROP_ID,
+        sourceAggregateVersion,
+        occurredAt: NOW,
+      }),
+    ).toMatchObject({ sourceAggregateVersion, occurredAt: NOW })
   })
 })

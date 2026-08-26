@@ -12,6 +12,7 @@ import { inboxItems } from '#/shared/db/schema/inbox.schema'
 import type {
   InboxRepository,
   InboxFilters,
+  InboxSourceScope,
   Cursor,
   PaginatedResult,
 } from '../../application/ports/inbox.repository'
@@ -100,12 +101,18 @@ async function countWhere(
   db: Database,
   orgId: OrganizationId,
   propertyIds: ReadonlyArray<PropertyId> | undefined,
+  sourceScopes: ReadonlyArray<InboxSourceScope> | undefined,
   ...conditions: SQL[]
 ): Promise<number> {
-  if (propertyIds?.length === 0) return 0
+  if (propertyIds?.length === 0 || sourceScopes?.length === 0) return 0
   const all: SQL[] = [eq(inboxItems.organizationId, orgId), ...conditions]
   if (propertyIds) {
     all.push(inArray(inboxItems.propertyId, [...propertyIds] as string[]))
+  }
+  const sourceScope = sourceScopeCondition(sourceScopes)
+  if (sourceScope === null) return 0
+  if (sourceScope) {
+    all.push(sourceScope)
   }
   const result = await db
     .select({ count: sql<number>`count(*)` })
@@ -474,9 +481,16 @@ export const createInboxRepository = (
     orgId: OrganizationId,
     status: InboxStatus,
     propertyIds?: ReadonlyArray<PropertyId>,
+    sourceScopes?: ReadonlyArray<InboxSourceScope>,
   ) => {
     return trace('inbox.countByStatus', async () => {
-      return countWhere(db, orgId, propertyIds, eq(inboxItems.status, status))
+      return countWhere(
+        db,
+        orgId,
+        propertyIds,
+        sourceScopes,
+        eq(inboxItems.status, status),
+      )
     })
   },
   setEscalation: async (
@@ -528,12 +542,14 @@ export const createInboxRepository = (
   countEscalatedActive: async (
     orgId: OrganizationId,
     propertyIds?: ReadonlyArray<PropertyId>,
+    sourceScopes?: ReadonlyArray<InboxSourceScope>,
   ) => {
     return trace('inbox.countEscalatedActive', async () => {
       return countWhere(
         db,
         orgId,
         propertyIds,
+        sourceScopes,
         eq(inboxItems.isEscalated, true),
         isNull(inboxItems.escalationResolvedAt),
       )
@@ -543,11 +559,12 @@ export const createInboxRepository = (
     orgId: OrganizationId,
     since: Date | null,
     propertyIds?: ReadonlyArray<PropertyId>,
+    sourceScopes?: ReadonlyArray<InboxSourceScope>,
   ) => {
     return trace('inbox.countOpenSince', async () => {
       const conditions: SQL[] = [eq(inboxItems.status, 'open')]
       if (since) conditions.push(gte(inboxItems.createdAt, since))
-      return countWhere(db, orgId, propertyIds, ...conditions)
+      return countWhere(db, orgId, propertyIds, sourceScopes, ...conditions)
     })
   },
 
@@ -676,6 +693,10 @@ const buildFilterConditions = (
   else if (filters.propertyIds)
     conditions.push(inArray(inboxItems.propertyId, [...filters.propertyIds] as string[]))
 
+  const sourceScope = sourceScopeCondition(filters.sourceScopes)
+  if (sourceScope === null) return null
+  if (sourceScope) conditions.push(sourceScope)
+
   // Status filter — single value or set
   if (filters.status)
     conditions.push(
@@ -704,6 +725,22 @@ const buildFilterConditions = (
     conditions.push(lte(inboxItems.sourceDate, filters.sourceDateTo))
 
   return conditions
+}
+
+/** Build the OR-of-source/property authorization predicate. */
+const sourceScopeCondition = (
+  sourceScopes: ReadonlyArray<InboxSourceScope> | undefined,
+): SQL | null | undefined => {
+  if (sourceScopes === undefined) return undefined
+  const predicates = sourceScopes.flatMap((scope) => {
+    if (scope.propertyIds?.length === 0) return []
+    const source = eq(inboxItems.sourceType, scope.sourceType)
+    return scope.propertyIds === undefined
+      ? [source]
+      : [and(source, inArray(inboxItems.propertyId, [...scope.propertyIds] as string[]))!]
+  })
+  if (predicates.length === 0) return null
+  return predicates.length === 1 ? predicates[0] : or(...predicates)
 }
 
 // ── Batch helpers ──────────────────────────────────────────────────

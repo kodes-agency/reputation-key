@@ -8,6 +8,7 @@ import type { InboxViewRepository } from '../ports/inbox-view.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { resolveVisiblePropertyIds } from '../visible-properties'
+import { resolveInboxSourceScopes } from '../inbox-access'
 
 export type GetLastVisitCountInput = Readonly<Record<string, never>>
 
@@ -34,8 +35,10 @@ export const getLastVisitCount =
     )
     if (visible === 'none') return 0
     const propertyIds = visible === 'all' ? undefined : visible
+    const sourceScopes = await resolveInboxSourceScopes(deps.staffPublicApi, ctx, 'read')
+    if (sourceScopes.length === 0) return 0
 
     const since = await deps.viewRepo.getLastInboxView(ctx.organizationId, ctx.userId)
 
-    return deps.repo.countOpenSince(ctx.organizationId, since, propertyIds)
+    return deps.repo.countOpenSince(ctx.organizationId, since, propertyIds, sourceScopes)
   }

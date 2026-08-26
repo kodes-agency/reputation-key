@@ -66,6 +66,20 @@ export type PortalResponsibilityNeeded = Readonly<{
   portalId: PortalId
   organizationId: OrganizationId
   propertyId: PropertyId
+  sourceAggregateVersion: string
+  occurredAt: Date
+}>
+
+/** Identifier-only fact for a committed responsible-manager selection change. */
+export type PortalResponsibleManagersUpdated = Readonly<{
+  _tag: 'portal.responsible_managers.updated'
+  eventId: string
+  correlationId: string | null
+  portalId: PortalId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  assignmentCount: number
+  sourceAggregateVersion: string
   occurredAt: Date
 }>
 
@@ -83,6 +97,19 @@ export type PortalHeroImageProcessingRequested = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   sourceETag: string
+  occurredAt: Date
+}>
+
+/** Durable completion fact; deliberately excludes the published URL. */
+export type PortalHeroImagePublished = Readonly<{
+  _tag: 'portal.hero_image.published'
+  eventId: string
+  correlationId: string | null
+  uploadId: string
+  portalId: PortalId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  sourceAggregateVersion: string
   occurredAt: Date
 }>
 
@@ -134,6 +161,7 @@ type PortalWorkflowFactBase = Readonly<{
   portalId: PortalId
   portalGroupId: PortalGroupId | null
   supersedesSourceEventId: string | null
+  sourceAggregateVersion: string
   occurredAt: Date
 }>
 
@@ -179,6 +207,30 @@ export type PortalLinkCategoryReordered = Readonly<{
   occurredAt: Date
 }>
 
+export type PortalLinkCategoryUpdated = Readonly<{
+  _tag: 'portal_link_category.updated'
+  eventId: string
+  correlationId: string | null
+  portalId: PortalId
+  categoryId: PortalLinkCategoryId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  sourceAggregateVersion: string
+  occurredAt: Date
+}>
+
+export type PortalLinkCategoryDeleted = Readonly<{
+  _tag: 'portal_link_category.deleted'
+  eventId: string
+  correlationId: string | null
+  portalId: PortalId
+  categoryId: PortalLinkCategoryId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  sourceAggregateVersion: string
+  occurredAt: Date
+}>
+
 // ── Link events ────────────────────────────────────────────────────
 
 export type PortalLinkCreated = Readonly<{
@@ -199,6 +251,32 @@ export type PortalLinkReordered = Readonly<{
   eventId: string
   correlationId: string | null
   portalId: PortalId
+  categoryId: PortalLinkCategoryId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  sourceAggregateVersion: string
+  occurredAt: Date
+}>
+
+export type PortalLinkUpdated = Readonly<{
+  _tag: 'portal_link.updated'
+  eventId: string
+  correlationId: string | null
+  portalId: PortalId
+  linkId: PortalLinkId
+  categoryId: PortalLinkCategoryId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  sourceAggregateVersion: string
+  occurredAt: Date
+}>
+
+export type PortalLinkDeleted = Readonly<{
+  _tag: 'portal_link.deleted'
+  eventId: string
+  correlationId: string | null
+  portalId: PortalId
+  linkId: PortalLinkId
   categoryId: PortalLinkCategoryId
   organizationId: OrganizationId
   propertyId: PropertyId
@@ -239,6 +317,7 @@ export type PortalGroupDeleted = Readonly<{
   portalGroupId: PortalGroupId
   organizationId: OrganizationId
   propertyId: PropertyId
+  sourceAggregateVersion: string
   occurredAt: Date
 }>
 
@@ -273,7 +352,9 @@ export type PortalEvent =
   | PortalUpdated
   | PortalDeleted
   | PortalResponsibilityNeeded
+  | PortalResponsibleManagersUpdated
   | PortalHeroImageProcessingRequested
+  | PortalHeroImagePublished
   | PortalTokenIssued
   | PortalTokenRotated
   | PortalTokenRevoked
@@ -282,8 +363,12 @@ export type PortalEvent =
   | PortalApprovedDestinationRatioRecorded
   | PortalLinkCategoryCreated
   | PortalLinkCategoryReordered
+  | PortalLinkCategoryUpdated
+  | PortalLinkCategoryDeleted
   | PortalLinkCreated
   | PortalLinkReordered
+  | PortalLinkUpdated
+  | PortalLinkDeleted
   | PortalGroupCreated
   | PortalGroupUpdated
   | PortalGroupDeleted
@@ -298,8 +383,9 @@ function assertPortalLifecycleFact(args: {
 }): void {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(
-    args.sourceAggregateVersion === args.occurredAt.toISOString(),
-    'sourceAggregateVersion must equal occurredAt in ISO format',
+    !Number.isNaN(Date.parse(args.sourceAggregateVersion)) &&
+      new Date(args.sourceAggregateVersion).toISOString() === args.sourceAggregateVersion,
+    'sourceAggregateVersion must be an ISO timestamp',
   )
 }
 
@@ -342,12 +428,48 @@ export const portalDeleted = (
 export const portalResponsibilityNeeded = (
   args: Omit<PortalResponsibilityNeeded, '_tag' | 'eventId' | 'correlationId'>,
 ): PortalResponsibilityNeeded => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assertPortalLifecycleFact(args)
   return {
     _tag: 'portal.responsibility_became_needed',
     eventId: newEventId(),
     correlationId: null,
     ...args,
+  }
+}
+
+export const portalResponsibleManagersUpdated = (
+  args: Omit<PortalResponsibleManagersUpdated, '_tag' | 'eventId' | 'correlationId'>,
+): PortalResponsibleManagersUpdated => {
+  assertPortalLifecycleFact(args)
+  assert(
+    Number.isInteger(args.assignmentCount) && args.assignmentCount >= 0,
+    'assignmentCount must be a non-negative integer',
+  )
+  return {
+    _tag: 'portal.responsible_managers.updated',
+    eventId: newEventId(),
+    correlationId: null,
+    ...args,
+  }
+}
+
+type PortalHeroImagePublishedArgs = Omit<
+  PortalHeroImagePublished,
+  '_tag' | 'eventId' | 'correlationId'
+> &
+  Readonly<{ eventId?: string }>
+
+export const portalHeroImagePublished = (
+  args: PortalHeroImagePublishedArgs,
+): PortalHeroImagePublished => {
+  assertPortalLifecycleFact(args)
+  assert(args.uploadId.trim().length > 0, 'uploadId must be non-empty')
+  const { eventId = newEventId(), ...fact } = args
+  return {
+    _tag: 'portal.hero_image.published',
+    eventId,
+    correlationId: null,
+    ...fact,
   }
 }
 
@@ -428,6 +550,30 @@ export const portalLinkCategoryReordered = (
   }
 }
 
+export const portalLinkCategoryUpdated = (
+  args: Omit<PortalLinkCategoryUpdated, '_tag' | 'eventId' | 'correlationId'>,
+): PortalLinkCategoryUpdated => {
+  assertPortalLifecycleFact(args)
+  return {
+    _tag: 'portal_link_category.updated',
+    eventId: newEventId(),
+    correlationId: null,
+    ...args,
+  }
+}
+
+export const portalLinkCategoryDeleted = (
+  args: Omit<PortalLinkCategoryDeleted, '_tag' | 'eventId' | 'correlationId'>,
+): PortalLinkCategoryDeleted => {
+  assertPortalLifecycleFact(args)
+  return {
+    _tag: 'portal_link_category.deleted',
+    eventId: newEventId(),
+    correlationId: null,
+    ...args,
+  }
+}
+
 export const portalLinkCreated = (
   args: Omit<PortalLinkCreated, '_tag' | 'eventId' | 'correlationId'>,
 ): PortalLinkCreated => {
@@ -446,6 +592,30 @@ export const portalLinkReordered = (
   assertPortalLifecycleFact(args)
   return {
     _tag: 'portal_link.reordered',
+    eventId: newEventId(),
+    correlationId: null,
+    ...args,
+  }
+}
+
+export const portalLinkUpdated = (
+  args: Omit<PortalLinkUpdated, '_tag' | 'eventId' | 'correlationId'>,
+): PortalLinkUpdated => {
+  assertPortalLifecycleFact(args)
+  return {
+    _tag: 'portal_link.updated',
+    eventId: newEventId(),
+    correlationId: null,
+    ...args,
+  }
+}
+
+export const portalLinkDeleted = (
+  args: Omit<PortalLinkDeleted, '_tag' | 'eventId' | 'correlationId'>,
+): PortalLinkDeleted => {
+  assertPortalLifecycleFact(args)
+  return {
+    _tag: 'portal_link.deleted',
     eventId: newEventId(),
     correlationId: null,
     ...args,
@@ -487,7 +657,7 @@ export const portalGroupUpdated = (
 export const portalGroupDeleted = (
   args: Omit<PortalGroupDeleted, '_tag' | 'eventId' | 'correlationId'>,
 ): PortalGroupDeleted => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assertPortalLifecycleFact(args)
   return {
     _tag: 'portal_group.deleted',
     eventId: newEventId(),
@@ -529,7 +699,7 @@ type PortalWorkflowFactArgs<T extends PortalWorkflowFactBase> = Omit<
 function assertPortalWorkflowFact(
   args: PortalWorkflowFactArgs<PortalWorkflowFactBase>,
 ): void {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assertPortalLifecycleFact(args)
   assert(args.reviewId.trim().length > 0, 'reviewId must be non-empty')
   assert(
     Number.isInteger(args.revision) && args.revision >= 1,

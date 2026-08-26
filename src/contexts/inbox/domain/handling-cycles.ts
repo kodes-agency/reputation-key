@@ -68,7 +68,11 @@ export function createInitialReviewHandlingCycle(
 export type CreateNextReviewHandlingCycleInput = Readonly<{
   current: ReviewHandlingCycleHead
   materialReviewRevision: number
-  openedReason: 'material_revision_changed' | 'manual_reopen'
+  openedReason:
+    | 'material_revision_changed'
+    | 'manual_reopen'
+    | 'provider_reply_deleted'
+    | 'provider_reply_diverged'
   openedBy: UserId | null
   openedAt: Date
 }>
@@ -107,13 +111,13 @@ export function createNextReviewHandlingCycle(
     )
   }
   if (
-    input.openedReason === 'manual_reopen' &&
+    input.openedReason !== 'material_revision_changed' &&
     input.materialReviewRevision !== current.currentMaterialReviewRevision
   ) {
     return err(
       inboxError(
         'invalid_input',
-        'A manual reopen must keep the current Material Review Revision',
+        'A same-source reopen must keep the current Material Review Revision',
         {
           currentMaterialReviewRevision: current.currentMaterialReviewRevision,
           requestedMaterialReviewRevision: input.materialReviewRevision,

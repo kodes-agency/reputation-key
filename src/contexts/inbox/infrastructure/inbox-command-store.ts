@@ -19,12 +19,24 @@
 
 import { and, eq, inArray } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { inboxItems, inboxNotes } from '#/shared/db/schema/inbox.schema'
+import {
+  inboxHandlingCycleHeads,
+  inboxHandlingCycles,
+  inboxItems,
+  inboxNotes,
+} from '#/shared/db/schema/inbox.schema'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { DomainEvent } from '#/shared/events/events'
 import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
-import type { InboxItemId, OrganizationId } from '#/shared/domain/ids'
+import {
+  inboxItemId,
+  organizationId,
+  propertyId,
+  reviewId,
+  type InboxItemId,
+  type OrganizationId,
+} from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type { InboxItem } from '../domain/types'
 import { inboxError } from '../domain/errors'
@@ -33,6 +45,7 @@ import { timestampFieldsForStatus } from '../domain/rules'
 import { inboxItemFromRow, inboxItemToInsertRow } from './mappers/inbox.mapper'
 import { inboxNoteFromRow, inboxNoteToInsertRow } from './mappers/inbox-note.mapper'
 import { insertInitialReviewHandlingCycle } from './review-handling-cycle.store'
+import { createNextReviewHandlingCycle } from '../domain/handling-cycles'
 import type {
   ApplyReceiptStatus,
   InboxCommandStore,
@@ -49,6 +62,22 @@ async function insertReceiptRow(
     .insert(eventConsumerReceipts)
     .values({ eventId, consumerName, status })
     .onConflictDoNothing()
+}
+
+/** Reserve a delivery inside the apply transaction. A concurrent duplicate
+ * blocks on the receipt key and then observes no returned row, so it cannot
+ * repeat a close/reopen after a later workflow transition. */
+async function reserveReceiptRow(
+  tx: Tx,
+  eventId: string,
+  consumerName: string,
+): Promise<boolean> {
+  const rows = await tx
+    .insert(eventConsumerReceipts)
+    .values({ eventId, consumerName, status: 'applied' })
+    .onConflictDoNothing()
+    .returning({ eventId: eventConsumerReceipts.eventId })
+  return rows.length === 1
 }
 
 const itemFromRow = (row: typeof inboxItems.$inferSelect): InboxItem => ({
@@ -405,19 +434,195 @@ export function createAtomicInboxCommandStore(
     },
 
     applyReplyPublishedOnce: async (command) => {
-      const set: Record<string, unknown> = { updatedAt: command.occurredAt }
-      if (command.closeItem) {
-        set.status = 'closed'
-        set.closedAt = command.occurredAt
-      }
-      if (command.stampMilestone) set.firstReplyPublishedAt = command.occurredAt
-      return applyGuarded(
-        'inbox.commandStore.applyReplyPublishedOnce',
-        command.item,
-        set,
-        command.fact,
-        { eventId: command.eventId, consumerName: command.consumerName },
-      )
+      return trace('inbox.commandStore.applyReplyPublishedOnce', async () => {
+        await db.transaction(async (tx) => {
+          await insertReceiptRow(tx, command.eventId, command.consumerName, 'applied')
+        })
+        return 'applied' as const
+      })
+    },
+
+    applyReplyObservedOnce: async (command) => {
+      return trace('inbox.commandStore.applyReplyObservedOnce', async () => {
+        const outcome = await db.transaction(async (tx) => {
+          if (!(await reserveReceiptRow(tx, command.eventId, command.consumerName))) {
+            return { status: 'applied' as const, fact: null }
+          }
+
+          const observation = command.currentObservation
+          if (
+            observation.authority !== 'review.current-google-reply-observation.v1' ||
+            observation.organizationId !== command.item.organizationId ||
+            observation.propertyId !== command.item.propertyId ||
+            observation.reviewId !== command.item.sourceId
+          ) {
+            throw inboxError(
+              'invalid_input',
+              'Review observation permit does not match the Inbox item',
+            )
+          }
+
+          // Canonical Review Handling Cycle lock order is head -> Inbox item.
+          // `startNext` uses the same order; reversing it here lets a material
+          // revision/reopen race form a PostgreSQL row-lock cycle.
+          const headRows = await tx
+            .select()
+            .from(inboxHandlingCycleHeads)
+            .where(
+              and(
+                eq(inboxHandlingCycleHeads.inboxItemId, command.item.id),
+                eq(inboxHandlingCycleHeads.organizationId, command.item.organizationId),
+                eq(inboxHandlingCycleHeads.reviewId, observation.reviewId),
+              ),
+            )
+            .for('update')
+            .limit(1)
+          const itemRows = await tx
+            .select()
+            .from(inboxItems)
+            .where(
+              and(
+                eq(inboxItems.id, command.item.id),
+                eq(inboxItems.organizationId, command.item.organizationId),
+                eq(inboxItems.propertyId, observation.propertyId),
+                eq(inboxItems.sourceType, 'review'),
+                eq(inboxItems.sourceId, observation.reviewId),
+              ),
+            )
+            .for('update')
+            .limit(1)
+          const headRow = headRows[0]
+          const itemRow = itemRows[0]
+          if (!itemRow || !headRow) {
+            throw inboxError(
+              'not_found',
+              'Review Inbox item or Handling Cycle head not found',
+            )
+          }
+          if (
+            itemRow.status !== headRow.status ||
+            headRow.currentMaterialReviewRevision !== observation.materialReviewRevision
+          ) {
+            throw inboxError(
+              'revision_conflict',
+              'Review Inbox Handling Cycle is not current for this observation',
+            )
+          }
+
+          const shouldClose =
+            observation.state === 'live' &&
+            (observation.resolution === 'confirmed_on_google' ||
+              observation.resolution === 'external_current_live')
+          const reopenReason =
+            observation.state === 'absent' &&
+            observation.change === 'deleted' &&
+            observation.resolution === 'absent'
+              ? ('provider_reply_deleted' as const)
+              : null
+
+          if (shouldClose && itemRow.status === 'open') {
+            const nextStateRevision = headRow.stateRevision + 1
+            if (!Number.isSafeInteger(nextStateRevision)) {
+              throw inboxError('invalid_input', 'Handling Cycle revision limit reached')
+            }
+            await tx
+              .update(inboxHandlingCycleHeads)
+              .set({
+                status: 'closed',
+                stateRevision: nextStateRevision,
+                updatedAt: observation.observedAt,
+              })
+              .where(
+                and(
+                  eq(inboxHandlingCycleHeads.inboxItemId, command.item.id),
+                  eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
+                  eq(inboxHandlingCycleHeads.status, 'open'),
+                ),
+              )
+            await tx
+              .update(inboxItems)
+              .set({
+                status: 'closed',
+                closedAt: observation.observedAt,
+                ...(itemRow.firstReplyPublishedAt === null
+                  ? { firstReplyPublishedAt: observation.observedAt }
+                  : {}),
+                updatedAt: observation.observedAt,
+              })
+              .where(
+                and(
+                  eq(inboxItems.id, command.item.id),
+                  eq(inboxItems.organizationId, command.item.organizationId),
+                  eq(inboxItems.status, 'open'),
+                ),
+              )
+            await insertOutboxRow(tx, command.closeFact)
+            return { status: 'applied' as const, fact: command.closeFact }
+          }
+
+          if (reopenReason !== null && itemRow.status === 'closed') {
+            const current = {
+              inboxItemId: inboxItemId(headRow.inboxItemId),
+              organizationId: organizationId(headRow.organizationId),
+              propertyId: propertyId(headRow.propertyId),
+              reviewId: reviewId(headRow.reviewId),
+              currentCycleNumber: headRow.currentCycleNumber,
+              currentMaterialReviewRevision: headRow.currentMaterialReviewRevision,
+              stateRevision: headRow.stateRevision,
+              status: headRow.status,
+            }
+            const decision = createNextReviewHandlingCycle({
+              current,
+              materialReviewRevision: observation.materialReviewRevision,
+              openedReason: reopenReason,
+              openedBy: null,
+              openedAt: observation.observedAt,
+            })
+            if (decision.isErr()) throw decision.error
+            await tx.insert(inboxHandlingCycles).values({
+              ...decision.value.cycle,
+              createdAt: observation.observedAt,
+            })
+            await tx
+              .update(inboxHandlingCycleHeads)
+              .set({
+                currentCycleNumber: decision.value.head.currentCycleNumber,
+                currentMaterialReviewRevision:
+                  decision.value.head.currentMaterialReviewRevision,
+                stateRevision: decision.value.head.stateRevision,
+                status: 'open',
+                updatedAt: observation.observedAt,
+              })
+              .where(
+                and(
+                  eq(inboxHandlingCycleHeads.inboxItemId, command.item.id),
+                  eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
+                  eq(inboxHandlingCycleHeads.status, 'closed'),
+                ),
+              )
+            await tx
+              .update(inboxItems)
+              .set({
+                status: 'open',
+                closedAt: null,
+                updatedAt: observation.observedAt,
+              })
+              .where(
+                and(
+                  eq(inboxItems.id, command.item.id),
+                  eq(inboxItems.organizationId, command.item.organizationId),
+                  eq(inboxItems.status, 'closed'),
+                ),
+              )
+            await insertOutboxRow(tx, command.reopenFact)
+            return { status: 'applied' as const, fact: command.reopenFact }
+          }
+
+          return { status: 'applied' as const, fact: null }
+        })
+        if (outcome.fact) await emitAfterCommit(events, outcome.fact)
+        return outcome.status
+      })
     },
 
     recordReceipt: async (eventId, consumerName, status) => {

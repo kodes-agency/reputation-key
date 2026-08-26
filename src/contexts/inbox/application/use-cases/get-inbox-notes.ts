@@ -10,7 +10,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
 import { inboxError } from '../../domain/errors'
-import { assertPropertyAccessible } from '../inbox-access'
+import { assertInboxSourcePropertyAccessible, canReadInboxSource } from '../inbox-access'
 
 export type GetInboxNotesInput = Readonly<{
   inboxItemId: InboxItemId
@@ -38,19 +38,23 @@ export const getInboxNotes =
         inboxItemId: input.inboxItemId,
       })
     }
+    if (!canReadInboxSource(ctx, item.sourceType)) {
+      throw inboxError('forbidden', 'No access to this inbox source')
+    }
 
     // Enforce role-scoped property access via the shared guard.
     // Scope resolved per-permission: org-wide (AccountAdmin) → all accessible;
     // assigned scope (PropertyManager/Staff) → staff_assignment properties
     // (CONTEXT.md L72).
-    await assertPropertyAccessible(
+    await assertInboxSourcePropertyAccessible(
       deps.staffPublicApi,
       ctx,
-      'inbox.read',
+      'read',
+      item.sourceType,
       item.propertyId,
     )
 
     return deps.noteRepo.findByInboxItemId(input.inboxItemId, ctx.organizationId)
   }
 
-export type GetInboxNotesUseCase = ReturnType<typeof getInboxNotes>
+export type GetInboxNotes = ReturnType<typeof getInboxNotes>

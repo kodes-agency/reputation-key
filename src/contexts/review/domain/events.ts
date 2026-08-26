@@ -12,6 +12,15 @@ import type {
 } from '#/shared/domain/ids'
 import type { ReviewPlatform } from './types'
 
+const DATABASE_UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
+const PUBLICATION_CANCELLATION_CAUSES = new Set([
+  'disconnect',
+  'policy',
+  'source_changed',
+  'provider_truth',
+])
+
 export type ReviewCreated = Readonly<{
   _tag: 'review.created'
   eventId: string
@@ -257,6 +266,11 @@ export type ReviewReplyPublicationRequested = Readonly<{
   organizationId: OrganizationId
   userId: UserId
   publicationCycle: number
+  sourceEpoch: number
+  materialReviewRevision: number
+  /** Google reply observation-head revision visible at authorization; zero
+   * means no head existed. */
+  baseObservationRevision: number
   occurredAt: Date
   correlationId: string | null
 }>
@@ -266,10 +280,37 @@ export const reviewReplyPublicationRequested = (
     correlationId?: string | null
   },
 ): ReviewReplyPublicationRequested => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
+  assert(
+    args.occurredAt instanceof Date && !Number.isNaN(args.occurredAt.getTime()),
+    'occurredAt must be a valid Date',
+  )
+  assert(
+    typeof args.organizationId === 'string' && args.organizationId.trim().length > 0,
+    'organizationId must be nonempty',
+  )
+  assert(
+    typeof args.userId === 'string' && args.userId.trim().length > 0,
+    'userId must be nonempty',
+  )
+  assert(DATABASE_UUID_PATTERN.test(args.replyId), 'replyId must be a UUID')
+  assert(DATABASE_UUID_PATTERN.test(args.reviewId), 'reviewId must be a UUID')
+  assert(DATABASE_UUID_PATTERN.test(args.propertyId), 'propertyId must be a UUID')
   assert(
     Number.isSafeInteger(args.publicationCycle) && args.publicationCycle > 0,
     'publicationCycle must be a positive safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.sourceEpoch) && args.sourceEpoch >= 0,
+    'sourceEpoch must be a nonnegative safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.materialReviewRevision) && args.materialReviewRevision > 0,
+    'materialReviewRevision must be a positive safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.baseObservationRevision) &&
+      args.baseObservationRevision >= 0,
+    'baseObservationRevision must be a nonnegative safe integer',
   )
   return {
     ...args,
@@ -370,7 +411,7 @@ export type ReviewReplyPublicationCancelled = Readonly<{
   reviewId: ReviewId
   propertyId: PropertyId
   organizationId: OrganizationId
-  cause: 'disconnect' | 'policy'
+  cause: 'disconnect' | 'policy' | 'source_changed' | 'provider_truth'
   occurredAt: Date
   correlationId: string | null
 }>
@@ -379,10 +420,139 @@ export const reviewReplyPublicationCancelled = (
     correlationId?: string | null
   },
 ): ReviewReplyPublicationCancelled => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be a Date')
+  assert(
+    args.occurredAt instanceof Date && !Number.isNaN(args.occurredAt.getTime()),
+    'occurredAt must be a valid Date',
+  )
+  assert(
+    typeof args.organizationId === 'string' && args.organizationId.trim().length > 0,
+    'organizationId must be nonempty',
+  )
+  assert(DATABASE_UUID_PATTERN.test(args.replyId), 'replyId must be a UUID')
+  assert(DATABASE_UUID_PATTERN.test(args.reviewId), 'reviewId must be a UUID')
+  assert(DATABASE_UUID_PATTERN.test(args.propertyId), 'propertyId must be a UUID')
+  assert(
+    PUBLICATION_CANCELLATION_CAUSES.has(args.cause),
+    'cause must be a valid publication cancellation cause',
+  )
   return {
     ...args,
     _tag: 'review.reply.publication_cancelled',
+    eventId: newEventId(),
+    correlationId: args.correlationId ?? null,
+  }
+}
+
+/** Identifier-only fact for one material Google reply observation. Provider
+ * text remains in the Review-owned source-content lifecycle, never the bus. */
+export type ReviewReplyObserved = Readonly<{
+  _tag: 'review.reply.observed'
+  eventId: string
+  reviewId: ReviewId
+  propertyId: PropertyId
+  organizationId: OrganizationId
+  observationRevision: number
+  sourceEpoch: number
+  materialReviewRevision: number
+  change: 'added' | 'edited' | 'deleted' | 'unchanged'
+  resolution: 'confirmed_on_google' | 'external_current_live' | 'diverged' | 'absent'
+  provenance: 'repkey_confirmed' | 'external_or_unknown' | 'none'
+  matchedReplyId: ReplyId | null
+  matchedPublicationCycle: number | null
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+function hasValidReviewReplyObservationSemantics(
+  observation: Pick<
+    ReviewReplyObserved,
+    'change' | 'resolution' | 'provenance' | 'matchedReplyId' | 'matchedPublicationCycle'
+  >,
+): boolean {
+  const hasMatch =
+    observation.matchedReplyId !== null && observation.matchedPublicationCycle !== null
+  const hasNoMatch =
+    observation.matchedReplyId === null && observation.matchedPublicationCycle === null
+
+  switch (observation.resolution) {
+    case 'confirmed_on_google':
+      return (
+        observation.change !== 'deleted' &&
+        observation.provenance === 'repkey_confirmed' &&
+        hasMatch
+      )
+    case 'external_current_live':
+      return (
+        observation.change !== 'deleted' &&
+        observation.provenance === 'external_or_unknown' &&
+        hasNoMatch
+      )
+    case 'diverged':
+      return (
+        observation.change !== 'deleted' &&
+        observation.provenance === 'external_or_unknown' &&
+        hasNoMatch
+      )
+    case 'absent':
+      return (
+        observation.change === 'deleted' &&
+        observation.provenance === 'none' &&
+        hasNoMatch
+      )
+  }
+}
+
+export const reviewReplyObserved = (
+  args: Omit<ReviewReplyObserved, '_tag' | 'eventId' | 'correlationId'> & {
+    correlationId?: string | null
+  },
+): ReviewReplyObserved => {
+  assert(
+    args.occurredAt instanceof Date && !Number.isNaN(args.occurredAt.getTime()),
+    'occurredAt must be a valid Date',
+  )
+  assert(
+    typeof args.organizationId === 'string' && args.organizationId.trim().length > 0,
+    'organizationId must be nonempty',
+  )
+  assert(DATABASE_UUID_PATTERN.test(args.reviewId), 'reviewId must be a UUID')
+  assert(DATABASE_UUID_PATTERN.test(args.propertyId), 'propertyId must be a UUID')
+  if (args.matchedReplyId !== null) {
+    assert(
+      DATABASE_UUID_PATTERN.test(args.matchedReplyId),
+      'matchedReplyId must be a UUID',
+    )
+  }
+  assert(
+    Number.isSafeInteger(args.observationRevision) && args.observationRevision > 0,
+    'observationRevision must be a positive safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.sourceEpoch) && args.sourceEpoch >= 0,
+    'sourceEpoch must be a nonnegative safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.materialReviewRevision) && args.materialReviewRevision > 0,
+    'materialReviewRevision must be a positive safe integer',
+  )
+  assert(
+    (args.matchedReplyId === null) === (args.matchedPublicationCycle === null),
+    'matched Reply and publication cycle must be present together',
+  )
+  if (args.matchedPublicationCycle !== null) {
+    assert(
+      Number.isSafeInteger(args.matchedPublicationCycle) &&
+        args.matchedPublicationCycle > 0,
+      'matchedPublicationCycle must be a positive safe integer',
+    )
+  }
+  assert(
+    hasValidReviewReplyObservationSemantics(args),
+    'review reply observation semantics are invalid',
+  )
+  return {
+    ...args,
+    _tag: 'review.reply.observed',
     eventId: newEventId(),
     correlationId: args.correlationId ?? null,
   }
@@ -401,3 +571,4 @@ export type ReviewEvent =
   | ReviewReplyPublishFailed
   | ReviewReplyUpdated
   | ReviewReplyPublicationCancelled
+  | ReviewReplyObserved

@@ -9,6 +9,7 @@ const CONTEXT = Object.freeze({
   propertyId: '10000000-0000-4000-8000-000000000002',
   portalId: '10000000-0000-4000-8000-000000000003',
   contactRequestId: '10000000-0000-4000-8000-000000000004',
+  responseId: '10000000-0000-4000-8000-000000000005',
 })
 
 describe('Contact Request encryption adapter', () => {
@@ -33,13 +34,19 @@ describe('Contact Request encryption adapter', () => {
     expect(adapter().open(first, CONTEXT)).toEqual(contact)
   })
 
-  it('refuses ciphertext moved to another tenant or Contact Request', () => {
+  it('refuses ciphertext moved to another tenant, response, or Contact Request', () => {
     const sealed = adapter().seal({ email: 'guest@example.com' }, CONTEXT)
 
     expect(() =>
       adapter().open(sealed, {
         ...CONTEXT,
         organizationId: '20000000-0000-4000-8000-000000000001',
+      }),
+    ).toThrowError(ContactRequestEncryptionError)
+    expect(() =>
+      adapter().open(sealed, {
+        ...CONTEXT,
+        responseId: '20000000-0000-4000-8000-000000000005',
       }),
     ).toThrowError(ContactRequestEncryptionError)
     expect(() =>

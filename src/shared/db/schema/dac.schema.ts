@@ -1,11 +1,12 @@
 // Dynamic Access Control (ADR 0001) — app-owned tables.
 //
 // permission_version: per-org monotonic counter bumped by Postgres triggers on
-//   member / organizationRole / organization_role_policy / staff_assignments
-//   mutations (the raw-SQL migration in scripts/migrations/). The resolver keys its
-//   tenant-context cache on this version, so any role/assignment change — including
-//   Better Auth's own writes to member/organizationRole — invalidates within one
-//   request. No pub/sub needed for single-instance; the version is read per-resolve.
+//   member / organizationRole / organization_role_policy / staff_assignments /
+//   property_access_grant mutations (the raw-SQL migration in scripts/migrations/).
+//   The resolver keys its tenant-context cache on this version, so any
+//   role/assignment/grant change — including Better Auth's own writes to
+//   member/organizationRole — invalidates within one request. Protected delayed
+//   commands also lock this row while revalidating their named actor.
 //
 // organization_role_policy: the app-owned data_scope for a custom role. Better Auth's
 //   organizationRole table holds the role name + permission statements; this table

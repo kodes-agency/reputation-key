@@ -76,7 +76,7 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     ).toThrow(/health-chek/)
   })
 
-  it('contains only the explicit issuance-bound image-processing containment', () => {
+  it('contains exactly the governed dark and quarantined job registrations', () => {
     expect(
       JOB_FAMILY_ROWS.filter((row) => row.registration !== 'enabled').map((row) => ({
         jobName: row.jobName,
@@ -87,6 +87,21 @@ describe('assertJobReadiness (BQC-3.6)', () => {
       {
         jobName: 'process-image',
         capability: 'portal.upload',
+        registration: 'blocked_capability',
+      },
+      {
+        jobName: 'expire-review-provider-source',
+        capability: 'none',
+        registration: 'quarantined',
+      },
+      {
+        jobName: 'purge-expired-reviews',
+        capability: 'none',
+        registration: 'quarantined',
+      },
+      {
+        jobName: 'leaderboard.reconcile',
+        capability: 'leaderboard.use',
         registration: 'blocked_capability',
       },
     ])

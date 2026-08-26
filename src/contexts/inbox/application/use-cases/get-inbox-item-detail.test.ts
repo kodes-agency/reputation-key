@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { getInboxItemDetail } from './get-inbox-item-detail'
 import {
   inboxItemId,
+  feedbackId,
   organizationId,
   propertyId,
   replyId,
@@ -20,7 +21,9 @@ import type { AiReviewInsightsPort } from '../ports/ai-review-insights.port'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Permission } from '#/shared/domain/permissions'
 import { isInboxError } from '../../domain/errors'
+import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
@@ -115,8 +118,20 @@ const setup = (
 ) => {
   let storedDetail: InboxItemDetail | null = null
   const replyCalls: string[] = []
+  const findDetailById = vi.fn(async (id, orgId) =>
+    storedDetail &&
+    storedDetail.item.id === id &&
+    storedDetail.item.organizationId === orgId
+      ? storedDetail
+      : null,
+  )
   const repo: InboxRepository = {
-    findById: async () => null,
+    findById: async (id, orgId) =>
+      storedDetail &&
+      storedDetail.item.id === id &&
+      storedDetail.item.organizationId === orgId
+        ? storedDetail.item
+        : null,
     findBySource: async () => null,
     findFilteredPaginated: async () => ({
       items: [],
@@ -135,12 +150,7 @@ const setup = (
     countOpenSince: vi.fn(async () => 0),
     updateSourceMeta: vi.fn(async () => null),
     scanReviewItems: vi.fn(async () => []),
-    findDetailById: async (id, orgId) =>
-      storedDetail &&
-      storedDetail.item.id === id &&
-      storedDetail.item.organizationId === orgId
-        ? storedDetail
-        : null,
+    findDetailById,
   }
   const replyLookup: ReplyLookupPort = {
     getEffectiveReplyByReviewId: async (id) => {
@@ -154,6 +164,7 @@ const setup = (
     staffApi,
     replyLookup,
     replyCalls,
+    findDetailById,
     setDetail: (d: InboxItemDetail) => {
       storedDetail = d
     },
@@ -162,6 +173,16 @@ const setup = (
 
 const ctxFor = (role: Role): AuthContext =>
   ({ organizationId: ORG_ID, userId: USER_ID, role }) as AuthContext
+
+const ctxWith = (...permissions: Permission[]): AuthContext => ({
+  organizationId: ORG_ID,
+  userId: USER_ID,
+  role: 'Staff',
+  effectivePermissions: new Set(permissions),
+  scopeByPermission: new Map(
+    permissions.map((permission) => [permission, 'organization' as const]),
+  ),
+})
 
 describe('getInboxItemDetail', () => {
   it('returns detail for a valid inbox item', async () => {
@@ -351,5 +372,57 @@ describe('getInboxItemDetail', () => {
 
     expect(result.reply).toBeNull()
     expect(replyCalls).toHaveLength(0)
+  })
+
+  it('rejects private-feedback detail before loading source content without feedback.read', async () => {
+    const { repo, staffApi, replyLookup, findDetailById, setDetail } = setup()
+    setDetail(
+      makeDetail(
+        makeItem({
+          sourceType: 'feedback',
+          sourceId: feedbackId('fb-private'),
+        }),
+      ),
+    )
+
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+
+    await expect(
+      useCase({ inboxItemId: ITEM_ID }, ctxWith('inbox.read', 'review.read')),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
+    expect(findDetailById).not.toHaveBeenCalled()
+  })
+
+  it('intersects feedback.read property scope before loading private content', async () => {
+    const scopedApi = createScopedStaffApi(['other-prop'])
+    const { repo, staffApi, replyLookup, findDetailById, setDetail } = setup(scopedApi)
+    setDetail(
+      makeDetail(
+        makeItem({
+          sourceType: 'feedback',
+          sourceId: feedbackId('fb-private'),
+        }),
+      ),
+    )
+    const useCase = getInboxItemDetail({ repo, staffPublicApi: staffApi, replyLookup })
+
+    await expect(
+      useCase(
+        { inboxItemId: ITEM_ID },
+        createScopedAuthContext({
+          organizationId: ORG_ID,
+          userId: USER_ID,
+          permissions: [
+            ['inbox.read', 'organization'],
+            ['feedback.read', 'assigned-properties'],
+          ],
+        }),
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
+    expect(findDetailById).not.toHaveBeenCalled()
   })
 })

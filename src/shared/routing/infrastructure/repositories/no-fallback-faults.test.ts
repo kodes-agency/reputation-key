@@ -28,10 +28,10 @@
 //       retries, and at attempts-exhaustion the 3.6 worker 'failed' path
 //       parks the job in the dead-letter quarantine.
 //   (c) PROVIDER (GBP) DOWN — publish-reply against a failing googleReviewApi:
-//       5xx classifies retryable → markPublicationRetryQueued + rethrow
-//       (BullMQ attempts); an ambiguous final attempt (provider timeout)
-//       persists publish_failed + publication_state='ambiguous' +
-//       reconcile_due_at (3.3/3.8 states); the 3.6 quarantine envelope holds
+//       5xx is ambiguous and rethrows through BullMQ attempts, while each
+//       retry is gated by an exact targeted-absence readback; the final
+//       timeout persists publish_failed + publication_state='ambiguous' +
+//       reconcile_due_at (3.3/3.8 states). The 3.6 quarantine envelope holds
 //       the job with policyReason ABSENT (not a policy failure) and
 //       identifier-only data. Only the cell's single provider binding is ever
 //       called — no alternate provider exists (4.3).
@@ -77,6 +77,7 @@ import {
   type RedisTestLease,
 } from '#/shared/testing/redis-test-lease'
 import { getDb } from '#/shared/db'
+import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import {
@@ -120,7 +121,10 @@ import type { PublishReplyJobData } from '#/contexts/review/application/ports/re
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
 import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/reply-command-store'
+import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
 import { createPublishReplyHandler } from '#/contexts/review/infrastructure/jobs/publish-reply.job'
+import { reviewReplyPublicationRequested } from '#/contexts/review/domain/events'
+import { AMBIGUOUS_RECONCILE_DELAY_MS } from '#/contexts/review/domain/reply-publication-workflow'
 
 // Queue names are unique to this suite — the shared Redis hosts other suites'
 // queues, and BullMQ cross-talk is ruled out by name.
@@ -457,6 +461,10 @@ const REVIEW_C = reviewId('46c00000-0000-4000-8000-000000000010')
 const REPLY_C = replyId('46c00000-0000-4000-8000-000000000020')
 const USER_C = userId('user-bqc46-faults-cc00001')
 const NOW_C = new Date('2026-07-18T12:00:00.000Z')
+// Command-store attempt timestamps use the real database clock; keep the
+// deterministic provider observation after them so the absence evidence is
+// causally newer than every attempted send.
+const PROVIDER_OBSERVED_AT_C = new Date('2027-01-18T12:00:00.000Z')
 
 const silentEvents: EventBus = {
   on: () => {},
@@ -480,14 +488,14 @@ function makeReviewC(): Review {
     translatedText: null,
     languageCode: 'en',
     reviewedAt: NOW_C,
-    expiresAt: new Date(NOW_C.getTime() + 25 * 24 * 60 * 60 * 1000),
+    expiresAt: new Date('2027-07-18T12:00:00.000Z'),
     sentimentLabel: null,
     sentimentScore: null,
     sourceCreatedAt: NOW_C,
     sourceUpdatedAt: null,
     firstFetchedAt: NOW_C,
     lastFetchedAt: NOW_C,
-    contentExpiresAt: null,
+    contentExpiresAt: new Date('2027-07-18T12:00:00.000Z'),
     contentHash: null,
     sourceSeenGeneration: null,
     sourceEpoch: 0,
@@ -506,19 +514,19 @@ function makeReplyC(): Reply {
     reviewId: REVIEW_C,
     organizationId: ORG_C,
     text: 'Thank you for the kind words!',
-    status: 'approved',
+    status: 'pending_approval',
     source: 'internal',
     createdBy: USER_C,
-    approvedBy: USER_C,
+    approvedBy: null,
     rejectedBy: null,
     rejectionReason: null,
     aiGenerated: false,
     stateRevision: 1,
     submittedAt: NOW_C,
-    approvedAt: NOW_C,
+    approvedAt: null,
     publishedAt: null,
-    publicationState: 'authorized',
-    publicationCycle: 1,
+    publicationState: null,
+    publicationCycle: 0,
     publicationAttempts: 0,
     publicationLastErrorClass: null,
     reconcileDueAt: null,
@@ -529,10 +537,20 @@ function makeReplyC(): Reply {
 
 function publishJob(attemptsMade: number): Job<PublishReplyJobData> {
   return {
-    id: `bqc46-c-attempt-${attemptsMade}`,
+    // BullMQ retries preserve one job identity across every attempt. The
+    // publication workflow relies on that serialization authority.
+    id: 'bqc46-c-publish',
     name: 'publish-reply',
     queueName: 'default',
-    data: { replyId: REPLY_C, organizationId: ORG_C },
+    data: {
+      replyId: REPLY_C,
+      organizationId: ORG_C,
+      publicationCycle: 1,
+      propertyId: PROP_C,
+      sourceEpoch: 0,
+      materialReviewRevision: 1,
+      baseObservationRevision: 0,
+    },
     attemptsMade,
     opts: { attempts: 3 },
   } as unknown as Job<PublishReplyJobData>
@@ -542,6 +560,20 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
   /** Children before the parent org (FK) so a crashed previous run re-seeds cleanly. */
   async function cleanOrgC(): Promise<void> {
     await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG_C}`)
+    await db.execute(
+      sql`DELETE FROM google_reply_observation_heads WHERE organization_id = ${ORG_C}`,
+    )
+    await db.execute(
+      sql`DELETE FROM google_reply_observations WHERE organization_id = ${ORG_C}`,
+    )
+    await db.execute(
+      sql`DELETE FROM reply_publication_attempts WHERE organization_id = ${ORG_C}`,
+    )
+    await withPublicationAuthorizationFixtureMutation(() =>
+      db.execute(
+        sql`DELETE FROM reply_publication_authorizations WHERE organization_id = ${ORG_C}`,
+      ),
+    )
     await db.execute(sql`DELETE FROM replies WHERE organization_id = ${ORG_C}`)
     await db.execute(sql`DELETE FROM reviews WHERE organization_id = ${ORG_C}`)
     await db.execute(sql`DELETE FROM google_connections WHERE organization_id = ${ORG_C}`)
@@ -580,19 +612,80 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
 
   beforeEach(async () => {
     await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG_C}`)
+    await db.execute(
+      sql`DELETE FROM google_reply_observation_heads WHERE organization_id = ${ORG_C}`,
+    )
+    await db.execute(
+      sql`DELETE FROM google_reply_observations WHERE organization_id = ${ORG_C}`,
+    )
+    await db.execute(
+      sql`DELETE FROM reply_publication_attempts WHERE organization_id = ${ORG_C}`,
+    )
+    await withPublicationAuthorizationFixtureMutation(() =>
+      db.execute(
+        sql`DELETE FROM reply_publication_authorizations WHERE organization_id = ${ORG_C}`,
+      ),
+    )
     await db.execute(sql`DELETE FROM replies WHERE organization_id = ${ORG_C}`)
     await db.execute(sql`DELETE FROM reviews WHERE organization_id = ${ORG_C}`)
   })
 
-  it('retryable 5xx rethrows through attempts; an ambiguous final attempt persists publish_failed; the 3.6 envelope is content-safe with no policyReason; only the cell provider is ever called', async () => {
+  it('ambiguous 5xx retries only after targeted absence; the final ambiguity is durable and never falls back', async () => {
     if (!redisAvailable) return
     const reviewRepo = createReviewRepository(db)
     const replyRepo = createReplyRepository(db)
-    await reviewRepo.upsert(makeReviewC())
-    await replyRepo.upsert(makeReplyC())
+    const savedReview = await reviewRepo.upsert(makeReviewC(), NOW_C)
+    expect(savedReview).toMatchObject({ sourceEpoch: 0, sourceRevision: 1 })
+    const pendingReply = await replyRepo.upsert(makeReplyC(), NOW_C)
+    // Identity authority itself is outside this provider-fault proof. The
+    // fixture grants the seeded manager explicitly; production composition
+    // injects the real transaction-bound, fail-closed authority.
+    const replyCommandStore = createAtomicReplyCommandStore(
+      db,
+      silentEvents,
+      async () => true,
+    )
+    const authorizedReply = await replyCommandStore.markPublicationAuthorized(
+      pendingReply,
+      { status: 'approved', approvedBy: USER_C, approvedAt: NOW_C },
+      {
+        lifecycleEvent: null,
+        publicationIntent: reviewReplyPublicationRequested({
+          replyId: REPLY_C,
+          reviewId: REVIEW_C,
+          propertyId: PROP_C,
+          organizationId: ORG_C,
+          userId: USER_C,
+          publicationCycle: 1,
+          sourceEpoch: savedReview.sourceEpoch,
+          materialReviewRevision: savedReview.sourceRevision,
+          baseObservationRevision: 0,
+          occurredAt: NOW_C,
+        }),
+      },
+      NOW_C,
+    )
+    expect(authorizedReply).not.toBeNull()
+    const authorization = await db.execute(sql`
+      SELECT publication_cycle::int AS "publicationCycle",
+             source_epoch AS "sourceEpoch",
+             material_review_revision::int AS "materialReviewRevision",
+             base_observation_revision::int AS "baseObservationRevision"
+      FROM reply_publication_authorizations
+      WHERE organization_id = ${ORG_C} AND reply_id = ${REPLY_C}
+    `)
+    expect(authorization.rows).toEqual([
+      {
+        publicationCycle: 1,
+        sourceEpoch: 0,
+        materialReviewRevision: 1,
+        baseObservationRevision: 0,
+      },
+    ])
 
-    // GBP down: two 5xx responses (retryable class), then the provider stops
-    // responding at all (timeout — ambiguous class on the final attempt).
+    // GBP down: two 5xx responses, then the provider stops responding at all.
+    // Each 5xx is an ambiguous provider outcome: BullMQ retries, but the next
+    // attempt must first read back an exact targeted absence before resending.
     const gbp5xx = {
       _tag: 'IntegrationError',
       code: 'gbp_api_error',
@@ -612,7 +705,25 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
         totalReviewCount: 0,
         nextCursorRef: null,
       }),
-      getReview: async () => ({ status: 'not_found' }),
+      getReview: async () => ({
+        status: 'found',
+        review: {
+          reviewName: `${GOOGLE_LOCATION_PRIMARY_RESOURCE}/reviews/ext-bqc46-c-1`,
+          externalId: 'ext-bqc46-c-1',
+          externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+          reviewerName: 'Jane Doe',
+          reviewerProfilePhotoUrl: null,
+          rating: 5,
+          text: 'Great place!',
+          translatedText: null,
+          languageCode: 'en',
+          reviewedAt: NOW_C,
+          sourceCreatedAt: NOW_C,
+          sourceUpdatedAt: null,
+          replyText: null,
+          replyUpdatedAt: null,
+        },
+      }),
       discardReviewCursors: async () => {},
       replyToReview,
     }
@@ -620,35 +731,44 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       replyRepo,
       reviewRepo,
       googleReviewApi,
-      replyCommandStore: createAtomicReplyCommandStore(db, silentEvents),
-      clock: () => NOW_C,
+      googleReplyObservationStore: createGoogleReplyObservationStore(db, silentEvents),
+      replyCommandStore,
+      clock: () => PROVIDER_OBSERVED_AT_C,
       idGen: () => replyId('4d000000-0000-0000-0000-000000000099'),
       staffPublicApi: {} as unknown as StaffPublicApi,
     })
 
-    // Attempt 1 (5xx → retryable): rethrow = BullMQ retry; the row returns to
-    // 'authorized' (re-claimable by the next attempt or a quarantine redrive).
+    // Attempt 1 (5xx → ambiguous): rethrow = BullMQ retry; the row remains
+    // sending so the next attempt must reconcile before another provider call.
     await expect(handler(publishJob(0))).rejects.toBe(gbp5xx)
     let row = await replyRepo.findById(REPLY_C, ORG_C)
     expect(row!.status).toBe('approved')
-    expect(row!.publicationState).toBe('authorized')
+    expect(row!.publicationState).toBe('sending')
     expect(row!.publicationAttempts).toBe(1)
 
-    // Attempt 2 (5xx → retryable): same in-cell retry posture.
+    // Attempt 2 first records a targeted absence, then resends in the same
+    // cell. Its second 5xx remains ambiguous/sending for one more readback.
     await expect(handler(publishJob(1))).rejects.toBe(gbp5xx)
     row = await replyRepo.findById(REPLY_C, ORG_C)
-    expect(row!.publicationState).toBe('authorized')
+    expect(row!.publicationState).toBe('sending')
     expect(row!.publicationAttempts).toBe(2)
 
     // Attempt 3 = final (timeout → ambiguous): publish_failed persisted with
     // the 3.8 reconcile schedule; the job rethrows into BullMQ exhaustion.
+    const finalAttemptStartedAt = Date.now()
     await expect(handler(publishJob(2))).rejects.toBe(gbpTimeout)
+    const finalAttemptFinishedAt = Date.now()
     row = await replyRepo.findById(REPLY_C, ORG_C)
     expect(row!.status).toBe('publish_failed')
     expect(row!.publicationState).toBe('ambiguous')
     expect(row!.publicationLastErrorClass).toBe('ambiguous')
     expect(row!.reconcileDueAt).not.toBeNull()
-    expect(row!.reconcileDueAt!.getTime()).toBeGreaterThan(Date.now())
+    expect(row!.reconcileDueAt!.getTime()).toBeGreaterThanOrEqual(
+      finalAttemptStartedAt + AMBIGUOUS_RECONCILE_DELAY_MS,
+    )
+    expect(row!.reconcileDueAt!.getTime()).toBeLessThanOrEqual(
+      finalAttemptFinishedAt + AMBIGUOUS_RECONCILE_DELAY_MS,
+    )
 
     // The publish_failed fact is persisted identifier-only (3.3/3.8 states).
     const facts = await db.execute(sql`
@@ -685,7 +805,8 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
     expect(entry!.envelope.policyReason).toBeUndefined()
     expect(entry!.envelope.failedReason).toBe('AbortError: The operation was aborted')
     expect(entry!.envelope.failedReason.length).toBeLessThanOrEqual(200)
-    expect(entry!.envelope.data).toEqual({ replyId: REPLY_C, organizationId: ORG_C })
+    expect(entry!.envelope.data).toEqual(publishJob(2).data)
+    expect(entry!.envelope.data).not.toHaveProperty('text')
   })
 })
 

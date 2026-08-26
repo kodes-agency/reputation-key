@@ -44,6 +44,9 @@ beforeAll(async () => {
     `DELETE FROM metric_corrections
      WHERE source_event_id = 'fleet-correction-1'`,
   )
+  await pool.query('DELETE FROM metric_readings WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM replies WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM organization WHERE id = $1', [ORG])
   await pool.query(
@@ -243,6 +246,9 @@ afterAll(async () => {
     `DELETE FROM metric_corrections
      WHERE source_event_id = 'fleet-correction-1'`,
   )
+  await pool.query('DELETE FROM metric_readings WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM replies WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM organization WHERE id = $1', [ORG])
   await pool.end()

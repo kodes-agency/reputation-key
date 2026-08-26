@@ -422,7 +422,12 @@ describe.sequential('reviewRepository (integration)', () => {
   })
 
   describe('findExpiringBatchAcrossTenants keyset batches (BQC-1.5)', () => {
-    const NOW = new Date('2025-06-01T12:00:00Z')
+    // This repository operation is deliberately cross-tenant, so an
+    // organization-scoped cleanup cannot isolate it from rows owned by other
+    // integration suites. Keep this synthetic walk in a reserved historical
+    // window: unrelated fixtures use contemporary dates and therefore cannot
+    // satisfy the upper-bound predicate.
+    const NOW = new Date('1900-06-01T12:00:00Z')
 
     async function seedExpiring(
       repo: ReturnType<typeof createReviewRepository>,

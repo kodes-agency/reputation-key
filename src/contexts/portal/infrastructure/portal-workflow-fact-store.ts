@@ -1,11 +1,12 @@
 import { createHash } from 'node:crypto'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   portalLinkCategories,
   portalLinks,
   portals,
 } from '#/shared/db/schema/portal.schema'
+import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import { emitAfterCommit, insertOutboxRowIfNew, type Tx } from '#/shared/outbox/commit'
 import {
@@ -21,10 +22,11 @@ import type {
   PortalWorkflowFactResult,
   PortalWorkflowFactStore,
 } from '../application/use-cases/complete-content-review'
+import { nextLockedPortalRevision } from './portal-command-revision'
 
 const REQUIRED_CONFIGURATION_FIELDS = 5
 
-type PortalWorkflowSnapshotRow = Readonly<{
+type PortalWorkflowPortalRow = Readonly<{
   id: string
   organizationId: string
   propertyId: string
@@ -32,18 +34,31 @@ type PortalWorkflowSnapshotRow = Readonly<{
   description: string | null
   theme: unknown
   publicationState: string
+  updatedAt: Date
+}>
+
+type PortalWorkflowContentRow = Readonly<{
   categoryCount: number | string
   urls: unknown
 }>
+
+type PortalWorkflowSnapshotRow = PortalWorkflowPortalRow & PortalWorkflowContentRow
 
 type PortalWorkflowSnapshot = Readonly<{
   completedFields: number
   requiredFields: number
   approvedDestinations: number
   configuredDestinations: number
+  aggregateRevision: Date
 }>
 
-function parseSnapshotRow(value: unknown): PortalWorkflowSnapshotRow | null {
+function parseTimestamp(value: unknown): Date | null {
+  const parsed =
+    value instanceof Date ? value : typeof value === 'string' ? new Date(value) : null
+  return parsed && !Number.isNaN(parsed.getTime()) ? parsed : null
+}
+
+function parsePortalRow(value: unknown): PortalWorkflowPortalRow | null {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
     return null
   }
@@ -61,13 +76,12 @@ function parseSnapshotRow(value: unknown): PortalWorkflowSnapshotRow | null {
     !('theme' in value) ||
     !('publicationState' in value) ||
     typeof value.publicationState !== 'string' ||
-    !('categoryCount' in value) ||
-    (typeof value.categoryCount !== 'number' &&
-      typeof value.categoryCount !== 'string') ||
-    !('urls' in value)
+    !('updatedAt' in value)
   ) {
     return null
   }
+  const updatedAt = parseTimestamp(value.updatedAt)
+  if (!updatedAt) return null
   return {
     id: value.id,
     organizationId: value.organizationId,
@@ -76,6 +90,23 @@ function parseSnapshotRow(value: unknown): PortalWorkflowSnapshotRow | null {
     description: value.description,
     theme: value.theme,
     publicationState: value.publicationState,
+    updatedAt,
+  }
+}
+
+function parseContentRow(value: unknown): PortalWorkflowContentRow | null {
+  if (
+    typeof value !== 'object' ||
+    value === null ||
+    Array.isArray(value) ||
+    !('categoryCount' in value) ||
+    (typeof value.categoryCount !== 'number' &&
+      typeof value.categoryCount !== 'string') ||
+    !('urls' in value)
+  ) {
+    return null
+  }
+  return {
     categoryCount: value.categoryCount,
     urls: value.urls,
   }
@@ -143,6 +174,7 @@ function calculateSnapshot(row: PortalWorkflowSnapshotRow): PortalWorkflowSnapsh
     requiredFields: REQUIRED_CONFIGURATION_FIELDS,
     approvedDestinations: urls.filter((url) => validateExternalLink(url).valid).length,
     configuredDestinations: urls.length,
+    aggregateRevision: row.updatedAt,
   }
 }
 
@@ -150,25 +182,38 @@ async function loadSnapshot(
   tx: Tx,
   command: PortalWorkflowFactCommand,
 ): Promise<PortalWorkflowSnapshot> {
-  const result = await tx.execute(sql`
-    WITH locked_portal AS (
-      SELECT
-        ${portals.id} AS "id",
-        ${portals.organizationId} AS "organizationId",
-        ${portals.propertyId} AS "propertyId",
-        ${portals.name} AS "name",
-        ${portals.description} AS "description",
-        ${portals.theme} AS "theme",
-        ${portals.publicationState} AS "publicationState"
-      FROM ${portals}
-      WHERE ${portals.organizationId} = ${command.organizationId}
-        AND ${portals.propertyId} = ${command.propertyId}
-        AND ${portals.id} = ${command.portalId}
-        AND ${portals.deletedAt} IS NULL
-      FOR UPDATE
-    )
+  // Lock the aggregate in its own statement. Under READ COMMITTED, a single
+  // SELECT that both waits on FOR UPDATE and runs child subqueries can retain
+  // the statement-start snapshot for those subqueries after PostgreSQL's EPQ
+  // recheck. The second statement below starts only after the Portal lock is
+  // held, so it observes every child write whose Portal revision we inherited.
+  const portalResult = await tx.execute(sql`
     SELECT
-      locked_portal.*,
+      ${portals.id} AS "id",
+      ${portals.organizationId} AS "organizationId",
+      ${portals.propertyId} AS "propertyId",
+      ${portals.name} AS "name",
+      ${portals.description} AS "description",
+      ${portals.theme} AS "theme",
+      ${portals.publicationState} AS "publicationState",
+      ${portals.updatedAt} AS "updatedAt"
+    FROM ${portals}
+    WHERE ${portals.organizationId} = ${command.organizationId}
+      AND ${portals.propertyId} = ${command.propertyId}
+      AND ${portals.id} = ${command.portalId}
+      AND ${portals.deletedAt} IS NULL
+    FOR UPDATE
+  `)
+  const portal = parsePortalRow(portalResult.rows[0])
+  if (!portal) {
+    throw portalError(
+      'portal_not_found',
+      'portal not found in the requested tenant scope',
+    )
+  }
+
+  const contentResult = await tx.execute(sql`
+    SELECT
       (
         SELECT COUNT(*)::int
         FROM ${portalLinkCategories}
@@ -184,21 +229,18 @@ async function loadSnapshot(
         ),
         '[]'::jsonb
       ) AS "urls"
-    FROM locked_portal
   `)
-  const row = parseSnapshotRow(result.rows[0])
-  if (!row) {
-    throw portalError(
-      'portal_not_found',
-      'portal not found in the requested tenant scope',
-    )
+  const content = parseContentRow(contentResult.rows[0])
+  if (!content) {
+    throw portalError('invalid_url', 'Portal configuration snapshot is malformed')
   }
-  return calculateSnapshot(row)
+  return calculateSnapshot({ ...portal, ...content })
 }
 
 function buildEvents(
   command: PortalWorkflowFactCommand,
   snapshot: PortalWorkflowSnapshot,
+  aggregateRevision: Date,
 ): readonly PortalWorkflowFactEvent[] {
   const common = {
     reviewId: command.reviewId,
@@ -207,6 +249,7 @@ function buildEvents(
     propertyId: command.propertyId,
     portalId: command.portalId,
     portalGroupId: command.portalGroupId,
+    sourceAggregateVersion: aggregateRevision.toISOString(),
     occurredAt: command.occurredAt,
   }
   return [
@@ -259,17 +302,25 @@ export function createPortalWorkflowFactStore(
     ): Promise<PortalWorkflowFactResult> => {
       const result = await db.transaction(async (tx) => {
         const snapshot = await loadSnapshot(tx, command)
-        const facts = buildEvents(command, snapshot)
-        const inserted = await insertFacts(tx, facts)
-        if (inserted !== 0 && inserted !== facts.length) {
+        const candidateFacts = buildEvents(command, snapshot, snapshot.aggregateRevision)
+        const existingFacts = await tx
+          .select({ id: outboxEvents.id })
+          .from(outboxEvents)
+          .where(
+            inArray(
+              outboxEvents.id,
+              candidateFacts.map((fact) => fact.eventId),
+            ),
+          )
+        if (existingFacts.length === candidateFacts.length) {
+          return { status: 'duplicate' as const, events: candidateFacts }
+        }
+        if (existingFacts.length !== 0) {
           throw new Error('partial Portal workflow fact set detected')
         }
-        if (inserted === 0) {
-          return { status: 'duplicate' as const, events: facts }
-        }
-        await tx
+        const [updated] = await tx
           .update(portals)
-          .set({ updatedAt: command.occurredAt })
+          .set({ updatedAt: nextLockedPortalRevision(command.occurredAt) })
           .where(
             and(
               eq(portals.organizationId, command.organizationId),
@@ -277,6 +328,18 @@ export function createPortalWorkflowFactStore(
               eq(portals.id, command.portalId),
             ),
           )
+          .returning({ updatedAt: portals.updatedAt })
+        if (!updated) {
+          throw portalError(
+            'revision_conflict',
+            'Portal changed while workflow facts were being committed',
+          )
+        }
+        const facts = buildEvents(command, snapshot, updated.updatedAt)
+        const inserted = await insertFacts(tx, facts)
+        if (inserted !== facts.length) {
+          throw new Error('partial Portal workflow fact set detected')
+        }
         return { status: 'recorded' as const, events: facts }
       })
 

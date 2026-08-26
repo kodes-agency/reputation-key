@@ -3,10 +3,26 @@
 
 import type { PortalRepository } from '#/contexts/portal/application/ports/portal.repository'
 import type { Portal } from '#/contexts/portal/domain/types'
-import type { OrganizationId } from '#/shared/domain/ids'
+import type { OrganizationId, PortalId, UserId } from '#/shared/domain/ids'
 
 export type InMemoryPortalRepo = PortalRepository &
   Readonly<{
+    insert: (
+      orgId: OrganizationId,
+      portal: Portal,
+      initialResponsibleManagerId?: UserId | null,
+    ) => Promise<void>
+    update: (
+      orgId: OrganizationId,
+      id: PortalId,
+      patch: Readonly<Partial<Portal>>,
+    ) => Promise<void>
+    softDelete: (
+      orgId: OrganizationId,
+      id: PortalId,
+      deletedAt: Date,
+      revision: Date,
+    ) => Promise<void>
     seed: (portals: ReadonlyArray<Portal>) => void
     all: () => ReadonlyArray<Portal>
   }>
@@ -58,10 +74,10 @@ export const createInMemoryPortalRepo = (): InMemoryPortalRepo => {
       store.set(id, { ...existing, ...patch })
     },
 
-    softDelete: async (orgId, id) => {
+    softDelete: async (orgId, id, deletedAt, revision) => {
       const existing = store.get(id)
       if (!existing || !isAccessible(orgId, existing)) return
-      store.set(id, { ...existing, deletedAt: new Date(), updatedAt: new Date() })
+      store.set(id, { ...existing, deletedAt, updatedAt: revision })
     },
 
     resolvePortalContext: async (_portalIdParam) => null,

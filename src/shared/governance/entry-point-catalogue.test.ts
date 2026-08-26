@@ -599,6 +599,79 @@ describe('BQC-2.1 entry-point catalogue', () => {
     )
   })
 
+  it('classifies the established Portal lifecycle, publication, and upload seams from their owning transactions', () => {
+    const atomicCommands = new Set([
+      'createPortal',
+      'updatePortal',
+      'rollbackPortalPublication',
+      'completeContentReview',
+      'deletePortal',
+      'finalizeUpload',
+    ])
+    const atomicRows = catalogue.filter(
+      ({ kind, name }) => kind === 'server_function' && atomicCommands.has(name),
+    )
+
+    expect(atomicRows).toHaveLength(6)
+    expect(atomicRows.map(({ mutation }) => mutation)).toEqual(
+      Array.from({ length: 6 }, () =>
+        expect.objectContaining({
+          kind: 'mutation',
+          stateOwner: 'portal',
+          disposition: 'atomic_state_and_fact',
+        }),
+      ),
+    )
+
+    expect(
+      catalogue.find(
+        ({ kind, name }) => kind === 'server_function' && name === 'requestUploadUrl',
+      )?.mutation,
+    ).toMatchObject({
+      kind: 'mutation',
+      stateOwner: 'portal',
+      disposition: 'local_only_with_reason',
+    })
+  })
+
+  it('classifies every Guest write by its command/observation transaction or session-only effect', () => {
+    const atomicCommands = new Set([
+      'submitGuestResponseFn',
+      'correctGuestResponseFn',
+      'submitPrivateFeedbackFn',
+      'withdrawPrivateFeedbackFn',
+      'selectGoogleReviewFn',
+      'selectSecondaryLinkFn',
+      'withdrawGuestResponseFn',
+      'moderateGuestResponseFn',
+      'recordScanFn',
+    ])
+    const atomicRows = catalogue.filter(
+      ({ kind, name }) => kind === 'server_function' && atomicCommands.has(name),
+    )
+
+    expect(atomicRows).toHaveLength(9)
+    expect(atomicRows.map(({ mutation }) => mutation)).toEqual(
+      Array.from({ length: 9 }, () =>
+        expect.objectContaining({
+          kind: 'mutation',
+          stateOwner: 'guest',
+          disposition: 'atomic_state_and_fact',
+        }),
+      ),
+    )
+    expect(
+      catalogue.find(
+        ({ kind, name }) =>
+          kind === 'server_function' && name === 'startNewGuestResponseFn',
+      )?.mutation,
+    ).toMatchObject({
+      kind: 'mutation',
+      stateOwner: 'guest',
+      disposition: 'local_only_with_reason',
+    })
+  })
+
   it('records every delayed entry point as BQC-3.2-integrated (BQC-2.5/3.2)', () => {
     const delayed = catalogue.filter((r) =>
       ['job', 'consumer', 'schedule'].includes(r.kind),

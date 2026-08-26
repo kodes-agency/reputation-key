@@ -64,6 +64,8 @@ export type GoogleProviderExecutionResult =
         contentType: string | null
         cacheControl: string | null
         retryAfter: string | null
+        /** Provider request identifier when the gateway exposes one. */
+        providerCorrelationId?: string | null
       }>
       body: Uint8Array
     }>

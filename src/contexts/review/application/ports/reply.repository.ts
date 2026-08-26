@@ -35,6 +35,19 @@ export type ConditionalReplyUpdate = Readonly<{
   reconcileDueAt?: Date | null
 }>
 
+/** Exact compare-and-set command for moving one due provider-read check beyond
+ * the sweep's fixed clock. Every fence prevents an older worker from changing
+ * the schedule of a newer publication cycle. */
+export type DeferPublicationReconciliation = Readonly<{
+  replyId: ReplyId
+  organizationId: OrganizationId
+  publicationCycle: number
+  publicationState: 'pending_observation' | 'ambiguous'
+  currentDueAt: Date
+  nextDueAt: Date
+  updatedAt: Date
+}>
+
 export type ReplyRepository = Readonly<{
   findById(id: ReplyId, organizationId: OrganizationId): Promise<Reply | null>
   findByReviewId(
@@ -58,17 +71,31 @@ export type ReplyRepository = Readonly<{
     organizationId: OrganizationId,
   ): Promise<Reply | null>
   /**
-   * BQC-3.8: keyset-bounded batch of replies whose ambiguous publication is
-   * reconcile-due (publication_state='ambiguous' AND reconcile_due_at <= now),
-   * ordered (reconcileDueAt ASC, id ASC). `cursor` resumes strictly AFTER
-   * (reconcileDueAt, id) — no row is skipped or repeated. Used by the
-   * reconcile-ambiguous-publications sweep.
+   * Keyset-bounded batch of provider-pending or ambiguous replies whose
+   * provider-read check is due, ordered (reconcileDueAt ASC, id ASC).
+   * `cursor` resumes strictly AFTER (reconcileDueAt, id). This is the
+   * automatic recovery sweep; operator commands that explicitly request only
+   * ambiguous rows use `findAmbiguousPublicationBatch` instead.
    */
+  findDuePublicationReconciliationBatch(
+    now: Date,
+    cursor: Readonly<{ reconcileDueAt: Date; id: string }> | null,
+    limit: number,
+  ): Promise<ReadonlyArray<Reply>>
+  /** One due, keyset-bounded batch restricted to ambiguous outcomes. */
   findAmbiguousPublicationBatch(
     now: Date,
     cursor: Readonly<{ reconcileDueAt: Date; id: string }> | null,
     limit: number,
   ): Promise<ReadonlyArray<Reply>>
+  /**
+   * Guarded schedule advance after one non-confirming provider read. Returns
+   * false when the state, publication cycle, or prior due time moved on; that
+   * makes the stale sweep row an already-settled no-op.
+   */
+  deferPublicationReconciliation(
+    command: DeferPublicationReconciliation,
+  ): Promise<boolean>
   /**
    * BQC-3.8: replies in an active publication state
    * (requested/authorized/sending) for the given reviews — the rows the

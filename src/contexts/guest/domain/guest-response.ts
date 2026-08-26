@@ -13,6 +13,11 @@ import {
   type GuestResponseInitialIntegrityAssessment,
   type GuestResponseIntegrityOutcome,
 } from './guest-response-integrity'
+import {
+  MAX_PRIVATE_FEEDBACK_LENGTH,
+  normalizePrivateFeedbackText,
+} from './private-feedback-text'
+import { unicodeCodePointLength } from '#/shared/domain/unicode'
 
 export type GuestResponseStatus =
   'pending' | 'submitted' | 'corrected' | 'moderated' | 'deleted' | 'expired'
@@ -89,7 +94,7 @@ export type ResponseError =
   | { code: 'response_not_submitted' }
   | { code: 'response_withdrawal_expired' }
 
-export const MAX_TEXT_LENGTH = 2000
+export const MAX_TEXT_LENGTH = MAX_PRIVATE_FEEDBACK_LENGTH
 export const MAX_RATING = 5
 export const MIN_RATING = 1
 const DEFAULT_CORRECTION_WINDOW_MS = 60 * 60 * 1000 // 1 hour
@@ -174,10 +179,11 @@ export function submitPrivateFeedback(
   ) {
     return { code: 'feedback_not_eligible' }
   }
-  const text = params.text.trim()
-  if (text.length === 0) return { code: 'no_content' }
-  if (text.length > MAX_TEXT_LENGTH) {
-    return { code: 'text_too_long', length: text.length, max: MAX_TEXT_LENGTH }
+  const text = normalizePrivateFeedbackText(params.text)
+  const textLength = unicodeCodePointLength(text)
+  if (textLength === 0) return { code: 'no_content' }
+  if (textLength > MAX_TEXT_LENGTH) {
+    return { code: 'text_too_long', length: textLength, max: MAX_TEXT_LENGTH }
   }
   if (!params.textConsent) return { code: 'no_content' }
 
@@ -259,7 +265,9 @@ export function submitResponse(
   }
 
   const hasContent =
-    params.rating != null || (params.text != null && params.text.trim().length > 0)
+    params.rating != null ||
+    (params.text != null &&
+      unicodeCodePointLength(normalizePrivateFeedbackText(params.text)) > 0)
 
   if (!hasContent) {
     return { code: 'no_content' }
@@ -272,9 +280,13 @@ export function submitResponse(
     return { code: 'rating_out_of_range', rating: params.rating }
   }
 
-  const text = params.text?.trim() ?? ''
-  if (text.length > MAX_TEXT_LENGTH) {
-    return { code: 'text_too_long', length: text.length, max: MAX_TEXT_LENGTH }
+  const text =
+    params.text === undefined || params.text === null
+      ? ''
+      : normalizePrivateFeedbackText(params.text)
+  const textLength = unicodeCodePointLength(text)
+  if (textLength > MAX_TEXT_LENGTH) {
+    return { code: 'text_too_long', length: textLength, max: MAX_TEXT_LENGTH }
   }
 
   if (params.rating != null && params.responseConsent === false) {
@@ -338,9 +350,13 @@ export function correctResponse(
     return { code: 'rating_out_of_range', rating: params.rating }
   }
 
-  const text = params.text?.trim() ?? ''
-  if (text.length > MAX_TEXT_LENGTH) {
-    return { code: 'text_too_long', length: text.length, max: MAX_TEXT_LENGTH }
+  const text =
+    params.text === undefined || params.text === null
+      ? ''
+      : normalizePrivateFeedbackText(params.text)
+  const textLength = unicodeCodePointLength(text)
+  if (textLength > MAX_TEXT_LENGTH) {
+    return { code: 'text_too_long', length: textLength, max: MAX_TEXT_LENGTH }
   }
 
   const rating = params.rating === undefined ? response.rating : params.rating

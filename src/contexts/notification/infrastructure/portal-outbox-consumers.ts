@@ -17,10 +17,13 @@ type Payload = Readonly<{
   portalId: string
   organizationId: string
   propertyId: string
+  sourceAggregateVersion?: string
   occurredAt: string
 }>
 
-function parse(event: ConsumerEvent): Payload {
+function parse(
+  event: ConsumerEvent,
+): Payload & Readonly<{ sourceAggregateVersion: string }> {
   const payload = validateEventPayload(
     'portal.responsibility_became_needed',
     event.eventVersion,
@@ -33,7 +36,13 @@ function parse(event: ConsumerEvent): Payload {
   ) {
     throw new Error('portal responsibility-needed envelope attribution mismatch')
   }
-  return payload
+  if (event.eventVersion === 1) {
+    return { ...payload, sourceAggregateVersion: payload.occurredAt }
+  }
+  if (event.eventVersion !== 2 || !payload.sourceAggregateVersion) {
+    throw new Error('portal responsibility-needed aggregate revision is missing')
+  }
+  return { ...payload, sourceAggregateVersion: payload.sourceAggregateVersion }
 }
 
 export async function handleNotificationPortalResponsibilityNeeded(
@@ -48,6 +57,7 @@ export async function handleNotificationPortalResponsibilityNeeded(
     portalId: portalId(payload.portalId),
     organizationId: organizationId(payload.organizationId),
     propertyId: propertyId(payload.propertyId),
+    sourceAggregateVersion: payload.sourceAggregateVersion,
     occurredAt: new Date(payload.occurredAt),
   })
   await deps.receipts.insertReceipt(

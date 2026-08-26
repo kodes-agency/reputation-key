@@ -90,9 +90,11 @@ describe('BQR-2.2: outbox consumer registration', () => {
     // BQC-3.4: metadata-only refresh consumer (resolves the BQC-3.1 orphan).
     expect(src).toContain("eventType: 'review.updated'")
     expect(src).toContain("consumerName: 'inbox.on-review-updated'")
-    // BQC-3.4: durable milestone/auto-close consumer.
+    // Compatibility receipt plus the observation-authority close/reopen consumer.
     expect(src).toContain("eventType: 'review.reply.published'")
     expect(src).toContain("consumerName: 'inbox.on-reply-published'")
+    expect(src).toContain("eventType: 'review.reply.observed'")
+    expect(src).toContain("consumerName: 'inbox.on-reply-observed'")
     expect(guestSrc).toContain("eventType: 'guest.feedback.submitted'")
     expect(guestSrc).toContain("consumerName: 'inbox.on-guest-feedback-submitted'")
     expect(guestSrc).toContain("eventType: 'guest.feedback.retracted'")
@@ -141,12 +143,13 @@ describe('BQR-2.2: outbox consumer registration', () => {
     expect(src).toContain('handleInboxReviewExpired')
     expect(src).toContain('handleInboxReviewUpdated')
     expect(src).toContain('handleInboxReplyPublished')
+    expect(src).toContain('handleInboxReplyObserved')
     expect(src).toContain('applySourceCreatedOnce')
     expect(guestSrc).toContain('applySourceCreatedOnce')
     expect(guestSrc).toContain('applySourceWithdrawnOnce')
     expect(src).toContain('applyReviewExpiredOnce')
     expect(src).toContain('applyReviewUpdatedOnce')
-    expect(src).toContain('applyReplyPublishedOnce')
+    expect(src).toContain('applyReplyObservedOnce')
     // BQC-1.2: no denormalized-field syncing remains.
     expect(src).not.toContain('syncDenormalizedFields')
     expect(src).not.toMatch(/TODO: Implement inbox item update/)

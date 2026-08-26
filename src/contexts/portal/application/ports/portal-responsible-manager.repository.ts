@@ -1,5 +1,8 @@
 import type { PortalResponsibleManager } from '../../domain/portal-responsible-manager'
-import type { PortalResponsibilityNeeded } from '../../domain/events'
+import type {
+  PortalResponsibilityNeeded,
+  PortalResponsibleManagersUpdated,
+} from '../../domain/events'
 
 export type PortalResponsibleManagerRepository = Readonly<{
   listActive: (
@@ -19,13 +22,14 @@ export type PortalResponsibleManagerRepository = Readonly<{
       expectedRevision: number
       actorId: string
       at: Date
-      responsibilityNeededEvent: PortalResponsibilityNeeded
     }>,
   ) => Promise<
     Readonly<{
       assignments: readonly PortalResponsibleManager[]
       revision: number
       becameResponsibilityNeeded: boolean
+      responsibilityNeededEvent: PortalResponsibilityNeeded | null
+      updatedEvent: PortalResponsibleManagersUpdated | null
     }>
   >
   /** End only the departing user's intervals; preserve all other managers. */

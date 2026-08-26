@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import type { Database } from '#/shared/db'
 import { organizationId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createContactRequestEncryptionAdapter } from '../adapters/contact-request-encryption.adapter'
 import { createContactRequestRepository } from './contact-request.repository'
+import type { ContactRequestManagerAuthorityBasis } from '../../application/ports/contact-request-manager-authority.port'
 
 const ORG_A = organizationId('ca000000-0000-4000-8000-000000000001')
 const ORG_B = organizationId('ca000000-0000-4000-8000-000000000002')
@@ -12,9 +14,13 @@ const PROPERTY_A = 'ca000000-0000-4000-8000-000000000010'
 const PORTAL_A = 'ca000000-0000-4000-8000-000000000020'
 const RESPONSE_A = 'ca000000-0000-4000-8000-000000000030'
 const REQUEST_A = 'ca000000-0000-4000-8000-000000000040'
+const SNAPSHOT_A = 'ca000000-0000-4000-8000-000000000050'
+const PUBLICATION_DIGEST = 'a'.repeat(64)
+const NOTICE_ID = 'guest-contact-manager-follow-up'
+const NOTICE_VERSION = 'guest-contact-notice-2026-08-26.v1'
+const NOTICE_DIGEST = 'b'.repeat(64)
+const RETENTION_POLICY_VERSION = 'guest-contact-retention-30d-v1'
 const CREATOR = 'contact-creator'
-const RESPONSIBLE_MANAGER = 'responsible-manager'
-const UNASSIGNED_MANAGER = 'unassigned-manager'
 const ACCOUNT_ADMIN = 'contact-account-admin'
 const NOW = new Date('2026-08-26T09:00:00.000Z')
 
@@ -24,8 +30,10 @@ const { getPool } = setupIntegrationDb({
   tables: [
     'guest_contact_request_reveal_audits',
     'guest_contact_requests',
-    'portal_responsible_managers',
+    'guest_response_private_feedback',
+    'guest_response_experience_snapshots',
     'guest_responses',
+    'portal_publication_snapshots',
     'portals',
     'properties',
   ],
@@ -33,32 +41,10 @@ const { getPool } = setupIntegrationDb({
 
 beforeEach(async () => {
   await getPool().query('DELETE FROM guest_contact_request_purge_checkpoints')
-  await getPool().query(`DELETE FROM member WHERE "userId" = ANY($1)`, [
-    [CREATOR, RESPONSIBLE_MANAGER, UNASSIGNED_MANAGER],
-  ])
-  await getPool().query(`DELETE FROM "user" WHERE id = ANY($1)`, [
-    [CREATOR, RESPONSIBLE_MANAGER, UNASSIGNED_MANAGER],
-  ])
-  await getPool().query(
-    `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
-     VALUES ($1, 'Contact Creator', 'contact-creator@example.test', true, NOW(), NOW())`,
-    [CREATOR],
-  )
-  await getPool().query(
-    `INSERT INTO member (id, "userId", "organizationId", role, "createdAt")
-     VALUES ('contact-member-creator', $1, $2, 'admin', NOW())`,
-    [CREATOR, ORG_A],
-  )
   await getPool().query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone)
      VALUES ($1, $2, 'Contact Property', $3, 'UTC')`,
     [PROPERTY_A, ORG_A, `contact-property-${PROPERTY_A}`],
-  )
-  await getPool().query(
-    `INSERT INTO property_access_grant
-       (organization_id, property_id, user_id, source, created_by)
-     VALUES ($1, $2, $3, 'operator', $3)`,
-    [ORG_A, PROPERTY_A, CREATOR],
   )
   await getPool().query(
     `INSERT INTO portals
@@ -68,11 +54,56 @@ beforeEach(async () => {
     [PORTAL_A, ORG_A, PROPERTY_A, `contact-portal-${PORTAL_A}`, CREATOR],
   )
   await getPool().query(
+    `INSERT INTO portal_publication_snapshots
+       (id, organization_id, property_id, portal_id, version,
+        configuration_digest, configuration, guest_locale, language_pack_version,
+        private_feedback_threshold, destination_uri, destination_retrieved_at,
+        destination_source_epoch, destination_profile_version, created_by, created_at,
+        contact_request_enabled, contact_notice_id, contact_notice_version,
+        contact_notice_digest, contact_notice_locale, contact_request_purpose,
+        contact_retention_policy_version)
+     VALUES ($1, $2, $3, $4, 1, $5, '{}'::jsonb, 'en', 'guest-ui-en-v1',
+             3, 'https://example.test/review', $6, 0, 1, $7, $6,
+             true, $8, $9, $10, 'en', 'manager_follow_up', $11)`,
+    [
+      SNAPSHOT_A,
+      ORG_A,
+      PROPERTY_A,
+      PORTAL_A,
+      PUBLICATION_DIGEST,
+      NOW,
+      CREATOR,
+      NOTICE_ID,
+      NOTICE_VERSION,
+      NOTICE_DIGEST,
+      RETENTION_POLICY_VERSION,
+    ],
+  )
+  await getPool().query(
     `INSERT INTO guest_responses
        (id, organization_id, property_id, portal_id, status, rating,
-        response_consent, retention_deadline, submitted_at)
-     VALUES ($1, $2, $3, $4, 'submitted', 3, true,
-             NOW() + INTERVAL '24 months', $5)`,
+        response_consent, text_consent, feedback_source_event_id,
+        feedback_submitted_at, retention_deadline, submitted_at)
+     VALUES ($1, $2, $3, $4, 'submitted', 3, true, true, 'feedback-event-1',
+             $5, NOW() + INTERVAL '24 months', $5)`,
+    [RESPONSE_A, ORG_A, PROPERTY_A, PORTAL_A, NOW],
+  )
+  await getPool().query(
+    `INSERT INTO guest_response_experience_snapshots
+       (response_id, organization_id, property_id, portal_id, publication_state,
+        publication_snapshot_id, publication_version, publication_digest,
+        configuration_digest, guest_locale, language_pack_version,
+        private_feedback_threshold, captured_at)
+     VALUES ($1, $2, $3, $4, 'published', $5, 1, $6, $6, 'en',
+             'guest-ui-en-v1', 3, $7)`,
+    [RESPONSE_A, ORG_A, PROPERTY_A, PORTAL_A, SNAPSHOT_A, PUBLICATION_DIGEST, NOW],
+  )
+  await getPool().query(
+    `INSERT INTO guest_response_private_feedback
+       (response_id, organization_id, property_id, portal_id, body,
+        submitted_at, expires_at, created_at)
+     VALUES ($1, $2, $3, $4, 'Please contact me', $5,
+             $5::timestamptz + INTERVAL '90 days', $5)`,
     [RESPONSE_A, ORG_A, PROPERTY_A, PORTAL_A, NOW],
   )
 })
@@ -86,10 +117,18 @@ afterEach(async () => {
     ORG_A,
   ])
   await getPool().query(
-    `DELETE FROM portal_responsible_managers WHERE organization_id = $1`,
+    `DELETE FROM guest_response_private_feedback WHERE organization_id = $1`,
+    [ORG_A],
+  )
+  await getPool().query(
+    `DELETE FROM guest_response_experience_snapshots WHERE organization_id = $1`,
     [ORG_A],
   )
   await getPool().query(`DELETE FROM guest_responses WHERE organization_id = $1`, [ORG_A])
+  await getPool().query(
+    `DELETE FROM portal_publication_snapshots WHERE organization_id = $1`,
+    [ORG_A],
+  )
   await getPool().query(`DELETE FROM portals WHERE organization_id = $1`, [ORG_A])
   await getPool().query(`DELETE FROM properties WHERE organization_id = $1`, [ORG_A])
   await getPool().query('DELETE FROM guest_contact_request_purge_checkpoints')
@@ -104,37 +143,42 @@ const encryption = () =>
 const repository = () =>
   createContactRequestRepository(drizzle(getPool()) as unknown as Database, encryption())
 
-async function seedMember(userId: string, role: 'owner' | 'admin'): Promise<void> {
-  await getPool().query(
-    `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
-     VALUES ($1, $1, $2, true, NOW(), NOW())
-     ON CONFLICT (id) DO NOTHING`,
-    [userId, `${userId}@example.test`],
-  )
-  await getPool().query(
-    `INSERT INTO member (id, "userId", "organizationId", role, "createdAt")
-     VALUES ($1, $2, $3, $4, NOW())
-     ON CONFLICT (id) DO NOTHING`,
-    [`member-${userId}`, userId, ORG_A, role],
-  )
-  if (role === 'admin') {
-    await getPool().query(
-      `INSERT INTO property_access_grant
-         (organization_id, property_id, user_id, source, created_by)
-       VALUES ($1, $2, $3, 'operator', $4)
-       ON CONFLICT DO NOTHING`,
-      [ORG_A, PROPERTY_A, userId, CREATOR],
-    )
-  }
-}
-
 async function seedResponse(responseId: string, submittedAt: Date): Promise<void> {
   await getPool().query(
     `INSERT INTO guest_responses
        (id, organization_id, property_id, portal_id, status, rating,
-        response_consent, retention_deadline, submitted_at)
-     VALUES ($1, $2, $3, $4, 'submitted', 3, true,
-             $5::timestamptz + INTERVAL '24 months', $5::timestamptz)`,
+        response_consent, text_consent, feedback_source_event_id,
+        feedback_submitted_at, retention_deadline, submitted_at)
+     VALUES ($1::uuid, $2, $3, $4, 'submitted', 3, true, true,
+             $1::text || '-feedback',
+             $5::timestamptz, $5::timestamptz + INTERVAL '24 months',
+             $5::timestamptz)`,
+    [responseId, ORG_A, PROPERTY_A, PORTAL_A, submittedAt],
+  )
+  await getPool().query(
+    `INSERT INTO guest_response_experience_snapshots
+       (response_id, organization_id, property_id, portal_id, publication_state,
+        publication_snapshot_id, publication_version, publication_digest,
+        configuration_digest, guest_locale, language_pack_version,
+        private_feedback_threshold, captured_at)
+     VALUES ($1, $2, $3, $4, 'published', $5, 1, $6, $6, 'en',
+             'guest-ui-en-v1', 3, $7)`,
+    [
+      responseId,
+      ORG_A,
+      PROPERTY_A,
+      PORTAL_A,
+      SNAPSHOT_A,
+      PUBLICATION_DIGEST,
+      submittedAt,
+    ],
+  )
+  await getPool().query(
+    `INSERT INTO guest_response_private_feedback
+       (response_id, organization_id, property_id, portal_id, body,
+        submitted_at, expires_at, created_at)
+     VALUES ($1, $2, $3, $4, 'Please contact me', $5,
+             $5::timestamptz + INTERVAL '90 days', $5)`,
     [responseId, ORG_A, PROPERTY_A, PORTAL_A, submittedAt],
   )
 }
@@ -155,7 +199,24 @@ const createInput = () => ({
   expiresAt: new Date('2026-09-25T09:00:00.000Z'),
 })
 
+const managerAuthorization = (
+  actorId = CREATOR,
+  basis: ContactRequestManagerAuthorityBasis = 'portal_creator',
+  checkedAt = NOW,
+) => ({ actorId, basis, checkedAt })
+
 describe('Contact Request repository', () => {
+  it('rejects a Contact Request when the response has no live submitted private feedback', async () => {
+    await getPool().query(
+      `DELETE FROM guest_response_private_feedback
+       WHERE organization_id = $1 AND response_id = $2`,
+      [ORG_A, RESPONSE_A],
+    )
+    await expect(repository().create(createInput())).resolves.toEqual({
+      outcome: 'source_unavailable',
+    })
+  })
+
   it('stores contact separately in sealed form and ordinary reads stay masked', async () => {
     await expect(repository().create(createInput())).resolves.toEqual({
       outcome: 'created',
@@ -166,8 +227,19 @@ describe('Contact Request repository', () => {
       encryption_key_id: string
       consent_granted: boolean
       expires_at: Date
+      publication_snapshot_id: string
+      publication_version: number
+      publication_digest: string
+      notice_id: string
+      notice_version: string
+      notice_digest: string
+      notice_locale: string
+      retention_policy_version: string
     }>(
-      `SELECT encrypted_contact, encryption_key_id, consent_granted, expires_at
+      `SELECT encrypted_contact, encryption_key_id, consent_granted, expires_at,
+              publication_snapshot_id, publication_version, publication_digest,
+              notice_id, notice_version, notice_digest, notice_locale,
+              retention_policy_version
        FROM guest_contact_requests WHERE id = $1`,
       [REQUEST_A],
     )
@@ -175,11 +247,24 @@ describe('Contact Request repository', () => {
       encryption_key_id: 'v1',
       consent_granted: true,
       expires_at: new Date('2026-09-25T09:00:00.000Z'),
+      publication_snapshot_id: SNAPSHOT_A,
+      publication_version: 1,
+      publication_digest: PUBLICATION_DIGEST,
+      notice_id: NOTICE_ID,
+      notice_version: NOTICE_VERSION,
+      notice_digest: NOTICE_DIGEST,
+      notice_locale: 'en',
+      retention_policy_version: RETENTION_POLICY_VERSION,
     })
     expect(persisted.rows[0]?.encrypted_contact).not.toContain('guest@example.com')
     expect(persisted.rows[0]?.encrypted_contact).not.toContain('Guest Name')
 
-    const masked = await repository().findMasked(createInput().scope, REQUEST_A, NOW)
+    const masked = await repository().findMasked({
+      scope: createInput().scope,
+      contactRequestId: REQUEST_A,
+      authorization: managerAuthorization(),
+      asOf: NOW,
+    })
     expect(masked).toEqual({
       id: REQUEST_A,
       scope: createInput().scope,
@@ -196,11 +281,28 @@ describe('Contact Request repository', () => {
     await expect(
       getPool().query(
         `INSERT INTO guest_contact_requests
-           (id, organization_id, property_id, portal_id, response_id, purpose,
+           (id, organization_id, property_id, portal_id, response_id,
+            publication_snapshot_id, publication_version, publication_digest,
+            contact_request_enabled, notice_id, notice_version, notice_digest,
+            notice_locale, retention_policy_version, purpose,
             encrypted_contact, encryption_key_id, submitted_at, expires_at)
-         VALUES ($1, $2, $3, $4, $5, 'manager_follow_up', 'opaque', 'v1',
-                 $6, $6::timestamptz + INTERVAL '720:00:00')`,
-        [REQUEST_A, ORG_A, PROPERTY_A, PORTAL_A, RESPONSE_A, NOW],
+         VALUES ($1, $2, $3, $4, $5, $6, 1, $7, true, $8, $9, $10, 'en',
+                 $11, 'manager_follow_up', 'opaque', 'v1',
+                 $12, $12::timestamptz + INTERVAL '720:00:00')`,
+        [
+          REQUEST_A,
+          ORG_A,
+          PROPERTY_A,
+          PORTAL_A,
+          RESPONSE_A,
+          SNAPSHOT_A,
+          PUBLICATION_DIGEST,
+          NOTICE_ID,
+          NOTICE_VERSION,
+          NOTICE_DIGEST,
+          RETENTION_POLICY_VERSION,
+          NOW,
+        ],
       ),
     ).rejects.toMatchObject({ code: '23514' })
 
@@ -222,24 +324,21 @@ describe('Contact Request repository', () => {
     ).resolves.toEqual({ outcome: 'source_unavailable' })
   })
 
-  it('reveals only to the current portal creator, assigned managers, or AccountAdmin and audits each reveal without contact values', async () => {
-    await seedMember(RESPONSIBLE_MANAGER, 'admin')
-    await seedMember(UNASSIGNED_MANAGER, 'admin')
-    await seedMember(ACCOUNT_ADMIN, 'owner')
-    await getPool().query(
-      `INSERT INTO portal_responsible_managers
-         (organization_id, property_id, portal_id, user_id, effective_from, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [ORG_A, PROPERTY_A, PORTAL_A, RESPONSIBLE_MANAGER, NOW, CREATOR],
-    )
+  it('persists each owning-context authority basis in the reveal audit without contact values', async () => {
     await repository().create(createInput())
 
-    for (const actorId of [CREATOR, RESPONSIBLE_MANAGER, ACCOUNT_ADMIN]) {
+    const authorities = [
+      [ACCOUNT_ADMIN, 'account_admin'],
+      [CREATOR, 'portal_creator'],
+      ['responsible-manager', 'responsible_manager'],
+    ] as const
+    for (const [actorId, basis] of authorities) {
       await expect(
         repository().reveal({
           scope: createInput().scope,
           contactRequestId: REQUEST_A,
-          actorId,
+          authorization: managerAuthorization(actorId, basis),
+          auditId: randomUUID(),
           accessPurpose: 'respond_to_contact_request',
           at: NOW,
         }),
@@ -249,15 +348,6 @@ describe('Contact Request repository', () => {
         name: 'Guest Name',
       })
     }
-    await expect(
-      repository().reveal({
-        scope: createInput().scope,
-        contactRequestId: REQUEST_A,
-        actorId: UNASSIGNED_MANAGER,
-        accessPurpose: 'respond_to_contact_request',
-        at: NOW,
-      }),
-    ).resolves.toEqual({ outcome: 'not_authorized' })
 
     const audits = await getPool().query<{
       actor_id: string
@@ -275,7 +365,7 @@ describe('Contact Request repository', () => {
     ).toEqual([
       [ACCOUNT_ADMIN, 'account_admin'],
       [CREATOR, 'portal_creator'],
-      [RESPONSIBLE_MANAGER, 'responsible_manager'],
+      ['responsible-manager', 'responsible_manager'],
     ])
     for (const audit of audits.rows) {
       expect(audit.row_text).not.toContain('guest@example.com')
@@ -283,37 +373,26 @@ describe('Contact Request repository', () => {
     }
   })
 
-  it('rechecks current responsibility and exact tenant, Property, and Portal scope at reveal time', async () => {
-    await seedMember(RESPONSIBLE_MANAGER, 'admin')
-    const assignment = await getPool().query<{ id: string }>(
-      `INSERT INTO portal_responsible_managers
-         (organization_id, property_id, portal_id, user_id, effective_from, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-      [ORG_A, PROPERTY_A, PORTAL_A, RESPONSIBLE_MANAGER, NOW, CREATOR],
-    )
+  it('requires fresh authority evidence and exact tenant, Property, and Portal scope at reveal time', async () => {
     await repository().create(createInput())
-    await getPool().query(
-      `UPDATE portal_responsible_managers
-       SET effective_to = $1, end_reason = 'responsibility changed'
-       WHERE id = $2`,
-      [new Date(NOW.getTime() + 1), assignment.rows[0]!.id],
-    )
 
-    const afterRemoval = new Date(NOW.getTime() + 2)
+    const afterAuthorityCheck = new Date(NOW.getTime() + 1)
     await expect(
       repository().reveal({
         scope: createInput().scope,
         contactRequestId: REQUEST_A,
-        actorId: RESPONSIBLE_MANAGER,
+        authorization: managerAuthorization(CREATOR, 'portal_creator', NOW),
+        auditId: randomUUID(),
         accessPurpose: 'respond_to_contact_request',
-        at: afterRemoval,
+        at: afterAuthorityCheck,
       }),
     ).resolves.toEqual({ outcome: 'not_authorized' })
     await expect(
       repository().reveal({
         scope: { ...createInput().scope, organizationId: ORG_B as string },
         contactRequestId: REQUEST_A,
-        actorId: ACCOUNT_ADMIN,
+        authorization: managerAuthorization(ACCOUNT_ADMIN, 'account_admin'),
+        auditId: randomUUID(),
         accessPurpose: 'respond_to_contact_request',
         at: NOW,
       }),
@@ -325,42 +404,12 @@ describe('Contact Request repository', () => {
           propertyId: 'cb000000-0000-4000-8000-000000000010',
         },
         contactRequestId: REQUEST_A,
-        actorId: CREATOR,
+        authorization: managerAuthorization(),
+        auditId: randomUUID(),
         accessPurpose: 'respond_to_contact_request',
         at: NOW,
       }),
     ).resolves.toEqual({ outcome: 'not_found' })
-  })
-
-  it('denies a Portal creator or responsible manager after current Property access is revoked', async () => {
-    await seedMember(RESPONSIBLE_MANAGER, 'admin')
-    await getPool().query(
-      `INSERT INTO portal_responsible_managers
-         (organization_id, property_id, portal_id, user_id, effective_from, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [ORG_A, PROPERTY_A, PORTAL_A, RESPONSIBLE_MANAGER, NOW, CREATOR],
-    )
-    await repository().create(createInput())
-    const revokedAt = new Date(NOW.getTime() + 1)
-    await getPool().query(
-      `UPDATE property_access_grant
-       SET revoked_at = $1, revoke_reason = 'access removed'
-       WHERE organization_id = $2 AND property_id = $3
-         AND user_id = ANY($4) AND revoked_at IS NULL`,
-      [revokedAt, ORG_A, PROPERTY_A, [CREATOR, RESPONSIBLE_MANAGER]],
-    )
-
-    for (const actorId of [CREATOR, RESPONSIBLE_MANAGER]) {
-      await expect(
-        repository().reveal({
-          scope: createInput().scope,
-          contactRequestId: REQUEST_A,
-          actorId,
-          accessPurpose: 'respond_to_contact_request',
-          at: new Date(revokedAt.getTime() + 1),
-        }),
-      ).resolves.toEqual({ outcome: 'not_authorized' })
-    }
   })
 
   it('withdraws atomically, clears the sealed value, and makes every later read unavailable', async () => {
@@ -371,6 +420,7 @@ describe('Contact Request repository', () => {
       repository().withdraw({
         scope: createInput().scope,
         contactRequestId: REQUEST_A,
+        responseId: RESPONSE_A,
         at: withdrawnAt,
       }),
     ).resolves.toEqual({ outcome: 'withdrawn' })
@@ -378,17 +428,24 @@ describe('Contact Request repository', () => {
       repository().withdraw({
         scope: createInput().scope,
         contactRequestId: REQUEST_A,
+        responseId: RESPONSE_A,
         at: new Date(NOW.getTime() + 2),
       }),
     ).resolves.toEqual({ outcome: 'unavailable' })
     await expect(
-      repository().findMasked(createInput().scope, REQUEST_A, withdrawnAt),
+      repository().findMasked({
+        scope: createInput().scope,
+        contactRequestId: REQUEST_A,
+        authorization: managerAuthorization(CREATOR, 'portal_creator', withdrawnAt),
+        asOf: withdrawnAt,
+      }),
     ).resolves.toBeNull()
     await expect(
       repository().reveal({
         scope: createInput().scope,
         contactRequestId: REQUEST_A,
-        actorId: CREATOR,
+        authorization: managerAuthorization(CREATOR, 'portal_creator', withdrawnAt),
+        auditId: randomUUID(),
         accessPurpose: 'respond_to_contact_request',
         at: withdrawnAt,
       }),
@@ -420,13 +477,15 @@ describe('Contact Request repository', () => {
       repository().reveal({
         scope: createInput().scope,
         contactRequestId: REQUEST_A,
-        actorId: CREATOR,
+        authorization: managerAuthorization(CREATOR, 'portal_creator', at),
+        auditId: randomUUID(),
         accessPurpose: 'respond_to_contact_request',
         at,
       }),
       repository().withdraw({
         scope: createInput().scope,
         contactRequestId: REQUEST_A,
+        responseId: RESPONSE_A,
         at,
       }),
     ])
@@ -472,6 +531,34 @@ describe('Contact Request repository', () => {
     })
   })
 
+  it('retires contact in the same transaction when private feedback is withdrawn', async () => {
+    await repository().create(createInput())
+    const withdrawnAt = new Date(NOW.getTime() + 1)
+
+    await getPool().query(
+      `UPDATE guest_responses
+       SET text_consent = false, feedback_source_event_id = NULL,
+           feedback_withdrawn_at = $1, updated_at = $1
+       WHERE organization_id = $2 AND id = $3`,
+      [withdrawnAt, ORG_A, RESPONSE_A],
+    )
+
+    const terminal = await getPool().query<{
+      status: string
+      encrypted_contact: string | null
+      withdrawn_at: Date
+    }>(
+      `SELECT status, encrypted_contact, withdrawn_at
+       FROM guest_contact_requests WHERE id = $1`,
+      [REQUEST_A],
+    )
+    expect(terminal.rows[0]).toEqual({
+      status: 'withdrawn',
+      encrypted_contact: null,
+      withdrawn_at: withdrawnAt,
+    })
+  })
+
   it('denies expired reads before cleanup and advances a restart-safe bounded purge checkpoint', async () => {
     const submittedAt = new Date('2026-07-01T09:00:00.000Z')
     const secondResponse = 'ca000000-0000-4000-8000-000000000031'
@@ -495,13 +582,19 @@ describe('Contact Request repository', () => {
     })
 
     await expect(
-      repository().findMasked(createInput().scope, REQUEST_A, NOW),
+      repository().findMasked({
+        scope: createInput().scope,
+        contactRequestId: REQUEST_A,
+        authorization: managerAuthorization(),
+        asOf: NOW,
+      }),
     ).resolves.toBeNull()
     await expect(
       repository().reveal({
         scope: createInput().scope,
         contactRequestId: REQUEST_A,
-        actorId: CREATOR,
+        authorization: managerAuthorization(),
+        auditId: randomUUID(),
         accessPurpose: 'respond_to_contact_request',
         at: NOW,
       }),

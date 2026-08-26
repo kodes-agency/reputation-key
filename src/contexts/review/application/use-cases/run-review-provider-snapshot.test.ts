@@ -126,9 +126,10 @@ function makeDeps(
     ),
     getReview: vi.fn(async () => ({ status: 'not_found' as const })),
     discardReviewCursors: vi.fn(async () => undefined),
-    replyToReview: vi.fn(async () => undefined),
+    replyToReview: vi.fn(async () => ({ providerCorrelationId: null })),
   }
   const observationWriter: ReviewProviderObservationWriter = {
+    allocateReplyReadGeneration: vi.fn(async () => 1),
     persist: vi.fn(async () => ({
       reviewId,
       sourceRevision: 1,
@@ -192,6 +193,12 @@ describe('runReviewProviderSnapshot', () => {
     })
     expect(deps.googleReviewApi.listReviewsPage).toHaveBeenCalledWith(
       expect.objectContaining({ pageIndex: 0, phase: 'main', cursorRef: null }),
+    )
+    expect(
+      vi.mocked(deps.googleReviewApi.listReviewsPage).mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(deps.observationWriter.allocateReplyReadGeneration).mock
+        .invocationCallOrder[0]!,
     )
     expect(deps.observationWriter.persist).toHaveBeenCalledTimes(1)
     expect(deps.repository.commitPage).toHaveBeenCalledWith(
@@ -329,9 +336,46 @@ describe('runReviewProviderSnapshot', () => {
     await expect(runReviewProviderSnapshot(deps)({ ...request, runId })).resolves.toEqual(
       { status: 'checkpointed', runId, state: 'confirming' },
     )
+    expect(deps.observationWriter.allocateReplyReadGeneration).not.toHaveBeenCalled()
     expect(deps.repository.confirmLinkedCandidateMissing).not.toHaveBeenCalled()
     expect(deps.repository.failRun).not.toHaveBeenCalled()
     expect(deps.repository.applyDeletionBatch).not.toHaveBeenCalled()
+  })
+
+  it('allocates a targeted reply generation only after acquiring the response', async () => {
+    const deps = makeDeps({
+      currentRun: run({
+        state: 'confirming',
+        phase: 'confirmation',
+        confirmationDeadline: new Date('2026-08-16T12:00:00.000Z'),
+      }),
+    })
+    vi.mocked(deps.repository.readNextLinkedCandidate).mockResolvedValue({
+      runId,
+      reviewId,
+      expectedState: 'linked',
+      expectedSourceRevision: 1,
+      status: 'pending',
+      reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+    })
+    vi.mocked(deps.googleReviewApi.getReview).mockResolvedValue({
+      status: 'found',
+      review,
+    })
+
+    await expect(runReviewProviderSnapshot(deps)({ ...request, runId })).resolves.toEqual(
+      { status: 'failed', runId, code: 'confirmation_set_changed' },
+    )
+
+    expect(
+      vi.mocked(deps.googleReviewApi.getReview).mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      vi.mocked(deps.observationWriter.allocateReplyReadGeneration).mock
+        .invocationCallOrder[0]!,
+    )
+    expect(deps.observationWriter.persist).toHaveBeenCalledWith(
+      expect.objectContaining({ replyReadGeneration: 1 }),
+    )
   })
 
   it('checkpoints a rate-limited page scan and preserves the run cursors', async () => {

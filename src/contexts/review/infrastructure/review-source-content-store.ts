@@ -2,6 +2,8 @@ import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   materialReviewRevisions,
+  googleReplyObservations,
+  replies,
   reviews,
   reviewSourceContents,
   reviewSourceObservations,
@@ -193,6 +195,38 @@ export async function eraseReviewSourceContent(
         eq(materialReviewRevisions.propertyId, input.propertyId),
         eq(materialReviewRevisions.sourceEpoch, input.sourceEpoch),
         eq(materialReviewRevisions.contentState, 'active'),
+      ),
+    )
+
+  await tx
+    .update(googleReplyObservations)
+    .set({
+      normalizedText: null,
+      normalizedDigest: null,
+      contentState: input.state,
+      contentErasedAt: sql`transaction_timestamp()`,
+      updatedAt: sql`transaction_timestamp()`,
+    })
+    .where(
+      and(
+        eq(googleReplyObservations.reviewId, input.reviewId),
+        eq(googleReplyObservations.organizationId, input.organizationId),
+        eq(googleReplyObservations.propertyId, input.propertyId),
+        eq(googleReplyObservations.sourceEpoch, input.sourceEpoch),
+        eq(googleReplyObservations.contentState, 'active'),
+      ),
+    )
+
+  // Pre-RPL provider mirrors are provider-owned source content too. Current
+  // code no longer creates them; erase any retained compatibility row during
+  // the same lifecycle transaction.
+  await tx
+    .delete(replies)
+    .where(
+      and(
+        eq(replies.reviewId, input.reviewId),
+        eq(replies.organizationId, input.organizationId),
+        eq(replies.source, 'google_sync'),
       ),
     )
 

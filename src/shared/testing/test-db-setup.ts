@@ -230,6 +230,11 @@ export async function ensureTestDatabase(
     before.hasGooglePropertyBindingIndex &&
     before.hasSidecar
   if (upToDate) {
+    // Registered sidecars are intentionally idempotent and may evolve without
+    // a new Drizzle journal entry. Production reapplies them on every deploy;
+    // do the same on the integration fast path so a marker function cannot
+    // make an older trigger definition look current.
+    await withPool(url, (pool) => pool.query(readFileSync(SIDECAR_URL, 'utf8')))
     return {
       databaseUrl: url,
       created,

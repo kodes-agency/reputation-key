@@ -11,6 +11,7 @@ describe('Auth configuration', () => {
     process.env.DATABASE_URL = 'postgresql://test:test@localhost:5432/test'
     process.env.BETTER_AUTH_SECRET = 'test-test-test-test-test-test-test-test'
     process.env.BETTER_AUTH_URL = 'http://localhost:3000'
+    process.env.PROCESSING_CELL = 'us'
     process.env.RESEND_API_KEY = 're_test_key'
     process.env.LOG_LEVEL = 'error'
   })

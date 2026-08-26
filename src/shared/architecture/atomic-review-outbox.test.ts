@@ -45,7 +45,9 @@ describe('BQR-2.3: atomic review outbox producer', () => {
     expect(src).toContain('emitAfterCommit')
     const txIdx = src.indexOf('db.transaction')
     // Call site after the transaction closes (not the helper definition)
-    const afterCommitCall = src.indexOf('await emitAfterCommit(events, committed.event)')
+    const afterCommitCall = src.search(
+      /for \(const event of committed\.events\) await emitAfterCommit\(events, event\)/,
+    )
     expect(txIdx).toBeGreaterThan(-1)
     expect(afterCommitCall).toBeGreaterThan(txIdx)
   })

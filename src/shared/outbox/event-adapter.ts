@@ -12,7 +12,16 @@ import type { DomainEvent } from '#/shared/events/events'
 import { isEventRegistered, validateEventPayload } from '#/shared/events/schema-registry'
 
 const eventVersionFor = (event: DomainEvent): number =>
-  event._tag === 'integration.google_account.connected' ? 2 : 1
+  event._tag === 'integration.google_account.connected' ||
+  event._tag === 'portal.responsibility_became_needed' ||
+  event._tag === 'portal.responsible_managers.updated' ||
+  event._tag === 'portal.content_review.completed' ||
+  event._tag === 'portal.configuration_completeness.recorded' ||
+  event._tag === 'portal.approved_destination_ratio.recorded' ||
+  event._tag === 'portal_group.deleted' ||
+  event._tag === 'review.reply.publication_requested'
+    ? 2
+    : 1
 
 /**
  * Content fields that must NEVER appear in outbox payloads (ADR 0030).

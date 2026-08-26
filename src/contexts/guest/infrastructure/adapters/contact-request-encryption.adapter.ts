@@ -33,6 +33,7 @@ function additionalData(context: ContactRequestEncryptionContext): Buffer {
       context.propertyId,
       context.portalId,
       context.contactRequestId,
+      context.responseId,
     ]),
     'utf8',
   )

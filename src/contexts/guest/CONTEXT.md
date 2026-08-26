@@ -32,7 +32,7 @@ Guest-facing interactions on public portal pages. Covers scan tracking, star rat
 ## Invariants
 
 - Rating must be an integer 1–5 (`validateRating`). Non-integer or out-of-range values are rejected.
-- The initial response command requires a private rating and cannot carry text. Eligible private feedback is a separate atomic command, max 2,000 characters and non-empty after trim.
+- The initial response command requires a private rating and cannot carry text. Eligible private feedback is a separate atomic command, max 2,000 characters and non-empty after trim; CRLF/lone-CR inputs normalize to LF while paragraph breaks are preserved.
 - Every new rating atomically stores a separate experience snapshot: the immutable Portal publication snapshot ID/version/digest, published-state marker, SHA-256 content version of the exact server-rendered configuration, actual guest locale, Guest UI language-pack version, inclusive feedback threshold, and capture time. A composite database reference prevents mismatched publication evidence. Later Portal edits, rollback, and rating corrections never rewrite it. Historical responses without reliable evidence remain explicitly unsnapshotted rather than inheriting current Portal state.
 - Scan source must be one of `qr`, `nfc`, `direct` (`validateSource`).
 - Session cookie (maximum 24h, `HttpOnly`, `rk_guest_session`) prevents duplicate ratings within the same session.
@@ -82,8 +82,10 @@ guest/
   application/
     ports/             guest-interaction.repository.ts, portal-context-resolver.port.ts,
                        public-portal-lookup.port.ts, contact-request.repository.ts,
-                       contact-request-encryption.port.ts
-    dto/               public-portal.dto.ts, contact-request.dto.ts
+                       contact-request-encryption.port.ts,
+                       contact-request-manager-authority.port.ts
+    dto/               public-portal.dto.ts, contact-request.dto.ts,
+                       private-feedback.dto.ts
     use-cases/         record-scan.ts, guest-response-lifecycle.ts,
                        contact-request-lifecycle.ts,
                        get-portal-response-integrity-summary.ts,
@@ -105,7 +107,7 @@ guest/
 
 - **`recordScan`** — Record a scan event (no referral attribution).
 - **`responseLifecycle`** — Submit the required private rating, add eligible private feedback, withdraw only that feedback within 24 hours, correct the rating once, and withdraw/moderate the aggregate. State and content-free facts commit atomically.
-- **`contactRequestLifecycle`** — Backend-only submit, masked read, audited just-in-time reveal, withdrawal, and checkpointed 30-day purge. It is intentionally absent from `build.ts`, server functions, routes, workers, and public API.
+- **`contactRequestLifecycle`** — Backend-only submit, masked read, audited just-in-time reveal, withdrawal, and checkpointed 30-day purge. Manager relationships are freshly resolved through an owning-context port immediately before the Guest operation; its documented cross-transaction revocation interval must be accepted or replaced by a transactional permit before activation. The lifecycle is intentionally absent from `build.ts`, server functions, routes, workers, and public API.
 - **`trackReviewLinkClick`** — Atomically commit the short-lived classified action receipt and `guest.review_link.clicked`; persistence failure is reported but never blocks an approved navigation.
 - **`resolveLinkAndTrack`** — Resolve a token-owned Portal link. It tracks only when the explicit POST edge supplies a qualified signed session; calls from the redirect GET resolve without analytics.
 - **`resolvePortalContext`** — Resolve org + property from portal ID.
@@ -137,6 +139,7 @@ Guest context is entirely public — no authentication is required for any endpo
 - `review_link:click` — Track a review link click. Public.
 - `portal:read` — Read public portal data (name, description, links). Public.
 - `feedback.read` — Reserved for future use (viewing feedback history).
+- `feedback.handle` — Internal Inbox handling for submitted private feedback; distinct from collection and moderation.
 - `feedback.respond` — Reserved for future use (responding to guest feedback).
 
 ## Contact Request activation

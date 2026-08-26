@@ -10,6 +10,9 @@ import { portalLinkId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPortalPropertyAccess } from '../assert-property-access'
+import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import { nextPortalCommandAt } from '../portal-command-version'
+import { portalLinkUpdated } from '../../domain/events'
 
 export type UpdateLinkInput = Readonly<{
   linkId: string
@@ -22,6 +25,7 @@ export type UpdateLinkDeps = Readonly<{
   portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
   staffPublicApi: StaffPublicApi
+  commandStore: PortalCommandStore
   clock: () => Date
 }>
 
@@ -33,15 +37,16 @@ export const updateLink =
       throw portalError('forbidden', 'this role cannot update portal links')
     }
 
-    const existing = await deps.portalLinkRepo.findLinkById(
+    const target = await deps.portalLinkRepo.findLinkCommandTarget(
       ctx.organizationId,
       portalLinkId(input.linkId),
     )
-    if (!existing) {
+    if (!target) {
       throw portalError('link_not_found', 'link not found')
     }
+    const existing = target.link
     // Enforce property-assignment scoping (D6-001.)
-    await assertPortalPropertyAccess(
+    const portal = await assertPortalPropertyAccess(
       deps.portalRepo,
       deps.staffPublicApi,
       ctx,
@@ -49,15 +54,13 @@ export const updateLink =
       existing.portalId,
     )
 
-    let newLabel = existing.label
-    let newUrl = existing.url
-    let newIconKey = existing.iconKey
+    let validatedLabel: string | undefined
     let needsUpdate = false
 
     if (input.label !== undefined) {
       const r = validateLinkLabel(input.label)
       if (r.isErr()) throw r.error
-      newLabel = r.value
+      validatedLabel = r.value
       needsUpdate = true
     }
 
@@ -65,31 +68,50 @@ export const updateLink =
       if (!isValidExternalUrl(input.url)) {
         throw portalError('invalid_url', 'Link URL must use https:// scheme')
       }
-      newUrl = input.url
       needsUpdate = true
     }
 
     if (input.iconKey !== undefined) {
-      newIconKey = input.iconKey
       needsUpdate = true
     }
 
     if (!needsUpdate) return existing
 
-    const updatedAt = deps.clock()
-    await deps.portalLinkRepo.updateLink(
-      ctx.organizationId,
-      existing.portalId,
-      portalLinkId(input.linkId),
-      {
-        label: newLabel,
-        url: newUrl,
-        iconKey: newIconKey,
-        updatedAt,
-      },
-    )
+    const expectedPortalUpdatedAt = target.portalUpdatedAt ?? portal.updatedAt
+    const newLabel = validatedLabel ?? existing.label
+    const newUrl = input.url ?? existing.url
+    const newIconKey = input.iconKey !== undefined ? input.iconKey : existing.iconKey
 
-    return { ...existing, label: newLabel, url: newUrl, iconKey: newIconKey, updatedAt }
+    const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, expectedPortalUpdatedAt)
+    await deps.commandStore.updatePortalLink({
+      organizationId: ctx.organizationId,
+      propertyId: portal.propertyId,
+      portalId: existing.portalId,
+      expectedPortalUpdatedAt,
+      revision,
+      occurredAt,
+      linkId: existing.id,
+      categoryId: existing.categoryId,
+      patch: { label: newLabel, url: newUrl, iconKey: newIconKey },
+      event: portalLinkUpdated({
+        portalId: existing.portalId,
+        linkId: existing.id,
+        categoryId: existing.categoryId,
+        organizationId: ctx.organizationId,
+        propertyId: portal.propertyId,
+        sourceAggregateVersion: revision.toISOString(),
+        occurredAt,
+      }),
+    })
+
+    return {
+      ...existing,
+      label: newLabel,
+      url: newUrl,
+      iconKey: newIconKey,
+      updatedAt: occurredAt,
+    }
   }
 
 export type UpdateLink = ReturnType<typeof updateLink>

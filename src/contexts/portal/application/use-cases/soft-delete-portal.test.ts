@@ -12,6 +12,7 @@ import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import type { PropertyId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
+const NEXT_TIME = new Date(FIXED_TIME.getTime() + 1)
 
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
@@ -47,7 +48,7 @@ describe('softDeletePortal', () => {
     await useCase({ portalId: portal.id }, ctx)
 
     const all = portalRepo.all()
-    expect(all[0].deletedAt).not.toBeNull()
+    expect(all[0]).toMatchObject({ deletedAt: FIXED_TIME, updatedAt: NEXT_TIME })
   })
 
   it('emits portal.deleted event', async () => {
@@ -60,7 +61,11 @@ describe('softDeletePortal', () => {
 
     const emitted = events.capturedByTag('portal.deleted')
     expect(emitted).toHaveLength(1)
-    expect(emitted[0].portalId).toBe(portal.id)
+    expect(emitted[0]).toMatchObject({
+      portalId: portal.id,
+      sourceAggregateVersion: NEXT_TIME.toISOString(),
+      occurredAt: FIXED_TIME,
+    })
   })
 
   it('rejects users who cannot delete', async () => {

@@ -9,12 +9,15 @@ import {
   organizationId,
   propertyId,
   reviewId,
+  feedbackId,
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem, InboxStatus, SourceType } from '../../domain/types'
 import type { Role } from '#/shared/domain/roles'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Permission } from '#/shared/domain/permissions'
+import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
 const ORG_ID = organizationId('org-1')
@@ -28,7 +31,17 @@ const PROP_OTHER = propertyId('prop-other')
 const ctxFor = (role: Role, orgId = ORG_ID): AuthContext =>
   ({ organizationId: orgId, userId: USER_ID, role }) as AuthContext
 
-const seedItem = (): InboxItem => ({
+const ctxWith = (...permissions: Permission[]): AuthContext => ({
+  organizationId: ORG_ID,
+  userId: USER_ID,
+  role: 'Staff',
+  effectivePermissions: new Set(permissions),
+  scopeByPermission: new Map(
+    permissions.map((permission) => [permission, 'assigned-properties' as const]),
+  ),
+})
+
+const seedItem = (overrides: Partial<InboxItem> = {}): InboxItem => ({
   id: ITEM_ID,
   organizationId: ORG_ID,
   propertyId: PROP_1,
@@ -52,6 +65,7 @@ const seedItem = (): InboxItem => ({
   firstReplyPublishedAt: null,
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
+  ...overrides,
 })
 
 const defaultStaffApi: StaffPublicApi = {
@@ -114,6 +128,112 @@ describe('assignInboxItem', () => {
       ),
     ).rejects.toSatisfy(
       (e: unknown) => isInboxError(e) && e.code === 'assignment_not_allowed',
+    )
+  })
+
+  it('allows an eligible user to claim an unassigned item without inbox.manage', async () => {
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [PROP_1],
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(seedItem())
+
+    const updated = await useCase(
+      { inboxItemId: ITEM_ID, assignedToUserId: USER_ID },
+      ctxWith('inbox.write', 'review.read'),
+    )
+
+    expect(updated.assignedTo).toBe(USER_ID)
+  })
+
+  it('still requires inbox.manage when assigning another user', async () => {
+    const { useCase, repo } = setup()
+    repo.items.push(seedItem())
+
+    await expect(
+      useCase(
+        { inboxItemId: ITEM_ID, assignedToUserId: ASSIGNEE_ID },
+        ctxWith('inbox.write', 'review.read'),
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'assignment_not_allowed',
+    )
+  })
+
+  it('requires feedback.handle to claim a private-feedback item', async () => {
+    const staffApi: StaffPublicApi = {
+      getAccessiblePropertyIds: async () => [PROP_1],
+      getAssignedPortals: async () => [],
+      countAssignmentsByTeam: async () => 0,
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(
+      seedItem({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
+    )
+
+    await expect(
+      useCase(
+        { inboxItemId: ITEM_ID, assignedToUserId: USER_ID },
+        ctxWith('inbox.write', 'feedback.read'),
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
+  })
+
+  it('intersects feedback.handle scope for a self-service claim', async () => {
+    const staffApi: StaffPublicApi = {
+      ...defaultStaffApi,
+      getAccessiblePropertyIds: async () => [PROP_OTHER],
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(
+      seedItem({ sourceType: 'feedback', sourceId: feedbackId('fb-private') }),
+    )
+
+    await expect(
+      useCase(
+        { inboxItemId: ITEM_ID, assignedToUserId: USER_ID },
+        createScopedAuthContext({
+          organizationId: ORG_ID,
+          userId: USER_ID,
+          permissions: [
+            ['inbox.write', 'organization'],
+            ['feedback.handle', 'assigned-properties'],
+          ],
+        }),
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
+    )
+  })
+
+  it('intersects inbox.manage scope when assigning another user', async () => {
+    const staffApi: StaffPublicApi = {
+      ...defaultStaffApi,
+      getAccessiblePropertyIds: async (_orgId, candidateUserId) =>
+        candidateUserId === ASSIGNEE_ID ? [PROP_1] : [PROP_OTHER],
+    }
+    const { useCase, repo } = setup(staffApi)
+    repo.items.push(seedItem())
+
+    await expect(
+      useCase(
+        { inboxItemId: ITEM_ID, assignedToUserId: ASSIGNEE_ID },
+        createScopedAuthContext({
+          organizationId: ORG_ID,
+          userId: USER_ID,
+          permissions: [
+            ['inbox.write', 'organization'],
+            ['review.read', 'organization'],
+            ['inbox.manage', 'assigned-properties'],
+          ],
+        }),
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'forbidden',
     )
   })
 

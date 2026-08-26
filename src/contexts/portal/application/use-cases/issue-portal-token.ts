@@ -49,7 +49,8 @@ export const issuePortalToken =
     }
 
     const material = deps.tokenCodec.issue()
-    const now = nextPortalCommandAt(deps.clock(), portal.updatedAt)
+    const occurredAt = deps.clock()
+    const revision = nextPortalCommandAt(occurredAt, portal.updatedAt)
     const token = issueToken({
       id: deps.idGen(),
       organizationId: unbrand(portal.organizationId),
@@ -60,7 +61,7 @@ export const issuePortalToken =
       tokenKeyVersion: material.tokenKeyVersion,
       version: (latest?.version ?? 0) + 1,
       printBatch: input.printBatch,
-      now,
+      now: occurredAt,
     })
     const event = portalTokenIssued({
       portalId: portal.id,
@@ -68,7 +69,7 @@ export const issuePortalToken =
       propertyId: portal.propertyId,
       tokenIdentifier: token.tokenIdentifier,
       version: token.version,
-      sourceAggregateVersion: token.issuedAt.toISOString(),
+      sourceAggregateVersion: revision.toISOString(),
       occurredAt: token.issuedAt,
     })
     await deps.commandStore.issuePortalToken({
@@ -77,7 +78,8 @@ export const issuePortalToken =
       portalId: portal.id,
       expectedPortalUpdatedAt: portal.updatedAt,
       token,
-      at: token.issuedAt,
+      revision,
+      occurredAt,
       event,
     })
     return {

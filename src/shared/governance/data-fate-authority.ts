@@ -562,7 +562,10 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'review.schema.ts',
     exportNames: [
+      'googleReplyObservationHeads',
       'replies',
+      'replyPublicationAttempts',
+      'replyPublicationAuthorizations',
       'reviewAiAnalysisHeads',
       'reviewProviderDeletionCandidates',
       'reviewProviderSnapshotRuns',
@@ -577,6 +580,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'review.schema.ts',
     exportNames: [
+      'googleReplyObservations',
       'materialReviewRevisions',
       'reviewProviderSnapshotMembers',
       'reviewSourceObservations',

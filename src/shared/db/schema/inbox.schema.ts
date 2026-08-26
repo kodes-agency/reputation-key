@@ -155,7 +155,9 @@ export const inboxHandlingCycles = pgTable(
         'legacy_backfill',
         'review_observed',
         'material_revision_changed',
-        'manual_reopen'
+        'manual_reopen',
+        'provider_reply_deleted',
+        'provider_reply_diverged'
       )`,
     ),
   ],

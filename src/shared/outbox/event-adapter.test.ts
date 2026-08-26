@@ -4,21 +4,27 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { toOutboxEvent, tryToOutboxEvent, OutboxPayloadError } from './event-adapter'
 import {
   clearEventSchemas,
+  isEventRegistered,
   registerEventSchema,
   validateEventPayload,
 } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { reviewReplyPublicationRequested } from '#/contexts/review/domain/events'
+import { EVENT_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
 import { z } from 'zod/v4'
 import type { DomainEvent } from '#/shared/events/events'
 import {
   feedbackId,
   organizationId,
+  portalGroupId,
   portalId,
   portalLinkId,
   propertyId,
   ratingId,
+  replyId,
   reviewId,
   scanEventId,
+  userId,
 } from '#/shared/domain/ids'
 
 const NOW = new Date('2025-06-01T12:00:00.000Z')
@@ -103,6 +109,207 @@ describe('toOutboxEvent allowlist (BQR-2.5)', () => {
     expect(row.eventVersion).toBe(2)
     expect(row.payload).toHaveProperty('connectedBy', 'user-1')
     expect(row.payload).not.toHaveProperty('outboxEventVersion')
+  })
+
+  it('keeps publication intent adapter, schemas, and catalogue on strict v2', () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+    const event = reviewReplyPublicationRequested({
+      replyId: replyId('33333333-3333-4333-8333-333333333333'),
+      reviewId: reviewId('11111111-1111-4111-8111-111111111111'),
+      organizationId: organizationId('organization-1'),
+      propertyId: propertyId('22222222-2222-4222-8222-222222222222'),
+      userId: userId('user-1'),
+      publicationCycle: 1,
+      sourceEpoch: 0,
+      materialReviewRevision: 1,
+      baseObservationRevision: 0,
+      occurredAt: NOW,
+    })
+
+    const row = toOutboxEvent(event)
+    const catalogue = EVENT_FAMILY_ROWS.find(
+      (entry) => entry.eventType === 'review.reply.publication_requested',
+    )
+
+    expect(row).toMatchObject({
+      eventType: 'review.reply.publication_requested',
+      eventVersion: 2,
+      payload: {
+        replyId: '33333333-3333-4333-8333-333333333333',
+        reviewId: '11111111-1111-4111-8111-111111111111',
+        organizationId: 'organization-1',
+        propertyId: '22222222-2222-4222-8222-222222222222',
+        userId: 'user-1',
+        publicationCycle: 1,
+        sourceEpoch: 0,
+        materialReviewRevision: 1,
+        baseObservationRevision: 0,
+        occurredAt: NOW.toISOString(),
+      },
+    })
+    expect(catalogue).toBeDefined()
+    if (!catalogue) throw new Error('publication intent catalogue row is missing')
+    expect(catalogue.version).toBe(row.eventVersion)
+    expect(isEventRegistered(event._tag, 1)).toBe(true)
+    expect(isEventRegistered(event._tag, catalogue.version)).toBe(true)
+  })
+
+  it.each([
+    ['non-UUID Reply', { replyId: 'reply-1' }],
+    ['non-UUID Review', { reviewId: 'review-1' }],
+    ['non-UUID Property', { propertyId: 'property-1' }],
+    ['empty Organization', { organizationId: ' ' }],
+    ['empty authorizing user', { userId: '' }],
+    ['invalid occurrence timestamp', { occurredAt: 'not-a-timestamp' }],
+  ])(
+    'rejects malformed publication intent at the outbox adapter: %s',
+    (_name, override) => {
+      clearEventSchemas()
+      registerAllEventSchemas()
+      const malformed = {
+        _tag: 'review.reply.publication_requested',
+        eventId: '44444444-4444-4444-8444-444444444444',
+        replyId: '33333333-3333-4333-8333-333333333333',
+        reviewId: '11111111-1111-4111-8111-111111111111',
+        organizationId: 'organization-1',
+        propertyId: '22222222-2222-4222-8222-222222222222',
+        userId: 'user-1',
+        publicationCycle: 1,
+        sourceEpoch: 0,
+        materialReviewRevision: 1,
+        baseObservationRevision: 0,
+        occurredAt: NOW,
+        correlationId: null,
+        ...override,
+      } as unknown as DomainEvent
+
+      expect(() => toOutboxEvent(malformed)).toThrow(OutboxPayloadError)
+    },
+  )
+
+  it.each([
+    {
+      tag: 'portal.responsibility_became_needed' as const,
+      aggregate: { portalId: portalId('portal-1') },
+    },
+    {
+      tag: 'portal_group.deleted' as const,
+      aggregate: { portalGroupId: portalGroupId('group-1') },
+    },
+  ])(
+    'emits strict $tag facts as v2 while retaining legacy v1 replay',
+    ({ tag, aggregate }) => {
+      clearEventSchemas()
+      registerAllEventSchemas()
+      const common = {
+        ...aggregate,
+        _tag: tag,
+        eventId: `evt-${tag}`,
+        organizationId: organizationId('org-1'),
+        propertyId: propertyId('prop-1'),
+        sourceAggregateVersion: '2025-06-01T12:01:00.000Z',
+        occurredAt: NOW,
+        correlationId: null,
+      } as DomainEvent
+
+      const row = toOutboxEvent(common)
+      const payload = row.payload as Record<string, unknown>
+      expect(row.eventVersion).toBe(2)
+      expect(payload).toMatchObject({
+        sourceAggregateVersion: '2025-06-01T12:01:00.000Z',
+        occurredAt: NOW.toISOString(),
+      })
+      expect(() =>
+        validateEventPayload(tag, 2, {
+          ...payload,
+          sourceAggregateVersion: undefined,
+        }),
+      ).toThrow()
+      const legacyPayload =
+        tag === 'portal_group.deleted'
+          ? { ...payload, sourceAggregateVersion: undefined, occurredAt: undefined }
+          : { ...payload, sourceAggregateVersion: undefined }
+      const replayed = validateEventPayload(tag, 1, legacyPayload)
+      if (tag === 'portal_group.deleted') {
+        expect(replayed).not.toHaveProperty('occurredAt')
+      } else {
+        expect(replayed).toMatchObject({ occurredAt: NOW.toISOString() })
+      }
+    },
+  )
+
+  it('starts responsible-manager update facts at strict v2', () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+    const row = toOutboxEvent({
+      _tag: 'portal.responsible_managers.updated',
+      eventId: 'evt-responsible-managers-updated',
+      portalId: portalId('portal-1'),
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
+      assignmentCount: 1,
+      sourceAggregateVersion: '2025-06-01T12:01:00.000Z',
+      occurredAt: NOW,
+      correlationId: null,
+    } as DomainEvent)
+
+    expect(row.eventVersion).toBe(2)
+    expect(row.payload).toMatchObject({
+      assignmentCount: 1,
+      sourceAggregateVersion: '2025-06-01T12:01:00.000Z',
+      occurredAt: NOW.toISOString(),
+    })
+    expect(() =>
+      validateEventPayload('portal.responsible_managers.updated', 1, row.payload),
+    ).toThrow(/Unknown event type/)
+  })
+
+  it.each([
+    'portal.content_review.completed',
+    'portal.configuration_completeness.recorded',
+    'portal.approved_destination_ratio.recorded',
+  ] as const)('emits %s as strict v2 while retaining its legacy v1 decoder', (tag) => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+    const event = {
+      _tag: tag,
+      eventId: `evt-${tag}`,
+      correlationId: null,
+      reviewId: 'review-1',
+      revision: 1,
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
+      portalId: portalId('portal-1'),
+      portalGroupId: null,
+      supersedesSourceEventId: null,
+      completedFields: 4,
+      requiredFields: 5,
+      approvedDestinations: 3,
+      configuredDestinations: 4,
+      sourceAggregateVersion: '2025-06-01T12:01:00.000Z',
+      occurredAt: NOW,
+    } as DomainEvent
+
+    const row = toOutboxEvent(event)
+    const payload = row.payload as Record<string, unknown>
+    expect(row.eventVersion).toBe(2)
+    expect(payload).toMatchObject({
+      sourceAggregateVersion: '2025-06-01T12:01:00.000Z',
+      occurredAt: NOW.toISOString(),
+    })
+    expect(() =>
+      validateEventPayload(tag, 2, {
+        ...payload,
+        sourceAggregateVersion: undefined,
+      }),
+    ).toThrow()
+    expect(
+      validateEventPayload(tag, 1, {
+        ...payload,
+        sourceAggregateVersion: undefined,
+      }),
+    ).toMatchObject({ occurredAt: NOW.toISOString() })
   })
 
   it('supports the invitation v1 sentinel and rejects the retired key from v2', () => {
