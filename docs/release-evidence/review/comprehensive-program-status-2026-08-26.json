@@ -6,43 +6,49 @@
     {
       "id": "FND-01",
       "status": "partial",
-      "summary": "A digest-bound frozen baseline exists, but it is unsigned and its 114 findings have not been revalidated and dispositioned at the frozen SHA.",
+      "summary": "Immutable independent revalidation is complete for all 52 ARCH/AUTH/DATA/DEC/EVT rows from the accepted 114-row register. The fragment pins exact frozen fields and digests, descendant comparison evidence, reachability, impact, owner/targets, and non-overstated closure criteria: 12 closed, 2 superseded, 37 confirmed, and 1 configuration-dependent. The other 62 rows and recorded residual criteria remain open.",
       "codeEvidence": [
-        "docs/release-evidence/review/718fad1807b7422885584660bd3580f2a3a49113/"
+        "docs/release-evidence/review/718fad1807b7422885584660bd3580f2a3a49113/",
+        "docs/release-evidence/review/finding-revalidation-fragments/arch-auth-data-dec-evt-2026-08-26.json",
+        "scripts/review/finding-revalidation-fragment.ts"
       ],
       "testEvidence": [
-        "Frozen gate record: one failed gate and five skipped gates before remediation"
+        "Frozen register SHA 718fad1807b7422885584660bd3580f2a3a49113 and register digest 77eb6bb21ea555197a3c7e10edac5f0e5356cabac0f953adecf8408c4f622135",
+        "52/114 rows in frozen order: ARCH 13, AUTH 1, DATA 19, DEC 1, EVT 18",
+        "Focused fragment validator: 1 file / 7 tests passed; direct CLI validation passed"
       ],
       "remaining": [
-        "Sign the baseline manifest, revalidate every finding with owner/reachability/impact/closure evidence, rerun every gate, and publish the section 16 completion record."
+        "Cover the other 62 register rows with equivalent accepted fragments; satisfy or explicitly carry the 37 package-planned and one external criterion as release gates; sign the completed baseline/revalidation authority, rerun every gate, and publish the section 16 completion record."
       ],
       "externalBlockers": []
     },
     {
       "id": "FND-02",
       "status": "partial",
-      "summary": "The key Review/Inbox, Data Cell, and action-history contradictions now have accepted superseding ADRs and an exhaustive machine-checked ADR index; context/root documentation and the complete capability/entry-point fate authority are still unfinished.",
+      "summary": "The key Review/Inbox, Data Cell, and action-history contradictions now have accepted superseding ADRs and an exhaustive machine-checked ADR index. AI now has an explicit bounded-context document and supported public API authority; remaining context/root reconciliation and the complete route/job/consumer/schedule/data fate authority are unfinished.",
       "codeEvidence": [
         "docs/adr/0052-beta-people-access-attribution-and-manager-responsibility.md",
         "docs/adr/README.md",
         "docs/adr/0054-data-cell-catalogue-and-routing.md",
         "docs/adr/0055-stable-review-and-inbox-handling-cycles.md",
         "docs/adr/0056-operational-action-history-integrity-claims.md",
-        "src/shared/auth/beta-capabilities.ts"
+        "src/shared/auth/beta-capabilities.ts",
+        "src/contexts/ai/CONTEXT.md",
+        "src/contexts/ai/application/public-api.ts"
       ],
       "testEvidence": [
         "src/shared/governance/context-acceptance-matrix.test.ts",
         "src/shared/governance/adr-index.test.ts"
       ],
       "remaining": [
-        "Complete the route/job/consumer/schedule/data fate ledger, align remaining root and nearest-context claims, normalize legacy ADR metadata where needed, and add the missing AI context/public API authority."
+        "Complete the route/job/consumer/schedule/data fate ledger, align remaining root and nearest-context claims, and normalize legacy ADR metadata where needed."
       ],
       "externalBlockers": []
     },
     {
       "id": "FND-03",
       "status": "partial",
-      "summary": "Entry-point and event/job catalogues exist, but they omit required executable kinds, cell ownership, write classifications, and executed reachability proof.",
+      "summary": "The executable entry-point catalogue now covers routes, server functions, jobs, consumers, schedules, operator commands, production scripts, migration utilities, and sidecar/release gates, including the People reconciliation and product-state checks added in this program. Event/job catalogues also exist. Per-entry cell ownership, complete mutation classification, canonical-only elimination, and executed reachability/darkness proof remain incomplete.",
       "codeEvidence": [
         "src/shared/governance/entry-point-catalogue.ts",
         "src/shared/governance/event-job-catalogue.ts"
@@ -52,24 +58,27 @@
         "src/shared/governance/event-job-catalogue.test.ts"
       ],
       "remaining": [
-        "Add migrations, sidecars, and production scripts; classify every mutation; eliminate unscoped/canonical-only/orphan rows; prove active reachability and dark denial through every execution path."
+        "Add per-entry cell ownership and complete mutation classification; eliminate unscoped/canonical-only/orphan rows; prove active reachability and dark denial through every execution path."
       ],
       "externalBlockers": []
     },
     {
       "id": "FND-04",
       "status": "partial",
-      "summary": "Many regression tests landed, but there is no oracle index proving each accepted reproduction failed before its fix and closes the intended finding.",
+      "summary": "A versioned pre-fix oracle index now binds 13 accepted reproductions to the frozen review SHA, exact SHA-256 structural failure artifacts, accepted conclusion semantics, and current executable regression proofs. It covers Portal upload, CSRF, Review re-observation, ambiguous writes, proxy handling, digest identity, public redirect/cache behavior, Reply interruption, Goal/Recognition runtime, architecture boundaries, production bundles, and baseline-gate interruption. Two named seams are closed; ten remain partial and Reply publication interruption remains open.",
       "codeEvidence": [
+        "docs/release-evidence/review/pre-fix-oracle-index-2026-08-26.json",
+        "scripts/review/pre-fix-oracles.ts",
+        "scripts/review/pre-fix-oracles.test.ts",
         "src/start.test.ts",
-        "src/shared/db/pool.test.ts",
-        "src/contexts/review/infrastructure/repositories/review-command-store.integration.test.ts"
+        "src/shared/db/pool.test.ts"
       ],
       "testEvidence": [
-        "Focused regression suites exist for proxy, database retry, Guest cache, digests, and review re-observation"
+        "Oracle authority validates exact case order, frozen/retained source digests, expected conclusions, current proof markers, and per-case result artifacts",
+        "All 13 named oracle commands were run successfully after the index was frozen; Review command-store integration was independently rerun after migration 0116"
       ],
       "remaining": [
-        "Publish the pre-fix oracle index and complete missing provider-crash, Portal-upload, goal/leaderboard, coverage-interruption, and production-bundle reproductions."
+        "Close each oracle's explicitly recorded remaining release evidence; most importantly, make committed Reply publication intent independently deliverable after interruption, then retain one immutable candidate run covering database, Redis, browser, container, coverage, and hosted-CI gates without retry."
       ],
       "externalBlockers": []
     },
@@ -110,34 +119,39 @@
     {
       "id": "SAFE-02",
       "status": "partial",
-      "summary": "Session, invitation, rate-limit, and tenant controls improved, but active manager decisions still branch on raw roles and deployed proxy/revocation evidence is incomplete.",
+      "summary": "Effective membership/property authority now gates the identified Staff, Portal/Property manager, Goal, AI-backfill, and beta-feedback decisions instead of trusting raw role strings, and password recovery revokes all existing sessions with real-database coverage. Invitation, tenant, and rate-limit controls also remain in place. A whole-repository raw-role audit plus browser multi-device and deployed proxy/revocation evidence remain incomplete.",
       "codeEvidence": [
-        "src/contexts/staff/application/use-cases/staff-participations.ts",
-        "src/contexts/portal/application/responsible-manager-eligibility.ts"
+        "src/contexts/identity/infrastructure/repositories/member-property-authority.ts",
+        "src/contexts/identity/infrastructure/repositories/manager-membership.repository.ts",
+        "src/shared/auth/auth.ts",
+        "src/shared/domain/permissions.ts",
+        "src/shared/responsible-manager-eligibility.ts"
       ],
       "testEvidence": [
-        "Password reset, invitation, membership audit, proxy, and rate-limit suites"
+        "Password reset, all-session revocation, invitation, membership/property authority, manager eligibility, tenant, proxy, and rate-limit suites"
       ],
       "remaining": [
-        "Remove remaining raw-role authority checks, prove multi-device revocation and revoked-cookie denial in browser tests, capture Railway forwarding behavior, and disposition every identity/membership anomaly."
+        "Mechanically audit and remove any remaining policy-bearing raw-role decisions, prove multi-device revocation and revoked-cookie denial in browser tests, capture Railway forwarding behavior, and disposition every identity/membership anomaly through the People reconciliation authority."
       ],
       "externalBlockers": []
     },
     {
       "id": "SAFE-03",
       "status": "partial",
-      "summary": "Retry and re-observation fixes landed, but active lifecycle paths can still hard-delete Reviews and cascade-delete RepKey replies and history.",
+      "summary": "Stable Review identities now retain versioned source observations and material revisions, use deterministic replay and provider-clock ordering, and support content-free expiry without removing Review, Reply, Inbox, or operational identities. Recurring lifecycle apply remains quarantined while every purge entry point is converged on one checkpointed authority.",
       "codeEvidence": [
-        "src/contexts/reply/infrastructure/repositories/reply-command-store.ts",
-        "src/contexts/review/infrastructure/repositories/review-provider-snapshot.repository.ts",
-        "src/contexts/review/infrastructure/db/review.schema.ts"
+        "drizzle/0116_stable_review_observations_and_material_revisions.sql",
+        "src/contexts/review/domain/material-review-revision.ts",
+        "src/contexts/review/infrastructure/review-command-store.ts",
+        "docs/operations/review-source-content-cutover.md"
       ],
       "testEvidence": [
-        "src/shared/db/pool.test.ts",
-        "src/contexts/review/infrastructure/repositories/review-command-store.integration.test.ts"
+        "Focused Review unit matrix: 6 files / 54 tests passed",
+        "Focused PostgreSQL matrix: 4 files / 38 tests passed, including expiry and retained Reply history",
+        "Independent post-migration Review command-store integration rerun: 1 file / 4 tests passed"
       ],
       "remaining": [
-        "Land a stable Review/material-revision tombstone model, replace every active delete with atomic scrub/tombstone facts, restrict reply deletion, reconcile existing rows, and prove lifecycle preservation in real PostgreSQL."
+        "Converge every purge entry point on the checkpointed lifecycle authority, reconcile existing rows, separate provider-controlled Google reply text, and retain restore/erasure and final lifecycle-apply approval evidence."
       ],
       "externalBlockers": []
     },
@@ -301,14 +315,22 @@
     {
       "id": "PPL-01",
       "status": "partial",
-      "summary": "Canonical participants, user links, responsibility intervals, and CAS exist, but legacy assignments remain and migration/offboarding/event-time attribution are incomplete.",
+      "summary": "Participant/login links, Staff participation and attribution, Property access, Portal/Property manager responsibility, and Team history now have an Identity-owned read-only reconciliation report that deterministically classifies exact, mappable, conflict, orphan, and unsafe rows at an explicit observation time with canonical JSON and a stable SHA-256 fingerprint. Current StaffUserLink reads honor half-open intervals and fail closed on overlapping links; manager eligibility excludes future or archived participation. The authorities remain deliberately independent, while production reconciliation, legacy cutover, event-time Guest attribution, and Staff-user support outcomes remain open.",
       "codeEvidence": [
-        "src/shared/db/schema/people-access.schema.ts",
-        "src/contexts/staff/CONTEXT.md"
+        "src/contexts/identity/application/people-authority-reconciliation.server.ts",
+        "src/contexts/identity/infrastructure/repositories/people-authority-reconciliation.repository.ts",
+        "src/contexts/identity/infrastructure/repositories/people-authority-reconciliation.repository.test.ts",
+        "src/contexts/staff/infrastructure/repositories/staff-participation.repository.ts",
+        "scripts/ops/report-people-authority.ts",
+        "docs/operations/people-authority-reconciliation.md"
       ],
-      "testEvidence": ["People authority, responsibility, and Team-quarantine tests"],
+      "testEvidence": [
+        "Unit authority/ADR/context matrix: 3 files / 53 tests passed",
+        "Real PostgreSQL people/staff/reconciliation matrix: 4 files / 13 tests passed",
+        "Application and scripts TypeScript, focused lint, formatting, architecture boundaries, filename checks, and diff checks passed"
+      ],
       "remaining": [
-        "Reconcile and retire legacy readers, snapshot event-time primary Staff attribution, implement offboarding/vacancy recovery, and prove negative-role and concurrent-edit journeys."
+        "Run and retain a scoped production reconciliation artifact, resolve every non-exact row through separately reviewed effective-dated/CAS corrections, and prove zero unexplained rows; cut beta readers and release gates off legacy assignments/grants and mutating conversion paths; add Guest event-time Primary Staff Attribution snapshots; finish concurrent-edit and negative-matrix journeys; remove remaining Team entry points; and complete deferred Staff-user audit/support outcomes."
       ],
       "externalBlockers": []
     },
@@ -343,14 +365,24 @@
     {
       "id": "REV-01",
       "status": "partial",
-      "summary": "The current mutable Review/source-revision model does not implement stable logical Reviews, source observations, material revisions, or non-destructive tombstones.",
+      "summary": "The repository-owned expand slice now provides stable Reviews, versioned source observations, deterministic material-revision comparison, replay keys, provider-clock ordering, stable re-observation, and content-free expiry while retaining Review, Reply, Inbox, and operational identities. Translation, profile, and metadata observations do not create a material revision; rating or normalized original guest text does. Scope/key collisions stop the write.",
       "codeEvidence": [
-        "src/contexts/review/infrastructure/db/review.schema.ts",
-        "src/contexts/review/CONTEXT.md"
+        "drizzle/0116_stable_review_observations_and_material_revisions.sql",
+        "src/contexts/review/domain/material-review-revision.ts",
+        "src/contexts/review/infrastructure/review-command-store.ts",
+        "src/contexts/review/infrastructure/review-source-content-store.ts",
+        "src/contexts/review/CONTEXT.md",
+        "docs/operations/review-source-content-cutover.md"
       ],
-      "testEvidence": ["Review re-observation integration regression"],
+      "testEvidence": [
+        "Migration track applied locally through 0116: 176 tables and journal entry 117",
+        "Focused unit matrix: 6 files / 54 tests passed",
+        "Focused PostgreSQL matrix: 4 files / 38 tests passed across material/metadata changes, replay, collision, ordering, expiry, re-observation, scope, and retained Reply history",
+        "Typecheck, targeted lint, architecture, filenames, and diff checks passed",
+        "Independent Review command-store integration rerun after 0116: 1 file / 4 tests passed"
+      ],
       "remaining": [
-        "Add stable Review, source observation, material revision, normalization version/digests, shadow dual-write comparison, content-free tombstones, collision handling, migration parity, and real-database lifecycle proof."
+        "Complete backfill reconciliation, shadow-reader parity, report-only production observation, restore/erasure evidence, and final lifecycle-apply approval; separate provider-controlled Google reply text and converge all purge entry points on one checkpointed lifecycle authority."
       ],
       "externalBlockers": []
     },
@@ -457,7 +489,7 @@
       ],
       "remaining": [
         "AI-02 must prove exhaustive eligible-Review enrollment, immutable membership, and caught-up Review Analysis coverage; until then AI-04 cannot prove that its candidate population is complete.",
-        "REV-01 must prove stable Review identity, Material Review Revision sequencing, source cutover, and correction/content-lifecycle behavior used by the candidate-to-analysis join.",
+        "REV-01 stable Review identities and Material Review Revision sequencing are now implemented locally; complete source backfill/shadow cutover and correction/content-lifecycle rollout evidence used by the candidate-to-analysis join.",
         "Record deterministic shadow parity, sufficient/insufficient/partial-coverage canaries, correction/rebuild recovery, lifecycle hide/erase, retention, and deployed cell-local scheduling drills before allowlisting Property Trends."
       ],
       "externalBlockers": [
@@ -490,11 +522,24 @@
     {
       "id": "ACT-01",
       "status": "partial",
-      "summary": "Recent Activity and restricted Operational Action History remain conflated, with incomplete vocabulary/rebuild/retention controls and a false home-grown tamper-evidence claim.",
-      "codeEvidence": ["src/contexts/activity/", "src/shared/activity/activity-audit.ts"],
-      "testEvidence": ["Activity retention and selected projection tests"],
+      "summary": "Recent Activity is documented and retained as a bounded 90-day product projection. The unused home-grown row-hash model has been removed, production comments/runtime messages consistently avoid audit-log/trail claims, and new projections accept only the exact 23 active action/resource pairs. Executable guards cover the integrity and language boundaries. Legacy internal symbols/historical rows, projection recovery, and the separate restricted Operational Action History remain incomplete.",
+      "codeEvidence": [
+        "src/contexts/activity/CONTEXT.md",
+        "src/contexts/activity/domain/types.ts",
+        "src/contexts/activity/domain/integrity-claims.test.ts",
+        "src/shared/jobs/retention-sweep.job.ts",
+        "docs/adr/0056-operational-action-history-integrity-claims.md",
+        "src/bootstrap.ts",
+        "src/contexts/activity/domain/types.ts",
+        "src/contexts/activity/domain/constructors.ts"
+      ],
+      "testEvidence": [
+        "Activity retention and selected projection tests",
+        "Integrity-claim regression rejects local AuditRecord/hash-chain implementations and audit-log/trail production vocabulary",
+        "Focused Activity matrix: 10 files / 56 tests passed, including all 23 governed event kinds and rejection of legacy/unsupported combinations; focused lint and diff checks passed"
+      ],
       "remaining": [
-        "Rename and bound Recent Activity, remove false audit/tamper claims, add durable receipts/rebuild states, introduce restricted Operational Action History, and implement access/legal-hold/export/redaction auditing."
+        "Reconcile broader historical enum rows and replace the remaining legacy internal ActivityLog/activity_log/getOrgActivity names; add durable projection receipts/rebuild states and owned expiry/redaction evidence; introduce restricted Operational Action History and implement its access/legal-hold/export/redaction controls."
       ],
       "externalBlockers": [
         "Operational-history retention and legal-hold policy requires counsel approval."
@@ -503,7 +548,7 @@
     {
       "id": "POR-01",
       "status": "partial",
-      "summary": "Rating-first Portal foundations now include database-enforced immutable EN publication snapshots, append-only activation/rollback history, snapshot-backed token resolution, and exact Guest evidence binding; Brand Profile, BG/locales, approved destinations, stable address/artifacts, health intervals, and archive/restore remain.",
+      "summary": "Rating-first Portal foundations now include database-enforced immutable EN publication snapshots, append-only activation/rollback history, snapshot-backed token resolution, exact Guest evidence binding, and an automatically derived Property-owned Google review destination. Managers see a readiness/refresh status without entering or receiving provider identifiers or a duplicate URL; Brand Profile, BG/locales, broader destination governance, stable address/artifacts, health intervals, and archive/restore remain.",
       "codeEvidence": [
         "src/contexts/portal/",
         "src/contexts/portal/application/portal-publication-snapshot.ts",
@@ -512,13 +557,16 @@
         "src/shared/db/schema/portal.schema.ts",
         "drizzle/0113_portal_publication_snapshots.sql",
         "drizzle/0114_portal_publication_evidence_binding.sql",
-        "drizzle/0115_portal_publication_immutability.sql"
+        "drizzle/0115_portal_publication_immutability.sql",
+        "src/contexts/property/domain/google-review-destination.ts",
+        "src/components/features/portal/portal-settings/google-review-destination-card.tsx"
       ],
       "testEvidence": [
-        "Portal snapshot/digest, publication transition, rollback, token revocation, tamper fail-closed, exact Guest evidence, responsibility, and Guest-flow tests; real PostgreSQL publication repository and atomic command-store suites"
+        "Portal snapshot/digest, publication transition, rollback, token revocation, tamper fail-closed, exact Guest evidence, responsibility, and Guest-flow tests; real PostgreSQL publication repository and atomic command-store suites",
+        "Google review destination presentation: 1 file / 3 tests; Portal detail Storybook: 1 file / 5 tests; targeted lint and typecheck passed"
       ],
       "remaining": [
-        "Implement Brand Profile and EN/BG/locales, Pending Content Changes and manager publication/history UI, Approved Destinations, Portal Health intervals, stable public address and governed Access Artifacts, archive/restore, explicit ownership, dedicated publication facts, legacy classification, and the full public cache/security matrix."
+        "Implement Brand Profile and EN/BG/locales, Pending Content Changes and manager publication/history UI, broader Approved Destinations governance, Portal Health intervals, stable public address and governed Access Artifacts, archive/restore, explicit ownership, dedicated publication facts, legacy classification, and the full public cache and privacy matrix."
       ],
       "externalBlockers": []
     },
@@ -619,16 +667,20 @@
     {
       "id": "EXP-02",
       "status": "partial",
-      "summary": "Query keys, Zod/TanStack usage, primitives, contrast, and Storybook improved, but whole-product form/query/state consistency and policy-free UI boundaries are unproven.",
+      "summary": "The three known production literal query keys now use tested hierarchical factories, and an executable product-state inventory covers production components/routes. It currently governs 79 query-key sites, one explicitly owned login bootstrap whole-router invalidation, and 54 conservatively classified useState mirror candidates. This prevents silent new candidates but remains a bounded syntax/classification slice rather than semantic completion.",
       "codeEvidence": [
-        "src/shared/query-keys.ts",
-        "Design-system primitives and Storybook stories"
+        "src/shared/queries/query-keys.ts",
+        "scripts/ci/check-product-state-consistency.ts",
+        "scripts/ci/product-state-consistency-ledger.json",
+        "package.json"
       ],
       "testEvidence": [
-        "Zod/TanStack conformance, component-state, accessibility, and Storybook suites"
+        "Product-state and query-key unit matrix: 2 files / 11 tests passed",
+        "Executable inventory passed with 79 query-key sites, 1 owned broad invalidation, and 54 classified candidates",
+        "Focused lint, application TypeScript, scripts TypeScript, and diff checks passed"
       ],
       "remaining": [
-        "Create the component-state ledger, mechanically audit query keys and mirrored state, freeze feature DTOs, replace legacy policy-bearing components, and close Bell/delete/reply/goal UI contradictions."
+        "Semantically review all 54 mirror candidates and every query factory, expand coverage beyond production components/routes where warranted, freeze feature DTOs, replace legacy policy-bearing components, and close the remaining Bell/delete/reply/goal UI contradictions."
       ],
       "externalBlockers": []
     },
@@ -726,14 +778,18 @@
     {
       "id": "CNV-01",
       "status": "partial",
-      "summary": "Team and post-core surfaces are quarantined, but multiple false/unused/legacy islands remain without the required reachability, data, parity, release, and restore deletion report.",
+      "summary": "Team and post-core surfaces are quarantined, the unused Activity hash-chain abstraction has been removed, and new Recent Activity writes are fenced to an exact active vocabulary. Multiple other false/unused/legacy islands and the retained Activity legacy storage/API names remain without the required reachability, data, parity, release, and restore deletion report.",
       "codeEvidence": [
         "Team quarantine",
         "src/shared/jobs/runtime.ts",
         "src/shared/projections/projection-contract.ts",
-        "REUI.md"
+        "REUI.md",
+        "src/contexts/activity/domain/integrity-claims.test.ts"
       ],
-      "testEvidence": ["Darkness and boundary tests for selected quarantined surfaces"],
+      "testEvidence": [
+        "Darkness and boundary tests for selected quarantined surfaces",
+        "Activity false-integrity island deletion and bounded-new-vocabulary guards"
+      ],
       "remaining": [
         "Complete replacement paths, prove zero reachability and data/FK disposition, delete false abstractions and stale artifacts in small reversible slices, and retain release/restore evidence for each contraction."
       ],
