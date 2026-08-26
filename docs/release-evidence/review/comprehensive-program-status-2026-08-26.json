@@ -6,23 +6,27 @@
     {
       "id": "FND-01",
       "status": "partial",
-      "summary": "Immutable independent revalidation is complete for 96 of the accepted register's 114 rows: all ARCH/AUTH/DATA/DEC/EVT, GATE/GOV/OPS, and UI families. The fragments pin exact frozen fields and digests, descendant comparison evidence, reachability, impact, owner/targets, and non-overstated closure criteria. Current dispositions are 36 closed, 4 superseded, 52 confirmed, 3 configuration-dependent, and 1 reproduced. The 18 SEC rows and every recorded residual criterion remain open.",
+      "summary": "Immutable independent revalidation is complete for all 114 rows in the accepted register across the ARCH, AUTH, DATA, DEC, EVT, GATE, GOV, OPS, UI, and SEC families. The fragments pin exact frozen fields and digests, descendant comparison evidence, reachability, impact, owner/targets, and non-overstated closure criteria. Current dispositions are 53 closed, 5 superseded, 52 confirmed, 3 configuration-dependent, and 1 reproduced. Package-planned and deployment-dependent residual criteria remain release work and are not treated as finding closure.",
       "codeEvidence": [
         "docs/release-evidence/review/718fad1807b7422885584660bd3580f2a3a49113/",
         "docs/release-evidence/review/finding-revalidation-fragments/arch-auth-data-dec-evt-2026-08-26.json",
         "docs/release-evidence/review/finding-revalidation-fragments/gate-gov-ops-2026-08-26.json",
         "docs/release-evidence/review/finding-revalidation-fragments/ui-2026-08-26.json",
+        "docs/release-evidence/review/finding-revalidation-fragments/data-runtime-safeguards-2026-08-26.json",
         "scripts/review/finding-revalidation-fragment.ts"
       ],
       "testEvidence": [
         "Frozen register SHA 718fad1807b7422885584660bd3580f2a3a49113 and register digest 77eb6bb21ea555197a3c7e10edac5f0e5356cabac0f953adecf8408c4f622135",
-        "96/114 rows in frozen order: ARCH 13, AUTH 1, DATA 19, DEC 1, EVT 18, GATE 1, GOV 8, OPS 14, UI 21",
-        "Each independent fragment passed direct CLI validation; base validator 7 tests, GATE/GOV/OPS validator 9 tests, and combined UI/fragment validator 10 tests passed"
+        "114/114 rows in frozen order: ARCH 13, AUTH 1, DATA 19, DEC 1, EVT 18, GATE 1, GOV 8, OPS 14, UI 21, SEC 18",
+        "Each independent fragment passed direct CLI validation; base validator 7 tests, GATE/GOV/OPS validator 9 tests, combined UI/fragment validator 10 tests, and combined SEC/fragment validator 11 tests passed"
       ],
       "remaining": [
-        "Cover the 18 SEC rows with an equivalent accepted fragment; satisfy or explicitly carry every package-planned criterion plus the live GitHub ruleset/required-check criterion as release gates; sign the completed baseline/revalidation authority, rerun every gate, and publish the section 16 completion record."
+        "Satisfy or explicitly carry every package-planned criterion plus the live GitHub ruleset/required-check criterion as release gates; sign the completed baseline/revalidation authority, rerun every gate, and publish the section 16 completion record."
       ],
-      "externalBlockers": []
+      "externalBlockers": [
+        "Live GitHub ruleset and required-check evidence requires authorized repository administration.",
+        "Deployment-dependent release evidence requires an authorized production-equivalent environment."
+      ]
     },
     {
       "id": "FND-02",
