@@ -45,6 +45,42 @@ export const ACTIVITY_RESOURCE_TYPES = [
 
 export type ResourceType = (typeof ACTIVITY_RESOURCE_TYPES)[number]
 
+/**
+ * Exact combinations the current Recent Activity projection is allowed to
+ * create. The wider action/resource unions above remain read-compatible with
+ * historical rows while new projections stay bounded to active event handlers.
+ */
+export const RECENT_ACTIVITY_KINDS = [
+  { action: 'created', resourceType: 'inbox_item' },
+  { action: 'changed', resourceType: 'inbox_item' },
+  { action: 'assigned', resourceType: 'inbox_item' },
+  { action: 'unassigned', resourceType: 'inbox_item' },
+  { action: 'escalated', resourceType: 'inbox_item' },
+  { action: 'deescalated', resourceType: 'inbox_item' },
+  { action: 'added', resourceType: 'inbox_item' },
+  { action: 'submitted', resourceType: 'reply' },
+  { action: 'approved', resourceType: 'reply' },
+  { action: 'rejected', resourceType: 'reply' },
+  { action: 'published', resourceType: 'reply' },
+  { action: 'changed', resourceType: 'reply' },
+  { action: 'created', resourceType: 'property' },
+  { action: 'changed', resourceType: 'property' },
+  { action: 'deleted', resourceType: 'property' },
+  { action: 'invited', resourceType: 'member' },
+  { action: 'added', resourceType: 'member' },
+  { action: 'deleted', resourceType: 'member' },
+  { action: 'changed', resourceType: 'member' },
+  { action: 'connected', resourceType: 'integration' },
+  { action: 'disconnected', resourceType: 'integration' },
+  { action: 'changed', resourceType: 'integration' },
+  { action: 'created', resourceType: 'organization' },
+] as const satisfies readonly Readonly<{
+  action: ActivityAction
+  resourceType: ResourceType
+}>[]
+
+export type RecentActivityKind = (typeof RECENT_ACTIVITY_KINDS)[number]
+
 export const ACTIVITY_SOURCES = ['web', 'import'] as const
 
 export type ActivitySource = (typeof ACTIVITY_SOURCES)[number]

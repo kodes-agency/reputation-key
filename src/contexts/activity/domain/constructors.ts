@@ -6,6 +6,7 @@ import {
   ACTIVITY_ACTIONS,
   ACTIVITY_RESOURCE_TYPES,
   ACTIVITY_SOURCES,
+  RECENT_ACTIVITY_KINDS,
   type ActivityLog,
   type ActivityAction,
 } from './types'
@@ -42,6 +43,11 @@ const ALLOWED_RESOURCE_TYPES: ReadonlySet<ActivityLog['resourceType']> = new Set
   ACTIVITY_RESOURCE_TYPES,
 )
 const ALLOWED_SOURCES: ReadonlySet<ActivityLog['source']> = new Set(ACTIVITY_SOURCES)
+const ALLOWED_RECENT_ACTIVITY_KINDS: ReadonlySet<string> = new Set(
+  RECENT_ACTIVITY_KINDS.map(
+    ({ action, resourceType }) => `${action}\u0000${resourceType}`,
+  ),
+)
 
 export const createActivityLog = (
   input: CreateActivityLogInput,
@@ -63,6 +69,16 @@ export const createActivityLog = (
         {
           resourceType: input.resourceType,
         },
+      ),
+    )
+  }
+
+  if (!ALLOWED_RECENT_ACTIVITY_KINDS.has(`${input.action}\u0000${input.resourceType}`)) {
+    return err(
+      activityError(
+        'invalid_event_kind',
+        `Unsupported Recent Activity kind: ${input.action}/${input.resourceType}`,
+        { action: input.action, resourceType: input.resourceType },
       ),
     )
   }

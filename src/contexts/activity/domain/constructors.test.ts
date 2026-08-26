@@ -3,6 +3,7 @@ import { createActivityLog } from './constructors'
 import {
   ACTIVITY_ACTIONS,
   ACTIVITY_RESOURCE_TYPES,
+  RECENT_ACTIVITY_KINDS,
   type ActivityAction,
   type ResourceType,
 } from './types'
@@ -60,18 +61,33 @@ describe('createActivityLog', () => {
     expect(result.error.code).toBe('invalid_action')
   })
 
-  it('accepts all valid actions', () => {
-    for (const action of ACTIVITY_ACTIONS) {
-      const result = createActivityLog({ ...validInput, action }, clock)
+  it('accepts every governed Recent Activity kind', () => {
+    for (const kind of RECENT_ACTIVITY_KINDS) {
+      const result = createActivityLog({ ...validInput, ...kind }, clock)
       expect(result.isOk()).toBe(true)
     }
   })
 
-  it('accepts every resource type in the domain vocabulary', () => {
-    for (const resourceType of ACTIVITY_RESOURCE_TYPES) {
+  it('keeps legacy action/resource values readable but rejects them for new entries', () => {
+    expect(ACTIVITY_ACTIONS).toContain('created')
+    expect(ACTIVITY_RESOURCE_TYPES).toContain('team')
+
+    for (const resourceType of ['review', 'note', 'team', 'staff_assignment'] as const) {
       const result = createActivityLog({ ...validInput, resourceType }, clock)
-      expect(result.isOk()).toBe(true)
+      expect(result.isErr()).toBe(true)
+      if (!result.isErr()) throw new Error('unreachable')
+      expect(result.error.code).toBe('invalid_event_kind')
     }
+  })
+
+  it('rejects unsupported combinations of otherwise known values', () => {
+    const result = createActivityLog(
+      { ...validInput, action: 'deleted', resourceType: 'reply' },
+      clock,
+    )
+    expect(result.isErr()).toBe(true)
+    if (!result.isErr()) throw new Error('unreachable')
+    expect(result.error.code).toBe('invalid_event_kind')
   })
 
   it('sets actorAvatarUrl to null when provided as null', () => {

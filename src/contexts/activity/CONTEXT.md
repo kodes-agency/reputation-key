@@ -40,6 +40,9 @@ integrity properties.
 4. Re-delivery of one source event is idempotent within its Organization.
 5. Missing actor display data is represented as `System` and is not treated as
    verified attribution.
+6. New projections accept only the exact action/resource pairs in
+   `RECENT_ACTIVITY_KINDS`. Wider historical enum values remain read-compatible
+   during reconciliation but cannot be written by the constructor.
 
 ## Events produced
 
@@ -68,10 +71,11 @@ source-context facts and projects rebuildable Recent Activity rows.
 ## Known incomplete contract
 
 The current implementation still uses legacy names (`ActivityLog`,
-`activity_log`, `getOrgActivity`) and a broad historical action/resource
-vocabulary. The 90-day sweep exists, but Activity still needs an owned expiry
-proof, bounded vocabulary, rebuild states, durable projection receipts, and
-explicit redaction semantics. Operational Action History remains separate and
+`activity_log`, `getOrgActivity`) and retains broader historical enum values for
+read compatibility. New writes are bounded by `RECENT_ACTIVITY_KINDS`. The
+90-day sweep exists, but Activity still needs historical-row reconciliation, an
+owned expiry proof, rebuild states, durable projection receipts, and explicit
+redaction semantics. Operational Action History remains separate and
 unimplemented. Until those land, this context must make only the limited
 product-feed claims above.
 
