@@ -3,7 +3,7 @@ import { isLeaderboardError, leaderboardError } from './errors'
 
 describe('leaderboard domain errors', () => {
   it('constructs tagged errors with optional context', () => {
-    expect(leaderboardError('forbidden', 'denied', { role: 'member' })).toEqual({
+    expect(leaderboardError('forbidden', 'denied', { role: 'member' })).toMatchObject({
       _tag: 'LeaderboardError',
       code: 'forbidden',
       message: 'denied',

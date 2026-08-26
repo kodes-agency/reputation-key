@@ -12,8 +12,10 @@ export type LeaderboardError = Readonly<{
   context?: Readonly<Record<string, unknown>>
 }>
 
-export const leaderboardError =
-  createErrorFactory<LeaderboardError['_tag']>('LeaderboardError')
+export const leaderboardError = createErrorFactory<
+  LeaderboardError['_tag'],
+  LeaderboardError['code']
+>('LeaderboardError')
 
 export const isLeaderboardError = (e: unknown): e is LeaderboardError =>
   typeof e === 'object' &&

@@ -211,17 +211,19 @@ Key points:
 
 ## Error pattern (authoritative — BQR-1.2)
 
-Tagged error shape: `{ _tag: 'XxxError', code: '<reason>', message: string, context?: Record<string, unknown> }`.
+Tagged business-error shape: `Error & { _tag: 'XxxError', code: '<reason>', message: string, context?: Record<string, unknown> }`. Tagged identity fields are enumerable so logs and serializers retain them; the real `Error` supplies a stack and interoperable runtime identity.
 
-Factories live in each context's `domain/errors.ts` (`xxxError` + `isXxxError`). Prefer `createErrorFactory` from `#/shared/domain/errors` unless the context needs the ADR 0005 hybrid (`Error & XxxError` for stack/logging — e.g. integration).
+Factories live in each context's `domain/errors.ts` (`xxxError` + `isXxxError`) and use `createErrorFactory` from `#/shared/domain/errors`. Use `createTaggedError` only when a context needs additional enumerable identity fields, such as Integration's `recoverable` flag. Do not build plain-object business errors.
 
-| Layer                   | Behavior                                                                                                             |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| Domain (pure)           | Prefer `Result<T, XxxError>` from constructors/rules. Do **not** throw plain `Error` or untagged `{ code }` objects. |
-| Domain (assert helpers) | May throw **only** a tagged `XxxError` (same factory as the context). Used for lifecycle transition guards.          |
-| Application             | Throws tagged `XxxError` (or returns `Result` then throws at the boundary). Authorization and invariant failures.    |
-| Infrastructure          | Catches library errors (DB, network), translates to tagged domain errors.                                            |
-| Server                  | Catches via `isXxxError(e)`, maps to HTTP with `throwContextError`. Never return `{ success: false }`.               |
+| Layer                   | Behavior                                                                                                                |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Domain (pure)           | Validation/constructors return `Result<T, XxxError>`. Do **not** throw plain `Error` or untagged `{ code }` objects.    |
+| Domain (assert helpers) | May throw **only** a tagged `XxxError` from the context factory. Used for lifecycle transition guards.                  |
+| Application             | Throws tagged `XxxError` for business failure. Do not propagate `Result` through async orchestration only for ceremony. |
+| Infrastructure          | Translate library failures only when the domain can handle them meaningfully; otherwise preserve the native failure.    |
+| Server                  | Catches via `isXxxError(e)`, maps once to safe HTTP with `throwContextError`. Never return `{ success: false }`.        |
+
+Ordinary alternatives that are not failures use explicit outcome unions. Unexpected programmer, configuration, or corrupt-state faults remain sanitized native errors at the delivery boundary.
 
 **Supersedes** older wording that said “all layers throw” or that domain constructors always throw. Shared source of truth for the shape is `src/shared/domain/errors.ts`.
 

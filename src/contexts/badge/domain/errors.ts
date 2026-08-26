@@ -12,7 +12,9 @@ export type BadgeError = Readonly<{
   context?: Readonly<Record<string, unknown>>
 }>
 
-export const badgeError = createErrorFactory<BadgeError['_tag']>('BadgeError')
+export const badgeError = createErrorFactory<BadgeError['_tag'], BadgeError['code']>(
+  'BadgeError',
+)
 
 export const isBadgeError = (e: unknown): e is BadgeError =>
   typeof e === 'object' && e !== null && (e as BadgeError)._tag === 'BadgeError'

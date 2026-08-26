@@ -2,16 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { isNotificationError, notificationError } from './errors'
 
 describe('notification domain errors', () => {
-  it('constructs tagged errors with optional details', () => {
+  it('constructs tagged errors with optional context', () => {
     expect(
       notificationError('insert_failed', 'write failed', { eventId: 'event-1' }),
-    ).toEqual({
+    ).toMatchObject({
       _tag: 'NotificationError',
       code: 'insert_failed',
       message: 'write failed',
-      details: { eventId: 'event-1' },
+      context: { eventId: 'event-1' },
     })
-    expect(notificationError('invalid_input', 'invalid')).not.toHaveProperty('details')
+    expect(notificationError('invalid_input', 'invalid')).not.toHaveProperty('context')
   })
 
   it.each([

@@ -5,7 +5,7 @@ describe('AI domain errors', () => {
   it('constructs closed tagged errors with optional context', () => {
     expect(
       aiError('provider_unavailable', 'provider failed', { retryable: true }),
-    ).toEqual({
+    ).toMatchObject({
       _tag: 'AiError',
       code: 'provider_unavailable',
       message: 'provider failed',

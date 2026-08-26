@@ -1,3 +1,5 @@
+import { createErrorFactory } from '#/shared/domain/errors'
+
 export type AiErrorCode =
   | 'forbidden'
   | 'not_found'
@@ -38,16 +40,7 @@ export type AiError = Readonly<{
   context?: Readonly<Record<string, unknown>>
 }>
 
-export const aiError = (
-  code: AiErrorCode,
-  message: string,
-  context?: Readonly<Record<string, unknown>>,
-): AiError => ({
-  _tag: 'AiError',
-  code,
-  message,
-  ...(context ? { context } : {}),
-})
+export const aiError = createErrorFactory<AiError['_tag'], AiError['code']>('AiError')
 
 export const isAiError = (value: unknown): value is AiError =>
   typeof value === 'object' &&

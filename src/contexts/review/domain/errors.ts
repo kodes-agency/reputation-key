@@ -32,7 +32,9 @@ export type ReviewError = Readonly<{
   context?: Readonly<Record<string, unknown>>
 }>
 
-export const reviewError = createErrorFactory<ReviewError['_tag']>('ReviewError')
+export const reviewError = createErrorFactory<ReviewError['_tag'], ReviewError['code']>(
+  'ReviewError',
+)
 
 export const isReviewError = (e: unknown): e is ReviewError =>
   typeof e === 'object' && e !== null && (e as ReviewError)._tag === 'ReviewError'

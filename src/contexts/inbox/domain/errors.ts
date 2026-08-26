@@ -19,7 +19,9 @@ export type InboxError = Readonly<{
   context?: Readonly<Record<string, unknown>>
 }>
 
-export const inboxError = createErrorFactory<InboxError['_tag']>('InboxError')
+export const inboxError = createErrorFactory<InboxError['_tag'], InboxError['code']>(
+  'InboxError',
+)
 
 export const isInboxError = (e: unknown): e is InboxError =>
   typeof e === 'object' && e !== null && (e as InboxError)._tag === 'InboxError'

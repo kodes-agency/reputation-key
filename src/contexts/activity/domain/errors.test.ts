@@ -5,7 +5,7 @@ describe('activity domain errors', () => {
   it('constructs tagged errors with optional context', () => {
     expect(
       activityError('insert_failed', 'write failed', { eventId: 'event-1' }),
-    ).toEqual({
+    ).toMatchObject({
       _tag: 'ActivityError',
       code: 'insert_failed',
       message: 'write failed',

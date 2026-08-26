@@ -52,6 +52,7 @@ describe('integrationError', () => {
     const err = integrationError('oauth_failed', 'Token exchange failed')
     expect(err).toBeInstanceOf(Error)
     expect(typeof err.stack).toBe('string')
+    expect(err.stack).not.toContain('at integrationError')
     expect(err._tag).toBe('IntegrationError')
     // Domain identity props are enumerable so log serializers see them.
     expect(Object.keys(err)).toContain('code')
