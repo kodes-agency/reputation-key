@@ -11,6 +11,7 @@ export const REVALIDATED_FAMILIES = ['ARCH', 'AUTH', 'DATA', 'DEC', 'EVT'] as co
 
 export const REVALIDATED_FAMILIES_BY_FRAGMENT = {
   'arch-auth-data-dec-evt': REVALIDATED_FAMILIES,
+  'data-runtime-safeguards': ['SEC'],
   'gate-gov-ops': ['GATE', 'GOV', 'OPS'],
   ui: ['UI'],
 } as const
@@ -125,13 +126,18 @@ const finding = z
 const fragmentSchema = z
   .object({
     version: z.literal(1),
-    fragmentId: z.enum(['arch-auth-data-dec-evt', 'gate-gov-ops', 'ui']),
+    fragmentId: z.enum([
+      'arch-auth-data-dec-evt',
+      'data-runtime-safeguards',
+      'gate-gov-ops',
+      'ui',
+    ]),
     frozenSha: z.literal(ACCEPTED_REVIEW_SHA),
     comparisonSha: z.string().regex(/^[0-9a-f]{40}$/u),
     sourceRegisterSha256: digest,
     assessedAt: z.iso.date(),
     families: z.array(
-      z.enum(['ARCH', 'AUTH', 'DATA', 'DEC', 'EVT', 'GATE', 'GOV', 'OPS', 'UI']),
+      z.enum(['ARCH', 'AUTH', 'DATA', 'DEC', 'EVT', 'GATE', 'GOV', 'OPS', 'SEC', 'UI']),
     ),
     evidence: z
       .object({
