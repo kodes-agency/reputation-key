@@ -11,9 +11,10 @@
 //      `createServerOnlyFn(...)` scans, with per-function extraction of
 //      requireAuthorized/assert*Capability calls
 //   2. UI + API routes — file walk of src/routes (TanStack Router conventions)
-//   3. jobs — JOB_NAME(S) constants + bootstrap.ts register(...) literals
-//   4. consumers — event-handlers/index.ts registration tables + durable
-//      registerConsumer({ eventType }) calls
+//   3. jobs — actual bootstrap.ts registry/gated registrations, including
+//      imported constants, dynamic-import aliases, and composed metric loops
+//   4. consumers — registration tables plus the production composition call
+//      site (or an explicit declared-only classification)
 //   5. schedules — worker/index.ts backgroundQueue.add(...) jobIds, resolving
 //      imported job-name constants
 //   6. operator commands — scripts/ file walk + package.json script coverage
@@ -24,11 +25,13 @@
 // non-core rows must deny, core rows must allow.
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import {
   ENTRY_POINT_CATALOGUE,
   postureForCapability,
+  validateEntryPointGovernance,
   type EntryPointRow,
 } from './entry-point-catalogue'
 import { capabilityForPermission } from '#/shared/auth/capability-for-permission'
@@ -192,9 +195,23 @@ function discoverRoutes(): ReadonlyArray<DiscoveredRoute> {
 
 // ── 3. Jobs ─────────────────────────────────────────────────────────
 
-const JOB_NAME_RE = /export const [A-Z0-9_]*JOB_NAME[A-Z0-9_]*\s*=\s*'([^']+)'/g
-const JOB_NAMES_RE = /export const JOB_NAMES\s*=\s*\{([\s\S]*?)\}/
-const RECORD_VALUE_RE = /:\s*'([^']+)'/g
+type JobRegistrationReference = Readonly<{
+  literal: string | undefined
+  identifier: string | undefined
+}>
+
+function extractJobRegistrationReferences(
+  source: string,
+): readonly JobRegistrationReference[] {
+  return [
+    ...source.matchAll(
+      /(?:jobRegistry|registry)\.register\(\s*(?:'([^']+)'|([A-Z][A-Z0-9_]+))|registerCapabilityGatedJob\(\s*(?:'([^']+)'|([A-Z][A-Z0-9_]+))/g,
+    ),
+  ].map((match) => ({
+    literal: match[1] ?? match[3],
+    identifier: match[2] ?? match[4],
+  }))
+}
 
 /** Resolve an imported job-name constant to its string value. */
 function resolveJobConstant(constName: string, sourceFile: string): string | undefined {
@@ -216,8 +233,14 @@ function importMap(file: string): Map<string, { constName: string; sourceFile: s
       source.replace(/^#\//, 'src/') + (source.endsWith('.ts') ? '' : '.ts')
     for (const part of names.split(',')) {
       const m = /(\w+)\s+as\s+(\w+)/.exec(part.trim())
+      const destructuredAlias = /(\w+)\s*:\s*(\w+)/.exec(part.trim())
       if (m) map.set(m[2], { constName: m[1], sourceFile })
-      else if (/^\w+$/.test(part.trim()))
+      else if (destructuredAlias) {
+        map.set(destructuredAlias[2], {
+          constName: destructuredAlias[1],
+          sourceFile,
+        })
+      } else if (/^\w+$/.test(part.trim()))
         map.set(part.trim(), { constName: part.trim(), sourceFile })
     }
   }
@@ -232,7 +255,7 @@ function importMap(file: string): Map<string, { constName: string; sourceFile: s
 }
 
 type DiscoveredJobs = Readonly<{
-  /** All job names from JOB_NAME(S) constants and bootstrap literals. */
+  /** Job names resolved from actual bootstrap registration calls. */
   names: ReadonlyArray<string>
   /** Registration gate: job name → capability (registerCapabilityGatedJob). */
   registrationGates: ReadonlyMap<string, string>
@@ -248,9 +271,6 @@ function discoverJobs(): DiscoveredJobs {
   )
   for (const abs of jobFiles) {
     const content = read(abs)
-    for (const m of content.matchAll(JOB_NAME_RE)) names.add(m[1])
-    const record = JOB_NAMES_RE.exec(content)
-    if (record) for (const m of record[1].matchAll(RECORD_VALUE_RE)) names.add(m[1])
     const gates = [
       ...content.matchAll(
         /(?:isCapabilityJobEnabled|assertBetaCapability|checkGlobalCapability)\(\s*(?:\w+,\s*)?'([^']+)'/g,
@@ -268,6 +288,10 @@ function discoverJobs(): DiscoveredJobs {
     const target = imports.get(ident)
     return target ? resolveJobConstant(target.constName, target.sourceFile) : undefined
   }
+  for (const reference of extractJobRegistrationReferences(bootstrap)) {
+    const name = resolveName(reference.literal, reference.identifier)
+    if (name) names.add(name)
+  }
   for (const m of bootstrap.matchAll(
     /registerCapabilityGatedJob\(\s*(?:'([^']+)'|(\w+))\s*,\s*'([^']+)'/g,
   )) {
@@ -277,8 +301,17 @@ function discoverJobs(): DiscoveredJobs {
       registrationGates.set(name, m[3])
     }
   }
-  for (const m of bootstrap.matchAll(/jobRegistry\.register\(\s*'([^']+)'/g)) {
-    names.add(m[1])
+  if (/jobRegistry\.register\(jobName,/u.test(bootstrap)) {
+    const record = resolveJobConstant(
+      'JOB_NAMES',
+      'src/contexts/metric/infrastructure/jobs/refresh-materialized-view.job.ts',
+    )
+    if (record) {
+      for (const m of bootstrap.matchAll(/JOB_NAMES\.(\w+)/g)) {
+        const value = new RegExp(`${m[1]}:\\s*'([^']+)'`).exec(record)?.[1]
+        if (value) names.add(value)
+      }
+    }
   }
   return { names: [...names].sort(), registrationGates, handlerGates }
 }
@@ -289,21 +322,59 @@ type DiscoveredConsumer = Readonly<{
   file: string
   tags: ReadonlyArray<string>
   durable: boolean
+  registrationFunction: string
+  compositionFiles: ReadonlyArray<string>
 }>
+
+function registrationCallSites(
+  registrationFunction: string,
+  definitionFile: string,
+): readonly string[] {
+  const call = new RegExp(`\\b${registrationFunction}\\s*\\(`, 'u')
+  return walk(join(ROOT, 'src'))
+    .filter(isTsNonTest)
+    .map(rel)
+    .filter((file) => file !== definitionFile)
+    .filter((file) => call.test(read(join(ROOT, file))))
+    .sort()
+}
 
 function discoverConsumers(): ReadonlyArray<DiscoveredConsumer> {
   const out: DiscoveredConsumer[] = []
   const files = walk(join(ROOT, 'src/contexts')).filter((f) => !f.endsWith('.test.ts'))
   for (const abs of files) {
     const file = rel(abs)
+    const source = read(abs)
+    const registrationFunction =
+      /export (?:const|function) (register[A-Za-z0-9_]+)/u.exec(source)?.[1]
     if (
       /\/infrastructure\/event-handlers\/(?:index|[^/]+-event-handlers)\.ts$/.test(file)
     ) {
-      const tags = [...read(abs).matchAll(/\.on\(\s*'([^']+)'/g)].map((m) => m[1])
-      out.push({ file, tags, durable: false })
+      const tags = [
+        ...new Set([...source.matchAll(/\.on\(\s*'([^']+)'/g)].map((m) => m[1])),
+      ]
+      if (registrationFunction) {
+        out.push({
+          file,
+          tags,
+          durable: false,
+          registrationFunction,
+          compositionFiles: registrationCallSites(registrationFunction, file),
+        })
+      }
     } else if (/outbox-consumers\.ts$/.test(file)) {
-      const tags = [...read(abs).matchAll(/eventType:\s*'([^']+)'/g)].map((m) => m[1])
-      out.push({ file, tags, durable: true })
+      const tags = [
+        ...new Set([...source.matchAll(/eventType:\s*'([^']+)'/g)].map((m) => m[1])),
+      ]
+      if (registrationFunction) {
+        out.push({
+          file,
+          tags,
+          durable: true,
+          registrationFunction,
+          compositionFiles: registrationCallSites(registrationFunction, file),
+        })
+      }
     }
   }
   return out
@@ -410,6 +481,19 @@ describe('BQC-2.1 entry-point catalogue', () => {
     ])
   })
 
+  it('does not mistake a job-name declaration for a runtime registration', () => {
+    const references = extractJobRegistrationReferences(`
+      export const ORPHAN_JOB_NAME = 'declared-only'
+      registry.register('literal-job', handler)
+      registerCapabilityGatedJob(COMPOSED_JOB_NAME, 'goal.use', handler)
+    `)
+
+    expect(references).toEqual([
+      { literal: 'literal-job', identifier: undefined },
+      { literal: undefined, identifier: 'COMPOSED_JOB_NAME' },
+    ])
+  })
+
   it('has complete, well-formed rows with unique ids', () => {
     const ids = catalogue.map((r) => r.id)
     const dupes = ids.filter((id, i) => ids.indexOf(id) !== i)
@@ -427,6 +511,64 @@ describe('BQC-2.1 entry-point catalogue', () => {
     expect(bad.map(rowKey), `malformed rows: ${bad.map(rowKey).join(', ')}`).toEqual([])
   })
 
+  it('classifies ownership and every write path without changing stable order', () => {
+    expect(validateEntryPointGovernance(catalogue)).toEqual([])
+    const orderedDigest = (rows: readonly EntryPointRow[]) =>
+      createHash('sha256')
+        .update(rows.map((entry) => `${entry.id}|${entry.file}`).join('\n'))
+        .digest('hex')
+    expect(orderedDigest(catalogue)).toBe(
+      'fbb2e69fe9723585c411ee38d45a592a66eac092d0c1f476c0a26e5950a38bd6',
+    )
+    expect(
+      orderedDigest(
+        catalogue.filter(
+          ({ id }) => id !== 'consumer:notification.workflow-outbox-consumers',
+        ),
+      ),
+    ).toBe('cd6c4bad812cc7fa45a0011f716eb6b0e733b0ee096014ce49ee27466502232a')
+
+    const invalid = {
+      ...catalogue[0],
+      owner: '',
+      mutation: {
+        kind: 'mutation',
+        stateOwner: '',
+        disposition: 'temporarily_accepted_debt',
+        reason: '',
+        debtOwner: '',
+        expiresAt: 'not-a-date',
+      },
+    }
+    expect(validateEntryPointGovernance([invalid])).toEqual([
+      `${catalogue[0]!.id}: owner is missing`,
+      `${catalogue[0]!.id}: mutation state owner is missing`,
+      `${catalogue[0]!.id}: mutation reason is missing`,
+      `${catalogue[0]!.id}: debt owner is missing`,
+      `${catalogue[0]!.id}: debt expiry is invalid`,
+    ])
+
+    const invalidVocabulary = {
+      ...catalogue[0],
+      owner: 'invented-context',
+      registration: {
+        ...catalogue[0]!.registration,
+        reachability: 'assumed-live',
+      },
+      mutation: {
+        kind: 'mutation',
+        stateOwner: 'invented-context',
+        disposition: 'local_only_with_reason',
+        reason: 'fixture',
+      },
+    }
+    expect(validateEntryPointGovernance([invalidVocabulary])).toEqual([
+      `${catalogue[0]!.id}: owner is invalid`,
+      `${catalogue[0]!.id}: registration reachability is invalid`,
+      `${catalogue[0]!.id}: mutation state owner is invalid`,
+    ])
+  })
+
   it('records every delayed entry point as BQC-3.2-integrated (BQC-2.5/3.2)', () => {
     const delayed = catalogue.filter((r) =>
       ['job', 'consumer', 'schedule'].includes(r.kind),
@@ -437,6 +579,25 @@ describe('BQC-2.1 entry-point catalogue', () => {
       `delayed rows without policyIntegration 'integrated_bqc3': ${missing.map(rowKey).join(', ')}`,
     ).toEqual([])
     expect(delayed.length).toBeGreaterThan(0)
+  })
+
+  it('records the registration owner and strongest observable reachability', () => {
+    for (const row of catalogue) {
+      if (row.kind === 'job') {
+        expect(row.registration, row.id).toEqual({
+          ownerFile: 'src/bootstrap.ts',
+          reachability: 'boot_registry',
+        })
+      } else if (row.kind === 'schedule') {
+        expect(row.registration, row.id).toEqual({
+          ownerFile: 'src/worker/index.ts',
+          reachability: 'source_composed',
+        })
+      }
+    }
+    expect(read(join(ROOT, 'src/shared/jobs/readiness.ts'))).toContain(
+      'registry.getAll()',
+    )
   })
 
   it('derives every row posture from the authoritative capability sets', () => {
@@ -595,6 +756,14 @@ describe('BQC-2.1 entry-point catalogue', () => {
         [...(r.eventTags ?? [])].sort(),
         `${r.id}: eventTags must match the registration table`,
       ).toEqual([...d.tags].sort())
+      expect(r.registration, r.id).toEqual(
+        d.compositionFiles.length > 0
+          ? {
+              ownerFile: d.compositionFiles[0],
+              reachability: 'source_composed',
+            }
+          : { ownerFile: d.file, reachability: 'declared_only' },
+      )
     }
 
     // Durable registration calls may only happen in discovered consumer modules.

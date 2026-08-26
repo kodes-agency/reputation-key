@@ -11,6 +11,10 @@
 //                   schedule | operator_command
 //   action        — a Permission for user actions; a SystemAction for
 //                   system/session/public/operator work
+//   owner         — defining context or platform area
+//   mutation      — total read/write classification; mutations record their
+//                   state owner and one FND-03 disposition
+//   registration  — registration owner and strongest proven reachability
 //   capability    — the beta capability gate (ADR 0032); 'none' when ungated
 //   resourceScope — organization | property | tenant_cross | none
 //   principals    — user | system | operator | public
@@ -50,6 +54,54 @@ export type ResourceScope =
   | 'none'
 
 export type BetaPosture = 'core' | 'non_core' | 'blocked'
+
+export type EntryPointOwner =
+  | 'activity'
+  | 'ai'
+  | 'badge'
+  | 'dashboard'
+  | 'goal'
+  | 'guest'
+  | 'identity'
+  | 'inbox'
+  | 'integration'
+  | 'leaderboard'
+  | 'metric'
+  | 'notification'
+  | 'portal'
+  | 'property'
+  | 'review'
+  | 'staff'
+  | 'team'
+  | 'operations'
+  | 'shared'
+  | 'web'
+  | 'worker'
+
+export type MutationDisposition =
+  | 'atomic_state_and_fact'
+  | 'local_only_with_reason'
+  | 'non_atomic_defect'
+  | 'temporarily_accepted_debt'
+
+export type EntryPointMutation =
+  | Readonly<{ kind: 'read_only' }>
+  | Readonly<{
+      kind: 'mutation'
+      stateOwner: EntryPointOwner
+      disposition: MutationDisposition
+      reason: string
+      debtOwner?: string
+      expiresAt?: string
+    }>
+
+export type EntryPointRegistration = Readonly<{
+  /** File that owns declaration/composition/registry registration. */
+  ownerFile: string
+  /** Strongest reachability claim this repository can currently prove. */
+  reachability:
+    'direct_declaration' | 'source_composed' | 'boot_registry' | 'declared_only'
+}>
 
 /**
  * Canonical actions for work that has no role Permission: session/identity
@@ -144,6 +196,11 @@ export type EntryPointRow = Readonly<{
   name: string
   /** Repo-relative file where the entry point is defined. */
   file: string
+  /** Context or platform area that owns this executable boundary. */
+  owner: EntryPointOwner
+  /** Total read/write classification; every write path has an owner/disposition. */
+  mutation: EntryPointMutation
+  registration: EntryPointRegistration
   /** Canonical action for the ExecutionPolicy decision request. */
   action: EntryPointAction
   /** Additional permissions the code also asserts (kept exhaustive by the guard). */
@@ -181,6 +238,209 @@ export function postureForCapability(cap: Capability | 'none'): BetaPosture {
   return 'non_core'
 }
 
+const CONTEXT_OWNER_RE = /^src\/contexts\/([^/]+)\//u
+const READ_ONLY_SERVER_FN_RE = /^(?:explain|get|list|resolve)/u
+const MUTATING_QUERY_NAMES = new Set([
+  'getGoogleAuthUrl',
+  'listImportAccounts',
+  'listImportCandidates',
+  'getPropertyGooglePerformance',
+])
+const NON_ATOMIC_PORTAL_MUTATIONS = new Set([
+  'createPortalGroup',
+  'updatePortalGroup',
+  'addPortalToGroup',
+  'removePortalFromGroup',
+  'createLink',
+  'reorderLinks',
+  'createLinkCategory',
+  'reorderCategories',
+  'issuePortalToken',
+  'rotatePortalToken',
+  'revokePortalTokens',
+])
+const LOCAL_ONLY_PORTAL_MUTATIONS = new Set([
+  'updateLink',
+  'deleteLink',
+  'updateLinkCategory',
+  'deleteLinkCategory',
+])
+const MUTATION_DEBT_EXPIRY = '2026-10-31'
+const ENTRY_POINT_OWNERS = new Set<EntryPointOwner>([
+  'activity',
+  'ai',
+  'badge',
+  'dashboard',
+  'goal',
+  'guest',
+  'identity',
+  'inbox',
+  'integration',
+  'leaderboard',
+  'metric',
+  'notification',
+  'portal',
+  'property',
+  'review',
+  'staff',
+  'team',
+  'operations',
+  'shared',
+  'web',
+  'worker',
+])
+const MUTATION_DISPOSITIONS = new Set<MutationDisposition>([
+  'atomic_state_and_fact',
+  'local_only_with_reason',
+  'non_atomic_defect',
+  'temporarily_accepted_debt',
+])
+
+function ownerForFile(file: string): EntryPointOwner {
+  const context = CONTEXT_OWNER_RE.exec(file)?.[1]
+  if (context) return context as EntryPointOwner
+  if (file.startsWith('src/routes/')) return 'web'
+  if (file === 'src/bootstrap.ts' || file.startsWith('src/worker/')) return 'worker'
+  if (file === 'package.json' || file.startsWith('scripts/')) return 'operations'
+  return 'shared'
+}
+
+function mutationForEntry(
+  kind: EntryPointKind,
+  name: string,
+  owner: EntryPointOwner,
+): EntryPointMutation {
+  if (
+    kind === 'route_ui' ||
+    (kind === 'route_api' && name.startsWith('/api/health')) ||
+    (kind === 'server_function' &&
+      READ_ONLY_SERVER_FN_RE.test(name) &&
+      !MUTATING_QUERY_NAMES.has(name))
+  ) {
+    return { kind: 'read_only' }
+  }
+  if (kind === 'schedule') {
+    return {
+      kind: 'mutation',
+      stateOwner: 'worker',
+      disposition: 'local_only_with_reason',
+      reason:
+        'Owns BullMQ repeatable-schedule metadata; domain mutation occurs only in the separately catalogued job.',
+    }
+  }
+  if (name === 'softDeletePortalGroup') {
+    return {
+      kind: 'mutation',
+      stateOwner: 'portal',
+      disposition: 'atomic_state_and_fact',
+      reason: 'PortalCommandStore atomically archives the group and records its fact.',
+    }
+  }
+  if (LOCAL_ONLY_PORTAL_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'portal',
+      disposition: 'local_only_with_reason',
+      reason:
+        'The Portal contract declares no durable fact for this link/category edit; it is a context-local state write.',
+    }
+  }
+  if (NON_ATOMIC_PORTAL_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'portal',
+      disposition: 'non_atomic_defect',
+      reason:
+        'Portal link/group state still uses the non-transactional emit-and-record path.',
+    }
+  }
+  return {
+    kind: 'mutation',
+    stateOwner: owner,
+    disposition: 'temporarily_accepted_debt',
+    reason:
+      'This bounded catalogue slice has not yet proven atomic-state-and-fact or local-only semantics.',
+    debtOwner: 'FND-03',
+    expiresAt: MUTATION_DEBT_EXPIRY,
+  }
+}
+
+function registrationForEntry(
+  kind: EntryPointKind,
+  name: string,
+  file: string,
+): EntryPointRegistration {
+  if (kind === 'job') {
+    return { ownerFile: 'src/bootstrap.ts', reachability: 'boot_registry' }
+  }
+  if (kind === 'schedule') {
+    return { ownerFile: 'src/worker/index.ts', reachability: 'source_composed' }
+  }
+  if (kind === 'consumer') {
+    if (name === 'badge.event-handlers' || name === 'goal.event-handlers') {
+      return { ownerFile: file, reachability: 'declared_only' }
+    }
+    const context = CONTEXT_OWNER_RE.exec(file)?.[1]
+    return {
+      ownerFile: context ? `src/contexts/${context}/build.ts` : file,
+      reachability: context ? 'source_composed' : 'declared_only',
+    }
+  }
+  return { ownerFile: file, reachability: 'direct_declaration' }
+}
+
+export function validateEntryPointGovernance(
+  rows: readonly unknown[],
+): readonly string[] {
+  const issues: string[] = []
+  for (const candidate of rows) {
+    const entry = candidate as Partial<EntryPointRow>
+    const id = typeof entry.id === 'string' ? entry.id : '<unknown-entry>'
+    if (!entry.owner) issues.push(`${id}: owner is missing`)
+    else if (!ENTRY_POINT_OWNERS.has(entry.owner)) {
+      issues.push(`${id}: owner is invalid`)
+    } else if (entry.file && entry.owner !== ownerForFile(entry.file)) {
+      issues.push(`${id}: owner does not match definition path`)
+    }
+    if (!entry.registration?.ownerFile || !entry.registration.reachability) {
+      issues.push(`${id}: registration ownership is missing`)
+    } else if (
+      ![
+        'direct_declaration',
+        'source_composed',
+        'boot_registry',
+        'declared_only',
+      ].includes(entry.registration.reachability)
+    ) {
+      issues.push(`${id}: registration reachability is invalid`)
+    }
+    if (!entry.mutation || typeof entry.mutation !== 'object') {
+      issues.push(`${id}: mutation classification is missing`)
+      continue
+    }
+    if (entry.mutation.kind === 'read_only') continue
+    if (entry.mutation.kind !== 'mutation') {
+      issues.push(`${id}: mutation kind is invalid`)
+      continue
+    }
+    if (!MUTATION_DISPOSITIONS.has(entry.mutation.disposition)) {
+      issues.push(`${id}: mutation disposition is invalid`)
+    }
+    if (!entry.mutation.stateOwner) issues.push(`${id}: mutation state owner is missing`)
+    else if (!ENTRY_POINT_OWNERS.has(entry.mutation.stateOwner)) {
+      issues.push(`${id}: mutation state owner is invalid`)
+    }
+    if (!entry.mutation.reason) issues.push(`${id}: mutation reason is missing`)
+    if (entry.mutation.disposition === 'temporarily_accepted_debt') {
+      if (!entry.mutation.debtOwner) issues.push(`${id}: debt owner is missing`)
+      if (!/^\d{4}-\d{2}-\d{2}$/u.test(entry.mutation.expiresAt ?? '')) {
+        issues.push(`${id}: debt expiry is invalid`)
+      }
+    }
+  }
+  return issues
+}
+
 // ── Row factories (records of functions — no classes) ───────────────
 
 type RowOpts = Partial<
@@ -199,11 +459,15 @@ function row(
   }>,
   opts: RowOpts = {},
 ): EntryPointRow {
+  const owner = opts.owner ?? ownerForFile(file)
   return {
     id: `${kind}:${name}`,
     kind,
     name,
     file,
+    owner,
+    mutation: opts.mutation ?? mutationForEntry(kind, name, owner),
+    registration: opts.registration ?? registrationForEntry(kind, name, file),
     action: base.action,
     capability: base.capability,
     resourceScope: base.resourceScope,
@@ -2855,6 +3119,27 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'durable identifier-only fan-out to insert-notification jobs; receipt written after the enqueue and each job carries the deterministic id <eventId>-<userId>, so redelivery converges instead of coalescing a second arrival. Dispatch disabled today (OUTBOX_DISPATCHER_ENABLED=false) — reconcile-missing-notifications is the live repair path',
+    },
+  ),
+  consumer(
+    'notification.workflow-outbox-consumers',
+    'src/contexts/notification/infrastructure/workflow-outbox-consumers.ts',
+    'system:notification.insert',
+    'none',
+    'organization',
+    [
+      'inbox.inbox_item.assigned',
+      'inbox.inbox_item.escalated',
+      'inbox.inbox_note.added',
+      'review.reply.submitted',
+      'review.reply.approved',
+      'review.reply.rejected',
+      'review.reply.published',
+      'review.reply.publish_failed',
+    ],
+    {
+      notes:
+        'durable identifier-only recovery for the notification workflow handlers; deterministic recipient jobs converge with the in-process fast path before the receipt is acknowledged',
     },
   ),
   consumer(
