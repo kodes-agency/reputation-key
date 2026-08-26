@@ -4,6 +4,8 @@
 // continues where this one stopped.
 
 import { describe, it, expect, vi } from 'vitest'
+import type { SQL } from 'drizzle-orm'
+import { PgDialect } from 'drizzle-orm/pg-core'
 import {
   executeRetentionRule,
   DEFAULT_MAX_BATCHES_PER_RUN,
@@ -33,6 +35,48 @@ function fakeDb(rowCounts: number[], fallbackRowCount = 0) {
 }
 
 describe('retention executor per-run cap (BQC-3.7)', () => {
+  it('binds runtime equality and limit values as query parameters', async () => {
+    const { db, execute } = fakeDb([0])
+    const runtimeScope = "org' OR TRUE --"
+
+    await executeRetentionRule(
+      db,
+      {
+        subject: 'reviews.purge.property',
+        table: 'reviews',
+        keyColumns: ['id'],
+        tsColumn: 'id',
+        olderThanMs: 0,
+        equalsWhere: [
+          { column: 'organization_id', value: runtimeScope },
+          { column: 'property_id', value: 'property-runtime' },
+        ],
+      },
+      { cutoff: CUTOFF, batchSize: 25 },
+    )
+
+    const compiled = new PgDialect().sqlToQuery(
+      execute.mock.calls[0][0] as unknown as SQL,
+    )
+    expect(compiled.sql).not.toContain(runtimeScope)
+    expect(compiled.sql).toContain('"organization_id" = $1')
+    expect(compiled.sql).toContain('"property_id" = $2')
+    expect(compiled.params).toEqual([runtimeScope, 'property-runtime', 25])
+  })
+
+  it('binds the age cutoff instead of embedding its ISO value', async () => {
+    const { db, execute } = fakeDb([0])
+
+    await executeRetentionRule(db, RULE, { cutoff: CUTOFF, batchSize: 25 })
+
+    const compiled = new PgDialect().sqlToQuery(
+      execute.mock.calls[0][0] as unknown as SQL,
+    )
+    expect(compiled.sql).not.toContain(CUTOFF.toISOString())
+    expect(compiled.sql).toContain('"published_at" < $1')
+    expect(compiled.params).toEqual([CUTOFF, 25])
+  })
+
   it('redacts protected columns without deleting the retained business row', async () => {
     const { db, execute } = fakeDb([2, 1, 0])
     const result = await executeRetentionRule(

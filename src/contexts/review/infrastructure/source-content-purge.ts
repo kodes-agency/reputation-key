@@ -34,7 +34,7 @@ type PurgeDeps = Readonly<{
 
 function reviewsRule(
   subject: string,
-  equals: { column: string; value: string },
+  equals: Readonly<{ column: string; value: string }>,
   orgId: string,
 ): RetentionRule {
   return {
@@ -43,8 +43,7 @@ function reviewsRule(
     keyColumns: ['id'],
     tsColumn: 'id',
     olderThanMs: 0,
-    extraWhere: `organization_id = '${orgId}'`,
-    equalsWhere: equals,
+    equalsWhere: [{ column: 'organization_id', value: orgId }, equals],
   }
 }
 
@@ -108,7 +107,7 @@ export const createSourceContentPurge = (deps: PurgeDeps): SourceContentPurge =>
         keyColumns: ['id'],
         tsColumn: 'id',
         olderThanMs: 0,
-        equalsWhere: { column: 'organization_id', value: orgId as string },
+        equalsWhere: [{ column: 'organization_id', value: orgId as string }],
       }),
 
     /** Property purge companion: inbox workflow rows for the property
@@ -123,8 +122,10 @@ export const createSourceContentPurge = (deps: PurgeDeps): SourceContentPurge =>
         keyColumns: ['id'],
         tsColumn: 'id',
         olderThanMs: 0,
-        extraWhere: `organization_id = '${orgId}'`,
-        equalsWhere: { column: 'property_id', value: propertyId as string },
+        equalsWhere: [
+          { column: 'organization_id', value: orgId as string },
+          { column: 'property_id', value: propertyId as string },
+        ],
       }),
   }
 }
