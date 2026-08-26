@@ -1,8 +1,12 @@
 # ADR 0004 — Inbox as a Separate Bounded Context
 
-**Status:** Implemented
+**Status:** Partially superseded by [ADR 0055](0055-stable-review-and-inbox-handling-cycles.md)
 **Date:** 2026-05-18
 **Context:** Reviews, Feedback, Unified Inbox
+
+The separate Inbox context remains active. ADR 0055 replaces the historical
+status ladder, assignment authority, read/claim coupling, and generic bulk-close
+clauses below.
 
 ## Decision
 

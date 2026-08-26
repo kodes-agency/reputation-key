@@ -1,7 +1,10 @@
 # ADR 0045 — Activity, Audit, and Domain Events Are Three Separate Concepts
 
-**Status:** Accepted
+**Status:** Partially superseded by [ADR 0056](0056-operational-action-history-integrity-claims.md)
 **Date:** 2026-07-15
+
+The three-way separation remains active. ADR 0056 replaces the unimplemented
+tamper-evident integrity requirement and governs the claims beta may make.
 
 ## Context
 
