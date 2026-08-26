@@ -9,6 +9,14 @@ export const ACCEPTED_REVIEW_SHA = '718fad1807b7422885584660bd3580f2a3a49113' as
 
 export const REVALIDATED_FAMILIES = ['ARCH', 'AUTH', 'DATA', 'DEC', 'EVT'] as const
 
+export const REVALIDATED_FAMILIES_BY_FRAGMENT = {
+  'arch-auth-data-dec-evt': REVALIDATED_FAMILIES,
+  'gate-gov-ops': ['GATE', 'GOV', 'OPS'],
+  ui: ['UI'],
+} as const
+
+type RevalidationFragmentId = keyof typeof REVALIDATED_FAMILIES_BY_FRAGMENT
+
 const repositoryPath = z
   .string()
   .min(1)
@@ -83,7 +91,7 @@ const closure = z.discriminatedUnion('kind', [
 
 const finding = z
   .object({
-    id: z.string().regex(/^(?:ARCH|AUTH|DATA|DEC|EVT)-\d{2}$/u),
+    id: z.string().regex(/^[A-Z]+-\d{2}$/u),
     frozenPosition: z.number().int().positive(),
     frozenSeverity: z.string().min(1),
     frozenSourceLine: z.number().int().positive(),
@@ -117,18 +125,14 @@ const finding = z
 const fragmentSchema = z
   .object({
     version: z.literal(1),
-    fragmentId: z.literal('arch-auth-data-dec-evt'),
+    fragmentId: z.enum(['arch-auth-data-dec-evt', 'gate-gov-ops', 'ui']),
     frozenSha: z.literal(ACCEPTED_REVIEW_SHA),
     comparisonSha: z.string().regex(/^[0-9a-f]{40}$/u),
     sourceRegisterSha256: digest,
     assessedAt: z.iso.date(),
-    families: z.tuple([
-      z.literal('ARCH'),
-      z.literal('AUTH'),
-      z.literal('DATA'),
-      z.literal('DEC'),
-      z.literal('EVT'),
-    ]),
+    families: z.array(
+      z.enum(['ARCH', 'AUTH', 'DATA', 'DEC', 'EVT', 'GATE', 'GOV', 'OPS', 'UI']),
+    ),
     evidence: z
       .object({
         frozen: z.record(proofId, immutableProof),
@@ -138,6 +142,10 @@ const fragmentSchema = z
     findings: z.array(finding),
   })
   .strict()
+
+function familiesForFragment(fragmentId: RevalidationFragmentId): readonly string[] {
+  return REVALIDATED_FAMILIES_BY_FRAGMENT[fragmentId]
+}
 
 const baselineFinding = z
   .object({
@@ -241,6 +249,10 @@ export function validateFindingRevalidationFragment(
   readers: FragmentReaders = defaultReaders,
 ): readonly string[] {
   const fragment = fragmentSchema.parse(input)
+  const selectedFamilies = familiesForFragment(fragment.fragmentId)
+  if (JSON.stringify(fragment.families) !== JSON.stringify(selectedFamilies)) {
+    throw new Error('fragment families must match its governed fragment identifier')
+  }
   if (!readers.isAncestor(fragment.frozenSha, fragment.comparisonSha)) {
     throw new Error('comparison revision must descend from the frozen review SHA')
   }
@@ -252,7 +264,7 @@ export function validateFindingRevalidationFragment(
   const expected = register
     .map((row, index) => ({ row, position: index + 1 }))
     .filter(({ row }) =>
-      REVALIDATED_FAMILIES.some((family) => row.id.startsWith(`${family}-`)),
+      selectedFamilies.some((family) => row.id.startsWith(`${family}-`)),
     )
   const actualIds = fragment.findings.map(({ id }) => id)
   if (JSON.stringify(actualIds) !== JSON.stringify(expected.map(({ row }) => row.id))) {

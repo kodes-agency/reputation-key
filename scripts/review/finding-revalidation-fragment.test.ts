@@ -175,6 +175,15 @@ describe('isolated finding revalidation fragment', () => {
     ).toThrow('every selected frozen finding once and in order')
   })
 
+  it('rejects a family list that does not match the fragment identifier', () => {
+    const mismatched = fixture()
+    mismatched.families = ['GATE', 'GOV', 'OPS']
+
+    expect(() =>
+      validateFindingRevalidationFragment(mismatched, REGISTER, PLAN, readers),
+    ).toThrow('fragment families must match its governed fragment identifier')
+  })
+
   it('rejects changed digests and source markers', () => {
     const changedDigest = fixture()
     const evidence = structuredClone(changedDigest.evidence) as {
