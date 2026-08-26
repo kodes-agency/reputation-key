@@ -75,15 +75,14 @@ export function useNotifications(
     queryKey: notificationKeys.list(organizationId, limit, filter),
     queryFn: ({ pageParam }) => getList({ data: { limit, offset: pageParam, filter } }),
     initialPageParam: 0,
-    // If a full page came back, another page may exist → advance the offset.
     getNextPageParam: (lastPage, _allPages, lastPageParam) =>
-      lastPage.length === limit ? lastPageParam + limit : undefined,
+      lastPage.hasMore ? lastPageParam + limit : undefined,
     ...NOTIFICATION_POLL_OPTIONS,
     refetchInterval: poll ? NOTIFICATION_POLL_INTERVAL : false,
   })
 
   return {
-    notifications: query.data?.pages.flat() ?? [],
+    notifications: query.data?.pages.flatMap((page) => page.notifications) ?? [],
     isLoading: query.isPending,
     isLoadingMore: query.isFetchingNextPage,
     error: query.error,

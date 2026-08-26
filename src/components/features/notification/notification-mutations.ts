@@ -14,13 +14,16 @@
 import { useQueryClient, type QueryClient, type QueryKey } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { notificationKeys } from '#/shared/queries/query-keys'
-import type { Notification } from '#/contexts/notification/application/public-api'
+import type {
+  Notification,
+  NotificationPage,
+} from '#/contexts/notification/application/public-api'
 import type { NotificationListFilter } from '#/contexts/notification/application/public-api'
 import type { NotificationServerFns } from './types'
 
 /** Shape `useInfiniteQuery` stores under `notificationKeys.list(...)`. */
 type FeedPages = Readonly<{
-  pages: ReadonlyArray<ReadonlyArray<Notification>>
+  pages: ReadonlyArray<NotificationPage>
   pageParams: ReadonlyArray<number>
 }>
 
@@ -28,12 +31,12 @@ type FeedPages = Readonly<{
 type RowPatch = (row: Notification) => Notification | null
 
 function patchPage(
-  page: ReadonlyArray<Notification>,
+  page: NotificationPage,
   patch: RowPatch,
-): Readonly<{ rows: Notification[]; unreadDelta: number }> {
+): Readonly<{ page: NotificationPage; unreadDelta: number }> {
   const rows: Notification[] = []
   let unreadDelta = 0
-  for (const row of page) {
+  for (const row of page.notifications) {
     const patched = patch(row)
     const wasUnread = row.status === 'unread'
     if (patched === null) {
@@ -43,7 +46,7 @@ function patchPage(
     if (wasUnread !== (patched.status === 'unread')) unreadDelta += wasUnread ? -1 : 1
     rows.push(patched)
   }
-  return { rows, unreadDelta }
+  return { page: { ...page, notifications: rows }, unreadDelta }
 }
 
 /**
@@ -55,6 +58,7 @@ function patchFeed(
   listKey: QueryKey,
   countKey: QueryKey,
   patch: RowPatch,
+  options: Readonly<{ clearContinuation?: boolean }> = {},
 ): (() => void) | undefined {
   const previousPages = qc.getQueryData<FeedPages>(listKey)
   if (!previousPages) return undefined
@@ -64,7 +68,7 @@ function patchFeed(
   const pages = previousPages.pages.map((page) => {
     const patched = patchPage(page, patch)
     unreadDelta += patched.unreadDelta
-    return patched.rows
+    return options.clearContinuation ? { ...patched.page, hasMore: false } : patched.page
   })
 
   qc.setQueryData<FeedPages>(listKey, { ...previousPages, pages })
@@ -139,7 +143,8 @@ export function useNotificationMutations(
   })
   const dismissAll = useActionMutation(fns.dismissAll, {
     invalidateKeys,
-    optimistic: () => patchFeed(qc, listKey, countKey, () => null),
+    optimistic: () =>
+      patchFeed(qc, listKey, countKey, () => null, { clearContinuation: true }),
   })
   const muteCategory = useActionMutation(fns.muteCategory, {
     invalidateKeys: [notificationKeys.preferences(organizationId)],

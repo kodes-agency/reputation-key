@@ -11,6 +11,7 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { z } from 'zod/v4'
 import { isNotificationError, NOTIFICATION_LIST_FILTERS } from '../application/public-api'
+import { createNotificationPage } from '../application/notification-page'
 import { requiredCapabilityForPreferenceChannel } from '../domain/notification-delivery-policy'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -68,17 +69,18 @@ export const getNotificationsFn = createServerFn({ method: 'GET' })
     tracedHandler(
       async ({ data }) => {
         const ctx = await resolveOptionalTenantContext()
-        if (!ctx) return []
+        if (!ctx) return createNotificationPage([], data.limit)
         await requireExecutionAllowed({ actor: ctx, action: 'notification.read' })
         try {
           const { notificationPublicApi } = getContainer()
-          return notificationPublicApi.getNotifications(
+          const rows = await notificationPublicApi.getNotifications(
             ctx.userId,
             ctx.organizationId,
-            data.limit,
+            data.limit + 1,
             data.offset,
             data.filter,
           )
+          return createNotificationPage(rows, data.limit)
         } catch (e) {
           throw catchUntagged(e)
         }

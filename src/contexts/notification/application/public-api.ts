@@ -95,3 +95,4 @@ export {
   NOTIFICATION_LIST_FILTERS,
   type NotificationListFilter,
 } from './notification-list-filter'
+export type { NotificationPage } from './notification-page'

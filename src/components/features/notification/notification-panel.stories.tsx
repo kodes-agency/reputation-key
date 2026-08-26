@@ -13,9 +13,11 @@
 // that one factory.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { isPreferenceDisableable } from '#/contexts/notification/application/public-api'
 import {
   makeNotificationFns,
   notificationFixtures,
+  notificationPageFixture,
   notificationUserSettingsFixture,
 } from './notification-fixtures'
 import { NotificationPanel } from './notification-panel'
@@ -24,13 +26,19 @@ import type { NotificationServerFns } from './types'
 const ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222'
 
 const unreadCount = notificationFixtures.filter((n) => n.status === 'unread').length
+const muteableIndex = notificationFixtures.findIndex((notification) =>
+  isPreferenceDisableable(notification.category, 'in_app'),
+)
+const muteableNotification = notificationFixtures[muteableIndex]!
 
 const loadedFns = makeNotificationFns({
   getUnreadCount: (async () => ({
     count: unreadCount,
   })) as unknown as NotificationServerFns['getUnreadCount'],
   getList: (async () =>
-    notificationFixtures) as unknown as NotificationServerFns['getList'],
+    notificationPageFixture(
+      notificationFixtures,
+    )) as unknown as NotificationServerFns['getList'],
 })
 
 const meta: Meta<typeof NotificationPanel> = {
@@ -78,7 +86,9 @@ export const DismissRemovesRowOptimistically: Story = {
         count: unreadCount,
       })) as unknown as NotificationServerFns['getUnreadCount'],
       getList: (async () =>
-        notificationFixtures) as unknown as NotificationServerFns['getList'],
+        notificationPageFixture(
+          notificationFixtures,
+        )) as unknown as NotificationServerFns['getList'],
       // Never settles: anything the user sees change is purely optimistic.
       dismiss: (() =>
         Promise.withResolvers<void>()
@@ -105,7 +115,9 @@ export const MarkAllReadIsOptimistic: Story = {
         count: unreadCount,
       })) as unknown as NotificationServerFns['getUnreadCount'],
       getList: (async () =>
-        notificationFixtures) as unknown as NotificationServerFns['getList'],
+        notificationPageFixture(
+          notificationFixtures,
+        )) as unknown as NotificationServerFns['getList'],
       markAllRead: (() =>
         Promise.withResolvers<void>()
           .promise) as unknown as NotificationServerFns['markAllRead'],
@@ -131,7 +143,7 @@ export const Loading: Story = {
         Promise.withResolvers<{ count: number }>()
           .promise) as unknown as NotificationServerFns['getUnreadCount'],
       getList: (() =>
-        Promise.withResolvers<typeof notificationFixtures>()
+        Promise.withResolvers<ReturnType<typeof notificationPageFixture>>()
           .promise) as unknown as NotificationServerFns['getList'],
     }),
   },
@@ -174,7 +186,9 @@ export const MuteCategory: Story = {
           count: unreadCount,
         })) as unknown as NotificationServerFns['getUnreadCount'],
         getList: (async () =>
-          notificationFixtures) as unknown as NotificationServerFns['getList'],
+          notificationPageFixture(
+            notificationFixtures,
+          )) as unknown as NotificationServerFns['getList'],
         muteCategory: muteCategory as unknown as NotificationServerFns['muteCategory'],
       })
     })(),
@@ -184,14 +198,16 @@ export const MuteCategory: Story = {
     await userEvent.click(await canvas.findByRole('button', { name: /^Notifications/ }))
     const portal = within(document.body)
     await userEvent.click(
-      (await portal.findAllByRole('button', { name: /^More actions for:/ }))[0],
+      (await portal.findAllByRole('button', { name: /^More actions for:/ }))[
+        muteableIndex
+      ]!,
     )
     await userEvent.click(await portal.findByRole('menuitem', { name: /^Mute/ }))
     await waitFor(() => {
       expect(args.notificationFns.muteCategory).toHaveBeenCalledWith({
         data: {
-          propertyId: notificationFixtures[0]!.propertyId,
-          category: notificationFixtures[0]!.category,
+          propertyId: muteableNotification.propertyId,
+          category: muteableNotification.category,
         },
       })
     })
@@ -210,7 +226,9 @@ export const HonoursPersistedLocale: Story = {
         count: unreadCount,
       })) as unknown as NotificationServerFns['getUnreadCount'],
       getList: (async () =>
-        notificationFixtures) as unknown as NotificationServerFns['getList'],
+        notificationPageFixture(
+          notificationFixtures,
+        )) as unknown as NotificationServerFns['getList'],
       getUserSettings: (async () => ({
         ...notificationUserSettingsFixture,
         locale: 'de-DE',

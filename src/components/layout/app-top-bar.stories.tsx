@@ -15,7 +15,7 @@ import type { NotificationServerFns } from '#/components/features/notification/t
 import { AppTopBar } from './app-top-bar'
 
 // Build a notification-fn bundle from a desired unread count. getList returns
-// an empty array so the panel (mounted on open) renders its empty state
+// an empty page so the panel (mounted on open) renders its empty state
 // gracefully; the mutation fns are inert. User settings are pulled only when
 // the panel opens so timestamps can use the persisted locale and timezone.
 function makeNotificationFns(count: number): NotificationServerFns {
@@ -26,7 +26,7 @@ function makeNotificationFns(count: number): NotificationServerFns {
 
   return {
     getUnreadCount: inert<'getUnreadCount'>({ count }),
-    getList: inert<'getList'>([]),
+    getList: inert<'getList'>({ notifications: [], hasMore: false }),
     markRead: inert<'markRead'>(undefined),
     markUnread: inert<'markUnread'>(undefined),
     markAllRead: inert<'markAllRead'>(undefined),

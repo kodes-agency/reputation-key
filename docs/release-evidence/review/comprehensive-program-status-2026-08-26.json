@@ -467,18 +467,23 @@
     {
       "id": "NTF-01",
       "status": "partial",
-      "summary": "Private feedback now uses the Action-needed delivery class, required in-app channels are enforced through domain, repository, UI, backfill, and database constraints, and the compact Bell no longer offers bulk dismissal; the end-to-end trigger and recipient contract is still incomplete.",
+      "summary": "Private feedback uses the Action-needed delivery class, required in-app channels are enforced through domain/repository/UI/database controls, the compact Bell has no bulk dismissal, and filtered pagination now carries exact server-derived continuation evidence. The end-to-end trigger and recipient contract remains incomplete.",
       "codeEvidence": [
         "src/contexts/notification/domain/notification-delivery-policy.ts",
         "src/contexts/notification/infrastructure/repositories/notification-preference.repository.ts",
-        "src/components/notification/notification-popover-content.tsx",
+        "src/contexts/notification/application/notification-page.ts",
+        "src/contexts/notification/server/notifications.ts",
+        "src/components/features/notification/notification-popover-content.tsx",
+        "src/components/features/notification/notification-page.tsx",
+        "src/components/features/notification/notification-queries.ts",
         "drizzle/0109_notification_required_channels.sql"
       ],
       "testEvidence": [
-        "Required-channel upgrade/constraint proof plus coalescing, responsibility resolution, outbox, digest, quiet-hours, unsubscribe, pagination, and gap reconciliation tests"
+        "Required-channel upgrade/constraint proof plus coalescing, responsibility resolution, outbox, digest, quiet-hours, unsubscribe, exact filtered pagination, and gap reconciliation tests",
+        "Complete Storybook component suite: 91 files / 530 assertions passing on 2026-08-26"
       ],
       "remaining": [
-        "Complete and execute the trigger/recipient/eligibility matrix, close every durable producer-to-delivery gap, instrument lag and repair behavior, and retain deployed latency/outage evidence."
+        "Complete and execute the trigger/recipient/eligibility matrix, close every durable producer-to-delivery gap, poll a first-page/count watermark without refetching all loaded history, finish exact immutable digest membership/outcomes, instrument lag and repair behavior, and retain deployed latency/outage evidence."
       ],
       "externalBlockers": []
     },

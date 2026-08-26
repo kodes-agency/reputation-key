@@ -11,6 +11,7 @@
 import {
   classifyNotification,
   type Notification,
+  type NotificationPage,
   type NotificationPayload,
   type NotificationPriority,
   type NotificationResourceType,
@@ -166,6 +167,13 @@ export const notificationUserSettingsFixture = {
   updatedAt: new Date('2026-08-01T00:00:00.000Z'),
 } satisfies NotificationUserSettings
 
+export function notificationPageFixture(
+  notifications: ReadonlyArray<Notification> = [],
+  hasMore = false,
+): NotificationPage {
+  return { notifications, hasMore }
+}
+
 /**
  * A `NotificationServerFns` bundle for stories.
  *
@@ -186,7 +194,7 @@ export function makeNotificationFns(
 
   const base: NotificationServerFns = {
     getUnreadCount: stub({ count: 0 }) as NotificationServerFns['getUnreadCount'],
-    getList: stub([] as ReadonlyArray<Notification>) as NotificationServerFns['getList'],
+    getList: stub(notificationPageFixture()) as NotificationServerFns['getList'],
     markRead: stub(undefined) as NotificationServerFns['markRead'],
     markUnread: stub(null) as NotificationServerFns['markUnread'],
     markAllRead: stub(undefined) as NotificationServerFns['markAllRead'],

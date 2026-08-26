@@ -4,6 +4,7 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
   makeNotificationFns,
   notificationFixtures,
+  notificationPageFixture,
   notificationPropertyFixtures,
 } from './notification-fixtures'
 import { NotificationPage } from './notification-page'
@@ -18,8 +19,10 @@ const unreadCount = notificationFixtures.filter((n) => n.status === 'unread').le
 
 const getFilteredNotifications = async (input: unknown) => {
   const filter = (input as Readonly<{ data: Readonly<{ filter: string }> }>).data.filter
-  return notificationFixtures.filter((notification) =>
-    matchesNotificationFilter(notification, parseNotificationFilter(filter)),
+  return notificationPageFixture(
+    notificationFixtures.filter((notification) =>
+      matchesNotificationFilter(notification, parseNotificationFilter(filter)),
+    ),
   )
 }
 
@@ -96,13 +99,15 @@ export const FilterIsAppliedBeforePagination: Story = {
         const requestedFilter = (
           input as Readonly<{ data: Readonly<{ filter?: string }> }>
         ).data.filter
-        return requestedFilter === 'urgent'
-          ? notificationFixtures.filter(
-              (notification) => notification.priority === 'urgent',
-            )
-          : notificationFixtures.filter(
-              (notification) => notification.priority !== 'urgent',
-            )
+        return notificationPageFixture(
+          requestedFilter === 'urgent'
+            ? notificationFixtures.filter(
+                (notification) => notification.priority === 'urgent',
+              )
+            : notificationFixtures.filter(
+                (notification) => notification.priority !== 'urgent',
+              ),
+        )
       }) as unknown as NotificationServerFns['getList'],
     }),
   },
@@ -120,7 +125,9 @@ export const DismissAllRequiresConfirmation: Story = {
         count: unreadCount,
       })) as unknown as NotificationServerFns['getUnreadCount'],
       getList: (async () =>
-        notificationFixtures) as unknown as NotificationServerFns['getList'],
+        notificationPageFixture(
+          notificationFixtures,
+        )) as unknown as NotificationServerFns['getList'],
       dismissAll: (() =>
         Promise.withResolvers<void>()
           .promise) as unknown as NotificationServerFns['dismissAll'],
