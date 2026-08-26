@@ -48,17 +48,17 @@
     {
       "id": "FND-03",
       "status": "partial",
-      "summary": "The executable entry-point catalogue now covers routes, server functions, jobs, consumers, schedules, operator commands, production scripts, migration utilities, and sidecar/release gates, including the People reconciliation and product-state checks added in this program. Event/job catalogues also exist. Per-entry cell ownership, complete mutation classification, canonical-only elimination, and executed reachability/darkness proof remain incomplete.",
+      "summary": "The executable entry-point catalogue now covers routes, request handlers, server-only implementation boundaries, jobs, consumers, schedules, operator commands, production scripts, migration utilities, and sidecar/release gates. Its discovery proof recognizes both createServerFn and createServerOnlyFn declarations, and the catalogue includes the beta-feedback implementation boundary plus the product-state and independent finding-fragment evidence utilities. Event/job catalogues also exist. Per-entry cell ownership, complete mutation classification, runtime-composed registrations, canonical-only elimination, and executed reachability/darkness proof remain incomplete.",
       "codeEvidence": [
         "src/shared/governance/entry-point-catalogue.ts",
         "src/shared/governance/event-job-catalogue.ts"
       ],
       "testEvidence": [
-        "src/shared/governance/entry-point-catalogue.test.ts",
+        "src/shared/governance/entry-point-catalogue.test.ts — 13/13 tests, including a fabricated declaration fixture proving request-handler and server-only discovery",
         "src/shared/governance/event-job-catalogue.test.ts"
       ],
       "remaining": [
-        "Add per-entry cell ownership and complete mutation classification; eliminate unscoped/canonical-only/orphan rows; prove active reachability and dark denial through every execution path."
+        "Add per-entry cell ownership and complete mutation classification; cover dynamically composed and runtime-observed registrations; eliminate unscoped/canonical-only/orphan rows; prove active reachability and dark denial through every execution path."
       ],
       "externalBlockers": []
     },
