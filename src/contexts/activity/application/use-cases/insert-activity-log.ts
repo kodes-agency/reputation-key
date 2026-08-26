@@ -1,4 +1,4 @@
-// Activity context — insert activity log use case
+// Activity context — project a Recent Activity entry
 // Extracted from in-process handler for BullMQ worker consumption.
 // Per architecture: "Use cases are standalone functions that receive deps and return an async function."
 
@@ -106,15 +106,18 @@ export const insertActivityLog =
 
     if (result.isErr()) {
       // BQC-7.3: the raw input (tenant/entity ids) is never logged.
-      deps.logger.warn({ error: result.error }, 'Failed to construct activity log entry')
+      deps.logger.warn(
+        { error: result.error },
+        'Failed to construct Recent Activity entry',
+      )
       return
     }
 
-    // 4. Persist the activity log entry
+    // 4. Persist the Recent Activity projection entry
     try {
       await deps.repo.insert(result.value)
     } catch (error) {
-      deps.logger.error({ error }, 'Failed to persist activity log entry')
+      deps.logger.error({ error }, 'Failed to persist Recent Activity entry')
       throw error // re-throw so BullMQ retries
     }
   }

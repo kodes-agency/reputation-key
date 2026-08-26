@@ -84,7 +84,7 @@ export const createActivityRepository = (db: Database): ActivityRepository => ({
         'code' in error &&
         (error as { code: string }).code === '23505'
       if (isPg23505) {
-        log.info('Activity log entry already exists — idempotent no-op')
+        log.info('Recent Activity entry already exists — idempotent no-op')
         return
       }
       throw error

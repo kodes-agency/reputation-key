@@ -4,7 +4,7 @@ import type { Queue } from 'bullmq'
 
 type Deps = { queue: Queue }
 
-// BQC-3.9: consume the property.deleted orphan (BQC-3.1) — audit fact → audit log.
+// BQC-3.9: project the property.deleted fact into Recent Activity.
 export const onPropertyDeleted =
   (deps: Deps) =>
   async (event: PropertyDeleted): Promise<void> => {

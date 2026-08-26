@@ -5,7 +5,7 @@ import type { Queue } from 'bullmq'
 type Deps = { queue: Queue }
 
 // BQC-3.9: consume the integration.google_connection.visibility_changed orphan
-// (BQC-3.1) — audit fact → audit log. Content-free: the visibility value is a
+// (BQC-3.1) into Recent Activity. Content-free: the visibility value is a
 // domain enum, never connection detail (ADR 0045).
 export const onGoogleConnectionVisibilityChanged =
   (deps: Deps) =>

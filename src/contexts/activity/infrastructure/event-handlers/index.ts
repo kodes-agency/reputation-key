@@ -104,7 +104,7 @@ export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): vo
     consumer: 'activity.event-handlers',
   })
 
-  // ── Identity events (user-management audit) ──
+  // ── Identity events (user-management activity) ──
   deps.events.on(
     'identity.organization.created',
     onOrganizationCreated({ queue: deps.queue }),
@@ -136,7 +136,7 @@ export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): vo
     { consumer: 'activity.event-handlers' },
   )
 
-  // ── Integration events (user-management audit) ──
+  // ── Integration events (connection activity) ──
   deps.events.on(
     'integration.google_account.connected',
     onGoogleAccountConnected({ queue: deps.queue }),
@@ -156,7 +156,7 @@ export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): vo
     { consumer: 'activity.event-handlers' },
   )
 
-  // ── Property events (BQC-3.9 orphan consume: audit) ──
+  // ── Property events (BQC-3.9 Recent Activity projection) ──
   deps.events.on('property.created', onPropertyCreated({ queue: deps.queue }), {
     consumer: 'activity.event-handlers',
   })

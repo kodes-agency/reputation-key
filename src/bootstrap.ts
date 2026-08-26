@@ -595,7 +595,7 @@ export async function bootstrap(
     'registered AI review-analysis backfill advance job handler',
   )
 
-  // ── Activity log insertion job ────────────────────────────────────
+  // ── Recent Activity projection job ────────────────────────────────
   const { createInsertActivityLogHandler, INSERT_ACTIVITY_LOG_JOB_NAME } =
     await import('#/contexts/activity/infrastructure/jobs/insert-activity-log.job')
   const { createDbUserLookupAdapter } =
@@ -620,7 +620,7 @@ export async function bootstrap(
   )
   logger.info(
     { job: INSERT_ACTIVITY_LOG_JOB_NAME },
-    'registered activity log insertion job handler',
+    'registered Recent Activity projection job handler',
   )
 
   // ── Notification jobs ────────────────────────────────────────────

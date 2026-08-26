@@ -21,6 +21,6 @@ export const createInsertActivityLogHandler = (deps: InsertActivityLogDeps) => {
     const log = getLogger()
     log.info('Processing insert-activity-log job')
     await useCase(job.data)
-    log.info('Inserted activity log')
+    log.info('Inserted Recent Activity entry')
   }
 }

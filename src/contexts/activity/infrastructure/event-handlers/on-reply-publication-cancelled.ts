@@ -5,7 +5,7 @@ import type { Queue } from 'bullmq'
 
 type Deps = { queue: Queue; inboxItemLookup: InboxItemLookupPort }
 
-// BQC-3.8: audit trail for publication cancellations (disconnect/policy).
+// BQC-3.8: Recent Activity summary for publication cancellations (disconnect/policy).
 // Mirrors on-reply-published: scoped to reviews with an inbox item; the
 // payload is identifier-only (the cause is an enum, never content).
 export const onReplyPublicationCancelled =

@@ -19,7 +19,7 @@ import type { ResourceType } from '../domain/types'
 // DTO cannot drift from the domain (ctx-small §6): team / staff_assignment /
 // integration activity was previously rejected with a 400 because the enum
 // lagged the ResourceTypes that handlers write ('organization' added in
-// BQC-3.9 for the identity.organization.created audit consumer).
+// BQC-3.9 for the identity.organization.created Recent Activity consumer).
 const RESOURCE_TYPES = [
   'inbox_item',
   'review',

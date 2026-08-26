@@ -152,7 +152,7 @@ const inboxItemUnassignedSchema = z.object({
 })
 
 // Per-item shape — one event per affected item, linked by bulkId (the
-// activity log groups per-item entries via payload.bulkId).
+// Recent Activity groups per-item entries via payload.bulkId).
 const inboxItemBulkStatusChangedSchema = z.object({
   inboxItemId: z.string(),
   organizationId: z.string(),

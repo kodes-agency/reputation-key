@@ -29,4 +29,26 @@ describe('Recent Activity integrity-claim boundary', () => {
         'not be simulated with hashes stored beside mutable rows.',
     ).toEqual([])
   })
+
+  it('does not describe the product projection as an audit log or audit trail', () => {
+    const vocabularyFiles = [
+      ...walk(join(ROOT, 'src/contexts/activity')),
+      join(ROOT, 'src/bootstrap.ts'),
+      join(ROOT, 'src/shared/events/schema-registrations.ts'),
+    ]
+    const offenders = vocabularyFiles
+      .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'))
+      .flatMap((file) => {
+        const source = readFileSync(file, 'utf8')
+        return [/\baudit log\b/i, /\baudit trail\b/i]
+          .filter((pattern) => pattern.test(source))
+          .map((pattern) => `${file.replace(`${ROOT}/`, '')}: ${pattern.source}`)
+      })
+
+    expect(
+      offenders,
+      'Production code must call this projection Recent Activity. Audit language ' +
+        'is reserved for the separately governed Operational Action History.',
+    ).toEqual([])
+  })
 })

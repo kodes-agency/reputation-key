@@ -5,7 +5,7 @@ import type { Queue } from 'bullmq'
 type Deps = { queue: Queue }
 
 // BQC-3.9: consume the identity.organization.created orphan (BQC-3.1) — the
-// registration-time audit fact finally gets its audit consumer.
+// registration-time fact finally gets its Recent Activity consumer.
 export const onOrganizationCreated =
   (deps: Deps) =>
   async (event: IdentityOrganizationCreated): Promise<void> => {

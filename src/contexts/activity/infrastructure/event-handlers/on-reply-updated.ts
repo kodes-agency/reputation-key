@@ -5,7 +5,7 @@ import type { Queue } from 'bullmq'
 
 type Deps = { queue: Queue; inboxItemLookup: InboxItemLookupPort }
 
-// Audit trail for edit-and-republish: a published reply's text was edited and
+// Recent Activity summary for edit-and-republish: a published reply was edited and
 // re-entered the publication machine. Mirrors on-reply-publication-cancelled:
 // scoped to reviews with an inbox item; the payload is identifier-only (never
 // the reply text).
