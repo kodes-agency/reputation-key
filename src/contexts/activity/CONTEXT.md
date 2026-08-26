@@ -59,6 +59,9 @@ source-context facts and projects rebuildable Recent Activity rows.
   projected by `insertActivityLog`.
 - Invitation entries are identifier-only; retained or resumed jobs cannot write
   invitation content into `payload.detail`.
+- The shared retention sweep expires `activity_log` rows after 90 days. This
+  bounded product-feed retention is independent from source domain facts and
+  restricted operational records.
 - Payloads must never copy review text, private feedback/contact, Inbox notes,
   reply bodies, tokens, credentials, presigned URLs, or raw network identifiers.
 
@@ -66,10 +69,11 @@ source-context facts and projects rebuildable Recent Activity rows.
 
 The current implementation still uses legacy names (`ActivityLog`,
 `activity_log`, `getOrgActivity`) and a broad historical action/resource
-vocabulary. ACT-01 owns the bounded vocabulary, retention and rebuild states,
-durable projection receipts, explicit redaction semantics, and the separate
-Operational Action History. Until those land, this context must make only the
-limited product-feed claims above.
+vocabulary. The 90-day sweep exists, but Activity still needs an owned expiry
+proof, bounded vocabulary, rebuild states, durable projection receipts, and
+explicit redaction semantics. Operational Action History remains separate and
+unimplemented. Until those land, this context must make only the limited
+product-feed claims above.
 
 ## Architecture
 
@@ -105,3 +109,4 @@ state.
   `queries/get-org-activity.test.ts`
 - Writer boundary: `src/shared/architecture/context-acceptance-matrix.test.ts`
 - Integrity-claim authority: `docs/adr/0056-operational-action-history-integrity-claims.md`
+- No-hash/no-false-history regression: `domain/integrity-claims.test.ts`

@@ -179,8 +179,8 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     olderThanMs: 90 * DAY_MS,
   },
   {
-    // BQC-7.8: operator/policy decision audit — the beta audit trail
-    // horizon (365d from the decision timestamp).
+    // BQC-7.8: operator/policy decision records — a 365d retention horizon,
+    // not a completeness or cryptographic-integrity claim.
     subject: 'policy_decision_audit',
     table: 'policy_decision_audit',
     keyColumns: ['id'],
@@ -188,7 +188,7 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     olderThanMs: AUDIT_EVIDENCE_RETENTION_MS,
   },
   {
-    // BQC-7.8: significant-action audit log — same 365d horizon.
+    // BQC-7.8: significant-action operational records — same 365d horizon.
     subject: 'audit_logs',
     table: 'audit_logs',
     keyColumns: ['id'],

@@ -59,7 +59,7 @@
 | ------------------------------------ | --------------------------------------------------------- | ------------------ |
 | User denies performing action        | `audit_logs` with userId, ipAddress, action, resourceType | ✅ Enforced        |
 | Operator denies capability change    | Capability decision log (identifiers + reason codes only) | 🔄 Logging pending |
-| Reply publish denied/failed silently | Outbox events + BullMQ job status + audit log             | ✅ Enforced        |
+| Reply publish denied/failed silently | Outbox facts + BullMQ job status + reconciliation records | ✅ Enforced        |
 
 ### Information Disclosure
 
@@ -116,7 +116,7 @@
 | V3 (Session)          | httpOnly/secure cookies, session expiry, cookie cache       |
 | V4 (Access Control)   | AuthorizationPolicy, property scoping, negative tests       |
 | V5 (Validation)       | Zod env validation, input validation at API boundaries      |
-| V7 (Logging)          | Structured logging, redaction patterns, audit trail         |
+| V7 (Logging)          | Structured logging, redaction patterns, operational records |
 | V8 (Data Protection)  | Encryption at rest (OAuth tokens), TTL on review content    |
 | V9 (Communications)   | TLS via proxy, CSP, HSTS                                    |
 | V12 (Files/Resources) | Upload capability disabled; S3 private objects when enabled |

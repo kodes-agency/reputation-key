@@ -1,8 +1,13 @@
 # ADR 0010 — Activity Context: BullMQ Event Delivery
 
-**Status:** Accepted
+**Status:** Partially superseded by [ADR 0056](0056-operational-action-history-integrity-claims.md)
 **Date:** 2026-06-02
 **Context:** Activity Context, Event Delivery
+
+The BullMQ delivery decision remains accepted. References below to an
+immutable audit log or audit trail are historical rationale, not current
+product or integrity claims. The current model is the rebuildable **Recent
+Activity** projection defined by ADR 0056 and the Activity context contract.
 
 ## Context
 
