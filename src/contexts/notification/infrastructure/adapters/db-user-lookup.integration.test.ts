@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
-import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
+import { seedOrgs, setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId } from '#/shared/domain/ids'
 import type { Database } from '#/shared/db'
 import { createDbUserLookupAdapter } from './db-user-lookup.adapter'
@@ -42,6 +42,8 @@ async function seedMembership(
 beforeAll(async () => {
   // Better Auth correctly prevents deleting the final owner. Keep one stable
   // owner outside TEST_USERS so per-test cleanup can remove its owner fixture.
+  // beforeAll runs before setupIntegrationDb's per-test Organization seed.
+  await seedOrgs(getPool(), [ORG_A, ORG_B])
   await seedMembership(OWNER_GUARD_A, ORG_A, 'owner')
 })
 
