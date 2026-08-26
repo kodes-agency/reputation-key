@@ -13,6 +13,7 @@ import {
 import { createNotificationRepository } from './infrastructure/repositories/notification.repository'
 import { createNotificationEmailRepository } from './infrastructure/repositories/notification-email.repository'
 import { createNotificationPreferenceRepository } from './infrastructure/repositories/notification-preference.repository'
+import { createOneClickUnsubscribeRepository } from './infrastructure/repositories/one-click-unsubscribe.repository'
 import { createDbUserLookupAdapter } from './infrastructure/adapters/db-user-lookup.adapter'
 import type { ResponsibleManagerLookupPort } from './application/ports/responsible-manager-lookup.port'
 import type { FeedbackPortalLookupPort } from './application/ports/feedback-portal-lookup.port'
@@ -55,6 +56,7 @@ import type { NotificationError } from './domain/errors'
 import type { Result } from '#/shared/domain'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { NotificationListFilter } from './application/notification-list-filter'
+import type { OneClickUnsubscribeTarget } from './application/one-click-unsubscribe-token'
 
 type BuildInput = Readonly<{
   db: Database
@@ -74,6 +76,7 @@ export const buildNotificationContext = (input: BuildInput) => {
   const gapRepo = createNotificationGapRepository(input.db)
   const emailRepo = createNotificationEmailRepository(input.db)
   const prefRepo = createNotificationPreferenceRepository(input.db)
+  const oneClickUnsubscribeRepo = createOneClickUnsubscribeRepository(input.db)
   const userLookup = createDbUserLookupAdapter(input.db)
   const inboxItemLookup = createInboxItemLookupAdapter(
     input.db,
@@ -312,6 +315,8 @@ export const buildNotificationContext = (input: BuildInput) => {
           upsertEnabled: prefRepo.upsertEnabled,
         },
       ),
+    oneClickUnsubscribe: (target: OneClickUnsubscribeTarget) =>
+      oneClickUnsubscribeRepo.apply(target, input.clock()),
     updateUserSettings: (
       userId: string,
       orgId: string,

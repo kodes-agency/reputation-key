@@ -43,6 +43,7 @@ import { Route as ApiHealthLiveRouteImport } from './routes/api/health/live'
 import { Route as ApiHealthMetricsRouteImport } from './routes/api/health/metrics'
 import { Route as ApiHealthReadyRouteImport } from './routes/api/health/ready'
 import { Route as ApiHealthStartedRouteImport } from './routes/api/health/started'
+import { Route as ApiNotificationsUnsubscribeRouteImport } from './routes/api/notifications/unsubscribe'
 import { Route as AuthenticatedPropertiesPropertyIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/index'
 import { Route as AuthenticatedPropertiesPropertyIdGoalsRouteImport } from './routes/_authenticated/properties/$propertyId/goals'
 import { Route as AuthenticatedPropertiesPropertyIdPeopleRouteImport } from './routes/_authenticated/properties/$propertyId/people'
@@ -243,6 +244,12 @@ const ApiHealthStartedRoute = ApiHealthStartedRouteImport.update({
   path: '/api/health/started',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiNotificationsUnsubscribeRoute =
+  ApiNotificationsUnsubscribeRouteImport.update({
+    id: '/api/notifications/unsubscribe',
+    path: '/api/notifications/unsubscribe',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedPropertiesPropertyIdIndexRoute =
   AuthenticatedPropertiesPropertyIdIndexRouteImport.update({
     id: '/',
@@ -374,6 +381,7 @@ export interface FileRoutesByFullPath {
   '/api/health/metrics': typeof ApiHealthMetricsRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/health/started': typeof ApiHealthStartedRoute
+  '/api/notifications/unsubscribe': typeof ApiNotificationsUnsubscribeRoute
   '/inbox/': typeof AuthenticatedInboxIndexRoute
   '/properties/': typeof AuthenticatedPropertiesIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
@@ -424,6 +432,7 @@ export interface FileRoutesByTo {
   '/api/health/metrics': typeof ApiHealthMetricsRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/health/started': typeof ApiHealthStartedRoute
+  '/api/notifications/unsubscribe': typeof ApiNotificationsUnsubscribeRoute
   '/inbox': typeof AuthenticatedInboxIndexRoute
   '/properties': typeof AuthenticatedPropertiesIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
@@ -477,6 +486,7 @@ export interface FileRoutesById {
   '/api/health/metrics': typeof ApiHealthMetricsRoute
   '/api/health/ready': typeof ApiHealthReadyRoute
   '/api/health/started': typeof ApiHealthStartedRoute
+  '/api/notifications/unsubscribe': typeof ApiNotificationsUnsubscribeRoute
   '/_authenticated/inbox/': typeof AuthenticatedInboxIndexRoute
   '/_authenticated/properties/': typeof AuthenticatedPropertiesIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
@@ -531,6 +541,7 @@ export interface FileRouteTypes {
     | '/api/health/metrics'
     | '/api/health/ready'
     | '/api/health/started'
+    | '/api/notifications/unsubscribe'
     | '/inbox/'
     | '/properties/'
     | '/settings/'
@@ -581,6 +592,7 @@ export interface FileRouteTypes {
     | '/api/health/metrics'
     | '/api/health/ready'
     | '/api/health/started'
+    | '/api/notifications/unsubscribe'
     | '/inbox'
     | '/properties'
     | '/settings'
@@ -633,6 +645,7 @@ export interface FileRouteTypes {
     | '/api/health/metrics'
     | '/api/health/ready'
     | '/api/health/started'
+    | '/api/notifications/unsubscribe'
     | '/_authenticated/inbox/'
     | '/_authenticated/properties/'
     | '/_authenticated/settings/'
@@ -671,6 +684,7 @@ export interface RootRouteChildren {
   ApiHealthMetricsRoute: typeof ApiHealthMetricsRoute
   ApiHealthReadyRoute: typeof ApiHealthReadyRoute
   ApiHealthStartedRoute: typeof ApiHealthStartedRoute
+  ApiNotificationsUnsubscribeRoute: typeof ApiNotificationsUnsubscribeRoute
   ApiHealthIndexRoute: typeof ApiHealthIndexRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
   ApiWebhooksGbpNotificationsRoute: typeof ApiWebhooksGbpNotificationsRoute
@@ -916,6 +930,13 @@ declare module '@tanstack/react-router' {
       path: '/api/health/started'
       fullPath: '/api/health/started'
       preLoaderRoute: typeof ApiHealthStartedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/notifications/unsubscribe': {
+      id: '/api/notifications/unsubscribe'
+      path: '/api/notifications/unsubscribe'
+      fullPath: '/api/notifications/unsubscribe'
+      preLoaderRoute: typeof ApiNotificationsUnsubscribeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/properties/$propertyId/': {
@@ -1181,6 +1202,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiHealthMetricsRoute: ApiHealthMetricsRoute,
   ApiHealthReadyRoute: ApiHealthReadyRoute,
   ApiHealthStartedRoute: ApiHealthStartedRoute,
+  ApiNotificationsUnsubscribeRoute: ApiNotificationsUnsubscribeRoute,
   ApiHealthIndexRoute: ApiHealthIndexRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
   ApiWebhooksGbpNotificationsRoute: ApiWebhooksGbpNotificationsRoute,

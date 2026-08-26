@@ -53,11 +53,11 @@ export function requiresPreferencesLink(mailClass: MailClass): boolean {
  */
 export function unsubscribeHeaders(
   mailClass: MailClass,
-  preferencesUrl: string,
+  oneClickUrl: string,
 ): Readonly<Record<string, string>> {
   if (!requiresPreferencesLink(mailClass)) return {}
   return {
-    'List-Unsubscribe': `<${preferencesUrl}>`,
+    'List-Unsubscribe': `<${oneClickUrl}>`,
     'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
   }
 }

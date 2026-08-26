@@ -86,6 +86,10 @@ function fakeDeps() {
     logger: createFakeJobLogger(),
     clock: () => NOW,
     baseUrl: BASE_URL,
+    oneClickUnsubscribeUrl: vi.fn(
+      (target: { kind: string; id: string }) =>
+        `${BASE_URL}/api/notifications/unsubscribe?token=${target.kind}-${target.id}`,
+    ),
   }
 }
 
@@ -203,7 +207,7 @@ describe('immediate notification email job', () => {
     await run()
 
     expect(sentPayload().headers).toEqual({
-      'List-Unsubscribe': `<${BASE_URL}/settings/notifications>`,
+      'List-Unsubscribe': `<${BASE_URL}/api/notifications/unsubscribe?token=email-${entry.id as string}>`,
       'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
     })
   })

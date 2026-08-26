@@ -43,6 +43,7 @@ routes/
   api/
     auth/google/callback.ts           Google OAuth callback
     health/index.ts                   health check
+    notifications/unsubscribe.ts     RFC 8058 signed one-click opt-out
     portals/$id/qr.ts                 QR code generation
     public/click/$linkId.ts           public link click tracking
     webhooks/gbp/notifications.ts     Google Pub/Sub webhook
@@ -172,7 +173,7 @@ Routes must **never**:
 
 ## Public routes
 
-Login (`/login`), join (`/join`), accept-invitation — these are outside `_authenticated` and have no auth guard. Guest portal routes resolve org from URL slug, not from session.
+Login (`/login`), join (`/join`), accept-invitation — these are outside `_authenticated` and have no auth guard. Guest portal routes resolve org from URL slug, not from session. `/api/notifications/unsubscribe` is also unauthenticated by design: the HMAC bearer capability in a delivered optional email resolves only its retained queue row or immutable digest batch, and the exact RFC 8058 form POST can only disable those represented optional email scopes.
 
 ### Webhook route exception
 

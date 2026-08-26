@@ -628,6 +628,7 @@ describe('BQC-2.1 entry-point catalogue', () => {
       'portal.guest_text',
       'portal.guest_contact',
       'portal.guest_media',
+      'notification.send_email',
       'identity.register',
       'organization.create',
       'none',

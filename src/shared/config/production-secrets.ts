@@ -64,6 +64,7 @@ const SECRET_FIELDS = [
   'GUEST_SESSION_SALT',
   'REVIEW_PROVIDER_SUBJECT_HMAC_KEYS',
   'REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS',
+  'NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS',
   'OPS_METRICS_TOKEN',
 ] as const
 
@@ -93,9 +94,11 @@ export function findPlaceholderSecrets(env: ProductionSecretsEnv): string[] {
   for (const field of SECRET_FIELDS) {
     const value = env[field]
     if (value === undefined) continue
-    const candidates = field.startsWith('REVIEW_PROVIDER_SUBJECT_')
-      ? value.split(',').map((entry) => entry.slice(entry.indexOf(':') + 1))
-      : [value]
+    const candidates =
+      field.endsWith('_HMAC_KEYS') ||
+      field === 'REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS'
+        ? value.split(',').map((entry) => entry.slice(entry.indexOf(':') + 1))
+        : [value]
     if (candidates.some(isPlaceholderSecret)) flagged.push(field)
   }
   return flagged

@@ -658,6 +658,29 @@ export async function bootstrap(
   // Deep links in email are absolute; the base URL is injected, never read
   // from env inside a job.
   const notifBaseUrl = getEnv().BETTER_AUTH_URL
+  const unsubscribeKeys = getEnv().NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS
+  if (isCapabilityJobEnabled('notification.send_email') && !unsubscribeKeys) {
+    throw new Error(
+      '[CONFIG] notification.send_email requires NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS',
+    )
+  }
+  const { activeOneClickUnsubscribeKeyVersion, oneClickUnsubscribeUrl } =
+    await import('#/contexts/notification/application/one-click-unsubscribe-token')
+  const notificationUnsubscribeUrl = (
+    target: Parameters<typeof oneClickUnsubscribeUrl>[2],
+    keyVersion?: string,
+  ): string => {
+    if (!unsubscribeKeys) {
+      throw new Error('One-click unsubscribe signing keys are unavailable')
+    }
+    return oneClickUnsubscribeUrl(notifBaseUrl, unsubscribeKeys, target, keyVersion)
+  }
+  const notificationUnsubscribeKeyVersion = (): string => {
+    if (!unsubscribeKeys) {
+      throw new Error('One-click unsubscribe signing keys are unavailable')
+    }
+    return activeOneClickUnsubscribeKeyVersion(unsubscribeKeys)
+  }
   const { getPool } = await import('#/shared/db/pool')
   const { createNotificationPropertyScopeResolver } =
     await import('#/contexts/notification/infrastructure/repositories/notification-property-scope.repository')
@@ -768,6 +791,7 @@ export async function bootstrap(
     resolveOrganizationScope: resolveNotificationOrgScope,
     authorizeScope: authorizeUrgentNotification,
     baseUrl: notifBaseUrl,
+    oneClickUnsubscribeUrl: notificationUnsubscribeUrl,
   })
   registerCapabilityGatedJob(
     URGENT_EMAIL_JOB_NAME,
@@ -795,6 +819,8 @@ export async function bootstrap(
     resolveOrganizationScope: resolveNotificationOrgScope,
     authorizeScope: createScheduledScopeAuthorizer('system:notification.email_digest'),
     baseUrl: notifBaseUrl,
+    activeOneClickUnsubscribeKeyVersion: notificationUnsubscribeKeyVersion,
+    oneClickUnsubscribeUrl: notificationUnsubscribeUrl,
     enqueueImmediate: async (data) => {
       if (!container.jobQueue) return
       await container.jobQueue.add(

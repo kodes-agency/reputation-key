@@ -92,6 +92,11 @@ export type DigestDeps = Readonly<{
   authorizeScope: ScheduledScopeAuthorizer
   /** `env.BETTER_AUTH_URL`. Injected, never read from env inside the job. */
   baseUrl: string
+  activeOneClickUnsubscribeKeyVersion: () => string
+  oneClickUnsubscribeUrl: (
+    target: Readonly<{ kind: 'digest'; id: string }>,
+    keyVersion: string,
+  ) => string
   enqueueImmediate: (data: {
     notificationEmailId: string
     organizationId: string
@@ -291,6 +296,8 @@ async function buildProviderRequest(
   ctx: RecipientContext,
   recipient: string,
   items: readonly DigestItem[],
+  batchId: string,
+  unsubscribeKeyVersion: string,
 ): Promise<
   Readonly<{
     to: string
@@ -317,12 +324,22 @@ async function buildProviderRequest(
     ),
     preferencesUrl,
   })
+  // Expand/contract compatibility: an open batch created by an older worker
+  // used the preferences page in this header. Reproduce that exact request;
+  // only newly prepared batches receive the signed RFC 8058 capability.
+  const unsubscribeUrl =
+    unsubscribeKeyVersion === 'legacy'
+      ? preferencesUrl
+      : deps.oneClickUnsubscribeUrl(
+          { kind: 'digest', id: batchId },
+          unsubscribeKeyVersion,
+        )
   return {
     to: recipient,
     subject: email.subject,
     html: email.html,
     text: email.text,
-    headers: unsubscribeHeaders('optional', preferencesUrl),
+    headers: unsubscribeHeaders('optional', unsubscribeUrl),
   }
 }
 
@@ -509,7 +526,17 @@ async function sendUserDigest(
     return
   }
 
-  const request = await buildProviderRequest(deps, ctx, recipient, items)
+  const batchId = openBatch?.id ?? notificationDigestBatchId(randomUUID())
+  const unsubscribeKeyVersion =
+    openBatch?.unsubscribeKeyVersion ?? deps.activeOneClickUnsubscribeKeyVersion()
+  const request = await buildProviderRequest(
+    deps,
+    ctx,
+    recipient,
+    items,
+    batchId as string,
+    unsubscribeKeyVersion,
+  )
   const contentDigest = digestProviderRequest(request)
   if (openBatch) {
     if (
@@ -539,7 +566,6 @@ async function sendUserDigest(
 
   const memberIds = deliverable.map((entry) => notificationEmailId(entry.id as string))
   const memberDigest = digestMemberSet(memberIds)
-  const batchId = notificationDigestBatchId(randomUUID())
   const localDate = localDateKey(ctx.now, ctx.timezone)
   const prepared = await deps.emailRepo.prepareDigestBatch({
     id: batchId,
@@ -556,6 +582,7 @@ async function sendUserDigest(
       batchId,
       memberDigest,
     }),
+    unsubscribeKeyVersion,
     preparedAt: ctx.now,
   })
   if (!prepared.created) {

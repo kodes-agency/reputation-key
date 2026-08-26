@@ -105,6 +105,7 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
       memberIds,
       memberDigest,
       contentDigest: 'a'.repeat(64),
+      unsubscribeKeyVersion: 'v1',
       providerIdempotencyKey: digestBatchIdempotencyKey({
         organizationId: ORG,
         userId: USER,

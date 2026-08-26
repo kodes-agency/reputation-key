@@ -16,6 +16,7 @@ import type { Notification, NotificationEmail } from '../../domain/types'
 import type { NotificationDigestBatch } from '../../application/ports/notification-email-repository.port'
 import type { EmailSendRequest } from '../../application/ports/email-sender.port'
 import type { NotificationDeliveryOutcome } from '../../domain/notification-delivery-policy'
+import { digestProviderRequest } from './digest-assembly'
 
 const ORG = 'org-1'
 const USER = 'user-1'
@@ -61,6 +62,7 @@ type Options = Readonly<{
   immediateOrphans?: readonly NotificationEmail[]
   openBatch?: NotificationDigestBatch | null
   batchEntries?: readonly NotificationEmail[]
+  activeUnsubscribeKeyVersion?: string
 }>
 
 function baseDeps(options: Options = {}) {
@@ -105,6 +107,7 @@ function baseDeps(options: Options = {}) {
           memberDigest: input.memberDigest,
           contentDigest: input.contentDigest,
           providerIdempotencyKey: input.providerIdempotencyKey,
+          unsubscribeKeyVersion: input.unsubscribeKeyVersion,
           state: 'prepared' as const,
           retryCount: 0,
           createdAt: input.preparedAt,
@@ -155,6 +158,13 @@ function baseDeps(options: Options = {}) {
     clock: () => now,
     authorizeScope: vi.fn(async (_org: string, _property: string) => true),
     baseUrl: BASE_URL,
+    activeOneClickUnsubscribeKeyVersion: vi.fn(
+      () => options.activeUnsubscribeKeyVersion ?? 'v1',
+    ),
+    oneClickUnsubscribeUrl: vi.fn(
+      (target: { kind: string; id: string }, keyVersion: string) =>
+        `${BASE_URL}/api/notifications/unsubscribe?token=${keyVersion}-${target.kind}-${target.id}`,
+    ),
     enqueueImmediate: vi.fn(async () => {}),
   }
 }
@@ -326,6 +336,57 @@ describe('digest idempotency (ADR 0046 r.5)', () => {
     )
   })
 
+  it('reproduces the unsubscribe header with the persisted key after rotation', async () => {
+    const first = baseDeps({ activeUnsubscribeKeyVersion: 'v1' })
+    await runHandler(first)
+    const firstRequest = first.emailSender.send.mock.calls[0]![0]
+    const openBatch = (await first.emailRepo.prepareDigestBatch.mock.results[0]!.value)
+      .batch
+    const retry = baseDeps({
+      activeUnsubscribeKeyVersion: 'v2',
+      openBatch,
+      batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
+    })
+
+    await runHandler(retry)
+
+    expect(retry.activeOneClickUnsubscribeKeyVersion).not.toHaveBeenCalled()
+    expect(retry.oneClickUnsubscribeUrl).toHaveBeenCalledWith(
+      { kind: 'digest', id: openBatch.id },
+      'v1',
+    )
+    expect(retry.emailSender.send.mock.calls[0]![0].headers).toEqual(firstRequest.headers)
+  })
+
+  it('retries a pre-unsubscribe batch with its exact legacy header', async () => {
+    const first = baseDeps()
+    await runHandler(first)
+    const firstRequest = first.emailSender.send.mock.calls[0]![0]
+    const current = (await first.emailRepo.prepareDigestBatch.mock.results[0]!.value)
+      .batch
+    const legacyHeaders = {
+      'List-Unsubscribe': '<https://app.example.com/settings/notifications>',
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+    }
+    const legacy = {
+      ...current,
+      unsubscribeKeyVersion: 'legacy',
+      contentDigest: digestProviderRequest({ ...firstRequest, headers: legacyHeaders }),
+    }
+    const retry = baseDeps({
+      openBatch: legacy,
+      batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
+    })
+
+    await runHandler(retry)
+
+    expect(retry.oneClickUnsubscribeUrl).not.toHaveBeenCalled()
+    expect(retry.emailSender.send.mock.calls[0]![0].headers).toEqual(legacyHeaders)
+    expect(retry.emailRepo.settleDigestBatch).toHaveBeenCalledWith(
+      expect.objectContaining({ batchId: legacy.id }),
+    )
+  })
+
   it('settles the batch and every exact member in one repository transaction', async () => {
     const deps = baseDeps()
 
@@ -492,7 +553,9 @@ describe('digest preferences link (ADR 0046 r.7)', () => {
     await runHandler(deps)
 
     expect(deps.emailSender.send.mock.calls[0]![0].headers).toEqual({
-      'List-Unsubscribe': `<${BASE_URL}/settings/notifications>`,
+      'List-Unsubscribe': expect.stringMatching(
+        /^<https:\/\/app\.example\.com\/api\/notifications\/unsubscribe\?token=v1-digest-[^>]+>$/,
+      ),
       'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
     })
   })

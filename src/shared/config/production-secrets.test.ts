@@ -23,6 +23,8 @@ const REAL = {
   GUEST_SESSION_SALT: 'f4a6c8b1d3e5f7a9c0e2b4d6',
   REVIEW_PROVIDER_SUBJECT_HMAC_KEYS:
     'v1:9f4c2e7a1b8d4e6f0a3c5b7d9e2f4a6c8b1d3e5f7a9c0e2b4d6f8a1c3e5b7d9f0',
+  NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS:
+    'v1:7b9d1f3a5c7e9b0d2f4a6c8e1b3d5f7a9c0e2b4d6f8a1c3e5b7d9f0a2c4e6b8d',
 } as const
 
 describe('findPlaceholderSecrets (BQC-7.6)', () => {
@@ -52,6 +54,7 @@ describe('findPlaceholderSecrets (BQC-7.6)', () => {
       ['GUEST_SESSION_SALT', 'dev-only-salt-not-for-production'],
       ['REVIEW_PROVIDER_SUBJECT_HMAC_KEYS', `v1:${'11'.repeat(32)}`],
       ['REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS', `initial:${'22'.repeat(32)}`],
+      ['NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS', `v1:${'33'.repeat(32)}`],
       ['OPS_METRICS_TOKEN', 'e2e-ops-metrics-token-0123456789abcdef'],
       ['BETTER_AUTH_SECRET', 'replace-me-with-a-long-random-secret-min-32-chars'],
     ]

@@ -84,6 +84,7 @@ export type SystemAction =
   | 'public:portal.media.confirm'
   | 'public:portal.read'
   | 'public:portal.analytics.record'
+  | 'public:notification.email_unsubscribe'
   // machine ingress
   | 'system:integration.google_callback'
   | 'system:integration.gbp_webhook'
@@ -2374,6 +2375,18 @@ const ROUTE_API_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'token resolves authoritative org/property/Portal and public ExecutionPolicy before exact link ownership; neutral 404/no effect on mismatch; validates stored HTTPS URL; 302 no-referrer redirect',
+    },
+  ),
+  api(
+    '/api/notifications/unsubscribe',
+    `${ROUTES}/api/notifications/unsubscribe.ts`,
+    'public:notification.email_unsubscribe',
+    'notification.send_email',
+    'none',
+    {
+      principals: ['public'],
+      notes:
+        'RFC 8058 unauthenticated POST; exact form value plus active/retained HMAC bearer capability; target resolves an email row or immutable digest batch and atomically disables only represented optional email scopes; mandatory mail excluded; invalid/stale tokens receive neutral 204',
     },
   ),
   api(

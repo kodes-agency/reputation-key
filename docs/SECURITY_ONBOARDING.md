@@ -8,14 +8,34 @@
 
 If `.env` has ever been shared, committed by mistake, or copied to an insecure location, **rotate these secrets immediately**:
 
-| Secret                | How to Rotate                                         |
-| --------------------- | ----------------------------------------------------- |
-| `DATABASE_URL` (Neon) | Neon Console → Project → Roles → Reset password       |
-| `DATABASE_URL_POOLER` | Same as above (uses same credentials)                 |
-| `RESEND_API_KEY`      | Resend Dashboard → API Keys → Revoke + Create new     |
-| `BETTER_AUTH_SECRET`  | Run `npx -y @better-auth/cli secret` → copy new value |
+| Secret                               | How to Rotate                                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL` (Neon)                | Neon Console → Project → Roles → Reset password                                                  |
+| `DATABASE_URL_POOLER`                | Same as above (uses same credentials)                                                            |
+| `RESEND_API_KEY`                     | Resend Dashboard → API Keys → Revoke + Create new                                                |
+| `BETTER_AUTH_SECRET`                 | Run `openssl rand -base64 48` and install the new value                                          |
+| `NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS` | Add a new active `vN:<64-hex>` from `openssl rand -hex 32`; retain the prior version for 90 days |
 
 After rotating, update `.env.local` (never `.env` — see §3).
+
+For `NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS`, install the new keyring on the web and
+worker services in the same Data Cell as one release. Keep the immediately
+previous version for at least the 90-day notification evidence window; an open
+digest also pins its signing version so provider retries remain byte-for-byte
+stable during rotation. Do not remove a retained version while any open digest
+uses it.
+
+Migration `0104_notification_one_click_unsubscribe` deliberately leaves a
+`legacy` database default for rolling-deploy compatibility. A later contract
+migration may remove that default only after every web/worker instance runs the
+new writer and this query returns zero:
+
+```sql
+SELECT count(*)
+FROM notification_digest_batches
+WHERE state IN ('prepared', 'retryable')
+  AND unsubscribe_key_version = 'legacy';
+```
 
 ---
 

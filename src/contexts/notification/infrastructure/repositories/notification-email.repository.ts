@@ -73,6 +73,7 @@ const digestBatchFromRow = (row: DigestBatchRow): NotificationDigestBatch => ({
   memberDigest: row.memberDigest,
   contentDigest: row.contentDigest,
   providerIdempotencyKey: row.providerIdempotencyKey,
+  unsubscribeKeyVersion: row.unsubscribeKeyVersion,
   state: row.state as NotificationDigestBatch['state'],
   retryCount: row.retryCount,
   createdAt: row.createdAt,
@@ -532,6 +533,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
     memberDigest: string
     contentDigest: string
     providerIdempotencyKey: string
+    unsubscribeKeyVersion: string
     preparedAt: Date
   }): Promise<PreparedNotificationDigestBatch> => {
     if (input.memberIds.length === 0) {
@@ -606,6 +608,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
           memberDigest: input.memberDigest,
           contentDigest: input.contentDigest,
           providerIdempotencyKey: input.providerIdempotencyKey,
+          unsubscribeKeyVersion: input.unsubscribeKeyVersion,
           state: 'prepared',
           createdAt: input.preparedAt,
           updatedAt: input.preparedAt,

@@ -160,6 +160,11 @@ export const notificationDigestBatches = pgTable(
     providerIdempotencyKey: varchar('provider_idempotency_key', {
       length: 96,
     }).notNull(),
+    // Provider retries must reproduce the exact List-Unsubscribe header even
+    // when the active signing key changes between attempts.
+    unsubscribeKeyVersion: varchar('unsubscribe_key_version', { length: 32 })
+      .notNull()
+      .default('legacy'),
     state: varchar('state', { length: 16 }).notNull().default('prepared'),
     providerMessageId: varchar('provider_message_id', { length: 255 }),
     outcomeClass: varchar('outcome_class', { length: 24 }),

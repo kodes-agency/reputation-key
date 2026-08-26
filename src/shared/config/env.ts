@@ -36,6 +36,17 @@ const baseEnvSchema = z.object({
   // starts. Format is Resend's `whsec_<base64>`; the verifier strips the
   // prefix and base64-decodes the remainder as the HMAC-SHA256 key.
   RESEND_WEBHOOK_SECRET: z.string().min(1).optional(),
+  // RFC 8058 bearer-capability signing keys shared by the web and worker in
+  // one Data Cell. Optional at schema level for expand/configure/cutover:
+  // optional mail refuses to send and the endpoint returns 503 while absent.
+  // Format: active-plus-retained versioned HMAC keys (v2:<64-hex>,v1:<64-hex>).
+  NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS:
+    process.env.NODE_ENV === 'production'
+      ? z.string().max(195).optional()
+      : z
+          .string()
+          .max(195)
+          .default(`dev:${'01'.repeat(32)}`),
   // RFC 5322 From header for every outbound message. Defaulted, not required,
   // so no deployment breaks on the upgrade — the default is the value that was
   // previously hardcoded in shared/auth/emails.ts.

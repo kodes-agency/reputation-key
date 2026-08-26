@@ -8,6 +8,7 @@ import {
 } from './preferences-link'
 
 const URL = 'https://app.example.com/settings/notifications'
+const ONE_CLICK_URL = 'https://app.example.com/api/notifications/unsubscribe?token=signed'
 
 describe('mail class', () => {
   it('treats only mandatory notifications as legally-required mail', () => {
@@ -51,8 +52,8 @@ describe('List-Unsubscribe headers (RFC 8058)', () => {
   })
 
   it('emits both the header and the one-click post directive for optional mail', () => {
-    expect(unsubscribeHeaders('optional', URL)).toEqual({
-      'List-Unsubscribe': `<${URL}>`,
+    expect(unsubscribeHeaders('optional', ONE_CLICK_URL)).toEqual({
+      'List-Unsubscribe': `<${ONE_CLICK_URL}>`,
       'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
     })
   })

@@ -51,6 +51,7 @@ import {
   assertPreferencesLink,
   mailClassForCategory,
   PREFERENCES_PATH,
+  requiresPreferencesLink,
   unsubscribeHeaders,
 } from './preferences-link'
 import { recipientTimezoneSource, resolveRecipientTimezone } from './recipient-timezone'
@@ -73,6 +74,7 @@ export type UrgentEmailDeps = Readonly<{
   clock: () => Date
   /** `env.BETTER_AUTH_URL`. Injected, never read from env inside the job. */
   baseUrl: string
+  oneClickUnsubscribeUrl: (target: Readonly<{ kind: 'email'; id: string }>) => string
 }>
 
 const TRANSIENT_REJECTION = 'Transient email provider rejection'
@@ -290,13 +292,16 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       preferencesUrl,
       priority: entry.priority,
     })
+    const oneClickUrl = requiresPreferencesLink(mailClass)
+      ? deps.oneClickUnsubscribeUrl({ kind: 'email', id: entry.id as string })
+      : ''
 
     await sendAndRecord(
       ids,
       entry,
       recipient,
       email,
-      unsubscribeHeaders(mailClass, preferencesUrl),
+      unsubscribeHeaders(mailClass, oneClickUrl),
     )
   }
 }

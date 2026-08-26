@@ -47,6 +47,7 @@ export type NotificationDigestBatch = Readonly<{
   memberDigest: string
   contentDigest: string
   providerIdempotencyKey: string
+  unsubscribeKeyVersion: string
   state: NotificationDigestBatchState
   retryCount: number
   createdAt: Date
@@ -183,6 +184,7 @@ export type NotificationEmailRepositoryPort = Readonly<{
     memberDigest: string
     contentDigest: string
     providerIdempotencyKey: string
+    unsubscribeKeyVersion: string
     preparedAt: Date
   }): Promise<PreparedNotificationDigestBatch>
   /** Update the batch and every exact member in one transaction. */
