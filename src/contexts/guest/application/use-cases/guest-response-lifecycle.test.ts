@@ -20,6 +20,9 @@ const scope: GuestResponseScope = {
 
 const experience = (privateFeedbackThreshold = 3) => ({
   portalPublicationState: 'published' as const,
+  portalPublicationSnapshotId: 'snapshot-1',
+  portalPublicationVersion: 1,
+  portalPublicationDigest: 'b'.repeat(64),
   portalConfigurationDigest: 'a'.repeat(64),
   guestLocale: 'en',
   languagePackVersion: 'guest-ui-en-v1',
@@ -413,6 +416,9 @@ describe('guest response lifecycle', () => {
       retentionDeadline: new Date('2028-08-09T12:00:00.000Z'),
       experienceSnapshot: {
         portalPublicationState: 'published',
+        portalPublicationSnapshotId: 'snapshot-1',
+        portalPublicationVersion: 1,
+        portalPublicationDigest: 'b'.repeat(64),
         portalConfigurationDigest: 'a'.repeat(64),
         guestLocale: 'en',
         languagePackVersion: 'guest-ui-en-v1',

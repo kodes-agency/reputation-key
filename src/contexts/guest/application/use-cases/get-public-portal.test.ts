@@ -24,6 +24,9 @@ const fakeData: PublicPortalData = {
   },
   responseConfiguration: {
     publicationState: 'published',
+    publicationSnapshotId: 'snapshot-1',
+    publicationVersion: 1,
+    publicationDigest: 'b'.repeat(64),
     configurationDigest: 'a'.repeat(64),
     guestLocale: 'en',
     languagePackVersion: 'guest-ui-en-v1',

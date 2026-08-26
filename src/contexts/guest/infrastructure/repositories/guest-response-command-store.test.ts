@@ -59,6 +59,9 @@ function response(): GuestResponse {
     privateFeedbackThreshold: 3,
     experienceSnapshot: {
       portalPublicationState: 'published',
+      portalPublicationSnapshotId: null,
+      portalPublicationVersion: null,
+      portalPublicationDigest: null,
       portalConfigurationDigest: 'a'.repeat(64),
       guestLocale: 'en',
       languagePackVersion: 'guest-ui-en-v1',

@@ -494,17 +494,22 @@
     {
       "id": "POR-01",
       "status": "partial",
-      "summary": "Rating-first Portal foundations exist, but immutable publication snapshots, Brand Profile, EN/BG packs, approved destinations, stable address/artifacts, health intervals, and archive/restore are missing.",
+      "summary": "Rating-first Portal foundations now include database-enforced immutable EN publication snapshots, append-only activation/rollback history, snapshot-backed token resolution, and exact Guest evidence binding; Brand Profile, BG/locales, approved destinations, stable address/artifacts, health intervals, and archive/restore remain.",
       "codeEvidence": [
         "src/contexts/portal/",
-        "src/contexts/portal/infrastructure/db/portal.schema.ts",
-        "src/components/portal/portal-archive-button.tsx"
+        "src/contexts/portal/application/portal-publication-snapshot.ts",
+        "src/contexts/portal/infrastructure/repositories/portal-publication.repository.ts",
+        "src/contexts/portal/infrastructure/portal-command-store.ts",
+        "src/shared/db/schema/portal.schema.ts",
+        "drizzle/0113_portal_publication_snapshots.sql",
+        "drizzle/0114_portal_publication_evidence_binding.sql",
+        "drizzle/0115_portal_publication_immutability.sql"
       ],
       "testEvidence": [
-        "Portal state, threshold, destination, responsibility, token, and Guest-flow tests"
+        "Portal snapshot/digest, publication transition, rollback, token revocation, tamper fail-closed, exact Guest evidence, responsibility, and Guest-flow tests; real PostgreSQL publication repository and atomic command-store suites"
       ],
       "remaining": [
-        "Implement snapshots/brand/locales, Approved Destinations, Portal Health, stable public address and governed Access Artifacts, archive/restore, explicit ownership, and atomic facts with the full public cache/security matrix."
+        "Implement Brand Profile and EN/BG/locales, Pending Content Changes and manager publication/history UI, Approved Destinations, Portal Health intervals, stable public address and governed Access Artifacts, archive/restore, explicit ownership, dedicated publication facts, legacy classification, and the full public cache/security matrix."
       ],
       "externalBlockers": []
     },

@@ -41,6 +41,9 @@ export function guestResponseFromRow(
     experienceSnapshot: experience
       ? {
           portalPublicationState: 'published',
+          portalPublicationSnapshotId: experience.publicationSnapshotId,
+          portalPublicationVersion: experience.publicationVersion,
+          portalPublicationDigest: experience.publicationDigest,
           portalConfigurationDigest: experience.configurationDigest,
           guestLocale: experience.guestLocale,
           languagePackVersion: experience.languagePackVersion,

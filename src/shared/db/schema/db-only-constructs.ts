@@ -46,6 +46,27 @@ const NO_TRIGGER_DSL = 'drizzle-orm 0.45 has no CREATE FUNCTION/TRIGGER DSL'
 
 export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
   {
+    name: 'guard_portal_publication_history_v1',
+    kind: 'function',
+    owner: 'portal',
+    source: 'drizzle/0115_portal_publication_immutability.sql',
+    reason: `${NO_TRIGGER_DSL}; prevents publication snapshots and effective-dated activation rows from being rewritten after commit while retaining explicit erase/fixture cleanup paths.`,
+  },
+  {
+    name: 'portal_publication_snapshots_immutable',
+    kind: 'trigger',
+    owner: 'portal',
+    source: 'drizzle/0115_portal_publication_immutability.sql',
+    reason: NO_TRIGGER_DSL,
+  },
+  {
+    name: 'portal_publication_activations_history_guard',
+    kind: 'trigger',
+    owner: 'portal',
+    source: 'drizzle/0115_portal_publication_immutability.sql',
+    reason: `${NO_TRIGGER_DSL}; permits only the one-time close of a current activation interval.`,
+  },
+  {
     name: 'guard_identity_invitation_fact_contract_v1',
     kind: 'function',
     owner: 'identity',

@@ -1,34 +1,19 @@
 import { describe, expect, it, vi } from 'vitest'
-import { organizationId, portalId } from '#/shared/domain/ids'
-import type { PortalToken } from '../../domain/portal-token'
 import {
   resolvePublicPortalToken,
   type ResolvePublicPortalTokenDeps,
 } from './resolve-public-portal-token'
+import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
 
 const NOW = new Date('2026-08-08T12:00:00.000Z')
-const ORG = organizationId('org-1')
-const PORTAL = portalId('portal-1')
 const GOOGLE_REVIEW_URI = 'https://search.google.com/local/writereview?placeid=property-1'
 
-const token: PortalToken = {
-  id: 'token-1',
+const token = {
   organizationId: 'org-1',
   propertyId: 'property-1',
   portalId: 'portal-1',
-  tokenIdentifier: 'token-key',
-  tokenHash: 'digest',
-  tokenKeyVersion: 1,
   version: 1,
-  printBatch: null,
-  status: 'active',
-  issuedAt: NOW,
-  gracePeriodEnds: null,
-  retiredAt: null,
-  revokedAt: null,
-  revokedBy: null,
-  revokedReason: null,
-}
+} as const
 
 const publicPortal = {
   portal: {
@@ -47,11 +32,28 @@ const publicPortal = {
   propertyId: 'property-1',
 } as const
 
+const snapshot = buildPortalPublicationSnapshot({
+  id: 'snapshot-1',
+  portalId: 'portal-1',
+  organizationId: 'org-1',
+  propertyId: 'property-1',
+  version: 4,
+  source: publicPortal,
+  destination: {
+    state: 'verified',
+    uri: GOOGLE_REVIEW_URI,
+    retrievedAt: NOW,
+    sourceEpoch: 1,
+    profileVersion: 2,
+  },
+  createdBy: 'manager-1',
+  createdAt: NOW,
+})
+
 function setup(
   overrides: {
     digest?: ResolvePublicPortalTokenDeps['tokenCodec']['digest']
-    findToken?: ResolvePublicPortalTokenDeps['portalTokenRepo']['findResolvableByDigest']
-    findPortal?: ResolvePublicPortalTokenDeps['portalRepo']['findPublicPortalById']
+    resolvePublication?: ResolvePublicPortalTokenDeps['portalPublicationRepo']['resolveActiveByTokenDigest']
     getDestination?: ResolvePublicPortalTokenDeps['getGoogleReviewDestination']
     decide?: ResolvePublicPortalTokenDeps['decidePublic']
     reportDestinationFailure?: ResolvePublicPortalTokenDeps['reportGoogleDestinationFailure']
@@ -65,8 +67,9 @@ function setup(
         tokenKeyVersion: 1,
       })),
   )
-  const findToken = vi.fn(overrides.findToken ?? (async () => token))
-  const findPortal = vi.fn(overrides.findPortal ?? (async () => publicPortal))
+  const resolvePublication = vi.fn(
+    overrides.resolvePublication ?? (async () => ({ token, snapshot })),
+  )
   const getDestination = vi.fn(
     overrides.getDestination ??
       (async () => ({
@@ -89,16 +92,14 @@ function setup(
   return {
     resolve: resolvePublicPortalToken({
       tokenCodec: { digest },
-      portalTokenRepo: { findResolvableByDigest: findToken },
-      portalRepo: { findPublicPortalById: findPortal },
+      portalPublicationRepo: { resolveActiveByTokenDigest: resolvePublication },
       getGoogleReviewDestination: getDestination,
       decidePublic: decide,
       reportGoogleDestinationFailure: overrides.reportDestinationFailure,
       clock: () => NOW,
     }),
     digest,
-    findToken,
-    findPortal,
+    resolvePublication,
     getDestination,
     decide,
   }
@@ -106,7 +107,7 @@ function setup(
 
 describe('resolvePublicPortalToken', () => {
   it('loads a published portal through an active scoped token', async () => {
-    const { resolve, findPortal, decide } = setup()
+    const { resolve, resolvePublication, decide } = setup()
 
     await expect(resolve('pt_key_secret')).resolves.toEqual({
       status: 'found',
@@ -120,6 +121,9 @@ describe('resolvePublicPortalToken', () => {
         },
         responseConfiguration: {
           publicationState: 'published',
+          publicationSnapshotId: 'snapshot-1',
+          publicationVersion: 4,
+          publicationDigest: snapshot.configurationDigest,
           configurationDigest: expect.stringMatching(/^[0-9a-f]{64}$/),
           guestLocale: 'en',
           languagePackVersion: 'guest-ui-en-v1',
@@ -129,7 +133,14 @@ describe('resolvePublicPortalToken', () => {
         propertyId: 'property-1',
       },
     })
-    expect(findPortal).toHaveBeenCalledWith(ORG, PORTAL)
+    expect(resolvePublication).toHaveBeenCalledWith(
+      {
+        tokenIdentifier: 'token-key',
+        tokenHash: 'digest',
+        tokenKeyVersion: 1,
+      },
+      NOW,
+    )
     expect(decide).toHaveBeenCalledWith({
       action: 'portal.public_read',
       capability: 'portal.public_read',
@@ -142,9 +153,9 @@ describe('resolvePublicPortalToken', () => {
   it('returns one unavailable outcome for malformed, unknown, or denied tokens', async () => {
     const malformed = setup({ digest: vi.fn(() => null) })
     await expect(malformed.resolve('bad')).resolves.toEqual({ status: 'unavailable' })
-    expect(malformed.findToken).not.toHaveBeenCalled()
+    expect(malformed.resolvePublication).not.toHaveBeenCalled()
 
-    const unknown = setup({ findToken: vi.fn(async () => null) })
+    const unknown = setup({ resolvePublication: vi.fn(async () => null) })
     await expect(unknown.resolve('pt_key_unknown')).resolves.toEqual({
       status: 'unavailable',
     })
@@ -160,12 +171,15 @@ describe('resolvePublicPortalToken', () => {
     await expect(denied.resolve('pt_key_denied')).resolves.toEqual({
       status: 'unavailable',
     })
-    expect(denied.findPortal).not.toHaveBeenCalled()
+    expect(denied.getDestination).not.toHaveBeenCalled()
   })
 
   it('fails closed when token and portal tenant/property scopes disagree', async () => {
     const mismatch = setup({
-      findPortal: vi.fn(async () => ({ ...publicPortal, propertyId: 'property-2' })),
+      resolvePublication: vi.fn(async () => ({
+        token,
+        snapshot: { ...snapshot, propertyId: 'property-2' },
+      })),
     })
 
     await expect(mismatch.resolve('pt_key_secret')).resolves.toEqual({

@@ -287,6 +287,12 @@ export const submitGuestResponseFn = createServerFn({ method: 'POST' })
             data,
             {
               portalPublicationState: bound.portal.responseConfiguration.publicationState,
+              portalPublicationSnapshotId:
+                bound.portal.responseConfiguration.publicationSnapshotId,
+              portalPublicationVersion:
+                bound.portal.responseConfiguration.publicationVersion,
+              portalPublicationDigest:
+                bound.portal.responseConfiguration.publicationDigest,
               portalConfigurationDigest:
                 bound.portal.responseConfiguration.configurationDigest,
               guestLocale: bound.portal.responseConfiguration.guestLocale,

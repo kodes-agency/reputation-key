@@ -165,6 +165,154 @@ export const portalTokens = pgTable(
   ],
 )
 
+// ── immutable Portal publication snapshots ───────────────────────
+
+/**
+ * The exact public experience approved by a manager. Working Portal/link rows
+ * can continue changing without mutating what an already-published address
+ * resolves. A later publication inserts a new version; rollback points a new
+ * activation at an older row rather than rewriting either snapshot.
+ */
+export const portalPublicationSnapshots = pgTable(
+  'portal_publication_snapshots',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    version: integer('version').notNull(),
+    configurationDigest: varchar('configuration_digest', { length: 64 }).notNull(),
+    configuration: jsonb('configuration').notNull(),
+    guestLocale: varchar('guest_locale', { length: 35 }).notNull(),
+    languagePackVersion: varchar('language_pack_version', { length: 100 }).notNull(),
+    privateFeedbackThreshold: integer('private_feedback_threshold').notNull(),
+    destinationUri: varchar('destination_uri', { length: 500 }).notNull(),
+    destinationRetrievedAt: timestamp('destination_retrieved_at', {
+      withTimezone: true,
+    }).notNull(),
+    destinationSourceEpoch: integer('destination_source_epoch').notNull(),
+    destinationProfileVersion: integer('destination_profile_version').notNull(),
+    createdBy: varchar('created_by', { length: 255 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('portal_publication_snapshots_portal_version_unique').on(
+      t.organizationId,
+      t.portalId,
+      t.version,
+    ),
+    uniqueIndex('portal_publication_snapshots_tenant_scope_id_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.portalId,
+      t.id,
+    ),
+    uniqueIndex('portal_publication_snapshots_evidence_binding_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.portalId,
+      t.id,
+      t.version,
+      t.configurationDigest,
+    ),
+    index('portal_publication_snapshots_portal_created_idx').on(
+      t.organizationId,
+      t.portalId,
+      t.createdAt,
+    ),
+    foreignKey({
+      name: 'portal_publication_snapshots_portal_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
+    }).onDelete('restrict'),
+    check('portal_publication_snapshots_version_positive', sql`${t.version} >= 1`),
+    check(
+      'portal_publication_snapshots_digest_valid',
+      sql`${t.configurationDigest} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'portal_publication_snapshots_configuration_object',
+      sql`jsonb_typeof(${t.configuration}) = 'object'`,
+    ),
+    check('portal_publication_snapshots_locale_valid', sql`${t.guestLocale} = 'en'`),
+    check(
+      'portal_publication_snapshots_language_pack_valid',
+      sql`${t.languagePackVersion} = 'guest-ui-en-v1'`,
+    ),
+    check(
+      'portal_publication_snapshots_threshold_valid',
+      sql`${t.privateFeedbackThreshold} BETWEEN 1 AND 5`,
+    ),
+    check(
+      'portal_publication_snapshots_destination_binding_valid',
+      sql`${t.destinationUri} ~~ 'https://%' AND ${t.destinationSourceEpoch} >= 0 AND ${t.destinationProfileVersion} >= 1`,
+    ),
+  ],
+)
+
+/**
+ * Effective-dated routing history from one stable Portal address to one exact
+ * immutable snapshot. Only one interval can be open for a Portal. Rollback is
+ * an additional activation row, so the complete publication history survives.
+ */
+export const portalPublicationActivations = pgTable(
+  'portal_publication_activations',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    snapshotId: uuid('snapshot_id').notNull(),
+    activationSequence: integer('activation_sequence').notNull(),
+    kind: varchar('kind', { length: 20 }).notNull(),
+    activatedBy: varchar('activated_by', { length: 255 }).notNull(),
+    activatedAt: timestamp('activated_at', { withTimezone: true }).notNull(),
+    deactivatedAt: timestamp('deactivated_at', { withTimezone: true }),
+    deactivationReason: varchar('deactivation_reason', { length: 20 }),
+  },
+  (t) => [
+    uniqueIndex('portal_publication_activations_portal_sequence_unique').on(
+      t.organizationId,
+      t.portalId,
+      t.activationSequence,
+    ),
+    uniqueIndex('portal_publication_activations_one_current_per_portal')
+      .on(t.organizationId, t.portalId)
+      .where(sql`${t.deactivatedAt} IS NULL`),
+    index('portal_publication_activations_snapshot_idx').on(
+      t.organizationId,
+      t.portalId,
+      t.snapshotId,
+    ),
+    foreignKey({
+      name: 'portal_publication_activations_snapshot_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId, t.snapshotId],
+      foreignColumns: [
+        portalPublicationSnapshots.organizationId,
+        portalPublicationSnapshots.propertyId,
+        portalPublicationSnapshots.portalId,
+        portalPublicationSnapshots.id,
+      ],
+    }).onDelete('restrict'),
+    check(
+      'portal_publication_activations_sequence_positive',
+      sql`${t.activationSequence} >= 1`,
+    ),
+    check(
+      'portal_publication_activations_kind_valid',
+      sql`${t.kind} IN ('publish', 'rollback')`,
+    ),
+    check(
+      'portal_publication_activations_interval_valid',
+      sql`${t.deactivatedAt} IS NULL OR ${t.deactivatedAt} >= ${t.activatedAt}`,
+    ),
+    check(
+      'portal_publication_activations_deactivation_valid',
+      sql`(${t.deactivatedAt} IS NULL AND ${t.deactivationReason} IS NULL) OR (${t.deactivatedAt} IS NOT NULL AND ${t.deactivationReason} IN ('disabled', 'archived', 'replaced'))`,
+    ),
+  ],
+)
+
 // ── portal_link_categories ─────────────────────────────────────────
 
 /**

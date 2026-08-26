@@ -22,6 +22,9 @@ function response(): GuestResponse {
       retentionDeadline: new Date('2028-01-15T12:00:00Z'),
       experienceSnapshot: {
         portalPublicationState: 'published',
+        portalPublicationSnapshotId: null,
+        portalPublicationVersion: null,
+        portalPublicationDigest: null,
         portalConfigurationDigest: 'a'.repeat(64),
         guestLocale: 'en',
         languagePackVersion: 'guest-ui-en-v1',
@@ -70,6 +73,9 @@ describe('Guest Response integrity', () => {
         integrityAssessment: assessment,
         experienceSnapshot: {
           portalPublicationState: 'published',
+          portalPublicationSnapshotId: null,
+          portalPublicationVersion: null,
+          portalPublicationDigest: null,
           portalConfigurationDigest: 'a'.repeat(64),
           guestLocale: 'en',
           languagePackVersion: 'guest-ui-en-v1',

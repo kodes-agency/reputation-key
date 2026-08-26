@@ -66,6 +66,9 @@ export type GuestResponseInput = Readonly<{
 
 export type GuestResponseExperienceInput = Readonly<{
   portalPublicationState: 'published'
+  portalPublicationSnapshotId: string
+  portalPublicationVersion: number
+  portalPublicationDigest: string
   portalConfigurationDigest: string
   guestLocale: string
   languagePackVersion: string
@@ -128,6 +131,10 @@ function captureExperience(
 ): GuestResponseExperienceSnapshot {
   if (
     input.portalPublicationState !== 'published' ||
+    input.portalPublicationSnapshotId.length === 0 ||
+    !Number.isSafeInteger(input.portalPublicationVersion) ||
+    input.portalPublicationVersion < 1 ||
+    !CONFIGURATION_DIGEST_PATTERN.test(input.portalPublicationDigest) ||
     !CONFIGURATION_DIGEST_PATTERN.test(input.portalConfigurationDigest) ||
     !isGuestLocale(input.guestLocale) ||
     !LANGUAGE_PACK_VERSION_PATTERN.test(input.languagePackVersion) ||

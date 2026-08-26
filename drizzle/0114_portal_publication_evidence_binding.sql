@@ -1,0 +1,4 @@
+ALTER TABLE "guest_response_experience_snapshots" DROP CONSTRAINT "guest_response_experience_snapshots_publication_scope_fk";
+--> statement-breakpoint
+CREATE UNIQUE INDEX "portal_publication_snapshots_evidence_binding_key" ON "portal_publication_snapshots" USING btree ("organization_id","property_id","portal_id","id","version","configuration_digest");--> statement-breakpoint
+ALTER TABLE "guest_response_experience_snapshots" ADD CONSTRAINT "guest_response_experience_snapshots_publication_scope_fk" FOREIGN KEY ("organization_id","property_id","portal_id","publication_snapshot_id","publication_version","publication_digest") REFERENCES "public"."portal_publication_snapshots"("organization_id","property_id","portal_id","id","version","configuration_digest") ON DELETE restrict ON UPDATE no action;

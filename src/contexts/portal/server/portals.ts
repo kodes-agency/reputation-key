@@ -47,6 +47,7 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
     .with('portal_inactive', () => 410)
     .with(
       'invalid_publication_transition',
+      'publication_snapshot_unavailable',
       'google_review_destination_unavailable',
       () => 409,
     )
@@ -67,6 +68,11 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
 
 const portalIdSchema = z.object({
   portalId: z.string().min(1, 'Portal ID is required'),
+})
+
+const rollbackPortalPublicationSchema = z.object({
+  portalId: z.string().min(1, 'Portal ID is required'),
+  version: z.number().int().min(1),
 })
 
 const listPortalsSchema = z.object({
@@ -187,6 +193,29 @@ export const updatePortal = createServerFn({ method: 'POST' })
       },
       'POST',
       'portal.updatePortal',
+    ),
+  )
+
+export const rollbackPortalPublication = createServerFn({ method: 'POST' })
+  .validator(rollbackPortalPublicationSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+
+        try {
+          return await getContainer().useCases.rollbackPortalPublication(data, ctx)
+        } catch (error) {
+          if (isPortalError(error)) {
+            throwContextError('PortalError', error, portalErrorStatus(error.code))
+          }
+          throw catchUntagged(error)
+        }
+      },
+      'POST',
+      'portal.rollbackPortalPublication',
     ),
   )
 

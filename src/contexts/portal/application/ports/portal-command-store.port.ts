@@ -7,6 +7,10 @@
 import type { OrganizationId, PortalId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { Portal } from '../../domain/types'
 import type {
+  PortalPublicationActivation,
+  PortalPublicationSnapshot,
+} from '../../domain/portal-publication-snapshot'
+import type {
   PortalCreated,
   PortalDeleted,
   PortalResponsibilityNeeded,
@@ -29,8 +33,27 @@ export type UpdatePortalCommand = Readonly<{
   /** Optimistic fence captured by the application pre-read. */
   expectedUpdatedAt: Date
   patch: Readonly<Partial<Portal>>
+  publication?: PortalPublicationMutation
   event: PortalUpdated
 }>
+
+export type PortalPublicationMutation =
+  | Readonly<{
+      kind: 'publish'
+      snapshot: PortalPublicationSnapshot
+      activation: PortalPublicationActivation & Readonly<{ kind: 'publish' }>
+    }>
+  | Readonly<{
+      kind: 'rollback'
+      snapshotId: string
+      snapshotVersion: number
+      activation: PortalPublicationActivation & Readonly<{ kind: 'rollback' }>
+    }>
+  | Readonly<{
+      kind: 'deactivate'
+      reason: 'disabled' | 'archived'
+      at: Date
+    }>
 
 export type DeletePortalCommand = Readonly<{
   organizationId: OrganizationId

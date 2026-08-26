@@ -9,6 +9,8 @@ import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { propertyId, type PropertyId } from '#/shared/domain/ids'
+import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
+import type { UpdatePortalCommand } from '../ports/portal-command-store.port'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
@@ -24,9 +26,49 @@ const setup = (
   const portalRepo = createInMemoryPortalRepo()
   const events = createCapturingEventBus()
   let destinationLookups = 0
+  let lastUpdateCommand: UpdatePortalCommand | null = null
+  let generatedId = 0
+  const baseCommandStore = createInMemoryPortalCommandStore({ portalRepo, events })
+  const publicationRepo: PortalPublicationRepository = {
+    loadWorkingCopy: async (organizationId, portalId) => {
+      const portal = await portalRepo.findById(organizationId, portalId)
+      return portal
+        ? {
+            portal: {
+              id: portal.id,
+              name: portal.name,
+              slug: portal.slug,
+              description: portal.description,
+              heroImageUrl: portal.heroImageUrl,
+              theme: portal.theme,
+              organizationName: 'Example Organization',
+            },
+            categories: [],
+            links: [],
+            privateFeedbackThreshold: portal.privateFeedbackThreshold,
+            organizationId: portal.organizationId,
+            propertyId: portal.propertyId,
+          }
+        : null
+    },
+    getCursor: async () => ({
+      nextSnapshotVersion: 1,
+      nextActivationSequence: 1,
+    }),
+    findSnapshotByVersion: async () => null,
+    findActiveForPortal: async () => null,
+    resolveActiveByTokenDigest: async () => null,
+  }
   const deps = {
     portalRepo,
-    commandStore: createInMemoryPortalCommandStore({ portalRepo, events }),
+    commandStore: {
+      ...baseCommandStore,
+      updatePortal: async (command: UpdatePortalCommand) => {
+        lastUpdateCommand = command
+        await baseCommandStore.updatePortal(command)
+      },
+    },
+    publicationRepo,
     propertyGoogleReviewDestinationApi: {
       getGoogleReviewDestination: async () => {
         destinationLookups += 1
@@ -48,6 +90,7 @@ const setup = (
       },
     },
     staffPublicApi: staffApiMock(accessible),
+    idGen: () => `publication-id-${(generatedId += 1)}`,
     clock: () => FIXED_TIME,
   }
   const useCase = updatePortal(deps)
@@ -56,6 +99,7 @@ const setup = (
     portalRepo,
     events,
     destinationLookups: () => destinationLookups,
+    lastUpdateCommand: () => lastUpdateCommand,
   }
 }
 
@@ -282,7 +326,7 @@ describe('updatePortal', () => {
   })
 
   it('publishes a rating-first gateway without requiring secondary links', async () => {
-    const { useCase, portalRepo } = setup()
+    const { useCase, portalRepo, lastUpdateCommand } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({ publicationState: 'draft' })
     portalRepo.seed([portal])
@@ -292,10 +336,21 @@ describe('updatePortal', () => {
     )
 
     expect(updated.publicationState).toBe('published')
+    expect(lastUpdateCommand()?.publication).toMatchObject({
+      kind: 'publish',
+      snapshot: {
+        version: 1,
+        configuration: {
+          reviewGateway: { privateFeedbackThreshold: 3 },
+          links: [],
+        },
+      },
+      activation: { activationSequence: 1, kind: 'publish' },
+    })
   })
 
   it('does not require a destination to transition out of published', async () => {
-    const { useCase, portalRepo } = setup(null, 'unavailable')
+    const { useCase, portalRepo, lastUpdateCommand } = setup(null, 'unavailable')
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({ publicationState: 'published' })
     portalRepo.seed([portal])
@@ -306,6 +361,11 @@ describe('updatePortal', () => {
     )
 
     expect(updated.publicationState).toBe('disabled')
+    expect(lastUpdateCommand()?.publication).toEqual({
+      kind: 'deactivate',
+      reason: 'disabled',
+      at: FIXED_TIME,
+    })
   })
 
   // The shape the beta journey actually sends: publish bundled with a content

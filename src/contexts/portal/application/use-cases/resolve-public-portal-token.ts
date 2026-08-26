@@ -1,20 +1,9 @@
 import { createHash } from 'node:crypto'
-import {
-  organizationId,
-  propertyId,
-  portalId,
-  type OrganizationId,
-  type PortalId,
-} from '#/shared/domain/ids'
-import type { PublicPortalRepositoryResult } from '../ports/portal.repository'
+import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { PublicPortalResult } from '../public-api'
-import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import type { PortalTokenCodec } from '../ports/portal-token-codec.port'
-import { isPortalError } from '../../domain/errors'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
-
-const GUEST_LOCALE = 'en'
-const GUEST_LANGUAGE_PACK_VERSION = 'guest-ui-en-v1'
+import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
 
 function configurationDigest(value: unknown): string {
   return createHash('sha256').update(canonicalizeRfc8785(value), 'utf8').digest('hex')
@@ -35,13 +24,7 @@ type PublicPortalExecutionDecision = Readonly<{ allowed: boolean }>
 
 export type ResolvePublicPortalTokenDeps = Readonly<{
   tokenCodec: Pick<PortalTokenCodec, 'digest'>
-  portalTokenRepo: Pick<PortalTokenRepository, 'findResolvableByDigest'>
-  portalRepo: Readonly<{
-    findPublicPortalById: (
-      organizationId: OrganizationId,
-      portalId: PortalId,
-    ) => Promise<PublicPortalRepositoryResult | null>
-  }>
+  portalPublicationRepo: Pick<PortalPublicationRepository, 'resolveActiveByTokenDigest'>
   getGoogleReviewDestination: import('#/contexts/property/application/public-api').PropertyGoogleReviewDestinationPublicApi['getGoogleReviewDestination']
   decidePublic: (
     request: PublicPortalDecisionRequest,
@@ -57,8 +40,19 @@ export const resolvePublicPortalToken =
     if (!digest) return { status: 'unavailable' }
 
     const now = deps.clock()
-    const token = await deps.portalTokenRepo.findResolvableByDigest(digest, now)
-    if (!token) return { status: 'unavailable' }
+    const resolved = await deps.portalPublicationRepo.resolveActiveByTokenDigest(
+      digest,
+      now,
+    )
+    if (!resolved) return { status: 'unavailable' }
+    const { token, snapshot } = resolved
+    if (
+      snapshot.organizationId !== token.organizationId ||
+      snapshot.propertyId !== token.propertyId ||
+      snapshot.portalId !== token.portalId
+    ) {
+      return { status: 'unavailable' }
+    }
 
     const decision = await deps.decidePublic({
       action: 'portal.public_read',
@@ -68,26 +62,6 @@ export const resolvePublicPortalToken =
       now,
     })
     if (!decision.allowed) return { status: 'unavailable' }
-
-    let data: PublicPortalRepositoryResult | null
-    try {
-      data = await deps.portalRepo.findPublicPortalById(
-        organizationId(token.organizationId),
-        portalId(token.portalId),
-      )
-    } catch (error) {
-      if (isPortalError(error) && error.code === 'portal_inactive') {
-        return { status: 'unavailable' }
-      }
-      throw error
-    }
-    if (
-      !data ||
-      data.organizationId !== token.organizationId ||
-      data.propertyId !== token.propertyId
-    ) {
-      return { status: 'unavailable' }
-    }
 
     let destination: Awaited<ReturnType<typeof deps.getGoogleReviewDestination>> = null
     try {
@@ -100,37 +74,53 @@ export const resolvePublicPortalToken =
       // link or leak the last-known/stale Property destination.
       deps.reportGoogleDestinationFailure?.(error)
     }
-    const googleReview =
-      destination?.state === 'verified' && destination.uri !== null
-        ? ({ status: 'available', uri: destination.uri } as const)
-        : ({ status: 'unavailable' } as const)
+    const destinationMatchesSnapshot =
+      destination?.state === 'verified' &&
+      destination.uri === snapshot.destinationUri &&
+      destination.retrievedAt?.getTime() === snapshot.destinationRetrievedAt.getTime() &&
+      destination.sourceEpoch === snapshot.destinationSourceEpoch &&
+      destination.profileVersion === snapshot.destinationProfileVersion
+    const googleReview = destinationMatchesSnapshot
+      ? ({ status: 'available', uri: snapshot.destinationUri } as const)
+      : ({ status: 'unavailable' } as const)
 
-    const { privateFeedbackThreshold, ...publicData } = data
+    const configuration = snapshot.configuration
     const reviewGateway = {
-      privateFeedbackThreshold,
+      privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
       googleReview,
+    }
+    const exactResolvedConfiguration = {
+      schemaVersion: configuration.schemaVersion,
+      publicationSnapshotId: snapshot.id,
+      publicationVersion: snapshot.version,
+      publicationDigest: snapshot.configurationDigest,
+      guestLocale: configuration.guestLocale,
+      languagePackVersion: configuration.languagePackVersion,
+      portal: configuration.portal,
+      categories: configuration.categories,
+      links: configuration.links,
+      reviewGateway,
     }
     const responseConfiguration = {
       publicationState: 'published' as const,
-      configurationDigest: configurationDigest({
-        schemaVersion: 1,
-        guestLocale: GUEST_LOCALE,
-        languagePackVersion: GUEST_LANGUAGE_PACK_VERSION,
-        portal: publicData.portal,
-        categories: publicData.categories,
-        links: publicData.links,
-        reviewGateway,
-      }),
-      guestLocale: GUEST_LOCALE,
-      languagePackVersion: GUEST_LANGUAGE_PACK_VERSION,
-      privateFeedbackThreshold,
+      publicationSnapshotId: snapshot.id,
+      publicationVersion: snapshot.version,
+      publicationDigest: snapshot.configurationDigest,
+      configurationDigest: configurationDigest(exactResolvedConfiguration),
+      guestLocale: configuration.guestLocale,
+      languagePackVersion: configuration.languagePackVersion,
+      privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
     }
     return {
       status: 'found',
       data: {
-        ...publicData,
+        portal: configuration.portal,
+        categories: configuration.categories,
+        links: configuration.links,
         reviewGateway,
         responseConfiguration,
+        organizationId: snapshot.organizationId,
+        propertyId: snapshot.propertyId,
       },
     }
   }

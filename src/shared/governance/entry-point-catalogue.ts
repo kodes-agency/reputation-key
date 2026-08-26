@@ -1616,6 +1616,17 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'scoped via portalId' },
     ),
     sf(
+      'rollbackPortalPublication',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      {
+        notes:
+          'appends a new activation for an earlier immutable snapshot; scoped via portalId',
+      },
+    ),
+    sf(
       'completeContentReview',
       `${PORTAL}/portals.ts`,
       'portal.update',

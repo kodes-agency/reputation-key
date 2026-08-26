@@ -6,7 +6,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdatePortalInput } from '../dto/update-portal.dto'
 export type { UpdatePortalInput }
 import { canForContext } from '#/shared/domain/permissions'
-import { portalId as toPortalId, type OrganizationId } from '#/shared/domain/ids'
+import { portalId as toPortalId, unbrand, type OrganizationId } from '#/shared/domain/ids'
 import {
   validatePortalName,
   validateSlug,
@@ -23,12 +23,21 @@ import { assertPropertyAccess } from '../assert-property-access'
 import { transitionPortalPublication } from '../../domain/portal-publication'
 import type { PropertyGoogleReviewDestinationPublicApi } from '#/contexts/property/application/public-api'
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import type { PortalPublicationMutation } from '../ports/portal-command-store.port'
+import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
+import type {
+  PortalPublicationSource,
+  VerifiedPublicationDestination,
+} from '../../domain/portal-publication-snapshot'
+import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
 
 export type UpdatePortalDeps = Readonly<{
   portalRepo: PortalRepository
   commandStore: PortalCommandStore
+  publicationRepo: PortalPublicationRepository
   propertyGoogleReviewDestinationApi: PropertyGoogleReviewDestinationPublicApi
   staffPublicApi: StaffPublicApi
+  idGen: () => string
   clock: () => Date
 }>
 
@@ -82,33 +91,51 @@ export function resolvePortalContentFields(
   }
 }
 
-async function assertGoogleReviewDestinationAvailable(
+async function loadVerifiedGoogleReviewDestination(
   deps: UpdatePortalDeps,
   orgId: OrganizationId,
   existing: Portal,
-): Promise<void> {
+): Promise<VerifiedPublicationDestination> {
   const destination =
     await deps.propertyGoogleReviewDestinationApi.getGoogleReviewDestination(
       orgId,
       existing.propertyId,
     )
-  if (destination?.state !== 'verified' || destination.uri === null) {
+  if (
+    destination?.state !== 'verified' ||
+    destination.uri === null ||
+    destination.retrievedAt === null ||
+    destination.sourceEpoch === null ||
+    destination.profileVersion === null
+  ) {
     throw portalError(
       'google_review_destination_unavailable',
       'connect and refresh this property’s Google review destination before publishing',
     )
   }
+  return {
+    state: 'verified',
+    uri: destination.uri,
+    retrievedAt: destination.retrievedAt,
+    sourceEpoch: destination.sourceEpoch,
+    profileVersion: destination.profileVersion,
+  }
 }
+
+type PublicationStateResolution = Readonly<{
+  state: Portal['publicationState']
+  destination: VerifiedPublicationDestination | null
+}>
 
 async function resolvePublicationState(
   input: UpdatePortalInput,
   existing: Portal,
   deps: UpdatePortalDeps,
   orgId: OrganizationId,
-): Promise<Portal['publicationState']> {
+): Promise<PublicationStateResolution> {
   const requested = input.publicationState
   if (requested === undefined || requested === existing.publicationState) {
-    return existing.publicationState
+    return { state: existing.publicationState, destination: null }
   }
   const transition = transitionPortalPublication(existing.publicationState, requested)
   if (typeof transition !== 'string') {
@@ -118,9 +145,12 @@ async function resolvePublicationState(
     )
   }
   if (transition === 'published') {
-    await assertGoogleReviewDestinationAvailable(deps, orgId, existing)
+    return {
+      state: transition,
+      destination: await loadVerifiedGoogleReviewDestination(deps, orgId, existing),
+    }
   }
-  return transition
+  return { state: transition, destination: null }
 }
 
 async function resolveSlug(
@@ -149,13 +179,105 @@ async function buildPortalPatch(
   existing: Portal,
   deps: UpdatePortalDeps,
   orgId: OrganizationId,
-): Promise<PortalPatch> {
+): Promise<
+  Readonly<{
+    patch: PortalPatch
+    publicationDestination: VerifiedPublicationDestination | null
+  }>
+> {
   // Order is load-bearing: content validation, then the publication precondition,
   // then slug uniqueness — so which error surfaces first stays stable.
   const content = resolvePortalContentFields(input, existing)
-  const publicationState = await resolvePublicationState(input, existing, deps, orgId)
+  const publication = await resolvePublicationState(input, existing, deps, orgId)
   const slug = await resolveSlug(input, existing, deps, orgId)
-  return { ...content, slug, publicationState }
+  return {
+    patch: { ...content, slug, publicationState: publication.state },
+    publicationDestination: publication.destination,
+  }
+}
+
+function applyPatchToPublicationSource(
+  source: PortalPublicationSource,
+  patch: PortalPatch,
+): PortalPublicationSource {
+  return {
+    ...source,
+    portal: {
+      ...source.portal,
+      name: patch.name,
+      slug: patch.slug,
+      description: patch.description,
+      heroImageUrl: patch.heroImageUrl,
+      theme: patch.theme,
+    },
+    privateFeedbackThreshold: patch.privateFeedbackThreshold,
+  }
+}
+
+async function buildPublicationMutation(
+  deps: UpdatePortalDeps,
+  existing: Portal,
+  patch: PortalPatch,
+  destination: VerifiedPublicationDestination | null,
+  ctx: AuthContext,
+  at: Date,
+): Promise<PortalPublicationMutation | undefined> {
+  if (
+    existing.publicationState !== 'published' &&
+    patch.publicationState === 'published'
+  ) {
+    if (!destination) {
+      throw portalError(
+        'publication_snapshot_unavailable',
+        'A verified destination must be pinned to the publication snapshot',
+      )
+    }
+    const [workingCopy, cursor] = await Promise.all([
+      deps.publicationRepo.loadWorkingCopy(ctx.organizationId, existing.id),
+      deps.publicationRepo.getCursor(ctx.organizationId, existing.id),
+    ])
+    if (!workingCopy) {
+      throw portalError(
+        'publication_snapshot_unavailable',
+        'Portal publication content is unavailable',
+      )
+    }
+    const snapshot = buildPortalPublicationSnapshot({
+      id: deps.idGen(),
+      portalId: unbrand(existing.id),
+      organizationId: unbrand(existing.organizationId),
+      propertyId: unbrand(existing.propertyId),
+      version: cursor.nextSnapshotVersion,
+      source: applyPatchToPublicationSource(workingCopy, patch),
+      destination,
+      createdBy: unbrand(ctx.userId),
+      createdAt: at,
+    })
+    return {
+      kind: 'publish',
+      snapshot,
+      activation: {
+        id: deps.idGen(),
+        organizationId: snapshot.organizationId,
+        propertyId: snapshot.propertyId,
+        portalId: snapshot.portalId,
+        snapshotId: snapshot.id,
+        activationSequence: cursor.nextActivationSequence,
+        kind: 'publish',
+        activatedBy: unbrand(ctx.userId),
+        activatedAt: at,
+        deactivatedAt: null,
+        deactivationReason: null,
+      },
+    }
+  }
+  if (
+    existing.publicationState === 'published' &&
+    (patch.publicationState === 'disabled' || patch.publicationState === 'archived')
+  ) {
+    return { kind: 'deactivate', reason: patch.publicationState, at }
+  }
+  return undefined
 }
 
 function hasPortalChanges(existing: Portal, patch: PortalPatch): boolean {
@@ -202,19 +324,33 @@ export const updatePortal =
       existing.propertyId,
     )
 
-    const patch = await buildPortalPatch(input, existing, deps, ctx.organizationId)
+    const { patch, publicationDestination } = await buildPortalPatch(
+      input,
+      existing,
+      deps,
+      ctx.organizationId,
+    )
 
     if (!hasPortalChanges(existing, patch)) {
       return existing
     }
 
     const updatedAt = deps.clock()
+    const publication = await buildPublicationMutation(
+      deps,
+      existing,
+      patch,
+      publicationDestination,
+      ctx,
+      updatedAt,
+    )
     await deps.commandStore.updatePortal({
       organizationId: ctx.organizationId,
       propertyId: existing.propertyId,
       portalId: pid,
       expectedUpdatedAt: existing.updatedAt,
       patch: { ...patch, updatedAt },
+      publication,
       event: portalUpdated({
         portalId: pid,
         organizationId: ctx.organizationId,

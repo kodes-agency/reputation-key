@@ -48,6 +48,9 @@ export type PublicGoogleReviewDestination =
  */
 export type PublicPortalResponseConfiguration = Readonly<{
   publicationState: 'published'
+  publicationSnapshotId: string
+  publicationVersion: number
+  publicationDigest: string
   /** SHA-256 of the exact resolved public configuration rendered by this load. */
   configurationDigest: string
   guestLocale: string

@@ -22,6 +22,9 @@ const response = submitResponse(
     retentionDeadline: new Date('2026-11-07T12:00:00Z'),
     experienceSnapshot: {
       portalPublicationState: 'published',
+      portalPublicationSnapshotId: null,
+      portalPublicationVersion: null,
+      portalPublicationDigest: null,
       portalConfigurationDigest: 'a'.repeat(64),
       guestLocale: 'en',
       languagePackVersion: 'guest-ui-en-v1',

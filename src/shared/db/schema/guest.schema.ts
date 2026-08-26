@@ -16,7 +16,7 @@ import {
   foreignKey,
   check,
 } from 'drizzle-orm/pg-core'
-import { portals } from './portal.schema'
+import { portalPublicationSnapshots, portals } from './portal.schema'
 import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'
 
 export const scanEvents = pgTable(
@@ -269,6 +269,9 @@ export const guestResponseExperienceSnapshots = pgTable(
     propertyId: uuid('property_id').notNull(),
     portalId: uuid('portal_id').notNull(),
     publicationState: varchar('publication_state', { length: 20 }).notNull(),
+    publicationSnapshotId: uuid('publication_snapshot_id'),
+    publicationVersion: integer('publication_version'),
+    publicationDigest: varchar('publication_digest', { length: 64 }),
     configurationDigest: varchar('configuration_digest', { length: 64 }).notNull(),
     guestLocale: varchar('guest_locale', { length: 35 }).notNull(),
     languagePackVersion: varchar('language_pack_version', { length: 100 }).notNull(),
@@ -290,6 +293,25 @@ export const guestResponseExperienceSnapshots = pgTable(
         guestResponses.id,
       ],
     }).onDelete('cascade'),
+    foreignKey({
+      name: 'guest_response_experience_snapshots_publication_scope_fk',
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.portalId,
+        t.publicationSnapshotId,
+        t.publicationVersion,
+        t.publicationDigest,
+      ],
+      foreignColumns: [
+        portalPublicationSnapshots.organizationId,
+        portalPublicationSnapshots.propertyId,
+        portalPublicationSnapshots.portalId,
+        portalPublicationSnapshots.id,
+        portalPublicationSnapshots.version,
+        portalPublicationSnapshots.configurationDigest,
+      ],
+    }).onDelete('restrict'),
     check(
       'guest_response_experience_snapshots_publication_state_valid',
       sql`${t.publicationState} = 'published'`,
@@ -297,6 +319,10 @@ export const guestResponseExperienceSnapshots = pgTable(
     check(
       'guest_response_experience_snapshots_configuration_digest_valid',
       sql`${t.configurationDigest} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'guest_response_experience_snapshots_publication_reference_valid',
+      sql`(${t.publicationSnapshotId} IS NULL AND ${t.publicationVersion} IS NULL AND ${t.publicationDigest} IS NULL) OR (${t.publicationSnapshotId} IS NOT NULL AND ${t.publicationVersion} >= 1 AND ${t.publicationDigest} ~ '^[0-9a-f]{64}$')`,
     ),
     check(
       'guest_response_experience_snapshots_guest_locale_valid',

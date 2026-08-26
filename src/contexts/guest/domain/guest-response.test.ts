@@ -27,6 +27,9 @@ describe('GuestResponse', () => {
     retentionDeadline: new Date('2026-04-15T12:00:00Z'),
     experienceSnapshot: {
       portalPublicationState: 'published' as const,
+      portalPublicationSnapshotId: null,
+      portalPublicationVersion: null,
+      portalPublicationDigest: null,
       portalConfigurationDigest: 'a'.repeat(64),
       guestLocale: 'en',
       languagePackVersion: 'guest-ui-en-v1',

@@ -25,6 +25,7 @@ export type PortalErrorCode =
   | 'portal_not_in_group'
   | 'portal_inactive'
   | 'invalid_publication_transition'
+  | 'publication_snapshot_unavailable'
   | 'google_review_destination_unavailable'
   | 'token_unavailable'
   | 'upload_failed'

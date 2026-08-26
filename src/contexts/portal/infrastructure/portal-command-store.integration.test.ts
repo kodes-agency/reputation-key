@@ -19,6 +19,7 @@ import {
   portalUpdated,
 } from '../domain/events'
 import { createAtomicPortalCommandStore } from './portal-command-store'
+import { buildPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
 
 const ORG_A = organizationId('org-portalcmd-0000-0000-000000000001')
 const ORG_B = organizationId('org-portalcmd-0000-0000-000000000002')
@@ -37,6 +38,8 @@ const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
   orgB: ORG_B,
   tables: [
+    'portal_publication_activations',
+    'portal_publication_snapshots',
     'portal_tokens',
     'portal_responsible_managers',
     'outbox_events',
@@ -74,6 +77,71 @@ const createdFact = (portal = makePortal()) =>
     sourceAggregateVersion: portal.updatedAt.toISOString(),
     occurredAt: portal.createdAt,
   })
+
+const ORG_NAME = `Test Org t-${String(ORG_A).replace(/-/gu, '')}`
+
+function publicationMutation(
+  portal: ReturnType<typeof makePortal>,
+  input: Readonly<{
+    name: string
+    version?: number
+    activationSequence?: number
+    snapshotId?: string
+    activationId?: string
+    at?: Date
+  }>,
+) {
+  const at = input.at ?? UPDATED_AT
+  const snapshot = buildPortalPublicationSnapshot({
+    id: input.snapshotId ?? '6d000000-0000-4000-8000-000000000001',
+    portalId: portal.id,
+    organizationId: portal.organizationId,
+    propertyId: portal.propertyId,
+    version: input.version ?? 1,
+    source: {
+      portal: {
+        id: portal.id,
+        name: input.name,
+        slug: portal.slug,
+        description: portal.description,
+        heroImageUrl: portal.heroImageUrl,
+        theme: portal.theme,
+        organizationName: ORG_NAME,
+      },
+      categories: [],
+      links: [],
+      privateFeedbackThreshold: portal.privateFeedbackThreshold,
+      organizationId: portal.organizationId,
+      propertyId: portal.propertyId,
+    },
+    destination: {
+      state: 'verified',
+      uri: 'https://search.google.com/local/writereview?placeid=portal-command',
+      retrievedAt: CREATED_AT,
+      sourceEpoch: 1,
+      profileVersion: 1,
+    },
+    createdBy: MANAGER,
+    createdAt: at,
+  })
+  return {
+    kind: 'publish' as const,
+    snapshot,
+    activation: {
+      id: input.activationId ?? '6e000000-0000-4000-8000-000000000001',
+      organizationId: portal.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      snapshotId: snapshot.id,
+      activationSequence: input.activationSequence ?? 1,
+      kind: 'publish' as const,
+      activatedBy: MANAGER,
+      activatedAt: at,
+      deactivatedAt: null,
+      deactivationReason: null,
+    },
+  }
+}
 
 beforeEach(async () => {
   clearEventSchemas()
@@ -183,6 +251,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         publicationState: 'published',
         updatedAt: UPDATED_AT,
       },
+      publication: publicationMutation(portal, { name: 'Reception Gateway' }),
       event,
     })
 
@@ -214,6 +283,23 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     })
     expect(fact.rows[0].payload).not.toHaveProperty('name')
     expect(fact.rows[0].payload).not.toHaveProperty('slug')
+    const publications = await getPool().query(
+      `SELECT s.version, s.configuration_digest, a.activation_sequence,
+              a.deactivated_at
+       FROM portal_publication_snapshots s
+       JOIN portal_publication_activations a ON a.snapshot_id = s.id
+       WHERE s.organization_id = $1 AND s.portal_id = $2`,
+      [ORG_A, PORTAL_A],
+    )
+    expect(publications.rows).toEqual([
+      {
+        version: 1,
+        configuration_digest: publicationMutation(portal, { name: 'Reception Gateway' })
+          .snapshot.configurationDigest,
+        activation_sequence: 1,
+        deactivated_at: null,
+      },
+    ])
   })
 
   it('rolls back archive and token revocation when one fact conflicts', async () => {

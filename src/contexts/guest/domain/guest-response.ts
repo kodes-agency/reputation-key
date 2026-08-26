@@ -24,6 +24,10 @@ export type GuestResponseStatus =
  */
 export type GuestResponseExperienceSnapshot = Readonly<{
   portalPublicationState: 'published'
+  /** Null only for historical pre-publication-snapshot response evidence. */
+  portalPublicationSnapshotId: string | null
+  portalPublicationVersion: number | null
+  portalPublicationDigest: string | null
   portalConfigurationDigest: string
   guestLocale: string
   languagePackVersion: string

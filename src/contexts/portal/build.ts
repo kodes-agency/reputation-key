@@ -17,12 +17,14 @@ import { createPortalGroupRepository } from './infrastructure/repositories/porta
 import { createLinkResolverPort } from './infrastructure/repositories/link-resolver.repository'
 import { createS3StorageAdapter } from './infrastructure/adapters/s3-storage.adapter'
 import { createPortalTokenRepository } from './infrastructure/repositories/portal-token.repository'
+import { createPortalPublicationRepository } from './infrastructure/repositories/portal-publication.repository'
 import { createPortalScopeRepository } from './infrastructure/repositories/portal-scope.repository'
 import { createPortalResponsibleManagerRepository } from './infrastructure/repositories/portal-responsible-manager.repository'
 import type { PortalStoragePort } from './application/ports/storage.port'
 import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-codec'
 import { createPortal } from './application/use-cases/create-portal'
 import { updatePortal } from './application/use-cases/update-portal'
+import { rollbackPortalPublication } from './application/use-cases/rollback-portal-publication'
 import { getPortal } from './application/use-cases/get-portal'
 import { listPortals } from './application/use-cases/list-portals'
 import { softDeletePortal } from './application/use-cases/soft-delete-portal'
@@ -96,6 +98,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalLinkRepo = createPortalLinkRepository(deps.db)
   const portalGroupRepo = createPortalGroupRepository(deps.db)
   const portalTokenRepo = createPortalTokenRepository(deps.db)
+  const portalPublicationRepo = createPortalPublicationRepository(deps.db)
   const portalScopeRepo = createPortalScopeRepository(deps.db)
   const portalResponsibleManagerRepo = createPortalResponsibleManagerRepository(deps.db)
   const portalTokenCodec = createPortalTokenCodec({ secret: deps.tokenHashSecret })
@@ -160,8 +163,18 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     updatePortal: updatePortal({
       portalRepo,
       commandStore: portalCommandStore,
+      publicationRepo: portalPublicationRepo,
       propertyGoogleReviewDestinationApi: deps.propertyApi,
       staffPublicApi: deps.staffPublicApi,
+      idGen: deps.idGen,
+      clock: deps.clock,
+    }),
+    rollbackPortalPublication: rollbackPortalPublication({
+      portalRepo,
+      publicationRepo: portalPublicationRepo,
+      commandStore: portalCommandStore,
+      staffPublicApi: deps.staffPublicApi,
+      idGen: deps.idGen,
       clock: deps.clock,
     }),
     getPortal: getPortal({
@@ -338,8 +351,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     findPublicPortalByToken: async (rawToken) => {
       const outcome = await resolvePublicPortalToken({
         tokenCodec: portalTokenCodec,
-        portalTokenRepo,
-        portalRepo,
+        portalPublicationRepo,
         getGoogleReviewDestination: deps.propertyApi.getGoogleReviewDestination,
         decidePublic: decidePublicExecution,
         reportGoogleDestinationFailure: (error) =>
@@ -394,6 +406,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
         portalLinkRepo,
         portalGroupRepo,
         portalTokenRepo,
+        portalPublicationRepo,
         portalResponsibleManagerRepo,
         portalUploadStore,
         linkResolver,

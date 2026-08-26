@@ -67,6 +67,9 @@ describe('createGuestResponseRepository', () => {
         feedback: { body: 'Helpful staff' },
         experience: {
           publicationState: 'published',
+          publicationSnapshotId: null,
+          publicationVersion: null,
+          publicationDigest: null,
           configurationDigest: 'a'.repeat(64),
           guestLocale: 'en',
           languagePackVersion: 'guest-ui-en-v1',
@@ -97,6 +100,9 @@ describe('createGuestResponseRepository', () => {
       privateFeedbackThreshold: 3,
       experienceSnapshot: {
         portalPublicationState: 'published',
+        portalPublicationSnapshotId: null,
+        portalPublicationVersion: null,
+        portalPublicationDigest: null,
         portalConfigurationDigest: 'a'.repeat(64),
         guestLocale: 'en',
         languagePackVersion: 'guest-ui-en-v1',
