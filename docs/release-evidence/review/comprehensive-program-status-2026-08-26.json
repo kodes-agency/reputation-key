@@ -503,15 +503,19 @@
     {
       "id": "AI-03",
       "status": "partial",
-      "summary": "The current feature selects stock templates; it does not implement the agreed genuinely personalized, grounded EN/BG reply drafting capability.",
+      "summary": "The current live feature still selects stock templates, but a distinct versioned EN/BG personalized-draft contract now provides the first enforceable replacement boundary: strict output shape and size, exact Review-to-reply grounding evidence, language fencing, and refusal of unsafe commitments or structured/private material. Gateway generation, Brand Profile grounding, ephemeral adoption, and publication-workflow integration are not yet wired to this contract.",
       "codeEvidence": [
+        "src/shared/ai-personalized-reply-contract.ts",
         "src/shared/ai-operation-profiles.ts",
         "services/ai-egress-gateway/route-preparer.ts",
         "src/contexts/review/infrastructure/db/review.schema.ts"
       ],
-      "testEvidence": ["Template-selection and AI admission tests"],
+      "testEvidence": [
+        "Personalized EN/BG output contract: 1 file / 10 tests passed; full three-target TypeScript check passed",
+        "Template-selection and AI admission tests"
+      ],
       "remaining": [
-        "Create a distinct EN/BG genuine-draft operation with structured grounding/safety validation, ephemeral session semantics, explicit human adoption, RPL handoff, and versioned adversarial/outage evaluation packs."
+        "Wire the distinct EN/BG genuine-draft profile through provider transport using approved public Brand Profile fields, complete language verification and versioned adversarial/outage evaluation packs, keep results session-ephemeral until explicit human adoption, and fence save/RPL handoff to Material Review Revision and reply-state authority."
       ],
       "externalBlockers": [
         "Production activation depends on AI provider/legal approvals and the completed REV/POR/RPL contracts."
