@@ -577,6 +577,7 @@ export function createContainer(options?: {
         const urlFailure = validateProviderEphemeralRedisUrls(
           env.PROVIDER_EPHEMERAL_REDIS_URL,
           env.REDIS_URL,
+          env.QUEUE_REDIS_URL,
         )
         if (urlFailure) {
           throw new Error(`Provider-ephemeral Redis denied: ${urlFailure.code}`)

@@ -5,8 +5,8 @@
 // developer machine:
 //   - a dedicated PostgreSQL database (default repkey_bqc8_cell) brought to
 //     the deploy migration state via the ci.yml trio (ensureTestDatabase);
-//   - an isolated Redis logical db (default 9) so the cell's BullMQ keys can
-//     never collide with a dev:all worker on db 0;
+//   - physically separate cache/rate-limit and BullMQ Redis daemons (default
+//     ports 6380/6379), both on isolated logical db 9;
 //   - the GBP + mail sandbox stubs as their own processes (e2e fixtures,
 //     reused unmodified);
 //   - the PRODUCTION web build (.output/server/index.mjs) and worker build
@@ -38,7 +38,7 @@ import { validateTestDatabaseTarget } from './test-environment-lease'
 export const WORKER_READY_LINE = 'BullMQ worker started on default queue'
 
 /** Cell state file format version — bump on any shape change; parsers fail closed. */
-export const CELL_STATE_VERSION = 1 as const
+export const CELL_STATE_VERSION = 2 as const
 
 /** The ONLY database-name prefix the cell may create or drop. */
 export const CELL_DB_PREFIX = 'repkey_bqc8'
@@ -47,7 +47,7 @@ export const CELL_DEFAULTS = {
   dbName: 'repkey_bqc8_cell',
   /** Preferred ports — deliberately clear of dev:all (3000) and e2e stubs (4100/4101). */
   ports: { web: 3100, gbpStub: 4150, mailStub: 4151 },
-  /** Isolated Redis logical db (BullMQ keys never meet a dev worker on db 0). */
+  /** Logical db used independently on the cache and queue Redis daemons. */
   redisDb: 9,
   /** Port scan window when preferred ports are taken. */
   portScanLimit: 64,
@@ -95,6 +95,7 @@ export function cellSecret(field: string): string {
 
 export type CellEnvInput = Readonly<{
   databaseUrl: string
+  cacheRedisUrl: string
   redisUrl: string
   ports: CellPorts
   /** Seeded org admitted to the beta cohort for the reply-publication probe. */
@@ -117,7 +118,8 @@ export function buildCellEnv(input: CellEnvInput): Record<string, string> {
     PORT: String(input.ports.web),
     DATABASE_URL: input.databaseUrl,
     DATABASE_URL_POOLER: input.databaseUrl,
-    REDIS_URL: input.redisUrl,
+    REDIS_URL: input.cacheRedisUrl,
+    QUEUE_REDIS_URL: input.redisUrl,
     // Auth/secrets — deterministic sha256 derivations (restart-stable), never
     // the test/CI placeholder family (findPlaceholderSecrets stays empty).
     BETTER_AUTH_SECRET: cellSecret('BETTER_AUTH_SECRET'),
@@ -183,6 +185,7 @@ export type CellState = Readonly<{
   version: typeof CELL_STATE_VERSION
   dbName: string
   databaseUrl: string
+  cacheRedisUrl: string
   redisUrl: string
   ports: CellPorts
   pids: Readonly<{
@@ -213,6 +216,7 @@ export function parseCellState(json: string): CellState {
   if (
     typeof s.dbName !== 'string' ||
     typeof s.databaseUrl !== 'string' ||
+    typeof s.cacheRedisUrl !== 'string' ||
     typeof s.redisUrl !== 'string' ||
     typeof s.startedAt !== 'string' ||
     typeof s.releaseSha !== 'string' ||
@@ -340,6 +344,7 @@ export type UpCellOptions = Readonly<{
   probeOrgId?: string
   /** Admin user for the local pg (defaults applied by the CLI). */
   databaseUrl?: string
+  cacheRedisUrl?: string
   redisUrl?: string
 }>
 
@@ -384,6 +389,9 @@ export async function upCell(
     options.databaseUrl ?? buildCellDatabaseUrl(dbName, process.env.USER ?? 'postgres')
   const redisUrl =
     options.redisUrl ?? buildCellRedisUrl('redis://localhost:6379', CELL_DEFAULTS.redisDb)
+  const cacheRedisUrl =
+    options.cacheRedisUrl ??
+    buildCellRedisUrl('redis://localhost:6380', CELL_DEFAULTS.redisDb)
   const taken = new Set<number>()
   for (const preferred of Object.values(CELL_DEFAULTS.ports)) {
     for (let p = preferred; p < preferred + CELL_DEFAULTS.portScanLimit; p++) {
@@ -410,6 +418,7 @@ export async function upCell(
 
   const env = buildCellEnv({
     databaseUrl,
+    cacheRedisUrl,
     redisUrl,
     ports,
     probeOrgId: options.probeOrgId,
@@ -505,6 +514,7 @@ export async function upCell(
       version: CELL_STATE_VERSION,
       dbName,
       databaseUrl,
+      cacheRedisUrl,
       redisUrl,
       ports,
       pids: {
@@ -519,7 +529,7 @@ export async function upCell(
     }
     effects.writeState(state)
     effects.log(
-      `cell up: web :${ports.web} (pid ${web.pid}), worker pid ${worker.pid}, stubs :${ports.gbpStub}/:${ports.mailStub}, db ${dbName}, redis db ${CELL_DEFAULTS.redisDb}`,
+      `cell up: web :${ports.web} (pid ${web.pid}), worker pid ${worker.pid}, stubs :${ports.gbpStub}/:${ports.mailStub}, db ${dbName}, cache/queue redis db ${CELL_DEFAULTS.redisDb}`,
     )
     return { reused: false, state }
   } catch (err) {

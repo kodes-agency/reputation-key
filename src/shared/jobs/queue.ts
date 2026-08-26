@@ -13,6 +13,7 @@ import { Queue } from 'bullmq'
 import { Redis } from 'ioredis'
 import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
+import { getJobRedisUrl } from './redis-topology'
 
 export type { Queue }
 
@@ -39,19 +40,21 @@ function connectionStore(): Set<Redis> {
 /**
  * Create a named BullMQ queue.
  * Uses a dedicated bounded Redis producer connection.
- * Returns undefined if Redis is not configured (REDIS_URL missing).
+ * Returns undefined if queue Redis is not configured. Production requires
+ * QUEUE_REDIS_URL; development/test may fall back to REDIS_URL.
  * Callers MUST check for undefined before using the queue.
  */
 export function createJobQueue(name: string): Queue | undefined {
   const env = getEnv()
-  if (!env.REDIS_URL) return undefined
+  const redisUrl = getJobRedisUrl(env)
+  if (!redisUrl) return undefined
 
   // BullMQ's producer guidance is deliberately different from its Worker
   // guidance: a Queue operation must fail quickly during a Redis outage so
   // the HTTP path can report failure and the durable outbox relay can retry.
   // commandTimeout also bounds a connected-but-unresponsive Redis endpoint;
   // maxRetriesPerRequest alone only bounds reconnect cycles.
-  const connection = new Redis(env.REDIS_URL, {
+  const connection = new Redis(redisUrl, {
     commandTimeout: JOB_QUEUE_COMMAND_TIMEOUT_MS,
     connectTimeout: JOB_QUEUE_COMMAND_TIMEOUT_MS,
     maxRetriesPerRequest: 1,

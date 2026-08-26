@@ -8,7 +8,7 @@
 import type { Container } from './composition'
 import { createHealthCheckHandler, JOB_NAME } from '#/shared/jobs/health-check.job'
 import { isDbHealthy } from '#/shared/health/db-probe'
-import { isRedisHealthy } from '#/shared/cache/redis'
+import { areRedisDependenciesHealthy } from '#/shared/health/redis-dependencies'
 import { getLogger } from '#/shared/observability/logger'
 import { createAlertAuxReader } from '#/shared/observability/alert-aux-reads'
 import { createRedisAlertStateStore } from '#/shared/health/alert-state'
@@ -138,7 +138,7 @@ export async function bootstrap(
   })
   const healthCheckHandler = createHealthCheckHandler({
     dbHealthy: isDbHealthy,
-    redisHealthy: isRedisHealthy,
+    redisHealthy: areRedisDependenciesHealthy,
     logger,
     clock: container.clock,
     // BQR-6.2: stamp worker liveness for /api/health/metrics

@@ -69,7 +69,7 @@ async function withCompatibilityLifecycle<T>(
   const domainEventsQueue = createJobQueue('domain-events')
   if (!defaultQueue || !domainEventsQueue) {
     await closeJobQueueConnections()
-    throw new Error('Google import compatibility inspection requires REDIS_URL')
+    throw new Error('Google import compatibility inspection requires QUEUE_REDIS_URL')
   }
   try {
     const adapter = createGoogleImportCompatibilityAdapter({

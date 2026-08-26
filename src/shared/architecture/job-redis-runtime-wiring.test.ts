@@ -4,6 +4,11 @@ import { describe, expect, it } from 'vitest'
 
 const worker = readFileSync(resolve(process.cwd(), 'src/worker/index.ts'), 'utf8')
 const localCompose = readFileSync(resolve(process.cwd(), 'compose.local.yml'), 'utf8')
+const viteConfig = readFileSync(resolve(process.cwd(), 'vite.config.ts'), 'utf8')
+const webGuard = readFileSync(
+  resolve(process.cwd(), 'server/plugins/redis-runtime-guard.ts'),
+  'utf8',
+)
 
 describe('BullMQ Redis boot contract', () => {
   it('asserts the configured runtime before constructing queue clients', () => {
@@ -15,7 +20,11 @@ describe('BullMQ Redis boot contract', () => {
   })
 
   it('declares noeviction in the production-shaped local stack', () => {
-    expect(localCompose).toMatch(
+    const queueRedis = localCompose.match(
+      /\n {2}queue-redis:[\s\S]*?\n {2}provider-redis:/,
+    )?.[0]
+    expect(queueRedis).toBeDefined()
+    expect(queueRedis).toMatch(
       /command: \[redis-server, --appendonly, 'yes', --maxmemory-policy, noeviction\]/,
     )
   })
@@ -26,5 +35,11 @@ describe('BullMQ Redis boot contract', () => {
     expect(worker).toContain("process.once('SIGINT'")
     expect(worker).toContain("process.once('unhandledRejection'")
     expect(worker).toContain("process.once('uncaughtException'")
+  })
+
+  it('registers the same Redis topology/runtime guard for the web producer', () => {
+    expect(viteConfig).toContain("'server/plugins/redis-runtime-guard.ts'")
+    expect(webGuard).toContain('assertProductionRedisTopology(env)')
+    expect(webGuard).toContain('await assertConfiguredJobRedisRuntime(redisUrl)')
   })
 })

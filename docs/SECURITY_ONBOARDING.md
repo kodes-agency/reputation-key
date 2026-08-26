@@ -104,12 +104,13 @@ Better Auth cookies should set `secure: true` in production. Verify in `auth.ts`
 
 ### 4.3 Redis is optional in dev
 
-BullMQ queues and rate limiting skip if `REDIS_URL` is unset during local
-development. The production worker refuses boot without it and inspects the
-live queue runtime before creating BullMQ clients: Redis 6.2+, GETDEL, and
-`maxmemory-policy=noeviction` are mandatory. Producer queue calls have a
-bounded timeout/retry policy; Worker blocking connections reconnect until the
-process enters its bounded shutdown drain.
+Local development may use one `REDIS_URL` for cache/rate limiting and BullMQ.
+Production web and worker require a physically distinct `QUEUE_REDIS_URL` and
+refuse boot when either resource is absent or both URLs resolve to one host.
+They inspect the live queue runtime before creating BullMQ clients: Redis 6.2+,
+GETDEL, and `maxmemory-policy=noeviction` are mandatory. Producer queue calls
+have a bounded timeout/retry policy; Worker blocking connections reconnect
+until the process enters its bounded shutdown drain.
 
 ---
 

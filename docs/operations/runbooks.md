@@ -301,11 +301,11 @@ surface dark); network-level restriction of the ops surface is platform-owned
 
 ## 7. Redis Loss / Backlog / Poison Job
 
-**Trigger:** Redis unreachable, queue backlog building, or a poison job crashing workers repeatedly.
+**Trigger:** Queue Redis or Cache Redis unreachable, queue backlog building, or a poison job crashing workers repeatedly.
 **Impact:** P1 — external effects delayed.
 **Diagnostics:** Check Redis connectivity and worker boot logs. `BullMQ Redis runtime verified` records the non-secret Redis version, `noeviction` policy, and GETDEL capability; `[CONFIG] BullMQ Redis runtime is incompatible: <code>` means the process refused a missing, uninspectable, unsupported, or eviction-capable queue store. Check BullMQ stalled/failed counts and identify the poison-job pattern.
-**Containment:** If Redis down: outbox accumulates events (no data loss). Web stays healthy. If poison job: quarantine via dead-letter, stop retry cycle.
-**Recovery:** Redis restore → relay drains backlog. Poison job → fix handler code, redrive from DLQ.
+**Containment:** If Queue Redis is down, the Postgres outbox accumulates events without losing accepted durable facts; serving processes stay live but readiness degrades. If Cache Redis is down, cache reads degrade and production rate-limited public actions fail closed without affecting queue keys. If poison job: quarantine via dead-letter, stop retry cycle.
+**Recovery:** Rebuild/restore only the failed Redis resource, preserve the distinct `REDIS_URL`/`QUEUE_REDIS_URL` mapping, then let the relay drain the backlog. Poison job → fix handler code, redrive from DLQ.
 **Verification:** Queue depth normal. No repeated failures. Outbox `published_at` advances.
 **Escalation:** Bozhidar Denev if backlog > 30 minutes.
 **Durability posture:** Redis is disposable-and-rebuild — the Postgres outbox is the durable fact store, no AOF is required for correctness (backup-and-lifecycle.md §2). BullMQ history prunes by count; dead-letter quarantine entries expire after `QUARANTINE_TTL_DAYS` (default 30d) via the daily `quarantine-ttl-sweep` (per-entry `job.remove()`, evidence subject `quarantine.ttl`) — the 24h `queue.quarantine-growth` redrive SLA is unchanged.

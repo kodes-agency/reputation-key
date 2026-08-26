@@ -69,6 +69,13 @@ describe('provider ephemeral Redis readiness', () => {
         'rediss://general-app:secret@general:6379',
       ),
     ).toBeNull()
+    expect(
+      validateProviderEphemeralRedisUrls(
+        'rediss://provider-app:secret@queue:6379',
+        'redis://cache:6379',
+        'redis://queue:6379/1',
+      ),
+    ).toEqual({ ok: false, code: 'url_not_dedicated' })
   })
 
   it('accepts authenticated non-persistent bounded config with no replica backlog', async () => {

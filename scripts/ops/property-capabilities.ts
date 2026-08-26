@@ -54,7 +54,7 @@ async function main(): Promise<void> {
     },
     async (ctx, args, io) => {
       // `getDb()`, not `getContainer()`: the composition root demands a job
-      // queue (REDIS_URL), and Redis is only reachable inside the deployment,
+      // queue (QUEUE_REDIS_URL), and Redis is only reachable inside the deployment,
       // so booting it here makes the command unrunnable from an operator
       // workstation. Nothing in this command needs the queue.
       //

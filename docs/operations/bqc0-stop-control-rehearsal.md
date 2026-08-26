@@ -48,7 +48,7 @@
 
 - **Procedure:** `pnpm ops:queue pause default` → workers stop picking up work; every waiting/active/failed job stays in Redis. `pnpm ops:queue resume default` restores. `status` is read-only. Unknown queue names fail closed (`unknown queue "defualt" — expected one of: default, background, domain-events`).
 - **Proof (unit):** `queue-quarantine.test.ts` — pause/resume/status; job counts identical before/after pause (no deletion). 4/4 green.
-- **Proof (CLI smoke):** no-args → usage + exit 1; unknown queue → named error + exit 1; missing `REDIS_URL` → clean refusal + exit 1.
+- **Proof (CLI smoke):** no-args → usage + exit 1; unknown queue → named error + exit 1; missing `QUEUE_REDIS_URL` → clean refusal + exit 1.
 - **Not executed locally:** a live Redis pause/resume cycle (no local Redis). Staging steps below.
 
 ### 5. Phase 17/18 (AI) deny

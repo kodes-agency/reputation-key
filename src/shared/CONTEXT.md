@@ -10,8 +10,8 @@ shared/
   events/        event bus, master DomainEvent union
   db/            Drizzle client factory, pool, columns, schema/ (auth, property, team, staff-assignment, portal, audit), migrations
   auth/          better-auth config, client, headers, middleware, permissions, server session helpers, emails, server-errors
-  jobs/          BullMQ queue, worker, registry
-  cache/         Redis client, cache port + implementations (redis-cache, noop-cache)
+  jobs/          BullMQ queue, worker, registry, dedicated queue-Redis topology/runtime guard
+  cache/         cache/rate-limit Redis client, cache port + implementations (redis-cache, noop-cache)
   observability/ logger (pino), traced-server-fn, request-context, trace (correlation IDs, timing)
   config/        env Zod schema
   testing/       in-memory port fakes, capturing-event-bus, fixtures, integration helpers
@@ -65,6 +65,10 @@ Shared code is **used by 2+ modules** across the codebase. If only one context u
 - **`redis-cache.ts`** — Redis-backed implementation
 - **`noop-cache.ts`** — no-op implementation for dev/when Redis is unavailable
 - **`redis.ts`** — shared Redis client
+
+Production Cache Redis (`REDIS_URL`) and BullMQ Queue Redis
+(`QUEUE_REDIS_URL`) are physically distinct per ADR 0053. Development/tests may
+use the documented single-Redis fallback; production code must never add one.
 
 ## Testing (`shared/testing/`)
 

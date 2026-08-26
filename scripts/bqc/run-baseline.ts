@@ -150,7 +150,11 @@ function main(): void {
     nodeEnv: process.env.NODE_ENV ?? '(unset)',
     database:
       (process.env.DATABASE_URL ?? '').replace(/.*\//, '').split('?')[0] || '(unset)',
-    redisConfigured: Boolean(process.env.REDIS_URL),
+    cacheRedisConfigured: Boolean(process.env.REDIS_URL),
+    queueRedisConfigured: Boolean(
+      process.env.QUEUE_REDIS_URL ??
+      (process.env.NODE_ENV === 'production' ? undefined : process.env.REDIS_URL),
+    ),
     capturedAt: new Date().toISOString(),
   }
 

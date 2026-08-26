@@ -1,7 +1,10 @@
 import { Redis } from 'ioredis'
+import { getEnv } from '#/shared/config/env'
+import { getJobRedisUrl } from './redis-topology'
 
 export const JOB_REDIS_MINIMUM_VERSION = '6.2.0' as const
 export const JOB_REDIS_INSPECTION_TIMEOUT_MS = 5_000
+export const JOB_REDIS_HEALTH_TIMEOUT_MS = 1_500
 
 export type JobRedisReadinessCode =
   | 'inspection_unavailable'
@@ -52,8 +55,8 @@ function commandIsAvailable(raw: unknown): boolean {
 
 /**
  * Inspect the Redis instance that owns BullMQ state. Ambiguous or denied
- * inspection fails closed because eviction or a missing atomic GETDEL can
- * silently corrupt queue/authentication behavior.
+ * inspection fails closed because eviction or an incomplete command surface
+ * can silently corrupt queue behavior.
  */
 export async function verifyJobRedisRuntime(redis: Redis): Promise<JobRedisReadiness> {
   try {
@@ -128,6 +131,29 @@ export async function assertConfiguredJobRedisRuntime(
       )
     }
     return await assertJobRedisRuntime(redis)
+  } finally {
+    redis.disconnect()
+  }
+}
+
+/** Bounded health probe for the dedicated queue endpoint after boot. */
+export async function isJobRedisHealthy(): Promise<boolean> {
+  const redisUrl = getJobRedisUrl(getEnv())
+  if (!redisUrl) return false
+  const redis = new Redis(redisUrl, {
+    commandTimeout: JOB_REDIS_HEALTH_TIMEOUT_MS,
+    connectTimeout: JOB_REDIS_HEALTH_TIMEOUT_MS,
+    enableOfflineQueue: false,
+    lazyConnect: true,
+    maxRetriesPerRequest: 0,
+    retryStrategy: () => null,
+  })
+  redis.on('error', () => undefined)
+  try {
+    await redis.connect()
+    return (await redis.ping()) === 'PONG'
+  } catch {
+    return false
   } finally {
     redis.disconnect()
   }

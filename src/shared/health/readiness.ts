@@ -34,9 +34,11 @@
 // next to the bundle — see Dockerfile).
 //
 // WORKER HEARTBEAT IS DELIBERATELY NOT A READINESS/STARTUP INPUT: the web
-// tier serves traffic without a worker; a degraded non-critical worker must
-// not take web traffic down. Worker-heartbeat alerting consumes the ops
-// metrics snapshot (BQC-7.4), not the platform probes.
+// tier serves traffic without a worker process. Queue Redis is still a web
+// dependency because the web process produces jobs; its independent probe is
+// combined with Cache Redis under the backward-compatible `redis` readiness
+// field. Worker-heartbeat alerting consumes the ops metrics snapshot
+// (BQC-7.4), not the platform probes.
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'

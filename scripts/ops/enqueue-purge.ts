@@ -14,7 +14,7 @@
 //   reviews    — purge-expired-reviews (daily; atomic delete + evidence per review)
 //   retention  — retention-sweep (daily; static registry, evidence in retention_runs)
 //
-// Report mode requires DATABASE_URL only. Apply also requires REDIS_URL. Every
+// Report mode requires DATABASE_URL only. Apply also requires QUEUE_REDIS_URL. Every
 // invocation is audited by the harness; an enqueued apply is re-authorized by
 // the BQC-3 dispatch gate at execution.
 // Runbook §10: purge requires operator confirmation + evidence report.
@@ -96,7 +96,7 @@ async function main(): Promise<void> {
 
       const queue = createJobQueue('background')
       if (!queue) {
-        io.err('REDIS_URL is not configured — cannot reach the background queue.')
+        io.err('QUEUE_REDIS_URL is not configured — cannot reach the background queue.')
         return 1
       }
       try {

@@ -29,7 +29,7 @@
 //   pnpm ops:gbp-subscribe --operator <id> --org <id>                      — dry-run report
 //   pnpm ops:gbp-subscribe --operator <id> --org <id> --reason <text> --apply
 //
-// Requires DATABASE_URL + REDIS_URL (the composition root wires the job queue)
+// Requires DATABASE_URL + QUEUE_REDIS_URL (composition wires the job queue)
 // and the Google provider env — subscribing decrypts/refreshes the connection's
 // access token and calls Google, so this must run where those are reachable.
 // Exits 1 when an applied run left any candidate short of `subscribed`; the JSON

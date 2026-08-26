@@ -54,6 +54,10 @@ describe('Data Cell catalogue', () => {
     expect(DATA_CELL_IDS.map((id) => dataCellById(id)?.id)).toEqual(DATA_CELL_IDS)
     expect(dataCellById('eu')).toBeNull()
     expect(dataCellById('')).toBeNull()
+    expect(DATA_CELL_CATALOGUE.us.resources).toMatchObject({
+      cacheRedis: 'Cache Redis',
+      queueRedis: 'Queue Redis',
+    })
   })
 
   it('reads expand-phase assignments without masking invalid or conflicting facts', () => {

@@ -25,6 +25,10 @@ import {
 import { createJobQueue, type Queue } from '#/shared/jobs/queue'
 import { assertConfiguredJobRedisRuntime } from '#/shared/jobs/redis-runtime'
 import {
+  assertProductionRedisTopology,
+  getJobRedisUrl,
+} from '#/shared/jobs/redis-topology'
+import {
   createGatedJobHandler,
   type JobRoutingGate,
 } from '#/shared/jobs/delayed-execution-gate'
@@ -96,16 +100,18 @@ async function main() {
 
   // DATA-18 / GOV-01: inspect the actual queue Redis before constructing any
   // BullMQ Queue or Worker. `noeviction` is a correctness requirement, Redis
-  // 6.2 is the supported compatibility floor, and GETDEL is also required by
-  // the one-time authorization stores. Production never degrades into a
-  // worker that looks started but owns no queues.
-  if (!env.REDIS_URL) {
+  // 6.2 and GETDEL are part of the supported BullMQ Redis command contract.
+  // Production never degrades into a worker that looks started but owns no
+  // queues.
+  assertProductionRedisTopology(env)
+  const jobRedisUrl = getJobRedisUrl(env)
+  if (!jobRedisUrl) {
     if (env.NODE_ENV === 'production') {
       throw new Error('[CONFIG] BullMQ Redis runtime is incompatible: url_missing')
     }
-    logger.warn('No Redis configured — BullMQ runtime inspection skipped')
+    logger.warn('No queue Redis configured — BullMQ runtime inspection skipped')
   } else {
-    const redisReadiness = await assertConfiguredJobRedisRuntime(env.REDIS_URL)
+    const redisReadiness = await assertConfiguredJobRedisRuntime(jobRedisUrl)
     logger.info(
       {
         redisVersion: redisReadiness.redisVersion,
@@ -158,7 +164,7 @@ async function main() {
   // failure is a deployment/config error per the failure taxonomy.
   assertJobReadiness(registry, logger, {
     dispatcherEnabled: Boolean(
-      container.outboxRepo && env.REDIS_URL && env.OUTBOX_DISPATCHER_ENABLED,
+      container.outboxRepo && jobRedisUrl && env.OUTBOX_DISPATCHER_ENABLED,
     ),
   })
 
@@ -503,7 +509,7 @@ async function main() {
   let stopRelay: (() => void) | undefined
   let domainEventsQueue: Queue | undefined
 
-  if (container.outboxRepo && env.REDIS_URL && env.OUTBOX_DISPATCHER_ENABLED) {
+  if (container.outboxRepo && jobRedisUrl && env.OUTBOX_DISPATCHER_ENABLED) {
     domainEventsQueue = createJobQueue('domain-events')
 
     if (domainEventsQueue) {
@@ -543,7 +549,7 @@ async function main() {
         )
       }
     }
-  } else if (container.outboxRepo && env.REDIS_URL && !env.OUTBOX_DISPATCHER_ENABLED) {
+  } else if (container.outboxRepo && jobRedisUrl && !env.OUTBOX_DISPATCHER_ENABLED) {
     logger.info(
       'Outbox relay + dispatcher DISABLED (BQR-0 containment). ' +
         'Consumers are registered; events still deliver via in-process bus until BQR-2 exit.',

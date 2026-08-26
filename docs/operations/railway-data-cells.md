@@ -19,7 +19,7 @@ names and the same `.railway/railway.ts` graph:
 Every environment has the same names and graph:
 
 - `web` and singleton `worker`;
-- `Postgres` and queue/cache `Redis`;
+- `Postgres`, `Cache Redis`, and independently placed `Queue Redis`;
 - private `object-store` bucket;
 - distinct, volume-free `google-provider-redis` service for short-lived
   provider material;
@@ -32,12 +32,13 @@ AOF, and replication, uses bounded `noeviction` memory, disables the default
 user, and denies persistence/admin commands to its dedicated ACL identity. The
 environment-scoped `PROVIDER_EPHEMERAL_REDIS_URL` must be
 `rediss://<non-default-user>:<secret>@google-provider-redis.railway.internal:6380`;
-the private CA is supplied separately. The main queue/cache Redis continues to
-use Railway private networking. Because Railway's typed `redis()` resource
-does not expose Redis server flags, the worker validates the provisioned
-service itself before constructing BullMQ: Redis 6.2 or newer, GETDEL present,
-and `maxmemory-policy=noeviction`. A non-conforming Railway Redis deployment
-fails closed during boot rather than accepting queue work. Bucket references
+the private CA is supplied separately. Cache/rate-limit Redis and BullMQ Redis
+are separate Railway resources on private networking; separate database
+numbers are not accepted as isolation. Because Railway's typed `redis()`
+resource does not expose Redis server flags, both web and worker validate the
+provisioned queue service before constructing BullMQ: Redis 6.2 or newer,
+GETDEL present, and `maxmemory-policy=noeviction`. A non-conforming Railway
+Redis deployment fails closed during boot rather than accepting queue work. Bucket references
 use Railway's `BUCKET`, `ACCESS_KEY_ID`, `SECRET_ACCESS_KEY`, `REGION`, and
 `ENDPOINT` outputs. Railway buckets use virtual-hosted addressing, so
 `S3_FORCE_PATH_STYLE=false`.

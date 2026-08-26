@@ -12,6 +12,7 @@ import { getEnv } from '#/shared/config/env'
 import { getLogger } from '#/shared/observability/logger'
 import { createJobQueue } from './queue'
 import { createJobWorker } from './worker'
+import { getJobRedisUrl } from './redis-topology'
 import { getPolicyJobOptions } from './policies'
 import type { JobHandler } from './registry'
 import type { JobDefinition, QueueClass, ScheduleDefinition } from './contracts'
@@ -131,8 +132,8 @@ export function createJobRuntime(definitions: readonly JobDefinition[]): JobRunt
 
   return {
     async start() {
-      if (!env.REDIS_URL) {
-        logger.warn('No REDIS_URL — JobRuntime not started')
+      if (!getJobRedisUrl(env)) {
+        logger.warn('No queue Redis URL — JobRuntime not started')
         return
       }
 

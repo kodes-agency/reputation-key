@@ -23,7 +23,7 @@
 //     row stays not-executed, never faked)
 //
 // Environment (--env=local, the only mode today):
-//   DATABASE_URL / REDIS_URL + the app env (getEnv) — the CLI boots the real
+//   DATABASE_URL / REDIS_URL / QUEUE_REDIS_URL + app env — the CLI boots the real
 //   composition container, so monitoring reads the same OperationsSnapshot
 //   the /api/health/metrics route serves.
 //   --base-url=http://host:3000 switches monitoring to HTTP mode and then
@@ -52,6 +52,7 @@ import { getEnv } from '../../src/shared/config/env'
 // the clean "required env missing" failure.
 import { closePool } from '../../src/shared/db/pool'
 import { jobEnqueueOptions } from '../../src/shared/jobs/job-policy'
+import { getJobRedisUrl } from '../../src/shared/jobs/redis-topology'
 import { organizationId, propertyId } from '../../src/shared/domain/ids'
 import {
   SLOS,
@@ -428,8 +429,9 @@ async function runScenario(
     console.error(err instanceof Error ? err.message : String(err))
     return 1
   }
-  if (!env.REDIS_URL) {
-    console.error('REDIS_URL is required for scenario runs (BullMQ producer seam).')
+  const jobRedisUrl = getJobRedisUrl(env)
+  if (!jobRedisUrl) {
+    console.error('QUEUE_REDIS_URL is required for scenario runs (BullMQ producer seam).')
     return 1
   }
 
@@ -712,9 +714,9 @@ async function runScenario(
   // collectors section states the coverage either way).
   const redisCli = spawnSync('redis-cli', ['--version'], { stdio: 'ignore' })
   const externalCollector =
-    redisCli.status === 0 && env.REDIS_URL
+    redisCli.status === 0
       ? createRedisInfoCollector({
-          redisUrl: env.REDIS_URL,
+          redisUrl: jobRedisUrl,
           clock: () => new Date(),
           run: (args) =>
             new Promise<string>((resolveRun, rejectRun) => {

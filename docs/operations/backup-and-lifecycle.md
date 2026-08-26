@@ -98,7 +98,7 @@ cutover mechanism. This procedure uses the PITR sibling described by
    refuses any source/public/wrong-cell target; capabilities deny every effect.
    Verify migration head, tenant isolation/counts, critical reads, and the
    recovery evidence. Never boot a worker in restore mode.
-9. Provision fresh empty queue/provider Redis services; restored queues are
+9. Provision fresh empty cache, queue, and provider Redis services; restored queues are
    never reused. Stage the sibling/fresh-Redis references for every Data Cell
    consumer while traffic and effects remain stopped. Do not redrive
    recovery-fenced outbox rows. Set `RECOVERY_CUTOVER_RUN_ID` and
@@ -123,10 +123,13 @@ still required independently for every Data Cell before it becomes accepting.
 
 ## 2. Redis durability
 
-**Posture: disposable-and-rebuild.** Redis holds BullMQ queues, rate-limit
-state, the PKCE/state store, and alert/heartbeat keys — NO durable facts. The
-Postgres outbox is the durable fact store: on Redis loss, events accumulate in
-the outbox and the relay redrives the backlog when Redis returns (runbooks §7).
+**Posture: disposable-and-rebuild, physically split.** `Queue Redis` holds
+BullMQ queues only. `Cache Redis` holds cache, rate-limit, alert, and heartbeat
+state. Provider authorization/PKCE handles remain on the third, independently
+guarded provider Redis. None holds durable facts. The Postgres outbox is the
+durable fact store: on queue Redis loss, events accumulate in the outbox and
+the relay redrives the backlog when that resource returns (runbooks §7).
+Logical database numbers on one daemon are never accepted as isolation.
 **No AOF/persistence is required for correctness** — enabling platform-side
 Redis persistence is optional operational comfort, never a correctness
 dependency.

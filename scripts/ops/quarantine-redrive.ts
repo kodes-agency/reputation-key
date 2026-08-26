@@ -11,7 +11,7 @@
 // budget (catalogue policy) and redriveMetadata in the payload — the BQC-3
 // runtime contract (createRedriveJob); handlers are never invoked directly.
 // Redacted envelopes (unknown job families) cannot be redriven — the payload
-// is gone. Requires REDIS_URL + DATABASE_URL.
+// is gone. Requires QUEUE_REDIS_URL + DATABASE_URL.
 
 import { createJobQueue } from '../../src/shared/jobs/queue'
 import {
@@ -62,7 +62,7 @@ async function main(): Promise<void> {
     async (ctx, _args, io) => {
       const quarantine = createJobQueue(QUARANTINE_QUEUE_NAME)
       if (!quarantine) {
-        io.err('REDIS_URL is not configured — cannot reach the quarantine queue.')
+        io.err('QUEUE_REDIS_URL is not configured — cannot reach the quarantine queue.')
         return 1
       }
 

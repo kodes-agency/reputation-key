@@ -74,7 +74,8 @@ const APP_SERVICES = [
 
 const FAULTS = [
   { name: 'db', service: 'postgres', endpoint: 'tcp', port: 55434 },
-  { name: 'redis', service: 'redis', endpoint: 'tcp', port: 56381 },
+  { name: 'cache-redis', service: 'redis', endpoint: 'operation' },
+  { name: 'redis', service: 'queue-redis', endpoint: 'operation' },
   {
     name: 'object-store',
     service: 'object-store',
@@ -1652,6 +1653,7 @@ function startDependencies(mode: LocalStackMode, state: StackPaths): void {
     '180',
     'postgres',
     'redis',
+    'queue-redis',
     'provider-redis',
     'provider-redis-ingress',
     'object-store',
@@ -1687,10 +1689,18 @@ function sanitationEvidence(
   const publicTables = Number(
     queryDb(mode, state, `SELECT count(*) FROM pg_tables WHERE schemaname = 'public'`),
   )
-  const redisKeys = Number(
+  const cacheRedisKeys = Number(
     dockerCompose(mode, state, ['exec', '-T', 'redis', 'redis-cli', '--raw', 'DBSIZE'], {
       capture: true,
     }).trim(),
+  )
+  const queueRedisKeys = Number(
+    dockerCompose(
+      mode,
+      state,
+      ['exec', '-T', 'queue-redis', 'redis-cli', '--raw', 'DBSIZE'],
+      { capture: true },
+    ).trim(),
   )
   oneShot(mode, state, 'object-store-init')
   const objectOutput = dockerCompose(
@@ -1713,16 +1723,19 @@ function sanitationEvidence(
   const evidence = {
     volumesRecreated: true,
     publicTablesBeforeMigration: publicTables,
-    redisKeysBeforeApplication: redisKeys,
+    cacheRedisKeysBeforeApplication: cacheRedisKeys,
+    redisKeysBeforeApplication: queueRedisKeys,
     objectCountBeforeApplication: objectCount,
     generatedEnvironmentMode: envMode.toString(8),
     noStaleDatabase: publicTables === 0,
-    noStaleRedisQueue: redisKeys === 0,
+    noStaleRedisCache: cacheRedisKeys === 0,
+    noStaleRedisQueue: queueRedisKeys === 0,
     noStaleObjects: objectCount === 0,
     protectedGeneratedSecrets: envMode === 0o600,
   }
   if (
     !evidence.noStaleDatabase ||
+    !evidence.noStaleRedisCache ||
     !evidence.noStaleRedisQueue ||
     !evidence.noStaleObjects ||
     !evidence.protectedGeneratedSecrets
@@ -2198,13 +2211,15 @@ async function observeFault(
   const unavailable =
     fault.name === 'gbp' || fault.name === 'web'
       ? operationDuringFault.observed !== 'success'
-      : fault.endpoint === 'http'
-        ? !(await probeHttp(fault.url)).reachable
-        : !(await probeTcp(
-            fault.name === 'db'
-              ? Number(parseEnvFile(state.env).POSTGRES_HOST_PORT)
-              : Number(parseEnvFile(state.env).REDIS_HOST_PORT),
-          ))
+      : fault.endpoint === 'operation'
+        ? operationDuringFault.observed === 'failed-closed'
+        : fault.endpoint === 'http'
+          ? !(await probeHttp(fault.url)).reachable
+          : !(await probeTcp(
+              fault.name === 'db'
+                ? Number(parseEnvFile(state.env).POSTGRES_HOST_PORT)
+                : Number(parseEnvFile(state.env).REDIS_HOST_PORT),
+            ))
   const readinessDuringFault = await probeHttp('http://127.0.0.1:3000/api/health/ready')
   let failClosed = unavailable && operationDuringFault.observed === 'failed-closed'
   dockerCompose(mode, state, [
@@ -2225,13 +2240,15 @@ async function observeFault(
   const operationAfterRecovery = runAffectedOperation(mode, state, fault.name, 'recovery')
   const recovered =
     operationAfterRecovery.observed === 'success' &&
-    (fault.endpoint === 'http'
-      ? (await probeHttp(fault.url)).status === 200
-      : await probeTcp(
-          fault.name === 'db'
-            ? Number(parseEnvFile(state.env).POSTGRES_HOST_PORT)
-            : Number(parseEnvFile(state.env).REDIS_HOST_PORT),
-        ))
+    (fault.endpoint === 'operation'
+      ? true
+      : fault.endpoint === 'http'
+        ? (await probeHttp(fault.url)).status === 200
+        : await probeTcp(
+            fault.name === 'db'
+              ? Number(parseEnvFile(state.env).POSTGRES_HOST_PORT)
+              : Number(parseEnvFile(state.env).REDIS_HOST_PORT),
+          ))
   await waitHttp('web readiness recovery', 'http://127.0.0.1:3000/api/health/ready')
   const externalAfter = await externalEffectCounts()
   const durableAfter = await waitForDurableQuiescence(mode, state)

@@ -14,13 +14,13 @@ scale in staging.
 | Executors           | `src/shared/testing/scenarios/executors.ts`  | Runnable capacity + lifecycle scenarios and the full fault registry; fault execution requires the controlled production runner       |
 | Dataset             | `src/shared/testing/scale-dataset.ts`        | Deterministic plan (seed → ids/distributions), manifest hash, load/verify/clean                                                      |
 | Evidence            | `src/shared/testing/scale-evidence.ts`       | Ingests measured results → reviewed markdown; fails closed                                                                           |
-| Staging cell        | `src/shared/testing/staging-cell.ts`         | BQC-8.2: local production-shaped cell (DB, Redis db 9, stubs, prod web+worker, readiness, teardown)                                  |
+| Staging cell        | `src/shared/testing/staging-cell.ts`         | BQC-8.2: local production-shaped cell (DB, separate cache/queue Redis, stubs, prod web+worker, readiness, teardown)                  |
 | External collectors | `src/shared/testing/external-collectors.ts`  | BQC-8.2: redis-cli INFO sampling; DB CPU/locks honestly not-collected (platform surface)                                             |
 | CLIs                | `scripts/perf/`                              | Thin wiring only (outside tsconfig, per the ops-command precedent)                                                                   |
 
 ## Running scenarios locally
 
-Export the app env (DATABASE*URL, REDIS_URL, BETTER_AUTH*\*, …) — the CLI boots
+Export the app env (DATABASE*URL, REDIS_URL, QUEUE_REDIS_URL, BETTER_AUTH*\*, …) — the CLI boots
 the real composition container, so monitoring reads the same snapshot the
 metrics route serves.
 
@@ -52,7 +52,7 @@ What a run does:
   assertion passed.
 
 Fail-closed: unknown scenario/fault, a missing lifecycle seam, an unavailable
-fault controller, missing/invalid env, missing REDIS_URL (or OPS_METRICS_TOKEN
+fault controller, missing/invalid env, missing QUEUE_REDIS_URL (or OPS_METRICS_TOKEN
 with `--base-url`), unseeded DB for `dashboardMix` — all exit non-zero with a
 clear message. `drain` without a worker honestly FAILS
 (`drained_within_timeout`) rather than fabricating a drain time.
@@ -108,14 +108,19 @@ pnpm perf:cell -- status                                    # liveness report
 pnpm perf:cell -- env                                       # export lines for perf:run / perf:seed-scale
 pnpm perf:cell -- down                                      # stop; keep the database
 pnpm perf:cell -- down --drop                               # stop; drop the cell database
+# Optional: --cache-redis-url=redis://localhost:6380/9
+#           --queue-redis-url=redis://localhost:6379/9
 ```
 
 - **Database** `repkey_bqc8_cell` (create + ci.yml migration trio via
   `ensureTestDatabase`). The cell only ever touches `repkey_bqc8_*` names —
   `test`, `repkey_bqc05_baseline`, dev, and e2e databases are unreachable by
   construction, and `down --drop` re-checks the prefix before dropping.
-- **Redis logical db 9** (`redis://localhost:6379/9`) — the cell's BullMQ
-  keys never meet a dev:all worker on db 0.
+- **Two Redis daemons, logical db 9** — cache/rate limiting defaults to
+  `redis://localhost:6380/9`; BullMQ defaults to
+  `redis://localhost:6379/9`. Separate ports are mandatory because logical
+  database numbers are not resource or failure isolation. Queue keys never
+  meet a dev:all worker on db 0.
 - **Ports** 3100 (web) / 4150 (GBP stub) / 4151 (mail stub), walked past
   conflicts (dev:all on 3000, e2e stubs on 4100/4101) and recorded in the
   state file (`test-results/perf-cell/cell-state.json`).
@@ -140,7 +145,7 @@ Typical execution session:
 
 ```bash
 pnpm perf:cell -- up --probe-org=$(node -e "console.log('perf-org-…')" )
-eval "$(pnpm perf:cell -- env)"       # arms DATABASE_URL/REDIS_URL/OPS_METRICS_TOKEN/…
+eval "$(pnpm perf:cell -- env)"       # arms database/cache/queue/ops variables
 pnpm perf:seed-scale -- --orgs=100 --properties=5000 --reviews=500000 \
   --manifest=docs/release-evidence/beta/bqc8-local-candidate/scale-dataset.json
 pnpm perf:seed-scale -- --verify --manifest=…/scale-dataset.json
@@ -211,7 +216,8 @@ seeing results.
 ## BQC-8.2 execution transcript (local cell, 2026-08-01)
 
 Cell: production web + worker builds, `repkey_bqc8_cell` (migration trio),
-Redis db 9, GBP/mail stubs, ports 3100/4150/4151. Dataset: 100 orgs /
+separate cache/queue Redis daemons on db 9, GBP/mail stubs, ports
+3100/4150/4151. Dataset: 100 orgs /
 5,000 properties / 500,000 reviews, seed `perf-scale-v1`, hash `5501350a…`
 (verify: 7/7 checks). Pack: `docs/release-evidence/beta/bqc8-local-candidate/`
 (read its `NOTES.md` for the fidelity contract — synthetic orgs have no

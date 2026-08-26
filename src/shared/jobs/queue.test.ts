@@ -90,6 +90,7 @@ function fakeQueues(): FakeQueueInstance[] {
 
 const CONNECTIONS_KEY = Symbol.for('repkey.shared.jobs.queueConnections')
 const ORIGINAL_REDIS_URL = process.env.REDIS_URL
+const ORIGINAL_QUEUE_REDIS_URL = process.env.QUEUE_REDIS_URL
 
 function clearStore(): void {
   delete (globalThis as Record<symbol, unknown>)[CONNECTIONS_KEY]
@@ -106,6 +107,8 @@ afterEach(() => {
   clearStore()
   if (ORIGINAL_REDIS_URL === undefined) delete process.env.REDIS_URL
   else process.env.REDIS_URL = ORIGINAL_REDIS_URL
+  if (ORIGINAL_QUEUE_REDIS_URL === undefined) delete process.env.QUEUE_REDIS_URL
+  else process.env.QUEUE_REDIS_URL = ORIGINAL_QUEUE_REDIS_URL
   resetEnv()
 })
 
@@ -145,6 +148,16 @@ describe('createJobQueue', () => {
       maxRetriesPerRequest: 1,
     })
     expect(fakeQueues()[0].opts.connection).toBe(fakeConnections()[0])
+  })
+
+  it('connects producers to QUEUE_REDIS_URL when the topology is split', () => {
+    process.env.REDIS_URL = 'redis://cache:6379'
+    process.env.QUEUE_REDIS_URL = 'redis://queue:6379'
+    resetEnv()
+
+    createJobQueue('default')
+
+    expect(fakeConnections()[0].url).toBe('redis://queue:6379')
   })
 
   it('routes BullMQ error events through structured logging', () => {

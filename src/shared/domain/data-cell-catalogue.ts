@@ -36,7 +36,8 @@ export type DataCellDefinition = Readonly<{
     web: 'web'
     worker: 'worker'
     postgres: 'Postgres'
-    queueRedis: 'Redis'
+    cacheRedis: 'Cache Redis'
+    queueRedis: 'Queue Redis'
     providerRedis: 'google-provider-redis'
     objectStore: 'object-store'
     googleGateway: 'google-egress-gateway'
@@ -111,7 +112,8 @@ const RESOURCE_REFS = Object.freeze({
   web: 'web',
   worker: 'worker',
   postgres: 'Postgres',
-  queueRedis: 'Redis',
+  cacheRedis: 'Cache Redis',
+  queueRedis: 'Queue Redis',
   providerRedis: 'google-provider-redis',
   objectStore: 'object-store',
   googleGateway: 'google-egress-gateway',

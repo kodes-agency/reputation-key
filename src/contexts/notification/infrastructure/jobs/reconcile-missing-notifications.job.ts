@@ -5,7 +5,7 @@
 // left the review committed, the inbox item committed, and no notification —
 // with nothing retrying. The durable consumer in ../outbox-consumers.ts is the
 // structural fix, but it is inert until `OUTBOX_DISPATCHER_ENABLED` is true
-// (with REDIS_URL set) — flipping the dispatcher turns on every context's
+// (with QUEUE_REDIS_URL set) — flipping the dispatcher turns on every context's
 // durable consumers at once, so it is an ops decision with blast radius far
 // beyond notifications. This sweep closes the hole TODAY, under the flags as
 // they actually ship. Note the DURABLE_CUTOVER_INBOX* flags are NOT involved:

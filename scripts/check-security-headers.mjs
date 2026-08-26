@@ -86,11 +86,17 @@ function serverEnv(port) {
     NODE_ENV: 'production',
     HOST: '127.0.0.1',
     PORT: String(port),
-    // Not contacted by the probes (liveness has no DB/Redis dependency and
-    // both clients connect lazily) — pass through CI service URLs when set.
+    // Not contacted by the probes (liveness has no database dependency and
+    // the database client connects lazily) — pass through CI URL when set.
     DATABASE_URL:
       process.env.DATABASE_URL ?? 'postgresql://test:test@localhost:5432/test',
-    REDIS_URL: process.env.REDIS_URL ?? 'redis://localhost:6379',
+    // The web boot guard inspects the live queue service. CI may expose it
+    // under the dedicated variable or the historical REDIS_URL. The cache URL
+    // only needs to be a distinct valid endpoint for these liveness-only
+    // probes and is never contacted.
+    REDIS_URL: 'redis://localhost:6380',
+    QUEUE_REDIS_URL:
+      process.env.QUEUE_REDIS_URL ?? process.env.REDIS_URL ?? 'redis://localhost:6379',
     BETTER_AUTH_SECRET: hex(32),
     // The server still binds to HOST/PORT above. BETTER_AUTH_URL is the
     // externally visible canonical origin, which is required to be HTTPS in

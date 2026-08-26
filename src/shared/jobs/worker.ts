@@ -13,6 +13,7 @@ import { getLogger } from '#/shared/observability/logger'
 import { quarantineExhaustedJob } from './failure-quarantine'
 import type { JobHandler } from './registry'
 import { Redis } from 'ioredis'
+import { getJobRedisUrl } from './redis-topology'
 
 export type { Job }
 export type { JobHandler }
@@ -72,7 +73,8 @@ export const BACKGROUND_QUEUE_CONCURRENCY = 3
  * Create a BullMQ worker for the given queue name.
  * Uses a dedicated Redis connection with maxRetriesPerRequest=null
  * (required by BullMQ for blocking BRPOPLPUSH operations).
- * Returns undefined if Redis is not configured (REDIS_URL missing).
+ * Returns undefined if queue Redis is not configured. Production requires
+ * QUEUE_REDIS_URL; development/test may fall back to REDIS_URL.
  *
  * @param concurrency  Max jobs processed in parallel (BullMQ default: 1).
  *                     Set higher for latency-sensitive queues so a single
@@ -89,13 +91,14 @@ export function createJobWorker<T>(
   quarantineQueue?: Queue,
 ): Worker<T> | undefined {
   const env = getEnv()
-  if (!env.REDIS_URL) return undefined
+  const redisUrl = getJobRedisUrl(env)
+  if (!redisUrl) return undefined
 
   const logger = getLogger()
 
   // BullMQ Worker requires maxRetriesPerRequest=null for blocking connections.
   // Cannot share the caching Redis client which uses maxRetriesPerRequest=3.
-  const connection = new Redis(env.REDIS_URL, {
+  const connection = new Redis(redisUrl, {
     maxRetriesPerRequest: null,
   })
 

@@ -4,6 +4,7 @@ x-app-environment: &app-environment
   NODE_ENV: production
   DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
   REDIS_URL: redis://redis:6379
+  QUEUE_REDIS_URL: redis://queue-redis:6379
   BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET}
   RESEND_API_KEY: ${RESEND_API_KEY}
   RESEND_BASE_URL: http://mail-stub:4101
@@ -135,8 +136,9 @@ services:
   redis:
     profiles: [backend]
     image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b
-    # BullMQ correctness contract: queue keys must never be evicted. The worker
-    # independently inspects this live value before creating queue clients.
+    # Cache/rate-limit state is physically independent from BullMQ state. Keep
+    # the conservative managed-service default until a bounded cache policy is
+    # specified without weakening rate-limit correctness.
     command: [redis-server, --appendonly, 'yes', --maxmemory-policy, noeviction]
     ports:
       - '127.0.0.1:${REDIS_HOST_PORT}:6379'
@@ -152,6 +154,24 @@ services:
     networks:
       - app
       - google-admission-redis
+
+  queue-redis:
+    profiles: [backend]
+    image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b
+    # BullMQ correctness contract: queue keys must never be evicted. Web and
+    # worker independently inspect this live value before creating clients.
+    command: [redis-server, --appendonly, 'yes', --maxmemory-policy, noeviction]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    volumes:
+      - queue-redis-data:/data
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - app
 
   provider-redis:
     profiles: [backend]
@@ -776,6 +796,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      queue-redis:
+        condition: service_healthy
       provider-redis-ingress:
         condition: service_healthy
       provider-sandbox:
@@ -815,6 +837,8 @@ services:
       seed:
         condition: service_completed_successfully
       redis:
+        condition: service_healthy
+      queue-redis:
         condition: service_healthy
       provider-redis-ingress:
         condition: service_healthy
@@ -870,6 +894,8 @@ services:
       seed:
         condition: service_completed_successfully
       redis:
+        condition: service_healthy
+      queue-redis:
         condition: service_healthy
       provider-redis-ingress:
         condition: service_healthy
@@ -941,5 +967,6 @@ networks:
 volumes:
   postgres-data:
   redis-data:
+  queue-redis-data:
   object-store-data:
   postgres-tls:

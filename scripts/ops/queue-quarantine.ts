@@ -4,7 +4,7 @@
 //   pnpm ops:queue pause <queue> --operator <id> --reason <text>           — dry-run report
 //   pnpm ops:queue pause <queue> --operator <id> --reason <text> --apply   — stop processing, preserve all jobs
 //   pnpm ops:queue resume <queue> --operator <id> --reason <text> --apply  — restore processing
-// Queues: default, background, domain-events. Requires REDIS_URL + DATABASE_URL.
+// Queues: default, background, domain-events. Requires QUEUE_REDIS_URL + DATABASE_URL.
 // Every invocation is policy-evaluated + audited (allow rows carry the
 // reason; reads audit as 'read'). pause/resume are report-first since
 // BQC-7.5 — --apply executes.
@@ -49,7 +49,7 @@ async function main(): Promise<void> {
         return 1
       }
       if (!queue) {
-        io.err('REDIS_URL is not configured — cannot reach the queue.')
+        io.err('QUEUE_REDIS_URL is not configured — cannot reach the queue.')
         return 1
       }
 

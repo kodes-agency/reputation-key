@@ -143,7 +143,8 @@ const servingDeploy = (region: string, drainingSeconds: number) => ({
 export function buildRailwayProject(ctx: RailwayContext): ProjectDefinition {
   const cell = resolveCellTopology(ctx.environmentName ?? ctx.environment)
   const database = postgres('Postgres', { region: cell.serviceRegion })
-  const queueRedis = redis('Redis', { region: cell.serviceRegion })
+  const cacheRedis = redis('Cache Redis', { region: cell.serviceRegion })
+  const queueRedis = redis('Queue Redis', { region: cell.serviceRegion })
   // ADR-0050: provider material cannot use Railway's persistence-oriented
   // managed Redis template. This digest-promoted service has no volume or
   // public TCP proxy and boots TLS/non-default-ACL/non-persistent Redis from
@@ -164,7 +165,8 @@ export function buildRailwayProject(ctx: RailwayContext): ProjectDefinition {
   const applicationInfrastructure = {
     NODE_ENV: 'production',
     DATABASE_URL: database.env.DATABASE_URL,
-    REDIS_URL: queueRedis.env.REDIS_URL,
+    REDIS_URL: cacheRedis.env.REDIS_URL,
+    QUEUE_REDIS_URL: queueRedis.env.REDIS_URL,
     // Provider Content/authorization storage is private TLS with a dedicated
     // non-default ACL identity. The shared URL is environment-scoped and
     // names only google-provider-redis.railway.internal:6380.
@@ -288,7 +290,7 @@ export function buildRailwayProject(ctx: RailwayContext): ProjectDefinition {
   return project(ctx.projectName ?? 'repkey-data-cells', {
     resources: [
       ...group('Application', [web, worker], { color: '#2563EB' }),
-      ...group('Regional data', [database, queueRedis, objectStore], {
+      ...group('Regional data', [database, cacheRedis, queueRedis, objectStore], {
         color: '#059669',
       }),
       ...group('Google boundary', [providerRedis, googleAdmission, googleGateway], {

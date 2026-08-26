@@ -100,7 +100,7 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
       // immutable image digest, so the graph must not reintroduce Git builds.
       expect(node.source).toBeUndefined()
     }
-    for (const name of ['Postgres', 'Redis']) {
+    for (const name of ['Postgres', 'Cache Redis', 'Queue Redis']) {
       expect(
         (resource(definition, 'database', name) as DatabaseNode).deploy
           ?.multiRegionConfig,
@@ -126,7 +126,7 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
     ])
   })
 
-  it('pins the cell identity, domain, database, cache, and bucket references', () => {
+  it('pins the cell identity, domain, database, Redis split, and bucket references', () => {
     const web = resource(definition, 'service', 'web') as ServiceNode
     const worker = resource(definition, 'service', 'worker') as ServiceNode
     expect(web.networking?.customDomains).toHaveProperty(topology.publicDomain)
@@ -144,6 +144,18 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
       resource: 'database.Postgres',
       output: 'DATABASE_URL',
     })
+    expect(web.variables?.REDIS_URL).toMatchObject({
+      type: 'reference',
+      resource: 'database.Cache Redis',
+      output: 'REDIS_URL',
+    })
+    expect(web.variables?.QUEUE_REDIS_URL).toMatchObject({
+      type: 'reference',
+      resource: 'database.Queue Redis',
+      output: 'REDIS_URL',
+    })
+    expect(worker.variables?.REDIS_URL).toEqual(web.variables?.REDIS_URL)
+    expect(worker.variables?.QUEUE_REDIS_URL).toEqual(web.variables?.QUEUE_REDIS_URL)
     expect(web.variables?.PROVIDER_EPHEMERAL_REDIS_URL).toMatchObject({
       type: 'sharedReference',
       name: 'PROVIDER_EPHEMERAL_REDIS_URL',

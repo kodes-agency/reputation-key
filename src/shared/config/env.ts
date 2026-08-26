@@ -64,6 +64,9 @@ const baseEnvSchema = z.object({
 
   // Redis — Upstash / Railway Redis
   REDIS_URL: z.string().optional(),
+  // Dedicated BullMQ Redis. Required and physically distinct from REDIS_URL
+  // by the production web/worker boot guard; dev/test may fall back to one.
+  QUEUE_REDIS_URL: z.string().optional(),
   // Dedicated non-persistent Redis for provider Content and short-lived
   // authorization records. Production composition requires a distinct TLS URL.
   PROVIDER_EPHEMERAL_REDIS_URL: z.string().optional(),

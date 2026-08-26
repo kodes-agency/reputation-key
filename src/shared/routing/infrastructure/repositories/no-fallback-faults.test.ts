@@ -399,7 +399,7 @@ describe('(b) database unavailable at dispatch (BQC-4.6)', () => {
     // Full BullMQ proof against the real worker wiring: the job fails, is
     // retried, and at attempts-exhaustion the 3.6 'failed' path quarantines.
     const worker = createJobWorker(QUEUE_B, dispatch, 1, q(QUAR_B))
-    if (!worker) throw new Error('worker unavailable (REDIS_URL missing)')
+    if (!worker) throw new Error('worker unavailable (queue Redis missing)')
     try {
       await q(QUEUE_B).add(
         'sync-property-reviews',
@@ -749,7 +749,7 @@ describe('(e) resume/reconcile in-cell (BQC-4.6)', () => {
     })
     const { dispatch, handler } = gatedSyncDispatch(QUEUE_E, QUAR_E, router)
     const worker = createJobWorker(QUEUE_E, dispatch, 1, q(QUAR_E))
-    if (!worker) throw new Error('worker unavailable (REDIS_URL missing)')
+    if (!worker) throw new Error('worker unavailable (queue Redis missing)')
     try {
       // Phase 1 — DB down: one attempt, exhausted → parked in quarantine.
       await q(QUEUE_E).add(

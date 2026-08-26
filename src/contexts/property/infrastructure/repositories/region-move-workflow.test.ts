@@ -176,7 +176,7 @@ beforeAll(async () => {
   registerAllEventSchemas()
   const dq = createJobQueue('default')
   const bq = createJobQueue('background')
-  if (!dq || !bq) throw new Error('REDIS_URL required for the move rehearsal')
+  if (!dq || !bq) throw new Error('queue Redis required for the move rehearsal')
   defaultQueue = dq
   backgroundQueue = bq
   // Scratch queues: guarantee an empty drain baseline (test-local Redis).

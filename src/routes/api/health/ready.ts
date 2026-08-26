@@ -9,7 +9,7 @@
 // not take web traffic down. Worker-heartbeat alerting consumes the ops
 // metrics snapshot (/api/health/metrics) — that is BQC-7.4's job.
 import { createFileRoute } from '@tanstack/react-router'
-import { isRedisHealthy } from '#/shared/cache/redis'
+import { areRedisDependenciesHealthy } from '#/shared/health/redis-dependencies'
 import { isDbHealthy } from '#/shared/health/db-probe'
 import { probeHttpStatus } from '#/shared/health/probes'
 import {
@@ -24,7 +24,7 @@ export const Route = createFileRoute('/api/health/ready')({
       GET: async () => {
         const result = await runReadiness({
           db: isDbHealthy,
-          redis: isRedisHealthy,
+          redis: areRedisDependenciesHealthy,
           migrations: isMigrationJournalMatched,
           policy: isPolicyStateReadable,
         })
