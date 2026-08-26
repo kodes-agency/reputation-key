@@ -1,3 +1,5 @@
+import { spawnSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   createRailwayContext,
@@ -17,6 +19,49 @@ import {
   resolveCellTopology,
 } from './cell-topology'
 import { buildRailwayProject } from './railway'
+
+const REPOSITORY_ROOT = fileURLToPath(new URL('..', import.meta.url))
+
+describe('Railway CLI module evaluation', () => {
+  it('loads the checked-in TypeScript graph with native Node resolution', () => {
+    const result = spawnSync(
+      process.execPath,
+      ['--input-type=module', '--eval', "await import('./.railway/railway.ts')"],
+      {
+        cwd: REPOSITORY_ROOT,
+        encoding: 'utf8',
+      },
+    )
+
+    expect(result.status, result.stderr).toBe(0)
+  })
+
+  it('evaluates an explicitly selected Data Cell when the CLI supplies an empty context', () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        [
+          "const module = await import('./.railway/railway.ts')",
+          'const graph = await module.default({})',
+          'process.stdout.write(JSON.stringify(graph))',
+        ].join(';'),
+      ],
+      {
+        cwd: REPOSITORY_ROOT,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          REPKEY_RAILWAY_CELL_ENVIRONMENT: 'cell-us',
+        },
+      },
+    )
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({ name: 'repkey-data-cells' })
+  })
+})
 
 function resources(project: ProjectDefinition): ResourceNode[] {
   return (project.resources ?? []).flat() as ResourceNode[]

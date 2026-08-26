@@ -326,7 +326,7 @@ const baseEnvSchema = z.object({
   // not this variable, decides whether that cell may accept work. Unknown cell
   // names fail environment parsing; known wrong-cell work fails at the shared
   // execution, repository, queue, provider, and storage boundaries.
-  PROCESSING_CELL: z.enum(DATA_CELL_IDS).default('us'),
+  PROCESSING_CELL: z.enum(DATA_CELL_IDS).optional(),
   // BQC-7.1: worker graceful-shutdown drain budget (ms). BullMQ worker.close()
   // resolves only when in-flight jobs finish — a hung job would otherwise hang
   // the deploy window until the platform's SIGKILL. On budget expiry the
@@ -393,78 +393,99 @@ const baseEnvSchema = z.object({
   GOOGLE_OAUTH_REVOKE_URL: z.url().optional(),
 })
 
-const envSchema = baseEnvSchema.superRefine((env, context) => {
-  // A production auth origin controls trusted-origin checks, callback URLs,
-  // and the Secure attribute on session cookies. Refuse the deployment before
-  // either web or worker starts if a configuration mistake would make those
-  // cookies eligible for plaintext transport.
-  if (
-    env.NODE_ENV === 'production' &&
-    new URL(env.BETTER_AUTH_URL).protocol !== 'https:'
-  ) {
-    context.addIssue({
-      code: 'custom',
-      path: ['BETTER_AUTH_URL'],
-      message: 'Production BETTER_AUTH_URL must use HTTPS',
-    })
-  }
-  if (env.RESTORE_MODE === 'isolated' && !env.RESTORE_SOURCE_CELL) {
-    context.addIssue({
-      code: 'custom',
-      path: ['RESTORE_SOURCE_CELL'],
-      message: 'Restore-isolated mode requires the backup source Data Cell',
-    })
-  } else if (
-    env.RESTORE_MODE === 'isolated' &&
-    env.RESTORE_SOURCE_CELL !== env.PROCESSING_CELL
-  ) {
-    context.addIssue({
-      code: 'custom',
-      path: ['RESTORE_SOURCE_CELL'],
-      message: 'Restore source Data Cell must match PROCESSING_CELL',
-    })
-  }
-  if (
-    (env.RECOVERY_CUTOVER_RUN_ID === undefined) !==
-    (env.RECOVERY_CUTOVER_GENERATION === undefined)
-  ) {
-    context.addIssue({
-      code: 'custom',
-      path: ['RECOVERY_CUTOVER_RUN_ID'],
-      message: 'Recovery cutover run ID and generation must be configured together',
-    })
-  }
-  if (
-    env.RESTORE_MODE !== 'isolated' &&
-    isRailwayPitrDatabaseUrl(env.DATABASE_URL) &&
-    (env.RECOVERY_CUTOVER_RUN_ID === undefined ||
-      env.RECOVERY_CUTOVER_GENERATION === undefined)
-  ) {
-    context.addIssue({
-      code: 'custom',
-      path: ['RECOVERY_CUTOVER_RUN_ID'],
-      message:
-        'A Railway PITR sibling may serve only with its recovery cutover run ID and generation',
-    })
-  }
-})
+const envSchema = baseEnvSchema
+  .superRefine((env, context) => {
+    if (env.NODE_ENV === 'production' && !env.PROCESSING_CELL) {
+      context.addIssue({
+        code: 'custom',
+        path: ['PROCESSING_CELL'],
+        message: 'Production deployments require an explicit PROCESSING_CELL',
+      })
+    }
+    // A production auth origin controls trusted-origin checks, callback URLs,
+    // and the Secure attribute on session cookies. Refuse the deployment before
+    // either web or worker starts if a configuration mistake would make those
+    // cookies eligible for plaintext transport.
+    if (
+      env.NODE_ENV === 'production' &&
+      new URL(env.BETTER_AUTH_URL).protocol !== 'https:'
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['BETTER_AUTH_URL'],
+        message: 'Production BETTER_AUTH_URL must use HTTPS',
+      })
+    }
+    if (env.RESTORE_MODE === 'isolated' && !env.RESTORE_SOURCE_CELL) {
+      context.addIssue({
+        code: 'custom',
+        path: ['RESTORE_SOURCE_CELL'],
+        message: 'Restore-isolated mode requires the backup source Data Cell',
+      })
+    } else if (
+      env.RESTORE_MODE === 'isolated' &&
+      env.RESTORE_SOURCE_CELL !== env.PROCESSING_CELL
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['RESTORE_SOURCE_CELL'],
+        message: 'Restore source Data Cell must match PROCESSING_CELL',
+      })
+    }
+    if (
+      (env.RECOVERY_CUTOVER_RUN_ID === undefined) !==
+      (env.RECOVERY_CUTOVER_GENERATION === undefined)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['RECOVERY_CUTOVER_RUN_ID'],
+        message: 'Recovery cutover run ID and generation must be configured together',
+      })
+    }
+    if (
+      env.RESTORE_MODE !== 'isolated' &&
+      isRailwayPitrDatabaseUrl(env.DATABASE_URL) &&
+      (env.RECOVERY_CUTOVER_RUN_ID === undefined ||
+        env.RECOVERY_CUTOVER_GENERATION === undefined)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['RECOVERY_CUTOVER_RUN_ID'],
+        message:
+          'A Railway PITR sibling may serve only with its recovery cutover run ID and generation',
+      })
+    }
+  })
+  .transform((env) => ({
+    ...env,
+    // A single-cell local/test stack deliberately behaves as the US cell. A
+    // production process may reach this transform only after the refinement
+    // above has established an explicit, catalogue-valid identity.
+    PROCESSING_CELL: env.PROCESSING_CELL ?? 'us',
+  }))
 
 export type Env = z.infer<typeof envSchema>
 
 let _env: Env | undefined
 
+export function parseEnvironment(
+  input: NodeJS.ProcessEnv | Record<string, unknown>,
+): Env {
+  const parsed = envSchema.safeParse(input)
+  if (!parsed.success) {
+    const errors = parsed.error.issues
+      .map((i) => `  ${i.path.join('.')}: ${i.message}`)
+      .join('\n')
+    // Startup-time assertion (not domain/application logic).
+    // Plain Error is acceptable here — tagged errors are for domain and application layers.
+    throw new Error(`[CONFIG] Invalid environment variables:\n${errors}`)
+  }
+  return parsed.data
+}
+
 export function getEnv(): Env {
   if (!_env) {
-    const parsed = envSchema.safeParse(process.env)
-    if (!parsed.success) {
-      const errors = parsed.error.issues
-        .map((i) => `  ${i.path.join('.')}: ${i.message}`)
-        .join('\n')
-      // Startup-time assertion (not domain/application logic).
-      // Plain Error is acceptable here — tagged errors are for domain and application layers.
-      throw new Error(`[CONFIG] Invalid environment variables:\n${errors}`)
-    }
-    _env = parsed.data
+    _env = parseEnvironment(process.env)
   }
   return _env
 }

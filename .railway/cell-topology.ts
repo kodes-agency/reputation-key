@@ -3,7 +3,7 @@ import {
   DATA_CELL_IDS,
   type DataCellDefinition,
   type DataCellId,
-} from '../src/shared/domain/data-cell-catalogue'
+} from '../src/shared/domain/data-cell-catalogue.ts'
 
 export type { DataCellId }
 export type RailwayCellEnvironment = `cell-${DataCellId}`

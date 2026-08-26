@@ -91,6 +91,7 @@ export default defineConfig({
             'services/**/*.test.ts',
             '.railway/**/*.test.ts',
             'scripts/review/**/*.test.ts',
+            'scripts/release/**/*.test.ts',
             'e2e/fixtures/**/*.test.ts',
             // The e2e HELPERS are ordinary Node modules with no browser
             // dependency (polling, allowlist bookkeeping, raw SQL builders), and

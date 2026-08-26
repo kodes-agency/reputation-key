@@ -1,5 +1,6 @@
 import {
   bucket,
+  createRailwayContext,
   defineRailway,
   group,
   postgres,
@@ -11,7 +12,7 @@ import {
   type RailwayContext,
   type VariableValue,
 } from 'railway/iac'
-import { resolveCellTopology } from './cell-topology'
+import { resolveCellTopology } from './cell-topology.ts'
 
 const APPLICATION_SHARED_VARIABLES = [
   'BETTER_AUTH_SECRET',
@@ -140,8 +141,21 @@ const servingDeploy = (region: string, drainingSeconds: number) => ({
 // `config apply` silently replace promoted bytes.
 
 /** Exported for offline topology/allowlist tests; the CLI consumes the default. */
-export function buildRailwayProject(ctx: RailwayContext): ProjectDefinition {
-  const cell = resolveCellTopology(ctx.environmentName ?? ctx.environment)
+export function buildRailwayProject(
+  ctx: RailwayContext,
+  requestedEnvironment?: string,
+): ProjectDefinition {
+  const contextEnvironment = ctx.environmentName ?? ctx.environment
+  if (
+    contextEnvironment &&
+    requestedEnvironment &&
+    contextEnvironment !== requestedEnvironment
+  ) {
+    throw new Error(
+      `Railway Data Cell environment mismatch: context=${contextEnvironment}, requested=${requestedEnvironment}`,
+    )
+  }
+  const cell = resolveCellTopology(contextEnvironment ?? requestedEnvironment)
   const database = postgres('Postgres', { region: cell.serviceRegion })
   const cacheRedis = redis('Cache Redis', { region: cell.serviceRegion })
   const queueRedis = redis('Queue Redis', { region: cell.serviceRegion })
@@ -301,4 +315,9 @@ export function buildRailwayProject(ctx: RailwayContext): ProjectDefinition {
   })
 }
 
-export default defineRailway((ctx) => buildRailwayProject(ctx))
+export default defineRailway((ctx) =>
+  buildRailwayProject(
+    createRailwayContext(ctx),
+    process.env.REPKEY_RAILWAY_CELL_ENVIRONMENT,
+  ),
+)
