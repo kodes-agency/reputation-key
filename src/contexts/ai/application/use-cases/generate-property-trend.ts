@@ -102,7 +102,7 @@ function aggregateWindow(
     categoryCounts.accessibility += day.categoryCounts.accessibility
     categoryCounts.other += day.categoryCounts.other
   }
-  if (reviewCount < 10) return null
+  if (reviewCount < 20) return null
   return {
     reviewCount,
     sentimentCounts,

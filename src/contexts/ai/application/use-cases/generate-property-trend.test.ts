@@ -135,8 +135,8 @@ function createHarness(days: readonly AiPropertyDailyAggregate[]) {
 describe('generate property trend', () => {
   it('records insufficient data without inference and uses pure Gregorian range bounds', async () => {
     const harness = createHarness([
-      aggregateDay('2024-02-01', 9),
-      aggregateDay('2024-03-01', 10),
+      aggregateDay('2024-02-01', 19),
+      aggregateDay('2024-03-01', 20),
     ])
 
     await expect(harness.generate({ scheduleId: SCHEDULE_ID })).resolves.toEqual({
@@ -157,8 +157,8 @@ describe('generate property trend', () => {
 
   it('records no material change without claiming quota or calling inference', async () => {
     const harness = createHarness([
-      aggregateDay('2024-02-01', 10),
-      aggregateDay('2024-03-01', 10),
+      aggregateDay('2024-02-01', 20),
+      aggregateDay('2024-03-01', 20),
     ])
 
     await expect(harness.generate({ scheduleId: SCHEDULE_ID })).resolves.toEqual({

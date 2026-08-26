@@ -207,8 +207,8 @@ export function validateDeterministicAggregateWindow(
 ): DeterministicAggregateWindow {
   const parsed = aggregateWindowSchema.parse(value)
   const reviewCount = BigInt(parsed.reviewCount)
-  if (parsed.reviewCount < 10)
-    throw new TypeError('aggregate window requires at least ten ready analyses')
+  if (parsed.reviewCount < 20)
+    throw new TypeError('aggregate window requires at least twenty ready analyses')
   if (sum(Object.values(parsed.sentimentCounts)) !== reviewCount) {
     throw new TypeError('sentiment counts must sum to reviewCount')
   }
@@ -267,7 +267,7 @@ function shareCandidate(
   const delta = currentNumerator * baselineCount - baselineNumerator * currentCount
   if (delta === 0n) return null
   const denominatorProduct = currentCount * baselineCount
-  if (absolute(delta) * 100n < 10n * denominatorProduct) return null
+  if (absolute(delta) * 100n < 15n * denominatorProduct) return null
   if (
     input.categoryPrevalenceRequired &&
     currentNumerator * 10n < currentCount &&
@@ -373,7 +373,7 @@ function validateCandidate(candidate: DeterministicTrendCandidate): ScoredCandid
     currentNumerator < 0n ||
     baselineNumerator > baselineDenominator ||
     currentNumerator > currentDenominator ||
-    absolute(delta) * 100n < 10n * denominatorProduct
+    absolute(delta) * 100n < 15n * denominatorProduct
   )
     throw new TypeError('invalid share candidate')
   if (

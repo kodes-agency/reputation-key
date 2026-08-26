@@ -69,37 +69,37 @@ describe('AI property trend contract', () => {
 
   it('excludes a share below ten points with unequal denominators', () => {
     const baseline = window({
-      reviewCount: 10,
-      sentimentCounts: { positive: 0, neutral: 4, negative: 3, mixed: 3 },
-      attentionCounts: { urgent: 2, high: 3, medium: 3, low: 2 },
+      reviewCount: 20,
+      sentimentCounts: { positive: 0, neutral: 8, negative: 6, mixed: 6 },
+      attentionCounts: { urgent: 4, high: 6, medium: 6, low: 4 },
       categoryCounts: {
-        service: 1,
-        staff: 1,
-        quality: 1,
-        value: 1,
-        cleanliness: 1,
-        waitTime: 1,
-        atmosphere: 1,
-        location: 1,
-        accessibility: 1,
-        other: 1,
+        service: 2,
+        staff: 2,
+        quality: 2,
+        value: 2,
+        cleanliness: 2,
+        waitTime: 2,
+        atmosphere: 2,
+        location: 2,
+        accessibility: 2,
+        other: 2,
       },
     })
     const current = window({
-      reviewCount: 11,
-      sentimentCounts: { positive: 1, neutral: 4, negative: 3, mixed: 3 },
-      attentionCounts: { urgent: 2, high: 3, medium: 3, low: 3 },
+      reviewCount: 21,
+      sentimentCounts: { positive: 1, neutral: 8, negative: 6, mixed: 6 },
+      attentionCounts: { urgent: 4, high: 6, medium: 6, low: 5 },
       categoryCounts: {
-        service: 2,
-        staff: 1,
-        quality: 1,
-        value: 1,
-        cleanliness: 1,
-        waitTime: 1,
-        atmosphere: 1,
-        location: 1,
-        accessibility: 1,
-        other: 1,
+        service: 3,
+        staff: 2,
+        quality: 2,
+        value: 2,
+        cleanliness: 2,
+        waitTime: 2,
+        atmosphere: 2,
+        location: 2,
+        accessibility: 2,
+        other: 2,
       },
     })
 
@@ -109,6 +109,70 @@ describe('AI property trend contract', () => {
         currentWindow: current,
       }).some(({ id }) => id === 'sentiment.positive.up'),
     ).toBe(false)
+  })
+
+  it('requires twenty analyses and a fifteen-point share change', () => {
+    expect(() =>
+      computeDeterministicTrendCandidates({
+        baselineWindow: window({
+          reviewCount: 19,
+          sentimentCounts: { positive: 4, neutral: 5, negative: 5, mixed: 5 },
+          attentionCounts: { urgent: 4, high: 5, medium: 5, low: 5 },
+          categoryCounts: {
+            service: 1,
+            staff: 2,
+            quality: 2,
+            value: 2,
+            cleanliness: 2,
+            waitTime: 2,
+            atmosphere: 2,
+            location: 2,
+            accessibility: 2,
+            other: 2,
+          },
+        }),
+        currentWindow: window(),
+      }),
+    ).toThrow('at least twenty ready analyses')
+
+    const baseline = window({
+      reviewCount: 100,
+      sentimentCounts: { positive: 25, neutral: 25, negative: 25, mixed: 25 },
+      attentionCounts: { urgent: 25, high: 25, medium: 25, low: 25 },
+      categoryCounts: {
+        service: 10,
+        staff: 10,
+        quality: 10,
+        value: 10,
+        cleanliness: 10,
+        waitTime: 10,
+        atmosphere: 10,
+        location: 10,
+        accessibility: 10,
+        other: 10,
+      },
+    })
+    const below = window({
+      ...baseline,
+      sentimentCounts: { positive: 39, neutral: 11, negative: 25, mixed: 25 },
+    })
+    const exact = window({
+      ...baseline,
+      sentimentCounts: { positive: 40, neutral: 10, negative: 25, mixed: 25 },
+    })
+
+    expect(
+      computeDeterministicTrendCandidates({
+        baselineWindow: baseline,
+        currentWindow: below,
+      }).some(({ id }) => id === 'sentiment.positive.up'),
+    ).toBe(false)
+    expect(
+      computeDeterministicTrendCandidates({
+        baselineWindow: baseline,
+        currentWindow: exact,
+      }).some(({ id }) => id === 'sentiment.positive.up'),
+    ).toBe(true)
   })
 
   it('rejects duplicate or out-of-candidate selections', () => {
