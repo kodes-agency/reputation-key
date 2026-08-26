@@ -171,6 +171,18 @@ export const MandatoryCategoryIsLocked: Story = {
   },
 }
 
+export const ActionNeededKeepsInAppOn: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      canvas.getByLabelText('In-app', { selector: '#urgent_operational-in_app' }),
+    ).toBeDisabled()
+    expect(
+      canvas.getByLabelText('Email', { selector: '#urgent_operational-email' }),
+    ).toBeEnabled()
+  },
+}
+
 export const FormattingSubmitsOnEnter: Story = {
   play: async ({ canvasElement }) => {
     updateUserSettingsMock.mockClear()

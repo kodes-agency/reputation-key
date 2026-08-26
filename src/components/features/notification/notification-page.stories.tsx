@@ -112,8 +112,8 @@ export const FilterIsAppliedBeforePagination: Story = {
   },
 }
 
-/** Clear-all empties the page optimistically, before the server answers. */
-export const ClearAllIsOptimistic: Story = {
+/** Full-page dismissal requires confirmation, then updates optimistically. */
+export const DismissAllRequiresConfirmation: Story = {
   args: {
     notificationFns: makeNotificationFns({
       getUnreadCount: (async () => ({
@@ -129,7 +129,10 @@ export const ClearAllIsOptimistic: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await canvas.findAllByRole('listitem')
-    await userEvent.click(canvas.getByRole('button', { name: /clear all/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /dismiss all/i }))
+    const dialog = await within(document.body).findByRole('alertdialog')
+    expect(within(dialog).getByText(/does not change the underlying/i)).toBeVisible()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Dismiss all' }))
     await waitFor(() => {
       expect(canvas.getByText(/you're all caught up/i)).toBeInTheDocument()
     })
@@ -143,7 +146,7 @@ export const Empty: Story = {
     expect(await canvas.findByText(/you're all caught up/i)).toBeInTheDocument()
     // Nothing to act on → both bulk actions are inert rather than misleading.
     expect(canvas.getByRole('button', { name: /mark all read/i })).toBeDisabled()
-    expect(canvas.getByRole('button', { name: /clear all/i })).toBeDisabled()
+    expect(canvas.getByRole('button', { name: /dismiss all/i })).toBeDisabled()
   },
 }
 

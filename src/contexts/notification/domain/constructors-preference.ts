@@ -14,7 +14,7 @@ import type {
   PropertyId,
 } from '#/shared/domain/ids'
 import { notificationError, type NotificationError } from './errors'
-import { isDisableable } from './notification-policy'
+import { isPreferenceDisableable } from './notification-policy'
 
 const CATEGORIES: Readonly<Record<NotificationCategory, true>> = {
   mandatory: true,
@@ -62,9 +62,12 @@ export const createNotificationPreference = (
       notificationError('invalid_input', 'Quiet hours require a valid start and end'),
     )
   }
-  if (!isDisableable(input.category) && !input.enabled) {
+  if (!isPreferenceDisableable(input.category, input.channel) && !input.enabled) {
     return err(
-      notificationError('invalid_input', 'Mandatory notifications cannot be disabled'),
+      notificationError(
+        'invalid_input',
+        'This notification channel is required and cannot be disabled',
+      ),
     )
   }
   if (input.channel !== 'email' && input.urgentBypassEnabled) {

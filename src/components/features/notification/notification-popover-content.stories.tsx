@@ -34,11 +34,9 @@ const meta: Meta<typeof NotificationPopoverContent> = {
     filter: 'all',
     onFilterChange,
     isMarkingAllRead: false,
-    isClearingAll: false,
     onRetry: noop,
     onLoadMore: noop,
     onMarkAllRead: noop,
-    onClearAll: noop,
     actions,
   },
   decorators: [
@@ -63,6 +61,7 @@ export const Default: Story = {
       'href',
       '/notifications',
     )
+    expect(canvas.queryByRole('button', { name: /dismiss all/i })).toBeNull()
   },
 }
 
@@ -74,14 +73,7 @@ export const FilterTabs: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const tabs = canvas.getAllByRole('tab').map((tab) => tab.textContent)
-    expect(tabs).toEqual([
-      'All',
-      'Unread',
-      'Urgent',
-      'Operations',
-      'Workflow',
-      'Recognition',
-    ])
+    expect(tabs).toEqual(['All', 'Unread', 'Urgent', 'Action', 'Workflow', 'Recognition'])
     expect(tabs).not.toContain('Account')
     onFilterChange.mockClear()
     await userEvent.click(canvas.getByRole('tab', { name: 'Urgent' }))

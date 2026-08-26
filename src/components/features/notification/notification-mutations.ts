@@ -90,9 +90,9 @@ export type NotificationFeedMutations = Readonly<{
   onDismiss: (notificationId: string) => void
   onMuteCategory: (notification: Notification) => void
   markAllRead: () => void
-  clearAll: () => void
+  dismissAll: () => void
   isMarkingAllRead: boolean
-  isClearingAll: boolean
+  isDismissingAll: boolean
 }>
 
 export function useNotificationMutations(
@@ -179,10 +179,10 @@ export function useNotificationMutations(
     markAllRead: () => {
       void run(markAllRead({ data: undefined }), 'All notifications marked as read.')
     },
-    clearAll: () => {
-      void run(dismissAll({ data: undefined }), 'All notifications cleared.')
+    dismissAll: () => {
+      void run(dismissAll({ data: undefined }), 'All notifications dismissed.')
     },
     isMarkingAllRead: markAllRead.isPending,
-    isClearingAll: dismissAll.isPending,
+    isDismissingAll: dismissAll.isPending,
   }
 }

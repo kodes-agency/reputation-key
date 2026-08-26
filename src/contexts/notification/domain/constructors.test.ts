@@ -168,6 +168,44 @@ describe('notification constructors', () => {
     expect(result.isErr()).toBe(true)
   })
 
+  it('keeps Action Required in-app while allowing its email to be disabled', () => {
+    const requiredInApp = createNotificationPreference(
+      {
+        id: notificationPreferenceId('preference-action-in-app'),
+        userId: USER,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        category: 'urgent_operational',
+        channel: 'in_app',
+        enabled: false,
+        cadence: 'immediate',
+        urgentBypassEnabled: false,
+        quietHoursStart: null,
+        quietHoursEnd: null,
+      },
+      () => NOW,
+    )
+    const configurableEmail = createNotificationPreference(
+      {
+        id: notificationPreferenceId('preference-action-email'),
+        userId: USER,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        category: 'urgent_operational',
+        channel: 'email',
+        enabled: false,
+        cadence: 'daily',
+        urgentBypassEnabled: false,
+        quietHoursStart: '22:00',
+        quietHoursEnd: '07:00',
+      },
+      () => NOW,
+    )
+
+    expect(requiredInApp.isErr()).toBe(true)
+    expect(configurableEmail.isOk()).toBe(true)
+  })
+
   it('marks an unread notification read without changing tenant scope', () => {
     const notification = createNotification(base, () => NOW)
     if (notification.isErr()) throw notification.error

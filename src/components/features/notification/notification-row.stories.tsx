@@ -186,3 +186,18 @@ export const OverflowMenu: Story = {
     })
   },
 }
+
+/** Action-needed rows stay in-app and therefore never offer a mute action. */
+export const ActionNeededCannotBeMuted: Story = {
+  args: { notification: escalated },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const ownerDocument = canvasElement.ownerDocument
+    await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
+    const menu = within(ownerDocument.body)
+    expect(await menu.findByRole('menuitem', { name: 'Mark as read' })).toBeVisible()
+    expect(menu.queryByRole('menuitem', { name: /^Mute/ })).toBeNull()
+    await userEvent.click(menu.getByRole('menuitem', { name: 'Mark as read' }))
+    await waitFor(() => expect(ownerDocument.querySelector('[role="menu"]')).toBeNull())
+  },
+}

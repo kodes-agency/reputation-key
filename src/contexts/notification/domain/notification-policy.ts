@@ -42,9 +42,6 @@ const DEFAULT_POLICY: Readonly<
   recognition: { in_app: true, email: false },
 }
 
-// Categories where the preference cannot be disabled by the user
-const NON_DISABLEABLE: ReadonlySet<string> = new Set(['mandatory'])
-
 export function getDefaultEnabled(
   category: NotificationCategory,
   channel: NotificationChannel,
@@ -57,11 +54,16 @@ export function getDefaultCadence(category: NotificationCategory): NotificationC
 }
 
 /**
- * ADR 0046: a genuinely mandatory (account/security/legal) category may not be
- * switched off. Enforced at the write path by `createNotificationPreference`.
+ * Mandatory service/security delivery cannot be disabled on either channel.
+ * Action Required is always retained in-app, while its email remains
+ * configurable (immediate by default, daily, or off).
  */
-export function isDisableable(category: NotificationCategory): boolean {
-  return !NON_DISABLEABLE.has(category)
+export function isPreferenceDisableable(
+  category: NotificationCategory,
+  channel: NotificationChannel,
+): boolean {
+  if (category === 'mandatory') return false
+  return !(category === 'urgent_operational' && channel === 'in_app')
 }
 
 /**

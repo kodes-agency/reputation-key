@@ -18,7 +18,10 @@ export type DeliveryTiming =
 
 const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>> = {
   'review.created': 'workflow_collaboration',
-  'feedback.created': 'workflow_collaboration',
+  // Private feedback asks a manager to review and handle a guest concern. It
+  // is Action Required even when it is not marked urgent enough to bypass
+  // quiet hours.
+  'feedback.created': 'urgent_operational',
   'reply.pending_approval': 'urgent_operational',
   'reply.approved': 'workflow_collaboration',
   'reply.rejected': 'workflow_collaboration',

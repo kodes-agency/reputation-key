@@ -13,6 +13,17 @@ import { useMemo } from 'react'
 import { CheckCheck, Settings2, Trash2 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '#/components/ui/alert-dialog'
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
 import {
@@ -100,15 +111,33 @@ export function NotificationPage({
               <CheckCheck aria-hidden="true" />
               Mark all read
             </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={mutations.clearAll}
-              disabled={mutations.isClearingAll || list.notifications.length === 0}
-            >
-              <Trash2 aria-hidden="true" />
-              Clear all
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={mutations.isDismissingAll || list.notifications.length === 0}
+                >
+                  <Trash2 aria-hidden="true" />
+                  Dismiss all
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Dismiss all notifications?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This hides every notification currently addressed to you. It does not
+                    change the underlying reviews, feedback, or other work.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Keep notifications</AlertDialogCancel>
+                  <AlertDialogAction onClick={mutations.dismissAll}>
+                    Dismiss all
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Button asChild variant="ghost" size="sm">
               <Link to="/settings/notifications">
                 <Settings2 aria-hidden="true" />

@@ -3,7 +3,7 @@ import {
   applyCoalescence,
   getDefaultCadence,
   getDefaultEnabled,
-  isDisableable,
+  isPreferenceDisableable,
 } from './notification-policy'
 import { createNotification } from './constructors'
 import { notificationId, organizationId, propertyId, userId } from '#/shared/domain/ids'
@@ -40,8 +40,11 @@ describe('notification policy', () => {
 
   it('keeps mandatory channels enabled and non-disableable by default', () => {
     expect(getDefaultEnabled('mandatory', 'email')).toBe(true)
-    expect(isDisableable('mandatory')).toBe(false)
-    expect(isDisableable('recognition')).toBe(true)
+    expect(isPreferenceDisableable('mandatory', 'email')).toBe(false)
+    expect(isPreferenceDisableable('mandatory', 'in_app')).toBe(false)
+    expect(isPreferenceDisableable('urgent_operational', 'in_app')).toBe(false)
+    expect(isPreferenceDisableable('urgent_operational', 'email')).toBe(true)
+    expect(isPreferenceDisableable('recognition', 'in_app')).toBe(true)
   })
 
   it('keeps cadence defaults in domain policy', () => {

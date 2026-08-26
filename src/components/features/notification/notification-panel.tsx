@@ -118,11 +118,9 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
           filter={filter}
           onFilterChange={setFilter}
           isMarkingAllRead={mutations.isMarkingAllRead}
-          isClearingAll={mutations.isClearingAll}
           onRetry={list.refetch}
           onLoadMore={list.loadMore}
           onMarkAllRead={mutations.markAllRead}
-          onClearAll={mutations.clearAll}
           actions={actions}
           format={format}
           onViewAll={() => setOpen(false)}

@@ -22,9 +22,10 @@ export const CATEGORY_COPY: Readonly<
     description: 'Required account, security, and service notices.',
   },
   urgent_operational: {
-    label: 'Urgent operations',
-    shortLabel: 'Operations',
-    description: 'Escalations and failures that may require immediate action.',
+    label: 'Action needed',
+    shortLabel: 'Action',
+    description:
+      'Private feedback, escalations, and delivery issues that may need attention.',
   },
   workflow_collaboration: {
     label: 'Workflow and collaboration',

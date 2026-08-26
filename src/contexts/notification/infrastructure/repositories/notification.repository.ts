@@ -22,6 +22,7 @@ const notOptedOutInApp = sql`NOT EXISTS (
     AND category = notifications.category
     AND channel = 'in_app'
     AND enabled = false
+    AND notifications.category NOT IN ('mandatory', 'urgent_operational')
 )`
 
 // Paginated, newest-first read of a user's visible notifications.

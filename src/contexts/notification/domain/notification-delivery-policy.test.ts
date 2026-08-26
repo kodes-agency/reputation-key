@@ -100,6 +100,7 @@ describe('notification delivery policy', () => {
   })
   it('maps notification types to governed categories', () => {
     expect(classifyNotification('reply.publish_failed')).toBe('urgent_operational')
+    expect(classifyNotification('feedback.created')).toBe('urgent_operational')
     expect(classifyNotification('badge.awarded')).toBe('recognition')
     expect(classifyNotification('review.created')).toBe('workflow_collaboration')
   })

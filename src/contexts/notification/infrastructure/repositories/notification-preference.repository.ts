@@ -21,24 +21,31 @@ import type {
   NotificationUserSettings,
 } from '../../domain/types'
 import { notificationError } from '../../domain/errors'
+import { isPreferenceDisableable } from '../../domain/notification-policy'
 
 type PreferenceRow = typeof notificationPreferences.$inferSelect
 
-const preferenceFromRow = (row: PreferenceRow): NotificationPreference => ({
-  id: notificationPreferenceId(row.id),
-  userId: toUserId(row.userId),
-  organizationId: toOrgId(row.organizationId),
-  propertyId: toPropertyId(row.propertyId),
-  category: row.category as NotificationCategory,
-  channel: row.channel as NotificationChannel,
-  enabled: row.enabled,
-  cadence: row.cadence as NotificationCadence,
-  urgentBypassEnabled: row.urgentBypassEnabled,
-  quietHoursStart: row.quietHoursStart?.slice(0, 5) ?? null,
-  quietHoursEnd: row.quietHoursEnd?.slice(0, 5) ?? null,
-  createdAt: row.createdAt,
-  updatedAt: row.updatedAt,
-})
+const preferenceFromRow = (row: PreferenceRow): NotificationPreference => {
+  const category = row.category as NotificationCategory
+  const channel = row.channel as NotificationChannel
+  return {
+    id: notificationPreferenceId(row.id),
+    userId: toUserId(row.userId),
+    organizationId: toOrgId(row.organizationId),
+    propertyId: toPropertyId(row.propertyId),
+    category,
+    channel,
+    // Expand-phase compatibility: stale false rows cannot make a required
+    // channel appear disabled while the backfill/constraint rolls out.
+    enabled: isPreferenceDisableable(category, channel) ? row.enabled : true,
+    cadence: row.cadence as NotificationCadence,
+    urgentBypassEnabled: row.urgentBypassEnabled,
+    quietHoursStart: row.quietHoursStart?.slice(0, 5) ?? null,
+    quietHoursEnd: row.quietHoursEnd?.slice(0, 5) ?? null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  }
+}
 
 export const createNotificationPreferenceRepository = (db: Database) => ({
   findForDelivery: async (
