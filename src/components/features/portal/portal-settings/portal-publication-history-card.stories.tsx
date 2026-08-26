@@ -108,3 +108,29 @@ export const PausedWithRetainedHistory: Story = {
     await expect(canvas.getByText(/public page paused/i)).toBeInTheDocument()
   },
 }
+
+export const PausedWithSavedChanges: Story = {
+  args: {
+    history: {
+      current: null,
+      priorActivations: [
+        {
+          activationSequence: 1,
+          version: 1,
+          kind: 'publish',
+          activatedAt: '2026-08-25T10:00:00.000Z',
+          deactivatedAt: '2026-08-26T14:00:00.000Z',
+          deactivationReason: 'disabled',
+        },
+      ],
+      hasPendingChanges: true,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByText(/they will appear when the public page is published again/i),
+    ).toBeInTheDocument()
+    await expect(canvas.queryByText(/guests continue to see/i)).toBeNull()
+  },
+}

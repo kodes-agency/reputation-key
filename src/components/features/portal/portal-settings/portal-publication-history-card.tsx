@@ -43,8 +43,9 @@ function SavedSettingsStatus({
   if (history.hasPendingChanges) {
     return (
       <p className="text-sm text-muted-foreground">
-        Saved changes are ready for the next publication. Guests continue to see the live
-        version until you publish again.
+        {history.current
+          ? 'Saved changes are ready for the next publication. Guests continue to see the live version until you publish again.'
+          : 'Saved changes are ready for the next publication. They will appear when the public page is published again.'}
       </p>
     )
   }
