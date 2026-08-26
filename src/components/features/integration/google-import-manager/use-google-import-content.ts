@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { integrationKeys } from '#/shared/queries/query-keys'
 import type {
@@ -40,29 +40,25 @@ export function useGoogleImportContent({
   clearProviderState,
 }: Props) {
   const queryClient = useQueryClient()
-  const mounted = useRef(true)
   const organizationIdRef = useRef(organizationId)
   const [epoch, setEpoch] = useState(0)
-  const lifecycle = useMemo(
-    () =>
-      createGoogleImportContentLifecycle({
-        cancelQueries: async () => {
-          await queryClient.cancelQueries({
-            queryKey: integrationKeys.googleImportContent(),
-          })
-        },
-        removeQueries: () => {
-          queryClient.removeQueries({
-            queryKey: integrationKeys.googleImportContent(),
-          })
-        },
-        clearContent: () => {
-          if (!mounted.current) return
-          clearProviderState()
-          setEpoch((value) => value + 1)
-        },
-      }),
-    [clearProviderState, queryClient],
+  const [lifecycle] = useState(() =>
+    createGoogleImportContentLifecycle({
+      cancelQueries: async () => {
+        await queryClient.cancelQueries({
+          queryKey: integrationKeys.googleImportContent(),
+        })
+      },
+      removeQueries: () => {
+        queryClient.removeQueries({
+          queryKey: integrationKeys.googleImportContent(),
+        })
+      },
+      clearContent: () => {
+        clearProviderState()
+        setEpoch((value) => value + 1)
+      },
+    }),
   )
   const accountsQuery = useGoogleImportAccounts({
     organizationId,
@@ -124,9 +120,15 @@ export function useGoogleImportContent({
     leaseQuery.data?.expiresAt ?? authorizationLease?.expiresAt ?? null
 
   useEffect(() => {
-    mounted.current = true
+    lifecycle.setClearContent(() => {
+      clearProviderState()
+      setEpoch((value) => value + 1)
+    })
+  }, [clearProviderState, lifecycle])
+  useEffect(() => {
+    lifecycle.activate()
     return () => {
-      mounted.current = false
+      lifecycle.deactivate()
       void lifecycle.clear('route_left')
     }
   }, [lifecycle])

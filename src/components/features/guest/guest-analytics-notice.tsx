@@ -1,8 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Button } from '#/components/ui/button'
 
 const ACKNOWLEDGED_KEY = 'guest-analytics-notice-acknowledged'
 const SCAN_RECORDED_KEY_PREFIX = 'guest-scan-recorded:'
+const subscribeToAcknowledgement = () => () => undefined
+
+function acknowledgementSnapshot(): boolean {
+  try {
+    return localStorage.getItem(ACKNOWLEDGED_KEY) === 'true'
+  } catch {
+    return false
+  }
+}
 
 export type GuestAnalyticsNoticeProps = Readonly<{
   /** Scopes visit dedupe so each portal can record once per browser session. */
@@ -19,7 +28,12 @@ export function GuestAnalyticsNotice({
   scopeKey,
   onPortalVisit,
 }: GuestAnalyticsNoticeProps) {
-  const [visible, setVisible] = useState(false)
+  const acknowledged = useSyncExternalStore(
+    subscribeToAcknowledgement,
+    acknowledgementSnapshot,
+    () => true,
+  )
+  const [dismissed, setDismissed] = useState(false)
   const notifiedThisMount = useRef(false)
 
   const recordPortalVisit = useCallback(() => {
@@ -57,11 +71,6 @@ export function GuestAnalyticsNotice({
 
   useEffect(() => {
     recordPortalVisit()
-    try {
-      setVisible(localStorage.getItem(ACKNOWLEDGED_KEY) !== 'true')
-    } catch {
-      setVisible(true)
-    }
   }, [recordPortalVisit])
 
   const acknowledge = () => {
@@ -70,10 +79,10 @@ export function GuestAnalyticsNotice({
     } catch {
       // The notice can still be dismissed for this page if storage is unavailable.
     }
-    setVisible(false)
+    setDismissed(true)
   }
 
-  if (!visible) return null
+  if (acknowledged || dismissed) return null
 
   return (
     <div

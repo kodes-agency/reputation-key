@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import { AlertCircle, UserRoundCheck } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
@@ -12,9 +12,9 @@ import type {
 } from '../portal-detail/portal-detail-types'
 import {
   normalizeResponsibleManagerIds as sorted,
-  reconcileResponsibleManagerSelection,
   sameResponsibleManagerIds as sameIds,
 } from './responsible-manager-selection'
+import { useResponsibleManagerSelection } from '#/components/features/responsible-managers/use-responsible-manager-selection'
 
 type UpdateInput = Readonly<{
   data: {
@@ -37,22 +37,9 @@ export function ResponsibleManagersCard({
   updateAction: Action<UpdateInput>
   disabled: boolean
 }>) {
-  const serverSelection = sorted(state.assignments.map((row) => row.userId))
-  const serverSignature = serverSelection.join('\u0000')
-  const priorServerSelection = useRef(serverSelection)
-  const [selected, setSelected] = useState(serverSelection)
-
-  // Adopt external/query changes only while the form is clean. An automatic
-  // refetch must never erase a manager's in-progress selection.
-  useEffect(() => {
-    const prior = priorServerSelection.current
-    setSelected((current) =>
-      reconcileResponsibleManagerSelection(current, prior, serverSelection),
-    )
-    priorServerSelection.current = serverSelection
-    // serverSignature is the stable value boundary; serverSelection is a new
-    // array on every render and would otherwise rerun this effect continuously.
-  }, [serverSignature])
+  const { selected, setSelected, serverSelection } = useResponsibleManagerSelection(
+    state.assignments,
+  )
 
   const eligibleIds = useMemo(
     () => new Set(state.eligibleManagers.map((manager) => manager.userId)),

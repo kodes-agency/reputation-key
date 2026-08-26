@@ -8,8 +8,6 @@ export type GoogleImportClearReason =
   | 'tenant_changed'
 
 export class StaleGoogleImportViewError extends Error {
-  readonly code = 'stale_google_import_view'
-
   constructor() {
     super('Google import content belongs to a stale view')
     this.name = 'StaleGoogleImportViewError'
@@ -33,6 +31,8 @@ export function contentExpiryDelayMs(expiresAt: string, nowMs: number): number {
 export function createGoogleImportContentLifecycle(deps: LifecycleDependencies) {
   let viewEpoch = 0
   let clearOperation: Promise<void> | null = null
+  let active = true
+  let clearContent = deps.clearContent
 
   const clear = async (_reason: GoogleImportClearReason): Promise<void> => {
     if (clearOperation) return clearOperation
@@ -41,7 +41,7 @@ export function createGoogleImportContentLifecycle(deps: LifecycleDependencies) 
       try {
         await deps.cancelQueries()
         deps.removeQueries()
-        deps.clearContent()
+        if (active) clearContent()
       } finally {
         clearOperation = null
       }
@@ -57,6 +57,15 @@ export function createGoogleImportContentLifecycle(deps: LifecycleDependencies) 
 
   return Object.freeze({
     epoch: () => viewEpoch,
+    activate: () => {
+      active = true
+    },
+    deactivate: () => {
+      active = false
+    },
+    setClearContent: (next: () => void) => {
+      clearContent = next
+    },
     clear,
     guard,
   })

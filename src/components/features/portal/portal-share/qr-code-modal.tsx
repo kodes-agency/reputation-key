@@ -1,5 +1,3 @@
-import { useEffect, useState } from 'react'
-import QRCode from 'qrcode'
 import { AlertCircle, Copy, Download } from 'lucide-react'
 import {
   Dialog,
@@ -11,6 +9,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { COPY_FAILED_MESSAGE, useCopyLink } from './use-copy-link'
+import { useQrCodeGeneration } from './use-qr-code-generation'
 
 type QRCodeModalProps = Readonly<{
   open: boolean
@@ -26,32 +25,10 @@ export function QRCodeModal({
   portalName,
 }: QRCodeModalProps) {
   const { linkRef, copied, copyFailed, copyLink } = useCopyLink(publicUrl)
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null)
-  const [generationError, setGenerationError] = useState(false)
-
-  useEffect(() => {
-    if (!open) return
-    let cancelled = false
-    setQrDataUrl(null)
-    setGenerationError(false)
-    void QRCode.toDataURL(publicUrl, {
-      width: 256,
-      margin: 2,
-      color: {
-        dark: '#16151a',
-        light: '#faf9fc',
-      },
-    })
-      .then((dataUrl) => {
-        if (!cancelled) setQrDataUrl(dataUrl)
-      })
-      .catch(() => {
-        if (!cancelled) setGenerationError(true)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [open, publicUrl])
+  const { qrDataUrl, generationError, clearGeneration } = useQrCodeGeneration(
+    open,
+    publicUrl,
+  )
 
   const handleDownload = () => {
     if (!qrDataUrl) return
@@ -72,7 +49,13 @@ export function QRCodeModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) clearGeneration()
+        onOpenChange(nextOpen)
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Portal QR code</DialogTitle>

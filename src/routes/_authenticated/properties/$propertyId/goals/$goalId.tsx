@@ -23,7 +23,7 @@ import { GoalProgramRevisionDialog } from '#/components/goals/goal-program-revis
 const authRoute = getRouteApi('/_authenticated')
 const goalQuery = (propertyId: string, programId: string) =>
   queryOptions({
-    queryKey: goalKeys.detail(programId),
+    queryKey: goalKeys.detail(propertyId, programId),
     queryFn: () => getGoalProgram({ data: { propertyId, programId } }),
     staleTime: 30_000,
   })

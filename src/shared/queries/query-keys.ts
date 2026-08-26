@@ -112,6 +112,18 @@ export const dashboardKeys = {
       catalogVersion,
       viewEpoch,
     ] as const,
+  googlePerformanceLease: (
+    propertyId: string,
+    preset: string,
+    catalogVersion: string,
+    viewEpoch: number,
+    leaseRef: string,
+  ) =>
+    [
+      ...dashboardKeys.googlePerformance(propertyId, preset, catalogVersion, viewEpoch),
+      'authorization-lease',
+      leaseRef,
+    ] as const,
 }
 export const aiKeys = {
   all: ['ai'] as const,
@@ -127,7 +139,8 @@ export const goalKeys = {
   staff: (propertyId: string) => [...goalKeys.all, 'staff', propertyId] as const,
   list: (args: Readonly<Record<string, unknown>>) =>
     [...goalKeys.all, 'list', args] as const,
-  detail: (goalId: string) => [...goalKeys.all, 'detail', goalId] as const,
+  detail: (propertyId: string, goalId: string) =>
+    [...goalKeys.all, 'detail', propertyId, goalId] as const,
 }
 
 // ── Staff participation and portal responsibility ────────────────────────
@@ -143,12 +156,6 @@ export const reviewKeys = {
   all: ['reviews'] as const,
   staffActivity: (propertyId: string) =>
     [...reviewKeys.all, 'staff-activity', propertyId] as const,
-}
-
-// ── Teams ─────────────────────────────────────────────────────────────────
-export const teamKeys = {
-  all: ['teams'] as const,
-  list: (propertyId: string) => [...teamKeys.all, 'list', propertyId] as const,
 }
 
 // ── Portals (detail + links + groups) ────────────────────────────────────
@@ -177,17 +184,23 @@ export const integrationKeys = {
   all: ['integrations'] as const,
   connections: () => [...integrationKeys.all, 'connections'] as const,
   googleImportContent: () => [...integrationKeys.all, 'google-import-content'] as const,
-  googleImportAccounts: (organizationId: string, connectionId: string) =>
+  googleImportAccounts: (
+    organizationId: string,
+    connectionId: string,
+    viewEpoch: number,
+  ) =>
     [
       ...integrationKeys.googleImportContent(),
       organizationId,
       connectionId,
       'accounts',
+      viewEpoch,
     ] as const,
   googleImportCandidates: (
     organizationId: string,
     connectionId: string,
     accountRef: string | null,
+    viewEpoch: number,
   ) =>
     [
       ...integrationKeys.googleImportContent(),
@@ -195,13 +208,21 @@ export const integrationKeys = {
       connectionId,
       'candidates',
       accountRef,
+      viewEpoch,
     ] as const,
-  googleImportLease: (organizationId: string, connectionId: string) =>
+  googleImportLease: (
+    organizationId: string,
+    connectionId: string,
+    leaseRef: string,
+    viewEpoch: number,
+  ) =>
     [
       ...integrationKeys.googleImportContent(),
       organizationId,
       connectionId,
       'lease',
+      leaseRef,
+      viewEpoch,
     ] as const,
   import: (importId: string) => [...integrationKeys.all, 'import', importId] as const,
 }

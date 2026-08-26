@@ -13,11 +13,12 @@ import {
 import { dashboardKeys } from '#/shared/queries/query-keys'
 import {
   useClearPerformanceOnLifecycle,
-  usePageVisibleAndFocused,
   usePerformanceExpiry,
   useRetryCountdown,
   type PerformanceClearReason,
 } from './use-google-performance-lifecycle'
+import { usePageVisibleAndFocused } from '#/components/hooks/use-page-visible-and-focused'
+import { useHydrated } from '#/components/hooks/use-hydrated'
 import {
   PerformanceQueryError,
   toPerformanceErrorResult,
@@ -39,7 +40,7 @@ export function useGooglePerformance(
   const renewLease = useServerFn(input.serverFns.renewLease)
   const queryClient = useQueryClient()
   const pageActive = usePageVisibleAndFocused()
-  const [hydrated, setHydrated] = useState(false)
+  const hydrated = useHydrated()
   const [viewEpoch, setViewEpoch] = useState(0)
   const [reportEnabled, setReportEnabled] = useState(true)
   const [clearReason, setClearReason] = useState<PerformanceClearReason | null>(null)
@@ -53,8 +54,6 @@ export function useGooglePerformance(
       ),
     [input.preset, input.propertyId, viewEpoch],
   )
-
-  useEffect(() => setHydrated(true), [])
 
   const clearQueryKey = useCallback(
     async (key: QueryKey) => {
@@ -115,7 +114,13 @@ export function useGooglePerformance(
   )
 
   const leaseQuery = useQuery({
-    queryKey: [...queryKey, 'authorization-lease', lease?.leaseRef ?? 'none'],
+    queryKey: dashboardKeys.googlePerformanceLease(
+      input.propertyId,
+      input.preset,
+      GOOGLE_PERFORMANCE_CATALOG_VERSION,
+      viewEpoch,
+      lease?.leaseRef ?? 'none',
+    ),
     queryFn: ({ signal }) =>
       renewLease({
         data: {
@@ -152,7 +157,8 @@ export function useGooglePerformance(
     ) {
       return
     }
-    clearVolatileContent('authorization_lost')
+    const timeout = window.setTimeout(() => clearVolatileContent('authorization_lost'), 0)
+    return () => window.clearTimeout(timeout)
   }, [
     clearReason,
     clearVolatileContent,

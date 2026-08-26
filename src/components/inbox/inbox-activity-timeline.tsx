@@ -23,15 +23,15 @@ type Props = Readonly<{
 type Entries = Awaited<ReturnType<typeof getActivityTimelineFn>>
 
 function TimelineEntries({ entries }: Readonly<{ entries: Entries }>) {
-  let lastDate = ''
   return (
     <div className="relative ml-1.5 mt-4">
       <div className="absolute bottom-1.5 left-[11px] top-1.5 w-px bg-border" />
       <div className="space-y-4">
-        {entries.map((entry) => {
+        {entries.map((entry, index) => {
           const date = formatDate(entry.createdAt)
-          const showDate = date !== lastDate
-          lastDate = date
+          const previousDate =
+            index === 0 ? null : formatDate(entries[index - 1]!.createdAt)
+          const showDate = date !== previousDate
           return (
             <div key={entry.id}>
               {showDate && (

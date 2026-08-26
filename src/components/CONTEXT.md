@@ -66,12 +66,15 @@ All forms use **TanStack Form + Zod v4 + shadcn/ui**. No React Hook Form, Formik
 
 ## Shared hooks (`components/hooks/`)
 
-| Hook                  | Purpose                                                                                                                                                                                                |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `use-action`          | Wraps `useServerFn` for fire-and-forget actions (non-form mutations)                                                                                                                                   |
-| `use-action-mutation` | Query-native mutation hook (`useMutation` + `Action` shape). Toasts on success + targeted Query-key invalidation (`invalidateKeys`). Replaces the old `useMutationAction` / `useMutationActionSilent`. |
-| `use-property-id`     | Extracts `propertyId` from route params. Use in any property-scoped component.                                                                                                                         |
-| `use-mobile`          | Responsive breakpoint hook                                                                                                                                                                             |
+| Hook                           | Purpose                                                                                                                                                                                                |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `use-action`                   | Wraps `useServerFn` for fire-and-forget actions (non-form mutations)                                                                                                                                   |
+| `use-action-mutation`          | Query-native mutation hook (`useMutation` + `Action` shape). Toasts on success + targeted Query-key invalidation (`invalidateKeys`). Replaces the old `useMutationAction` / `useMutationActionSilent`. |
+| `use-hydrated`                 | SSR-safe hydration signal implemented with `useSyncExternalStore`; use when a client-only query must remain disabled during SSR.                                                                       |
+| `use-page-visible-and-focused` | Shared browser visibility/focus external store for pausing sensitive provider polling while a page is hidden or unfocused.                                                                             |
+| `use-property-id`              | Extracts `propertyId` from route params. Use in any property-scoped component.                                                                                                                         |
+| `use-mobile`                   | Responsive breakpoint hook                                                                                                                                                                             |
+| `use-theme-mode`               | Shared persisted light/dark/system theme state and DOM synchronization for every theme control.                                                                                                        |
 
 ## Charts
 

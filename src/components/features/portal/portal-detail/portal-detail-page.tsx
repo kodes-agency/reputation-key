@@ -4,7 +4,7 @@
 // screen lives in portal-detail-rules.ts, and every tab body in
 // portal-detail-tab-panel.tsx.
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { PortalDetailHeader } from './portal-detail-header'
 import { PortalDetailPreview } from './portal-detail-preview'
@@ -31,32 +31,28 @@ export function PortalDetailPage(props: PortalDetailPageProps) {
   const editFormRef = useRef<FormLike | null>(null)
   const [issuedPortalLink, setIssuedPortalLink] = useState<IssuedPortalLink | null>(null)
   const [linksRevoked, setLinksRevoked] = useState(false)
-  const [theme, setTheme] = useState<PortalThemeDraft>(portal.theme)
   const { has } = useCapabilities()
 
   // Keyed on the colour values, not on `portal.theme`'s identity: the detail
   // query hands back a fresh theme object on every refetch, which would discard
   // an in-progress edit (and silently clear the unsaved-changes guard below).
   const { primaryColor, backgroundColor, textColor } = portal.theme
-  useEffect(() => {
-    setTheme({ primaryColor, backgroundColor, textColor })
-  }, [primaryColor, backgroundColor, textColor])
-
-  useEffect(() => {
-    setIssuedPortalLink(null)
-    setLinksRevoked(false)
-  }, [portal.id])
+  const themeSource = `${primaryColor}\u0000${backgroundColor}\u0000${textColor}`
+  const [themeOverride, setThemeOverride] = useState<{
+    source: string
+    value: PortalThemeDraft
+  } | null>(null)
+  const theme = themeOverride?.source === themeSource ? themeOverride.value : portal.theme
+  const setTheme = (next: PortalThemeDraft) => {
+    setThemeOverride({ source: themeSource, value: next })
+  }
 
   const view = derivePortalDetailView(activeTab, has('dashboard.use'))
 
   const themeDirty = isThemeDraftDirty(theme, portal.theme)
-  // Mirrored into a ref so the navigation blocker gets a stable callback: a new
-  // shouldBlockFn re-subscribes the history blocker on every colour keystroke.
-  const themeDirtyRef = useRef(themeDirty)
-  themeDirtyRef.current = themeDirty
   const hasUnsavedChanges = useCallback(
-    () => themeDirtyRef.current || editFormRef.current?.hasUnsavedChanges() === true,
-    [],
+    () => themeDirty || editFormRef.current?.hasUnsavedChanges() === true,
+    [themeDirty],
   )
 
   return (

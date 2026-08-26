@@ -2,6 +2,8 @@ import js from '@eslint/js'
 import tseslint from 'typescript-eslint'
 import prettier from 'eslint-config-prettier'
 import boundaries from 'eslint-plugin-boundaries'
+import reactHooks from 'eslint-plugin-react-hooks'
+import query from '@tanstack/eslint-plugin-query'
 import security from 'eslint-plugin-security'
 import crossContextPublicApi from './eslint-rules/cross-context-public-api.mjs'
 
@@ -687,6 +689,37 @@ export default tseslint.config(
       // Every production src/service/plugin file must be classified. Test
       // files are disabled in the dedicated override below.
       'boundaries/no-unknown-files': 'error',
+    },
+  },
+
+  // ─── React and TanStack Query framework contracts ─────────────────
+  // Scope the official flat-config recommendations to application source.
+  // They catch render impurity/hook lifecycle defects and cache-key/query
+  // contract drift that the general TypeScript rules cannot see.
+  {
+    files: [
+      '.storybook/**/*.{ts,tsx}',
+      'src/components/**/*.{ts,tsx}',
+      'src/routes/**/*.{ts,tsx}',
+      'src/hooks/**/*.{ts,tsx}',
+      'src/lib/**/*.{ts,tsx}',
+      'src/contexts/*/ui/**/*.{ts,tsx}',
+      'src/shared/email/**/*.{ts,tsx}',
+      'src/shared/hooks/**/*.{ts,tsx}',
+      'src/router.tsx',
+    ],
+    plugins: {
+      'react-hooks': reactHooks,
+      '@tanstack/query': query,
+    },
+    rules: {
+      ...reactHooks.configs.flat.recommended.rules,
+      ...query.configs['flat/recommended'][0].rules,
+      // CI never accepts framework-contract warnings: a newly introduced
+      // stale closure or unsupported compiler construct must fail the gate.
+      'react-hooks/exhaustive-deps': 'error',
+      'react-hooks/incompatible-library': 'error',
+      'react-hooks/unsupported-syntax': 'error',
     },
   },
 

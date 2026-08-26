@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate, useRouter } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type {
@@ -60,7 +60,6 @@ export function useGoogleImportProgressController({
   setStep,
 }: Props) {
   const navigate = useNavigate()
-  const router = useRouter()
   const queryClient = useQueryClient()
   const retryRequests = useRef(new Map<string, RetryRequest>())
   const invalidatedTerminalRevision = useRef<string | null>(null)
@@ -81,11 +80,8 @@ export function useGoogleImportProgressController({
   })
 
   const invalidateCompletedImport = useCallback(async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: propertyKeys.list() }),
-      router.invalidate(),
-    ])
-  }, [queryClient, router])
+    await queryClient.invalidateQueries({ queryKey: propertyKeys.list() })
+  }, [queryClient])
 
   const loadProgress = useCallback(
     async (importJobId: string) => {
@@ -111,7 +107,11 @@ export function useGoogleImportProgressController({
     }
   }, [activeImportId, getImportStatus, queryClient])
 
-  const retryMutation = useMutation({
+  const {
+    mutate: retryItem,
+    isPending: retryPending,
+    variables: retryVariables,
+  } = useMutation({
     mutationFn: async (item: ImportProgressItemDto) => {
       const progress = progressQuery.data
       if (!progress) return
@@ -158,19 +158,17 @@ export function useGoogleImportProgressController({
 
   const retry = useCallback(
     (item: ImportProgressItemDto) => {
-      if (retryMutation.isPending) return
-      retryMutation.mutate(item)
+      if (retryPending) return
+      retryItem(item)
     },
-    [retryMutation],
+    [retryItem, retryPending],
   )
 
   return {
     progress: progressQuery.data ?? null,
     pollingError: progressQuery.isError,
     isRefreshing: progressQuery.isFetching,
-    retryingItemId: retryMutation.isPending
-      ? (retryMutation.variables?.itemId ?? null)
-      : null,
+    retryingItemId: retryPending ? (retryVariables?.itemId ?? null) : null,
     loadProgress,
     refresh,
     retry,

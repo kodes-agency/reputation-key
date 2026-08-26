@@ -63,6 +63,25 @@ describe('Google import provider-content lifecycle', () => {
     expect(lifecycle.epoch()).toBe(1)
   })
 
+  it('uses current callbacks while active and suppresses content updates after deactivation', async () => {
+    const originalClear = vi.fn()
+    const currentClear = vi.fn()
+    const lifecycle = createGoogleImportContentLifecycle({
+      cancelQueries: vi.fn(async () => {}),
+      removeQueries: vi.fn(),
+      clearContent: originalClear,
+    })
+
+    lifecycle.setClearContent(currentClear)
+    await lifecycle.clear('connection_changed')
+    expect(originalClear).not.toHaveBeenCalled()
+    expect(currentClear).toHaveBeenCalledOnce()
+
+    lifecycle.deactivate()
+    await lifecycle.clear('route_left')
+    expect(currentClear).toHaveBeenCalledOnce()
+  })
+
   it('fails closed for invalid and expired deadlines and bounds timer delays', () => {
     const now = Date.parse('2026-08-12T10:00:00.000Z')
 

@@ -10,6 +10,7 @@
 // interactive is nested inside another interactive element, which is what the
 // old single-<button>-wraps-everything row did.
 
+import { createElement } from 'react'
 import { X } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Badge } from '#/components/ui/badge'
@@ -52,7 +53,6 @@ export function NotificationRow({
   )
   const isUnread = notification.status === 'unread'
   const isUrgent = notification.priority === 'urgent'
-  const Icon = getNotificationIcon(notification.type)
   const stamp = notification.coalescedLatestAt ?? notification.createdAt
 
   return (
@@ -68,7 +68,9 @@ export function NotificationRow({
           aria-hidden="true"
           className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted"
         >
-          <Icon className="size-4 text-muted-foreground" />
+          {createElement(getNotificationIcon(notification.type), {
+            className: 'size-4 text-muted-foreground',
+          })}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-start gap-2">

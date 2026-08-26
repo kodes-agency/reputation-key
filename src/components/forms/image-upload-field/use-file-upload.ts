@@ -25,17 +25,20 @@ export function useFileUpload({
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
 
-  const validateFile = (file: File): boolean => {
-    if (!acceptedTypes.includes(file.type)) {
-      toast.error(`Please select a valid image file (${acceptedTypes.join(', ')})`)
-      return false
-    }
-    if (file.size > maxFileSize) {
-      toast.error(`File size must be less than ${maxFileSize / 1024 / 1024} MB`)
-      return false
-    }
-    return true
-  }
+  const validateFile = useCallback(
+    (file: File): boolean => {
+      if (!acceptedTypes.includes(file.type)) {
+        toast.error(`Please select a valid image file (${acceptedTypes.join(', ')})`)
+        return false
+      }
+      if (file.size > maxFileSize) {
+        toast.error(`File size must be less than ${maxFileSize / 1024 / 1024} MB`)
+        return false
+      }
+      return true
+    },
+    [acceptedTypes, maxFileSize],
+  )
 
   const handleFileSelect = useCallback(
     async (file: File) => {
@@ -59,7 +62,7 @@ export function useFileUpload({
         setUploadProgress(0)
       }
     },
-    [acceptedTypes, maxFileSize, onUpload, onImageUrlChange],
+    [onUpload, onImageUrlChange, validateFile],
   )
 
   return {

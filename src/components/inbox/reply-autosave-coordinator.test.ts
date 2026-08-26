@@ -114,4 +114,22 @@ describe('reply autosave coordinator', () => {
     await coordinator.flush(manualDraft)
     expect(calls).toEqual(['ai', 'Manual edit'])
   })
+
+  it('uses an updated save destination without resetting queued draft state', async () => {
+    vi.useFakeTimers()
+    const originalSave = vi.fn(async () => undefined)
+    const updatedSave = vi.fn(async () => undefined)
+    const coordinator = createReplyAutosaveCoordinator({
+      initial,
+      save: originalSave,
+      onState: vi.fn(),
+    })
+
+    coordinator.schedule(changed)
+    coordinator.setSave(updatedSave)
+    await vi.advanceTimersByTimeAsync(700)
+
+    expect(originalSave).not.toHaveBeenCalled()
+    expect(updatedSave).toHaveBeenCalledWith(changed)
+  })
 })

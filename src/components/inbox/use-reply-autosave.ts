@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   createReplyAutosaveCoordinator,
   type ReplyAutosaveStatus,
@@ -17,16 +17,15 @@ export function useReplyAutosave(initial: ReplyDraftSnapshot, saveDraft: SaveDra
     status: ReplyAutosaveStatus
     error: string | null
   }>({ status: 'idle', error: null })
-  const saveRef = useRef(saveDraft)
-  saveRef.current = saveDraft
   const [coordinator] = useState(() =>
     createReplyAutosaveCoordinator({
       initial,
-      save: (snapshot, token) => saveRef.current(snapshot, token),
+      save: saveDraft,
       onState: setState,
     }),
   )
 
+  useEffect(() => coordinator.setSave(saveDraft), [coordinator, saveDraft])
   useEffect(() => () => coordinator.dispose(), [coordinator])
 
   return {

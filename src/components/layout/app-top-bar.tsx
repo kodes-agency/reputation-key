@@ -10,11 +10,9 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 import { authClient } from '#/shared/auth/auth-client'
-import { useEffect, useState } from 'react'
 import { NotificationPanel } from '#/components/features/notification/notification-panel'
 import type { NotificationServerFns } from '#/components/features/notification/types'
-
-type ThemeMode = 'light' | 'dark' | 'auto'
+import { useThemeMode } from '#/components/hooks/use-theme-mode'
 
 type Props = Readonly<{
   user: { id: string; name: string; email: string; image: string | null }
@@ -22,35 +20,9 @@ type Props = Readonly<{
   notificationFns: NotificationServerFns
 }>
 
-function useThemeMode() {
-  const [mode, setMode] = useState<ThemeMode>('auto')
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem('theme')
-    if (stored === 'light' || stored === 'dark' || stored === 'auto') {
-      setMode(stored)
-    }
-  }, [])
-
-  function applyMode(next: ThemeMode) {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    const resolved = next === 'auto' ? (prefersDark ? 'dark' : 'light') : next
-
-    const root = document.documentElement
-    root.classList.remove('light', 'dark')
-    root.classList.add(resolved)
-    root.style.colorScheme = resolved
-
-    window.localStorage.setItem('theme', next)
-    setMode(next)
-  }
-
-  return { mode, applyMode } as const
-}
-
 export function AppTopBar({ user, organizationId, notificationFns }: Props) {
   const navigate = useNavigate()
-  const { mode, applyMode } = useThemeMode()
+  const { mode, setMode } = useThemeMode()
 
   const ThemeIcon = mode === 'light' ? Sun : mode === 'dark' ? Moon : Monitor
 
@@ -99,7 +71,7 @@ export function AppTopBar({ user, organizationId, notificationFns }: Props) {
           <DropdownMenuSeparator />
           <DropdownMenuItem
             onClick={() =>
-              applyMode(mode === 'dark' ? 'light' : mode === 'light' ? 'auto' : 'dark')
+              setMode(mode === 'dark' ? 'light' : mode === 'light' ? 'auto' : 'dark')
             }
           >
             <ThemeIcon className="size-4" />

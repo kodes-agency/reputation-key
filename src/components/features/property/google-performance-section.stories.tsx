@@ -1,4 +1,4 @@
-import { useMemo, useState, type ComponentProps } from 'react'
+import { useMemo, useRef, useState, type ComponentProps } from 'react'
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type {
@@ -226,13 +226,13 @@ function ControlledPerformanceSection(
 function RefreshFailurePerformanceSection(
   props: ComponentProps<typeof GooglePerformanceSection>,
 ) {
+  const calls = useRef(0)
   const serverFns = useMemo(() => {
-    let calls = 0
     const getPerformance = (async (input: {
       data: { preset: PropertyPerformancePreset }
     }) => {
-      calls += 1
-      if (calls === 1) {
+      calls.current += 1
+      if (calls.current === 1) {
         return {
           status: 'ready' as const,
           data: report(input.data.preset),

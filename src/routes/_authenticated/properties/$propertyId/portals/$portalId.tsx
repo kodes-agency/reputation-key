@@ -346,6 +346,7 @@ function PortalDetailRoute() {
         ]}
       />
       <PortalDetailPage
+        key={portal.id}
         portal={portal}
         tokenStatus={tokenStatus}
         propertyId={propertyId}

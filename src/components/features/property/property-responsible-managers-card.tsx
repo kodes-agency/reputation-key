@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo } from 'react'
 import { AlertCircle, UserRoundCheck } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
@@ -8,26 +8,23 @@ import { Checkbox } from '#/components/ui/checkbox'
 import { Label } from '#/components/ui/label'
 import {
   normalizeResponsibleManagerIds as sorted,
-  reconcileResponsibleManagerSelection,
   sameResponsibleManagerIds as sameIds,
 } from '#/components/features/responsible-managers/selection'
+import { useResponsibleManagerSelection } from '#/components/features/responsible-managers/use-responsible-manager-selection'
 
 export type PropertyResponsibleManagerState = Readonly<{
   assignments: readonly Readonly<{ userId: string }>[]
   eligibleManagers: readonly Readonly<{
     userId: string
-    role: 'AccountAdmin' | 'PropertyManager'
   }>[]
   revision: number
   responsibilityNeeded: boolean
-  responsibilityNeededSince: string | Date | null
 }>
 
 export type ResponsibleManagerMember = Readonly<{
   userId: string
   name: string
   email: string
-  role: string | null
 }>
 
 type UpdateInput = Readonly<{
@@ -51,18 +48,9 @@ export function PropertyResponsibleManagersCard({
   updateAction: Action<UpdateInput>
   disabled: boolean
 }>) {
-  const serverSelection = sorted(state.assignments.map((row) => row.userId))
-  const serverSignature = serverSelection.join('\u0000')
-  const priorServerSelection = useRef(serverSelection)
-  const [selected, setSelected] = useState(serverSelection)
-
-  useEffect(() => {
-    const prior = priorServerSelection.current
-    setSelected((current) =>
-      reconcileResponsibleManagerSelection(current, prior, serverSelection),
-    )
-    priorServerSelection.current = serverSelection
-  }, [serverSignature])
+  const { selected, setSelected, serverSelection } = useResponsibleManagerSelection(
+    state.assignments,
+  )
 
   const eligibleIds = useMemo(
     () => new Set(state.eligibleManagers.map((manager) => manager.userId)),

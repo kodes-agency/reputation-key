@@ -66,6 +66,7 @@ export function GoogleImportManager({
     step: discovery.step,
     setStep: discovery.setStep,
   })
+  const { loadProgress } = progress
 
   useEffect(() => {
     mounted.current = true
@@ -97,10 +98,10 @@ export function GoogleImportManager({
   const openProgress = useCallback(
     async (importJobId: string) => {
       await discovery.lifecycle.clear('route_left')
-      await progress.loadProgress(importJobId)
+      await loadProgress(importJobId)
       if (mounted.current) setStartError(null)
     },
-    [discovery.lifecycle, progress.loadProgress],
+    [discovery.lifecycle, loadProgress],
   )
   useEffect(() => {
     if (

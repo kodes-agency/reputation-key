@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import type {
   listImportAccounts,
@@ -6,6 +5,7 @@ import type {
   renewImportAuthorizationLease,
 } from '#/contexts/integration/server/gbp-import'
 import { integrationKeys } from '#/shared/queries/query-keys'
+import { usePageVisibleAndFocused } from '#/components/hooks/use-page-visible-and-focused'
 
 const CONTENT_LEASE_POLL_MS = 10_000
 
@@ -15,26 +15,6 @@ type AwaitedReturn<T extends (...args: never[]) => unknown> = Awaited<
 type AccountsPage = AwaitedReturn<typeof listImportAccounts>
 type CandidatesPage = AwaitedReturn<typeof listImportCandidates>
 type EpochGuard = <T>(epoch: number, operation: Promise<T>) => Promise<T>
-
-function usePageVisibleAndFocused(): boolean {
-  const [active, setActive] = useState(false)
-
-  useEffect(() => {
-    const update = () =>
-      setActive(document.visibilityState === 'visible' && document.hasFocus())
-    update()
-    document.addEventListener('visibilitychange', update)
-    window.addEventListener('focus', update)
-    window.addEventListener('blur', update)
-    return () => {
-      document.removeEventListener('visibilitychange', update)
-      window.removeEventListener('focus', update)
-      window.removeEventListener('blur', update)
-    }
-  }, [])
-
-  return active
-}
 
 export function useGoogleImportAccounts(
   input: Readonly<{
@@ -50,6 +30,7 @@ export function useGoogleImportAccounts(
     queryKey: integrationKeys.googleImportAccounts(
       input.organizationId,
       input.connectionId ?? 'none',
+      input.epoch,
     ),
     queryFn: ({ pageParam }) =>
       input.guard(
@@ -90,6 +71,7 @@ export function useGoogleImportCandidates(
       input.organizationId,
       input.connectionId ?? 'none',
       input.accountRef,
+      input.epoch,
     ),
     queryFn: ({ pageParam }) =>
       input.guard(
@@ -136,6 +118,8 @@ export function useGoogleImportContentLease(
     queryKey: integrationKeys.googleImportLease(
       input.organizationId,
       input.connectionId ?? 'none',
+      input.leaseRef ?? 'none',
+      input.epoch,
     ),
     queryFn: () =>
       input.guard(

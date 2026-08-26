@@ -6,7 +6,7 @@
 // never router.invalidate()). Navigation sub-hook lives in inbox-state-helpers.
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import type { getInboxItemsFn } from '#/contexts/inbox/server/inbox'
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useCallback } from 'react'
 import type { InboxFilterValues } from '#/components/inbox/inbox-filters'
 import type { InboxItem, Cursor } from '#/contexts/inbox/application/public-api'
 import { INBOX_PAGE_SIZE } from '#/components/inbox/inbox-search-schema'
@@ -22,6 +22,7 @@ import {
   removeInboxSelection,
 } from './inbox-selection'
 import { useDebouncedValue } from './use-debounced-value'
+import { useScopedInboxSelection } from './use-scoped-inbox-selection'
 
 type InboxPage = {
   items: ReadonlyArray<InboxItem>
@@ -37,7 +38,7 @@ export function useInboxState(
   getInboxItems: typeof getInboxItemsFn,
 ) {
   const qc = useQueryClient()
-  const [selectedIds, setSelectedIds] = useState<ReadonlyArray<string>>([])
+  const { selectedIds, setSelectedIds } = useScopedInboxSelection(orgId, filters)
   const { handleRowClick, closeDetail } = useInboxNavigation(onNavigate)
 
   // Debounce the filters used for BOTH the query key and the fetch args, so the
@@ -68,23 +69,6 @@ export function useInboxState(
   const nextCursor = pages.length ? pages[pages.length - 1]!.nextCursor : null
   const totalCount = pages[0]?.totalCount ?? 0
 
-  // Clear selection when the (live) filters change — immediate, not debounced.
-  useEffect(() => {
-    setSelectedIds([])
-  }, [
-    filters.status,
-    filters.isEscalated,
-    filters.sourceType,
-    filters.platform,
-    filters.ratingMin,
-    filters.ratingMax,
-    filters.attention,
-    filters.category,
-    filters.propertyId,
-    filters.q,
-    filters.sort,
-  ])
-
   // Auto-close the detail if the selected item is no longer in the loaded list.
   useEffect(() => {
     if (isSelectedItemMissing(selectedId, query.isPending, items))
@@ -112,7 +96,7 @@ export function useInboxState(
         }
       })
     },
-    [qc, debouncedFilters],
+    [qc, debouncedFilters, setSelectedIds],
   )
 
   // Bulk update → clear selection, refetch the list (targeted), close detail.
@@ -122,7 +106,7 @@ export function useInboxState(
     qc.invalidateQueries({ queryKey: inboxKeys.counts() })
     qc.invalidateQueries({ queryKey: inboxKeys.lastVisitCount() })
     if (selectedId) closeDetail()
-  }, [selectedId, qc, closeDetail])
+  }, [selectedId, qc, closeDetail, setSelectedIds])
 
   return {
     items,

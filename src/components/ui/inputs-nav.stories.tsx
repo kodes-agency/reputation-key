@@ -64,27 +64,30 @@ export const SelectItemAligned: Story = {
     </Select>
   ),
 }
+
+function ControlledSelectStory() {
+  const [value, setValue] = useState('')
+  return (
+    <div className="flex flex-col gap-3">
+      <Select value={value} onValueChange={setValue}>
+        <SelectTrigger aria-label="Select a fruit" className="w-[180px]">
+          <SelectValue placeholder="Select a fruit" />
+        </SelectTrigger>
+        <SelectContent position="popper" className="w-[180px]">
+          <SelectItem value="apple">Apple</SelectItem>
+          <SelectItem value="banana">Banana</SelectItem>
+          <SelectItem value="cherry">Cherry</SelectItem>
+        </SelectContent>
+      </Select>
+      <p className="text-sm text-muted-foreground" data-testid="selected-value">
+        Selected: {value || 'none'}
+      </p>
+    </div>
+  )
+}
+
 export const SelectControlled: Story = {
-  render: () => {
-    const [value, setValue] = useState('')
-    return (
-      <div className="flex flex-col gap-3">
-        <Select value={value} onValueChange={setValue}>
-          <SelectTrigger aria-label="Select a fruit" className="w-[180px]">
-            <SelectValue placeholder="Select a fruit" />
-          </SelectTrigger>
-          <SelectContent position="popper" className="w-[180px]">
-            <SelectItem value="apple">Apple</SelectItem>
-            <SelectItem value="banana">Banana</SelectItem>
-            <SelectItem value="cherry">Cherry</SelectItem>
-          </SelectContent>
-        </Select>
-        <p className="text-sm text-muted-foreground" data-testid="selected-value">
-          Selected: {value || 'none'}
-        </p>
-      </div>
-    )
-  },
+  render: () => <ControlledSelectStory />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // Select content is portaled to the document body by Radix.

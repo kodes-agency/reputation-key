@@ -94,13 +94,12 @@ export function useInboxPage(
     stampInboxVisit()
   }, [hasLoadedSuccessfully, orgId, recordInboxVisit, stampInboxVisit])
 
-  // Stable reference — only recomputes when a different item is selected,
-  // NOT when the same item's status/fields update (detail panel uses detailState.currentItem).
+  // Resolve the selected row from the current query data so status and field
+  // changes cannot leave the detail controller holding a stale object.
   const selectedItemId = search.itemId
-  const foundItemId = items.find((i) => i.id === selectedItemId)?.id
   const selectedItem = useMemo(
     () => (selectedItemId ? (items.find((i) => i.id === selectedItemId) ?? null) : null),
-    [selectedItemId, foundItemId],
+    [items, selectedItemId],
   )
   // Optimistic list sync after a detail status change (mark-read / escalate /
   // archive): delegates to useInboxState.patchItem, which patches the cached

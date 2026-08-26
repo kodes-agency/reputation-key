@@ -26,7 +26,7 @@ export function PortalShare(props: PortalShareProps) {
   const { can } = usePermissions()
   const [qrOpen, setQrOpen] = useState(false)
   const publicUrl = props.issuedLink?.publicUrl ?? null
-  const copy = useCopyLink(publicUrl)
+  const { linkRef, copied, copyFailed, copyLink } = useCopyLink(publicUrl)
   const { error, isPending } = resolveMutationState(props)
   const view = derivePortalShareView({
     canManage: can('portal.update'),
@@ -60,7 +60,10 @@ export function PortalShare(props: PortalShareProps) {
       <PortalLinkReveal
         publicUrl={publicUrl}
         portalName={props.portalName}
-        copy={copy}
+        linkRef={linkRef}
+        copied={copied}
+        copyFailed={copyFailed}
+        onCopy={copyLink}
         qrOpen={qrOpen}
         onQrOpenChange={setQrOpen}
       />
@@ -86,7 +89,7 @@ export function PortalShare(props: PortalShareProps) {
       )}
 
       <p className="sr-only" role="status" aria-live="polite">
-        {liveStatusMessage(isPending, copy.copied)}
+        {liveStatusMessage(isPending, copied)}
       </p>
     </section>
   )
