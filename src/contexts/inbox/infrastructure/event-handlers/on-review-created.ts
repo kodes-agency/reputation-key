@@ -25,6 +25,7 @@ export const onReviewCreated =
           sourceId: event.reviewId,
           sourceDate: event.occurredAt,
           platform: event.platform,
+          materialReviewRevision: event.sourceRevision,
         })
       } catch (err) {
         if (isInboxError(err) && err.code === 'already_exists') return

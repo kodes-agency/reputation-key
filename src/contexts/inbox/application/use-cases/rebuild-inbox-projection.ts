@@ -296,7 +296,13 @@ export const rebuildInboxProjection =
         if (!input.dryRun) {
           // Idempotent create, NO created/status fact — rebuild is repair, not
           // new information; the durable record is this report.
-          await deps.commandStore.createItem(item, null)
+          await deps.commandStore.createItem(
+            item,
+            null,
+            src.materialReviewRevision !== null
+              ? { materialReviewRevision: src.materialReviewRevision }
+              : undefined,
+          )
         }
       }
     }

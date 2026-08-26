@@ -92,6 +92,7 @@ export type ReviewSourceRow = Readonly<{
   platform: string
   reviewedAt: Date
   contentExpiresAt: Date | null
+  sourceRevision?: number
 }>
 
 /** Review-owned review-metadata reads (satisfied by the review repository, BQC-3.4). */

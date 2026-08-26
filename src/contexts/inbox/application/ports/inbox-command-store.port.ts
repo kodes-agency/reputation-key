@@ -30,6 +30,11 @@ export type ApplyReceiptStatus = 'applied' | 'duplicate' | 'obsolete'
 
 export type CreateItemResult = Readonly<{ item: InboxItem; created: boolean }>
 
+/** Optional Review-cycle anchor used during the expand phase. */
+export type ReviewCycleCreationAnchor = Readonly<{
+  materialReviewRevision: number
+}>
+
 /**
  * Source-created projection command: idempotent item create + created fact
  * (only when the insert wins) + receipt — one transaction. Shared by review
@@ -41,6 +46,8 @@ export type ApplySourceCreatedCommand = Readonly<{
   consumerName: string
   item: InboxItem
   fact: InboxItemCreated
+  /** Present for Review items; absent for Guest feedback until its revision model lands. */
+  reviewCycleAnchor?: ReviewCycleCreationAnchor
 }>
 
 /**
@@ -120,7 +127,11 @@ export type InboxCommandStore = Readonly<{
    * paths (rebuild) — creation-during-repair is not new information, so no
    * fact is recorded or emitted.
    */
-  createItem(item: InboxItem, event: InboxItemCreated | null): Promise<CreateItemResult>
+  createItem(
+    item: InboxItem,
+    event: InboxItemCreated | null,
+    reviewCycleAnchor?: ReviewCycleCreationAnchor,
+  ): Promise<CreateItemResult>
 
   /**
    * Status transition + inbox.inbox_item.status_changed fact in one

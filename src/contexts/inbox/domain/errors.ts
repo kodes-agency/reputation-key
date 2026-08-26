@@ -10,6 +10,7 @@ export type InboxErrorCode =
   | 'not_found'
   | 'assignment_not_allowed'
   | 'already_exists'
+  | 'revision_conflict'
   | 'bulk_partial_failure'
 
 export type InboxError = Readonly<{

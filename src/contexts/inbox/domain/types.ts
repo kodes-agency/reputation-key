@@ -14,6 +14,35 @@ import type {
 export type InboxStatus = 'open' | 'closed'
 export type SourceType = 'review' | 'feedback'
 
+export type ReviewHandlingCycleOpenReason =
+  'legacy_backfill' | 'review_observed' | 'material_revision_changed' | 'manual_reopen'
+
+/** Immutable opening fact for one numbered Review work episode. */
+export type ReviewHandlingCycle = Readonly<{
+  inboxItemId: InboxItemId
+  cycleNumber: number
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  reviewId: ReviewId
+  materialReviewRevision: number
+  openedReason: ReviewHandlingCycleOpenReason
+  supersedesCycleNumber: number | null
+  openedBy: UserId | null
+  openedAt: Date
+}>
+
+/** Mutable, revision-fenced pointer to the one current actionable cycle. */
+export type ReviewHandlingCycleHead = Readonly<{
+  inboxItemId: InboxItemId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  reviewId: ReviewId
+  currentCycleNumber: number
+  currentMaterialReviewRevision: number
+  stateRevision: number
+  status: InboxStatus
+}>
+
 export type InboxItem = Readonly<{
   id: InboxItemId
   organizationId: OrganizationId

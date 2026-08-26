@@ -19,6 +19,7 @@ const toMeta = (row: ReviewSourceRow): ReviewSourceMeta => ({
   platform: row.platform,
   sourceDate: row.reviewedAt,
   contentExpiresAt: row.contentExpiresAt,
+  materialReviewRevision: row.sourceRevision ?? null,
 })
 
 export const createReviewSourceLookupAdapter = (

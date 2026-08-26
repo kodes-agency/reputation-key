@@ -180,6 +180,10 @@ describe('inboxErrorStatus', () => {
   it('maps bulk_partial_failure to 207', () => {
     expect(inboxErrorStatus('bulk_partial_failure')).toBe(207)
   })
+
+  it('maps revision_conflict to 409', () => {
+    expect(inboxErrorStatus('revision_conflict')).toBe(409)
+  })
 })
 
 // ── Error constructor + type guard ──────────────────────────────────

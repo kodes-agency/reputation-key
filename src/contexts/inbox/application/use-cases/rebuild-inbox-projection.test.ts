@@ -71,6 +71,7 @@ function makeSource(overrides: Partial<ReviewSourceMeta> = {}): ReviewSourceMeta
     platform: 'google',
     sourceDate: new Date('2026-06-01'),
     contentExpiresAt: new Date('2027-01-01'),
+    materialReviewRevision: 1,
     ...overrides,
   }
 }

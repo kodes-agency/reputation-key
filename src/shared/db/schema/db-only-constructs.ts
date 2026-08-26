@@ -46,6 +46,20 @@ const NO_TRIGGER_DSL = 'drizzle-orm 0.45 has no CREATE FUNCTION/TRIGGER DSL'
 
 export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = [
   {
+    name: 'reject_inbox_handling_cycle_update_v1',
+    kind: 'function',
+    owner: 'inbox',
+    source: 'drizzle/0117_inbox_handling_cycles_expand.sql',
+    reason: `${NO_TRIGGER_DSL}; prevents immutable Handling Cycle opening facts from being rewritten while retaining cascade cleanup of the stable Inbox Item.`,
+  },
+  {
+    name: 'inbox_handling_cycles_immutable',
+    kind: 'trigger',
+    owner: 'inbox',
+    source: 'drizzle/0117_inbox_handling_cycles_expand.sql',
+    reason: NO_TRIGGER_DSL,
+  },
+  {
     name: 'guard_portal_publication_history_v1',
     kind: 'function',
     owner: 'portal',

@@ -238,6 +238,7 @@ const EXPECTED_USE_CASE_KEYS = [
   'softDeleteProperty',
   'softDeleteTeam',
   'stampLastInboxView',
+  'startReviewHandlingCycle',
   'submitReply',
   'sweepGoogleImportV2Lifecycle',
   'trackReviewLinkClick',

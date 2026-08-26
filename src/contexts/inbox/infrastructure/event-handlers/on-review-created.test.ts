@@ -50,6 +50,7 @@ describe('onReviewCreated', () => {
       sourceId: REVIEW_ID,
       sourceDate: NOW,
       platform: 'google',
+      materialReviewRevision: 3,
     })
   })
 

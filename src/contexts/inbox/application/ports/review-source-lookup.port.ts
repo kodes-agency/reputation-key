@@ -17,6 +17,8 @@ export type ReviewSourceMeta = Readonly<{
   sourceDate: Date
   /** Source-content expiry clock (ADR 0031); null = no successful fetch yet. */
   contentExpiresAt: Date | null
+  /** Current Material Review Revision; null only for pre-expand test doubles. */
+  materialReviewRevision: number | null
 }>
 
 export type ReviewSourceLookupPort = Readonly<{

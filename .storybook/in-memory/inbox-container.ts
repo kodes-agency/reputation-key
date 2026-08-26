@@ -21,6 +21,7 @@ import type { InboxNoteRepository } from '#/contexts/inbox/application/ports/inb
 import type { InboxViewRepository } from '#/contexts/inbox/application/ports/inbox-view.repository'
 import type { ReplyLookupPort } from '#/contexts/inbox/application/ports/reply-lookup.port'
 import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
+import type { ReviewHandlingCycleStore } from '#/contexts/inbox/application/ports/review-handling-cycle.store'
 import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -122,6 +123,14 @@ const noopReviewSourceLookup: ReviewSourceLookupPort = {
   listReviewSources: async () => [],
 }
 
+const emptyHandlingCycleStore: ReviewHandlingCycleStore = {
+  findHead: async () => null,
+  listCycles: async () => [],
+  startNext: async () => {
+    throw new Error('Handling Cycles are not seeded in this Storybook container')
+  },
+}
+
 export function createInboxContainer() {
   const inboxRepo = createInMemoryInboxRepo()
   const inboxNoteRepo = createInMemoryNoteRepo()
@@ -138,6 +147,7 @@ export function createInboxContainer() {
       noteRepo: inboxNoteRepo,
       events,
     }),
+    handlingCycleStore: emptyHandlingCycleStore,
     reviewSourceLookup: noopReviewSourceLookup,
     replyLookup: noopReplyLookup,
     staffPublicApi: noopStaffApi,

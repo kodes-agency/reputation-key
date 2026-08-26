@@ -15,6 +15,7 @@ import type { InboxRepository } from './application/ports/inbox.repository'
 import type { InboxNoteRepository } from './application/ports/inbox-note.repository'
 import type { InboxViewRepository } from './application/ports/inbox-view.repository'
 import type { InboxCommandStore } from './application/ports/inbox-command-store.port'
+import type { ReviewHandlingCycleStore } from './application/ports/review-handling-cycle.store'
 import type { ReviewLookupPort } from './application/ports/review-lookup.port'
 import type { ReviewSourceLookupPort } from './application/ports/review-source-lookup.port'
 import type { FeedbackLookupPort } from './application/ports/feedback-lookup.port'
@@ -41,10 +42,12 @@ import type { GetInboxItemDetailUseCase } from './application/use-cases/get-inbo
 import type { GetInboxNotesUseCase } from './application/use-cases/get-inbox-notes'
 import type { GetInboxFolderCounts } from './application/use-cases/get-folder-counts'
 import type { RebuildInboxProjection } from './application/use-cases/rebuild-inbox-projection'
+import type { StartReviewHandlingCycle } from './application/use-cases/start-review-handling-cycle'
 import { createInboxRepository } from './infrastructure/repositories/inbox.repository'
 import { createInboxNoteRepository } from './infrastructure/repositories/inbox-note.repository'
 import { createInboxViewRepository } from './infrastructure/repositories/inbox-view.repository'
 import { createAtomicInboxCommandStore } from './infrastructure/inbox-command-store'
+import { createReviewHandlingCycleStore } from './infrastructure/review-handling-cycle.store'
 import { registerInboxHandlers } from './infrastructure/event-handlers'
 import { registerInboxConsumers } from './infrastructure/outbox-consumers'
 import { registerGuestFeedbackConsumer } from './infrastructure/guest-feedback-outbox-consumers'
@@ -88,6 +91,7 @@ export type InboxContextApi = Readonly<{
     }>
     /** BQC-3.4: atomic state+outbox command store — also drives the durable consumers. */
     commandStore: InboxCommandStore
+    handlingCycleStore: ReviewHandlingCycleStore
     /** BQR-2.2/2.4: registers the durable outbox consumers (worker calls this
      * before optional durable dispatch start). Runtime contribution. */
     registerOutboxConsumers: () => void
@@ -106,6 +110,7 @@ export type InboxContextApi = Readonly<{
       getInboxNotes: GetInboxNotesUseCase
       getInboxFolderCounts: GetInboxFolderCounts
       rebuildInboxProjection: RebuildInboxProjection
+      startReviewHandlingCycle: StartReviewHandlingCycle
     }>
   }>
 }>
@@ -156,12 +161,14 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   // command. This closes the wiring gap — inbox facts were previously
   // bus-only in production because wireUseCases never received outboxRepo.
   const commandStore = createAtomicInboxCommandStore(input.db, input.events)
+  const handlingCycleStore = createReviewHandlingCycleStore(input.db)
 
   const useCases = wireUseCases({
     inboxRepo,
     inboxNoteRepo,
     inboxViewRepo,
     commandStore,
+    handlingCycleStore,
     reviewSourceLookup,
     replyLookup,
     propertyLookup,
@@ -185,6 +192,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   const registerOutboxConsumers = () => {
     registerInboxConsumers({
       commandStore,
+      handlingCycleStore,
       reviewLookup: input.reviewLookup,
       reviewSourceLookup,
       inboxRepo,
@@ -210,6 +218,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
         staffPublicApi: input.staffPublicApi,
       },
       commandStore,
+      handlingCycleStore,
       registerOutboxConsumers,
       useCases,
     },

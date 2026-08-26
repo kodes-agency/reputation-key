@@ -28,6 +28,9 @@ import type {
   ReviewSourceMeta,
 } from '../application/ports/review-source-lookup.port'
 import type { ApplyReceiptStatus } from '../application/ports/inbox-command-store.port'
+import type { ReviewHandlingCycleStore } from '../application/ports/review-handling-cycle.store'
+import { createNextReviewHandlingCycle } from '../domain/handling-cycles'
+import { inboxError } from '../domain/errors'
 import {
   feedbackId,
   inboxItemId,
@@ -116,6 +119,7 @@ const SOURCE_META: ReviewSourceMeta = {
   platform: 'google',
   sourceDate: new Date('2026-06-10'),
   contentExpiresAt: null,
+  materialReviewRevision: 1,
 }
 
 const AVAILABLE_FEEDBACK: FeedbackSnippet = {
@@ -171,8 +175,50 @@ function makeDeps(overrides: {
     findEligibleFeedbackIds: vi.fn(async () => []),
   } satisfies FeedbackLookupPort
 
+  let handlingCycleHead =
+    item?.sourceType === 'review'
+      ? {
+          inboxItemId: item.id,
+          organizationId: item.organizationId,
+          propertyId: item.propertyId,
+          reviewId: REV,
+          currentCycleNumber: 1,
+          currentMaterialReviewRevision: 1,
+          stateRevision: 1,
+          status: item.status,
+        }
+      : null
+  const handlingCycleStore = {
+    findHead: vi.fn(async () => handlingCycleHead),
+    listCycles: vi.fn(async () => []),
+    startNext: vi.fn(async (command) => {
+      if (handlingCycleHead === null) {
+        throw inboxError('not_found', 'Handling Cycle head not found')
+      }
+      if (
+        handlingCycleHead.currentCycleNumber !== command.expected.cycleNumber ||
+        handlingCycleHead.currentMaterialReviewRevision !==
+          command.expected.materialReviewRevision ||
+        handlingCycleHead.stateRevision !== command.expected.stateRevision
+      ) {
+        throw inboxError('revision_conflict', 'Handling Cycle changed')
+      }
+      const result = createNextReviewHandlingCycle({
+        current: handlingCycleHead,
+        materialReviewRevision: command.materialReviewRevision,
+        openedReason: command.openedReason,
+        openedBy: command.openedBy,
+        openedAt: command.openedAt,
+      })
+      if (result.isErr()) throw result.error
+      handlingCycleHead = result.value.head
+      return result.value
+    }),
+  } satisfies ReviewHandlingCycleStore
+
   const deps: InboxConsumerDeps = {
     commandStore,
+    handlingCycleStore,
     reviewLookup,
     reviewSourceLookup,
     inboxRepo: repo,
@@ -186,7 +232,7 @@ function makeDeps(overrides: {
     idGen: () => INBOX,
     clock: () => NOW,
   }
-  return { deps, guestDeps, repo, events, receipts }
+  return { deps, guestDeps, repo, events, receipts, handlingCycleStore }
 }
 
 describe('handleInboxGuestFeedbackSubmitted (durable private feedback)', () => {
@@ -508,6 +554,34 @@ describe('handleInboxReviewExpired (BQC-3.4 applyOnce)', () => {
 })
 
 describe('handleInboxReviewUpdated (BQC-3.4 — BQC-3.1 orphan resolved)', () => {
+  it('opens one new cycle when the current Material Review Revision advances', async () => {
+    const { deps, handlingCycleStore } = makeDeps({
+      sourceMeta: { ...SOURCE_META, materialReviewRevision: 2 },
+    })
+    const event = makeEvent('review.updated', {
+      reviewId: 'rev-1',
+      organizationId: 'org-1',
+      propertyId: 'prop-1',
+      sourceRevision: 2,
+    })
+
+    await handleInboxReviewUpdated(deps, event)
+    await handleInboxReviewUpdated(deps, event)
+
+    expect(handlingCycleStore.startNext).toHaveBeenCalledTimes(1)
+    expect(handlingCycleStore.startNext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expected: {
+          cycleNumber: 1,
+          materialReviewRevision: 1,
+          stateRevision: 1,
+        },
+        materialReviewRevision: 2,
+        openedReason: 'material_revision_changed',
+      }),
+    )
+  })
+
   it('refreshes sourceDate/platform metadata and records the receipt', async () => {
     const { deps, repo, receipts } = makeDeps({})
     const result = await handleInboxReviewUpdated(

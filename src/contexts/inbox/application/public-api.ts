@@ -9,7 +9,14 @@ export type {
   InboxItemDetail,
   InboxStatus,
   SourceType,
+  ReviewHandlingCycle,
+  ReviewHandlingCycleHead,
+  ReviewHandlingCycleOpenReason,
 } from '../domain/types'
+export type {
+  ReviewHandlingCycleExpectation,
+  ReviewHandlingCycleResult,
+} from './ports/review-handling-cycle.store'
 
 // Application-layer detail result (includes the review reply) — used by the
 // client detail state. See get-inbox-item-detail use case.

@@ -89,6 +89,7 @@ import { createReviewRepository } from '#/contexts/review/infrastructure/reposit
 import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
 import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
 import { createAtomicInboxCommandStore } from '#/contexts/inbox/infrastructure/inbox-command-store'
+import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 import { createReviewSourceLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/review-source-lookup.adapter'
 import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
 import { registerInboxConsumers } from '#/contexts/inbox/infrastructure/outbox-consumers'
@@ -501,6 +502,7 @@ beforeAll(async () => {
   clearConsumers()
   registerInboxConsumers({
     commandStore: createAtomicInboxCommandStore(db, silentEvents),
+    handlingCycleStore: createReviewHandlingCycleStore(db),
     reviewLookup: makeReviewLookup(),
     reviewSourceLookup: makeReviewSourceLookup(),
     inboxRepo: createInboxRepository(db, stubEnrichmentPorts),

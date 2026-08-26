@@ -5,6 +5,7 @@ import type { InboxRepository } from './application/ports/inbox.repository'
 import type { InboxNoteRepository } from './application/ports/inbox-note.repository'
 import type { InboxViewRepository } from './application/ports/inbox-view.repository'
 import type { InboxCommandStore } from './application/ports/inbox-command-store.port'
+import type { ReviewHandlingCycleStore } from './application/ports/review-handling-cycle.store'
 import type { ReviewSourceLookupPort } from './application/ports/review-source-lookup.port'
 import type { ReplyLookupPort } from './application/ports/reply-lookup.port'
 import type { AiReviewInsightsPort } from './application/ports/ai-review-insights.port'
@@ -26,6 +27,7 @@ import { getInboxItemDetail } from './application/use-cases/get-inbox-item-detai
 import { getInboxFolderCounts } from './application/use-cases/get-folder-counts'
 import { getInboxNotes } from './application/use-cases/get-inbox-notes'
 import { rebuildInboxProjection } from './application/use-cases/rebuild-inbox-projection'
+import { startReviewHandlingCycle } from './application/use-cases/start-review-handling-cycle'
 import { inboxItemId, inboxNoteId } from '#/shared/domain/ids'
 
 type WireInput = Readonly<{
@@ -33,6 +35,7 @@ type WireInput = Readonly<{
   inboxNoteRepo: InboxNoteRepository
   inboxViewRepo: InboxViewRepository
   commandStore: InboxCommandStore
+  handlingCycleStore: ReviewHandlingCycleStore
   reviewSourceLookup: ReviewSourceLookupPort
   replyLookup: ReplyLookupPort
   aiInsights?: AiReviewInsightsPort
@@ -125,6 +128,11 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
       idGen: () => inboxItemId(crypto.randomUUID()),
       clock: input.clock,
       logger: input.logger,
+    }),
+    startReviewHandlingCycle: startReviewHandlingCycle({
+      inboxRepo: input.inboxRepo,
+      cycleStore: input.handlingCycleStore,
+      clock: input.clock,
     }),
   }
 }

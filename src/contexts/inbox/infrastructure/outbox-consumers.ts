@@ -24,6 +24,7 @@ import type { ReviewLookupPort } from '../application/ports/review-lookup.port'
 import type { ReviewSourceLookupPort } from '../application/ports/review-source-lookup.port'
 import type { InboxRepository } from '../application/ports/inbox.repository'
 import type { InboxCommandStore } from '../application/ports/inbox-command-store.port'
+import type { ReviewHandlingCycleStore } from '../application/ports/review-handling-cycle.store'
 import type { InboxItemId } from '#/shared/domain/ids'
 import { createInboxItem as buildInboxItem } from '../domain/constructors'
 import { inboxItemCreated, inboxItemStatusChanged } from '../domain/events'
@@ -39,6 +40,7 @@ import { getLogger } from '#/shared/observability/logger'
 
 export type InboxConsumerDeps = Readonly<{
   commandStore: InboxCommandStore
+  handlingCycleStore: ReviewHandlingCycleStore
   reviewLookup: ReviewLookupPort
   reviewSourceLookup: ReviewSourceLookupPort
   inboxRepo: InboxRepository
@@ -62,6 +64,7 @@ type ReviewCreatedPayload = ReviewIdPayload &
     occurredAt?: string | Date
     platform?: string
     externalId?: string
+    sourceRevision?: number
   }>
 
 type ReplyPublishedPayload = ReviewIdPayload &
@@ -156,6 +159,9 @@ export async function handleInboxReviewCreated(
       sourceId: item.sourceId,
       occurredAt: item.createdAt,
     }),
+    ...(payload.sourceRevision !== undefined
+      ? { reviewCycleAnchor: { materialReviewRevision: payload.sourceRevision } }
+      : {}),
   })
   return { status: outcome }
 }
@@ -237,6 +243,45 @@ export async function handleInboxReviewUpdated(
       { reviewId: payload.reviewId, eventId: event.eventId },
       'inbox.on-review-updated: review missing — applied no-op',
     )
+  }
+
+  // A material source change starts a new numbered work episode before the
+  // event receipt is committed. If the process stops between these steps,
+  // redelivery observes the already-advanced head and safely records only the
+  // remaining metadata/receipt transaction.
+  if (meta.materialReviewRevision !== null) {
+    const head = await deps.handlingCycleStore.findHead(item.id, orgId)
+    if (
+      head !== null &&
+      meta.materialReviewRevision > head.currentMaterialReviewRevision
+    ) {
+      try {
+        await deps.handlingCycleStore.startNext({
+          inboxItemId: item.id,
+          organizationId: orgId,
+          expected: {
+            cycleNumber: head.currentCycleNumber,
+            materialReviewRevision: head.currentMaterialReviewRevision,
+            stateRevision: head.stateRevision,
+          },
+          materialReviewRevision: meta.materialReviewRevision,
+          openedReason: 'material_revision_changed',
+          openedBy: null,
+          openedAt: deps.clock(),
+        })
+      } catch (error) {
+        // A concurrent writer may have advanced the same (or a later) Review
+        // revision. Treat that as convergence; any other conflict/failure is
+        // retried by the durable consumer.
+        const latest = await deps.handlingCycleStore.findHead(item.id, orgId)
+        if (
+          latest === null ||
+          latest.currentMaterialReviewRevision < meta.materialReviewRevision
+        ) {
+          throw error
+        }
+      }
+    }
   }
 
   await deps.commandStore.applyReviewUpdatedOnce({

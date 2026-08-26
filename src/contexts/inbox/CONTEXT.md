@@ -6,25 +6,28 @@ Unified triage surface for reviews and feedback — status tracking, assignment,
 
 ## Glossary
 
-| Term               | Definition                                                                                                                                              |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Inbox Item**     | A unified triage entry. Points to either a Review or a Feedback. Carries denormalized filter/sort fields and inbox-specific state (status, assignment). |
-| **Source Type**    | The origin of an inbox item: `'review'` or `'feedback'`.                                                                                                |
-| **Source ID**      | The primary key of the source entity (a `ReviewId` or `FeedbackId`).                                                                                    |
-| **Status**         | The triage state of an inbox item: `open` or `closed`.                                                                                                  |
-| **Closed**         | The item has been handled. Publishing a review reply closes its inbox item automatically; authorized users can also close or reopen items.              |
-| **Escalated**      | An orthogonal flag for management attention. An open or closed item can be escalated until the flag is resolved.                                        |
-| **Assignment**     | Linking an inbox item to a specific team member. PM+ only. Assignee must have access to the item's property.                                            |
-| **Internal Note**  | A text annotation on an inbox item. Stored in `inbox_notes`. Tracks author and timestamp. Multiple notes per item.                                      |
-| **Source Date**    | The denormalized date from the source entity (`reviewedAt` for reviews, `createdAt` for feedback). Used for sorting.                                    |
-| **Filtered Total** | Authoritative count of all items matching the governed list filters, calculated before the page cursor and returned with every page.                    |
-| **List Sort**      | Stable keyset ordering by `(sourceDate, id)`, newest-first by default with an oldest-first option.                                                      |
+| Term               | Definition                                                                                                                                                      |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Inbox Item**     | A unified triage entry. Points to either a Review or a Feedback. Carries denormalized filter/sort fields and inbox-specific state (status, assignment).         |
+| **Source Type**    | The origin of an inbox item: `'review'` or `'feedback'`.                                                                                                        |
+| **Source ID**      | The primary key of the source entity (a `ReviewId` or `FeedbackId`).                                                                                            |
+| **Status**         | The triage state of an inbox item: `open` or `closed`.                                                                                                          |
+| **Closed**         | The item has been handled. Publishing a review reply closes its inbox item automatically; authorized users can also close or reopen items.                      |
+| **Escalated**      | An orthogonal flag for management attention. An open or closed item can be escalated until the flag is resolved.                                                |
+| **Assignment**     | Linking an inbox item to a specific team member. PM+ only. Assignee must have access to the item's property.                                                    |
+| **Internal Note**  | A text annotation on an inbox item. Stored in `inbox_notes`. Tracks author and timestamp. Multiple notes per item.                                              |
+| **Source Date**    | The denormalized date from the source entity (`reviewedAt` for reviews, `createdAt` for feedback). Used for sorting.                                            |
+| **Filtered Total** | Authoritative count of all items matching the governed list filters, calculated before the page cursor and returned with every page.                            |
+| **List Sort**      | Stable keyset ordering by `(sourceDate, id)`, newest-first by default with an oldest-first option.                                                              |
+| **Handling Cycle** | An immutable, numbered opening fact for one Review work episode, anchored to one Material Review Revision. More than one cycle may reference the same revision. |
+| **Cycle Head**     | The compare-and-swap pointer to the one current Review cycle, its current Material Review Revision, workflow status, and state revision.                        |
 
 ## Relationships
 
 - Inbox Item → Review (via `sourceType = 'review'`, `sourceId = reviewId`). Eligible content is read through `ReviewLookupPort`, never cross-context SQL.
 - Inbox Item → Feedback (via `sourceType = 'feedback'`, `sourceId = feedbackId`). Rating value denormalized at creation time from linked `Rating`.
 - Inbox Item → StaffAssignment (assignment scoped to properties the user can access).
+- Review Inbox Item → Handling Cycle (one-to-many immutable openings) → Material Review Revision; one Cycle Head selects the current actionable episode.
 - Inbox Note → Inbox Item (many-to-one).
 - Inbox subscribes to `review.created`, `guest.feedback.submitted`, and `review.reply.published` events from other contexts.
 
@@ -38,6 +41,9 @@ Unified triage surface for reviews and feedback — status tracking, assignment,
 - Each inbox item has exactly one source (review or feedback), never both.
 - Feedback inbox items may have a denormalized rating value (from linked `ratings` row), nullable.
 - List cursors are bounded canonical base64 JSON. Their `sourceDate` must be a canonical ISO instant and `id` a UUID; malformed cursors are discarded before repository/SQL access and never echoed into logs.
+- A Review cycle opening is append-only at the database boundary. Starting a later cycle advances the head only when expected cycle number, Material Review Revision, and state revision all match.
+- `material_revision_changed` must advance to the Review's current Material Review Revision. `manual_reopen` may create another numbered cycle on the same revision. Both preserve every earlier opening fact.
+- Expand phase is intentionally non-destructive: `inbox_items.status` remains the compatibility projection. Existing status/assignment/escalation commands have not yet cut over to the cycle head and are not claimed as fully revision-fenced.
 
 ## Events produced
 
@@ -89,6 +95,7 @@ inbox/
     mappers/           inbox.mapper.ts, inbox-note.mapper.ts
     repositories/      inbox.repository.ts, inbox-note.repository.ts (Drizzle)
     inbox-command-store.ts            atomic state+outbox+receipt commands (BQC-3.4)
+    review-handling-cycle.store.ts    immutable cycle append + locked/CAS current head
     outbox-consumers.ts  durable consumers (applyOnce): review.created/.updated/.expired,
                       review.reply.published
     event-handlers/    on-review-created.ts, on-review-expired.ts, on-feedback-submitted.ts,
@@ -113,6 +120,7 @@ inbox/
 | `createInboxItem`       | organizationId, propertyId, sourceType, sourceId, rating?, sourceDate, platform?, snippet? | `InboxItem`           | internal only |
 | `getFolderCounts`       | organizationId, userId, role                                        | `InboxFolderCounts`   | `inbox.read`  |
 | `rebuildInboxProjection` | organizationId, propertyId?, dryRun, batchSize?                    | repair report         | internal repair command (BQC-3.4; operator surface is BQC-7) |
+| `startReviewHandlingCycle` | inboxItemId, Organization, expected cycle/material/state revisions, target Material Review Revision, reason | cycle + current head | internal workflow command; caller owns authorization |
 
 ## Public API
 

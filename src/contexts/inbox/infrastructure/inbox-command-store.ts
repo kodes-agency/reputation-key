@@ -32,9 +32,11 @@ import { inboxItemUnassigned } from '../domain/events'
 import { timestampFieldsForStatus } from '../domain/rules'
 import { inboxItemFromRow, inboxItemToInsertRow } from './mappers/inbox.mapper'
 import { inboxNoteFromRow, inboxNoteToInsertRow } from './mappers/inbox-note.mapper'
+import { insertInitialReviewHandlingCycle } from './review-handling-cycle.store'
 import type {
   ApplyReceiptStatus,
   InboxCommandStore,
+  ReviewCycleCreationAnchor,
 } from '../application/ports/inbox-command-store.port'
 
 async function insertReceiptRow(
@@ -62,6 +64,7 @@ const itemFromRow = (row: typeof inboxItems.$inferSelect): InboxItem => ({
 async function insertItemIdempotent(
   tx: Tx,
   item: InboxItem,
+  reviewCycleAnchor?: ReviewCycleCreationAnchor,
 ): Promise<{ item: InboxItem; created: boolean }> {
   const inserted = await tx
     .insert(inboxItems)
@@ -70,7 +73,16 @@ async function insertItemIdempotent(
       target: [inboxItems.sourceType, inboxItems.sourceId, inboxItems.organizationId],
     })
     .returning()
-  if (inserted[0]) return { item: itemFromRow(inserted[0]), created: true }
+  if (inserted[0]) {
+    if (reviewCycleAnchor) {
+      await insertInitialReviewHandlingCycle(
+        tx,
+        itemFromRow(inserted[0]),
+        reviewCycleAnchor.materialReviewRevision,
+      )
+    }
+    return { item: itemFromRow(inserted[0]), created: true }
+  }
   const existing = await tx
     .select()
     .from(inboxItems)
@@ -209,10 +221,10 @@ export function createAtomicInboxCommandStore(
       })
     },
 
-    createItem: async (item, event) => {
+    createItem: async (item, event, reviewCycleAnchor) => {
       return trace('inbox.commandStore.createItem', async () => {
         const result = await db.transaction(async (tx) => {
-          const inserted = await insertItemIdempotent(tx, item)
+          const inserted = await insertItemIdempotent(tx, item, reviewCycleAnchor)
           if (inserted.created && event) await insertOutboxRow(tx, event)
           return inserted
         })
@@ -325,7 +337,11 @@ export function createAtomicInboxCommandStore(
     applySourceCreatedOnce: async (command) => {
       return trace('inbox.commandStore.applySourceCreatedOnce', async () => {
         const outcome = await db.transaction(async (tx) => {
-          const inserted = await insertItemIdempotent(tx, command.item)
+          const inserted = await insertItemIdempotent(
+            tx,
+            command.item,
+            command.reviewCycleAnchor,
+          )
           if (!inserted.created) {
             await insertReceiptRow(tx, command.eventId, command.consumerName, 'duplicate')
             return 'duplicate' as const

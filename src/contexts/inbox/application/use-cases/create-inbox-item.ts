@@ -22,6 +22,8 @@ export type CreateInboxItemInput = Readonly<{
   sourceId: ReviewId | FeedbackId
   sourceDate: Date
   platform: string | null
+  /** Review-only expand anchor; omitted for feedback and legacy callers. */
+  materialReviewRevision?: number
 }>
 
 export type CreateInboxItemDeps = Readonly<{
@@ -82,6 +84,9 @@ export const createInboxItem =
         sourceId: item.sourceId,
         occurredAt: item.createdAt,
       }),
+      input.sourceType === 'review' && input.materialReviewRevision !== undefined
+        ? { materialReviewRevision: input.materialReviewRevision }
+        : undefined,
     )
 
     if (!created.created) {
