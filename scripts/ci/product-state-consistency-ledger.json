@@ -184,6 +184,12 @@
       "policy": "Seed from the durable reply and keep edits local until save or cancel unmounts the editor."
     },
     {
+      "id": "src/components/inbox/use-inbox-detail.ts:useState(statusObserver)",
+      "classification": "local_runtime",
+      "owner": "Inbox item status transition observer",
+      "policy": "The lazy initializer constructs one component-lifetime transition observer used to reconcile polled and locally confirmed status changes; it contains no server-owned record or durable product state."
+    },
+    {
       "id": "src/components/inbox/use-debounced-value.ts:useState(debounced)",
       "classification": "synchronized_prop_copy",
       "owner": "Inbox debounce helper",
