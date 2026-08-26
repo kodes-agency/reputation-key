@@ -499,7 +499,7 @@
     {
       "id": "NTF-01",
       "status": "partial",
-      "summary": "Private feedback uses the Action-needed delivery class, required in-app channels are enforced through domain/repository/UI/database controls, the compact Bell has no bulk dismissal, and filtered pagination now carries exact server-derived continuation evidence. The end-to-end trigger and recipient contract remains incomplete.",
+      "summary": "Private feedback uses the Action-needed delivery class, required in-app channels are enforced through domain/repository/UI/database controls, and filtered pagination carries exact server-derived continuation evidence. Client refresh now reads only the unread count and newest page: older pages are loaded on demand, retained across refreshes, and de-duplicated with refreshed-head precedence. Optimistic read/dismiss changes update and restore the head, history, and count together. The end-to-end trigger and recipient contract remains incomplete.",
       "codeEvidence": [
         "src/contexts/notification/domain/notification-delivery-policy.ts",
         "src/contexts/notification/infrastructure/repositories/notification-preference.repository.ts",
@@ -508,21 +508,25 @@
         "src/components/features/notification/notification-popover-content.tsx",
         "src/components/features/notification/notification-page.tsx",
         "src/components/features/notification/notification-queries.ts",
+        "src/components/features/notification/notification-feed-cache.ts",
+        "src/components/features/notification/notification-feed-pagination.ts",
+        "src/components/features/notification/notification-mutations.ts",
         "drizzle/0109_notification_required_channels.sql"
       ],
       "testEvidence": [
         "Required-channel upgrade/constraint proof plus coalescing, responsibility resolution, outbox, digest, quiet-hours, unsubscribe, exact filtered pagination, and gap reconciliation tests",
+        "Focused client consistency matrix: 3 files / 10 tests; real QueryObserver and InfiniteQueryObserver coverage proves periodic offset-zero-only reads, retained/de-duplicated history, consistent count deltas, and complete rollback; full typecheck and targeted boundary/style checks passed",
         "Complete Storybook component suite: 91 files / 530 assertions passing on 2026-08-26"
       ],
       "remaining": [
-        "Complete and execute the trigger/recipient/eligibility matrix, close every durable producer-to-delivery gap, poll a first-page/count watermark without refetching all loaded history, finish exact immutable digest membership/outcomes, instrument lag and repair behavior, and retain deployed latency/outage evidence."
+        "Complete and execute the trigger/recipient/eligibility matrix, close every durable producer-to-delivery gap, add a shared newest-page/unread-count watermark or equivalent concurrent-write consistency proof, finish exact immutable digest membership/outcomes, instrument lag and repair behavior, and retain deployed latency/outage evidence."
       ],
       "externalBlockers": []
     },
     {
       "id": "ACT-01",
       "status": "partial",
-      "summary": "Recent Activity is documented and retained as a bounded 90-day product projection. The unused home-grown row-hash model has been removed, production comments/runtime messages consistently avoid audit-log/trail claims, and new projections accept only the exact 23 active action/resource pairs. Executable guards cover the integrity and language boundaries. Legacy internal symbols/historical rows, projection recovery, and the separate restricted Operational Action History remain incomplete.",
+      "summary": "Recent Activity is documented and retained as a bounded 90-day product projection. The unused home-grown row-hash model has been removed, production comments/runtime messages avoid audit-log/trail claims, new projections accept only the exact 23 active action/resource pairs, and production/domain/UI code now uses the canonical RecentActivityEntry/createRecentActivityEntry names. Deprecated compatibility aliases and physical identifiers remain. Executable guards cover the integrity and language boundaries; historical reconciliation, projection recovery, and separate restricted Operational Action History remain incomplete.",
       "codeEvidence": [
         "src/contexts/activity/CONTEXT.md",
         "src/contexts/activity/domain/types.ts",
@@ -531,15 +535,17 @@
         "docs/adr/0056-operational-action-history-integrity-claims.md",
         "src/bootstrap.ts",
         "src/contexts/activity/domain/types.ts",
-        "src/contexts/activity/domain/constructors.ts"
+        "src/contexts/activity/domain/constructors.ts",
+        "src/contexts/activity/application/public-api.ts",
+        "src/components/inbox/inbox-timeline-helpers.tsx"
       ],
       "testEvidence": [
         "Activity retention and selected projection tests",
         "Integrity-claim regression rejects local AuditRecord/hash-chain implementations and audit-log/trail production vocabulary",
-        "Focused Activity matrix: 10 files / 56 tests passed, including all 23 governed event kinds and rejection of legacy/unsupported combinations; focused lint and diff checks passed"
+        "Focused Activity matrix: 10 files / 56 tests passed, including all 23 governed event kinds and rejection of legacy/unsupported combinations; focused lint, full application typecheck, and diff checks passed"
       ],
       "remaining": [
-        "Reconcile broader historical enum rows and replace the remaining legacy internal ActivityLog/activity_log/getOrgActivity names; add durable projection receipts/rebuild states and owned expiry/redaction evidence; introduce restricted Operational Action History and implement its access/legal-hold/export/redaction controls."
+        "Reconcile broader historical enum rows, remove the deprecated ActivityLog/createActivityLog aliases after their compatibility window, and migrate the physical activity_log/job plus getOrgActivity identifiers; add durable projection receipts/rebuild states and owned expiry/redaction evidence; introduce restricted Operational Action History and implement its access/legal-hold/export/redaction controls."
       ],
       "externalBlockers": [
         "Operational-history retention and legal-hold policy requires counsel approval."
@@ -798,11 +804,21 @@
     {
       "id": "LEG-01",
       "status": "partial",
-      "summary": "Written Google confirmation is recorded, but privacy/terms/subprocessor/retention/AI/contact/monitoring approvals are draft or stale and no counsel closure record exists.",
-      "codeEvidence": ["docs/legal/", "Recorded Google written confirmation evidence"],
-      "testEvidence": [],
+      "summary": "A dated engineering fact map now reconciles capability posture, Portal/Guest flow and access, current retention classes, independent AI boundaries, target-versus-live Railway state, stale legal-draft deltas, and the exact acceptance checklist. Every older legal draft is visibly marked not for publication and the Google-confirmation source link is repaired. Written Google confirmation is recorded, but customer-facing notices/terms and counsel/provider acceptance remain open.",
+      "codeEvidence": [
+        "docs/legal/implementation-facts-2026-08-26.md",
+        "docs/legal/privacy-notice.md",
+        "docs/legal/internal-beta-agreement.md",
+        "docs/legal/google-access-disclosure.md",
+        "src/shared/governance/capability-fate.ts",
+        "src/shared/jobs/retention-sweep.job.ts",
+        "Recorded Google written confirmation evidence"
+      ],
+      "testEvidence": [
+        "Targeted Markdown formatting, local source-link existence, and diff checks passed"
+      ],
       "remaining": [
-        "Update the exact beta data map, notices, terms, privacy/subprocessor list, retention matrix, AI/provider facts, Contact Request and monitoring policy; record named counsel approvals and expiry/review dates."
+        "Use the fact map to produce accepted customer-facing privacy/terms/Google disclosures; close unresolved base Guest metric, legacy compatibility, account/content, Contact Request, backup, and provider-reply lifecycles; verify the live subprocessor/region/backup/monitoring inventory; record named counsel/provider approvals plus effective, review, and expiry dates."
       ],
       "externalBlockers": [
         "Requires external counsel and provider-policy approval; engineering cannot self-approve legal acceptance."
