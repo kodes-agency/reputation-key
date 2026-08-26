@@ -56,8 +56,8 @@ export function PortalGroupManagement({
             Portal groups
           </h2>
           <p className="max-w-2xl text-sm text-muted-foreground">
-            Organize this property’s portals for shared goals and recognition. A portal
-            can belong to one group at a time.
+            Organize this property’s review gateways into groups for shared goals. A
+            portal can belong to one group at a time.
           </p>
         </div>
         {canCreate && state === 'ready' && (

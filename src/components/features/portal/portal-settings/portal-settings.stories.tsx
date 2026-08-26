@@ -98,6 +98,11 @@ export const Published: Story = {
     await expect(
       canvas.getByRole('button', { name: /disable public page/i }),
     ).toBeInTheDocument()
+    const reviewPurpose = canvas.getByText(/review the saved gateway details/i)
+    await expect(reviewPurpose).toHaveTextContent(
+      /save pending edits before recording the review/i,
+    )
+    await expect(canvas.queryByText(/badges|leaderboards/i)).toBeNull()
   },
 }
 

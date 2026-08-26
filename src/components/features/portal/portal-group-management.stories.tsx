@@ -60,6 +60,11 @@ export const Populated: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Guest experience')).toBeInTheDocument()
     await expect(canvas.getByText('Guest services')).toBeInTheDocument()
+    const purpose = canvas.getByText(
+      /organize this property’s review gateways into groups for shared goals/i,
+    )
+    await expect(purpose).toHaveTextContent(/a portal can belong to one group at a time/i)
+    await expect(canvas.queryByText(/recognition/i)).toBeNull()
   },
 }
 

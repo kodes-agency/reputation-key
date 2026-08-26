@@ -1,9 +1,6 @@
-// Portal content review — the only producer of the governed
+// Portal content review — the manager entry point for the governed
 // `portal.content_review.completed`, `portal.configuration_completeness` and
-// `portal.approved_destination_ratio` facts that badges, goals and leaderboards
-// read. `completeContentReview` shipped fully wired but with no caller, so those
-// three recognition metrics could never be produced through the product; this is
-// that entry point.
+// `portal.approved_destination_ratio` facts produced from the saved gateway.
 
 import { useState } from 'react'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
@@ -36,9 +33,9 @@ export function ContentReviewCard({ portal, mutation, disabled }: Props) {
       <div className="space-y-1">
         <h3 className="text-sm font-medium">Content review</h3>
         <p className="text-xs text-muted-foreground">
-          Records the portal configuration as currently saved — name, description, accent
-          colour, categories and destination URLs. Badges, goals and leaderboards count
-          these reviews, so save pending edits before recording one.
+          Review the saved gateway details — name, description, appearance, categories and
+          destinations — and confirm every destination opens the intended review page.
+          Save pending edits before recording the review.
         </p>
       </div>
 
