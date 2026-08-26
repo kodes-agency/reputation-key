@@ -12,7 +12,7 @@ import { AI_CATEGORY_LABELS } from '#/shared/ai-category-labels'
 import type {
   AiCategoryCount,
   AiSentimentDay,
-} from '#/contexts/ai/application/use-cases/read-property-aggregates'
+} from '#/contexts/ai/application/public-api'
 
 /**
  * A list, not a chart. The question is "what should I fix?", so the answer has
