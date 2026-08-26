@@ -1,5 +1,5 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { canForContext } from '#/shared/domain/permissions'
+import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import type {
@@ -36,7 +36,7 @@ async function requirePropertyManage(
   if (!canForContext(ctx, 'staff.manage')) {
     throw staffError('forbidden', 'staff participation management is not permitted')
   }
-  if (ctx.role === 'AccountAdmin') return
+  if (scopeForPermission(ctx, 'staff.manage') === 'organization') return
   const property = toPropertyId(rawPropertyId)
   const accessible = await deps.accessibleProperties(ctx.organizationId, ctx.userId)
   if (!accessible.includes(property)) {
@@ -102,14 +102,14 @@ export const listStaffParticipations =
 
     let participations: readonly StaffParticipation[]
     if (input.propertyId) {
-      if (ctx.role !== 'AccountAdmin') {
+      if (scopeForPermission(ctx, 'staff.read') !== 'organization') {
         const accessible = await deps.accessibleProperties(ctx.organizationId, ctx.userId)
         if (!accessible.includes(toPropertyId(input.propertyId))) {
           throw staffError('forbidden', 'no access to this property')
         }
       }
       participations = await deps.repo.list(ctx.organizationId, input)
-    } else if (ctx.role === 'AccountAdmin') {
+    } else if (scopeForPermission(ctx, 'staff.read') === 'organization') {
       participations = await deps.repo.list(ctx.organizationId, input)
     } else {
       const accessible = await deps.accessibleProperties(ctx.organizationId, ctx.userId)

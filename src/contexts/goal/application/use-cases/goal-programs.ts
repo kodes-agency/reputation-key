@@ -96,12 +96,6 @@ export class GoalProgramMaintenanceError extends Error {
   }
 }
 
-function requireManager(actor: GoalActor): void {
-  if (actor.role !== 'AccountAdmin' && actor.role !== 'PropertyManager') {
-    throw new GoalProgramError('forbidden')
-  }
-}
-
 function evaluationFromGovernedRead(
   metric: GoalMetric,
   target: number,
@@ -294,7 +288,6 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       }>,
       actor: GoalActor,
     ): Promise<GoalProgramBundle> => {
-      requireManager(actor)
       await deps.policy.authorize({
         actor,
         organizationId: actor.organizationId,
@@ -443,7 +436,6 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       }>,
       actor: GoalActor,
     ): Promise<GoalProgramBundle> => {
-      requireManager(actor)
       await deps.policy.authorize({
         actor,
         organizationId: actor.organizationId,
@@ -552,7 +544,6 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       }>,
       actor: GoalActor,
     ) => {
-      requireManager(actor)
       await deps.policy.authorize({
         actor,
         organizationId: actor.organizationId,

@@ -61,9 +61,21 @@ const setup = () => {
     managerRepo,
     identityPublicApi: {
       listActiveManagers: async () => [
-        { userId: 'admin-1', role: 'AccountAdmin' as const },
-        { userId: 'manager-1', role: 'PropertyManager' as const },
-        { userId: 'manager-ineligible', role: 'PropertyManager' as const },
+        {
+          userId: 'admin-1',
+          role: 'AccountAdmin' as const,
+          propertyAccessScope: 'organization' as const,
+        },
+        {
+          userId: 'manager-1',
+          role: 'PropertyManager' as const,
+          propertyAccessScope: 'assigned-properties' as const,
+        },
+        {
+          userId: 'manager-ineligible',
+          role: 'PropertyManager' as const,
+          propertyAccessScope: 'assigned-properties' as const,
+        },
       ],
     },
     staffPublicApi: {
@@ -90,8 +102,16 @@ describe('Portal Responsible Managers', () => {
 
     expect(result.assignments.map((row) => row.userId)).toEqual(['admin-1'])
     expect(result.eligibleManagers).toEqual([
-      { userId: 'admin-1', role: 'AccountAdmin' },
-      { userId: 'manager-1', role: 'PropertyManager' },
+      {
+        userId: 'admin-1',
+        role: 'AccountAdmin',
+        propertyAccessScope: 'organization',
+      },
+      {
+        userId: 'manager-1',
+        role: 'PropertyManager',
+        propertyAccessScope: 'assigned-properties',
+      },
     ])
     expect(result.revision).toBe(1)
     expect(result.responsibilityNeeded).toBe(false)

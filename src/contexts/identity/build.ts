@@ -82,8 +82,10 @@ import {
 import { createPropertyGrantHolderLookup } from './infrastructure/adapters/grant-access-lookup.adapter'
 import { writePolicyDecision } from './infrastructure/repositories/policy-decision-audit.repository'
 import type { RoutingDecision } from '#/shared/routing/processing-router'
-import { isOwnerToken } from '#/shared/domain/roles'
 import { createManagerMembershipRepository } from './infrastructure/repositories/manager-membership.repository'
+import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
+import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
+import { decideMemberPropertyAuthority } from './infrastructure/repositories/member-property-authority'
 
 /** Callback invoked after an invitation is accepted.
  * The composition root provides the implementation that creates
@@ -184,7 +186,19 @@ type OperatorAuditEntry = Readonly<{
 }>
 
 export const buildIdentityContext = (deps: IdentityContextDeps) => {
-  const managerMembershipRepo = createManagerMembershipRepository(deps.db)
+  const managerMembershipRepo = createManagerMembershipRepository(
+    deps.db,
+    async ({ organizationId: orgId, userId: memberUserId, memberRole }) => {
+      const { context } = await resolveMemberAuthContextWithDatabase(deps.db, {
+        organizationId: orgId,
+        userId: memberUserId,
+        memberRole,
+      })
+      if (!canForContext(context, 'property.read')) return null
+      const scope = scopeForPermission(context, 'property.read')
+      return scope === 'none' ? null : scope
+    },
+  )
   // BQC-3.5: every identity state mutation + fact commits atomically here.
   const commandStore = createAtomicIdentityCommandStore(deps.db, deps.events)
 
@@ -203,21 +217,19 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     authorizeManagement: async (input) => {
       const role = await getMemberRole(deps.db, input.organizationId, input.actorUserId)
       if (!role) return false
-      if (isOwnerToken(role)) return true
-      if (
-        !role
-          .split(',')
-          .map((token) => token.trim().toLowerCase())
-          .includes('admin')
-      ) {
+      try {
+        const decision = await decideMemberPropertyAuthority(deps.db, {
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          userId: input.actorUserId,
+          memberRole: role,
+          permission: 'ai.manage',
+          at: input.now,
+        })
+        return decision.allowed
+      } catch {
         return false
       }
-      return hasActiveGrant(deps.db, {
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        userId: input.actorUserId,
-        at: input.now,
-      })
     },
     authorize: async (input) => {
       await policyStore.refreshRequired()

@@ -8,10 +8,26 @@ describe('Portal Responsible Manager eligibility', () => {
       {
         identityPublicApi: {
           listActiveManagers: async () => [
-            { userId: 'admin-1', role: 'AccountAdmin' },
-            { userId: 'manager-eligible', role: 'PropertyManager' },
-            { userId: 'manager-no-participation', role: 'PropertyManager' },
-            { userId: 'manager-no-grant', role: 'PropertyManager' },
+            {
+              userId: 'admin-1',
+              role: 'AccountAdmin',
+              propertyAccessScope: 'organization',
+            },
+            {
+              userId: 'manager-eligible',
+              role: 'PropertyManager',
+              propertyAccessScope: 'assigned-properties',
+            },
+            {
+              userId: 'manager-no-participation',
+              role: 'PropertyManager',
+              propertyAccessScope: 'assigned-properties',
+            },
+            {
+              userId: 'manager-no-grant',
+              role: 'PropertyManager',
+              propertyAccessScope: 'assigned-properties',
+            },
           ],
         },
         staffPublicApi: {
@@ -28,8 +44,42 @@ describe('Portal Responsible Manager eligibility', () => {
     )
 
     expect(eligible).toEqual([
-      { userId: 'admin-1', role: 'AccountAdmin' },
-      { userId: 'manager-eligible', role: 'PropertyManager' },
+      {
+        userId: 'admin-1',
+        role: 'AccountAdmin',
+        propertyAccessScope: 'organization',
+      },
+      {
+        userId: 'manager-eligible',
+        role: 'PropertyManager',
+        propertyAccessScope: 'assigned-properties',
+      },
     ])
+  })
+
+  it('uses current Property authority rather than the display role for bypass decisions', async () => {
+    const eligible = await listEligiblePortalManagers(
+      {
+        identityPublicApi: {
+          listActiveManagers: async () => [
+            {
+              userId: 'stale-admin-label',
+              role: 'AccountAdmin',
+              propertyAccessScope: 'assigned-properties',
+            },
+          ],
+        },
+        staffPublicApi: {
+          getAccessiblePropertyIds: async () => [],
+          getAssignedPortals: async () => [],
+          countAssignmentsByTeam: async () => 0,
+          findActiveParticipation: async () => ({}) as never,
+        },
+      },
+      organizationId('org-1'),
+      propertyId('property-1'),
+    )
+
+    expect(eligible).toEqual([])
   })
 })

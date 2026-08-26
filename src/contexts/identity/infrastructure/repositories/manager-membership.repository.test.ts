@@ -42,14 +42,53 @@ describe('manager membership repository', () => {
 
         rows = await createManagerMembershipRepository(
           tx as unknown as Database,
+          async ({ memberRole }) =>
+            memberRole === 'owner' ? 'organization' : 'assigned-properties',
         ).listActiveManagers(organization)
         throw rollback
       }),
     ).rejects.toBe(rollback)
 
     expect([...rows].sort((a, b) => a.userId.localeCompare(b.userId))).toEqual([
-      { userId: admin, role: 'PropertyManager' },
-      { userId: owner, role: 'AccountAdmin' },
+      {
+        userId: admin,
+        role: 'PropertyManager',
+        propertyAccessScope: 'assigned-properties',
+      },
+      { userId: owner, role: 'AccountAdmin', propertyAccessScope: 'organization' },
     ])
+  })
+
+  it('fails closed when current Property authority no longer grants a usable scope', async () => {
+    const suffix = randomUUID()
+    const organization = `org-manager-authority-${suffix}`
+    const owner = `manager-authority-owner-${suffix}`
+    const rollback = new Error('rollback manager authority fixture')
+    let rows: readonly ManagerMembership[] = []
+
+    await expect(
+      getDb().transaction(async (tx) => {
+        await tx.execute(sql`
+          INSERT INTO organization (id, name, slug, "createdAt")
+          VALUES (${organization}, ${organization}, ${organization}, NOW())
+        `)
+        await tx.execute(sql`
+          INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+          VALUES (${owner}, ${owner}, ${`${owner}@example.test`}, true, NOW(), NOW())
+        `)
+        await tx.execute(sql`
+          INSERT INTO member (id, "userId", "organizationId", role, "createdAt")
+          VALUES (${`membership-authority-${suffix}`}, ${owner}, ${organization}, 'owner', NOW())
+        `)
+
+        rows = await createManagerMembershipRepository(
+          tx as unknown as Database,
+          async () => null,
+        ).listActiveManagers(organization)
+        throw rollback
+      }),
+    ).rejects.toBe(rollback)
+
+    expect(rows).toEqual([])
   })
 })

@@ -1,6 +1,6 @@
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type {
-  PropertyAccessHolderLookup,
+  PropertyAuthorityLookup,
   ReviewAnalysisBackfillContext,
   ReviewAnalysisBackfillStorePort,
   ReviewAnalysisConsentActor,
@@ -143,19 +143,15 @@ export type BackfillReviewAnalysisResult =
 export type BackfillReviewAnalysisDependencies = Readonly<{
   backfillStore: ReviewAnalysisBackfillStorePort
   /**
-   * Identity-owned grant-holder lookup. Required: an admin's authority over a
-   * property rests on an active grant, and identity owns that table — without
-   * this the pre-flight could not tell an admin-with-grant (a valid consent
-   * actor) from an admin-without (one admission will deny).
+   * Identity-owned current authority decision. It resolves effective
+   * `ai.manage`, its scope, and an active property grant where required.
    */
-  propertyAccessHolders: PropertyAccessHolderLookup
+  propertyAuthority: PropertyAuthorityLookup
 }>
 
 /**
- * Owner, or admin holding active access to this property — exactly the
- * predicate `apply_merchant_ai_transition_v1` applies when consent is TAKEN and
- * `admit_ai_property_v1` applies when it is SPENT. `member.role` is a
- * comma-separated token list, so it is split rather than compared.
+ * Ask Identity for the actor's current effective authority over this property.
+ * The legacy role copied into consent context is diagnostic attribution only.
  *
  * Advisory only, and deliberately outside the property lock: it exists to name
  * the problem for an operator BEFORE anything is written. The authoritative
@@ -167,17 +163,9 @@ export type BackfillReviewAnalysisDependencies = Readonly<{
 async function hasPropertyAuthority(
   actor: ReviewAnalysisConsentActor,
   input: BackfillReviewAnalysisInput,
-  propertyAccessHolders: PropertyAccessHolderLookup,
+  propertyAuthority: PropertyAuthorityLookup,
 ): Promise<boolean> {
-  if (actor.memberRole === null) return false
-  const roles = actor.memberRole
-    .toLowerCase()
-    .split(',')
-    .map((role) => role.trim())
-  if (roles.includes('owner')) return true
-  if (!roles.includes('admin')) return false
-  const holders = await propertyAccessHolders(input.organizationId, input.propertyId)
-  return holders.includes(actor.userId)
+  return propertyAuthority(input.organizationId, input.propertyId, actor.userId)
 }
 
 /**
@@ -190,7 +178,7 @@ async function hasPropertyAuthority(
 async function refuseFor(
   context: ReviewAnalysisBackfillContext,
   input: BackfillReviewAnalysisInput,
-  propertyAccessHolders: PropertyAccessHolderLookup,
+  propertyAuthority: PropertyAuthorityLookup,
 ): Promise<Readonly<{ refusal: BackfillRefusal; message: string }> | null> {
   if (!context.propertyActive) {
     return {
@@ -247,13 +235,13 @@ async function refuseFor(
         'a backfill records their identity, never the operator who ran it',
     }
   }
-  if (!(await hasPropertyAuthority(consentActor, input, propertyAccessHolders))) {
+  if (!(await hasPropertyAuthority(consentActor, input, propertyAuthority))) {
     return {
       refusal: 'consent_actor_unauthorized',
       message:
         `consent-evidence actor '${consentActor.userId}' for authorization lineage ${enablement.authorizationLineageId} ` +
         `at state_version ${consentActor.stateVersion} is not a member of this organization with authority over this property ` +
-        `(owner, or admin with an active property access grant; member.role is ${consentActor.memberRole === null ? 'absent — not a member' : `'${consentActor.memberRole}'`}) — ` +
+        `(effective ai.manage plus the required property scope; legacy member.role is ${consentActor.memberRole === null ? 'absent — no current member row was observed' : `'${consentActor.memberRole}'`}) — ` +
         'admission would deny every replayed review, so the merchant must re-consent under a member who still has authority',
     }
   }
@@ -266,7 +254,7 @@ export function createBackfillReviewAnalysis(
   return async (input) =>
     dependencies.backfillStore.runExclusive(input, async (session) => {
       const context = await session.readContext()
-      const refusal = await refuseFor(context, input, dependencies.propertyAccessHolders)
+      const refusal = await refuseFor(context, input, dependencies.propertyAuthority)
       if (refusal) return { status: 'refused', ...refusal }
       if ((await session.readActiveRun()) !== null) {
         // Two open runs would each bump the epoch and each strand the other's

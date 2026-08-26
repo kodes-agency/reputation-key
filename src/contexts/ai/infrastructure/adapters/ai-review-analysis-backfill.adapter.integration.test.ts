@@ -31,12 +31,14 @@ import {
   type BackfillReviewAnalysisResult,
 } from '../../application/use-cases/backfill-review-analysis'
 import { createReviewAnalysisBackfillAdapter } from './ai-review-analysis-backfill.adapter'
-import { createPropertyGrantHolderLookup } from '#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
+import { createMemberPropertyAuthorityLookup } from '#/contexts/identity/infrastructure/repositories/member-property-authority'
 
 const NOW = new Date('2026-08-22T09:00:00.000Z')
 const CONTENT_EXPIRES_AT = new Date('2027-08-22T09:00:00.000Z')
 const ORGANIZATION_ID = organizationId('ai-reanalyze-backfill-test-org')
-const PROPERTY_ID = propertyId('7a000000-0000-4000-8000-000000000001')
+// Keep this fixture isolated from the portal-upload integration family. Those
+// tests intentionally persist a portal/property pair in the shared test DB.
+const PROPERTY_ID = propertyId('7d000000-0000-4000-8000-000000000001')
 const LINEAGE_ID = '7a000000-0000-4000-8000-000000000002'
 const CONNECTION_ID = '7a000000-0000-4000-8000-000000000003'
 const ACTOR_USER_ID = 'ai-reanalyze-test-actor'
@@ -68,7 +70,7 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
     backfillStore: createReviewAnalysisBackfillAdapter(db),
     // The real identity-owned adapter: this is the sanctioned route to the
     // grant table, and wiring the real one keeps the seam honest here.
-    propertyAccessHolders: createPropertyGrantHolderLookup(db),
+    propertyAuthority: createMemberPropertyAuthorityLookup(db, 'ai.manage'),
   })
 
   const clear = async () => {

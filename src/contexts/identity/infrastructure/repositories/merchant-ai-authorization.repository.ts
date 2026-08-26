@@ -16,8 +16,8 @@ import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { getLogger } from '#/shared/observability/logger'
 import { organizationId } from '#/shared/domain/ids'
-import { isOwnerToken } from '#/shared/domain/roles'
 import { identityMerchantAiChanged } from '../../domain/events'
+import { decideMemberPropertyAuthority } from './member-property-authority'
 import type {
   MerchantAiCapabilityEpochs,
   MerchantAiSnapshot,
@@ -469,32 +469,21 @@ export function createMerchantAiAuthorizationStore(
             'Current organization membership is required',
           )
         }
-        if (!isOwnerToken(String(membership.role))) {
-          const isAdmin = String(membership.role)
-            .split(',')
-            .some((token) => token.trim().toLowerCase() === 'admin')
-          if (!isAdmin) {
-            throw new MerchantAiAuthorizationStoreError(
-              'membership_denied',
-              'Current organization admin role is required',
-            )
-          }
-          const grantResult = await tx.execute(sql`
-            SELECT id
-            FROM property_access_grant
-            WHERE organization_id = ${input.organizationId}
-              AND property_id = ${input.propertyId}::uuid
-              AND user_id = ${input.actorUserId}
-              AND revoked_at IS NULL
-              AND (expires_at IS NULL OR expires_at > ${input.now})
-            FOR SHARE
-          `)
-          if (grantResult.rows.length === 0) {
-            throw new MerchantAiAuthorizationStoreError(
-              'assignment_denied',
-              'Current property assignment is required',
-            )
-          }
+        const authority = await decideMemberPropertyAuthority(tx, {
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          userId: input.actorUserId,
+          memberRole: String(membership.role),
+          permission: 'ai.manage',
+          at: input.now,
+        })
+        if (!authority.allowed) {
+          throw new MerchantAiAuthorizationStoreError(
+            authority.reason,
+            authority.reason === 'assignment_denied'
+              ? 'Current Property authority is required'
+              : 'Current AI management authority is required',
+          )
         }
 
         const currentResult = await tx.execute(sql`

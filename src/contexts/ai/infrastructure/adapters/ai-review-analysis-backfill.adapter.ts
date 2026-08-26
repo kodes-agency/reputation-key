@@ -110,11 +110,9 @@ function createSession(
       // the two ever disagree, and predicting a different row from the one SQL
       // writes would make that guard fire on every run.
       //
-      // Only the role, never the authority verdict. Owner is settled here, but
-      // an admin also needs an active property grant, and identity owns the
-      // grant table (ADR 0039) — the AI context must not read it. The use case
-      // finishes the decision through the identity-owned
-      // `PropertyAccessHolderLookup`, and the authoritative check stays in
+      // The role is diagnostic attribution only, never the authority verdict.
+      // The use case obtains that verdict through Identity's effective
+      // permission/property-scope adapter, and the authoritative check stays in
       // `reposition_merchant_ai_analysis_watermark_v1` under this same lock.
       const consentActorRow = enablementRow
         ? ((

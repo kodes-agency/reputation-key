@@ -84,7 +84,7 @@ import { createPropertyProcessingProfileAdapter } from './property-processing-pr
 import { handleAiReviewEvent } from '../outbox-consumers'
 import { createBackfillReviewAnalysis } from '../../application/use-cases/backfill-review-analysis'
 import { createReviewAnalysisBackfillAdapter } from './ai-review-analysis-backfill.adapter'
-import { createPropertyGrantHolderLookup } from '#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
+import { createMemberPropertyAuthorityLookup } from '#/contexts/identity/infrastructure/repositories/member-property-authority'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
 const ORGANIZATION_ID = organizationId('ai-reanalyze-delivery-test-org')
@@ -140,7 +140,7 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
 
   const backfill = createBackfillReviewAnalysis({
     backfillStore: createReviewAnalysisBackfillAdapter(db),
-    propertyAccessHolders: createPropertyGrantHolderLookup(db),
+    propertyAuthority: createMemberPropertyAuthorityLookup(db, 'ai.manage'),
   })
 
   /**
@@ -556,6 +556,7 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
       reviewEvents: createAiReviewEventStoreAdapter(db),
       reviewSources: createAiReviewSource({
         readForAi: reviewRepository.readForAi,
+        readTrendPopulation: reviewRepository.readTrendPopulation,
         assertCurrentForAi: reviewRepository.assertCurrentForAi,
         readReplyStateRevision: reviewRepository.readReplyStateRevision,
       }),

@@ -61,7 +61,7 @@ import { createAiOperationStoreAdapter } from './ai-operation-store.adapter'
 import { createPostgresAiAdmissionAuthority } from '../../../../../services/ai-execution-admission/postgres-admission-authority'
 import { createBackfillReviewAnalysis } from '../../application/use-cases/backfill-review-analysis'
 import { createReviewAnalysisBackfillAdapter } from './ai-review-analysis-backfill.adapter'
-import { createPropertyGrantHolderLookup } from '#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
+import { createMemberPropertyAuthorityLookup } from '#/contexts/identity/infrastructure/repositories/member-property-authority'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
 const NOW = new Date('2026-08-22T09:00:00.000Z')
@@ -114,7 +114,7 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
   const store = createAiOperationStoreAdapter(db)
   const backfill = createBackfillReviewAnalysis({
     backfillStore: createReviewAnalysisBackfillAdapter(db),
-    propertyAccessHolders: createPropertyGrantHolderLookup(db),
+    propertyAuthority: createMemberPropertyAuthorityLookup(db, 'ai.manage'),
   })
   let fences: Readonly<{ global: Fence; provider: Fence; capability: Fence }>
 

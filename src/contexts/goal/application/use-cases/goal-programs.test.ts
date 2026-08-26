@@ -201,6 +201,7 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
   })
   return {
     service,
+    policy,
     repository,
     metrics,
     results,
@@ -279,8 +280,8 @@ describe('canonical Goal Program service', () => {
     expect(bundle.results).toEqual([])
   })
 
-  it('rejects duplicate subjects and Staff mutation', async () => {
-    const { service } = setup()
+  it('rejects duplicate subjects and policy-denied Staff mutation', async () => {
+    const { service, policy } = setup()
     await expect(
       service.create(
         {
@@ -299,6 +300,7 @@ describe('canonical Goal Program service', () => {
       code: 'duplicate_subject',
     } satisfies Partial<GoalProgramError>)
 
+    vi.mocked(policy.authorize).mockRejectedValueOnce(new GoalProgramError('forbidden'))
     await expect(
       service.create(
         {
@@ -311,6 +313,29 @@ describe('canonical Goal Program service', () => {
         { ...actor, role: 'Staff' },
       ),
     ).rejects.toMatchObject({ code: 'forbidden' } satisfies Partial<GoalProgramError>)
+    expect(policy.authorize).toHaveBeenLastCalledWith({
+      actor: { ...actor, role: 'Staff' },
+      organizationId: actor.organizationId,
+      propertyId: 'property-1',
+      action: 'goal.create',
+    })
+  })
+
+  it('does not treat a raw role label as stronger than the execution policy', async () => {
+    const { service } = setup()
+
+    await expect(
+      service.create(
+        {
+          propertyId: 'property-1',
+          name: 'Policy-authorized program',
+          metric: 'portal_rating_count',
+          targetValue: 10,
+          subjects: [{ kind: 'property', propertyId: 'property-1' }],
+        },
+        { ...actor, role: 'Staff' },
+      ),
+    ).resolves.toMatchObject({ program: { name: 'Policy-authorized program' } })
   })
 
   it('applies revisions only from the next complete property-local month', async () => {

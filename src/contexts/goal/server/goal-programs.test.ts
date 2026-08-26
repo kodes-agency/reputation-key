@@ -11,14 +11,16 @@ const mocks = vi.hoisted(() => ({
   createService: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
+  getAssignedPortals: vi.fn(),
+  findGroupIdsByPortalIds: vi.fn(),
 }))
 
 vi.mock('#/composition', () => ({
   getContainer: () => ({
     useCases: { createGoalProgramService: mocks.createService },
-    staffPublicApi: { getAssignedPortals: vi.fn(async () => []) },
+    staffPublicApi: { getAssignedPortals: mocks.getAssignedPortals },
     portalPublicApi: {
-      portalGroup: { findGroupIdsByPortalIds: vi.fn(async () => []) },
+      portalGroup: { findGroupIdsByPortalIds: mocks.findGroupIdsByPortalIds },
     },
   }),
 }))
@@ -69,6 +71,8 @@ describe('canonical Goal Program server functions', () => {
     vi.clearAllMocks()
     mocks.resolveTenantContext.mockResolvedValue(actor)
     mocks.requireExecutionAllowed.mockResolvedValue(undefined)
+    mocks.getAssignedPortals.mockResolvedValue([])
+    mocks.findGroupIdsByPortalIds.mockResolvedValue([])
     mocks.createService.mockReturnValue({
       create: mocks.create,
       revise: mocks.revise,
@@ -120,6 +124,41 @@ describe('canonical Goal Program server functions', () => {
 
     await withStartContext(() => listGoalPrograms({ data: { propertyId: PROPERTY_ID } }))
     expect(mocks.list).toHaveBeenCalledWith(PROPERTY_ID, actor)
+  })
+
+  it('scopes Goal Programs from current permissions rather than the raw role label', async () => {
+    const assignedOnlyActor = {
+      ...actor,
+      effectivePermissions: new Set(['goal.read']),
+      scopeByPermission: new Map([['goal.read', 'assigned-properties']]),
+    }
+    mocks.resolveTenantContext.mockResolvedValue(assignedOnlyActor)
+    mocks.list.mockResolvedValue([])
+
+    await withStartContext(() => listGoalPrograms({ data: { propertyId: PROPERTY_ID } }))
+
+    expect(mocks.getAssignedPortals).toHaveBeenCalledOnce()
+    expect(mocks.findGroupIdsByPortalIds).toHaveBeenCalledOnce()
+
+    vi.clearAllMocks()
+    const managerAuthorityUnderStaffLabel = {
+      ...actor,
+      role: 'Staff' as const,
+      effectivePermissions: new Set(['goal.read', 'goal.create']),
+      scopeByPermission: new Map([
+        ['goal.read', 'organization'],
+        ['goal.create', 'organization'],
+      ]),
+    }
+    mocks.resolveTenantContext.mockResolvedValue(managerAuthorityUnderStaffLabel)
+    mocks.requireExecutionAllowed.mockResolvedValue(undefined)
+    mocks.createService.mockReturnValue({ list: mocks.list })
+    mocks.list.mockResolvedValue([])
+
+    await withStartContext(() => listGoalPrograms({ data: { propertyId: PROPERTY_ID } }))
+
+    expect(mocks.getAssignedPortals).not.toHaveBeenCalled()
+    expect(mocks.findGroupIdsByPortalIds).not.toHaveBeenCalled()
   })
 
   it('rejects empty subjects and count targets are left to domain validation', () => {

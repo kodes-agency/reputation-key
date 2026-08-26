@@ -10,6 +10,7 @@ export const SESSION_UPDATE_AGE_SECONDS = 60 * 60 * 24
 export const INVITATION_EXPIRY_SECONDS = 60 * 60 * 24 * 7
 
 import { betterAuth } from 'better-auth'
+import { createAuthMiddleware } from 'better-auth/api'
 import { organization } from 'better-auth/plugins'
 import { tanstackStartCookies } from 'better-auth/tanstack-start'
 import { getEnv } from '#/shared/config/env'
@@ -176,6 +177,16 @@ export function createAuth() {
         // response, so beta requests revalidate the session from the database.
         enabled: false,
       },
+    },
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== '/change-password') return
+        // Password change is itself a security event. The client may not opt
+        // out of multi-device revocation: delete every prior session, then let
+        // Better Auth rotate the authenticated caller onto one fresh session.
+        // Password recovery follows the equivalent server-owned option above.
+        ctx.body.revokeOtherSessions = true
+      }),
     },
     plugins: [
       tanstackStartCookies(),

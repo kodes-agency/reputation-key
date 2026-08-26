@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type {
-  PropertyAccessHolderLookup,
+  PropertyAuthorityLookup,
   ReviewAnalysisBackfillCandidate,
   ReviewAnalysisBackfillContext,
   ReviewAnalysisBackfillEnablement,
@@ -55,7 +55,7 @@ function candidates(
 type Recorded = Readonly<{
   repositions: number
   allocations: number
-  grantLookups: number
+  authorityLookups: number
   emitted: ReadonlyArray<
     Readonly<{ reviewId: string; analysisSequence: number; sourceRevision: number }>
   >
@@ -63,7 +63,7 @@ type Recorded = Readonly<{
 
 type Harness = Readonly<{
   store: ReviewAnalysisBackfillStorePort
-  propertyAccessHolders: PropertyAccessHolderLookup
+  propertyAuthority: PropertyAuthorityLookup
   recorded: Recorded
 }>
 
@@ -73,10 +73,7 @@ function harness(
     candidates?: ReadonlyArray<ReviewAnalysisBackfillCandidate>
     /** Sequences the allocator hands out, in order. Defaults to head + 1, +2, … */
     allocate?: ReadonlyArray<number>
-    /**
-     * Users the identity-owned grant lookup reports for this property. Identity
-     * owns `property_access_grant`; the AI context only consumes this.
-     */
+    /** Users the identity-owned live authority decision allows. */
     grantHolders?: ReadonlyArray<string>
     /** A run already open on this property — the second-run refusal. */
     activeRun?: ReviewAnalysisBackfillRun
@@ -92,7 +89,7 @@ function harness(
     ...overrides.context,
   }
   const pool = overrides.candidates ?? []
-  const state = { repositions: 0, allocations: 0, grantLookups: 0, runsOpened: 0 }
+  const state = { repositions: 0, allocations: 0, authorityLookups: 0, runsOpened: 0 }
   const emitted: Array<{
     reviewId: string
     analysisSequence: number
@@ -148,9 +145,9 @@ function harness(
       runExclusive: (_input, run) => run(session),
       listRunningRuns: async () => [],
     },
-    propertyAccessHolders: async () => {
-      state.grantLookups += 1
-      return overrides.grantHolders ?? []
+    propertyAuthority: async (_organizationId, _propertyId, userId) => {
+      state.authorityLookups += 1
+      return (overrides.grantHolders ?? [CONSENT_ACTOR]).includes(userId)
     },
     recorded: {
       get repositions() {
@@ -159,8 +156,8 @@ function harness(
       get allocations() {
         return state.allocations
       },
-      get grantLookups() {
-        return state.grantLookups
+      get authorityLookups() {
+        return state.authorityLookups
       },
       emitted,
     },
@@ -169,8 +166,8 @@ function harness(
 
 /**
  * The use case under test, wired to one harness. Both dependencies must travel
- * together — the grant lookup is what decides an admin actor's authority, and a
- * call site that forgot it would silently refuse every admin.
+ * together — the live Identity decision settles actor authority, and a call
+ * site that forgot it would silently refuse every actor.
  */
 function useCase(
   h: Harness,
@@ -178,7 +175,7 @@ function useCase(
 ): (input: BackfillReviewAnalysisInput) => Promise<BackfillReviewAnalysisResult> {
   return createBackfillReviewAnalysis({
     backfillStore: store,
-    propertyAccessHolders: h.propertyAccessHolders,
+    propertyAuthority: h.propertyAuthority,
   })
 }
 
@@ -440,7 +437,7 @@ describe('backfillReviewAnalysis — refusals', () => {
       refusal: 'consent_actor_unauthorized',
       // Names the actor it tried, so the operator can act without reading SQL.
       message:
-        /consent-evidence actor 'denev@kodes.agency' for authorization lineage 26a69a51-ce4b-4d28-a61c-f1f5931e52ee at state_version 5 .*member\.role is absent — not a member/,
+        /consent-evidence actor 'denev@kodes.agency' for authorization lineage 26a69a51-ce4b-4d28-a61c-f1f5931e52ee at state_version 5 .*legacy member\.role is absent — no current member row was observed/,
     },
     {
       // An admin's authority rests on a grant, and the harness reports none.
@@ -557,12 +554,10 @@ describe('backfillReviewAnalysis — refusals', () => {
     expect(result.status).toBe('applied')
     if (result.status !== 'applied') return
     expect(result.consentActorUserId).toBe(CONSENT_ACTOR)
-    expect(h.recorded.grantLookups).toBe(1)
+    expect(h.recorded.authorityLookups).toBe(1)
   })
 
-  it('settles an owner on the role alone, without consulting the grant table', async () => {
-    // Owner authority does not depend on a grant, so the cross-context call is
-    // not made at all — the common case costs identity nothing.
+  it('validates an owner-labelled actor through current identity authority', async () => {
     const h = harness({
       candidates: candidates([1]),
       context: { analysisHeadSequence: 10, eligibleReviewCount: 1 },
@@ -571,6 +566,46 @@ describe('backfillReviewAnalysis — refusals', () => {
     const result = await useCase(h)(input())
 
     expect(result.status).toBe('applied')
-    expect(h.recorded.grantLookups).toBe(0)
+    expect(h.recorded.authorityLookups).toBe(1)
+  })
+
+  it('denies when current identity authority denies despite a legacy owner label', async () => {
+    const h = harness({
+      candidates: candidates([1]),
+      context: { analysisHeadSequence: 10, eligibleReviewCount: 1 },
+    })
+
+    const result = await createBackfillReviewAnalysis({
+      backfillStore: h.store,
+      propertyAuthority: async () => false,
+    })(input())
+
+    expect(result).toMatchObject({
+      status: 'refused',
+      refusal: 'consent_actor_unauthorized',
+    })
+    expect(h.recorded.repositions).toBe(0)
+    expect(h.recorded.emitted).toEqual([])
+  })
+
+  it('allows current identity authority despite a legacy member label', async () => {
+    const h = harness({
+      candidates: candidates([1]),
+      context: {
+        analysisHeadSequence: 10,
+        eligibleReviewCount: 1,
+        enablement: {
+          ...ENABLED,
+          consentActor: { userId: CONSENT_ACTOR, stateVersion: 5, memberRole: 'member' },
+        },
+      },
+    })
+
+    const result = await createBackfillReviewAnalysis({
+      backfillStore: h.store,
+      propertyAuthority: async () => true,
+    })(input())
+
+    expect(result.status).toBe('applied')
   })
 })

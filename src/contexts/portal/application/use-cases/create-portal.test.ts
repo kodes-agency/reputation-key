@@ -56,6 +56,10 @@ const setup = (
         {
           userId: 'user-00000000-0000-0000-0000-000000000001',
           role: managerRole,
+          propertyAccessScope:
+            managerRole === 'AccountAdmin'
+              ? ('organization' as const)
+              : ('assigned-properties' as const),
         },
       ],
     },

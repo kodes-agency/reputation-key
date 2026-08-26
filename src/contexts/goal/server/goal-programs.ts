@@ -16,6 +16,7 @@ import {
   type GoalProgramService,
 } from '../application/use-cases/goal-programs'
 import type { GoalProgramBundle, GoalSubject } from '../application/public-api'
+import { canForContext } from '#/shared/domain/permissions'
 
 const uuid = z.uuid()
 const metricSchema = z.enum([
@@ -102,7 +103,7 @@ async function scopeProgramsForRequest(
   ctx: Awaited<ReturnType<typeof resolveTenantContext>>,
   propertyId: string,
 ): Promise<readonly GoalProgramBundle[]> {
-  if (ctx.role !== 'Staff') return programs
+  if (canForContext(ctx, 'goal.create')) return programs
   const container = getContainer()
   const visiblePortalIds = await container.staffPublicApi.getAssignedPortals(
     { userId: ctx.userId, propertyId: toPropertyId(propertyId) },
@@ -116,13 +117,8 @@ async function scopeProgramsForRequest(
   return scopeGoalProgramsForStaff(programs, visiblePortalIds, visibleGroupIds)
 }
 
-const requestActor = (
-  ctx: Awaited<ReturnType<typeof resolveTenantContext>>,
-): GoalActor => ({
-  organizationId: ctx.organizationId,
-  userId: ctx.userId,
-  role: ctx.role,
-})
+const requestActor = (ctx: Awaited<ReturnType<typeof resolveTenantContext>>): GoalActor =>
+  ctx
 
 const requestPolicy = (
   ctx: Awaited<ReturnType<typeof resolveTenantContext>>,

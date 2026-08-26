@@ -36,8 +36,9 @@ import { builtInPermissionsForRole } from './role-definitions'
 import {
   fetchRoleDefinitions,
   fetchPermissionVersion,
+  type RoleDefinitionDatabase,
 } from '#/shared/db/role-definitions'
-import { getDb, type Database } from '#/shared/db'
+import { getDb } from '#/shared/db'
 import { checkUserOrganizationBinding } from './user-organization-binding-authority'
 import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
 
@@ -249,7 +250,7 @@ async function resolveDynamicAuthorization(
   memberRole: string,
   domainRole: Role | null,
   context: { activeOrgId: string; userId: string },
-  database: Database = getDb(),
+  database: RoleDefinitionDatabase = getDb(),
 ): Promise<MemberAuthorization> {
   // Fail-closed with 503 if role definitions can't load.
   try {
@@ -343,7 +344,7 @@ export async function resolveMemberAuthContext(
 
 /** Resolve a durable member using the caller's transaction snapshot. */
 export async function resolveMemberAuthContextWithDatabase(
-  database: Database,
+  database: RoleDefinitionDatabase,
   input: Readonly<{
     memberRole: string
     organizationId: string

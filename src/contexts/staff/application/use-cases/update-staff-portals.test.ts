@@ -219,6 +219,42 @@ describe('updateStaffPortals', () => {
     ).rejects.toThrow('Cannot assign yourself to a property')
   })
 
+  it('denies self-assignment under current assigned-only scope despite an AccountAdmin label', async () => {
+    const { useCase, assignmentRepo } = setup()
+    const ctx = buildTestAuthContext({
+      userId: actingUser,
+      role: 'AccountAdmin',
+      effectivePermissions: new Set(['staff.manage']),
+      scopeByPermission: new Map([['staff.manage', 'assigned-properties']]),
+    })
+
+    await expect(
+      useCase(
+        { userId: actingUser, propertyId: targetProperty, portalIds: [portalA] },
+        ctx,
+      ),
+    ).rejects.toThrow('Cannot assign yourself to a property')
+    expect(assignmentRepo.all()).toHaveLength(0)
+  })
+
+  it('allows self-assignment under current organization scope despite a PropertyManager label', async () => {
+    const { useCase, assignmentRepo } = setup()
+    const ctx = buildTestAuthContext({
+      userId: actingUser,
+      role: 'PropertyManager',
+      effectivePermissions: new Set(['staff.manage']),
+      scopeByPermission: new Map([['staff.manage', 'organization']]),
+    })
+
+    await expect(
+      useCase(
+        { userId: actingUser, propertyId: targetProperty, portalIds: [portalA] },
+        ctx,
+      ),
+    ).resolves.toEqual({ added: 1, removed: 0 })
+    expect(assignmentRepo.all()).toHaveLength(1)
+  })
+
   it('all events from one call share the same correlationId', async () => {
     const { useCase, captured, assignmentRepo } = setup()
     const ctx = buildTestAuthContext({ userId: actingUser, role: 'PropertyManager' })

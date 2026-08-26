@@ -129,6 +129,41 @@ function deps(repo: StaffParticipationRepository) {
 }
 
 describe('StaffParticipation lifecycle', () => {
+  it('does not let a raw AccountAdmin label widen assigned-only staff authority', async () => {
+    const repo = fakeRepository()
+    const create = createStaffParticipation({
+      ...deps(repo),
+      accessibleProperties: async () => [],
+    })
+    const ctx = buildTestAuthContext({
+      role: 'AccountAdmin',
+      effectivePermissions: new Set(['staff.manage']),
+      scopeByPermission: new Map([['staff.manage', 'assigned-properties']]),
+    })
+
+    await expect(
+      create({ propertyId: PROPERTY_ID, displayName: 'Sam' }, ctx),
+    ).rejects.toMatchObject({ _tag: 'StaffError', code: 'forbidden' })
+    expect(repo.participations).toHaveLength(0)
+  })
+
+  it('honours organization-wide staff authority independently of the raw role label', async () => {
+    const repo = fakeRepository()
+    const create = createStaffParticipation({
+      ...deps(repo),
+      accessibleProperties: async () => [],
+    })
+    const ctx = buildTestAuthContext({
+      role: 'PropertyManager',
+      effectivePermissions: new Set(['staff.manage']),
+      scopeByPermission: new Map([['staff.manage', 'organization']]),
+    })
+
+    await expect(
+      create({ propertyId: PROPERTY_ID, displayName: 'Sam' }, ctx),
+    ).resolves.toMatchObject({ propertyId: PROPERTY_ID })
+  })
+
   it('reconciles manager responsibility when a linked participation is archived', async () => {
     const repo = fakeRepository()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })

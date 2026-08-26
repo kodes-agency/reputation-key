@@ -99,7 +99,11 @@ describe('PropertyPublicApi', () => {
       staffPublicApi: createStubStaffApi(),
       identityPublicApi: {
         listActiveManagers: async () => [
-          { userId: managerId, role: 'AccountAdmin' as const },
+          {
+            userId: managerId,
+            role: 'AccountAdmin' as const,
+            propertyAccessScope: 'organization' as const,
+          },
         ],
       },
       regionMove: { writeOperatorAudit: async () => {}, queues: [] },

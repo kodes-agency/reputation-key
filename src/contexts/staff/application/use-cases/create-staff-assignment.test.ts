@@ -166,6 +166,40 @@ describe('createStaffAssignment', () => {
     )
   })
 
+  it('denies self-assignment when current staff.manage scope is assigned-only despite an AccountAdmin label', async () => {
+    const { useCase, assignmentRepo } = setup()
+    const ctx = buildTestAuthContext({
+      role: 'AccountAdmin',
+      effectivePermissions: new Set(['staff.manage']),
+      scopeByPermission: new Map([['staff.manage', 'assigned-properties']]),
+    })
+
+    await expect(
+      useCase(
+        { userId: ctx.userId as string, propertyId: FIXED_PROPERTY as string },
+        ctx,
+      ),
+    ).rejects.toSatisfy((e) => isStaffError(e) && e.code === 'invalid_input')
+    expect(assignmentRepo.all()).toHaveLength(0)
+  })
+
+  it('allows self-assignment when current staff.manage scope is organization-wide despite a PropertyManager label', async () => {
+    const { useCase, assignmentRepo } = setup()
+    const ctx = buildTestAuthContext({
+      role: 'PropertyManager',
+      effectivePermissions: new Set(['staff.manage']),
+      scopeByPermission: new Map([['staff.manage', 'organization']]),
+    })
+
+    await expect(
+      useCase(
+        { userId: ctx.userId as string, propertyId: FIXED_PROPERTY as string },
+        ctx,
+      ),
+    ).resolves.toMatchObject({ userId: ctx.userId })
+    expect(assignmentRepo.all()).toHaveLength(1)
+  })
+
   it('re-throws non-unique-constraint errors immediately', async () => {
     const assignmentRepo = createInMemoryStaffAssignmentRepo()
     const events = createCapturingEventBus()

@@ -32,18 +32,18 @@ export type ReviewAnalysisBackfillStorePort = Readonly<{
 }>
 
 /**
- * Identity-owned lookup: users holding active access to one property.
+ * Identity-owned live authority decision for one member and property.
  *
- * Identity owns the grant table (ADR 0039 — explicit grants are the sole
- * authorization source for property scope), so this context never reads it.
- * Structurally identical to identity's own `PropertyGrantHolderLookup`, declared
- * here so the AI context depends on a shape rather than on identity's adapter,
- * exactly as the notification context does.
+ * Identity owns effective permissions and property grants, so the AI context
+ * asks for the verdict instead of reconstructing it from the legacy
+ * `member.role` label. The concrete adapter resolves current membership,
+ * effective `ai.manage`, scope, and (for assigned scope) an active grant.
  */
-export type PropertyAccessHolderLookup = (
+export type PropertyAuthorityLookup = (
   organizationId: string,
   propertyId: string,
-) => Promise<ReadonlyArray<string>>
+  userId: string,
+) => Promise<boolean>
 
 /**
  * The member whose consent this backfill replays — the `actor_user_id` of the
@@ -74,13 +74,8 @@ export type ReviewAnalysisConsentActor = Readonly<{
    */
   stateVersion: number
   /**
-   * That actor's `member.role` for this organization, verbatim (it is a
-   * comma-separated token list), or null when they are not a member at all.
-   *
-   * The authority VERDICT is not decided here: owner is settled by the role
-   * alone, but an admin also needs an active property grant, and the grant
-   * table belongs to identity. The use case combines this with
-   * `PropertyAccessHolderLookup`.
+   * That actor's legacy `member.role` label, retained only for an actionable
+   * operator diagnostic. It is never an authorization input.
    */
   memberRole: string | null
 }>

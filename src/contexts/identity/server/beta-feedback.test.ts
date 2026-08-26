@@ -116,6 +116,39 @@ describe('submit beta feedback server function', () => {
     expect(mocks.captureFeedback).not.toHaveBeenCalled()
   })
 
+  it('denies when current feedback permission is absent despite a PropertyManager label', async () => {
+    mocks.resolveTenantContext.mockResolvedValue({
+      ...actor,
+      effectivePermissions: new Set(),
+      scopeByPermission: new Map(),
+    })
+
+    await expect(
+      withStartContext(() => submitBetaFeedbackHandler({ data: bug })),
+    ).rejects.toMatchObject({
+      name: 'FeedbackError',
+      code: 'forbidden',
+      status: 403,
+    })
+    expect(mocks.enforceRateLimit).not.toHaveBeenCalled()
+    expect(mocks.captureFeedback).not.toHaveBeenCalled()
+  })
+
+  it('uses current feedback permission rather than a stale Staff label', async () => {
+    mocks.resolveTenantContext.mockResolvedValue({
+      ...actor,
+      role: 'Staff',
+      effectivePermissions: new Set(['feedback.respond']),
+      scopeByPermission: new Map([['feedback.respond', 'assigned-properties']]),
+    })
+
+    await expect(
+      withStartContext(() => submitBetaFeedbackHandler({ data: bug })),
+    ).resolves.toEqual({ reference: 'a'.repeat(32) })
+    expect(mocks.enforceRateLimit).toHaveBeenCalledTimes(1)
+    expect(mocks.captureFeedback).toHaveBeenCalledTimes(1)
+  })
+
   it('does not capture when the abuse budget denies the submission', async () => {
     mocks.enforceRateLimit.mockRejectedValue(new Error('limited'))
 

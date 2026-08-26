@@ -21,7 +21,7 @@ import { createHash } from 'node:crypto'
 import { getDb } from '../../src/shared/db'
 import { organizationId, propertyId } from '../../src/shared/domain/ids'
 import { createReviewAnalysisBackfillAdapter } from '../../src/contexts/ai/infrastructure/adapters/ai-review-analysis-backfill.adapter'
-import { createPropertyGrantHolderLookup } from '../../src/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
+import { createMemberPropertyAuthorityLookup } from '../../src/contexts/identity/infrastructure/repositories/member-property-authority'
 import { createBackfillReviewAnalysis } from '../../src/contexts/ai/application/use-cases/backfill-review-analysis'
 import { runOperatorCommand } from './operator-command'
 
@@ -73,9 +73,9 @@ async function main(): Promise<void> {
       const db = getDb()
       const backfill = createBackfillReviewAnalysis({
         backfillStore: createReviewAnalysisBackfillAdapter(db),
-        // Identity owns `property_access_grant`, so an admin consent actor's
-        // authority is resolved through identity's adapter rather than read here.
-        propertyAccessHolders: createPropertyGrantHolderLookup(db),
+        // Identity owns effective permissions and property grants; the AI
+        // context consumes only its current authority verdict.
+        propertyAuthority: createMemberPropertyAuthorityLookup(db, 'ai.manage'),
       })
       const outcome = await backfill({
         organizationId: organizationId(ctx.organizationId as string),

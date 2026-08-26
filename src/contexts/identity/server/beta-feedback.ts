@@ -8,7 +8,7 @@ import {
   betaFeedbackInputSchema,
 } from '#/shared/beta-feedback-contract'
 import { getEnv } from '#/shared/config/env'
-import { hasRole } from '#/shared/domain/roles'
+import { canForContext } from '#/shared/domain/permissions'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { deliverBetaFeedback } from './beta-feedback-delivery.server'
 import { enforceBetaFeedbackRateLimit } from './beta-feedback-rate-limit.server'
@@ -19,7 +19,7 @@ export const submitBetaFeedbackHandler = createServerOnlyFn(
   }: Readonly<{ data: BetaFeedbackInput }>): Promise<Readonly<{ reference: string }>> => {
     const headers = await headersFromContext()
     const actor = await resolveTenantContext(headers)
-    if (!hasRole(actor.role, 'PropertyManager')) {
+    if (!canForContext(actor, 'feedback.respond')) {
       throwContextError(
         'FeedbackError',
         {

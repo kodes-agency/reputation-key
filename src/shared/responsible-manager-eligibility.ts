@@ -11,6 +11,7 @@ import { userId as toUserId } from '#/shared/domain/ids'
 export type ResponsibleManagerMembership = Readonly<{
   userId: string
   role: 'AccountAdmin' | 'PropertyManager'
+  propertyAccessScope: 'organization' | 'assigned-properties'
 }>
 
 export type ResponsibleManagerEligibilityDeps = Readonly<{
@@ -37,7 +38,7 @@ export async function listEligibleResponsibleManagers(
   const memberships = await deps.listActiveManagers(organizationId)
   const eligible = await Promise.all(
     memberships.map(async (membership) => {
-      if (membership.role === 'AccountAdmin') return membership
+      if (membership.propertyAccessScope === 'organization') return membership
       const managerId = toUserId(membership.userId)
       const accessible = await deps.getAccessiblePropertyIds(
         organizationId,

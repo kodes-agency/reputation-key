@@ -19,12 +19,16 @@ import type {
   GovernedGoalRepository,
   GovernedGoalVersion,
 } from '../ports/governed-goal.repository'
+import {
+  canForContext,
+  type PermissionAuthorityContext,
+} from '#/shared/domain/permissions'
 
 export type GoalActor = Readonly<{
   organizationId: string
   userId: string
-  role: 'AccountAdmin' | 'PropertyManager' | 'Staff'
-}>
+}> &
+  PermissionAuthorityContext
 
 export type GoalExecutionPolicy = Readonly<{
   authorize(
@@ -76,12 +80,6 @@ export class GovernedGoalError extends Error {
   }
 }
 
-function requireManager(actor: GoalActor): void {
-  if (actor.role !== 'AccountAdmin' && actor.role !== 'PropertyManager') {
-    throw new GovernedGoalError('forbidden')
-  }
-}
-
 export function createGovernedGoalService(deps: GovernedGoalDependencies) {
   return {
     create: async (
@@ -100,7 +98,6 @@ export function createGovernedGoalService(deps: GovernedGoalDependencies) {
     ): Promise<
       Readonly<{ definition: GovernedGoalDefinition; period: GovernedGoalPeriod }>
     > => {
-      requireManager(actor)
       await deps.policy.authorize({
         actor,
         organizationId: actor.organizationId,
@@ -212,7 +209,9 @@ export function createGovernedGoalService(deps: GovernedGoalDependencies) {
         propertyId: input.propertyId,
         action: 'goal.read',
       })
-      const groups = actor.role === 'Staff' ? (input.visiblePortalGroupIds ?? []) : null
+      const groups = canForContext(actor, 'goal.create')
+        ? null
+        : (input.visiblePortalGroupIds ?? [])
       return deps.repository.listForProperty(
         actor.organizationId,
         input.propertyId,
@@ -275,7 +274,6 @@ export function createGovernedGoalService(deps: GovernedGoalDependencies) {
     ): Promise<
       Readonly<{ version: GovernedGoalVersion; period: GovernedGoalPeriod }>
     > => {
-      requireManager(actor)
       await deps.policy.authorize({
         actor,
         organizationId: actor.organizationId,
@@ -377,7 +375,6 @@ export function createGovernedGoalService(deps: GovernedGoalDependencies) {
       }>,
       actor: GoalActor,
     ): Promise<GovernedGoalDefinition> => {
-      requireManager(actor)
       await deps.policy.authorize({
         actor,
         organizationId: actor.organizationId,

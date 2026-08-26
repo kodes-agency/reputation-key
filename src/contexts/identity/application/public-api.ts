@@ -40,6 +40,12 @@ export type {
 export type ManagerMembership = Readonly<{
   userId: string
   role: 'AccountAdmin' | 'PropertyManager'
+  /**
+   * Current Identity authority for Property reads. Consumers may display
+   * `role`, but must use this scope (plus grants when assigned-only) for
+   * access-sensitive decisions.
+   */
+  propertyAccessScope: 'organization' | 'assigned-properties'
 }>
 
 export type IdentityPublicApi = Readonly<{

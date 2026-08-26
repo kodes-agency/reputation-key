@@ -3,13 +3,24 @@ import type { Database } from '#/shared/db'
 import { member } from '#/shared/db/schema/auth'
 import type { ManagerMembership } from '../../application/public-api'
 
+export type ManagerPropertyAuthorityResolver = (
+  input: Readonly<{
+    organizationId: string
+    userId: string
+    memberRole: string
+  }>,
+) => Promise<ManagerMembership['propertyAccessScope'] | null>
+
 const roleFromRaw = (role: string): ManagerMembership['role'] | null => {
   if (role === 'owner') return 'AccountAdmin'
   if (role === 'admin') return 'PropertyManager'
   return null
 }
 
-export const createManagerMembershipRepository = (db: Database) => ({
+export const createManagerMembershipRepository = (
+  db: Database,
+  resolvePropertyAuthority: ManagerPropertyAuthorityResolver,
+) => ({
   listActiveManagers: async (
     organizationId: string,
   ): Promise<readonly ManagerMembership[]> => {
@@ -22,9 +33,22 @@ export const createManagerMembershipRepository = (db: Database) => ({
           inArray(member.role, ['owner', 'admin']),
         ),
       )
-    return rows.flatMap((row) => {
-      const role = roleFromRaw(row.role)
-      return role ? [{ userId: row.userId, role }] : []
-    })
+    const resolved = await Promise.all(
+      rows.map(async (row) => {
+        const role = roleFromRaw(row.role)
+        if (!role) return null
+        const propertyAccessScope = await resolvePropertyAuthority({
+          organizationId,
+          userId: row.userId,
+          memberRole: row.role,
+        })
+        return propertyAccessScope
+          ? ({ userId: row.userId, role, propertyAccessScope } as const)
+          : null
+      }),
+    )
+    return resolved.filter(
+      (membership): membership is ManagerMembership => membership !== null,
+    )
   },
 })
