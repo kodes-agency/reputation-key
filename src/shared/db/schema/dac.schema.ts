@@ -35,31 +35,28 @@ export const organizationRolePolicy = pgTable(
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
-  (t) => ({
+  (t) => [
     // One policy per (org, role). Mirrors the case-insensitive unique index on BA's
     // organizationRole — role names are canonicalized (lowercase/trim) before insert,
     // so the plain text comparison here matches the lower(role) index over there.
-    orgRoleUnique: uniqueIndex('organization_role_policy_org_role_unique').on(
-      t.organizationId,
-      t.role,
-    ),
-    dataScopeCheck: check(
+    uniqueIndex('organization_role_policy_org_role_unique').on(t.organizationId, t.role),
+    check(
       'organization_role_policy_data_scope_check',
       sql`${t.dataScope} IN ('organization', 'assigned-properties', 'none')`,
     ),
     // min 3 / max 64 chars; lowercase start; lowercase-or-digit end; middle allows hyphens.
-    roleFormatCheck: check(
+    check(
       'organization_role_policy_role_format_check',
       sql`${t.role} ~ '^[a-z][a-z0-9-]{1,62}[a-z0-9]$'`,
     ),
-    roleNoCommaCheck: check(
+    check(
       'organization_role_policy_role_no_comma_check',
       sql`position(',' in ${t.role}) = 0`,
     ),
     // Custom roles may not shadow the built-in names — those are reserved for BA.
-    roleNotReservedCheck: check(
+    check(
       'organization_role_policy_role_not_reserved_check',
       sql`${t.role} NOT IN ('owner', 'admin', 'member')`,
     ),
-  }),
+  ],
 )

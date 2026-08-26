@@ -73,21 +73,17 @@ export const propertyAccessGrants = pgTable(
     revokedBy: varchar('revoked_by', { length: 255 }),
     reason: text('reason'),
   },
-  (t) => ({
-    orgPropUserIdx: index('pag_org_prop_user_idx').on(
-      t.organizationId,
-      t.propertyId,
-      t.userId,
-    ),
-    uniqueActiveGrant: uniqueIndex('pag_unique_active')
+  (t) => [
+    index('pag_org_prop_user_idx').on(t.organizationId, t.propertyId, t.userId),
+    uniqueIndex('pag_unique_active')
       .on(t.organizationId, t.propertyId, t.userId, t.kind)
       .where(sql`status = 'active'`),
-    propertyTenantFk: foreignKey({
+    foreignKey({
       name: 'pag_property_tenant_fk',
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
     }).onDelete('restrict'),
-  }),
+  ],
 )
 
 // ── Staff Participants + optional login links ────────────────────
@@ -106,19 +102,19 @@ export const staffParticipants = pgTable(
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
-  (t) => ({
-    tenantKey: uniqueIndex('staff_participants_org_id_key').on(t.organizationId, t.id),
-    orgStatusNameIdx: index('staff_participants_org_status_name_idx').on(
+  (t) => [
+    uniqueIndex('staff_participants_org_id_key').on(t.organizationId, t.id),
+    index('staff_participants_org_status_name_idx').on(
       t.organizationId,
       t.status,
       t.displayName,
     ),
-    lifecycleCheck: check(
+    check(
       'staff_participants_lifecycle_consistent',
       sql`(${t.status} = 'active' AND ${t.archivedAt} IS NULL AND ${t.archiveReason} IS NULL) OR (${t.status} = 'archived' AND ${t.archivedAt} IS NOT NULL AND ${t.archiveReason} IS NOT NULL)`,
     ),
-    revisionCheck: check('staff_participants_revision_positive', sql`${t.revision} >= 1`),
-  }),
+    check('staff_participants_revision_positive', sql`${t.revision} >= 1`),
+  ],
 )
 
 export const staffUserLinks = pgTable(
@@ -133,28 +129,28 @@ export const staffUserLinks = pgTable(
     createdBy: varchar('created_by', { length: 255 }).notNull(),
     endReason: text('end_reason'),
   },
-  (t) => ({
-    orgParticipantIdx: index('staff_user_links_org_participant_idx').on(
+  (t) => [
+    index('staff_user_links_org_participant_idx').on(
       t.organizationId,
       t.staffParticipantId,
     ),
-    orgUserIdx: index('staff_user_links_org_user_idx').on(t.organizationId, t.userId),
-    uniqueActiveParticipant: uniqueIndex('staff_user_links_unique_active_participant')
+    index('staff_user_links_org_user_idx').on(t.organizationId, t.userId),
+    uniqueIndex('staff_user_links_unique_active_participant')
       .on(t.organizationId, t.staffParticipantId)
       .where(sql`effective_to IS NULL`),
-    uniqueActiveUser: uniqueIndex('staff_user_links_unique_active_user')
+    uniqueIndex('staff_user_links_unique_active_user')
       .on(t.organizationId, t.userId)
       .where(sql`effective_to IS NULL`),
-    participantTenantFk: foreignKey({
+    foreignKey({
       name: 'staff_user_links_participant_tenant_fk',
       columns: [t.organizationId, t.staffParticipantId],
       foreignColumns: [staffParticipants.organizationId, staffParticipants.id],
     }).onDelete('restrict'),
-    intervalCheck: check(
+    check(
       'staff_user_links_interval_valid',
       sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`,
     ),
-  }),
+  ],
 )
 
 // ── Staff Participations ──────────────────────────────────────────
@@ -181,43 +177,35 @@ export const staffParticipations = pgTable(
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
-  (t) => ({
-    orgPropUserIdx: index('sp_org_prop_user_idx').on(
-      t.organizationId,
-      t.propertyId,
-      t.userId,
-    ),
-    uniqueActiveParticipation: uniqueIndex('sp_unique_active')
+  (t) => [
+    index('sp_org_prop_user_idx').on(t.organizationId, t.propertyId, t.userId),
+    uniqueIndex('sp_unique_active')
       .on(t.organizationId, t.propertyId, t.userId)
       .where(sql`status = 'active'`),
-    uniqueActiveParticipant: uniqueIndex('sp_unique_active_participant')
+    uniqueIndex('sp_unique_active_participant')
       .on(t.organizationId, t.propertyId, t.staffParticipantId)
       .where(sql`status = 'active' AND staff_participant_id IS NOT NULL`),
-    tenantKey: uniqueIndex('sp_org_property_id_key').on(
-      t.organizationId,
-      t.propertyId,
-      t.id,
-    ),
-    propertyTenantFk: foreignKey({
+    uniqueIndex('sp_org_property_id_key').on(t.organizationId, t.propertyId, t.id),
+    foreignKey({
       name: 'sp_property_tenant_fk',
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
     }).onDelete('restrict'),
-    participantTenantFk: foreignKey({
+    foreignKey({
       name: 'sp_participant_tenant_fk',
       columns: [t.organizationId, t.staffParticipantId],
       foreignColumns: [staffParticipants.organizationId, staffParticipants.id],
     }).onDelete('restrict'),
-    lifecycleCheck: check(
+    check(
       'sp_lifecycle_consistent',
       sql`(${t.status} = 'active' AND ${t.endedAt} IS NULL) OR (${t.status} <> 'active' AND ${t.endedAt} IS NOT NULL)`,
     ),
-    archiveReasonCheck: check(
+    check(
       'sp_archive_reason_consistent',
       sql`(${t.status} = 'archived' AND ${t.archiveReason} IS NOT NULL) OR (${t.status} <> 'archived' AND ${t.archiveReason} IS NULL)`,
     ),
-    revisionCheck: check('sp_revision_positive', sql`${t.revision} >= 1`),
-  }),
+    check('sp_revision_positive', sql`${t.revision} >= 1`),
+  ],
 )
 
 // ── Team Memberships (effective-dated) ────────────────────────────
@@ -240,26 +228,26 @@ export const teamMemberships = pgTable(
     createdBy: varchar('created_by', { length: 255 }).notNull(),
     endReason: text('end_reason'),
   },
-  (t) => ({
-    orgTeamIdx: index('tm_org_team_idx').on(t.organizationId, t.teamId),
-    orgPartIdx: index('tm_org_part_idx').on(t.organizationId, t.staffParticipationId),
+  (t) => [
+    index('tm_org_team_idx').on(t.organizationId, t.teamId),
+    index('tm_org_part_idx').on(t.organizationId, t.staffParticipationId),
     // At most one active lead per team
-    uniqueActiveLead: uniqueIndex('tm_unique_active_lead')
+    uniqueIndex('tm_unique_active_lead')
       .on(t.organizationId, t.teamId)
       .where(sql`role = 'lead' AND effective_to IS NULL`),
-    uniqueActiveParticipation: uniqueIndex('tm_unique_active_participation')
+    uniqueIndex('tm_unique_active_participation')
       .on(t.organizationId, t.propertyId, t.staffParticipationId)
       .where(sql`effective_to IS NULL`),
-    intervalCheck: check(
+    check(
       'tm_interval_valid',
       sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`,
     ),
-    teamTenantFk: foreignKey({
+    foreignKey({
       name: 'tm_team_tenant_fk',
       columns: [t.organizationId, t.propertyId, t.teamId],
       foreignColumns: [teams.organizationId, teams.propertyId, teams.id],
     }).onDelete('restrict'),
-    participationTenantFk: foreignKey({
+    foreignKey({
       name: 'tm_participation_tenant_fk',
       columns: [t.organizationId, t.propertyId, t.staffParticipationId],
       foreignColumns: [
@@ -268,7 +256,7 @@ export const teamMemberships = pgTable(
         staffParticipations.id,
       ],
     }).onDelete('restrict'),
-  }),
+  ],
 )
 
 // ── Portal Responsibilities (effective-dated) ─────────────────────
@@ -293,17 +281,17 @@ export const portalResponsibilities = pgTable(
     createdBy: varchar('created_by', { length: 255 }).notNull(),
     endReason: text('end_reason'),
   },
-  (t) => ({
-    orgPortalIdx: index('pr_org_portal_idx').on(t.organizationId, t.portalId),
+  (t) => [
+    index('pr_org_portal_idx').on(t.organizationId, t.portalId),
     // At most one active primary per portal
-    uniqueActivePrimary: uniqueIndex('pr_unique_active_primary')
+    uniqueIndex('pr_unique_active_primary')
       .on(t.organizationId, t.portalId)
       .where(sql`kind = 'primary' AND effective_to IS NULL`),
-    intervalCheck: check(
+    check(
       'pr_interval_valid',
       sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`,
     ),
-    participationTenantFk: foreignKey({
+    foreignKey({
       name: 'pr_participation_tenant_fk',
       columns: [t.organizationId, t.propertyId, t.staffParticipationId],
       foreignColumns: [
@@ -312,7 +300,7 @@ export const portalResponsibilities = pgTable(
         staffParticipations.id,
       ],
     }).onDelete('restrict'),
-  }),
+  ],
 )
 
 // ── Team Portal-Group Scopes (effective-dated) ─────────────────────
@@ -331,21 +319,21 @@ export const teamPortalGroupScopes = pgTable(
     createdBy: varchar('created_by', { length: 255 }).notNull(),
     endReason: text('end_reason'),
   },
-  (t) => ({
-    teamIdx: index('tpgs_org_team_idx').on(t.organizationId, t.propertyId, t.teamId),
-    uniqueActiveScope: uniqueIndex('tpgs_unique_active')
+  (t) => [
+    index('tpgs_org_team_idx').on(t.organizationId, t.propertyId, t.teamId),
+    uniqueIndex('tpgs_unique_active')
       .on(t.organizationId, t.propertyId, t.teamId, t.portalGroupId)
       .where(sql`effective_to IS NULL`),
-    intervalCheck: check(
+    check(
       'tpgs_interval_valid',
       sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`,
     ),
-    teamTenantFk: foreignKey({
+    foreignKey({
       name: 'tpgs_team_tenant_fk',
       columns: [t.organizationId, t.propertyId, t.teamId],
       foreignColumns: [teams.organizationId, teams.propertyId, teams.id],
     }).onDelete('restrict'),
-    portalGroupTenantFk: foreignKey({
+    foreignKey({
       name: 'tpgs_portal_group_tenant_fk',
       columns: [t.organizationId, t.propertyId, t.portalGroupId],
       foreignColumns: [
@@ -354,7 +342,7 @@ export const teamPortalGroupScopes = pgTable(
         portalGroups.id,
       ],
     }).onDelete('restrict'),
-  }),
+  ],
 )
 
 // ── Portal Group Memberships (effective-dated, event-time) ────────
@@ -380,11 +368,11 @@ export const portalGroupMemberships = pgTable(
     createdBy: varchar('created_by', { length: 255 }).notNull(),
     endReason: text('end_reason'),
   },
-  (t) => ({
-    orgPortalIdx: index('pgm_org_portal_idx').on(t.organizationId, t.portalId),
+  (t) => [
+    index('pgm_org_portal_idx').on(t.organizationId, t.portalId),
     // At most one active group per portal
-    uniqueActiveGroup: uniqueIndex('pgm_unique_active')
+    uniqueIndex('pgm_unique_active')
       .on(t.organizationId, t.portalId)
       .where(sql`effective_to IS NULL`),
-  }),
+  ],
 )

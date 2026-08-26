@@ -33,10 +33,10 @@ export const scanEvents = pgTable(
     ipHash: text('ip_hash'),
     createdAt: createdAtColumn(),
   },
-  (t) => ({
-    sessionIdx: index('scan_events_session_idx').on(t.sessionId),
-    portalIdx: index('scan_events_portal_idx').on(t.portalId),
-  }),
+  (t) => [
+    index('scan_events_session_idx').on(t.sessionId),
+    index('scan_events_portal_idx').on(t.portalId),
+  ],
 )
 
 export const ratings = pgTable(
@@ -54,13 +54,10 @@ export const ratings = pgTable(
     ipHash: text('ip_hash'),
     createdAt: createdAtColumn(),
   },
-  (t) => ({
-    uniqueSessionPortal: uniqueIndex('ratings_session_portal_unique').on(
-      t.sessionId,
-      t.portalId,
-    ),
-    portalIdx: index('ratings_portal_idx').on(t.portalId),
-  }),
+  (t) => [
+    uniqueIndex('ratings_session_portal_unique').on(t.sessionId, t.portalId),
+    index('ratings_portal_idx').on(t.portalId),
+  ],
 )
 
 export const feedback = pgTable(
@@ -79,14 +76,11 @@ export const feedback = pgTable(
     ipHash: text('ip_hash'),
     createdAt: createdAtColumn(),
   },
-  (t) => ({
+  (t) => [
     // F162: Unique constraint prevents duplicate feedback from same session+portal
-    sessionPortalUnique: uniqueIndex('feedback_session_portal_unique').on(
-      t.sessionId,
-      t.portalId,
-    ),
-    portalIdx: index('feedback_portal_idx').on(t.portalId),
-  }),
+    uniqueIndex('feedback_session_portal_unique').on(t.sessionId, t.portalId),
+    index('feedback_portal_idx').on(t.portalId),
+  ],
 )
 
 /**
@@ -132,69 +126,66 @@ export const guestResponses = pgTable(
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),
   },
-  (t) => ({
-    orgIdKey: uniqueIndex('guest_responses_org_id_key').on(t.organizationId, t.id),
-    scopeIdKey: uniqueIndex('guest_responses_scope_id_key').on(
+  (t) => [
+    uniqueIndex('guest_responses_org_id_key').on(t.organizationId, t.id),
+    uniqueIndex('guest_responses_scope_id_key').on(
       t.organizationId,
       t.propertyId,
       t.portalId,
       t.id,
     ),
-    portalStatusIdx: index('guest_responses_portal_status_idx').on(
+    index('guest_responses_portal_status_idx').on(
       t.organizationId,
       t.propertyId,
       t.portalId,
       t.status,
     ),
-    portalIntegrityIdx: index('guest_responses_portal_integrity_idx').on(
+    index('guest_responses_portal_integrity_idx').on(
       t.organizationId,
       t.propertyId,
       t.portalId,
       t.integrityOutcome,
     ),
-    portalTenantFk: foreignKey({
+    foreignKey({
       name: 'guest_responses_portal_tenant_fk',
       columns: [t.organizationId, t.portalId],
       foreignColumns: [portals.organizationId, portals.id],
     }).onDelete('restrict'),
-    portalPropertyTenantFk: foreignKey({
+    foreignKey({
       name: 'guest_responses_portal_property_tenant_fk',
       columns: [t.organizationId, t.propertyId, t.portalId],
       foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
     }).onDelete('restrict'),
-    statusCheck: check(
+    check(
       'guest_responses_status_valid',
       sql`${t.status} IN ('pending', 'submitted', 'corrected', 'moderated', 'deleted', 'expired')`,
     ),
-    integrityOutcomeCheck: check(
+    check(
       'guest_responses_integrity_outcome_valid',
       sql`${t.integrityOutcome} IN ('accepted', 'filtered_automatically', 'under_review')`,
     ),
-    integrityReasonCheck: check(
+    check(
       'guest_responses_integrity_reason_valid',
       sql`${t.integrityReasonCode} ~ '^[a-z0-9]+(_[a-z0-9]+)*$'`,
     ),
-    integrityRevisionCheck: check(
-      'guest_responses_integrity_revision_valid',
-      sql`${t.integrityRevision} >= 1`,
-    ),
-    ratingCheck: check(
+    check('guest_responses_integrity_revision_valid', sql`${t.integrityRevision} >= 1`),
+    check(
       'guest_responses_rating_valid',
       sql`${t.rating} IS NULL OR (${t.rating} >= 1 AND ${t.rating} <= 5)`,
     ),
-    correctionCheck: check(
+    check(
       'guest_responses_correction_count_valid',
       sql`${t.correctionCount} >= 0 AND ${t.correctionCount} <= 1`,
     ),
-    privateFeedbackThresholdCheck: check(
+    check(
       'guest_responses_private_feedback_threshold_valid',
       sql`${t.privateFeedbackThreshold} IS NULL OR ${t.privateFeedbackThreshold} BETWEEN 1 AND 5`,
     ),
-    feedbackWithdrawalCheck: check(
+    check(
       'guest_responses_feedback_withdrawal_valid',
       sql`${t.feedbackWithdrawnAt} IS NULL OR (${t.feedbackSubmittedAt} IS NOT NULL AND ${t.textConsent} = false AND ${t.feedbackSourceEventId} IS NULL)`,
     ),
-  }),
+  ],
 )
 
 /**
@@ -219,18 +210,19 @@ export const guestResponseIntegrityDecisions = pgTable(
     decidedAt: timestamp('decided_at', { withTimezone: true }).notNull(),
     createdAt: createdAtColumn(),
   },
-  (t) => ({
-    responseRevisionKey: uniqueIndex(
-      'guest_response_integrity_decisions_response_revision_key',
-    ).on(t.responseId, t.revision),
-    scopeOutcomeIdx: index('guest_response_integrity_decisions_scope_outcome_idx').on(
+  (t) => [
+    uniqueIndex('guest_response_integrity_decisions_response_revision_key').on(
+      t.responseId,
+      t.revision,
+    ),
+    index('guest_response_integrity_decisions_scope_outcome_idx').on(
       t.organizationId,
       t.propertyId,
       t.portalId,
       t.outcome,
       t.decidedAt,
     ),
-    responseScopeFk: foreignKey({
+    foreignKey({
       name: 'guest_response_integrity_decisions_response_scope_fk',
       columns: [t.organizationId, t.propertyId, t.portalId, t.responseId],
       foreignColumns: [
@@ -240,31 +232,28 @@ export const guestResponseIntegrityDecisions = pgTable(
         guestResponses.id,
       ],
     }).onDelete('cascade'),
-    revisionCheck: check(
-      'guest_response_integrity_decisions_revision_valid',
-      sql`${t.revision} >= 1`,
-    ),
-    initialRevisionCheck: check(
+    check('guest_response_integrity_decisions_revision_valid', sql`${t.revision} >= 1`),
+    check(
       'guest_response_integrity_decisions_initial_revision_valid',
       sql`(${t.revision} = 1 AND ${t.previousOutcome} IS NULL) OR (${t.revision} > 1 AND ${t.previousOutcome} IS NOT NULL)`,
     ),
-    previousOutcomeCheck: check(
+    check(
       'guest_response_integrity_decisions_previous_outcome_valid',
       sql`${t.previousOutcome} IS NULL OR ${t.previousOutcome} IN ('accepted', 'filtered_automatically', 'under_review')`,
     ),
-    outcomeCheck: check(
+    check(
       'guest_response_integrity_decisions_outcome_valid',
       sql`${t.outcome} IN ('accepted', 'filtered_automatically', 'under_review')`,
     ),
-    reasonCheck: check(
+    check(
       'guest_response_integrity_decisions_reason_valid',
       sql`${t.reasonCode} ~ '^[a-z0-9]+(_[a-z0-9]+)*$'`,
     ),
-    sourceCheck: check(
+    check(
       'guest_response_integrity_decisions_source_valid',
       sql`${t.source} IN ('system', 'automatic', 'reviewer', 'migration')`,
     ),
-  }),
+  ],
 )
 
 /**
@@ -286,12 +275,12 @@ export const guestResponseExperienceSnapshots = pgTable(
     privateFeedbackThreshold: integer('private_feedback_threshold').notNull(),
     capturedAt: timestamp('captured_at', { withTimezone: true }).notNull(),
   },
-  (t) => ({
-    orgResponseKey: uniqueIndex('guest_response_experience_snapshots_org_key').on(
+  (t) => [
+    uniqueIndex('guest_response_experience_snapshots_org_key').on(
       t.organizationId,
       t.responseId,
     ),
-    responseScopeFk: foreignKey({
+    foreignKey({
       name: 'guest_response_experience_snapshots_response_scope_fk',
       columns: [t.organizationId, t.propertyId, t.portalId, t.responseId],
       foreignColumns: [
@@ -301,23 +290,23 @@ export const guestResponseExperienceSnapshots = pgTable(
         guestResponses.id,
       ],
     }).onDelete('cascade'),
-    publicationStateCheck: check(
+    check(
       'guest_response_experience_snapshots_publication_state_valid',
       sql`${t.publicationState} = 'published'`,
     ),
-    configurationDigestCheck: check(
+    check(
       'guest_response_experience_snapshots_configuration_digest_valid',
       sql`${t.configurationDigest} ~ '^[0-9a-f]{64}$'`,
     ),
-    guestLocaleCheck: check(
+    check(
       'guest_response_experience_snapshots_guest_locale_valid',
       sql`${t.guestLocale} ~ '^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$'`,
     ),
-    thresholdCheck: check(
+    check(
       'guest_response_experience_snapshots_threshold_valid',
       sql`${t.privateFeedbackThreshold} BETWEEN 1 AND 5`,
     ),
-  }),
+  ],
 )
 
 /**
@@ -336,19 +325,19 @@ export const guestResponseSessionBindings = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: createdAtColumn(),
   },
-  (t) => ({
-    sessionPortalUnique: uniqueIndex('guest_response_session_bindings_dedupe').on(
+  (t) => [
+    uniqueIndex('guest_response_session_bindings_dedupe').on(
       t.organizationId,
       t.portalId,
       t.sessionId,
     ),
-    expiryIdx: index('guest_response_session_bindings_expiry_idx').on(t.expiresAt),
-    responseTenantFk: foreignKey({
+    index('guest_response_session_bindings_expiry_idx').on(t.expiresAt),
+    foreignKey({
       name: 'guest_response_session_bindings_response_tenant_fk',
       columns: [t.organizationId, t.responseId],
       foreignColumns: [guestResponses.organizationId, guestResponses.id],
     }).onDelete('cascade'),
-    responseScopeFk: foreignKey({
+    foreignKey({
       name: 'guest_response_session_bindings_response_scope_fk',
       columns: [t.organizationId, t.propertyId, t.portalId, t.responseId],
       foreignColumns: [
@@ -358,11 +347,11 @@ export const guestResponseSessionBindings = pgTable(
         guestResponses.id,
       ],
     }).onDelete('cascade'),
-    liveWindowCheck: check(
+    check(
       'guest_response_session_bindings_live_window',
       sql`${t.expiresAt} > ${t.createdAt}`,
     ),
-  }),
+  ],
 )
 
 /**
@@ -382,14 +371,14 @@ export const guestResponsePrivateFeedback = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: createdAtColumn(),
   },
-  (t) => ({
-    expiryIdx: index('guest_response_private_feedback_expiry_idx').on(t.expiresAt),
-    responseTenantFk: foreignKey({
+  (t) => [
+    index('guest_response_private_feedback_expiry_idx').on(t.expiresAt),
+    foreignKey({
       name: 'guest_response_private_feedback_response_tenant_fk',
       columns: [t.organizationId, t.responseId],
       foreignColumns: [guestResponses.organizationId, guestResponses.id],
     }).onDelete('cascade'),
-    responseScopeFk: foreignKey({
+    foreignKey({
       name: 'guest_response_private_feedback_response_scope_fk',
       columns: [t.organizationId, t.propertyId, t.portalId, t.responseId],
       foreignColumns: [
@@ -399,15 +388,15 @@ export const guestResponsePrivateFeedback = pgTable(
         guestResponses.id,
       ],
     }).onDelete('cascade'),
-    bodyLengthCheck: check(
+    check(
       'guest_response_private_feedback_body_length',
       sql`char_length(${t.body}) BETWEEN 1 AND 2000`,
     ),
-    liveWindowCheck: check(
+    check(
       'guest_response_private_feedback_live_window',
       sql`${t.expiresAt} > ${t.submittedAt}`,
     ),
-  }),
+  ],
 )
 
 /**
@@ -428,29 +417,29 @@ export const guestDestinationActionReceipts = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: createdAtColumn(),
   },
-  (t) => ({
-    destinationDedupe: uniqueIndex('guest_destination_action_receipts_dedupe').on(
+  (t) => [
+    uniqueIndex('guest_destination_action_receipts_dedupe').on(
       t.organizationId,
       t.portalId,
       t.sessionId,
       t.destinationKind,
       t.destinationId,
     ),
-    expiryIdx: index('guest_destination_action_receipts_expiry_idx').on(t.expiresAt),
-    portalTenantFk: foreignKey({
+    index('guest_destination_action_receipts_expiry_idx').on(t.expiresAt),
+    foreignKey({
       name: 'guest_destination_action_receipts_portal_fk',
       columns: [t.organizationId, t.propertyId, t.portalId],
       foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
     }).onDelete('restrict'),
-    destinationKindCheck: check(
+    check(
       'guest_destination_action_receipts_kind_valid',
       sql`${t.destinationKind} IN ('google_review', 'secondary_link')`,
     ),
-    liveWindowCheck: check(
+    check(
       'guest_destination_action_receipts_live_window',
       sql`${t.expiresAt} > ${t.createdAt}`,
     ),
-  }),
+  ],
 )
 
 /**
@@ -480,21 +469,19 @@ export const guestResponseMedia = pgTable(
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),
   },
-  (t) => ({
-    objectKeyUnique: uniqueIndex('guest_response_media_object_key_unique').on(
-      t.objectKey,
-    ),
-    responseStatusIdx: index('guest_response_media_response_status_idx').on(
+  (t) => [
+    uniqueIndex('guest_response_media_object_key_unique').on(t.objectKey),
+    index('guest_response_media_response_status_idx').on(
       t.organizationId,
       t.responseId,
       t.status,
     ),
-    responseTenantFk: foreignKey({
+    foreignKey({
       name: 'guest_response_media_response_tenant_fk',
       columns: [t.organizationId, t.responseId],
       foreignColumns: [guestResponses.organizationId, guestResponses.id],
     }).onDelete('restrict'),
-    responsePropertyTenantFk: foreignKey({
+    foreignKey({
       name: 'guest_response_media_response_property_tenant_fk',
       columns: [t.organizationId, t.propertyId, t.portalId, t.responseId],
       foreignColumns: [
@@ -504,23 +491,23 @@ export const guestResponseMedia = pgTable(
         guestResponses.id,
       ],
     }).onDelete('restrict'),
-    portalTenantFk: foreignKey({
+    foreignKey({
       name: 'guest_response_media_portal_tenant_fk',
       columns: [t.organizationId, t.portalId],
       foreignColumns: [portals.organizationId, portals.id],
     }).onDelete('restrict'),
-    portalPropertyTenantFk: foreignKey({
+    foreignKey({
       name: 'guest_response_media_portal_property_tenant_fk',
       columns: [t.organizationId, t.propertyId, t.portalId],
       foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
     }).onDelete('restrict'),
-    statusCheck: check(
+    check(
       'guest_response_media_status_valid',
       sql`${t.status} IN ('issued', 'processing', 'ready', 'purge_pending', 'deleted', 'quarantined', 'expired')`,
     ),
-    sizeCheck: check(
+    check(
       'guest_response_media_size_valid',
       sql`${t.declaredSizeBytes} > 0 AND ${t.declaredSizeBytes} <= 10485760`,
     ),
-  }),
+  ],
 )

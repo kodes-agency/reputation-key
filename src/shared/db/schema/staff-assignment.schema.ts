@@ -24,17 +24,11 @@ export const staffAssignments = pgTable(
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),
   },
-  (t) => ({
-    orgUserIdx: index('staff_assignments_org_user_idx').on(t.organizationId, t.userId),
-    orgPropertyIdx: index('staff_assignments_org_property_idx').on(
-      t.organizationId,
-      t.propertyId,
-    ),
-    orgTeamIdx: index('staff_assignments_org_team_idx').on(t.organizationId, t.teamId),
-    orgPortalIdx: index('staff_assignments_org_portal_idx').on(
-      t.organizationId,
-      t.portalId,
-    ),
+  (t) => [
+    index('staff_assignments_org_user_idx').on(t.organizationId, t.userId),
+    index('staff_assignments_org_property_idx').on(t.organizationId, t.propertyId),
+    index('staff_assignments_org_team_idx').on(t.organizationId, t.teamId),
+    index('staff_assignments_org_portal_idx').on(t.organizationId, t.portalId),
     // Enforce assignment uniqueness across every (teamId, portalId) NULL-combination.
     // PostgreSQL treats NULLs as distinct in a unique index, so a single 5-column
     // index never fires for the common direct-assignment case (teamId/portalId NULL),
@@ -48,17 +42,17 @@ export const staffAssignments = pgTable(
     // native way to keep the soft-delete-aware (deleted_at IS NULL) semantics.
     // assignmentExists() stays as a fast-path for a friendly already_assigned error;
     // the DB constraint is authoritative.
-    uniqueDirect: uniqueIndex('staff_assignments_unique_direct')
+    uniqueIndex('staff_assignments_unique_direct')
       .on(t.organizationId, t.userId, t.propertyId)
       .where(sql`team_id IS NULL AND portal_id IS NULL AND deleted_at IS NULL`),
-    uniquePortal: uniqueIndex('staff_assignments_unique_portal')
+    uniqueIndex('staff_assignments_unique_portal')
       .on(t.organizationId, t.userId, t.propertyId, t.portalId)
       .where(sql`team_id IS NULL AND portal_id IS NOT NULL AND deleted_at IS NULL`),
-    uniqueTeam: uniqueIndex('staff_assignments_unique_team')
+    uniqueIndex('staff_assignments_unique_team')
       .on(t.organizationId, t.userId, t.propertyId, t.teamId)
       .where(sql`team_id IS NOT NULL AND portal_id IS NULL AND deleted_at IS NULL`),
-    uniqueTeamPortal: uniqueIndex('staff_assignments_unique_team_portal')
+    uniqueIndex('staff_assignments_unique_team_portal')
       .on(t.organizationId, t.userId, t.propertyId, t.teamId, t.portalId)
       .where(sql`team_id IS NOT NULL AND portal_id IS NOT NULL AND deleted_at IS NULL`),
-  }),
+  ],
 )

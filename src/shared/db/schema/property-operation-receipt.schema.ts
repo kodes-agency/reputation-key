@@ -36,45 +36,46 @@ export const propertyOperationReceipts = pgTable(
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
-  (t) => ({
-    organizationIdempotencyUnique: uniqueIndex(
-      'property_operation_receipts_org_idempotency_unique',
-    ).on(t.organizationId, t.idempotencyKey),
-    destinationTenantFk: foreignKey({
+  (t) => [
+    uniqueIndex('property_operation_receipts_org_idempotency_unique').on(
+      t.organizationId,
+      t.idempotencyKey,
+    ),
+    foreignKey({
       name: 'property_operation_receipts_destination_tenant_fk',
       columns: [t.organizationId, t.destinationPropertyId],
       foreignColumns: [properties.organizationId, properties.id],
     })
       .onDelete('restrict')
       .onUpdate('no action'),
-    releasableExpiryIdx: index('property_operation_receipts_releasable_expiry_idx')
+    index('property_operation_receipts_releasable_expiry_idx')
       .on(t.expiresAt, t.id)
       .where(sql`${t.retentionReleasedAt} IS NOT NULL`),
-    unreleasedExpiryIdx: index('property_operation_receipts_unreleased_expiry_idx')
+    index('property_operation_receipts_unreleased_expiry_idx')
       .on(t.expiresAt, t.id)
       .where(sql`${t.retentionReleasedAt} IS NULL`),
-    outcomeCheck: check(
+    check(
       'property_operation_receipts_outcome_valid',
       sql`${t.outcome} IN ('imported', 'relinked', 'property_deleted')`,
     ),
-    destinationCheck: check(
+    check(
       'property_operation_receipts_destination_valid',
       sql`(
         (${t.tombstone} = false AND ${t.outcome} IN ('imported', 'relinked') AND ${t.destinationPropertyId} IS NOT NULL)
         OR (${t.tombstone} = true AND ${t.outcome} = 'property_deleted' AND ${t.destinationPropertyId} IS NULL)
       )`,
     ),
-    generationsCheck: check(
+    check(
       'property_operation_receipts_generations_valid',
       sql`${t.destinationSourceEpoch} >= 0 AND ${t.destinationProfileVersion} >= 1`,
     ),
-    expiryCheck: check(
+    check(
       'property_operation_receipts_expiry_valid',
       sql`${t.expiresAt} > ${t.createdAt}`,
     ),
-    releaseCheck: check(
+    check(
       'property_operation_receipts_release_valid',
       sql`${t.retentionReleasedAt} IS NULL OR ${t.retentionReleasedAt} >= ${t.createdAt}`,
     ),
-  }),
+  ],
 )

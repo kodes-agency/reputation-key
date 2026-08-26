@@ -93,24 +93,21 @@ export const gbpImportRequests = pgTable(
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
-  (t) => ({
-    organizationRequestUnique: uniqueIndex('gbp_import_requests_org_request_unique').on(
+  (t) => [
+    uniqueIndex('gbp_import_requests_org_request_unique').on(
       t.organizationId,
       t.requestId,
     ),
-    organizationIdKey: uniqueIndex('gbp_import_requests_org_id_key').on(
-      t.organizationId,
-      t.id,
-    ),
-    initiatedRequestIdx: index('gbp_import_requests_initiated_request_idx').on(
+    uniqueIndex('gbp_import_requests_org_id_key').on(t.organizationId, t.id),
+    index('gbp_import_requests_initiated_request_idx').on(
       t.organizationId,
       t.initiatedBy,
       t.requestId,
     ),
-    purgeIdx: index('gbp_import_requests_purge_idx')
+    index('gbp_import_requests_purge_idx')
       .on(t.purgeAt, t.id)
       .where(sql`${t.purgeAt} IS NOT NULL`),
-    replayPairsCheck: check(
+    check(
       'gbp_import_requests_replay_pairs_valid',
       sql`(
         (${t.wireReplayKeyVersion} IS NULL) = (${t.wireReplayDigest} IS NULL)
@@ -118,7 +115,7 @@ export const gbpImportRequests = pgTable(
         AND (${t.wireReplayDigest} IS NULL) = (${t.semanticReplayDigest} IS NULL)
       )`,
     ),
-    replayEncodingCheck: check(
+    check(
       'gbp_import_requests_replay_encoding_valid',
       sql`(
         ${t.wireReplayDigest} IS NULL OR (
@@ -129,7 +126,7 @@ export const gbpImportRequests = pgTable(
         )
       )`,
     ),
-    terminalTimesCheck: check(
+    check(
       'gbp_import_requests_terminal_times_valid',
       sql`(
         (${t.firstTerminalAt} IS NULL) = (${t.purgeAt} IS NULL)
@@ -137,7 +134,7 @@ export const gbpImportRequests = pgTable(
         AND (${t.status} IN ('queued', 'processing') OR ${t.firstTerminalAt} IS NOT NULL)
       )`,
     ),
-    countsCheck: check(
+    check(
       'gbp_import_requests_counts_valid',
       sql`(
         ${t.totalCount} BETWEEN 1 AND 100
@@ -154,7 +151,7 @@ export const gbpImportRequests = pgTable(
         AND ${t.totalCount} = ${t.pendingCount} + ${t.processingCount} + ${t.processedCount}
       )`,
     ),
-  }),
+  ],
 )
 
 export const gbpImportRequestItems = pgTable(
@@ -203,45 +200,42 @@ export const gbpImportRequestItems = pgTable(
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
-  (t) => ({
-    organizationIdKey: uniqueIndex('gbp_import_request_items_org_id_key').on(
-      t.organizationId,
-      t.id,
-    ),
-    parentTenantFk: foreignKey({
+  (t) => [
+    uniqueIndex('gbp_import_request_items_org_id_key').on(t.organizationId, t.id),
+    foreignKey({
       name: 'gbp_import_request_items_parent_tenant_fk',
       columns: [t.organizationId, t.importJobId],
       foreignColumns: [gbpImportRequests.organizationId, gbpImportRequests.id],
     })
       .onDelete('cascade')
       .onUpdate('no action'),
-    connectionTenantFk: foreignKey({
+    foreignKey({
       name: 'gbp_import_request_items_connection_tenant_fk',
       columns: [t.organizationId, t.connectionId],
       foreignColumns: [googleConnections.organizationId, googleConnections.id],
     })
       .onDelete('restrict')
       .onUpdate('no action'),
-    propertyTenantFk: foreignKey({
+    foreignKey({
       name: 'gbp_import_request_items_property_tenant_fk',
       columns: [t.organizationId, t.existingPropertyId],
       foreignColumns: [properties.organizationId, properties.id],
     })
       .onDelete('restrict')
       .onUpdate('no action'),
-    parentStatusIdx: index('gbp_import_request_items_parent_status_idx').on(
+    index('gbp_import_request_items_parent_status_idx').on(
       t.organizationId,
       t.importJobId,
       t.status,
       t.retryRevision,
     ),
-    effectDeadlineIdx: index('gbp_import_request_items_effect_deadline_idx')
+    index('gbp_import_request_items_effect_deadline_idx')
       .on(t.effectDeadlineAt, t.id)
       .where(sql`${t.status} IN ('pending', 'processing')`),
-    routingIdx: index('gbp_import_request_items_routing_idx')
+    index('gbp_import_request_items_routing_idx')
       .on(t.organizationId, t.id, t.status)
       .where(sql`${t.status} IN ('pending', 'processing')`),
-    profileCheck: check(
+    check(
       'gbp_import_request_items_profile_valid',
       sql`(
         char_length(btrim(${t.propertyName})) BETWEEN 1 AND 100
@@ -263,7 +257,7 @@ export const gbpImportRequestItems = pgTable(
           )
       )`,
     ),
-    generationCheck: check(
+    check(
       'gbp_import_request_items_generations_valid',
       sql`(
         (
@@ -284,7 +278,7 @@ export const gbpImportRequestItems = pgTable(
         AND ${t.retryRevision} >= 0
       )`,
     ),
-    authorizationSnapshotCheck: check(
+    check(
       'gbp_import_request_items_authorization_snapshot_valid',
       sql`(
         (
@@ -305,7 +299,7 @@ export const gbpImportRequestItems = pgTable(
         )
       )`,
     ),
-    attemptFenceCheck: check(
+    check(
       'gbp_import_request_items_attempt_fence_valid',
       sql`(
         ${t.highestAttemptForRevision} BETWEEN 0 AND 5
@@ -316,7 +310,7 @@ export const gbpImportRequestItems = pgTable(
         )
       )`,
     ),
-    statusOutcomeCheck: check(
+    check(
       'gbp_import_request_items_status_outcome_valid',
       sql`(
         (${t.status} IN ('pending', 'processing') AND ${t.outcomeCode} IS NULL)
@@ -328,15 +322,15 @@ export const gbpImportRequestItems = pgTable(
         OR (${t.status} = 'cancelled' AND ${t.outcomeCode} IN ('authorization_changed', 'policy_disabled', 'organization_suspended', 'property_suspended', 'property_deleted'))
       )`,
     ),
-    terminalCheck: check(
+    check(
       'gbp_import_request_items_terminal_valid',
       sql`${t.outcomeCode} IS NULL OR ${t.firstTerminalAt} IS NOT NULL`,
     ),
-    deadlineCheck: check(
+    check(
       'gbp_import_request_items_deadline_valid',
       sql`${t.effectDeadlineAt} = ${t.createdAt} + interval '24 hours'`,
     ),
-    routingRetentionCheck: check(
+    check(
       'gbp_import_request_items_routing_retention_valid',
       sql`(
         (
@@ -351,18 +345,18 @@ export const gbpImportRequestItems = pgTable(
         )
       )`,
     ),
-    providerSuffixCheck: check(
+    check(
       'gbp_import_request_items_provider_suffix_valid',
       sql`(
         (${t.providerAccountSuffix} IS NULL OR ${t.providerAccountSuffix} !~ '[/?#[:space:][:cntrl:]]')
         AND (${t.providerLocationSuffix} IS NULL OR ${t.providerLocationSuffix} !~ '[/?#[:space:][:cntrl:]]')
       )`,
     ),
-    googleReviewUriCheck: check(
+    check(
       'gbp_import_request_items_google_review_uri_valid',
       sql`${t.googleReviewUri} IS NULL OR ${t.googleReviewUri} ~ '^https://'`,
     ),
-  }),
+  ],
 )
 
 export const gbpImportItemRetryReceipts = pgTable(
@@ -378,21 +372,21 @@ export const gbpImportItemRetryReceipts = pgTable(
     acceptedRetryRevision: integer('accepted_retry_revision').notNull(),
     createdAt: createdAtColumn(),
   },
-  (t) => ({
-    requestUnique: uniqueIndex('gbp_import_item_retry_receipts_request_unique').on(
+  (t) => [
+    uniqueIndex('gbp_import_item_retry_receipts_request_unique').on(
       t.organizationId,
       t.initiatingUserId,
       t.itemId,
       t.retryRequestId,
     ),
-    itemTenantFk: foreignKey({
+    foreignKey({
       name: 'gbp_import_item_retry_receipts_item_tenant_fk',
       columns: [t.organizationId, t.itemId],
       foreignColumns: [gbpImportRequestItems.organizationId, gbpImportRequestItems.id],
     })
       .onDelete('cascade')
       .onUpdate('no action'),
-    receiptCheck: check(
+    check(
       'gbp_import_item_retry_receipts_values_valid',
       sql`(
         ${t.requestDigestKeyVersion} ~ '^[a-z][a-z0-9_-]{0,31}$'
@@ -400,5 +394,5 @@ export const gbpImportItemRetryReceipts = pgTable(
         AND ${t.acceptedRetryRevision} >= 1
       )`,
     ),
-  }),
+  ],
 )

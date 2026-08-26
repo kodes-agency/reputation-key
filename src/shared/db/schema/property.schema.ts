@@ -96,33 +96,33 @@ export const properties = pgTable(
       withTimezone: true,
     }),
   },
-  (t) => ({
-    orgIdKey: uniqueIndex('properties_org_id_key').on(t.organizationId, t.id),
-    orgSlugUnique: uniqueIndex('properties_org_slug_unique')
+  (t) => [
+    uniqueIndex('properties_org_id_key').on(t.organizationId, t.id),
+    uniqueIndex('properties_org_slug_unique')
       .on(t.organizationId, t.slug)
       .where(sql`deleted_at IS NULL`),
-    orgIdx: index('properties_org_idx').on(t.organizationId),
-    fleetNameCursorIdx: index('properties_org_lower_name_id_active_idx')
+    index('properties_org_idx').on(t.organizationId),
+    index('properties_org_lower_name_id_active_idx')
       .on(t.organizationId, sql`lower(${t.name})`, t.id)
       .where(sql`${t.deletedAt} IS NULL`),
     // F6: declared in Drizzle for schema parity, but created only by the
     // dedicated autocommit sidecar (never by the transactional migrator).
-    orgGbpLocationIdUnique: uniqueIndex('properties_org_gbp_location_id_unique')
+    uniqueIndex('properties_org_gbp_location_id_unique')
       .on(t.organizationId, t.gbpLocationId)
       .where(sql`gbp_location_id IS NOT NULL AND deleted_at IS NULL`),
     // Migration 0006: backfill queue for unresolved processing region
-    routingBackfillIdx: index('properties_routing_backfill_idx')
+    index('properties_routing_backfill_idx')
       .on(t.routingPolicyVersion, t.id)
       .where(sql`processing_region = 'unresolved' AND deleted_at IS NULL`),
     // Migration 0009: lifecycle sweep lookup (all non-purged rows).
-    lifecycleStateIdx: index('properties_lifecycle_state_idx')
+    index('properties_lifecycle_state_idx')
       .on(t.lifecycleState)
       .where(sql`lifecycle_state <> 'purged'`),
-    googleBindingStateCheck: check(
+    check(
       'properties_google_binding_state_valid',
       sql`${t.googleBindingState} IN ('unbound', 'account_confirmation_required', 'active', 'disconnected')`,
     ),
-    googleBindingTupleCheck: check(
+    check(
       'properties_google_binding_tuple_valid',
       sql`(
         (${t.googleBindingState} = 'unbound' AND ${t.gbpAccountId} IS NULL AND ${t.gbpLocationId} IS NULL)
@@ -130,18 +130,15 @@ export const properties = pgTable(
         OR (${t.googleBindingState} IN ('active', 'disconnected') AND ${t.googleConnectionId} IS NOT NULL AND ${t.gbpAccountId} IS NOT NULL AND ${t.gbpLocationId} IS NOT NULL)
       )`,
     ),
-    googleBindingSuffixCheck: check(
+    check(
       'properties_google_binding_suffix_valid',
       sql`(
         (${t.gbpAccountId} IS NULL OR (char_length(${t.gbpAccountId}) >= 1 AND char_length(${t.gbpAccountId}) <= 255 AND ${t.gbpAccountId} !~ '[/?#[:space:][:cntrl:]]'))
         AND (${t.gbpLocationId} IS NULL OR (char_length(${t.gbpLocationId}) >= 1 AND char_length(${t.gbpLocationId}) <= 255 AND ${t.gbpLocationId} !~ '[/?#[:space:][:cntrl:]]'))
       )`,
     ),
-    googleProfileVersionCheck: check(
-      'properties_google_profile_version_valid',
-      sql`${t.profileVersion} >= 1`,
-    ),
-    googleReviewDestinationCheck: check(
+    check('properties_google_profile_version_valid', sql`${t.profileVersion} >= 1`),
+    check(
       'properties_google_review_destination_valid',
       sql`(
         (
@@ -161,11 +158,11 @@ export const properties = pgTable(
         )
       )`,
     ),
-    defaultReplyLanguageCheck: check(
+    check(
       'properties_default_reply_language_valid',
       sql`${t.defaultReplyLanguage} IS NULL OR ${t.defaultReplyLanguage} ~ ${sql.raw(`'${REPLY_LANGUAGE_TAG_SQL_PATTERN}'`)}`,
     ),
-    googleProfileConfirmationCheck: check(
+    check(
       'properties_google_profile_confirmation_valid',
       sql`(
         (${t.profileSource} = 'legacy' AND ${t.profileConfirmedAt} IS NULL AND ${t.profileConfirmedBy} IS NULL)
@@ -173,19 +170,19 @@ export const properties = pgTable(
       )`,
     ),
     // Migration 0009: pins the lifecycle machine's persisted states.
-    lifecycleStateCheck: check(
+    check(
       'properties_lifecycle_state_valid',
       sql`${t.lifecycleState} IN ('active', 'suspended', 'archived', 'disconnecting', 'purge_pending', 'purging', 'purged')`,
     ),
-    dataCellIdCheck: check(
+    check(
       'properties_data_cell_id_valid',
       sql`${t.dataCellId} IS NULL OR ${t.dataCellId} IN ('us', 'europe', 'global')`,
     ),
-    responsibleManagerRevisionCheck: check(
+    check(
       'properties_responsible_manager_revision_positive',
       sql`${t.responsibleManagerRevision} >= 1`,
     ),
-  }),
+  ],
 )
 
 // Explicit workflow/notification responsibility. This is intentionally
@@ -202,23 +199,20 @@ export const propertyResponsibleManagers = pgTable(
     createdBy: varchar('created_by', { length: 255 }).notNull(),
     endReason: varchar('end_reason', { length: 500 }),
   },
-  (t) => ({
-    orgPropertyIdx: index('property_rm_org_property_idx').on(
-      t.organizationId,
-      t.propertyId,
-    ),
-    orgUserIdx: index('property_rm_org_user_idx').on(t.organizationId, t.userId),
-    uniqueActiveManager: uniqueIndex('property_rm_unique_active_manager')
+  (t) => [
+    index('property_rm_org_property_idx').on(t.organizationId, t.propertyId),
+    index('property_rm_org_user_idx').on(t.organizationId, t.userId),
+    uniqueIndex('property_rm_unique_active_manager')
       .on(t.organizationId, t.propertyId, t.userId)
       .where(sql`effective_to IS NULL`),
-    propertyTenantFk: foreignKey({
+    foreignKey({
       name: 'property_rm_property_tenant_fk',
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
     }).onDelete('cascade'),
-    intervalCheck: check(
+    check(
       'property_rm_interval_valid',
       sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`,
     ),
-  }),
+  ],
 )
