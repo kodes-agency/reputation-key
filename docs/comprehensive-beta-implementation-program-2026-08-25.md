@@ -1053,6 +1053,17 @@ Gate D requires production-shaped, supported-browser journeys for invitation/onb
 
 ### OBS-01 — Privacy-safe error monitoring, native beta feedback, and support operations (**BLK; PAR**)
 
+**Implementation note (2026-08-26):** The first safe native-feedback slice is
+implemented: authenticated AccountAdmin/PropertyManager Bug and Suggestion
+forms, strict text-only payloads, actor/Organization Redis budgets,
+identifier-free route and broad viewport classification, HMAC actor/Organization
+tags, a provider-neutral Sentry capture seam, feedback-specific outbound
+scrubbing, a private receipt, and an explicit privacy notice. It creates no
+GitHub issue and captures no screenshot or replay. OBS-01 remains open: the
+consented Bug-only capture/preview/remove/cancel contract, deployed Germany
+project evidence, triage/alert drill, retention approval, and synthetic
+exfiltration proof are still blocking closure.
+
 **Work**
 
 1. Activate Germany-hosted Sentry for web/worker/sidecars with release/environment/Data Cell tags and strict inbound scrubbers. Error monitoring is always on and is not presented as optional analytics.

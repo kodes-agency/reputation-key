@@ -511,6 +511,48 @@ Sentry event ID, alert receipt, drill time, and scrubber inspection result. Do
 not record event bodies. Source-map upload and external alert routing remain RC
 evidence gates; runtime initialization alone does not close OBS-01.
 
+### Native beta feedback intake and triage
+
+The authenticated top bar exposes **Beta feedback** only to AccountAdmin and
+PropertyManager users. Bug and Suggestion are separate strict text-only
+contracts. The current safe slice never captures or accepts a screenshot,
+replay, page content, request body, account/contact field, or arbitrary
+attachment. Do not add a client-side direct Sentry call: the server boundary is
+the authentication, abuse, pseudonymization, and privacy boundary.
+
+Each accepted submission has a 32-character Sentry event reference and these
+controlled tags: type, impact/importance, identifier-free route template,
+broad viewport category, role, and audience-separated HMAC actor/Organization
+pseudonyms. Limits are five submissions per actor/hour and twenty per
+Organization/day, actor first. Production Redis failure denies submission. A
+missing/uninitialized capture provider returns a retryable 503 and no receipt.
+
+Triage every new report in this order:
+
+1. **Privacy screen:** do not copy the event body elsewhere. If it contains a
+   guest name, review/private-feedback text, contact detail, credential, raw
+   identifier, or other prohibited content, restrict access and invoke §9.
+2. **Classify:** Bug or Suggestion; then privacy/security, user impact, affected
+   release/cell, and whether the reporter can continue with a workaround.
+3. **Validate and reproduce:** use only the controlled tags and approved test
+   data. Never ask the manager to paste guest/review content into a ticket.
+4. **Dedupe and assign:** merge duplicates in Sentry, name one triage owner, and
+   record the state (`new`, `screened`, `reproducing`, `accepted`, `declined`,
+   or `resolved`) in the restricted triage system.
+5. **Engineering handoff:** manually create/link a private engineering issue
+   only after acceptance. Link the Sentry reference; do not copy its text or
+   automatically create GitHub issues.
+6. **Close the loop:** respond through the agreed beta support channel without
+   exposing another tenant/report. Record outcome, not event content.
+
+For verification, submit one Bug and one Suggestion from AccountAdmin and
+PropertyManager fixtures; prove Staff receives no launcher and a direct call is
+403; inspect tags for raw IDs; exceed each Redis budget; stop capture and prove
+503/no receipt; seed email/token/UUID markers and prove outbound scrubbing. The
+consented Bug-only screenshot/replay preview/remove/cancel flow is still absent
+and remains an OBS-01 release item; do not represent this text-only slice as
+full OBS-01 closure.
+
 ---
 
 ## Alerts (BQC-7.4)

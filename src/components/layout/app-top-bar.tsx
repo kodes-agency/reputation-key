@@ -13,14 +13,22 @@ import { authClient } from '#/shared/auth/auth-client'
 import { NotificationPanel } from '#/components/features/notification/notification-panel'
 import type { NotificationServerFns } from '#/components/features/notification/types'
 import { useThemeMode } from '#/components/hooks/use-theme-mode'
+import { BetaFeedbackLauncher } from '#/components/features/beta-feedback/beta-feedback-launcher'
+import type { SubmitBetaFeedback } from '#/components/features/beta-feedback/beta-feedback-form-context'
 
 type Props = Readonly<{
   user: { id: string; name: string; email: string; image: string | null }
   organizationId: string
   notificationFns: NotificationServerFns
+  submitBetaFeedback?: SubmitBetaFeedback
 }>
 
-export function AppTopBar({ user, organizationId, notificationFns }: Props) {
+export function AppTopBar({
+  user,
+  organizationId,
+  notificationFns,
+  submitBetaFeedback,
+}: Props) {
   const navigate = useNavigate()
   const { mode, setMode } = useThemeMode()
 
@@ -42,6 +50,7 @@ export function AppTopBar({ user, organizationId, notificationFns }: Props) {
       <div className="flex-1" />
 
       {/* Notifications + User menu */}
+      {submitBetaFeedback && <BetaFeedbackLauncher submitFeedback={submitBetaFeedback} />}
       <NotificationPanel
         notificationFns={notificationFns}
         organizationId={organizationId}

@@ -15,7 +15,11 @@ This notice describes how Reputation Key ("the Service") collects, uses, and pro
 
 - **Account information**: Your name and email address when you are invited to the beta.
 - **Organization details**: Organization name and property information you enter.
-- **Content you author**: Reply drafts, inbox notes, and feedback you submit.
+- **Content you author**: Reply drafts, inbox notes, and beta feedback you
+  intentionally submit. The beta feedback form also sends the type of page,
+  your role, a broad screen-size category, and pseudonymous account and
+  organization identifiers. It does not attach a screenshot, replay, page
+  content, account details, or contact details in the current beta slice.
 
 ### Data from Google Business Profile
 
@@ -62,12 +66,12 @@ After the retention period, data is automatically deleted or anonymized.
 
 We use the following third-party services to operate the Service:
 
-| Provider                               | Purpose             | Data they access                                                      | Region    |
-| -------------------------------------- | ------------------- | --------------------------------------------------------------------- | --------- |
-| **Neon** (Neon Labs, Inc.)             | Database hosting    | All application data (encrypted at rest)                              | US        |
-| **Resend** (Resend, Inc.)              | Transactional email | Email address (for verification only)                                 | US        |
-| **Amazon Web Services**                | Object storage      | Uploaded images (when portal uploads are enabled)                     | EU-West-3 |
-| **Sentry** (Functional Software, Inc.) | Error monitoring    | Error stack traces and request metadata — **no PII** by configuration | US        |
+| Provider                               | Purpose                                    | Data they access                                                                                                                                                                                         | Region    |
+| -------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
+| **Neon** (Neon Labs, Inc.)             | Database hosting                           | All application data (encrypted at rest)                                                                                                                                                                 | US        |
+| **Resend** (Resend, Inc.)              | Transactional email                        | Email address (for verification only)                                                                                                                                                                    | US        |
+| **Amazon Web Services**                | Object storage                             | Uploaded images (when portal uploads are enabled)                                                                                                                                                        | EU-West-3 |
+| **Sentry** (Functional Software, Inc.) | Error monitoring and private beta feedback | Scrubbed error metadata and feedback text intentionally submitted by a manager; configured to exclude account/customer PII, credentials, raw tenant identifiers, request bodies, screenshots, and replay | Germany   |
 
 Google Business Profile is a data source, not a subprocessor: the Service reads review data you have authorized via OAuth and publishes replies you have approved. Google's [API terms](https://developers.google.com/terms/api-services-user-data-policy) apply to this data.
 

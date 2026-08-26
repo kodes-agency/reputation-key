@@ -27,6 +27,13 @@ const ALLOWED_EVENT_TAGS = new Set([
   'termination_trigger',
   'queue',
   'job_name',
+  'feedback_type',
+  'feedback_impact',
+  'feedback_route',
+  'feedback_actor',
+  'feedback_organization',
+  'feedback_viewport',
+  'feedback_role',
 ])
 
 const ALLOWED_CONTEXT_FIELDS: Readonly<Record<string, ReadonlySet<string>>> = {
@@ -84,7 +91,19 @@ export interface ErrorMonitoringSdk {
     error: Error,
     context: { readonly tags: Readonly<Record<string, string>> },
   ): unknown
+  captureFeedback(
+    params: FeedbackCaptureParams,
+    hint?: Readonly<{ includeReplay?: false }>,
+    scope?: FeedbackCaptureScope,
+  ): string
+  withScope(callback: (scope: FeedbackCaptureScope) => unknown): unknown
+  withIsolationScope(callback: (scope: FeedbackCaptureScope) => unknown): unknown
   flush(timeoutMs: number): Promise<boolean>
+}
+
+export interface FeedbackCaptureScope {
+  clear(): unknown
+  addEventProcessor(processor: (event: unknown) => unknown): unknown
 }
 
 interface ErrorMonitoringLogger {
@@ -107,9 +126,16 @@ export interface ErrorCaptureContext {
   readonly jobName?: string
 }
 
+export interface FeedbackCaptureParams {
+  readonly message: string
+  readonly source: 'repkey-native-beta-feedback'
+  readonly tags: Readonly<Record<string, string>>
+}
+
 export interface ErrorMonitor {
   initialize(config: ObservabilityConfig): ObservabilityInitResult
   captureException(error: unknown, context: ErrorCaptureContext): void
+  captureFeedback(params: FeedbackCaptureParams): string | undefined
   flush(timeoutMs?: number): Promise<boolean>
 }
 
@@ -131,6 +157,7 @@ const PII_STRING_PATTERNS = [
   /\bredis(?:s)?:\/\/[^\s/@:]+:[^\s/@]+@/giu,
   /\/[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}(?=\/|\?|#|$)/giu,
   /([?&](?:token|key|code|secret|password|email)=)[^&#\s]+/giu,
+  /(\b(?:token|secret|password|api[_-]?key)\s*[:=]\s*)[^\s,;]+/giu,
 ]
 
 function scrubString(value: string): string {
@@ -156,6 +183,7 @@ export function scrubSentryEvent(event: unknown): unknown {
   }
 
   const record = scrubbed as Record<string, unknown>
+  if (record.type === 'feedback') return scrubSentryFeedbackRecord(record)
   if ('message' in record) record.message = REDACTED
   if ('transaction' in record) record.transaction = REDACTED
   delete record.user
@@ -206,6 +234,43 @@ export function scrubSentryEvent(event: unknown): unknown {
   }
 
   return scrubbed
+}
+
+function scrubSentryFeedbackRecord(
+  record: Record<string, unknown>,
+): Record<string, unknown> {
+  if ('message' in record) record.message = REDACTED
+  if ('transaction' in record) record.transaction = REDACTED
+  delete record.user
+  delete record.extra
+  delete record.attachments
+  delete record.request
+  delete record.fingerprint
+  delete record.culprit
+  delete record.logentry
+  delete record.breadcrumbs
+  delete record.spans
+  delete record.threads
+  delete record.exception
+
+  record.tags = scrubEventTags(record.tags)
+  const feedback = asRecord(asRecord(record.contexts)?.feedback)
+  const message =
+    typeof feedback?.message === 'string'
+      ? scrubString(feedback.message).slice(0, 6_000)
+      : ''
+  record.contexts = message
+    ? {
+        feedback: {
+          message,
+          source:
+            feedback?.source === 'repkey-native-beta-feedback'
+              ? feedback.source
+              : 'unknown',
+        },
+      }
+    : {}
+  return record
 }
 
 /** Keep only breadcrumb classification/timing; never content or request data. */
@@ -370,6 +435,7 @@ export function createErrorMonitor(deps: {
 }): ErrorMonitor {
   let state: ObservabilityInitResult | undefined
   let activeSdk: ErrorMonitoringSdk | undefined
+  let feedbackRuntimeTags: Readonly<Record<string, string>> | undefined
   const logger = () => (typeof deps.logger === 'function' ? deps.logger() : deps.logger)
   const log = (
     level: 'info' | 'warn' | 'error',
@@ -433,11 +499,12 @@ export function createErrorMonitor(deps: {
           })
         }
         activeSdk = deps.sentry
-        activeSdk.setTags({
+        feedbackRuntimeTags = {
           service: config.service,
           processing_cell: config.processingCell,
           release_sha: config.release,
-        })
+        }
+        activeSdk.setTags(feedbackRuntimeTags)
         state = 'enabled'
         log(
           'info',
@@ -453,6 +520,7 @@ export function createErrorMonitor(deps: {
         return state
       } catch (err) {
         activeSdk = undefined
+        feedbackRuntimeTags = undefined
         state = 'failed'
         log(
           'error',
@@ -478,6 +546,45 @@ export function createErrorMonitor(deps: {
         })
       } catch (err) {
         log('warn', { err }, 'Error monitoring capture failed')
+      }
+    },
+
+    captureFeedback(params) {
+      const sdk = activeSdk
+      if (!sdk || !feedbackRuntimeTags) return undefined
+      try {
+        const scrubbedTags = scrubEventTags({
+          ...feedbackRuntimeTags,
+          ...params.tags,
+        })
+        const safeTags = Object.fromEntries(
+          Object.entries(asRecord(scrubbedTags) ?? {}).filter(
+            (entry): entry is [string, string] => typeof entry[1] === 'string',
+          ),
+        )
+        const safeParams: FeedbackCaptureParams = {
+          message: scrubString(params.message).slice(0, 6_000),
+          source: 'repkey-native-beta-feedback',
+          tags: safeTags,
+        }
+
+        // Sentry 10.71 does not pass `type: "feedback"` events through the
+        // ordinary `beforeSend` callback. Clear both inherited scopes so
+        // request/user/breadcrumb/attachment state cannot hitchhike, then add
+        // the feedback scrubber as the final scope processor (scope processors
+        // run after client processors and merged scope data in this SDK).
+        const reference = sdk.withIsolationScope((isolationScope) => {
+          isolationScope.clear()
+          return sdk.withScope((scope) => {
+            scope.clear()
+            scope.addEventProcessor(scrubSentryEvent)
+            return sdk.captureFeedback(safeParams, {}, scope)
+          })
+        })
+        return typeof reference === 'string' ? reference : undefined
+      } catch (err) {
+        log('warn', { err }, 'Beta feedback capture failed')
+        return undefined
       }
     },
 
@@ -517,6 +624,12 @@ export function captureObservabilityException(
   context: ErrorCaptureContext,
 ): void {
   processMonitor.captureException(error, context)
+}
+
+export function captureObservabilityFeedback(
+  params: FeedbackCaptureParams,
+): string | undefined {
+  return processMonitor.captureFeedback(params)
 }
 
 export function flushObservability(

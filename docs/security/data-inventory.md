@@ -52,28 +52,30 @@
 
 ### 4. User-Authored Content
 
-| Field                   | Table                                  | Purpose                    | Retention             | Deletion                                         |
-| ----------------------- | -------------------------------------- | -------------------------- | --------------------- | ------------------------------------------------ |
-| Reply text              | `replies.text`                         | Published to Google        | Published or rejected | Property archive/purge                           |
-| Reply rejection reason  | `replies.rejectionReason`              | Audit                      | 90 days               | Hard delete                                      |
-| Inbox note text         | `inbox_notes.text`                     | Internal triage notes      | Property lifetime     | Property archive/purge                           |
-| Notification title/body | `notifications.title/body`             | In-app display             | 90 days               | Hard delete                                      |
-| Legacy feedback comment | `feedback.comment`                     | Read-only migration source | Property lifetime     | Property archive/purge                           |
-| Private feedback text   | `guest_response_private_feedback.body` | Manager feedback workflow  | 90 days maximum       | Immediate guest withdrawal or retention deletion |
-| Activity description    | `activity_log`                         | Audit trail                | 90 days               | Hard delete                                      |
+| Field                   | Table                                  | Purpose                    | Retention                                                             | Deletion                                         |
+| ----------------------- | -------------------------------------- | -------------------------- | --------------------------------------------------------------------- | ------------------------------------------------ |
+| Reply text              | `replies.text`                         | Published to Google        | Published or rejected                                                 | Property archive/purge                           |
+| Reply rejection reason  | `replies.rejectionReason`              | Audit                      | 90 days                                                               | Hard delete                                      |
+| Inbox note text         | `inbox_notes.text`                     | Internal triage notes      | Property lifetime                                                     | Property archive/purge                           |
+| Notification title/body | `notifications.title/body`             | In-app display             | 90 days                                                               | Hard delete                                      |
+| Legacy feedback comment | `feedback.comment`                     | Read-only migration source | Property lifetime                                                     | Property archive/purge                           |
+| Private feedback text   | `guest_response_private_feedback.body` | Manager feedback workflow  | 90 days maximum                                                       | Immediate guest withdrawal or retention deletion |
+| Activity description    | `activity_log`                         | Audit trail                | 90 days                                                               | Hard delete                                      |
+| Beta feedback report    | Sentry only (not PostgreSQL)           | Beta debugging/improvement | Pending approved Sentry retention configuration; blocks external beta | Provider/project retention deletion              |
 
 ### 5. Pseudonymous Identifiers
 
-| Field                         | Table                                          | Purpose                     | Hashing                    | Retention                                                                                   |
-| ----------------------------- | ---------------------------------------------- | --------------------------- | -------------------------- | ------------------------------------------------------------------------------------------- |
-| Guest IP hash                 | `scan_events.ip_hash`                          | Abuse prevention            | Daily rotating keyed hash  | 7 days (then redacted)                                                                      |
-| Guest session ID              | `scan_events.session_id`                       | Visit integrity             | Random UUID                | 24 hours (then redacted)                                                                    |
-| Rating IP hash                | `ratings.ip_hash`                              | Legacy dedup                | Daily rotating keyed hash  | 7 days (then redacted)                                                                      |
-| Rating session ID             | `ratings.session_id`                           | Legacy response integrity   | Random UUID                | 24 hours (then redacted)                                                                    |
-| Feedback IP hash              | `feedback.ip_hash`                             | Legacy abuse prevention     | Daily rotating keyed hash  | 7 days (then redacted)                                                                      |
-| Feedback session ID           | `feedback.session_id`                          | Legacy response integrity   | Random UUID                | 24 hours (then redacted)                                                                    |
-| Destination action session ID | `guest_destination_action_receipts.session_id` | First-action integrity      | Random signed-session UUID | Until signed-session expiry (max 24 hours; row deleted)                                     |
-| Guest Response session ID     | `guest_response_session_bindings.session_id`   | Response recovery/integrity | Random signed-session UUID | Re-signed only to the committed rating/feedback withdrawal deadline (24 hours; row deleted) |
+| Field                            | Table                                          | Purpose                                       | Hashing                        | Retention                                                                                   |
+| -------------------------------- | ---------------------------------------------- | --------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------- |
+| Guest IP hash                    | `scan_events.ip_hash`                          | Abuse prevention                              | Daily rotating keyed hash      | 7 days (then redacted)                                                                      |
+| Guest session ID                 | `scan_events.session_id`                       | Visit integrity                               | Random UUID                    | 24 hours (then redacted)                                                                    |
+| Rating IP hash                   | `ratings.ip_hash`                              | Legacy dedup                                  | Daily rotating keyed hash      | 7 days (then redacted)                                                                      |
+| Rating session ID                | `ratings.session_id`                           | Legacy response integrity                     | Random UUID                    | 24 hours (then redacted)                                                                    |
+| Feedback IP hash                 | `feedback.ip_hash`                             | Legacy abuse prevention                       | Daily rotating keyed hash      | 7 days (then redacted)                                                                      |
+| Feedback session ID              | `feedback.session_id`                          | Legacy response integrity                     | Random UUID                    | 24 hours (then redacted)                                                                    |
+| Destination action session ID    | `guest_destination_action_receipts.session_id` | First-action integrity                        | Random signed-session UUID     | Until signed-session expiry (max 24 hours; row deleted)                                     |
+| Guest Response session ID        | `guest_response_session_bindings.session_id`   | Response recovery/integrity                   | Random signed-session UUID     | Re-signed only to the committed rating/feedback withdrawal deadline (24 hours; row deleted) |
+| Beta feedback actor/Organization | Sentry feedback tags                           | Abuse control and private support correlation | Audience-separated HMAC-SHA256 | Same as the feedback event; exact retention approval remains a release gate                 |
 
 **Note:** Raw guest IP addresses are never stored. Guest hashing uses the rotating `GUEST_SESSION_SALT` derivation; the resulting abuse pseudonym is scrubbed independently so the managerial visit/rating/feedback fact remains. Audit log IP addresses (`audit_logs.ip_address`) store the derived client IP for security audit — these are operator-accessible only.
 
@@ -146,11 +148,23 @@ Guest browser → Signed session → Rating/Feedback → PostgreSQL (IP hashed)
 
 - Structured logs (Pino) redact: tokens, cookies, authorization headers, review text, reviewer names, emails, presigned URLs.
 - Traces (`src/shared/observability/trace.ts`) record operation name + duration only — no payload data.
-- Sentry error monitoring (active for beta): `beforeSend` hook must scrub review text, reviewer names, emails, tokens, and Google identifiers from event payloads before transmission. Initialization pending (BETA-3).
+- Sentry error monitoring (active for beta) uses a Germany-only DSN guard and
+  outbound allowlist scrubbers for error events, transactions, and breadcrumbs.
+- Native beta feedback sends only the manager-entered report, Bug/Suggestion
+  classification, controlled route template, broad viewport category, role,
+  release/cell/service tags, and audience-separated HMAC actor/Organization
+  pseudonyms. It sends no name/email, raw tenant/property/route identifiers,
+  cookies, request bodies, page content, screenshot, or replay. User-entered
+  text can still contain personal data despite automated redaction, so the UI
+  warns managers not to submit guest/review/contact/credential content and the
+  Sentry project remains restricted operator data.
 
 ## Gap remediation (pre-BETA-1)
 
 - [ ] Confirm Pino redaction patterns are active in production (currently configured, needs deployment verification)
 - [ ] Verify TTL purge job runs against restored backup (content_expires_at enforcement after PITR)
 - [x] Rate limiting on auth endpoints (login, registration) — shared Redis limiter, fails closed in production; raw `/sign-up/email` refused at the boundary
-- [ ] Initialize Sentry SDK with PII-scrubbing `beforeSend` hook (BETA-3)
+- [x] Initialize Sentry SDK with outbound allowlist scrubbers and a native
+      text-only feedback boundary (deployment uses a mandatory Germany DSN)
+- [ ] Approve and evidence the exact Sentry event/feedback retention setting,
+      operator access, inbound project scrubbers, and Germany project in the RC

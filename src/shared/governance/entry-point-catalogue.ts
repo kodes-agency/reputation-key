@@ -66,6 +66,7 @@ export type SystemAction =
   | 'system:identity.accept_invitation'
   | 'system:identity.create_organization'
   | 'system:identity.auth_api'
+  | 'system:identity.beta_feedback'
   // guest / public surface (dark — portal.read gated)
   | 'system:guest.portal_read'
   | 'system:guest.rating'
@@ -375,6 +376,20 @@ const AUTHED = 'src/routes/_authenticated'
 const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
   // ── identity ──────────────────────────────────────────────────────
   ...[
+    sf(
+      'submitBetaFeedbackFn',
+      `${IDENTITY}/beta-feedback.ts`,
+      'system:identity.beta_feedback',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        externalEffect: true,
+        purpose: 'beta_product_feedback',
+        notes:
+          'AccountAdmin/PropertyManager only; strict text-only contract; actor + organization rate limits; sends scrubbed report to Sentry',
+      },
+    ),
     sf(
       'inviteMember',
       `${IDENTITY}/organizations.members.ts`,

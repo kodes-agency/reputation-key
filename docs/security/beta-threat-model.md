@@ -14,20 +14,24 @@
 5. **Application → Google APIs** — OAuth tokens encrypted at rest (AES-256-GCM); scopes limited
 6. **Application → Resend (email)** — API key in env; email capability off by default
 7. **Application → AWS S3** — per-property object storage; upload capability off by default
+8. **Application → Sentry Germany** — mandatory production error monitoring and
+   manager-authored beta feedback; outbound payload allowlisted and scrubbed
 
 ## Assets
 
-| Asset                      | Sensitivity                     | Location                                    |
-| -------------------------- | ------------------------------- | ------------------------------------------- |
-| User email, name           | PII                             | `user` table                                |
-| Session tokens             | Secret                          | `session` table                             |
-| OAuth tokens (Google)      | Secret (encrypted)              | `account`, `google_connections` tables      |
-| Google refresh token       | Secret (encrypted)              | `google_connections` table                  |
-| Review text, reviewer name | Google-sourced PII (30-day TTL) | `reviews` table                             |
-| Reply text                 | User-authored content           | `replies` table                             |
-| Guest IP hash              | Pseudonymous identifier         | `scan_events`, `ratings`, `feedback` tables |
-| Audit log details          | Operational metadata            | `audit_logs` table                          |
-| Notification body          | Content                         | `notifications` table                       |
+| Asset                      | Sensitivity                      | Location                                    |
+| -------------------------- | -------------------------------- | ------------------------------------------- |
+| User email, name           | PII                              | `user` table                                |
+| Session tokens             | Secret                           | `session` table                             |
+| OAuth tokens (Google)      | Secret (encrypted)               | `account`, `google_connections` tables      |
+| Google refresh token       | Secret (encrypted)               | `google_connections` table                  |
+| Review text, reviewer name | Google-sourced PII (30-day TTL)  | `reviews` table                             |
+| Reply text                 | User-authored content            | `replies` table                             |
+| Guest IP hash              | Pseudonymous identifier          | `scan_events`, `ratings`, `feedback` tables |
+| Audit log details          | Operational metadata             | `audit_logs` table                          |
+| Notification body          | Content                          | `notifications` table                       |
+| Beta feedback text         | User-authored restricted content | Germany-hosted Sentry project               |
+| Beta feedback correlation  | Pseudonymous identifier          | HMAC-only Sentry tags / Redis abuse budgets |
 
 ## STRIDE analysis
 
@@ -59,23 +63,26 @@
 
 ### Information Disclosure
 
-| Threat                         | Mitigation                                                                 | Status           |
-| ------------------------------ | -------------------------------------------------------------------------- | ---------------- |
-| Error responses leak internals | `redactError()` strips stack traces, DB details, PII; tagged errors only   | ✅ Enforced      |
-| Logs contain secrets/PII       | Pino structured logging; redaction patterns for tokens, emails, cookies    | ✅ Module exists |
-| Review text in outbox events   | Identifier-only payloads per ADR 0030; content stripped by adapter         | ✅ Enforced      |
-| CSP bypass via injection       | Default-deny CSP; inline styles only (Vite requirement); no inline scripts | ✅ Enforced      |
-| Guest IP exposed               | Hashed before storage (`ip_hash` column); raw IP never persisted           | ✅ Enforced      |
-| Cross-tenant data in dashboard | Property-scoped queries; no org-level aggregation without authorization    | ✅ Enforced      |
+| Threat                                        | Mitigation                                                                                                                                                      | Status                          |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| Error responses leak internals                | `redactError()` strips stack traces, DB details, PII; tagged errors only                                                                                        | ✅ Enforced                     |
+| Logs contain secrets/PII                      | Pino structured logging; redaction patterns for tokens, emails, cookies                                                                                         | ✅ Module exists                |
+| Review text in outbox events                  | Identifier-only payloads per ADR 0030; content stripped by adapter                                                                                              | ✅ Enforced                     |
+| CSP bypass via injection                      | Default-deny CSP; inline styles only (Vite requirement); no inline scripts                                                                                      | ✅ Enforced                     |
+| Guest IP exposed                              | Hashed before storage (`ip_hash` column); raw IP never persisted                                                                                                | ✅ Enforced                     |
+| Cross-tenant data in dashboard                | Property-scoped queries; no org-level aggregation without authorization                                                                                         | ✅ Enforced                     |
+| Sensitive content sent through beta feedback  | Explicit privacy notice; strict text-only schema; feedback-specific allowlist scrubber; no account/contact fields, screenshot, replay, request, or page capture | ✅ Enforced for text-only slice |
+| Raw tenant/user identifiers exposed to Sentry | Audience-separated HMAC pseudonyms and controlled route templates only                                                                                          | ✅ Enforced                     |
 
 ### Denial of Service
 
-| Threat                             | Mitigation                                              | Status                 |
-| ---------------------------------- | ------------------------------------------------------- | ---------------------- |
-| Burst of reviews overwhelms sync   | BullMQ bounded concurrency; outbox SKIP LOCKED claiming | ✅ Enforced            |
-| Dashboard query timeout under load | Incremental rollup tables; dashboard cache with TTL     | ✅ Implemented         |
-| GBP rate limit (429)               | Retry with backoff; sync paused on rate limit           | ✅ Enforced            |
-| Large payload body                 | Body size limits at proxy layer                         | 🔄 Proxy config needed |
+| Threat                             | Mitigation                                                                               | Status                 |
+| ---------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------- |
+| Burst of reviews overwhelms sync   | BullMQ bounded concurrency; outbox SKIP LOCKED claiming                                  | ✅ Enforced            |
+| Dashboard query timeout under load | Incremental rollup tables; dashboard cache with TTL                                      | ✅ Implemented         |
+| GBP rate limit (429)               | Retry with backoff; sync paused on rate limit                                            | ✅ Enforced            |
+| Large payload body                 | Body size limits at proxy layer                                                          | 🔄 Proxy config needed |
+| Beta feedback submission flood     | Shared Redis actor-first 5/hour and Organization 20/day budgets; production fails closed | ✅ Enforced            |
 
 ### Elevation of Privilege
 
@@ -93,6 +100,12 @@
 2. **Body/time limits** — proxy-level request size limits not yet configured.
 3. **Auth endpoint abuse** — the shared Redis limiter guards sign-in, registration, invitation send/resend, guest submissions and the better-auth catch-all, and fails closed in production; Better Auth's native limiter also uses atomic Redis storage across replicas (`docs/operations/runbooks.md` §Security posture). Raw self-service sign-up is refused at the HTTP boundary (invite-only beta). Residual: no proxy-level rate limiting in front of the app.
 4. **Supply chain** — Dependabot configured but initial advisory scan returned 0 vulnerabilities; continuous monitoring needed.
+5. **Manager-entered feedback content** — a manager can disregard the notice and
+   type personal/customer content that pattern scrubbers cannot reliably
+   classify. Sentry access, inbound scrubbing, approved retention, synthetic
+   exfiltration tests, and the incident runbook remain release controls. Bug
+   screenshots/replay stay absent until the separate explicit-consent contract
+   is implemented and approved.
 
 ## OWASP ASVS 5.0 mapping
 

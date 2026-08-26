@@ -8,11 +8,20 @@ import {
 } from './telemetry'
 
 function sdk() {
+  const scope = {
+    clear: vi.fn(),
+    addEventProcessor: vi.fn(),
+  }
   return {
     init: vi.fn<ErrorMonitoringSdk['init']>(),
     isInitialized: vi.fn<ErrorMonitoringSdk['isInitialized']>(() => false),
     setTags: vi.fn<ErrorMonitoringSdk['setTags']>(),
     captureException: vi.fn<ErrorMonitoringSdk['captureException']>(),
+    captureFeedback: vi.fn<ErrorMonitoringSdk['captureFeedback']>(() => 'a'.repeat(32)),
+    withScope: vi.fn<ErrorMonitoringSdk['withScope']>((callback) => callback(scope)),
+    withIsolationScope: vi.fn<ErrorMonitoringSdk['withIsolationScope']>((callback) =>
+      callback(scope),
+    ),
     flush: vi.fn<ErrorMonitoringSdk['flush']>(async () => true),
   } satisfies ErrorMonitoringSdk
 }
@@ -181,6 +190,54 @@ describe('telemetry PII scrubbing (B3.5)', () => {
       }),
     ).toEqual({ type: 'http', category: 'fetch', level: 'error', timestamp: 123 })
   })
+
+  it('preserves only the intentional feedback message and controlled tags', () => {
+    const marker = 'private-review-marker'
+    const scrubbed = scrubSentryEvent({
+      type: 'feedback',
+      contexts: {
+        feedback: {
+          message: `Expected the page to load. Contact a@b.example. token=${marker}`,
+          source: 'repkey-native-beta-feedback',
+          contact_email: 'manager@example.com',
+          name: 'Manager Name',
+          replay_id: marker,
+          url: `/properties/${marker}`,
+        },
+        custom: { reviewText: marker },
+      },
+      tags: {
+        service: 'web',
+        feedback_type: 'bug',
+        feedback_impact: 'blocking',
+        feedback_route: 'properties.property.reviews',
+        feedback_actor: 'b'.repeat(64),
+        feedback_organization: 'c'.repeat(64),
+        tenant_name: marker,
+      },
+      user: { email: 'manager@example.com' },
+      extra: { reviewText: marker },
+    }) as Record<string, unknown>
+
+    expect(scrubbed).not.toHaveProperty('user')
+    expect(scrubbed).not.toHaveProperty('extra')
+    expect(scrubbed.contexts).toEqual({
+      feedback: {
+        message: 'Expected the page to load. Contact [REDACTED]. token=[REDACTED]',
+        source: 'repkey-native-beta-feedback',
+      },
+    })
+    expect(scrubbed.tags).toEqual({
+      service: 'web',
+      feedback_type: 'bug',
+      feedback_impact: 'blocking',
+      feedback_route: 'properties.property.reviews',
+      feedback_actor: 'b'.repeat(64),
+      feedback_organization: 'c'.repeat(64),
+    })
+    expect(JSON.stringify(scrubbed)).not.toContain(marker)
+    expect(JSON.stringify(scrubbed)).not.toContain('manager@example.com')
+  })
 })
 
 describe('error monitoring runtime', () => {
@@ -232,6 +289,68 @@ describe('error monitoring runtime', () => {
         { name: 'ContextLines' },
       ]),
     ).toEqual([{ name: 'Http' }])
+  })
+
+  it('captures native feedback only after monitoring is initialized', () => {
+    const sentry = sdk()
+    const monitor = createErrorMonitor({ sentry, logger: logger() })
+    const feedback = {
+      message: 'Bug report from manager@example.com with token=private',
+      source: 'repkey-native-beta-feedback',
+      tags: { feedback_type: 'bug', tenant_name: 'Private Tenant' },
+    } as const
+
+    expect(monitor.captureFeedback(feedback)).toBeUndefined()
+    monitor.initialize(baseConfig)
+    expect(monitor.captureFeedback(feedback)).toBe('a'.repeat(32))
+    expect(sentry.withIsolationScope).toHaveBeenCalledTimes(1)
+    expect(sentry.withScope).toHaveBeenCalledTimes(1)
+    const capturedScope = sentry.captureFeedback.mock.calls[0]?.[2]
+    expect(capturedScope).toBeDefined()
+    if (!capturedScope) throw new Error('expected feedback capture scope')
+    expect(capturedScope?.clear).toHaveBeenCalledTimes(2)
+    expect(capturedScope?.addEventProcessor).toHaveBeenCalledWith(scrubSentryEvent)
+    const processor = vi.mocked(capturedScope.addEventProcessor).mock.calls[0]?.[0]
+    expect(
+      processor?.({
+        type: 'feedback',
+        contexts: {
+          feedback: {
+            message: 'Useful report',
+            source: 'repkey-native-beta-feedback',
+          },
+        },
+        request: { headers: { cookie: 'private-session' } },
+        breadcrumbs: [{ message: 'private-review' }],
+        attachments: [{ filename: 'private.png' }],
+      }),
+    ).toEqual({
+      type: 'feedback',
+      contexts: {
+        feedback: {
+          message: 'Useful report',
+          source: 'repkey-native-beta-feedback',
+        },
+      },
+      tags: {},
+    })
+    expect(sentry.captureFeedback).toHaveBeenCalledWith(
+      {
+        message: 'Bug report from [REDACTED] with token=[REDACTED]',
+        source: 'repkey-native-beta-feedback',
+        tags: {
+          service: 'worker',
+          processing_cell: 'europe',
+          release_sha: 'a'.repeat(40),
+          feedback_type: 'bug',
+        },
+      },
+      {},
+      expect.objectContaining({
+        clear: expect.any(Function),
+        addEventProcessor: expect.any(Function),
+      }),
+    )
   })
 
   it('binds to a preload-initialized SDK without initializing it twice', () => {

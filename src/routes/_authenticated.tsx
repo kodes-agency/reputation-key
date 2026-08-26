@@ -29,6 +29,7 @@ import { AppTopBar } from '#/components/layout/app-top-bar'
 import { hasRole } from '#/shared/domain/roles'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
+import { submitBetaFeedbackFn } from '#/contexts/identity/server/beta-feedback'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -203,6 +204,9 @@ function AuthenticatedLayout() {
           user={ctx.user}
           organizationId={ctx.activeOrganization?.id ?? 'no-active-organization'}
           notificationFns={notificationFns}
+          submitBetaFeedback={
+            hasRole(ctx.role, 'PropertyManager') ? submitBetaFeedbackFn : undefined
+          }
         />
         <main
           className={`min-w-0 flex-1 ${
