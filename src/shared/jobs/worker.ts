@@ -112,6 +112,13 @@ export function createJobWorker<T>(
     },
   })
 
+  // EventEmitter's `error` event throws when it has no listener. BullMQ also
+  // re-emits dedicated and blocking Redis connection errors here, so this is
+  // the single structured, centrally redacted path for runtime queue faults.
+  worker.on('error', (err: Error) => {
+    logger.error({ component: 'bullmq-worker', queue: name, err }, 'BullMQ worker error')
+  })
+
   worker.on('completed', (job: Job<T>) => {
     logger.info({ queue: name, jobName: job.name }, 'job completed')
   })

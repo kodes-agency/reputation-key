@@ -16,6 +16,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { resetEnv } from '#/shared/config/env'
 
+const loggerError = vi.hoisted(() => vi.fn())
+
+vi.mock('#/shared/observability/logger', () => ({
+  getLogger: () => ({ error: loggerError }),
+}))
+
 vi.mock('ioredis', () => {
   class FakeRedis {
     static instances: FakeRedis[] = []
@@ -41,12 +47,18 @@ vi.mock('ioredis', () => {
 vi.mock('bullmq', () => {
   class FakeQueue {
     static instances: FakeQueue[] = []
+    listeners = new Map<string, (...args: unknown[]) => void>()
 
     constructor(
       public readonly name: string,
       public readonly opts: unknown,
     ) {
       FakeQueue.instances.push(this)
+    }
+
+    on(event: string, listener: (...args: unknown[]) => void) {
+      this.listeners.set(event, listener)
+      return this
     }
   }
   return { Queue: FakeQueue }
@@ -63,7 +75,11 @@ type FakeRedisInstance = Redis & {
   quit: ReturnType<typeof vi.fn>
   disconnect: ReturnType<typeof vi.fn>
 }
-type FakeQueueInstance = Queue & { name: string; opts: Record<string, unknown> }
+type FakeQueueInstance = Queue & {
+  name: string
+  opts: Record<string, unknown>
+  listeners: Map<string, (...args: unknown[]) => void>
+}
 
 function fakeConnections(): FakeRedisInstance[] {
   return (Redis as unknown as { instances: FakeRedisInstance[] }).instances
@@ -123,6 +139,26 @@ describe('createJobQueue', () => {
     expect(fakeConnections()).toHaveLength(1)
     expect(fakeConnections()[0].options).toEqual({ maxRetriesPerRequest: null })
     expect(fakeQueues()[0].opts.connection).toBe(fakeConnections()[0])
+  })
+
+  it('routes BullMQ error events through structured logging', () => {
+    process.env.REDIS_URL = 'redis://unit-test:6379'
+    resetEnv()
+
+    createJobQueue('background')
+    const error = Object.assign(new Error('connection string must not be logged'), {
+      code: 'ECONNRESET',
+    })
+    fakeQueues()[0].listeners.get('error')?.(error)
+
+    expect(loggerError).toHaveBeenCalledWith(
+      {
+        component: 'bullmq-queue',
+        queue: 'background',
+        err: error,
+      },
+      'BullMQ queue error',
+    )
   })
 })
 

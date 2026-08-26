@@ -13,6 +13,7 @@
 import { Queue } from 'bullmq'
 import { Redis } from 'ioredis'
 import { getEnv } from '#/shared/config/env'
+import { getLogger } from '#/shared/observability/logger'
 
 export type { Queue }
 
@@ -51,7 +52,7 @@ export function createJobQueue(name: string): Queue | undefined {
   })
   connectionStore().add(connection)
 
-  return new Queue(name, {
+  const queue = new Queue(name, {
     connection: connection as unknown as import('bullmq').ConnectionOptions,
     defaultJobOptions: {
       removeOnComplete: { count: 100 },
@@ -62,6 +63,13 @@ export function createJobQueue(name: string): Queue | undefined {
       backoff: { type: 'exponential', delay: 30_000 },
     },
   })
+  queue.on('error', (err) => {
+    getLogger().error(
+      { component: 'bullmq-queue', queue: name, err },
+      'BullMQ queue error',
+    )
+  })
+  return queue
 }
 
 /**
