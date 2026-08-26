@@ -100,11 +100,6 @@ function toOrganizationRecord(org: {
   logo?: string | null | undefined
   createdAt: Date
   contactEmail?: string | null | undefined
-  billingCompanyName?: string | null | undefined
-  billingAddress?: string | null | undefined
-  billingCity?: string | null | undefined
-  billingPostalCode?: string | null | undefined
-  billingCountry?: string | null | undefined
   responseSlaHours?: number | null | undefined
 }): OrganizationRecord {
   return {
@@ -114,11 +109,6 @@ function toOrganizationRecord(org: {
     logo: org.logo ?? null,
     createdAt: org.createdAt,
     contactEmail: org.contactEmail ?? null,
-    billingCompanyName: org.billingCompanyName ?? null,
-    billingAddress: org.billingAddress ?? null,
-    billingCity: org.billingCity ?? null,
-    billingPostalCode: org.billingPostalCode ?? null,
-    billingCountry: org.billingCountry ?? null,
     responseSlaHours: extractResponseSlaHours(org),
   }
 }

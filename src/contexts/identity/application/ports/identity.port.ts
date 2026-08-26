@@ -45,11 +45,6 @@ export type OrganizationRecord = Readonly<{
   logo: string | null
   createdAt: Date
   contactEmail: string | null
-  billingCompanyName: string | null
-  billingAddress: string | null
-  billingCity: string | null
-  billingPostalCode: string | null
-  billingCountry: string | null
   responseSlaHours: number
 }>
 

@@ -1,5 +1,5 @@
 // Identity context — OrganizationUpdatePatch builder
-// Deep module: maps the 9 optional organization-update fields to Better Auth
+// Deep module: maps the beta-supported organization-update fields to Better Auth
 // payload semantics. The use case (and future callers) no longer know which
 // fields are truthy-gated vs defined-gated vs always-present, or which ones
 // normalize null → undefined.
@@ -11,11 +11,6 @@
 //   slug               truthy         as-is
 //   logo               always         null → undefined
 //   contactEmail       defined        null → undefined
-//   billingCompanyName defined        null → undefined
-//   billingAddress     defined        null → undefined
-//   billingCity        defined        null → undefined
-//   billingPostalCode  defined        null → undefined
-//   billingCountry     defined        null → undefined
 //   responseSlaHours   defined        as-is
 
 export type UpdateOrganizationInput = Readonly<{
@@ -23,11 +18,6 @@ export type UpdateOrganizationInput = Readonly<{
   slug?: string
   logo?: string | null
   contactEmail?: string | null
-  billingCompanyName?: string | null
-  billingAddress?: string | null
-  billingCity?: string | null
-  billingPostalCode?: string | null
-  billingCountry?: string | null
   /** Response SLA in hours for unanswered-review alerts. Positive integer. */
   responseSlaHours?: number
 }>
@@ -45,11 +35,6 @@ const FIELD_SPECS: ReadonlyArray<FieldSpec> = [
   { field: 'slug', include: 'truthy', nullToUndefined: false },
   { field: 'logo', include: 'always', nullToUndefined: true },
   { field: 'contactEmail', include: 'defined', nullToUndefined: true },
-  { field: 'billingCompanyName', include: 'defined', nullToUndefined: true },
-  { field: 'billingAddress', include: 'defined', nullToUndefined: true },
-  { field: 'billingCity', include: 'defined', nullToUndefined: true },
-  { field: 'billingPostalCode', include: 'defined', nullToUndefined: true },
-  { field: 'billingCountry', include: 'defined', nullToUndefined: true },
   { field: 'responseSlaHours', include: 'defined', nullToUndefined: false },
 ]
 

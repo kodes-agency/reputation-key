@@ -153,7 +153,7 @@ identity/
 
 Identity context uses the following permissions from `shared/domain/permissions.ts`:
 
-- `organization.update` — Update organization settings (name, slug, billing info)
+- `organization.update` — Update beta organization settings (name, slug, contact, response target); dormant billing metadata is neither accepted nor returned
 - `member.update` — Change member roles
 - `member.delete` — Remove members from organization
 - `member.list` — List organization members

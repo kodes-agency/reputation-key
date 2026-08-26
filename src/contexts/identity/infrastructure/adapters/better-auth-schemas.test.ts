@@ -6,6 +6,7 @@ import {
   signUpResponseSchema,
   listMembersResponseSchema,
   betterAuthInvitationSchema,
+  betterAuthOrganizationSchema,
 } from './better-auth-schemas'
 
 describe('parseBetterAuthResponse', () => {
@@ -107,5 +108,35 @@ describe('parseBetterAuthResponse', () => {
     )
     expect(result.organization?.name).toBe('Test Org')
     expect(result.propertyIds).toBe('["prop-1"]')
+  })
+
+  it('strips dormant billing metadata from the organization read boundary', () => {
+    const result = parseBetterAuthResponse(
+      betterAuthOrganizationSchema,
+      {
+        id: 'org-1',
+        name: 'Test Org',
+        slug: 'test-org',
+        createdAt: new Date('2026-01-01'),
+        contactEmail: 'ops@example.test',
+        billingCompanyName: 'Dormant Ltd',
+        billingAddress: '100 Market Street',
+        billingCity: 'Sofia',
+        billingPostalCode: '1000',
+        billingCountry: 'BG',
+        responseSlaHours: 48,
+      },
+      'org_setup_failed',
+      'bad',
+    )
+
+    expect(result).toEqual({
+      id: 'org-1',
+      name: 'Test Org',
+      slug: 'test-org',
+      createdAt: new Date('2026-01-01'),
+      contactEmail: 'ops@example.test',
+      responseSlaHours: 48,
+    })
   })
 })

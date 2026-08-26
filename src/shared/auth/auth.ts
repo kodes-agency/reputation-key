@@ -210,7 +210,8 @@ export function createAuth() {
         // process.env here previously made an unset production variable mean
         // true above but false for invitation acceptance.
         requireEmailVerificationOnInvitation: env.EMAIL_VERIFICATION_REQUIRED,
-        // Custom fields on invitation (propertyIds) and organization (billing/SLA).
+        // Custom fields on invitation (propertyIds) and supported Organization
+        // settings (contact/response target).
         // Shared with auth-cli.ts via ./org-schema so the migration CLI manages
         // the same columns as the runtime (prevents drift).
         schema: organizationSchema,

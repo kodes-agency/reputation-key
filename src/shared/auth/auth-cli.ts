@@ -42,7 +42,8 @@ const auth = betterAuth({
     organization({
       ac,
       // MUST mirror auth.ts so auth:generate/auth:migrate manage the same
-      // additionalFields (propertyIds, org billing/SLA) as the runtime.
+      // additionalFields (propertyIds, Organization contact/response target)
+      // as the runtime.
       schema: organizationSchema,
       dynamicAccessControl: { enabled: true },
       invitationExpiresIn: INVITATION_EXPIRY_SECONDS,
