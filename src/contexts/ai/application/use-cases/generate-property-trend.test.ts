@@ -38,8 +38,36 @@ function aggregateDay(localDate: string, reviewCount: number): AiPropertyDailyAg
   }
 }
 
+function trendDay(localDate: string, positiveCount: number): AiPropertyDailyAggregate {
+  return {
+    localDate,
+    reviewCount: 20,
+    ratingSum: 80,
+    sentimentCounts: {
+      positive: positiveCount,
+      neutral: 20 - positiveCount,
+      negative: 0,
+      mixed: 0,
+    },
+    categoryCounts: {
+      service: 2,
+      staff: 18,
+      quality: 0,
+      value: 0,
+      cleanliness: 0,
+      wait_time: 0,
+      atmosphere: 0,
+      location: 0,
+      accessibility: 0,
+      other: 0,
+    },
+    attentionCounts: { urgent: 0, high: 0, medium: 0, low: 20 },
+  }
+}
+
 function createHarness(days: readonly AiPropertyDailyAggregate[]) {
   const recordProviderFreeOutcome = vi.fn(async () => 'recorded' as const)
+  const recordDeterministicReport = vi.fn(async () => 'recorded' as const)
   const readWindow = vi.fn(async () => ({
     head: {
       organizationId: ORGANIZATION_ID,
@@ -118,6 +146,7 @@ function createHarness(days: readonly AiPropertyDailyAggregate[]) {
     schedules: {
       read: vi.fn(async () => schedule),
       recordProviderFreeOutcome,
+      recordDeterministicReport,
     },
     aggregates: { readWindow },
     inference: { generateTrend },
@@ -129,6 +158,7 @@ function createHarness(days: readonly AiPropertyDailyAggregate[]) {
     generateTrend,
     readWindow,
     recordProviderFreeOutcome,
+    recordDeterministicReport,
   }
 }
 
@@ -168,6 +198,25 @@ describe('generate property trend', () => {
       scheduleId: SCHEDULE_ID,
       disposition: 'no_material_change',
     })
+    expect(harness.generateTrend).not.toHaveBeenCalled()
+  })
+
+  it('commits the deterministically ranked report without calling inference', async () => {
+    const harness = createHarness([trendDay('2024-02-01', 2), trendDay('2024-03-01', 8)])
+
+    await expect(harness.generate({ scheduleId: SCHEDULE_ID })).resolves.toEqual({
+      status: 'completed',
+    })
+    expect(harness.recordDeterministicReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scheduleId: SCHEDULE_ID,
+        selectedSignalIds: expect.arrayContaining(['sentiment.positive.up']),
+        report: expect.objectContaining({
+          signalKey: 'sentiment.neutral.down',
+          direction: 'improving',
+        }),
+      }),
+    )
     expect(harness.generateTrend).not.toHaveBeenCalled()
   })
 })

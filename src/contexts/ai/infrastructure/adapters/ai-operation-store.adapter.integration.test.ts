@@ -1911,7 +1911,7 @@ describe('AI operation store (real PostgreSQL)', () => {
     ])
   })
 
-  it('stores one immutable trend report only after provider completion', async () => {
+  it('stores immutable provider-bound and deterministic trend reports', async () => {
     await db
       .update(reviewAiAnalysisHeads)
       .set({ headSequence: 7, updatedAt: new Date(NOW) })
@@ -2100,6 +2100,98 @@ describe('AI operation store (real PostgreSQL)', () => {
       providerSelectionRecordedAt: null,
       expiresAt: null,
     })
+
+    const deterministicScheduleId = '71000000-0000-4000-8000-000000000024'
+    await db.insert(aiPropertyTrendSchedules).values({
+      id: deterministicScheduleId,
+      outboxEventId: '71000000-0000-4000-8000-000000000025',
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      dueLocalDate: '2026-08-17',
+      sourceEpoch: 2,
+      reviewAnalysisEpoch: 1,
+      propertyTrendsEpoch: 1,
+      propertyProfileVersion: 3,
+      terminalAnalysisSequence: 7,
+      aggregateRevision: 5,
+      timezone: 'America/New_York',
+      calendarProfileVersion: 'property-calendar-v1',
+      reportProfileVersion: 'property-trend-v1',
+      schedulerGeneration: 1,
+      scheduledAt: new Date(NOW),
+    })
+    const deterministicReport = {
+      signalKey: 'sentiment.positive.up',
+      direction: 'improving',
+      confidenceBasisPoints: 1_500,
+      supportingReviewCount: 24,
+      headline: 'Review signals improved',
+      sentences: ['Positive sentiment improved in the current period.'],
+      summary: 'Positive sentiment improved in the current period.',
+    } as const
+    await expect(
+      scheduleStore.recordDeterministicReport({
+        scheduleId: deterministicScheduleId,
+        selectedSignalIds: ['sentiment.positive.up'],
+        report: deterministicReport,
+      }),
+    ).resolves.toBe('recorded')
+    await expect(
+      scheduleStore.recordDeterministicReport({
+        scheduleId: deterministicScheduleId,
+        selectedSignalIds: ['sentiment.positive.up'],
+        report: deterministicReport,
+      }),
+    ).resolves.toBe('replayed')
+    await expect(
+      scheduleStore.recordDeterministicReport({
+        scheduleId: deterministicScheduleId,
+        selectedSignalIds: ['sentiment.positive.up'],
+        report: { ...deterministicReport, summary: 'A conflicting report.' },
+      }),
+    ).resolves.toBe('stale')
+    const [deterministicOutcome] = await db
+      .select({
+        disposition: aiPropertyTrendOutcomes.disposition,
+        operationId: aiPropertyTrendOutcomes.operationId,
+        providerSelectionRecordedAt: aiPropertyTrendOutcomes.providerSelectionRecordedAt,
+        expiresAt: aiPropertyTrendOutcomes.expiresAt,
+      })
+      .from(aiPropertyTrendOutcomes)
+      .where(eq(aiPropertyTrendOutcomes.scheduleId, deterministicScheduleId))
+      .limit(1)
+    expect(deterministicOutcome).toMatchObject({
+      disposition: 'ready',
+      operationId: null,
+      providerSelectionRecordedAt: null,
+      expiresAt: expect.any(Date),
+    })
+    await expect(
+      outputStore.readTrendReportForDelivery(
+        {
+          organizationId: report.organizationId,
+          actorUserId: userId('ai-operation-test-deterministic-trend-reader'),
+          propertyId: report.propertyId,
+          sourceEpoch: report.sourceEpoch,
+          reviewAnalysisEpoch: report.reviewAnalysisEpoch,
+          propertyTrendsEpoch: report.propertyTrendsEpoch,
+          propertyProfileVersion: report.propertyProfileVersion,
+          reportProfileVersion: report.reportProfileVersion,
+          nowEpochMillis: NOW + 2,
+        },
+        async (_lease, result) => result,
+      ),
+    ).resolves.toMatchObject({
+      status: 'ready',
+      dueLocalDate: '2026-08-17',
+      terminalAnalysisSequence: 7,
+      aggregateRevision: 5,
+      report: deterministicReport,
+    })
+    await db
+      .delete(aiPropertyTrendOutcomes)
+      .where(eq(aiPropertyTrendOutcomes.scheduleId, deterministicScheduleId))
+
     await db
       .delete(aiPropertyTrendOutcomes)
       .where(eq(aiPropertyTrendOutcomes.scheduleId, scheduleId))

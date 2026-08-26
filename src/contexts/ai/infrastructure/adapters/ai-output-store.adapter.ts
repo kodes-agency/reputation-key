@@ -1332,6 +1332,9 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
             summary: aiPropertyTrendOutcomes.summary,
             renderProfileVersion: aiPropertyTrendOutcomes.renderProfileVersion,
             renderProfileDigest: aiPropertyTrendOutcomes.renderProfileDigest,
+            operationId: aiPropertyTrendOutcomes.operationId,
+            providerSelectionRecordedAt:
+              aiPropertyTrendOutcomes.providerSelectionRecordedAt,
             generatedAt: aiPropertyTrendOutcomes.recordedAt,
             operationState: aiOperations.state,
             operationCommand: aiOperations.command,
@@ -1422,36 +1425,46 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
           })
         }
         const fence = capabilityFence(report?.operationCapabilityFences)
+        const deterministicBound =
+          report?.operationId === null && report.providerSelectionRecordedAt === null
+        const providerBound =
+          report !== undefined &&
+          report.operationId !== null &&
+          report.providerSelectionRecordedAt !== null &&
+          (report.operationState === 'succeeded' ||
+            report.operationState === 'succeeded_pending_delivery') &&
+          report.operationCommand === 'trend' &&
+          report.operationCapability === 'property_trends' &&
+          report.operationOrganizationId === input.organizationId &&
+          report.operationPropertyId === input.propertyId &&
+          report.operationSourceEpoch === input.sourceEpoch &&
+          report.operationDueLocalDate === report.dueLocalDate &&
+          report.operationTerminalAnalysisSequence === report.terminalAnalysisSequence &&
+          report.operationAggregateRevision === report.aggregateRevision &&
+          report.operationAuthorizationLineageId ===
+            authorization.authorizationLineageId &&
+          report.operationPropertyProfileVersion === input.propertyProfileVersion &&
+          report.operationProfileVersion === input.reportProfileVersion &&
+          report.operationCapabilityRuntimeProfileVersion ===
+            authorization.capabilityRuntimeProfileVersions.property_trends &&
+          report.operationNoticeVersion === authorization.noticeVersion &&
+          report.operationNoticeDigest === authorization.noticeDigest &&
+          report.operationSourcePolicyId === authorization.sourcePolicyId &&
+          report.operationRoutingPolicyVersion === authorization.routingPolicyVersion &&
+          report.operationRoutingPolicyVersion === profile.routingPolicyVersion &&
+          report.operationProviderDeploymentProfileVersion ===
+            authorization.providerDeploymentProfileVersion &&
+          report.operationProviderDeploymentProfileVersion ===
+            profile.providerDeploymentProfileVersion &&
+          report.operationRedactionProfileVersion ===
+            authorization.redactionProfileFamily &&
+          fence?.capability === 'property_trends' &&
+          fence.reviewAnalysisEpoch === input.reviewAnalysisEpoch &&
+          fence.propertyTrendsEpoch === input.propertyTrendsEpoch
         if (
           !report ||
           report.disposition !== 'ready' ||
-          (report.operationState !== 'succeeded' &&
-            report.operationState !== 'succeeded_pending_delivery') ||
-          report.operationCommand !== 'trend' ||
-          report.operationCapability !== 'property_trends' ||
-          report.operationOrganizationId !== input.organizationId ||
-          report.operationPropertyId !== input.propertyId ||
-          report.operationSourceEpoch !== input.sourceEpoch ||
-          report.operationDueLocalDate !== report.dueLocalDate ||
-          report.operationTerminalAnalysisSequence !== report.terminalAnalysisSequence ||
-          report.operationAggregateRevision !== report.aggregateRevision ||
-          report.operationAuthorizationLineageId !==
-            authorization.authorizationLineageId ||
-          report.operationPropertyProfileVersion !== input.propertyProfileVersion ||
-          report.operationProfileVersion !== input.reportProfileVersion ||
-          report.operationCapabilityRuntimeProfileVersion !==
-            authorization.capabilityRuntimeProfileVersions.property_trends ||
-          report.operationNoticeVersion !== authorization.noticeVersion ||
-          report.operationNoticeDigest !== authorization.noticeDigest ||
-          report.operationSourcePolicyId !== authorization.sourcePolicyId ||
-          report.operationRoutingPolicyVersion !== authorization.routingPolicyVersion ||
-          report.operationRoutingPolicyVersion !== profile.routingPolicyVersion ||
-          report.operationProviderDeploymentProfileVersion !==
-            authorization.providerDeploymentProfileVersion ||
-          report.operationProviderDeploymentProfileVersion !==
-            profile.providerDeploymentProfileVersion ||
-          report.operationRedactionProfileVersion !==
-            authorization.redactionProfileFamily ||
+          (!deterministicBound && !providerBound) ||
           report.renderProfileVersion !== AI_TREND_RENDER_PROFILE_VERSION ||
           report.renderProfileDigest !== AI_TREND_RENDER_PROFILE_DIGEST ||
           report.signalKey === null ||
@@ -1460,10 +1473,7 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
           report.supportingReviewCount === null ||
           report.headline === null ||
           !Array.isArray(report.sentences) ||
-          report.summary === null ||
-          fence?.capability !== 'property_trends' ||
-          fence.reviewAnalysisEpoch !== input.reviewAnalysisEpoch ||
-          fence.propertyTrendsEpoch !== input.propertyTrendsEpoch
+          report.summary === null
         ) {
           return deliverCurrent(preparing())
         }

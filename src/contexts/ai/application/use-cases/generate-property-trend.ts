@@ -1,43 +1,22 @@
-import {
-  AI_OPERATION_PROFILES,
-  AI_PROVIDER_DEPLOYMENT_PROFILE,
-  AI_SOURCE_CANONICALIZER_PROFILE_V1,
-} from '#/shared/ai-operation-profiles'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import {
   computeDeterministicTrendCandidates,
-  encodeCanonicalAiPropertyTrendSource,
   renderPropertyTrendReport,
-  validateTrendSelection,
-  type AiPropertyTrendSource,
   type DeterministicAggregateWindow,
-  type ClosedTrendSignalId,
   type DeterministicTrendCandidate,
 } from '#/shared/ai-property-trend-contract'
 import { addDays } from '../local-date'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
-import type { AiControlPort } from '../ports/ai-control.port'
-import type { AiInferencePort } from '../ports/ai-inference.port'
-import type { AiOperationStorePort } from '../ports/ai-operation-store.port'
-import type { AiOutputStorePort } from '../ports/ai-output-store.port'
 import type {
   AiPropertyAggregateStorePort,
   AiPropertyDailyAggregate,
 } from '../ports/ai-property-aggregate-store.port'
 import type { AiPropertyTrendScheduleStorePort } from '../ports/ai-property-trend-schedule-store.port'
-import type { AiQuotaPort } from '../ports/ai-quota.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
-import type { AiExecutionBinding, AiOperationIdentity } from '../../domain/types'
-import {
-  aiRequestFingerprint,
-  aiRetryAt,
-  aiReviewSourceProvenance,
-  resolveAiExecutionStopFence,
-} from '../ai-workflow-support'
 
 const PROFILE = AI_OPERATION_PROFILES.find(
   (candidate) => candidate.profileVersion === 'property-trend-v1',
 )!
-const REPORT_RETENTION_MILLIS = 730 * 24 * 60 * 60 * 1_000
 
 export type GeneratePropertyTrendInput = Readonly<{
   scheduleId: string
@@ -49,15 +28,9 @@ export type GeneratePropertyTrendResult =
 
 export type GeneratePropertyTrendDependencies = Readonly<{
   authorization: AiAuthorizationPort
-  control: AiControlPort
-  inference: AiInferencePort
-  operations: AiOperationStorePort
-  outputs: AiOutputStorePort
   aggregates: AiPropertyAggregateStorePort
   schedules: AiPropertyTrendScheduleStorePort
-  quota: AiQuotaPort
   processingProfiles: PropertyProcessingProfilePort
-  nowEpochMillis: () => number
 }>
 
 function addCounts<T extends Readonly<Record<string, number>>>(
@@ -170,8 +143,6 @@ export function createGeneratePropertyTrend(
       return { status: 'stale' }
     }
 
-    const nowEpochMillis = dependencies.nowEpochMillis()
-    const profile = runtime.profile
     const dueLocalDate = schedule.dueLocalDate
     const startLocalDate = addDays(dueLocalDate, -60)
     const endLocalDate = addDays(dueLocalDate, -1)
@@ -216,223 +187,25 @@ export function createGeneratePropertyTrend(
     if (candidates.length === 0) {
       return recordProviderFreeOutcome('no_material_change')
     }
-    const source = Object.freeze({
-      languageCode: 'en',
-      currentWindow,
-      baselineWindow,
-      candidates,
-    }) satisfies AiPropertyTrendSource
-    const canonicalSource = encodeCanonicalAiPropertyTrendSource(source)
-    const sourceProvenance = aiReviewSourceProvenance(canonicalSource)
-    canonicalSource.fill(0)
-    const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
-      providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
-      capability: 'property_trends',
-    })
-    if (stopFence === null) return { status: 'stale' }
-    const propertyTrendsEpoch = schedule.propertyTrendsEpoch
-    const reviewAnalysisEpoch = schedule.reviewAnalysisEpoch
-    const identity: AiOperationIdentity = {
-      subjectKind: 'property',
-      command: 'trend',
-      capability: 'property_trends',
-      organizationId: schedule.organizationId,
-      propertyId: schedule.propertyId,
-      actorId: null,
-      systemPrincipal: 'property_trend_coordinator',
-      sourceEpoch: schedule.sourceEpoch,
-      dueLocalDate,
-      terminalAnalysisSequence: schedule.terminalAnalysisSequence,
-      aggregateRevision: schedule.aggregateRevision,
-    }
-    const binding: AiExecutionBinding = {
-      authorizationLineageId: authorization.authorizationLineageId,
-      noticeVersion: authorization.noticeVersion,
-      noticeDigest: authorization.noticeDigest,
-      capabilityFence: {
-        capability: 'property_trends',
-        reviewAnalysisEpoch,
-        propertyTrendsEpoch,
-      },
-      sourceEpoch: schedule.sourceEpoch,
-      evaluatedLanguage: null,
-      concreteReplyLanguage: null,
-      languageCatalogueDigest: null,
-      replyLanguageVerifierDigest: null,
-      languageScriptConsistencyDigest: null,
-      zhOrthographyVerifierDigest: null,
-      sourceRevision: null,
-      reviewedAtEpochMillis: null,
-      propertyProfileVersion: schedule.propertyProfileVersion,
-      routingPolicyVersion: profile.routingPolicyVersion,
-      sourcePolicyId: AI_SOURCE_CANONICALIZER_PROFILE_V1.sourcePolicyId,
-      sourceCanonicalizerDigest:
-        AI_SOURCE_CANONICALIZER_PROFILE_V1.sourceCanonicalizerDigest,
-      redactionProfileVersion: authorization.redactionProfileFamily,
-      outputLeakageProfileVersion: null,
-      outputLeakageProfileDigest: null,
-      replyTemplateCatalogueVersion: null,
-      replyTemplateCatalogueDigest: null,
-      providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
-      operationProfileVersion: PROFILE.profileVersion,
-      capabilityRuntimeProfileVersion: PROFILE.capabilityRuntimeProfileVersion!,
-      aiSubjectHmacKeyVersion: null,
-      stopFence,
-    }
-    const requestFingerprint = aiRequestFingerprint({
+    const selectedSignalIds = Object.freeze(
+      candidates.slice(0, 4).map((candidate) => candidate.id),
+    )
+    const rendered = renderPropertyTrendReport({ selectedSignalIds, candidates })
+    const first = candidates[0]!
+    const recorded = await dependencies.schedules.recordDeterministicReport({
       scheduleId: schedule.id,
-      identity,
-      binding,
-      currentWindow,
-      baselineWindow,
-      candidates,
+      selectedSignalIds,
+      report: {
+        signalKey: first.id,
+        direction: rendered.direction,
+        confidenceBasisPoints: leadingSignalDeltaBasisPoints(first),
+        supportingReviewCount: first.currentDenominator,
+        headline: rendered.headline,
+        sentences: rendered.sentences,
+        summary: rendered.summary,
+      },
     })
-    const claimed = await dependencies.operations.claim({
-      identity,
-      binding,
-      idempotencyKey: `trend:${schedule.id}`,
-      requestFingerprint,
-      sourceProvenance,
-      nowEpochMillis,
-      expiresAtEpochMillis: nowEpochMillis + 24 * 60 * 60 * 1_000,
-    })
-    if (claimed.status === 'conflict') return { status: 'stale' }
-    if (
-      claimed.operation.state === 'succeeded' ||
-      claimed.operation.state === 'succeeded_pending_delivery'
-    ) {
-      return { status: 'replayed' }
-    }
-    const expectedAttempt = claimed.operation.executionAttempt + 1
-    if (expectedAttempt > 4) return { status: 'stale' }
-    const quota = await dependencies.quota.acquire({
-      propertyId: schedule.propertyId,
-      capability: 'property_trends',
-      nowEpochMillis,
-    })
-    if (!quota.ok) {
-      return {
-        status: 'retry',
-        retryAtEpochMillis: nowEpochMillis + 5_000,
-        code: quota.code,
-      }
-    }
-    try {
-      const execution = await dependencies.operations.claimExecution({
-        operationId: claimed.operation.id,
-        expectedAttempt,
-        nowEpochMillis,
-      })
-      if (execution === null || execution.executionPermitId === null) {
-        return {
-          status: 'retry',
-          retryAtEpochMillis: nowEpochMillis + 1_000,
-          code: 'operation_in_progress',
-        }
-      }
-      const response = await dependencies.inference.generateTrend(
-        {
-          route: 'property-trend',
-          operationId: execution.id,
-          permitId: execution.executionPermitId,
-          attemptNumber: expectedAttempt,
-          organizationId: schedule.organizationId,
-          propertyId: schedule.propertyId,
-          internalSubjectId: schedule.propertyId,
-          actorId: null,
-          binding,
-          deadlineEpochMillis: nowEpochMillis + PROFILE.requestDeadlineMs,
-          source,
-        },
-        AbortSignal.timeout(PROFILE.requestDeadlineMs),
-      )
-      if (response.status === 'error') {
-        // ONE clock read for both instants. Anchoring the backoff to the pre-call
-        // `nowEpochMillis` while stamping the failure with a fresh read puts the
-        // retry BEFORE the write whenever the provider call outlasts the backoff,
-        // and ai_operations_attempt_valid enforces `next_attempt_at >= updated_at`,
-        // so the retry write itself threw and the whole request 500'd. aiRetryAt
-        // adds at least 1s, so any call slower than that inverted them.
-        const failedAtEpochMillis = dependencies.nowEpochMillis()
-        const retryAtEpochMillis = aiRetryAt(
-          expectedAttempt,
-          failedAtEpochMillis,
-          response.retryAfterEpochMillis,
-        )
-        await dependencies.operations.recordFailure({
-          operationId: execution.id,
-          expectedAttempt,
-          failureCode: response.code,
-          retryAtEpochMillis,
-          failedAtEpochMillis,
-        })
-        return retryAtEpochMillis === null
-          ? { status: 'stale' }
-          : { status: 'retry', retryAtEpochMillis, code: response.code }
-      }
-      if (
-        response.result.selectedSignalIds.some(
-          (id) => !candidates.some((candidate) => candidate.id === id),
-        )
-      ) {
-        throw new TypeError('AI trend response selected an unknown signal')
-      }
-      const selectedSignalIds = validateTrendSelection({
-        selectedSignalIds: response.result
-          .selectedSignalIds as readonly ClosedTrendSignalId[],
-        candidates,
-      })
-      const rendered = renderPropertyTrendReport({
-        selectedSignalIds,
-        candidates,
-      })
-      const first = candidates.find((candidate) => candidate.id === selectedSignalIds[0])!
-      const completedAtEpochMillis = response.settlementReceipt.settledAtEpochMillis
-      const stored = await dependencies.outputs.storeTrendReport({
-        scheduleId: schedule.id,
-        operationId: execution.id,
-        providerCompletion: {
-          expectedAttempt,
-          modelSnapshot: AI_PROVIDER_DEPLOYMENT_PROFILE.modelSnapshot,
-          inputTokens: response.settlementReceipt.inputTokens,
-          outputTokens: response.settlementReceipt.outputTokens,
-          completedAtEpochMillis,
-        },
-        organizationId: schedule.organizationId,
-        propertyId: schedule.propertyId,
-        sourceEpoch: schedule.sourceEpoch,
-        reviewAnalysisEpoch,
-        propertyTrendsEpoch,
-        propertyProfileVersion: schedule.propertyProfileVersion,
-        dueLocalDate,
-        terminalAnalysisSequence: schedule.terminalAnalysisSequence,
-        aggregateRevision: schedule.aggregateRevision,
-        reportProfileVersion: schedule.reportProfileVersion,
-        selectedSignalIds,
-        report: {
-          signalKey: first.id,
-          // Dominant polarity from the render profile — a material mixed report
-          // is never reported as 'stable'.
-          direction: rendered.direction,
-          // Change magnitude, not a confidence (column name is historical).
-          confidenceBasisPoints: leadingSignalDeltaBasisPoints(first),
-          supportingReviewCount: first.currentDenominator,
-          headline: rendered.headline,
-          sentences: rendered.sentences,
-          summary: rendered.summary,
-        },
-        generatedAtEpochMillis: completedAtEpochMillis,
-        expiresAtEpochMillis: completedAtEpochMillis + REPORT_RETENTION_MILLIS,
-      })
-      if (!stored) return { status: 'stale' }
-      await dependencies.operations.markDelivered({
-        operationId: execution.id,
-        expectedAttempt,
-        deliveredAtEpochMillis: dependencies.nowEpochMillis(),
-      })
-      return { status: 'completed' }
-    } finally {
-      await dependencies.quota.release({ quotaId: quota.quotaId })
-    }
+    if (recorded === 'stale') return { status: 'stale' }
+    return { status: recorded === 'replayed' ? 'replayed' : 'completed' }
   }
 }

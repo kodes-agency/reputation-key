@@ -1,4 +1,5 @@
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import type { AiTrendReport } from './ai-output-store.port'
 
 export type AiPropertyTrendSchedule = Readonly<{
   id: string
@@ -36,6 +37,15 @@ export type AiPropertyTrendScheduleStorePort = Readonly<{
     input: Readonly<{
       scheduleId: string
       disposition: 'insufficient_data' | 'no_material_change'
+    }>,
+  ): Promise<'recorded' | 'replayed' | 'stale'>
+
+  recordDeterministicReport(
+    input: Readonly<{
+      scheduleId: string
+      selectedSignalIds: readonly string[]
+      report: AiTrendReport &
+        Required<Pick<AiTrendReport, 'headline' | 'sentences' | 'summary'>>
     }>,
   ): Promise<'recorded' | 'replayed' | 'stale'>
 }>

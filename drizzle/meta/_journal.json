@@ -750,6 +750,13 @@
       "when": 1788364800000,
       "tag": "0106_identity_invitation_fact_expand",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1788451200000,
+      "tag": "0107_ai_deterministic_property_trends",
+      "breakpoints": true
     }
   ]
 }

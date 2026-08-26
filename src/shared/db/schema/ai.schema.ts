@@ -1850,7 +1850,7 @@ export const aiPropertyTrendOutcomes = pgTable(
       'ai_property_trend_outcomes_valid',
       sql`(
         ${t.disposition} = 'ready'
-        AND ${t.operationId} IS NOT NULL
+        AND (${t.operationId} IS NOT NULL OR ${t.providerSelectionRecordedAt} IS NULL)
         AND jsonb_typeof(${t.selectedSignalIds}) = 'array'
         AND jsonb_array_length(${t.selectedSignalIds}) BETWEEN 1 AND 4
         AND ${t.signalKey} ~ '^[a-z][a-z0-9_.]{2,63}$'
@@ -1863,8 +1863,12 @@ export const aiPropertyTrendOutcomes = pgTable(
         AND length(${t.summary}) BETWEEN 1 AND 1000
         AND ${t.renderProfileVersion} = 'trend-render-v1'
         AND ${t.renderProfileDigest} ~ '^[0-9a-f]{64}$'
-        AND ${t.providerSelectionRecordedAt} IS NOT NULL
-        AND ${t.recordedAt} = ${t.providerSelectionRecordedAt}
+        AND (
+          (${t.operationId} IS NOT NULL
+            AND ${t.providerSelectionRecordedAt} IS NOT NULL
+            AND ${t.recordedAt} = ${t.providerSelectionRecordedAt})
+          OR (${t.operationId} IS NULL AND ${t.providerSelectionRecordedAt} IS NULL)
+        )
         AND ${t.expiresAt} > ${t.recordedAt}
       ) OR (
         ${t.disposition} IN ('insufficient_data', 'no_material_change')

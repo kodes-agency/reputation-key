@@ -8,6 +8,10 @@ import {
 } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { insertOutboxRow } from '#/shared/outbox/commit'
+import {
+  AI_TREND_RENDER_PROFILE_DIGEST,
+  AI_TREND_RENDER_PROFILE_VERSION,
+} from '#/shared/ai-property-trend-contract'
 import type {
   AiPropertyTrendSchedule,
   AiPropertyTrendScheduleStorePort,
@@ -17,6 +21,7 @@ import { aiPropertyTrendGenerationRequested } from '../../domain/events'
 const SCHEDULER_KEY = 'property-trend-v1'
 const BATCH_SIZE = 100
 const LEASE_MILLISECONDS = 60_000
+const REPORT_RETENTION_MILLISECONDS = 730 * 24 * 60 * 60 * 1_000
 
 type CandidateRow = Readonly<{
   organizationId: string
@@ -386,6 +391,123 @@ export function createAiPropertyTrendScheduleStore(
           .where(eq(aiPropertyTrendOutcomes.scheduleId, scheduleId))
           .limit(1)
         return replay[0]?.disposition === disposition ? 'replayed' : 'stale'
+      }),
+
+    recordDeterministicReport: async ({ scheduleId, selectedSignalIds, report }) =>
+      db.transaction(async (tx) => {
+        const [existing] = await tx
+          .select({
+            disposition: aiPropertyTrendOutcomes.disposition,
+            selectedSignalIds: aiPropertyTrendOutcomes.selectedSignalIds,
+            signalKey: aiPropertyTrendOutcomes.signalKey,
+            direction: aiPropertyTrendOutcomes.direction,
+            confidenceBasisPoints: aiPropertyTrendOutcomes.confidenceBasisPoints,
+            supportingReviewCount: aiPropertyTrendOutcomes.supportingReviewCount,
+            headline: aiPropertyTrendOutcomes.headline,
+            sentences: aiPropertyTrendOutcomes.sentences,
+            summary: aiPropertyTrendOutcomes.summary,
+          })
+          .from(aiPropertyTrendOutcomes)
+          .where(eq(aiPropertyTrendOutcomes.scheduleId, scheduleId))
+          .limit(1)
+        if (existing !== undefined) {
+          const replayed =
+            existing.disposition === 'ready' &&
+            JSON.stringify(existing.selectedSignalIds) ===
+              JSON.stringify(selectedSignalIds) &&
+            existing.signalKey === report.signalKey &&
+            existing.direction === report.direction &&
+            existing.confidenceBasisPoints === report.confidenceBasisPoints &&
+            existing.supportingReviewCount === report.supportingReviewCount &&
+            existing.headline === report.headline &&
+            JSON.stringify(existing.sentences) === JSON.stringify(report.sentences) &&
+            existing.summary === report.summary
+          return replayed ? 'replayed' : 'stale'
+        }
+
+        const current = await tx.execute<{
+          organizationId: string
+          propertyId: string
+        }>(sql`
+          SELECT schedule."organization_id" AS "organizationId",
+                 schedule."property_id"::text AS "propertyId"
+          FROM "ai_property_trend_schedules" AS schedule
+          INNER JOIN "properties" AS property
+            ON property."organization_id" = schedule."organization_id"
+           AND property."id" = schedule."property_id"
+          INNER JOIN "merchant_ai_enablement" AS auth
+            ON auth."organization_id" = schedule."organization_id"
+           AND auth."property_id" = schedule."property_id"
+          INNER JOIN "ai_property_processing_profiles" AS profile
+            ON profile."organization_id" = schedule."organization_id"
+           AND profile."property_id" = schedule."property_id"
+          INNER JOIN "review_ai_analysis_heads" AS review_head
+            ON review_head."organization_id" = schedule."organization_id"
+           AND review_head."property_id" = schedule."property_id"
+           AND review_head."source_epoch" = schedule."source_epoch"
+          INNER JOIN "ai_review_event_cursors" AS cursor
+            ON cursor."organization_id" = schedule."organization_id"
+           AND cursor."property_id" = schedule."property_id"
+           AND cursor."source_epoch" = schedule."source_epoch"
+           AND cursor."review_analysis_epoch" = schedule."review_analysis_epoch"
+          INNER JOIN "ai_property_aggregate_heads" AS aggregate
+            ON aggregate."organization_id" = schedule."organization_id"
+           AND aggregate."property_id" = schedule."property_id"
+           AND aggregate."source_epoch" = schedule."source_epoch"
+           AND aggregate."review_analysis_epoch" = schedule."review_analysis_epoch"
+           AND aggregate."property_profile_version" = schedule."property_profile_version"
+          WHERE schedule."id" = ${scheduleId}::uuid
+            AND property."deleted_at" IS NULL
+            AND property."lifecycle_state" = 'active'
+            AND auth."state" = 'enabled'
+            AND 'property_trends' = ANY(auth."capabilities")
+            AND auth."capability_runtime_profile_versions"->>'property_trends' = 'property-trends-runtime-v1'
+            AND auth."authorized_source_epoch" = schedule."source_epoch"
+            AND auth."review_analysis_epoch" = schedule."review_analysis_epoch"
+            AND auth."property_trends_epoch" = schedule."property_trends_epoch"
+            AND profile."lifecycle_state" = 'active'
+            AND profile."source_epoch" = schedule."source_epoch"
+            AND profile."profile_version" = schedule."property_profile_version"
+            AND profile."timezone" = schedule."timezone"
+            AND review_head."head_sequence" = schedule."terminal_analysis_sequence"
+            AND cursor."consumed_sequence" = schedule."terminal_analysis_sequence"
+            AND cursor."terminal_analysis_sequence" = schedule."terminal_analysis_sequence"
+            AND cursor."aggregate_revision" = schedule."aggregate_revision"
+            AND aggregate."terminal_analysis_sequence" = schedule."terminal_analysis_sequence"
+            AND aggregate."aggregate_revision" = schedule."aggregate_revision"
+          FOR SHARE OF property, auth, profile, review_head, cursor, aggregate
+        `)
+        const binding = current.rows[0]
+        if (binding === undefined) return 'stale'
+
+        const nowRows = await tx.execute<{ now: Date | string }>(sql`
+          SELECT transaction_timestamp() AS "now"
+        `)
+        const recordedAt = dateFromDatabase(nowRows.rows[0]!.now)
+        const inserted = await tx
+          .insert(aiPropertyTrendOutcomes)
+          .values({
+            scheduleId,
+            organizationId: binding.organizationId,
+            propertyId: binding.propertyId,
+            disposition: 'ready',
+            selectedSignalIds: [...selectedSignalIds],
+            signalKey: report.signalKey,
+            direction: report.direction,
+            confidenceBasisPoints: report.confidenceBasisPoints,
+            supportingReviewCount: report.supportingReviewCount,
+            headline: report.headline,
+            sentences: [...report.sentences],
+            summary: report.summary,
+            renderProfileVersion: AI_TREND_RENDER_PROFILE_VERSION,
+            renderProfileDigest: AI_TREND_RENDER_PROFILE_DIGEST,
+            recordedAt,
+            expiresAt: new Date(recordedAt.getTime() + REPORT_RETENTION_MILLISECONDS),
+          })
+          .onConflictDoNothing()
+          .returning({ disposition: aiPropertyTrendOutcomes.disposition })
+        if (inserted[0] !== undefined) return 'recorded'
+        return 'stale'
       }),
   }
 }

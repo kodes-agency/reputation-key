@@ -15,6 +15,7 @@ function createHarness(outcome: SchedulePropertyTrendsResult | Error) {
       scheduleDueBatch,
       read: vi.fn(async () => null),
       recordProviderFreeOutcome: vi.fn(async () => 'stale' as const),
+      recordDeterministicReport: vi.fn(async () => 'stale' as const),
     },
   })
   return { schedulePropertyTrends, scheduleDueBatch }
