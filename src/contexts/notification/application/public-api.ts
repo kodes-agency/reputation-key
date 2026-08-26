@@ -49,15 +49,16 @@ export {
 } from '../domain/notification-templates'
 
 // ── Category surfaces ─────────────────────────────────────────────────
-// `NOTIFICATION_CATEGORIES` = all five, for the settings page (ADR 0046 keeps
-// `mandatory` reserved for account/security/legal).
-// `GOVERNING_NOTIFICATION_CATEGORIES` = only those governing >= 1 type, derived
-// not hand-listed. Filters MUST use this one: a `mandatory` filter can only
-// ever return an empty list today.
+// `NOTIFICATION_CATEGORIES` is the complete retained persistence vocabulary.
+// `NOTIFICATION_SETTINGS_CATEGORIES` excludes post-core controls while keeping
+// mandatory account/safety policy visible. `GOVERNING_NOTIFICATION_CATEGORIES`
+// is its non-empty filter subset. Historical rows from excluded categories
+// remain visible through All/Unread and map through the complete vocabulary.
 export {
   classifyNotification,
   GOVERNING_NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORIES,
+  NOTIFICATION_SETTINGS_CATEGORIES,
 } from '../domain/notification-delivery-policy'
 
 // ── Constructor re-exports ────────────────────────────────────────────

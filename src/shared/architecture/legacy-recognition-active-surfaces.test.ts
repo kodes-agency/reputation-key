@@ -3,6 +3,7 @@ import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const ROOT = process.cwd()
+const SRC = join(ROOT, 'src')
 const ROUTES = join(ROOT, 'src', 'routes')
 const COMPONENTS = join(ROOT, 'src', 'components')
 const SETTINGS_BARREL = join(
@@ -132,5 +133,23 @@ describe('legacy recognition stays out of active beta surfaces', () => {
       importers: [],
       retainedModules: [],
     })
+  })
+
+  it('keeps dark Badge award producers disconnected from beta entry points', () => {
+    const producerMarkers = [
+      'registerBadgeEventHandlers',
+      'evaluateBadgeForTarget',
+      'reconcileBadgeDefinitions',
+    ]
+    const externalEntrypoints = sourceFiles(SRC)
+      .filter((path) => !path.startsWith(join(SRC, 'contexts', 'badge')))
+      .flatMap((path) => {
+        const body = readFileSync(path, 'utf8')
+        return producerMarkers
+          .filter((marker) => body.includes(marker))
+          .map((marker) => `${relative(ROOT, path)}: ${marker}`)
+      })
+
+    expect(externalEntrypoints).toEqual([])
   })
 })

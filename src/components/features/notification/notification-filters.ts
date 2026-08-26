@@ -1,10 +1,10 @@
 // Feed filtering + grouping. Pure functions over rows the server already sent.
 //
 // The category tabs are derived from GOVERNING_NOTIFICATION_CATEGORIES, not
-// hardcoded: `mandatory` governs zero notification types today, so a
-// "mandatory" tab could only ever render an empty list — while the SETTINGS
-// page still has to show that category (ADR 0046 reserves it for
-// account/security/legal). One list per question, both from the domain.
+// hardcoded. Retained post-core categories remain visible through All/Unread
+// without advertising a dedicated beta control; `mandatory` governs zero
+// types today, so its tab could only ever render an empty list. One list per
+// question, both from the domain.
 
 import {
   GOVERNING_NOTIFICATION_CATEGORIES,

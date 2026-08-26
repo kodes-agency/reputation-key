@@ -128,11 +128,17 @@ export const notificationFixtures: ReadonlyArray<Notification> = [
   }),
   makeNotification({
     id: '10000000-0000-4000-8000-000000000005',
+    // Retained compatibility row: the Badge program is beta-dark, but an
+    // already-persisted notification must remain readable in history.
     type: 'badge.awarded',
     status: 'read',
     resourceType: 'badge',
     propertyId: HARBOUR,
-    payload: { badgeName: 'Response Champ', recipientName: 'You' },
+    payload: {
+      propertyName: 'Harbour View Suites',
+      badgeName: 'Response Champ',
+      recipientName: 'You',
+    },
     createdAt: new Date(Date.now() - 30 * HOUR),
   }),
 ]

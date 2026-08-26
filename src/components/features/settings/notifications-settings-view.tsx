@@ -17,7 +17,7 @@ import {
   SelectValue,
 } from '#/components/ui/select'
 import {
-  NOTIFICATION_CATEGORIES,
+  NOTIFICATION_SETTINGS_CATEGORIES,
   type NotificationCategory,
   type NotificationChannel,
   type NotificationPreference,
@@ -160,7 +160,7 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
               are unavailable. In-app notifications are unaffected.
             </p>
           ) : null}
-          {NOTIFICATION_CATEGORIES.map((category) => (
+          {NOTIFICATION_SETTINGS_CATEGORIES.map((category) => (
             <NotificationsCategoryRow
               key={category}
               category={category}

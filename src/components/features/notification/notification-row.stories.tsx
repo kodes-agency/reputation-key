@@ -75,12 +75,26 @@ export const Coalesced: Story = {
   },
 }
 
-export const Read: Story = {
+export const HistoricalBadgeRow: Story = {
   args: { notification: badge },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    const ownerDocument = canvasElement.ownerDocument
     expect(canvas.queryByText('Unread.')).not.toBeInTheDocument()
     expect(canvas.getByText(/Response Champ/)).toBeInTheDocument()
+    expect(canvas.getByText(/remains in your notification history/i)).toBeVisible()
+    expect(canvasElement.textContent).not.toMatch(/recognition/i)
+    expect(canvas.getByRole('link', { name: /view property/i })).toHaveAttribute(
+      'href',
+      expect.stringContaining(badge.propertyId),
+    )
+
+    await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
+    const menu = within(ownerDocument.body)
+    expect(await menu.findByRole('menuitem', { name: 'Mark as unread' })).toBeVisible()
+    expect(menu.queryByRole('menuitem', { name: /^Mute/ })).toBeNull()
+    await userEvent.click(menu.getByRole('menuitem', { name: 'Mark as unread' }))
+    await waitFor(() => expect(ownerDocument.querySelector('[role="menu"]')).toBeNull())
   },
 }
 

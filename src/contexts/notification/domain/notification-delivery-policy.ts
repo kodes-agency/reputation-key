@@ -47,10 +47,9 @@ export function classifyNotification(type: NotificationType): NotificationCatego
 }
 
 /**
- * Every category in the union, in the order the settings page should list them.
- * Settings must show all of them: ADR 0046 reserves `mandatory` for
- * account/security/legal mail, and a user needs to see that it exists and is
- * non-disableable even while no type maps to it yet.
+ * Every retained category in the persisted model. Row mapping and preference
+ * reads validate against this complete list; active controls use the narrower
+ * surface lists below.
  */
 export const NOTIFICATION_CATEGORIES: ReadonlyArray<NotificationCategory> = [
   'mandatory',
@@ -60,15 +59,23 @@ export const NOTIFICATION_CATEGORIES: ReadonlyArray<NotificationCategory> = [
 ]
 
 /**
- * Categories that actually govern at least one notification type — derived
- * from `CATEGORY_BY_TYPE`, never hand-listed, so it cannot drift.
+ * Categories offered as beta preference controls. `recognition` stays in the
+ * persisted category model so historical rows and preferences remain valid,
+ * but its post-core controls are intentionally absent from active surfaces.
+ */
+export const NOTIFICATION_SETTINGS_CATEGORIES: ReadonlyArray<NotificationCategory> =
+  NOTIFICATION_CATEGORIES.filter((category) => category !== 'recognition')
+
+/**
+ * Active settings categories that govern at least one notification type —
+ * derived from `CATEGORY_BY_TYPE`, never hand-listed, so it cannot drift.
  *
- * This is the list a FILTER may offer. Today it excludes `mandatory`, because
- * zero of the twelve types classify as mandatory and a filter that can only
- * ever return nothing is a bug, not a feature.
+ * This is the list a FILTER may offer. It excludes `mandatory`, because zero
+ * types classify as mandatory, and retained `recognition`, because that
+ * post-core category is not an active beta control.
  */
 export const GOVERNING_NOTIFICATION_CATEGORIES: ReadonlyArray<NotificationCategory> =
-  NOTIFICATION_CATEGORIES.filter((category) =>
+  NOTIFICATION_SETTINGS_CATEGORIES.filter((category) =>
     Object.values(CATEGORY_BY_TYPE).includes(category),
   )
 

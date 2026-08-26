@@ -5,7 +5,9 @@
 This package retains the legacy Badge model only so existing rows can be
 inspected, reconciled, exported, and removed safely. It is not active beta
 product authority. `badge.use` remains denied, Badge jobs/consumers must not
-evaluate or award, and no beta route may expose Badge data.
+evaluate or award, and no dedicated beta route or control may expose the Badge
+program. Neutral notification-history rendering of an already-persisted
+`badge.awarded` row is the only presentation compatibility path.
 
 The agreed controlled post-core direction is a non-competitive **Healthy Guest
 Gateway** recognition result derived from governed Portal Health for one
@@ -15,8 +17,9 @@ renaming or reactivating legacy badges.
 ## Invariants
 
 1. `badge.use` remains denied in beta and no retained Badge path may become
-   reachable through a route, worker, consumer, schedule, notification, or
-   production artifact.
+   newly reachable through a route, worker, producer, schedule, or production
+   artifact. Notification may render an already-persisted award row as neutral
+   history, but cannot offer Badge controls or create a new award fact.
 2. Retained Badge rows cannot influence access, Staff assessment, Goals,
    manager workflow, Portal publication, or recognition decisions.
 3. Historical Badge data remains distinguishable from any future Healthy Guest
@@ -37,8 +40,8 @@ the capability and entry-point authorities.
 
 ## Prohibited beta behavior
 
-- no Badge creation, enablement, evaluation, award, reconciliation, or
-  notification;
+- no Badge creation, enablement, evaluation, award, reconciliation, Badge-side
+  notification producer, or dedicated notification control;
 - no influence on authorization, Staff assessment, Goals, manager workflow, or
   Portal publication;
 - no Team scope, ranking, score, streak, milestone, or comparative language;
@@ -52,8 +55,10 @@ the capability and entry-point authorities.
 The domain types, repositories, server functions, event handlers, scheduled
 jobs, tables, and historical tests describe the legacy system. They are retained
 temporarily for contraction and restore compatibility, not as a product promise.
-Any code change in this package must preserve hard denial and make deletion or
-reconciliation safer.
+Notification also retains a scoped downstream consumer and neutral renderer so
+existing rows and governed replays are not corrupted or erased; neither is a
+Badge producer. Any code change in this package must preserve hard denial and
+make deletion or reconciliation safer.
 
 ## Exit criteria
 

@@ -114,7 +114,7 @@ describe('renderNotification — the copy that was broken', () => {
     expect(r.title).not.toContain('Inbox item')
   })
 
-  it('badge.awarded names the badge instead of its definition id', () => {
+  it('renders a retained badge row as neutral notification history', () => {
     const r = renderNotification('badge.awarded', {
       badgeName: 'Fast Responder',
       recipientName: 'Front Desk',
@@ -122,9 +122,13 @@ describe('renderNotification — the copy that was broken', () => {
       propertyName: 'Riverside Hotel',
     })
 
-    expect(r.title).toBe('Front Desk earned Fast Responder')
-    expect(r.body).toContain('Riverside Hotel')
+    expect(r.title).toBe('Earlier award: Fast Responder')
+    expect(r.body).toBe(
+      'Front Desk received this award at Riverside Hotel. This earlier update remains in your notification history.',
+    )
+    expect(r.actionLabel).toBe('View property')
     expect(r.summary).toContain('Fast Responder')
+    expect([r.title, r.body, r.actionLabel].join(' ')).not.toMatch(/recognition/i)
   })
 
   it('reply.pending_approval leads with the decision and says who and how long', () => {
@@ -227,9 +231,9 @@ describe('notificationLink', () => {
     })
   })
 
-  it('sends badges to recognition', () => {
+  it('lands a retained badge row on its property, not the unavailable program', () => {
     expect(notificationLink('badge', 'badge-1', 'prop-1')).toEqual({
-      path: '/settings/recognition',
+      path: '/properties/prop-1',
       search: {},
     })
   })

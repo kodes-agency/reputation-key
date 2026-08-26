@@ -18,6 +18,7 @@ import {
 } from '#/components/ui/dropdown-menu'
 import {
   isPreferenceDisableable,
+  NOTIFICATION_SETTINGS_CATEGORIES,
   type Notification,
 } from '#/contexts/notification/application/public-api'
 import type { NotificationRowActions } from './types'
@@ -38,7 +39,9 @@ export function NotificationRowMenu({
   actions,
 }: Props) {
   const isUnread = notification.status === 'unread'
-  const canMute = isPreferenceDisableable(notification.category, 'in_app')
+  const canMute =
+    NOTIFICATION_SETTINGS_CATEGORIES.includes(notification.category) &&
+    isPreferenceDisableable(notification.category, 'in_app')
 
   return (
     <DropdownMenu>

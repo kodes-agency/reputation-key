@@ -231,17 +231,18 @@ const renderGoalCompleted = (p: NotificationPayload): RenderedNotification => ({
 })
 
 const renderBadgeAwarded = (p: NotificationPayload): RenderedNotification => {
-  const badge = p.badgeName ?? 'a badge'
+  const badge = p.badgeName
   const target =
-    p.recipientName ?? (p.targetKind === 'portal_group' ? 'A team' : 'A portal')
+    p.recipientName ?? (p.targetKind === 'portal_group' ? 'A portal group' : 'A portal')
+  const location = p.propertyName === undefined ? '' : ` at ${p.propertyName}`
   return {
-    title: `${target} earned ${badge}`,
+    title: badge === undefined ? 'Earlier award recorded' : `Earlier award: ${badge}`,
     body: sentence(
-      p.propertyName === undefined ? '' : `Awarded at ${p.propertyName}.`,
-      'Open recognition to see the award.',
+      `${target} received this award${location}.`,
+      'This earlier update remains in your notification history.',
     ),
-    actionLabel: 'View award',
-    summary: facts(p.propertyName ?? '', badge),
+    actionLabel: 'View property',
+    summary: facts(p.propertyName ?? '', badge ?? 'earlier award'),
   }
 }
 
@@ -314,7 +315,7 @@ export const notificationLink = (
     case 'goal':
       return { path: `/properties/${propertyId}`, search: {} }
     case 'badge':
-      return { path: '/settings/recognition', search: {} }
+      return { path: `/properties/${propertyId}`, search: {} }
     case 'portal':
       return {
         path: `/properties/${propertyId}/portals/${resourceId}`,

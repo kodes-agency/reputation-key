@@ -60,6 +60,7 @@ export const Default: Story = {
     expect(
       canvas.getByRole('heading', { level: 2, name: 'Harbour View Suites' }),
     ).toBeInTheDocument()
+    expect(canvas.getByText('Earlier award: Response Champ')).toBeVisible()
     // Group headings are property NAMES; no identifier reaches the page.
     for (const notification of notificationFixtures) {
       expect(canvasElement.textContent).not.toContain(notification.propertyId)

@@ -113,6 +113,7 @@ export const EmailAllowed: Story = {
       selector: '#workflow_collaboration-email',
     })
     expect(emailSwitch).toBeEnabled()
+    expect(canvas.queryByRole('heading', { name: 'Recognition' })).toBeNull()
   },
 }
 
@@ -149,8 +150,8 @@ export const EmailUnavailableForProperty: Story = {
       canvas.getByLabelText('Email', { selector: '#workflow_collaboration-email' }),
     ).toBeDisabled()
     expect(
-      canvas.getByLabelText('Email', { selector: '#recognition-email' }),
-    ).toBeDisabled()
+      canvas.queryByLabelText('Email', { selector: '#recognition-email' }),
+    ).toBeNull()
     // In-app is a separate capability and stays operable.
     expect(
       canvas.getByLabelText('In-app', { selector: '#workflow_collaboration-in_app' }),

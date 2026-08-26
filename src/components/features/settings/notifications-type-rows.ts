@@ -1,9 +1,8 @@
 // Human copy for the notification categories, keyed by category so every
-// surface shares one source: the settings page iterates
-// NOTIFICATION_CATEGORIES, the feed's filter tabs iterate
-// GOVERNING_NOTIFICATION_CATEGORIES, and both look the label up here. The
-// category ORDER and the set of categories live in the domain
-// (notification-delivery-policy.ts); only the wording lives here.
+// active surface shares one source. Retained categories still need fallback
+// copy so historical rows remain readable, even when they are absent from
+// settings and filters. Category ordering and exposure live in the domain;
+// only wording lives here.
 import type { NotificationCategory } from '#/contexts/notification/application/public-api'
 
 export type NotificationCategoryCopy = Readonly<{
@@ -33,8 +32,8 @@ export const CATEGORY_COPY: Readonly<
     description: 'Reviews, assignments, notes, and reply updates.',
   },
   recognition: {
-    label: 'Recognition',
-    shortLabel: 'Recognition',
-    description: 'Recognition updates for activated properties.',
+    label: 'Past awards',
+    shortLabel: 'Past awards',
+    description: 'Earlier award updates retained in notification history.',
   },
 }
