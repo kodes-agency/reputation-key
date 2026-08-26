@@ -364,7 +364,7 @@ jobs:
             docker run --rm --entrypoint test repkey-ai-egress-gateway:ci -e "/app/dist-ai-egress-gateway/$governed_entry"
           done
           docker run --rm --entrypoint test repkey-ai-egress-gateway:ci -e /app/dist-ai-egress-probe/runtime-egress-probe.js
-          test "$(docker image inspect repkey-ai-egress-gateway:ci --format '{{json .Config.Cmd}}')" = '["node","dist-ai-egress-gateway/index.js"]'
+          test "$(docker image inspect repkey-ai-egress-gateway:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 node dist-ai-egress-gateway/index.js"
           for img in repkey-web:ci repkey-worker:ci repkey-google-import-compatibility:ci; do
             test "$(docker image inspect "$img" --format '{{.Config.User}}')" = "node"
             docker run --rm --entrypoint test "$img" -e /app/node_modules/pg
@@ -380,8 +380,8 @@ jobs:
           test "$(docker image inspect repkey-ai-egress-gateway:ci --format '{{.Config.User}}')" = "node"
           test "$(docker image inspect repkey-google-execution-admission:ci --format '{{.Config.User}}')" = "node"
           test "$(docker image inspect repkey-google-egress-gateway:ci --format '{{.Config.User}}')" = "node"
-          test "$(docker image inspect repkey-google-execution-admission:ci --format '{{json .Config.Cmd}}')" = '["node","dist-google-execution-admission/index.js"]'
-          test "$(docker image inspect repkey-google-egress-gateway:ci --format '{{json .Config.Cmd}}')" = '["node","dist-google-egress-gateway/index.js"]'
+          test "$(docker image inspect repkey-google-execution-admission:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 node dist-google-execution-admission/index.js"
+          test "$(docker image inspect repkey-google-egress-gateway:ci --format '{{len .Config.Cmd}} {{join .Config.Cmd " "}}')" = "2 node dist-google-egress-gateway/index.js"
           for img in repkey-ai-execution-admission:ci repkey-ai-egress-gateway:ci repkey-google-execution-admission:ci repkey-google-egress-gateway:ci; do
             docker run --rm --entrypoint test "$img" ! -e /app/node_modules
             docker run --rm --entrypoint test "$img" ! -e /app/package.json
@@ -407,7 +407,7 @@ jobs:
             "! find /app/dist-worker -type f \( -name '*seed-e2e-user*' -o -name '*provision-ai-admission-role*' -o -name '*provision-google-admission-role*' \) -print | grep -q . && ! grep -R -l 'password123' /app/dist-worker 2>/dev/null"
           test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{index .Config.Labels "com.repkey.google-import-contract"}}')" = "compatibility"
           test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{index .Config.Labels "com.repkey.rollout-scope"}}')" = "google-import-only"
-          test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{json .Config.Entrypoint}}')" = '["node","dist-google-import-compatibility/google-import-lifecycle.js"]'
+          test "$(docker image inspect repkey-google-import-compatibility:ci --format '{{len .Config.Entrypoint}} {{join .Config.Entrypoint " "}}')" = "2 node dist-google-import-compatibility/google-import-lifecycle.js"
           {
             echo "### Governed image digests"
             for img in repkey-web:ci repkey-worker:ci repkey-google-provider-redis:ci repkey-google-import-compatibility:ci repkey-ai-execution-admission:ci repkey-ai-egress-gateway:ci repkey-google-execution-admission:ci repkey-google-egress-gateway:ci; do

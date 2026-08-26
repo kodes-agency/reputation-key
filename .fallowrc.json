@@ -264,10 +264,6 @@
         "patterns": ["src/contexts/*/server/**"]
       },
       {
-        "name": "shared-testing",
-        "patterns": ["src/shared/testing/**"]
-      },
-      {
         "name": "shared-events",
         "patterns": ["src/shared/events/**"]
       },
@@ -300,10 +296,6 @@
       {
         "from": "server",
         "allow": ["application", "domain", "shared", "shared-events"]
-      },
-      {
-        "from": "shared-testing",
-        "allow": ["domain", "application", "shared", "shared-events"]
       },
       {
         "from": "shared-events",
