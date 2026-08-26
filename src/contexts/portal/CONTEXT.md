@@ -56,7 +56,7 @@ assignment, and governed access artifacts.
 - Losing the last manager sets `responsibilityNeededSince` and atomically records one identifier-only recovery fact. Adding any manager clears the state; nobody is auto-promoted.
 - Core Portal creation, update/publication transition, and soft deletion use one Portal-owned command store. Authoritative Portal state, initial responsibility, live-token revocation on delete, and every required lifecycle outbox fact commit in the same PostgreSQL transaction. The in-process bus runs only after commit.
 - Portal lifecycle facts are identifier-only. They carry Property/Portal scope, publication-state codes where relevant, and `sourceAggregateVersion = updatedAt.toISOString()`; they never copy Portal name, slug, description, theme, or link content. The outbox event UUID is the replay uniqueness key and optimistic `updatedAt` fencing rejects stale commands.
-- Portal hero source keys are server-derived from an opaque issuance ID. Finalization accepts only that ID, rechecks current scope/state/expiry and exact storage MIME/size, and atomically consumes it once. A newer consumed issuance supersedes an older worker; only the current consumed issuance may publish newly derived WebP keys. Client Portal updates may remove a hero image but may never set a non-null URL.
+- Portal hero source keys are server-derived from an opaque issuance ID and the presigned PUT is first-write-only. Finalization accepts only that ID, rechecks current scope/state/expiry and exact storage MIME/size/ETag, and atomically consumes it with the durable processing fact. The worker reads with that observed ETag as an immutable-version fence. A newer consumed issuance supersedes an older worker; only the current consumed issuance may publish newly derived WebP keys. Client Portal updates may remove a hero image but may never set a non-null URL.
 
 ## Events produced
 
@@ -64,6 +64,7 @@ assignment, and governed access artifacts.
 - **`portal.updated`** — portalId, organizationId, propertyId, previousPublicationState, publicationState, sourceAggregateVersion, occurredAt.
 - **`portal.deleted`** — portalId, organizationId, propertyId, sourceAggregateVersion, occurredAt.
 - **`portal.responsibility_became_needed`** — portalId, organizationId, propertyId, occurredAt. Identifier-only, atomically recorded with the unowned transition; Notification sends one content-free recovery alert to each current AccountAdmin.
+- **`portal.hero_image.processing_requested`** — uploadId, portalId, organizationId, propertyId, sourceETag, occurredAt. Content-free durable hand-off committed atomically with issuance consumption; the consumer binds the source read to the observed ETag.
 - **`portal.token.issued`** — portalId, organizationId, propertyId, tokenIdentifier, version, occurredAt.
 - **`portal.token.rotated`** — portalId, organizationId, propertyId, previousVersion, version, gracePeriodEnds, occurredAt.
 - **`portal.token.revoked`** — portalId, organizationId, propertyId, occurredAt. Identifier-only audit fact; no consumers.
@@ -140,7 +141,7 @@ portal/
 - **`createLink`** / **`updateLink`** / **`deleteLink`** — Manage portal links.
 - **`createLinkCategory`** / **`updateLinkCategory`** / **`deleteLinkCategory`** — Manage link categories.
 - **`reorderLinks`** / **`reorderCategories`** — Reorder items by sort key.
-- **`requestUploadUrl`** / **`finalizeUpload`** — Persist and consume a scoped hero upload issuance. The API returns/accepts `uploadId`, never an object key; the previous hero remains visible while a private source is decoded and re-encoded.
+- **`requestUploadUrl`** / **`finalizeUpload`** — Persist and consume a scoped hero upload issuance. The API returns/accepts `uploadId`, never an object key; the PUT cannot overwrite an existing source, and finalization records an ETag-bound processing request in the same transaction as consumption. The previous hero remains visible while a private source is decoded and re-encoded.
 - **`listPortalLinks`** — List all links for a portal (flat, with category info).
 - **`createPortalGroup`** — Create a new portal group for a property. Validates name uniqueness and portal memberships. Optionally adds initial portals (pre-validated).
 - **`updatePortalGroup`** — Update group name. Validates name uniqueness (excluding self).

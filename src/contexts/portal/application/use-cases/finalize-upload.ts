@@ -3,17 +3,16 @@
 import type { PortalRepository } from '../ports/portal.repository'
 import type { IssuedPortalUploadStoragePort } from '../ports/storage.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { portalId, unbrand } from '#/shared/domain/ids'
+import { portalId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { loadPortalOrThrow } from '../load-accessible-portal'
-// BQC-5.1: application must not import bullmq directly — the Queue type comes
-// from the shared/jobs wiring surface (re-exported there).
-import type { Queue } from '#/shared/jobs/queue'
-import { PROCESS_IMAGE_JOB_NAME as JOB_NAME } from '../job-names'
-import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
-import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
 import type { PortalUploadIssuanceStore } from '../ports/portal-upload-issuance-store.port'
 import { portalError } from '../../domain/errors'
+import { portalHeroImageProcessingRequested } from '../../domain/events'
+import {
+  isSafePortalObjectETag,
+  portalUploadMetadataMatches,
+} from '../../domain/upload-issuance'
 
 export type FinalizeUploadInput = Readonly<{
   portalId: string
@@ -29,7 +28,6 @@ export type FinalizeUploadDeps = Readonly<{
   >
   staffPublicApi: StaffPublicApi
   clock: () => Date
-  queue: Queue | undefined
 }>
 
 export const finalizeUpload =
@@ -80,9 +78,39 @@ export const finalizeUpload =
       throw portalError('upload_failed', 'Uploaded object could not be verified')
     }
 
+    if (
+      !portalUploadMetadataMatches(issuance, observed) ||
+      !isSafePortalObjectETag(observed.sourceETag)
+    ) {
+      await deps.uploadStore.rejectIssued(scope, 'rejected', deps.clock())
+      try {
+        await deps.storage.deleteIssuedPortalUpload(issuance)
+      } catch {
+        // The rejected row remains durable for an orphan-cleanup retry.
+      }
+      throw portalError(
+        'upload_failed',
+        'Uploaded object did not match its authorization',
+      )
+    }
+
     // Storage verification can cross the authorization deadline. The locked
     // transition must use a fresh time rather than the pre-flight timestamp.
-    const staged = await deps.uploadStore.stage(scope, observed, deps.clock())
+    const stagedAt = deps.clock()
+    const processingRequested = portalHeroImageProcessingRequested({
+      uploadId: issuance.id,
+      organizationId: issuance.organizationId,
+      propertyId: issuance.propertyId,
+      portalId: issuance.portalId,
+      sourceETag: observed.sourceETag,
+      occurredAt: stagedAt,
+    })
+    const staged = await deps.uploadStore.stage(
+      scope,
+      observed,
+      processingRequested,
+      stagedAt,
+    )
     if (staged.outcome !== 'staged') {
       if (staged.outcome === 'metadata_mismatch' || staged.outcome === 'expired') {
         try {
@@ -99,31 +127,10 @@ export const finalizeUpload =
       )
     }
 
-    // Enqueue the image processing job so the resize/WebP pipeline runs
-    // (PORTAL-B-04). The job updates heroImageUrl with the optimized variant.
-    // BQC-3.6: attempts/backoff+jitter/timeout from the job catalogue.
-    if (deps.queue) {
-      await deps.queue.add(
-        JOB_NAME,
-        {
-          uploadId: issuance.id,
-          portalId: input.portalId,
-          ...createJobExecutionEnvelope({
-            organizationId: unbrand(ctx.organizationId),
-            propertyId: unbrand(portal.propertyId),
-            capability: 'portal.upload',
-            initiator: { kind: 'user', id: unbrand(ctx.userId) },
-            correlationId: `portal-upload:${input.portalId}`,
-          }),
-        },
-        {
-          ...jobEnqueueOptions(JOB_NAME),
-          jobId: `portal-upload-${issuance.id}`,
-        },
-      )
-    }
-
-    return { heroImageUrl: staged.heroImageUrl, processing: deps.queue !== undefined }
+    // The issuance transition and processing request share one transaction.
+    // Queue/relay outage leaves a replayable outbox fact instead of a stranded
+    // consumed upload.
+    return { heroImageUrl: staged.heroImageUrl, processing: true }
   }
 
 export type FinalizeUpload = ReturnType<typeof finalizeUpload>

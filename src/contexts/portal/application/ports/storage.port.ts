@@ -11,13 +11,19 @@ export type IssuedPortalUploadStoragePort = Readonly<{
    * Portal hero capabilities accept the persisted issuance, never a caller-
    * supplied object key. Implementations re-derive and verify every key.
    */
-  createIssuedPortalUpload: (
+  createIssuedPortalUpload: (issuance: PortalUploadIssuance) => Promise<{
+    uploadUrl: string
+    requiredHeaders: Readonly<{ 'If-None-Match': '*' }>
+  }>
+  confirmIssuedPortalUpload: (issuance: PortalUploadIssuance) => Promise<{
+    contentType: string | null
+    sizeBytes: number | null
+    sourceETag: string | null
+  }>
+  readIssuedPortalUpload: (
     issuance: PortalUploadIssuance,
-  ) => Promise<{ uploadUrl: string }>
-  confirmIssuedPortalUpload: (
-    issuance: PortalUploadIssuance,
-  ) => Promise<{ contentType: string | null; sizeBytes: number | null }>
-  readIssuedPortalUpload: (issuance: PortalUploadIssuance) => Promise<Buffer>
+    expectedSourceETag: string,
+  ) => Promise<Buffer>
   writePortalUploadDerivative: (
     issuance: PortalUploadIssuance,
     derivative: PortalUploadDerivative,

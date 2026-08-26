@@ -9,6 +9,7 @@ import {
   type PortalUploadIssuance,
   type PortalUploadObservedMetadata,
 } from '#/contexts/portal/domain/upload-issuance'
+import type { PortalHeroImageProcessingRequested } from '#/contexts/portal/domain/events'
 
 const sameScope = (issuance: PortalUploadIssuance, scope: PortalUploadScope) =>
   issuance.id === scope.issuanceId &&
@@ -20,14 +21,19 @@ const sameScope = (issuance: PortalUploadIssuance, scope: PortalUploadScope) =>
 export function createInMemoryPortalUploadIssuanceStore(
   initial: ReadonlyArray<PortalUploadIssuance> = [],
 ): PortalUploadIssuanceStore &
-  Readonly<{ all: () => ReadonlyArray<PortalUploadIssuance> }> {
+  Readonly<{
+    all: () => ReadonlyArray<PortalUploadIssuance>
+    processingFacts: () => ReadonlyArray<PortalHeroImageProcessingRequested>
+  }> {
   let rows = initial.map((row) => ({ ...row }))
+  const processingFacts: PortalHeroImageProcessingRequested[] = []
 
   const findIndex = (scope: PortalUploadScope) =>
     rows.findIndex((row) => sameScope(row, scope))
 
   return {
     all: () => rows.map((row) => ({ ...row })),
+    processingFacts: () => processingFacts.map((event) => ({ ...event })),
     create: async (issuance) => {
       if (rows.some((row) => row.id === issuance.id)) {
         throw new Error('duplicate portal upload issuance')
@@ -52,6 +58,7 @@ export function createInMemoryPortalUploadIssuanceStore(
     stage: async (
       scope: PortalUploadScope,
       observed: PortalUploadObservedMetadata,
+      processingRequested: PortalHeroImageProcessingRequested,
       at: Date,
     ): Promise<StagePortalUploadResult> => {
       const index = findIndex(scope)
@@ -66,6 +73,15 @@ export function createInMemoryPortalUploadIssuanceStore(
         rows[index] = { ...row, state: 'rejected', rejectedAt: at }
         return { outcome: 'metadata_mismatch' }
       }
+      if (
+        processingRequested.uploadId !== row.id ||
+        processingRequested.organizationId !== row.organizationId ||
+        processingRequested.propertyId !== row.propertyId ||
+        processingRequested.portalId !== row.portalId ||
+        processingRequested.sourceETag !== observed.sourceETag
+      ) {
+        throw new Error('Portal upload processing fact does not match issuance')
+      }
 
       rows = rows.map((candidate) =>
         candidate.organizationId === row.organizationId &&
@@ -76,6 +92,7 @@ export function createInMemoryPortalUploadIssuanceStore(
           : candidate,
       )
       rows[index] = { ...rows[index], state: 'consumed', consumedAt: at }
+      processingFacts.push({ ...processingRequested })
       return { outcome: 'staged', heroImageUrl: null }
     },
     findProcessable: async (scope) => {

@@ -23,6 +23,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const storage = {
     createIssuedPortalUpload: async () => ({
       uploadUrl: 'https://r2.example.com/presigned',
+      requiredHeaders: { 'If-None-Match': '*' as const },
     }),
   } satisfies Pick<IssuedPortalUploadStoragePort, 'createIssuedPortalUpload'>
   const useCase = requestUploadUrl({
@@ -54,6 +55,7 @@ describe('requestUploadUrl', () => {
       expiresAt: '2026-08-26T12:15:00.000Z',
       contentType: 'image/png',
       maxSizeBytes: 10 * 1024 * 1024,
+      requiredHeaders: { 'If-None-Match': '*' },
     })
     expect(result).not.toHaveProperty('key')
     expect(uploadStore.all()).toEqual([

@@ -59,8 +59,9 @@ import { createPortalUploadIssuanceStore } from './infrastructure/portal-upload-
 import { decidePublicExecution } from '#/shared/auth/execution-policy'
 import { portalId, portalGroupId, userId } from '#/shared/domain/ids'
 import { listEligiblePortalManagers } from './application/portal-manager-eligibility'
-import type { Queue } from 'bullmq'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import { createProcessIssuedPortalImage } from './infrastructure/jobs/process-image.job'
+import { registerPortalConsumers } from './infrastructure/outbox-consumers'
 
 type PortalContextDeps = Readonly<{
   db: Database
@@ -73,7 +74,6 @@ type PortalContextDeps = Readonly<{
   baseUrl: string
   idGen: () => string
   tokenHashSecret: string
-  queue: Queue | undefined
   logger: LoggerPort
   storageConfig: Readonly<{
     accessKey: string
@@ -115,6 +115,11 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalIdGen = () => portalId(deps.idGen())
   const portalGroupIdGen = () => portalGroupId(deps.idGen())
   const linkIdGen = () => deps.idGen()
+  const processIssuedPortalImage = createProcessIssuedPortalImage({
+    storage,
+    uploadStore: portalUploadStore,
+    clock: deps.clock,
+  })
   const useCases = {
     resolvePortalManagementScope: portalScopeRepo.resolvePortal,
     resolvePortalGroupManagementScope: portalScopeRepo.resolveGroup,
@@ -238,7 +243,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       storage,
       staffPublicApi: deps.staffPublicApi,
       clock: deps.clock,
-      queue: deps.queue,
     }),
     listPortalLinks: listPortalLinks({
       portalLinkRepo,
@@ -396,6 +400,15 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       },
       useCases,
       storage,
+      registerOutboxConsumers: () => {
+        if (!deps.outboxRepo) {
+          throw new Error('Portal upload outbox repository is unavailable')
+        }
+        registerPortalConsumers({
+          processIssuedPortalImage,
+          receipts: deps.outboxRepo,
+        })
+      },
     },
   } as const
 }

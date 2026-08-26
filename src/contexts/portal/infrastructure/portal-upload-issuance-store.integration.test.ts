@@ -4,6 +4,8 @@ import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createPortalUploadIssuanceStore } from './portal-upload-issuance-store'
 import { createPortalHeroUploadIssuance } from '../domain/upload-issuance'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
+import { portalHeroImageProcessingRequested } from '../domain/events'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
 const ORG_A = organizationId('org-upload-0000-0000-0000-000000000001')
 const ORG_B = organizationId('org-upload-0000-0000-0000-000000000002')
@@ -15,11 +17,12 @@ const UPLOAD_C = '7c000000-0000-4000-8000-000000000003'
 const ISSUED_AT = new Date('2026-08-26T12:00:00.000Z')
 const STAGED_AT = new Date('2026-08-26T12:01:00.000Z')
 const PUBLISHED_AT = new Date('2026-08-26T12:02:00.000Z')
+const SOURCE_ETAG = '"d41d8cd98f00b204e9800998ecf8427e"'
 
 const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
   orgB: ORG_B,
-  tables: ['portal_upload_issuances', 'portals', 'properties'],
+  tables: ['outbox_events', 'portal_upload_issuances', 'portals', 'properties'],
 })
 
 const makeIssuance = (id: string) => {
@@ -43,7 +46,24 @@ const scope = (issuanceId: string) => ({
   issuanceId,
 })
 
+const observed = {
+  contentType: 'image/png',
+  sizeBytes: 1024,
+  sourceETag: SOURCE_ETAG,
+} as const
+
+const processingRequest = (issuanceId: string, organization = ORG_A) =>
+  portalHeroImageProcessingRequested({
+    uploadId: issuanceId,
+    organizationId: organization,
+    propertyId: PROPERTY_A,
+    portalId: PORTAL_A,
+    sourceETag: SOURCE_ETAG,
+    occurredAt: STAGED_AT,
+  })
+
 beforeEach(async () => {
+  registerAllEventSchemas()
   await getPool().query(
     `INSERT INTO properties
        (id, organization_id, name, slug, timezone, created_at, updated_at)
@@ -134,27 +154,20 @@ describe.sequential('Portal upload issuance store (real PostgreSQL)', () => {
     await expect(
       store.stage(
         { ...scope(UPLOAD_A), organizationId: ORG_B },
-        { contentType: 'image/png', sizeBytes: 1024 },
+        observed,
+        processingRequest(UPLOAD_A, ORG_B),
         STAGED_AT,
       ),
     ).resolves.toEqual({ outcome: 'not_found' })
 
     await expect(
-      store.stage(
-        scope(UPLOAD_A),
-        { contentType: 'image/png', sizeBytes: 1024 },
-        STAGED_AT,
-      ),
+      store.stage(scope(UPLOAD_A), observed, processingRequest(UPLOAD_A), STAGED_AT),
     ).resolves.toEqual({
       outcome: 'staged',
       heroImageUrl: 'https://cdn.example.com/previous.webp',
     })
     await expect(
-      store.stage(
-        scope(UPLOAD_A),
-        { contentType: 'image/png', sizeBytes: 1024 },
-        STAGED_AT,
-      ),
+      store.stage(scope(UPLOAD_A), observed, processingRequest(UPLOAD_A), STAGED_AT),
     ).resolves.toEqual({ outcome: 'not_issued' })
 
     const row = await getPool().query(
@@ -167,6 +180,21 @@ describe.sequential('Portal upload issuance store (real PostgreSQL)', () => {
       consumed_at: STAGED_AT,
       hero_image_url: null,
     })
+    const outbox = await getPool().query(
+      `SELECT event_type, payload
+       FROM outbox_events
+       WHERE organization_id = $1 AND source_aggregate_id = $2`,
+      [ORG_A, UPLOAD_A],
+    )
+    expect(outbox.rows).toEqual([
+      {
+        event_type: 'portal.hero_image.processing_requested',
+        payload: expect.objectContaining({
+          uploadId: UPLOAD_A,
+          sourceETag: SOURCE_ETAG,
+        }),
+      },
+    ])
   })
 
   it('allows only one concurrent replay to consume an issuance', async () => {
@@ -174,22 +202,44 @@ describe.sequential('Portal upload issuance store (real PostgreSQL)', () => {
     await store.create(makeIssuance(UPLOAD_A))
 
     const results = await Promise.all([
-      store.stage(
-        scope(UPLOAD_A),
-        { contentType: 'image/png', sizeBytes: 1024 },
-        STAGED_AT,
-      ),
-      store.stage(
-        scope(UPLOAD_A),
-        { contentType: 'image/png', sizeBytes: 1024 },
-        STAGED_AT,
-      ),
+      store.stage(scope(UPLOAD_A), observed, processingRequest(UPLOAD_A), STAGED_AT),
+      store.stage(scope(UPLOAD_A), observed, processingRequest(UPLOAD_A), STAGED_AT),
     ])
 
     expect(results.map((result) => result.outcome).sort()).toEqual([
       'not_issued',
       'staged',
     ])
+  })
+
+  it('rolls back consumption when the durable processing fact cannot be recorded', async () => {
+    const store = createPortalUploadIssuanceStore(getDb())
+    await store.create(makeIssuance(UPLOAD_A))
+    const request = processingRequest(UPLOAD_A)
+
+    // Occupy the event id so the transaction's outbox insert fails. The
+    // issuance update must not survive that same transaction.
+    await getPool().query(
+      `INSERT INTO outbox_events
+         (id, event_type, event_version, payload, organization_id, property_id,
+          source_context, source_aggregate_id, created_at)
+       VALUES ($1, 'test.portal_upload_collision', 1, '{}'::jsonb, $2, $3,
+               'test', $4, $5)`,
+      [request.eventId, ORG_A, PROPERTY_A, UPLOAD_A, STAGED_AT],
+    )
+
+    await expect(
+      store.stage(scope(UPLOAD_A), observed, request, STAGED_AT),
+    ).rejects.toMatchObject({
+      cause: { constraint: 'outbox_events_pkey' },
+    })
+
+    const row = await getPool().query(
+      `SELECT state, consumed_at
+       FROM portal_upload_issuances WHERE id = $1`,
+      [UPLOAD_A],
+    )
+    expect(row.rows[0]).toEqual({ state: 'issued', consumed_at: null })
   })
 
   it('terminally rejects server-observed MIME or size drift', async () => {
@@ -199,7 +249,8 @@ describe.sequential('Portal upload issuance store (real PostgreSQL)', () => {
     await expect(
       store.stage(
         scope(UPLOAD_A),
-        { contentType: 'image/jpeg', sizeBytes: 1024 },
+        { ...observed, contentType: 'image/jpeg' },
+        processingRequest(UPLOAD_A),
         STAGED_AT,
       ),
     ).resolves.toEqual({ outcome: 'metadata_mismatch' })
@@ -216,9 +267,8 @@ describe.sequential('Portal upload issuance store (real PostgreSQL)', () => {
     const store = createPortalUploadIssuanceStore(getDb())
     await store.create(makeIssuance(UPLOAD_A))
     await store.create(makeIssuance(UPLOAD_B))
-    const observed = { contentType: 'image/png', sizeBytes: 1024 }
-    await store.stage(scope(UPLOAD_A), observed, STAGED_AT)
-    await store.stage(scope(UPLOAD_B), observed, STAGED_AT)
+    await store.stage(scope(UPLOAD_A), observed, processingRequest(UPLOAD_A), STAGED_AT)
+    await store.stage(scope(UPLOAD_B), observed, processingRequest(UPLOAD_B), STAGED_AT)
 
     await expect(
       store.publishDerivative(

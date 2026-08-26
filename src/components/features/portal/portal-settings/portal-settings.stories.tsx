@@ -43,7 +43,11 @@ const portal: PortalData = {
 
 const requestUploadUrl = async (_input: {
   data: { portalId: string; contentType: string; fileSize: number }
-}) => ({ uploadUrl: 'https://upload.example.com/presigned', uploadId: 'upload-id' })
+}) => ({
+  uploadUrl: 'https://upload.example.com/presigned',
+  uploadId: 'upload-id',
+  requiredHeaders: { 'If-None-Match': '*' },
+})
 const finalizeUpload = async (_input: {
   data: { portalId: string; uploadId: string }
 }) => ({

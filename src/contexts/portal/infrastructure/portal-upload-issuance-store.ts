@@ -14,6 +14,8 @@ import {
   type PortalUploadIssuanceState,
 } from '../domain/upload-issuance'
 import { trace } from '#/shared/observability/trace'
+import { insertOutboxRow } from '#/shared/outbox/commit'
+import type { PortalHeroImageProcessingRequested } from '../domain/events'
 
 const STATES: ReadonlySet<string> = new Set([
   'issued',
@@ -69,6 +71,22 @@ const scopeWhere = (scope: PortalUploadScope) =>
     eq(portalUploadIssuances.portalId, unbrand(scope.portalId)),
     eq(portalUploadIssuances.purpose, 'hero_image'),
   )
+
+function assertProcessingRequest(
+  scope: PortalUploadScope,
+  observedETag: string | null,
+  event: PortalHeroImageProcessingRequested,
+): void {
+  if (
+    event.uploadId !== scope.issuanceId ||
+    event.organizationId !== scope.organizationId ||
+    event.propertyId !== scope.propertyId ||
+    event.portalId !== scope.portalId ||
+    event.sourceETag !== observedETag
+  ) {
+    throw new Error('Portal upload processing fact does not match locked scope')
+  }
+}
 
 async function lockPortal(
   tx: Parameters<Parameters<Database['transaction']>[0]>[0],
@@ -167,9 +185,10 @@ export function createPortalUploadIssuanceStore(db: Database): PortalUploadIssua
         return rows.length === 1
       }),
 
-    stage: async (scope, observed, at) =>
-      trace('portalUploadIssuance.stage', async () =>
-        db.transaction(async (tx) => {
+    stage: async (scope, observed, processingRequested, at) =>
+      trace('portalUploadIssuance.stage', async () => {
+        assertProcessingRequest(scope, observed.sourceETag, processingRequested)
+        return db.transaction(async (tx) => {
           const portal = await lockPortal(tx, scope)
           if (!portal) return { outcome: 'not_found' as const }
           const issuance = await lockIssuance(tx, scope)
@@ -209,9 +228,10 @@ export function createPortalUploadIssuanceStore(db: Database): PortalUploadIssua
           if (staged.length !== 1) {
             throw new Error('Portal upload staging lost its locked issuance')
           }
+          await insertOutboxRow(tx, processingRequested, { recordedAt: at })
           return { outcome: 'staged' as const, heroImageUrl: portal.heroImageUrl }
-        }),
-      ),
+        })
+      }),
 
     findProcessable: async (scope) =>
       trace('portalUploadIssuance.findProcessable', async () => {

@@ -13,7 +13,16 @@ export type ProcessImageJobData = JobExecutionEnvelope &
   Readonly<{
     uploadId: string
     portalId: string
+    sourceETag: string
   }>
+
+export type ProcessIssuedPortalImageInput = Readonly<{
+  organizationId: string
+  propertyId: string
+  portalId: string
+  uploadId: string
+  sourceETag: string
+}>
 
 export type ProcessImageJobDeps = Readonly<{
   storage: Pick<
@@ -24,11 +33,12 @@ export type ProcessImageJobDeps = Readonly<{
   clock: () => Date
 }>
 
-export const createProcessImageJob = (deps: ProcessImageJobDeps) => {
-  return async function processImageJob(job: Job<ProcessImageJobData>): Promise<void> {
+export const createProcessIssuedPortalImage = (deps: ProcessImageJobDeps) => {
+  return async function processIssuedPortalImage(
+    data: ProcessIssuedPortalImageInput,
+  ): Promise<'processed' | 'stale'> {
     return trace('job.processImage', async () => {
       const logger = getLogger()
-      const data = job.data
       if (!data.propertyId) {
         throw portalError('upload_failed', 'Image job is missing Property scope')
       }
@@ -43,13 +53,16 @@ export const createProcessImageJob = (deps: ProcessImageJobDeps) => {
         // A retry after publication, or a worker for an upload superseded by a
         // newer finalization, is a safe no-op. It can never name another key.
         logger.info('Skipped stale or already processed portal image job')
-        return
+        return 'stale'
       }
 
       logger.info('Processing issued portal hero image')
       try {
         const sharp = (await import('sharp')).default
-        const originalBuffer = await deps.storage.readIssuedPortalUpload(issuance)
+        const originalBuffer = await deps.storage.readIssuedPortalUpload(
+          issuance,
+          data.sourceETag,
+        )
 
         const heroBuffer = await sharp(originalBuffer, {
           failOn: 'warning',
@@ -92,7 +105,7 @@ export const createProcessImageJob = (deps: ProcessImageJobDeps) => {
         )
         if (published.outcome !== 'published') {
           logger.info('Discarded derivatives from a stale portal image job')
-          return
+          return 'stale'
         }
 
         try {
@@ -101,10 +114,27 @@ export const createProcessImageJob = (deps: ProcessImageJobDeps) => {
           logger.warn('Portal image published; private source cleanup is pending')
         }
         logger.info('Issued portal hero image processing completed')
+        return 'processed'
       } catch (err) {
         logger.error({ err }, 'Issued portal image processing failed')
         throw err
       }
+    })
+  }
+}
+
+export const createProcessImageJob = (deps: ProcessImageJobDeps) => {
+  const processIssuedPortalImage = createProcessIssuedPortalImage(deps)
+  return async function processImageJob(job: Job<ProcessImageJobData>): Promise<void> {
+    if (!job.data.propertyId) {
+      throw portalError('upload_failed', 'Image job is missing Property scope')
+    }
+    await processIssuedPortalImage({
+      organizationId: job.data.organizationId,
+      propertyId: job.data.propertyId,
+      portalId: job.data.portalId,
+      uploadId: job.data.uploadId,
+      sourceETag: job.data.sourceETag,
     })
   }
 }

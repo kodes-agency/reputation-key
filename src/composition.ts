@@ -1186,7 +1186,6 @@ export function createContainer(options?: {
     baseUrl: env.BETTER_AUTH_URL ?? 'http://localhost:3000',
     idGen: () => crypto.randomUUID(),
     tokenHashSecret: env.PORTAL_TOKEN_HASH_SECRET,
-    queue: infra.jobQueue,
     logger,
     storage: options?.providers?.storage,
     storageConfig: {
@@ -1766,6 +1765,7 @@ export function createContainer(options?: {
     // Worker-only durable consumer registration contributed by owning contexts.
     registerOutboxConsumers: () => {
       integration.internal.registerOutboxConsumers()
+      portal.internal.registerOutboxConsumers()
       property.internal.registerOutboxConsumers()
       inbox.internal.registerOutboxConsumers()
       metricApi.internal.registerOutboxConsumers()

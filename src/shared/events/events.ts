@@ -47,6 +47,7 @@ export type {
   PortalUpdated,
   PortalDeleted,
   PortalResponsibilityNeeded,
+  PortalHeroImageProcessingRequested,
   PortalGroupCreated,
   PortalGroupUpdated,
   PortalGroupDeleted,

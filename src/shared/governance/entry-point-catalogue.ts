@@ -2761,6 +2761,19 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
 
 const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
   consumer(
+    'portal.outbox-consumers',
+    'src/contexts/portal/infrastructure/outbox-consumers.ts',
+    'system:image.process',
+    'portal.upload',
+    'property',
+    ['portal.hero_image.processing_requested'],
+    {
+      externalEffect: true,
+      notes:
+        'durable ETag-bound image processing; stale issuance is obsolete and retries converge on issuance state',
+    },
+  ),
+  consumer(
     'inbox.outbox-consumers',
     'src/contexts/inbox/infrastructure/outbox-consumers.ts',
     'system:inbox.update',

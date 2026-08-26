@@ -6,12 +6,14 @@ import { createPortalHeroUploadIssuance } from '../../domain/upload-issuance'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
 import type { IssuedPortalUploadStoragePort } from '../../application/ports/storage.port'
+import { portalHeroImageProcessingRequested } from '../../domain/events'
 
 const NOW = new Date('2026-08-26T12:00:00.000Z')
 const ORG_ID = organizationId('org-1')
 const PROPERTY_ID = propertyId('a0000000-0000-4000-8000-000000000001')
 const PORTAL_ID = portalId('a0000000-0000-4000-8000-000000000002')
 const UPLOAD_ID = '70000000-0000-4000-8000-000000000001'
+const SOURCE_ETAG = '"d41d8cd98f00b204e9800998ecf8427e"'
 
 const PNG_1PX = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
@@ -37,6 +39,7 @@ function jobData(uploadId = UPLOAD_ID): Job<ProcessImageJobData> {
     data: {
       uploadId,
       portalId: PORTAL_ID,
+      sourceETag: SOURCE_ETAG,
       ...createJobExecutionEnvelope({
         organizationId: ORG_ID,
         propertyId: PROPERTY_ID,
@@ -46,6 +49,22 @@ function jobData(uploadId = UPLOAD_ID): Job<ProcessImageJobData> {
     },
   } as unknown as Job<ProcessImageJobData>
 }
+
+const observed = {
+  contentType: 'image/png',
+  sizeBytes: PNG_1PX.byteLength,
+  sourceETag: SOURCE_ETAG,
+} as const
+
+const processingEvent = (uploadId: string) =>
+  portalHeroImageProcessingRequested({
+    uploadId,
+    organizationId: ORG_ID,
+    propertyId: PROPERTY_ID,
+    portalId: PORTAL_ID,
+    sourceETag: SOURCE_ETAG,
+    occurredAt: NOW,
+  })
 
 describe('process-image job', () => {
   it('publishes newly derived variants once and ignores an already-derived retry', async () => {
@@ -59,7 +78,8 @@ describe('process-image job', () => {
         portalId: PORTAL_ID,
         issuanceId: UPLOAD_ID,
       },
-      { contentType: 'image/png', sizeBytes: PNG_1PX.byteLength },
+      observed,
+      processingEvent(UPLOAD_ID),
       NOW,
     )
     const writePortalUploadDerivative = vi.fn(
@@ -78,6 +98,10 @@ describe('process-image job', () => {
 
     await createProcessImageJob({ storage, uploadStore, clock: () => NOW })(jobData())
 
+    expect(readIssuedPortalUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ id: UPLOAD_ID }),
+      SOURCE_ETAG,
+    )
     expect(writePortalUploadDerivative).toHaveBeenCalledTimes(2)
     expect(writePortalUploadDerivative.mock.calls.map((call) => call[1])).toEqual([
       'hero',
@@ -114,12 +138,14 @@ describe('process-image job', () => {
     }
     await uploadStore.stage(
       { ...scope, issuanceId: old.id },
-      { contentType: 'image/png', sizeBytes: PNG_1PX.byteLength },
+      observed,
+      processingEvent(old.id),
       NOW,
     )
     await uploadStore.stage(
       { ...scope, issuanceId: next.id },
-      { contentType: 'image/png', sizeBytes: PNG_1PX.byteLength },
+      observed,
+      processingEvent(next.id),
       NOW,
     )
     const readIssuedPortalUpload = vi.fn(async () => PNG_1PX)
@@ -149,7 +175,8 @@ describe('process-image job', () => {
         portalId: PORTAL_ID,
         issuanceId: UPLOAD_ID,
       },
-      { contentType: 'image/png', sizeBytes: PNG_1PX.byteLength },
+      observed,
+      processingEvent(UPLOAD_ID),
       NOW,
     )
     const writePortalUploadDerivative = vi.fn()

@@ -69,6 +69,23 @@ export type PortalResponsibilityNeeded = Readonly<{
   occurredAt: Date
 }>
 
+/**
+ * Durable, content-free hand-off from upload finalization to image processing.
+ * `sourceETag` is an object-version fence, not guest content; the consumer
+ * binds it to S3 `If-Match` before decoding any bytes.
+ */
+export type PortalHeroImageProcessingRequested = Readonly<{
+  _tag: 'portal.hero_image.processing_requested'
+  eventId: string
+  correlationId: string | null
+  uploadId: string
+  portalId: PortalId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  sourceETag: string
+  occurredAt: Date
+}>
+
 export type PortalTokenIssued = Readonly<{
   _tag: 'portal.token.issued'
   eventId: string
@@ -239,6 +256,7 @@ export type PortalEvent =
   | PortalUpdated
   | PortalDeleted
   | PortalResponsibilityNeeded
+  | PortalHeroImageProcessingRequested
   | PortalTokenIssued
   | PortalTokenRotated
   | PortalTokenRevoked
@@ -310,6 +328,23 @@ export const portalResponsibilityNeeded = (
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   return {
     _tag: 'portal.responsibility_became_needed',
+    eventId: newEventId(),
+    correlationId: null,
+    ...args,
+  }
+}
+
+export const portalHeroImageProcessingRequested = (
+  args: Omit<PortalHeroImageProcessingRequested, '_tag' | 'eventId' | 'correlationId'>,
+): PortalHeroImageProcessingRequested => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.uploadId.trim().length > 0, 'uploadId must be non-empty')
+  assert(
+    /^[A-Za-z0-9"'-]{1,200}$/.test(args.sourceETag),
+    'sourceETag must be a safe non-empty object version fence',
+  )
+  return {
+    _tag: 'portal.hero_image.processing_requested',
     eventId: newEventId(),
     correlationId: null,
     ...args,

@@ -41,7 +41,17 @@ export type PortalUploadIssuance = Readonly<{
 export type PortalUploadObservedMetadata = Readonly<{
   contentType: string | null
   sizeBytes: number | null
+  /**
+   * Exact object version fence returned by S3. The processing fact persists
+   * this value and every worker GET sends it as `If-Match`, so a later PUT to
+   * the same private key cannot change the bytes being decoded.
+   */
+  sourceETag: string | null
 }>
+
+export function isSafePortalObjectETag(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9"'-]{1,200}$/.test(value)
+}
 
 export function isPortalHeroUploadContentType(
   contentType: string,
@@ -119,6 +129,7 @@ export function portalUploadMetadataMatches(
     issuance.objectKey === expectedPortalHeroSourceObjectKey(issuance) &&
     observed.contentType === issuance.contentType &&
     observed.sizeBytes === issuance.declaredSizeBytes &&
-    observed.sizeBytes <= issuance.maxSizeBytes
+    observed.sizeBytes <= issuance.maxSizeBytes &&
+    isSafePortalObjectETag(observed.sourceETag)
   )
 }

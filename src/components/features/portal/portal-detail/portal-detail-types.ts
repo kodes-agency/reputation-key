@@ -49,7 +49,11 @@ export type PortalDetailResources = Readonly<{
   tokenStatus: PortalTokenStatus
   requestUploadUrl: (input: {
     data: { portalId: string; contentType: string; fileSize: number }
-  }) => Promise<{ uploadUrl: string; uploadId: string }>
+  }) => Promise<{
+    uploadUrl: string
+    uploadId: string
+    requiredHeaders: Readonly<Record<string, string>>
+  }>
   finalizeUpload: (input: {
     data: { portalId: string; uploadId: string }
   }) => Promise<{ heroImageUrl: string | null; processing: boolean }>

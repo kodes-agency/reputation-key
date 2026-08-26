@@ -3,6 +3,7 @@ import type {
   PortalUploadIssuance,
   PortalUploadObservedMetadata,
 } from '../../domain/upload-issuance'
+import type { PortalHeroImageProcessingRequested } from '../../domain/events'
 
 export type PortalUploadScope = Readonly<{
   organizationId: OrganizationId
@@ -32,6 +33,7 @@ export type PortalUploadIssuanceStore = Readonly<{
   stage(
     scope: PortalUploadScope,
     observed: PortalUploadObservedMetadata,
+    processingRequested: PortalHeroImageProcessingRequested,
     at: Date,
   ): Promise<StagePortalUploadResult>
   findProcessable(scope: PortalUploadScope): Promise<PortalUploadIssuance | null>

@@ -34,6 +34,7 @@ export type IssuedPortalUploadView = Readonly<{
   expiresAt: string
   contentType: string
   maxSizeBytes: number
+  requiredHeaders: Readonly<{ 'If-None-Match': '*' }>
 }>
 
 export const requestUploadUrl =
@@ -73,13 +74,15 @@ export const requestUploadUrl =
     }
 
     try {
-      const { uploadUrl } = await deps.storage.createIssuedPortalUpload(issuance)
+      const { uploadUrl, requiredHeaders } =
+        await deps.storage.createIssuedPortalUpload(issuance)
       return {
         uploadUrl,
         uploadId: issuance.id,
         expiresAt: issuance.expiresAt.toISOString(),
         contentType: issuance.contentType,
         maxSizeBytes: issuance.maxSizeBytes,
+        requiredHeaders,
       }
     } catch {
       try {

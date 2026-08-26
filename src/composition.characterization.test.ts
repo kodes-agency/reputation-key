@@ -350,10 +350,14 @@ describe('provider DI slots (BQC-6.1)', () => {
   }
 
   const fakeStorage: PortalStoragePort = {
-    createIssuedPortalUpload: async () => ({ uploadUrl: 'memory://upload' }),
+    createIssuedPortalUpload: async () => ({
+      uploadUrl: 'memory://upload',
+      requiredHeaders: { 'If-None-Match': '*' },
+    }),
     confirmIssuedPortalUpload: async (issuance) => ({
       contentType: issuance.contentType,
       sizeBytes: issuance.declaredSizeBytes,
+      sourceETag: '"d41d8cd98f00b204e9800998ecf8427e"',
     }),
     readIssuedPortalUpload: async () => Buffer.alloc(0),
     writePortalUploadDerivative: async (issuance, derivative) => {

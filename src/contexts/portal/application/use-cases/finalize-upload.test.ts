@@ -8,7 +8,6 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { portalId, propertyId, type PropertyId } from '#/shared/domain/ids'
 import type { IssuedPortalUploadStoragePort } from '../ports/storage.port'
 import { createPortalHeroUploadIssuance } from '../../domain/upload-issuance'
-import type { Queue } from '#/shared/jobs/queue'
 
 const ISSUANCE_ID = '70000000-0000-4000-8000-000000000001'
 const SECOND_ISSUANCE_ID = '70000000-0000-4000-8000-000000000002'
@@ -25,7 +24,11 @@ const setup = (input?: Readonly<{ accessible?: ReadonlyArray<PropertyId> | null 
   const uploadStore = createInMemoryPortalUploadIssuanceStore()
   const confirmIssuedPortalUpload = vi.fn<
     IssuedPortalUploadStoragePort['confirmIssuedPortalUpload']
-  >(async () => ({ contentType: 'image/png', sizeBytes: 1024 }))
+  >(async () => ({
+    contentType: 'image/png',
+    sizeBytes: 1024,
+    sourceETag: '"d41d8cd98f00b204e9800998ecf8427e"',
+  }))
   const deleteIssuedPortalUpload = vi.fn<
     IssuedPortalUploadStoragePort['deleteIssuedPortalUpload']
   >(async () => {})
@@ -37,14 +40,13 @@ const setup = (input?: Readonly<{ accessible?: ReadonlyArray<PropertyId> | null 
     'confirmIssuedPortalUpload' | 'deleteIssuedPortalUpload'
   >
   let currentTime = FIXED_TIME
-  const buildUseCase = (queue: Queue | undefined = undefined) =>
+  const buildUseCase = () =>
     finalizeUpload({
       portalRepo,
       uploadStore,
       storage,
       staffPublicApi: staffApiMock(input?.accessible ?? null),
       clock: () => currentTime,
-      queue,
     })
   return {
     portalRepo,
@@ -79,16 +81,13 @@ async function seedIssuedUpload(
 }
 
 describe('finalizeUpload', () => {
-  it('consumes the issued upload by opaque ID and never puts an object key in the job', async () => {
+  it('atomically records an ETag-bound processing fact without exposing an object key', async () => {
     const harness = setup()
     const ctx = buildTestAuthContext()
     const portal = buildTestPortal({ heroImageUrl: 'https://cdn.example.com/old.webp' })
     harness.portalRepo.seed([portal])
     await seedIssuedUpload(harness, portal)
-    const add = vi.fn(
-      async (_name: string, _data: unknown, _options: unknown) => undefined,
-    )
-    const useCase = harness.buildUseCase({ add } as unknown as Queue)
+    const useCase = harness.buildUseCase()
 
     const result = await useCase({ portalId: portal.id, uploadId: ISSUANCE_ID }, ctx)
 
@@ -99,10 +98,14 @@ describe('finalizeUpload', () => {
     expect(harness.uploadStore.all()[0]).toEqual(
       expect.objectContaining({ state: 'consumed', consumedAt: FIXED_TIME }),
     )
-    expect(add).toHaveBeenCalledOnce()
-    const jobData = add.mock.calls[0]?.[1]
-    expect(jobData).toEqual(expect.objectContaining({ uploadId: ISSUANCE_ID }))
-    expect(jobData).not.toHaveProperty('key')
+    expect(harness.uploadStore.processingFacts()).toEqual([
+      expect.objectContaining({
+        _tag: 'portal.hero_image.processing_requested',
+        uploadId: ISSUANCE_ID,
+        sourceETag: '"d41d8cd98f00b204e9800998ecf8427e"',
+      }),
+    ])
+    expect(harness.uploadStore.processingFacts()[0]).not.toHaveProperty('objectKey')
   })
 
   it('rejects replay before inspecting storage or enqueueing another job', async () => {
@@ -172,7 +175,11 @@ describe('finalizeUpload', () => {
     harness.setTime(new Date('2026-08-26T12:14:59.000Z'))
     harness.confirmIssuedPortalUpload.mockImplementationOnce(async () => {
       harness.setTime(new Date('2026-08-26T12:15:00.000Z'))
-      return { contentType: 'image/png', sizeBytes: 1024 }
+      return {
+        contentType: 'image/png',
+        sizeBytes: 1024,
+        sourceETag: '"d41d8cd98f00b204e9800998ecf8427e"',
+      }
     })
 
     await expect(
@@ -190,10 +197,39 @@ describe('finalizeUpload', () => {
   })
 
   it.each([
-    [{ contentType: 'image/jpeg', sizeBytes: 1024 }, 'MIME'],
-    [{ contentType: 'image/png', sizeBytes: 1025 }, 'size'],
-    [{ contentType: null, sizeBytes: 1024 }, 'unknown MIME'],
-    [{ contentType: 'image/png', sizeBytes: null }, 'unknown size'],
+    [
+      {
+        contentType: 'image/jpeg',
+        sizeBytes: 1024,
+        sourceETag: '"d41d8cd98f00b204e9800998ecf8427e"',
+      },
+      'MIME',
+    ],
+    [
+      {
+        contentType: 'image/png',
+        sizeBytes: 1025,
+        sourceETag: '"d41d8cd98f00b204e9800998ecf8427e"',
+      },
+      'size',
+    ],
+    [
+      {
+        contentType: null,
+        sizeBytes: 1024,
+        sourceETag: '"d41d8cd98f00b204e9800998ecf8427e"',
+      },
+      'unknown MIME',
+    ],
+    [
+      {
+        contentType: 'image/png',
+        sizeBytes: null,
+        sourceETag: '"d41d8cd98f00b204e9800998ecf8427e"',
+      },
+      'unknown size',
+    ],
+    [{ contentType: 'image/png', sizeBytes: 1024, sourceETag: null }, 'missing ETag'],
   ])(
     'rejects and deletes an object with mismatched metadata (%s, %s)',
     async (observed, _label) => {
@@ -273,6 +309,6 @@ describe('finalizeUpload', () => {
 
     await expect(
       harness.buildUseCase()({ portalId: portal.id, uploadId: ISSUANCE_ID }, ctx),
-    ).resolves.toEqual({ heroImageUrl: null, processing: false })
+    ).resolves.toEqual({ heroImageUrl: null, processing: true })
   })
 })

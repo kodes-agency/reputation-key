@@ -47,7 +47,11 @@ type Props = Readonly<{
   formRef?: React.RefObject<FormLike | null>
   requestUploadUrl: (input: {
     data: { portalId: string; contentType: string; fileSize: number }
-  }) => Promise<{ uploadUrl: string; uploadId: string }>
+  }) => Promise<{
+    uploadUrl: string
+    uploadId: string
+    requiredHeaders: Readonly<Record<string, string>>
+  }>
   finalizeUpload: (input: { data: { portalId: string; uploadId: string } }) => Promise<{
     heroImageUrl: string | null
     processing: boolean
@@ -128,10 +132,10 @@ export function EditPortalForm({
         heroImageUrl={heroImageUrl}
         onImageUrlChange={(url) => form.setFieldValue('heroImageUrl', url)}
         onUpload={async (file, onProgress) => {
-          const { uploadUrl, uploadId } = await requestUploadUrl({
+          const { uploadUrl, uploadId, requiredHeaders } = await requestUploadUrl({
             data: { portalId: portal.id, contentType: file.type, fileSize: file.size },
           })
-          await putFilePresigned(uploadUrl, file, onProgress)
+          await putFilePresigned(uploadUrl, file, onProgress, requiredHeaders)
           const { heroImageUrl: url } = await finalizeUpload({
             data: { portalId: portal.id, uploadId },
           })

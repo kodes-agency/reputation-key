@@ -580,6 +580,15 @@ const portalResponsibilityNeededSchema = z.object({
   occurredAt: z.iso.datetime(),
 })
 
+const portalHeroImageProcessingRequestedSchema = z.object({
+  uploadId: z.uuid(),
+  portalId: z.uuid(),
+  organizationId: z.string().min(1),
+  propertyId: z.uuid(),
+  sourceETag: z.string().regex(/^[A-Za-z0-9"'-]{1,200}$/),
+  occurredAt: z.iso.datetime(),
+})
+
 const portalTokenIssuedSchema = z.object({
   portalId: z.string(),
   organizationId: z.string(),
@@ -932,6 +941,11 @@ export function registerAllEventSchemas(): void {
     type: 'portal.responsibility_became_needed',
     version: EVENT_VERSION,
     schema: portalResponsibilityNeededSchema,
+  })
+  registerEventSchema({
+    type: 'portal.hero_image.processing_requested',
+    version: EVENT_VERSION,
+    schema: portalHeroImageProcessingRequestedSchema,
   })
   registerEventSchema({
     type: 'portal.content_review.completed',

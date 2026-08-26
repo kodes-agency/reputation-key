@@ -307,6 +307,7 @@ const PROPERTY_EVENTS = 'src/contexts/property/domain/events.ts'
 const TEAM_EVENTS = 'src/contexts/team/domain/events.ts'
 const STAFF_EVENTS = 'src/contexts/staff/domain/events.ts'
 const PORTAL_EVENTS = 'src/contexts/portal/domain/events.ts'
+const PORTAL_OUTBOX = 'src/contexts/portal/infrastructure/outbox-consumers.ts'
 const GUEST_EVENTS = 'src/contexts/guest/domain/events.ts'
 const INTEGRATION_EVENTS = 'src/contexts/integration/domain/events.ts'
 const METRIC_EVENTS = 'src/contexts/metric/domain/events.ts'
@@ -1053,6 +1054,23 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
     {
       notes:
         'identifier-only version-fenced lifecycle fact; Portal patch and fact commit atomically',
+    },
+  ),
+  ev(
+    'portal.hero_image.processing_requested',
+    PORTAL_EVENTS,
+    {
+      stateOwner: 'portal',
+      capability: 'portal.upload',
+      action: 'system:image.process',
+      schemaRegistered: true,
+      recordedInOutbox: true,
+      consumers: [durable('portal.process-issued-hero-image', PORTAL_OUTBOX)],
+      disposition: 'denied_dark',
+    },
+    {
+      notes:
+        'atomic issuance-consumption hand-off; content-free payload binds image reads to the exact verified source ETag',
     },
   ),
   ev(

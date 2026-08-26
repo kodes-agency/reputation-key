@@ -8,6 +8,8 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   PutObjectCommand,
+  type GetObjectCommandInput,
+  type PutObjectCommandInput,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import type {
@@ -18,6 +20,7 @@ import { portalError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
 import {
   expectedPortalHeroSourceObjectKey,
+  isSafePortalObjectETag,
   type PortalUploadIssuance,
 } from '../../domain/upload-issuance'
 
@@ -72,6 +75,38 @@ function assertIssuedPortalObject(issuance: PortalUploadIssuance): void {
   }
 }
 
+export function buildPortalIssuedPutInput(
+  bucketName: string,
+  issuance: PortalUploadIssuance,
+): PutObjectCommandInput {
+  assertIssuedPortalObject(issuance)
+  return {
+    Bucket: bucketName,
+    Key: issuance.objectKey,
+    ContentType: issuance.contentType,
+    // A presigned URL can be replayed until it expires. Conditional creation
+    // makes the first successful upload the only accepted write for this
+    // issuance key; the worker also binds its GET to the observed ETag.
+    IfNoneMatch: '*',
+  }
+}
+
+export function buildPortalBoundReadInput(
+  bucketName: string,
+  issuance: PortalUploadIssuance,
+  expectedSourceETag: string,
+): GetObjectCommandInput {
+  assertIssuedPortalObject(issuance)
+  if (issuance.state !== 'consumed' || !isSafePortalObjectETag(expectedSourceETag)) {
+    throw portalError('upload_failed', 'Portal upload processing fence is invalid')
+  }
+  return {
+    Bucket: bucketName,
+    Key: issuance.objectKey,
+    IfMatch: expectedSourceETag,
+  }
+}
+
 export const createS3StorageAdapter = (config: S3StorageConfig): PortalStoragePort => {
   // If S3 is not configured, return a noop adapter
   if (!config.accessKey || !config.secretKey || !config.bucketName || !config.region) {
@@ -122,11 +157,9 @@ export const createS3StorageAdapter = (config: S3StorageConfig): PortalStoragePo
       if (issuance.state !== 'issued') {
         throw portalError('upload_failed', 'Portal upload is not issuable')
       }
-      const command = new PutObjectCommand({
-        Bucket: bucketName,
-        Key: issuance.objectKey,
-        ContentType: issuance.contentType,
-      })
+      const command = new PutObjectCommand(
+        buildPortalIssuedPutInput(bucketName, issuance),
+      )
       const ttlSeconds = Math.max(
         1,
         Math.min(
@@ -137,7 +170,12 @@ export const createS3StorageAdapter = (config: S3StorageConfig): PortalStoragePo
       const uploadUrl = await trace('s3.createIssuedPortalUpload', () =>
         getSignedUrl(presignClient, command, { expiresIn: ttlSeconds }),
       )
-      return { uploadUrl }
+      return {
+        uploadUrl,
+        // This header participates in the signed conditional PUT. Browsers
+        // must send it; the URL alone does not carry HTTP request headers.
+        requiredHeaders: { 'If-None-Match': '*' },
+      }
     },
 
     confirmIssuedPortalUpload: async (issuance) => {
@@ -150,20 +188,20 @@ export const createS3StorageAdapter = (config: S3StorageConfig): PortalStoragePo
       return {
         contentType: metadata.ContentType ?? null,
         sizeBytes: metadata.ContentLength ?? null,
+        sourceETag: metadata.ETag ?? null,
       }
     },
 
-    readIssuedPortalUpload: async (issuance) => {
-      assertIssuedPortalObject(issuance)
-      if (issuance.state !== 'consumed') {
-        throw portalError('upload_failed', 'Portal upload is not processable')
-      }
+    readIssuedPortalUpload: async (issuance, expectedSourceETag) => {
       const object = await trace('s3.readIssuedPortalUpload', () =>
         internalClient.send(
-          new GetObjectCommand({ Bucket: bucketName, Key: issuance.objectKey }),
+          new GetObjectCommand(
+            buildPortalBoundReadInput(bucketName, issuance, expectedSourceETag),
+          ),
         ),
       )
       if (
+        object.ETag !== expectedSourceETag ||
         object.ContentType !== issuance.contentType ||
         object.ContentLength !== issuance.declaredSizeBytes ||
         object.ContentLength > issuance.maxSizeBytes ||
