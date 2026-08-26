@@ -377,6 +377,20 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
   // ── identity ──────────────────────────────────────────────────────
   ...[
     sf(
+      'submitBetaFeedbackHandler',
+      `${IDENTITY}/beta-feedback.ts`,
+      'system:identity.beta_feedback',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        externalEffect: true,
+        purpose: 'beta_product_feedback',
+        notes:
+          'Server-only implementation behind submitBetaFeedbackFn; resolves tenant authority and applies the same bounded feedback contract',
+      },
+    ),
+    sf(
       'submitBetaFeedbackFn',
       `${IDENTITY}/beta-feedback.ts`,
       'system:identity.beta_feedback',
@@ -3662,6 +3676,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ci/check-product-state-consistency.ts',
+    'scripts/ci/check-product-state-consistency.ts',
+    'none',
+    {
+      notes:
+        'check:product-state-consistency — read-only EXP-02 gate: inventories query-key, broad invalidation, and local state-mirror sites against an owned classification ledger',
+    },
+  ),
+  ops(
     'scripts/review/baseline-inventory.ts',
     'scripts/review/baseline-inventory.ts',
     'none',
@@ -3690,6 +3713,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'FND-01 read-only validator: binds the complete finding revalidation record to the immutable review register, frozen source evidence, owner/package mapping, and executable or explicitly deferred closure criteria',
+    },
+  ),
+  ops(
+    'scripts/review/finding-revalidation-fragment.ts',
+    'scripts/review/finding-revalidation-fragment.ts',
+    'none',
+    {
+      notes:
+        'FND-01 read-only fragment validator: binds one governed finding-family slice to immutable frozen/current evidence before central reconciliation',
     },
   ),
   ops('scripts/review/pre-fix-oracles.ts', 'scripts/review/pre-fix-oracles.ts', 'none', {

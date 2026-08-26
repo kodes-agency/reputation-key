@@ -7,8 +7,9 @@
 // policy test."
 //
 // Discovery is mechanical:
-//   1. server functions — `export const x = createServerFn({ method })` scans,
-//      with per-function extraction of requireAuthorized/assert*Capability calls
+//   1. server functions — `export const x = createServerFn({ method })` and
+//      `createServerOnlyFn(...)` scans, with per-function extraction of
+//      requireAuthorized/assert*Capability calls
 //   2. UI + API routes — file walk of src/routes (TanStack Router conventions)
 //   3. jobs — JOB_NAME(S) constants + bootstrap.ts register(...) literals
 //   4. consumers — event-handlers/index.ts registration tables + durable
@@ -87,7 +88,7 @@ function serverFnFiles(): string[] {
 }
 
 const FN_RE =
-  /export const (\w+) = createServerFn\(\{\s*method:\s*'(GET|POST)'\s*,?\s*\}\)/g
+  /export const (\w+) = (?:createServerFn\(\{\s*method:\s*'(GET|POST)'\s*,?\s*\}\)|createServerOnlyFn\s*\()/g
 const REQUIRE_AUTHZ_RE = /(?:requireAuthorized|requireExecutionAllowed)\(\s*\{([^}]*)\}/g
 const ACTION_RE = /action:\s*'([^']+)'/
 const SCOPED_AUTHZ_RE = /authorize[A-Za-z]+\(\s*[\s\S]{0,200}?'([^']+)'/g
@@ -97,30 +98,45 @@ const SCOPED_CAPABILITY_RE =
 const ASSERT_CTX_CAP_RE = /assertBetaCapability\(\s*[^,]+,\s*'([^']+)'/g
 const ASSERT_GLOBAL_CAP_RE = /assertGlobalCapability\(\s*'([^']+)'\s*\)/g
 
+function discoverServerFunctionDeclarations(
+  content: string,
+  file: string,
+): ReadonlyArray<DiscoveredFn> {
+  const out: DiscoveredFn[] = []
+  const matches = [...content.matchAll(FN_RE)]
+  matches.forEach((m, i) => {
+    const slice = content.slice(m.index, matches[i + 1]?.index ?? content.length)
+    const directActions = [...slice.matchAll(REQUIRE_AUTHZ_RE)]
+      .map((r) => ACTION_RE.exec(r[1])?.[1])
+      .filter((a): a is string => Boolean(a))
+    const scopedActions = [...slice.matchAll(SCOPED_AUTHZ_RE)].map((r) => r[1])
+    const actions = [...new Set([...directActions, ...scopedActions])]
+    const explicitCaps = [...slice.matchAll(REQUIRE_AUTHZ_RE)]
+      .map((r) => CAPABILITY_ARG_RE.exec(r[1])?.[1])
+      .filter((a): a is string => Boolean(a))
+    const scopedCaps = [...slice.matchAll(SCOPED_CAPABILITY_RE)].map((r) => r[1])
+    const caps = [
+      ...[...slice.matchAll(ASSERT_CTX_CAP_RE)].map((r) => r[1]),
+      ...[...slice.matchAll(ASSERT_GLOBAL_CAP_RE)].map((r) => r[1]),
+      ...explicitCaps,
+      ...scopedCaps,
+    ]
+    out.push({
+      name: m[1],
+      file,
+      method: m[2] ?? 'SERVER_ONLY',
+      actions,
+      caps,
+    })
+  })
+  return out
+}
+
 function discoverServerFunctions(): ReadonlyArray<DiscoveredFn> {
   const out: DiscoveredFn[] = []
   for (const abs of serverFnFiles()) {
     const content = read(abs)
-    const matches = [...content.matchAll(FN_RE)]
-    matches.forEach((m, i) => {
-      const slice = content.slice(m.index, matches[i + 1]?.index ?? content.length)
-      const directActions = [...slice.matchAll(REQUIRE_AUTHZ_RE)]
-        .map((r) => ACTION_RE.exec(r[1])?.[1])
-        .filter((a): a is string => Boolean(a))
-      const scopedActions = [...slice.matchAll(SCOPED_AUTHZ_RE)].map((r) => r[1])
-      const actions = [...new Set([...directActions, ...scopedActions])]
-      const explicitCaps = [...slice.matchAll(REQUIRE_AUTHZ_RE)]
-        .map((r) => CAPABILITY_ARG_RE.exec(r[1])?.[1])
-        .filter((a): a is string => Boolean(a))
-      const scopedCaps = [...slice.matchAll(SCOPED_CAPABILITY_RE)].map((r) => r[1])
-      const caps = [
-        ...[...slice.matchAll(ASSERT_CTX_CAP_RE)].map((r) => r[1]),
-        ...[...slice.matchAll(ASSERT_GLOBAL_CAP_RE)].map((r) => r[1]),
-        ...explicitCaps,
-        ...scopedCaps,
-      ]
-      out.push({ name: m[1], file: rel(abs), method: m[2], actions, caps })
-    })
+    out.push(...discoverServerFunctionDeclarations(content, rel(abs)))
   }
   return out
 }
@@ -376,6 +392,24 @@ const rowKey = (r: Pick<EntryPointRow, 'kind' | 'name' | 'file'>) =>
 const isSystemAction = (action: string): boolean => action.startsWith('system:')
 
 describe('BQC-2.1 entry-point catalogue', () => {
+  it('discovers both request handlers and server-only implementation boundaries', () => {
+    const discovered = discoverServerFunctionDeclarations(
+      `
+        export const internalHandler = createServerOnlyFn(
+          async () => ({ ok: true }),
+        )
+        export const publicHandler = createServerFn({ method: 'POST' })
+          .handler(internalHandler)
+      `,
+      'fixture/server-boundaries.ts',
+    )
+
+    expect(discovered.map(({ name, method }) => ({ name, method }))).toEqual([
+      { name: 'internalHandler', method: 'SERVER_ONLY' },
+      { name: 'publicHandler', method: 'POST' },
+    ])
+  })
+
   it('has complete, well-formed rows with unique ids', () => {
     const ids = catalogue.map((r) => r.id)
     const dupes = ids.filter((id, i) => ids.indexOf(id) !== i)
