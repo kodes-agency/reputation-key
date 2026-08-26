@@ -121,19 +121,21 @@
     {
       "id": "SAFE-02",
       "status": "partial",
-      "summary": "Effective membership/property authority now gates the identified Staff, Portal/Property manager, Goal, AI-backfill, and beta-feedback decisions instead of trusting raw role strings, and password recovery revokes all existing sessions with real-database coverage. Invitation, tenant, and rate-limit controls also remain in place. A whole-repository raw-role audit plus browser multi-device and deployed proxy/revocation evidence remain incomplete.",
+      "summary": "Effective membership/property authority now gates the identified Staff, Portal/Property manager, Goal, AI-backfill, and beta-feedback decisions instead of trusting raw role strings, and password recovery revokes all existing sessions with real-database coverage. A whole-repository AST audit now rejects uncatalogued built-in-role comparisons in production equality, set/list membership, and switch decisions: the nine retained files are exactly two central role-vocabulary authorities, three presentation-only formatters/forms, and four capability-blocked legacy Badge/Leaderboard/Team paths. No direct raw-role authorization decision remains uncatalogued in an active context. Invitation, tenant, and rate-limit controls also remain in place; browser multi-device and deployed proxy/revocation evidence remain incomplete.",
       "codeEvidence": [
         "src/contexts/identity/infrastructure/repositories/member-property-authority.ts",
         "src/contexts/identity/infrastructure/repositories/manager-membership.repository.ts",
         "src/shared/auth/auth.ts",
         "src/shared/domain/permissions.ts",
-        "src/shared/responsible-manager-eligibility.ts"
+        "src/shared/responsible-manager-eligibility.ts",
+        "src/shared/governance/raw-role-decision-catalogue.ts"
       ],
       "testEvidence": [
-        "Password reset, all-session revocation, invitation, membership/property authority, manager eligibility, tenant, proxy, and rate-limit suites"
+        "Password reset, all-session revocation, invitation, membership/property authority, manager eligibility, tenant, proxy, and rate-limit suites",
+        "Raw-role catalogue negative controls: 1 file / 3 tests passed; surrounding role/permission/tenant authority matrix: 7 files / 83 tests passed"
       ],
       "remaining": [
-        "Mechanically audit and remove any remaining policy-bearing raw-role decisions, prove multi-device revocation and revoked-cookie denial in browser tests, capture Railway forwarding behavior, and disposition every identity/membership anomaly through the People reconciliation authority."
+        "Contract the four catalogued legacy-dark raw-role files with their Badge/Leaderboard/Team contexts; prove multi-device revocation and revoked-cookie denial in browser tests, capture Railway forwarding behavior, and disposition every identity/membership anomaly through the People reconciliation authority."
       ],
       "externalBlockers": []
     },
