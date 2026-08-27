@@ -14,6 +14,7 @@ export type RailwayLinkedTarget = Readonly<{
 }>
 
 const EXPECTED_PROJECT_NAME = 'reputation-key'
+const ANSI_COLOR_SEQUENCE = new RegExp(`${String.fromCodePoint(27)}\\[[0-9;]*m`, 'gu')
 
 function nonEmpty(value: string | undefined, label: string): string {
   if (!value?.trim()) throw new Error(`Railway status did not report ${label}`)
@@ -22,7 +23,7 @@ function nonEmpty(value: string | undefined, label: string): string {
 
 /** Parse the stable identity block emitted by `railway status` without secrets. */
 export function parseRailwayLinkedTarget(output: string): RailwayLinkedTarget {
-  const plain = output.replaceAll(/\u001b\[[0-9;]*m/gu, '')
+  const plain = output.replaceAll(ANSI_COLOR_SEQUENCE, '')
   const field = (name: string): string | undefined =>
     new RegExp(`^${name}:\\s+(.+)$`, 'mu').exec(plain)?.[1]
 

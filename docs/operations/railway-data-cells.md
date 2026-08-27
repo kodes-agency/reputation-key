@@ -136,9 +136,11 @@ For the non-production mirror first:
    in the same cutover change. There must be no steady-state dual ownership.
 6. Attach the exact candidate image digests through the `REG-03` promotion
    controller, run migrations once, and keep Property allocation/traffic off.
-7. Prove seed-free boot, startup/readiness/liveness, provider sandbox journeys,
+7. Prove seed-free boot, startup/readiness/liveness, deterministic provider-stub
+   journeys, an authorized non-customer Google Business Profile canary,
    wrong-cell denial, backup/restore, and operation with either other cell
-   offline.
+   offline. Google Business Profile has no sandbox, so stub and live-provider
+   evidence remain separate.
 8. Onboard one internal Property in the mirror, then one internal Property in
    the production cell. The Data Cell catalogue may change from `provisioning`
    to `accepting` only after that cell's evidence is approved.
