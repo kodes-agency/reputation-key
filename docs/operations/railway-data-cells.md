@@ -151,6 +151,24 @@ For the non-production mirror first:
 5. Apply the reviewed non-destructive graph. Only after Railway no longer
    reports a Config File owner, remove the corresponding `railway*.json` files
    in the same cutover change. There must be no steady-state dual ownership.
+
+   `.railway/legacy-config-ownership.ts` is the executable reconciliation for
+   this step. Every root `railway*.json` is declared exactly once as either
+   `migrated` — the service is now owned by the cell graph, so the file is
+   dual ownership and the cutover deletes it — or `out-of-graph`, with a
+   recorded reason for a workload that is deliberately not a cell resource.
+   `pnpm infra:railway:validate` reconciles the declarations against the files
+   on disk and the rendered graph, and fails closed on an undeclared file, a
+   stale declaration, a rename, an out-of-graph service that appeared in the
+   graph, or a graph service nothing accounts for.
+
+   Six files are currently dual ownership: `railway.json`,
+   `railway.worker.json`, and the four `google-*`/`ai-*` gateway and admission
+   configs. Four survive the cutover: the one-shot `ai-egress-canary` and
+   `ai-egress-probe` jobs, `perf-runner`, and `sandbox`. Adding an
+   out-of-graph service to the cell graph to silence the diagnostic is a
+   cutover failure, not a fix.
+
 6. Attach the exact candidate image digests through the `REG-03` promotion
    controller, run migrations once, and keep Property allocation/traffic off.
 7. Prove seed-free boot, startup/readiness/liveness, deterministic provider-stub

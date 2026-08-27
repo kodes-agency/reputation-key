@@ -18,6 +18,10 @@ import {
   RAILWAY_CELL_ENVIRONMENTS,
   resolveCellTopology,
 } from './cell-topology'
+import {
+  readLegacyConfigFiles,
+  reconcileLegacyConfigOwnership,
+} from './legacy-config-ownership'
 import { buildRailwayProject } from './railway'
 
 const REPOSITORY_ROOT = fileURLToPath(new URL('..', import.meta.url))
@@ -320,5 +324,39 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
       restartPolicyMaxRetries: 10,
       drainingSeconds: 30,
     })
+  })
+})
+
+describe('legacy Config-as-Code ownership', () => {
+  // REG-02: the cutover removes root railway*.json only once Railway stops
+  // reporting a Config File owner, so until then the two ownership sets have to
+  // be reconciled against the rendered graph rather than a hand-kept list.
+  const graphServices = resources(build('cell-europe'))
+    .filter((node) => node.type === 'service')
+    .map((node) => node.name)
+
+  it('accounts for every root railway*.json and every graph service', () => {
+    const report = reconcileLegacyConfigOwnership({
+      presentFiles: readLegacyConfigFiles(REPOSITORY_ROOT),
+      graphServices,
+    })
+
+    expect(report.violations).toEqual([])
+  })
+
+  it('names the exact files the cutover still has to delete', () => {
+    const report = reconcileLegacyConfigOwnership({
+      presentFiles: readLegacyConfigFiles(REPOSITORY_ROOT),
+      graphServices,
+    })
+
+    expect(report.dualOwnership).toEqual([
+      'railway.ai-egress-gateway.json',
+      'railway.ai-execution-admission.json',
+      'railway.google-egress-gateway.json',
+      'railway.google-execution-admission.json',
+      'railway.json',
+      'railway.worker.json',
+    ])
   })
 })
