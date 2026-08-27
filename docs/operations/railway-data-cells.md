@@ -109,14 +109,31 @@ After the target project and environment-scoped CI tokens exist, link one
 environment at a time and capture the redacted drift plan:
 
 ```bash
-railway config plan --file .railway/railway.ts --detailed-exit-code --json
+pnpm infra:railway:plan-cell --cell=europe --evidence-out=docs/release-evidence/beta/<release-id>/raw/cell-europe-plan.json
 ```
 
+The command refuses before planning unless `railway status` reports the
+`reputation-key` project linked to the matching `cell-*` environment — a
+plausible plan for the wrong cell is unsafe evidence. It then plans against
+`.railway/railway.ts` with `--detailed-exit-code --json` and retains a
+canonical evidence record plus a `shasum -c` compatible `.sha256` sidecar.
+
 Exit `0` means no drift, `2` means reviewed changes are pending, and any other
-exit blocks promotion. Never use `--show-values` in CI or evidence. Store the
-redacted JSON and its SHA-256 beside release evidence. Applying is a separate
-operator action; destructive changes require an explicit plan review and must
-not be hidden in an automatic rollback.
+exit blocks promotion — a blocking exit is refused rather than written out as
+reviewable evidence. Both files are written with `wx`, so a recapture never
+silently replaces a reviewed plan.
+
+Evidence redaction is fail-closed: string values are fingerprinted as
+`sha256:<16 hex>` unless their key is on the structural allowlist in
+`src/shared/release/railway-plan-evidence.ts`, so a value-bearing key that
+Railway adds later is redacted by default. Fingerprints prove whether a value
+changed between plans; they are not a confidentiality boundary for low-entropy
+values, so never use `--show-values` in CI or evidence. The recorded
+`iac.sha256` is the same `.railway` tree digest the `REG-03` promotion manifest
+carries, which is what ties a reviewed plan to the release promoted from it.
+
+Applying is a separate operator action; destructive changes require an explicit
+plan review and must not be hidden in an automatic rollback.
 
 ## Controlled migration from service Config-as-Code
 

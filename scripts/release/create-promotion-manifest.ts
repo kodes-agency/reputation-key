@@ -1,11 +1,12 @@
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
-import { basename, join, resolve } from 'node:path'
+import { readFileSync, writeFileSync } from 'node:fs'
+import { basename, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { CAPABILITY_POLICY_VERSION } from '../../src/shared/auth/beta-capabilities'
 import {
   DATA_CELL_CATALOGUE_POLICY_VERSION,
   DATA_CELL_IDS,
 } from '../../src/shared/domain/data-cell-catalogue'
+import { sourceFileSha256, sourceTreeDigest } from './iac-digest'
 import {
   PROMOTED_IMAGE_ROLES,
   PROMOTION_MANIFEST_VERSION,
@@ -39,28 +40,6 @@ function requiredDigest(args: readonly string[], name: string): string {
   const value = requiredFlag(args, name)
   if (!SHA256.test(value)) throw new Error(`${name} must be a lowercase sha256`)
   return value
-}
-
-function sha256File(path: string): string {
-  return promotionManifestSha256(readFileSync(path))
-}
-
-function sourceTreeDigest(paths: readonly string[]): string {
-  const entries = paths
-    .flatMap((path) => {
-      const absolute = resolve(path)
-      return readdirSync(absolute, { recursive: true, withFileTypes: true })
-        .filter((entry) => entry.isFile())
-        .map((entry) => {
-          const filePath = join(entry.parentPath, entry.name)
-          return {
-            path: filePath.slice(process.cwd().length + 1),
-            sha256: sha256File(filePath),
-          }
-        })
-    })
-    .sort((left, right) => left.path.localeCompare(right.path))
-  return promotionManifestSha256(`${JSON.stringify(entries)}\n`)
 }
 
 function migrationHead(): string {
@@ -122,7 +101,7 @@ export function createPromotionManifest(
       runAttempt: input.runAttempt,
     },
     contract: {
-      lockfileSha256: sha256File(resolve('pnpm-lock.yaml')),
+      lockfileSha256: sourceFileSha256(resolve('pnpm-lock.yaml')),
       iacSha256: sourceTreeDigest(['.railway']),
       migrationHead: migrationHead(),
       capabilityPolicyVersion: CAPABILITY_POLICY_VERSION,
