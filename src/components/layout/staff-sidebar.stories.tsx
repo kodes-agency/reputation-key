@@ -44,8 +44,9 @@ export const AsStaff: Story = {
     const canvas = within(canvasElement)
     expect(await canvas.findByText(/^home$/i)).toBeInTheDocument()
     expect(canvas.queryByText(/acme group/i)).toBeNull()
-    // Beta Staff navigation renders without deferred product surfaces.
-    expect(canvas.getByText(/^progress$/i)).toBeInTheDocument()
+    // Goal metrics remain manager-facing until a dedicated Staff dashboard is
+    // explicitly designed and activated.
+    expect(canvas.queryByText(/^progress$/i)).toBeNull()
     expect(canvas.queryByText(/^leaderboard$/i)).toBeNull()
     expect(canvas.queryByText(/^team$/i)).toBeNull()
   },

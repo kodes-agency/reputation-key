@@ -9,31 +9,23 @@ import {
   staffHomeQueries,
   type StaffHomeFns,
 } from './use-staff-home-data'
-import {
-  dashboardKeys,
-  goalKeys,
-  reviewKeys,
-  staffKeys,
-} from '#/shared/queries/query-keys'
+import { dashboardKeys, reviewKeys, staffKeys } from '#/shared/queries/query-keys'
 
 const PROPERTY_ID = '11111111-1111-4111-8111-111111111111'
 
 const setup = () => {
-  const listStaffGoals = vi.fn(async () => ({ goals: [] }))
   const getStaffDashboardData = vi.fn(async () => ({ kpis: null, hasAssignments: true }))
   const listStaffPortals = vi.fn(async () => ({ portals: [] }))
   const getStaffRecentActivity = vi.fn(async () => ({ reviews: [] }))
   // server-fn types carry createServerFn metadata the in-memory fns don't have —
   // the double cast bridges that brand (same justification as the storybook fns).
   const fns = {
-    listStaffGoals,
     getStaffDashboardData,
     listStaffPortals,
     getStaffRecentActivity,
   } as unknown as StaffHomeFns
   return {
     fns,
-    listStaffGoals,
     getStaffDashboardData,
     listStaffPortals,
     getStaffRecentActivity,
@@ -76,7 +68,7 @@ describe('staffHomeQueries', () => {
 
     const q = staffHomeQueries(fns, PROPERTY_ID, portalId)
 
-    expect(q.goals.queryKey).toEqual(goalKeys.staff(PROPERTY_ID))
+    expect(Object.keys(q)).toEqual(['dashboard', 'portals', 'activity'])
     expect(q.dashboard.queryKey).toEqual(
       dashboardKeys.staff({ propertyId: PROPERTY_ID, portalId }),
     )
@@ -88,9 +80,6 @@ describe('staffHomeQueries', () => {
     const s = setup()
     const portalId = 'portal-1'
     const q = staffHomeQueries(s.fns, PROPERTY_ID, portalId)
-
-    await callQueryFn(q.goals.queryFn)
-    expect(s.listStaffGoals).toHaveBeenCalledWith({ data: { propertyId: PROPERTY_ID } })
 
     await callQueryFn(q.dashboard.queryFn)
     expect(s.getStaffDashboardData).toHaveBeenCalledWith({

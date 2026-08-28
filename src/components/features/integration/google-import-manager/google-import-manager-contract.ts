@@ -1,4 +1,5 @@
 import type {
+  GoogleAuthUrlInput,
   GoogleConnectionDto,
   ImportProgressDto,
 } from '#/contexts/integration/application/public-api'
@@ -15,7 +16,7 @@ import type {
 
 export type GoogleImportStep = 'discover' | 'review' | 'progress'
 export type GoogleImportGetAuthUrl = (opts: {
-  data: { visibility: 'private' | 'organization' }
+  data: GoogleAuthUrlInput
 }) => Promise<{ url: string }>
 
 export type GoogleImportManagerProps = Readonly<{

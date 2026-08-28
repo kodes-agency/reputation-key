@@ -59,10 +59,11 @@ export function FleetOverviewError({ message }: Readonly<{ message?: string }>) 
   )
 }
 
-export function FleetOverviewEmpty() {
+export function FleetOverviewEmpty({ setup }: Readonly<{ setup?: ReactNode }>) {
   const { can } = usePermissions()
   return (
     <Shell>
+      {setup}
       <div className="flex flex-col items-center justify-center gap-4 py-24">
         <h2 className="text-lg font-medium">No properties yet</h2>
         <p className="max-w-sm text-center text-sm text-muted-foreground">
@@ -80,6 +81,7 @@ export function FleetOverviewEmpty() {
 
 export interface FleetOverviewProps {
   readonly data: FleetOverviewData
+  readonly setup?: ReactNode
   /**
    * Absent in the story/fixture cases that render a single settled page. The
    * control only appears when the projection actually handed back a cursor.
@@ -90,12 +92,14 @@ export interface FleetOverviewProps {
 
 export function FleetOverview({
   data,
+  setup,
   isFetchingNextPage = false,
   onLoadMore,
 }: FleetOverviewProps) {
   const { entries, totals } = data
   return (
     <Shell>
+      {setup}
       {/*
         BQC-6.8 reflow: single-column on narrow/zoomed viewports (the 3-up
         strip could not shrink below its min-content at 400% zoom / 320 CSS px

@@ -6,7 +6,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, within } from 'storybook/test'
 import { FleetOverview } from './fleet-overview'
-import { populatedData } from './fleet-overview-stories-data'
+import { populatedData } from './fleet-overview.stories.fixtures'
 
 // Shape-valid opaque cursor: base64url of {"n":"harborline","i":"prop-0002"}.
 // The client never decodes it; only the server does.

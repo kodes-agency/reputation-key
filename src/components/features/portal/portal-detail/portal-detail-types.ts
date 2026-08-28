@@ -6,7 +6,10 @@
 
 import type { Action } from '#/components/hooks/use-action'
 import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
-import type { IssuedPortalLink } from '../portal-share/portal-share-types'
+import type {
+  IssuedPortalLink,
+  RotatePortalLinkInput,
+} from '../portal-share/portal-share-types'
 import type {
   CompleteReviewResult,
   CompleteReviewVariables,
@@ -21,6 +24,11 @@ import type {
 } from '#/contexts/portal/application/public-api'
 import type { PortalDetailTab } from './portal-detail-rules'
 import type { GoogleReviewDestinationStatus } from '../portal-settings/google-review-destination-status'
+import type {
+  PortalApprovedDestinationList,
+  PortalExperienceActions,
+  PortalExperienceSettings,
+} from '../portal-settings/portal-experience-settings-card'
 
 export type PortalDetailPortal = Readonly<{
   id: string
@@ -33,6 +41,8 @@ export type PortalDetailPortal = Readonly<{
   propertyId: string
   organizationId: string
   publicationState: PortalPublicationState
+  primaryGuestLocale?: 'en' | 'bg'
+  additionalGuestLocales?: readonly ('en' | 'bg')[]
 }>
 
 /** What the route owns and the four tab panels consume unchanged. */
@@ -41,15 +51,16 @@ export type PortalDetailResources = Readonly<{
   propertyId: string
   googleReviewDestination: GoogleReviewDestinationStatus
   publicationHistory: PortalPublicationHistory
+  loadMorePublicationHistory?: Action<
+    { data: { portalId: string; cursor?: number; limit?: number } },
+    PortalPublicationHistory
+  >
   categories: readonly LinkTreeCategory[]
   links: readonly LinkTreeLink[]
   updateMutation: Action<UpdatePortalVariables>
   completeReviewMutation: Action<CompleteReviewVariables, CompleteReviewResult>
-  issueTokenMutation: Action<
-    { data: { portalId: string; printBatch?: string } },
-    IssuedPortalLink
-  >
-  rotateTokenMutation: Action<{ data: { portalId: string } }, IssuedPortalLink>
+  issueTokenMutation: Action<{ data: { portalId: string } }, IssuedPortalLink>
+  rotateTokenMutation: Action<{ data: RotatePortalLinkInput }, IssuedPortalLink>
   revokeTokenMutation: Action<{ data: { portalId: string; reason: string } }, unknown>
   /** C2: whether a public link is live. The raw URL is never part of this. */
   tokenStatus: PortalTokenStatus
@@ -73,6 +84,9 @@ export type PortalDetailResources = Readonly<{
       expectedRevision: number
     }
   }>
+  portalExperience?: PortalExperienceSettings
+  approvedDestinations?: PortalApprovedDestinationList
+  portalExperienceActions?: PortalExperienceActions
 }>
 
 export type PortalResponsibleManagerState = Readonly<{

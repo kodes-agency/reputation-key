@@ -10,6 +10,7 @@ import { PortalLinkReveal } from './portal-link-reveal'
 import {
   PortalActiveLinkNotice,
   PortalRevokedNotice,
+  PortalScanGoalReadinessNotice,
   PortalViewOnlyNotice,
 } from './portal-share-notices'
 import {
@@ -26,7 +27,14 @@ export function PortalShare(props: PortalShareProps) {
   const { can } = usePermissions()
   const [qrOpen, setQrOpen] = useState(false)
   const publicUrl = props.issuedLink?.publicUrl ?? null
+  const nfcPublicUrl = props.issuedLink?.publicUrls?.nfc ?? null
   const { linkRef, copied, copyFailed, copyLink } = useCopyLink(publicUrl)
+  const {
+    linkRef: nfcLinkRef,
+    copied: nfcCopied,
+    copyFailed: nfcCopyFailed,
+    copyLink: copyNfcLink,
+  } = useCopyLink(nfcPublicUrl)
   const { error, isPending } = resolveMutationState(props)
   const view = derivePortalShareView({
     canManage: can('portal.update'),
@@ -59,11 +67,16 @@ export function PortalShare(props: PortalShareProps) {
 
       <PortalLinkReveal
         publicUrl={publicUrl}
+        nfcPublicUrl={nfcPublicUrl}
         portalName={props.portalName}
         linkRef={linkRef}
+        nfcLinkRef={nfcLinkRef}
         copied={copied}
+        nfcCopied={nfcCopied}
         copyFailed={copyFailed}
+        nfcCopyFailed={nfcCopyFailed}
         onCopy={copyLink}
+        onCopyNfc={copyNfcLink}
         qrOpen={qrOpen}
         onQrOpenChange={setQrOpen}
       />
@@ -72,6 +85,15 @@ export function PortalShare(props: PortalShareProps) {
         show={view.showActiveLinkNotice}
         detail={view.activeLinkDetail}
         graceLabel={view.graceLabel}
+      />
+
+      <PortalScanGoalReadinessNotice
+        show={
+          !props.revoked &&
+          publicUrl === null &&
+          props.tokenStatus.hasActiveToken &&
+          !props.tokenStatus.qualifiedScanReady
+        }
       />
 
       {view.showActions && (

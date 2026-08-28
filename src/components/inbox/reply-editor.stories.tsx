@@ -118,18 +118,18 @@ export const NoReply: Story = {
   },
 }
 
-// The polling query is authoritative: when it observes provider publication,
-// the editor must leave the transient publishing state without remounting.
+// The polling query is authoritative: when it observes provider confirmation,
+// the editor must leave the transient waiting state without remounting.
 export const FollowsServerRefresh: Story = {
   args: { loading: false, initialReply: approvedReply },
   render: () => <ServerRefreshHarness />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('Publishing...')).toBeVisible()
+    expect(canvas.getByText('Waiting for Google')).toBeVisible()
 
     await userEvent.click(canvas.getByRole('button', { name: 'Apply server refresh' }))
 
-    expect(await canvas.findByText('Published')).toBeVisible()
-    expect(canvas.queryByText('Publishing...')).not.toBeInTheDocument()
+    expect(await canvas.findByText('Confirmed on Google')).toBeVisible()
+    expect(canvas.queryByText('Waiting for Google')).not.toBeInTheDocument()
   },
 }

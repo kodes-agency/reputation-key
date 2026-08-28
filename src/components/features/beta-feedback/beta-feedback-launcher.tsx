@@ -32,13 +32,13 @@ function PrivacyNotice() {
       <ShieldCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <div className="space-y-1 text-muted-foreground">
         <p>
-          Only the text you enter, the type of page, your role, and a broad screen-size
-          category are sent. RepKey does not attach a screenshot, replay, page content, or
-          account details.
+          Only the text you enter, controlled diagnostic categories, and an opaque receipt
+          are sent. Suggestions are always text-only. A Bug can include a text-free masked
+          layout only after you explicitly create, preview, and keep it.
         </p>
         <p>
           Please don&apos;t include guest names, review text, contact details, passwords,
-          or access codes.
+          or access codes. RepKey never records a replay or ordinary pixel screenshot.
         </p>
       </div>
     </div>
@@ -125,7 +125,10 @@ export function BetaFeedbackLauncher({ submitFeedback }: Props) {
         </Button>
       </DialogTrigger>
       {open && (
-        <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-xl">
+        <DialogContent
+          className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-xl"
+          data-beta-feedback-capture-exclude
+        >
           <DialogHeader>
             <DialogTitle>Help shape RepKey</DialogTitle>
             <DialogDescription>

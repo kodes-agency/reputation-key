@@ -225,8 +225,7 @@ approvedContainer.seed([
 
 const approvedDetail: InboxItemDetailResult = {
   item: approvedItem,
-  reviewText:
-    'Bulgaristanda nadir olarak gorulen Konforlu bir mekan ve konaklamada sabah kahvaltisi dahil',
+  reviewText: 'A comfortable place to stay, and breakfast was included.',
   reviewTranslatedText:
     'A comfortable place to stay, rarely seen in Bulgaria, and includes breakfast.',
   reviewerProfilePhotoUrl: null,
@@ -234,7 +233,7 @@ const approvedDetail: InboxItemDetailResult = {
   feedbackComment: null,
   feedbackRatingValue: null,
   propertyDefaultReplyLanguage: 'bg-Cyrl',
-  reviewReplyLanguage: 'tr-Latn-TR',
+  reviewReplyLanguage: 'en-Latn-US',
   reply: {
     id: replyId('10000000-0000-4000-8000-000000000201'),
     reviewId: reviewId(String(approvedItem.sourceId)),
@@ -267,6 +266,8 @@ const approvedDetail: InboxItemDetailResult = {
     attention: 'low',
     generatedAtEpochMillis: Date.parse('2026-08-19T07:08:00Z'),
   },
+  feedbackHandling: null,
+  responseTarget: null,
 }
 
 const approvedFns: InboxServerFns = {
@@ -279,13 +280,14 @@ const approvedFns: InboxServerFns = {
     const useReviewLanguage = data.targetLanguage.kind === 'review_language'
     return {
       status: 'ready' as const,
+      profileVersion: 'reply-draft-v2' as const,
       replyText: useReviewLanguage
-        ? 'Güzel yorumunuz için teşekkür ederiz. Konaklamanızdan ve kahvaltımızdan memnun kalmanıza sevindik. Sizi yeniden ağırlamayı dört gözle bekliyoruz.'
+        ? 'Thank you for your kind review. We are glad you enjoyed the stay and breakfast.'
         : approvedDetail.reply!.text,
       provenanceToken: 'storybook-signed-provenance',
       expiresAtEpochMillis: Date.now() + 60_000,
       baseReplyStateRevision: 1,
-      concreteLanguageTag: useReviewLanguage ? 'tr-Latn-TR' : 'bg-Cyrl',
+      concreteLanguageTag: useReviewLanguage ? 'en-Latn-US' : 'bg-Cyrl',
     }
   }) as unknown as NonNullable<InboxServerFns['generateReplySuggestion']>,
 }
@@ -316,7 +318,7 @@ export const ApprovedPanels: Story = {
     await expect(languageSelect).toHaveTextContent(/^Bulgarian\s*·\s*Property default$/i)
     await userEvent.click(languageSelect)
     await expect(
-      screen.findByRole('option', { name: /review language · turkish/i }),
+      screen.findByRole('option', { name: /review language · english/i }),
     ).resolves.toBeVisible()
     await userEvent.keyboard('{Escape}')
     languageSelect.blur()

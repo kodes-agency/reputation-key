@@ -1,5 +1,4 @@
 import { useForm } from '@tanstack/react-form'
-import { z } from 'zod/v4'
 import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
@@ -7,10 +6,9 @@ import { SubmitButton } from '#/components/forms/submit-button'
 import { Field, FieldError, FieldGroup, FieldLabel } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
 import type { CreateStaffParticipationMutationInput } from '#/components/features/staff/types'
+import { createStaffParticipationInputSchema } from '#/contexts/staff/application/dto/staff-participation.dto'
 
-const formSchema = z.object({
-  displayName: z.string().trim().min(1, 'Enter the staff member’s name').max(255),
-})
+const formSchema = createStaffParticipationInputSchema.omit({ propertyId: true })
 
 type Props = Readonly<{
   propertyId: string

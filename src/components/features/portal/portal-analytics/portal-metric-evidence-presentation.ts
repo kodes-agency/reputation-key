@@ -2,7 +2,8 @@ export type PortalMetricStateView =
   'ready' | 'updating' | 'insufficient_data' | 'temporarily_unavailable'
 
 export type PortalMetricEvidenceView = Readonly<{
-  definitionVersionId: string
+  basis?: 'governed_period' | 'anonymous_lifetime'
+  definitionVersionId: string | null
   state: PortalMetricStateView
   verifiedThrough: Date | null
   latestActivity: Date | null
@@ -50,6 +51,10 @@ export function portalMetricAvailabilityDetail(reason: string | null): string {
       return 'This data needs to be refreshed.'
     case 'projection_missing':
       return 'This data is being repaired.'
+    case 'lifetime_reconciliation_pending':
+      return 'The first all-time consistency check is still finishing.'
+    case 'lifetime_projection_missing':
+      return 'All-time totals are preparing.'
     case null:
       return '—'
     default:
@@ -62,6 +67,18 @@ export function portalMetricEvidenceLine(
   locale?: string,
   timeZone?: string,
 ): string {
+  if (evidence.basis === 'anonymous_lifetime') {
+    switch (evidence.state) {
+      case 'ready':
+        return 'All-time aggregate'
+      case 'updating':
+        return 'All-time totals are being checked.'
+      case 'insufficient_data':
+        return 'No eligible ratings in the all-time aggregate.'
+      case 'temporarily_unavailable':
+        return 'All-time totals are temporarily unavailable.'
+    }
+  }
   switch (evidence.state) {
     case 'ready':
       return `Data through ${formatEvidenceTime(evidence.verifiedThrough, locale, timeZone)}`

@@ -3,7 +3,7 @@
 // header affordances, the active filter and the body state.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
-import { notificationFixtures } from './notification-fixtures'
+import { notificationFixtures } from './notification.stories.fixtures'
 import { groupByReadState, matchesNotificationFilter } from './notification-filters'
 import { NotificationPopoverContent } from './notification-popover-content'
 import type { NotificationRowActions } from './types'

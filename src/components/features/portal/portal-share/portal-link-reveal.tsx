@@ -11,11 +11,16 @@ import type { RefObject } from 'react'
 
 type Props = Readonly<{
   publicUrl: string | null
+  nfcPublicUrl: string | null
   portalName: string
   linkRef: RefObject<HTMLElement | null>
+  nfcLinkRef: RefObject<HTMLElement | null>
   copied: boolean
+  nfcCopied: boolean
   copyFailed: boolean
+  nfcCopyFailed: boolean
   onCopy: () => Promise<void>
+  onCopyNfc: () => Promise<void>
   qrOpen: boolean
   onQrOpenChange: (open: boolean) => void
 }>
@@ -27,6 +32,7 @@ export function PortalLinkReveal(props: Props) {
     <div className="flex flex-col gap-4">
       <SaveLinkWarning />
       <LinkRow
+        label="QR address"
         publicUrl={publicUrl}
         linkRef={props.linkRef}
         copied={props.copied}
@@ -34,6 +40,16 @@ export function PortalLinkReveal(props: Props) {
         onCopy={props.onCopy}
         onShowQrCode={() => props.onQrOpenChange(true)}
       />
+      {props.nfcPublicUrl !== null && (
+        <LinkRow
+          label="NFC address"
+          publicUrl={props.nfcPublicUrl}
+          linkRef={props.nfcLinkRef}
+          copied={props.nfcCopied}
+          copyFailed={props.nfcCopyFailed}
+          onCopy={props.onCopyNfc}
+        />
+      )}
       <QRCodeModal
         open={props.qrOpen}
         onOpenChange={props.onQrOpenChange}
@@ -50,23 +66,26 @@ function SaveLinkWarning() {
       <Link2 />
       <AlertTitle>Save this link now</AlertTitle>
       <AlertDescription>
-        For security, the full link will not be shown again after this page is reloaded.
-        Losing it requires rotation.
+        For security, these full addresses will not be shown again after this page is
+        reloaded. Save the QR address for printed materials and the NFC address when
+        programming NFC tags.
       </AlertDescription>
     </Alert>
   )
 }
 
 type LinkRowProps = Readonly<{
+  label: string
   publicUrl: string
   linkRef: RefObject<HTMLElement | null>
   copied: boolean
   copyFailed: boolean
   onCopy: () => Promise<void>
-  onShowQrCode: () => void
+  onShowQrCode?: () => void
 }>
 
 function LinkRow({
+  label,
   publicUrl,
   linkRef,
   copied,
@@ -76,7 +95,7 @@ function LinkRow({
 }: LinkRowProps) {
   return (
     <div className="flex flex-col gap-2">
-      <span className="text-sm font-medium">Public link</span>
+      <span className="text-sm font-medium">{label}</span>
       <div className="flex flex-col gap-2 sm:flex-row">
         <code
           ref={linkRef}
@@ -84,7 +103,12 @@ function LinkRow({
         >
           {publicUrl}
         </code>
-        <LinkButtons copied={copied} onCopy={onCopy} onShowQrCode={onShowQrCode} />
+        <LinkButtons
+          label={label}
+          copied={copied}
+          onCopy={onCopy}
+          onShowQrCode={onShowQrCode}
+        />
       </div>
       {copyFailed && (
         <p className="text-sm text-destructive" role="alert">
@@ -96,12 +120,13 @@ function LinkRow({
 }
 
 type LinkButtonsProps = Readonly<{
+  label: string
   copied: boolean
   onCopy: () => Promise<void>
-  onShowQrCode: () => void
+  onShowQrCode?: () => void
 }>
 
-function LinkButtons({ copied, onCopy, onShowQrCode }: LinkButtonsProps) {
+function LinkButtons({ label, copied, onCopy, onShowQrCode }: LinkButtonsProps) {
   return (
     <div className="flex gap-2">
       <Button
@@ -110,18 +135,20 @@ function LinkButtons({ copied, onCopy, onShowQrCode }: LinkButtonsProps) {
         className="min-h-11 flex-1 sm:min-h-9"
         onClick={() => void onCopy()}
       >
-        <Copy data-icon="inline-start" /> {copied ? 'Copied' : 'Copy link'}
+        <Copy data-icon="inline-start" /> {copied ? 'Copied' : `Copy ${label}`}
       </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="icon"
-        className="size-11 sm:size-9"
-        aria-label="Show QR code"
-        onClick={onShowQrCode}
-      >
-        <QrCode />
-      </Button>
+      {onShowQrCode && (
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="size-11 sm:size-9"
+          aria-label="Show QR code"
+          onClick={onShowQrCode}
+        >
+          <QrCode />
+        </Button>
+      )}
     </div>
   )
 }

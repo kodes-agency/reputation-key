@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { GuestResponseForm } from './guest-response-form'
 import type { GuestResponseFormProps } from './guest-response-form'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
@@ -84,7 +84,7 @@ const actions: Pick<
 const baseArgs: GuestResponseFormProps = {
   token: 'portal-public-token',
   csrfNonce: '00000000-0000-4000-8000-000000000003',
-  googleReview: { status: 'available', uri: 'https://www.google.com/' },
+  googleReview: { status: 'available' },
   initialResponse: null,
   ...actions,
 }
@@ -103,6 +103,27 @@ export const RatingFirst: Story = {
     await expect(
       within(canvasElement).getByRole('button', { name: 'Submit private rating' }),
     ).toHaveAttribute('data-slot', 'button')
+  },
+}
+export const RatingRequiresAChoice: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Submit private rating' }))
+    await expect(canvas.getByRole('alert')).toHaveTextContent(
+      'Choose a rating from 1 to 5 stars.',
+    )
+    expect(canvas.queryByRole('button', { name: 'Continue to Google' })).toBeNull()
+  },
+}
+export const RatingSubmissionLeadsToGoogle: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('radio', { name: '4 stars' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Submit private rating' }))
+    await expect(
+      canvas.findByText('You rated this experience 4/5.'),
+    ).resolves.toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Continue to Google' })).toBeVisible()
   },
 }
 export const Loading: Story = { args: { availability: 'loading' } }
@@ -141,6 +162,79 @@ export const GoogleUnavailableKeepsPrivateFeedback: Story = {
     expect(canvas.queryByRole('button', { name: 'Continue to Google' })).toBeNull()
   },
 }
+export const PrivateFeedbackRequiresText: Story = {
+  args: { initialResponse: lowRating },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Send private feedback' }))
+    await expect(canvas.getByRole('alert')).toHaveTextContent(
+      'Write your private feedback before sending it.',
+    )
+  },
+}
+
+const feedbackSpy = fn(async () => ({
+  ...lowRating,
+  hasPrivateFeedback: true,
+  privateFeedbackEligible: false,
+  feedbackSubmittedAt: '2026-08-09T12:05:00.000Z',
+  feedbackWithdrawalDeadline: '2026-08-10T12:05:00.000Z',
+  feedbackWithdrawalAvailable: true,
+}))
+
+export const PrivateFeedbackUsesTheSharedNormalizedDto: Story = {
+  args: { initialResponse: lowRating, submitPrivateFeedback: feedbackSpy },
+  play: async ({ canvasElement }) => {
+    feedbackSpy.mockClear()
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText('Private feedback'), '  A helpful note.  ')
+    await userEvent.click(canvas.getByRole('button', { name: 'Send private feedback' }))
+    await waitFor(() =>
+      expect(feedbackSpy).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          csrfNonce: baseArgs.csrfNonce,
+          text: 'A helpful note.',
+          textConsent: true,
+        }),
+      }),
+    )
+  },
+}
+
+const correctionSpy = fn(
+  async ({ data }: Parameters<GuestResponseFormProps['correctResponse']>[0]) => ({
+    ...submitted,
+    status: 'corrected' as const,
+    rating: data.rating,
+    correctedAt: '2026-08-09T12:15:00.000Z',
+    correctionAvailable: false,
+  }),
+)
+
+export const RatingCorrectionUsesTheCorrectionCommand: Story = {
+  args: { initialResponse: submitted, correctResponse: correctionSpy },
+  play: async ({ canvasElement }) => {
+    correctionSpy.mockClear()
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Change your private rating' }),
+    )
+    await userEvent.click(canvas.getByRole('radio', { name: '3 stars' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Save rating correction' }))
+    await waitFor(() =>
+      expect(correctionSpy).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          csrfNonce: baseArgs.csrfNonce,
+          rating: 3,
+          responseConsent: true,
+        }),
+      }),
+    )
+    await expect(
+      canvas.findByText('You rated this experience 3/5.'),
+    ).resolves.toBeVisible()
+  },
+}
 export const FeedbackReceipt: Story = {
   args: {
     initialResponse: {
@@ -177,6 +271,36 @@ export const SharedDeviceStartsFresh: Story = {
       canvas.getByText('Ready for another response. The earlier response remains saved.'),
     ).toBeVisible()
     expect(canvas.queryByText('You rated this experience 5/5.')).toBeNull()
+  },
+}
+
+const rotatedNonce = '00000000-0000-4000-8000-000000000099'
+const startNewSpy = fn(async () => ({ csrfNonce: rotatedNonce }))
+const rotatedRatingSpy = fn(
+  async ({ data }: Parameters<GuestResponseFormProps['submitResponse']>[0]) => ({
+    ...submitted,
+    rating: data.rating,
+  }),
+)
+
+export const SharedDeviceUsesTheRotatedNonce: Story = {
+  args: {
+    initialResponse: submitted,
+    startNewResponse: startNewSpy,
+    submitResponse: rotatedRatingSpy,
+  },
+  play: async ({ canvasElement }) => {
+    startNewSpy.mockClear()
+    rotatedRatingSpy.mockClear()
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Start a new response' }))
+    await userEvent.click(canvas.getByRole('radio', { name: '4 stars' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Submit private rating' }))
+    await waitFor(() =>
+      expect(rotatedRatingSpy).toHaveBeenCalledWith({
+        data: expect.objectContaining({ csrfNonce: rotatedNonce, rating: 4 }),
+      }),
+    )
   },
 }
 export const Unavailable: Story = { args: { availability: 'error' } }

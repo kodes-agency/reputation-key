@@ -51,7 +51,7 @@ export function ReplyEditorInner({
     onSuccess: (reply) => onReplyChanged({ kind: 'state_changed', reply }),
   })
   const approve = useActionMutation(approveReplyFn, {
-    successMessage: 'Approved and publishing',
+    successMessage: 'Confirmation recorded. Waiting for Google',
     onSuccess: (reply) => onReplyChanged({ kind: 'state_changed', reply }),
   })
   const reject = useActionMutation(rejectReplyFn, {
@@ -63,11 +63,11 @@ export function ReplyEditorInner({
     onSuccess: () => onReplyChanged({ kind: 'state_changed', reply: null }),
   })
   const retry = useActionMutation(retryPublishFn, {
-    successMessage: 'Retrying publish...',
+    successMessage: 'Checking Google before retrying',
     onSuccess: (reply) => onReplyChanged({ kind: 'state_changed', reply }),
   })
   const edit = useActionMutation(editPublishedReplyFn, {
-    successMessage: 'Reply updated — republishing',
+    successMessage: 'Update confirmed. Waiting for Google',
     onSuccess: (reply) => onReplyChanged({ kind: 'state_changed', reply }),
   })
   const isSaving = [submit, approve, reject, del, retry, edit].some((m) => m.isPending)

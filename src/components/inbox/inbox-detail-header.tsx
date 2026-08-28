@@ -19,6 +19,8 @@ import {
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { InboxDetailState } from './use-inbox-detail'
+import { useState } from 'react'
+import { InboxReopenDialog } from './inbox-reopen-dialog'
 
 type Props = Readonly<{
   item: InboxItem
@@ -37,13 +39,16 @@ async function copyText(text: string, label: string): Promise<void> {
 }
 
 export function InboxDetailHeader({ item, detail, detailState, onClose }: Props) {
+  const [reopenOpen, setReopenOpen] = useState(false)
   const { can } = usePermissions()
   const canManage = can('inbox.manage')
   const escalationActive = item.isEscalated && item.escalationResolvedAt === null
   const isPending =
     detailState.updateStatus.isPending ||
     detailState.escalate.isPending ||
-    detailState.resolveEscalation.isPending
+    detailState.resolveEscalation.isPending ||
+    detailState.markFeedbackHandled.isPending ||
+    detailState.correctFeedbackHandlingOutcome.isPending
   const reviewText = detail?.reviewText ?? null
   const translation = detail?.reviewTranslatedText ?? null
   const hasCopyAction = Boolean(reviewText || translation)
@@ -64,25 +69,44 @@ export function InboxDetailHeader({ item, detail, detailState, onClose }: Props)
 
       {canManage && (
         <>
-          <Select
-            value={item.status}
-            disabled={isPending}
-            onValueChange={(value) =>
+          {item.status === 'closed' ? (
+            <Select
+              value="closed"
+              disabled={isPending}
+              onValueChange={(value) => {
+                if (value === 'open') setReopenOpen(true)
+              }}
+            >
+              <SelectTrigger size="sm" aria-label="Work status" className="w-24">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="open">Open</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          ) : (
+            <Badge variant="secondary">Open</Badge>
+          )}
+
+          <InboxReopenDialog
+            open={reopenOpen}
+            onOpenChange={setReopenOpen}
+            pending={detailState.updateStatus.isPending}
+            onConfirm={({ reason, explanation }) =>
               detailState.updateStatus({
-                data: { inboxItemId: item.id, status: value as 'open' | 'closed' },
+                data: {
+                  inboxItemId: item.id,
+                  status: 'open',
+                  expectedCommandRevision: item.commandRevision,
+                  reopenReason: reason,
+                  reopenExplanation: explanation,
+                },
               })
             }
-          >
-            <SelectTrigger size="sm" aria-label="Review status" className="w-24">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectGroup>
-                <SelectItem value="open">Open</SelectItem>
-                <SelectItem value="closed">Closed</SelectItem>
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          />
 
           <Button
             size="sm"
@@ -90,8 +114,18 @@ export function InboxDetailHeader({ item, detail, detailState, onClose }: Props)
             disabled={isPending}
             onClick={() =>
               escalationActive
-                ? detailState.resolveEscalation({ data: { inboxItemId: item.id } })
-                : detailState.escalate({ data: { inboxItemId: item.id } })
+                ? detailState.resolveEscalation({
+                    data: {
+                      inboxItemId: item.id,
+                      expectedCommandRevision: item.commandRevision,
+                    },
+                  })
+                : detailState.escalate({
+                    data: {
+                      inboxItemId: item.id,
+                      expectedCommandRevision: item.commandRevision,
+                    },
+                  })
             }
           >
             {escalationActive ? (

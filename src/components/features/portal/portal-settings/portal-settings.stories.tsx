@@ -82,6 +82,7 @@ const baseArgs = {
     },
     priorActivations: [],
     hasPendingChanges: false,
+    nextCursor: null,
   },
   mutation: idleMutation,
   completeReviewMutation: idleReviewMutation,

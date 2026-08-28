@@ -1,22 +1,26 @@
-const RATINGS = [1, 2, 3, 4, 5] as const
+import type { GuestPortalCopy } from './guest-language-pack'
 
-function ratingLabel(value: number): string {
-  return `${value} ${value === 1 ? 'star' : 'stars'}`
-}
+const RATINGS = [1, 2, 3, 4, 5] as const
 
 export function RatingChoices({
   value,
   disabled,
   onChange,
+  copy,
 }: Readonly<{
   value: number | null
   disabled: boolean
   onChange: (rating: number) => void
+  copy: GuestPortalCopy
 }>) {
   return (
     <fieldset disabled={disabled} className="space-y-3">
-      <legend className="text-sm font-medium">Your private rating</legend>
-      <div className="grid grid-cols-5 gap-2" role="radiogroup" aria-label="Rating">
+      <legend className="text-sm font-medium">{copy.privateRatingLegend}</legend>
+      <div
+        className="grid grid-cols-5 gap-2"
+        role="radiogroup"
+        aria-label={copy.ratingGroupLabel}
+      >
         {RATINGS.map((rating) => (
           <label
             key={rating}
@@ -26,7 +30,7 @@ export function RatingChoices({
               className="sr-only"
               type="radio"
               name="guest-rating"
-              aria-label={ratingLabel(rating)}
+              aria-label={copy.ratingLabel(rating)}
               value={rating}
               checked={value === rating}
               onChange={() => onChange(rating)}
@@ -43,14 +47,24 @@ export function RatingChoices({
 }
 
 export function Honeypot({
+  id,
+  name,
   value,
   onChange,
-}: Readonly<{ value: string; onChange: (value: string) => void }>) {
+  copy,
+}: Readonly<{
+  id: string
+  name: string
+  value: string
+  onChange: (value: string) => void
+  copy: GuestPortalCopy
+}>) {
   return (
     <div aria-hidden="true" className="absolute left-[-9999px] size-0 overflow-hidden">
-      <label htmlFor="guest-response-website">Website</label>
+      <label htmlFor={id}>{copy.honeypotWebsite}</label>
       <input
-        id="guest-response-website"
+        id={id}
+        name={name}
         type="text"
         tabIndex={-1}
         autoComplete="off"

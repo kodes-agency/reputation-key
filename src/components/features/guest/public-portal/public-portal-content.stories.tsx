@@ -161,6 +161,29 @@ export const MissingPublicGatewayFailsClosed: Story = {
     expect(canvas.queryByRole('navigation', { name: 'More links' })).toBeNull()
   },
 }
+export const BulgarianRatingFirst: Story = {
+  args: {
+    portal: {
+      ...portal,
+      name: 'Разкажете ни за престоя си',
+      description: 'Вашето мнение е важно.',
+      organizationName: 'Хотел Пристанище',
+    },
+    localization: {
+      selectedLocale: 'bg',
+      primaryLocale: 'en',
+      availableLocales: ['en', 'bg'],
+      languagePackVersion: 'guest-ui-bg-v1',
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('button', { name: 'Изпрати непубличната оценка' }),
+    ).toBeVisible()
+    await expect(canvas.getByRole('navigation', { name: 'Език' })).toBeVisible()
+  },
+}
 export const DarkPalette: Story = {
   args: {
     portal: {

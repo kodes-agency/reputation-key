@@ -7,6 +7,13 @@ import { ImageUploadField } from '#/components/forms/image-upload-field'
 import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
 import { OrganizationSettingsForm } from './organization-settings-form'
 import { ResponseSlaCard } from './response-sla-card'
+import { ResponseTargetSettingsCard } from './response-target-settings-card'
+import type {
+  GoogleReviewTargetAnalytics,
+  PrivateFeedbackTargetAnalytics,
+  ResponseTargetPolicySettings,
+} from '#/contexts/inbox/application/public-api'
+import type { setResponseTargetPolicyFn } from '#/contexts/inbox/server/inbox'
 import type {
   updateOrganization,
   requestOrgLogoUpload,
@@ -26,6 +33,13 @@ type Props = Readonly<{
   updateResponseSla: Action<
     Readonly<{ data: Readonly<{ responseSlaHours: number }> }>,
     { responseSlaHours: number }
+  >
+  responseTargetSettings: ResponseTargetPolicySettings
+  privateFeedbackTargetAnalytics: PrivateFeedbackTargetAnalytics
+  googleReviewTargetAnalytics: GoogleReviewTargetAnalytics
+  updateResponseTargetPolicy: Action<
+    Parameters<typeof setResponseTargetPolicyFn>[0],
+    Awaited<ReturnType<typeof setResponseTargetPolicyFn>>
   >
   updateOrganization: Action<
     Parameters<typeof updateOrganization>[0],
@@ -85,6 +99,10 @@ export function OrganizationSettingsPage({
   organization,
   responseSlaHours,
   updateResponseSla,
+  responseTargetSettings,
+  privateFeedbackTargetAnalytics,
+  googleReviewTargetAnalytics,
+  updateResponseTargetPolicy,
   updateOrganization,
   requestOrgLogoUploadFn,
   finalizeOrgLogoUploadFn,
@@ -110,6 +128,7 @@ export function OrganizationSettingsPage({
       </div>
 
       <OrganizationSettingsForm
+        key={`${organization.name}:${organization.slug}:${organization.contactEmail ?? 'no-contact-email'}`}
         organization={organization}
         onSubmit={async (values) => {
           await updateOrganization({ data: values })
@@ -121,6 +140,12 @@ export function OrganizationSettingsPage({
         key={responseSlaHours}
         responseSlaHours={responseSlaHours}
         updateSla={updateResponseSla}
+      />
+      <ResponseTargetSettingsCard
+        settings={responseTargetSettings}
+        privateFeedbackAnalytics={privateFeedbackTargetAnalytics}
+        googleReviewAnalytics={googleReviewTargetAnalytics}
+        updatePolicy={updateResponseTargetPolicy}
       />
     </div>
   )

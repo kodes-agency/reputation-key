@@ -1,11 +1,17 @@
 import type { MouseEvent } from 'react'
 import type { GuestResponseAction } from './guest-response-form'
+import {
+  getGuestPortalCopy,
+  type GuestPortalLanguagePackVersion,
+  type GuestPortalLocale,
+} from './guest-language-pack'
 
 export type PortalCategory = Readonly<{ id: string; title: string }>
 export type PortalLinkItem = Readonly<{
   id: string
   label: string
-  url: string
+  /** Present in authenticated previews; public pages navigate by token + link ID. */
+  url?: string
   categoryId: string | null
 }>
 
@@ -30,6 +36,8 @@ export function PortalSecondaryLinks({
   categories,
   links,
   selectSecondaryLink,
+  locale = 'en',
+  languagePackVersion = locale === 'bg' ? 'guest-ui-bg-v1' : 'guest-ui-en-v1',
 }: Readonly<{
   token?: string
   csrfNonce?: string
@@ -37,10 +45,15 @@ export function PortalSecondaryLinks({
   categories: ReadonlyArray<PortalCategory>
   links: ReadonlyArray<PortalLinkItem>
   selectSecondaryLink?: SelectSecondaryLink
+  locale?: GuestPortalLocale
+  languagePackVersion?: GuestPortalLanguagePackVersion
 }>) {
   if (links.length === 0) return null
+  const copy = getGuestPortalCopy(locale, languagePackVersion)
   const destinationHref = (link: PortalLinkItem) =>
-    token ? `/api/public/p/${encodeURIComponent(token)}/click/${link.id}` : link.url
+    token
+      ? `/api/public/p/${encodeURIComponent(token)}/click/${link.id}`
+      : (link.url ?? '#')
   const selectDestination = (
     event: MouseEvent<HTMLAnchorElement>,
     link: PortalLinkItem,
@@ -67,9 +80,9 @@ export function PortalSecondaryLinks({
   const uncategorized = links.filter((link) => link.categoryId === null)
 
   return (
-    <nav aria-label="More links" className="space-y-6">
+    <nav aria-label={copy.moreLinksLabel} className="space-y-6">
       <h2 className="text-lg font-semibold" style={HEADING_STYLE}>
-        More from {organizationName}
+        {copy.moreFrom(organizationName)}
       </h2>
       {categories.map((category) => {
         const members = links.filter((link) => link.categoryId === category.id)
@@ -86,7 +99,7 @@ export function PortalSecondaryLinks({
       {uncategorized.length > 0 && (
         <section className="space-y-2">
           <h3 className="text-lg font-semibold" style={HEADING_STYLE}>
-            More destinations
+            {copy.moreDestinations}
           </h3>
           <div className="space-y-2">{uncategorized.map(renderLink)}</div>
         </section>

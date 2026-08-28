@@ -82,7 +82,7 @@ export function PortalDetailPage(props: PortalDetailPageProps) {
           issuedLink={issuedPortalLink}
           linksRevoked={linksRevoked}
           onLinkIssued={(link) => {
-            setIssuedPortalLink({ publicUrl: link.publicUrl })
+            setIssuedPortalLink(link)
             setLinksRevoked(false)
           }}
           onLinksRevoked={() => {

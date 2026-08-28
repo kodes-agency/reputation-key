@@ -1,12 +1,12 @@
 // Staff home — the staff landing page (/home). The route component
 // (src/routes/_authenticated/home.tsx) is composition-only: every data/state
-// decision lives in the useStaffHomeData hook (four suspense queries via the
+// decision lives in the useStaffHomeData hook (three suspense queries via the
 // fns prop channel + decideStaffHomeEmptyState), and the route itself is not
 // storyable (it reads Route.useSearch() from the real route tree). These
 // stories therefore drive the REAL hook with in-memory fns and render the
 // same section composition the page renders (mirrored in StaffHomeHarness).
 //
-// States: Populated (KPIs + goals + recent activity), Loading
+// States: Populated (KPIs + recent activity), Loading
 // (suspense pending), Empty (property selected but no portal responsibility →
 // StaffEmptyState), Error (a query rejects → error boundary).
 import type { Meta, StoryObj } from '@storybook/react'
@@ -15,7 +15,6 @@ import { Component, Suspense, useState, type ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useStaffHomeData, type StaffHomeFns } from './use-staff-home-data'
 import { StaffHomeKpis } from './staff-home-kpis'
-import { StaffGoalSummary } from './staff-goal-summary'
 import { StaffPortalFilter } from './staff-portal-filter'
 import { StaffRecentActivity } from './staff-recent-activity'
 import { StaffEmptyState } from './staff-empty-state'
@@ -26,89 +25,67 @@ import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { AlertCircle } from 'lucide-react'
 import { mockServerFn } from '../../../../.storybook/mocks/mock-action'
-import type { listStaffGoals } from '#/contexts/goal/server/staff-goals'
 import type { getStaffDashboardDataFn } from '#/contexts/dashboard/server/staff-dashboard'
 import type { listStaffPortals } from '#/contexts/staff/server/staff-portals'
 import type { getStaffRecentActivity } from '#/contexts/review/server/staff-recent-activity'
-import type { KPIs } from '#/contexts/dashboard/application/public-api'
-import type { Goal, GoalProgress } from '#/contexts/goal/application/public-api'
+import type { KPIs, MetricKPIValue } from '#/contexts/dashboard/application/public-api'
 import type { StaffPortalEntry } from '#/contexts/staff/application/public-api'
 import type { StaffRecentReview } from '#/contexts/review/application/public-api'
-import {
-  goalId,
-  goalProgressId,
-  organizationId,
-  portalId,
-  propertyId,
-  userId,
-} from '#/shared/domain/ids'
+import { portalId } from '#/shared/domain/ids'
 
 // ── Fixtures ────────────────────────────────────────────────────────
 
-const PROPERTY_ID = propertyId('prop-00000000-0000-0000-0000-000000000051')
-const ORG_ID = organizationId('org-00000000-0000-0000-0000-000000000051')
 const PORTAL_ID = portalId('portal-00000000-0000-0000-0000-000000000051')
+
+const availableMetricKpi = (
+  value: number,
+  priorValue: number,
+  trend: number,
+): MetricKPIValue => ({
+  value,
+  priorValue,
+  trend,
+  evidence: {
+    current: {
+      state: 'available',
+      definitionVersionId: 'staff-story-current',
+      sampleCount: Math.max(value, 1),
+      minimumSample: 1,
+    },
+    prior: {
+      state: 'available',
+      definitionVersionId: 'staff-story-prior',
+      sampleCount: Math.max(priorValue, 1),
+      minimumSample: 1,
+    },
+  },
+})
+
+const unavailableMetricKpi: MetricKPIValue = {
+  value: null,
+  priorValue: null,
+  trend: null,
+  evidence: {
+    current: {
+      state: 'unavailable',
+      definitionVersionId: null,
+      sampleCount: 0,
+      minimumSample: null,
+    },
+    prior: null,
+  },
+}
 
 const populatedKpis: KPIs = {
   reviews: { value: 42, priorValue: 35, trend: 20 },
   avgRating: { value: 4.3, priorValue: 4.1, trend: 4.9 },
-  scans: { value: 128, priorValue: 140, trend: -8.6 },
-  feedback: { value: 7, priorValue: 5, trend: 40 },
+  scans: availableMetricKpi(128, 140, -8.6),
+  feedback: availableMetricKpi(7, 5, 40),
 }
 
 const portals: ReadonlyArray<StaffPortalEntry> = [
   { id: PORTAL_ID, name: 'Front Desk' },
   { id: portalId('portal-00000000-0000-0000-0000-000000000052'), name: 'Housekeeping' },
-]
-
-let goalSeq = 0
-function makeGoal(overrides: Partial<Goal> & Pick<Goal, 'name'>): Goal {
-  goalSeq += 1
-  return {
-    id: goalId(`goal-${String(goalSeq).padStart(3, '0')}`),
-    organizationId: ORG_ID,
-    propertyId: PROPERTY_ID,
-    portalId: PORTAL_ID,
-    portalGroupId: null,
-    description: null,
-    createdBy: userId('user-00000000-0000-0000-0000-000000000051'),
-    goalType: 'one_shot',
-    aggregationFunction: 'sum',
-    metricKey: 'portal.scan',
-    targetValue: 50,
-    status: 'active',
-    periodStart: new Date('2026-07-01T00:00:00Z'),
-    periodEnd: new Date('2026-07-31T23:59:59Z'),
-    recurrenceRule: null,
-    rollingWindowDays: null,
-    parentGoalId: null,
-    completedAt: null,
-    createdAt: new Date('2026-06-15T09:00:00Z'),
-    updatedAt: new Date('2026-07-01T00:00:00Z'),
-    ...overrides,
-  }
-}
-
-function withProgress(goal: Goal, currentValue: number) {
-  const progress: GoalProgress = {
-    id: goalProgressId(`gp-${goal.id}`),
-    goalId: goal.id,
-    organizationId: ORG_ID,
-    currentValue,
-    currentSum: currentValue,
-    currentCount: currentValue,
-    lastComputedAt: new Date('2026-07-12T12:00:00Z'),
-    computedSource: 'event_increment',
-  }
-  return { goal, progress }
-}
-
-const goals = [
-  withProgress(makeGoal({ name: 'July scan drive', targetValue: 80 }), 46),
-  withProgress(
-    makeGoal({ name: 'Review link clicks', metricKey: 'portal.review_link_click' }),
-    31,
-  ),
 ]
 
 const recentReviews: ReadonlyArray<StaffRecentReview> = [
@@ -130,9 +107,6 @@ const recentReviews: ReadonlyArray<StaffRecentReview> = [
 // double cast bridges that unexpressible brand (same justification as
 // .storybook/in-memory/inbox-fns.ts).
 const populatedFns: StaffHomeFns = {
-  listStaffGoals: mockServerFn(async () => ({
-    goals,
-  })) as unknown as typeof listStaffGoals,
   getStaffDashboardData: mockServerFn(async () => ({
     kpis: populatedKpis,
     hasAssignments: true,
@@ -158,7 +132,7 @@ function StaffHomeHarness({
   searchPropertyId: string
   searchPortalId?: string
 }) {
-  const { kpis, portals, goals, recentReviews, emptyState } = useStaffHomeData(
+  const { kpis, portals, recentReviews, emptyState } = useStaffHomeData(
     searchPropertyId,
     searchPortalId,
     fns,
@@ -188,8 +162,6 @@ function StaffHomeHarness({
       />
 
       {kpis && <StaffHomeKpis kpis={kpis} />}
-
-      <StaffGoalSummary goals={goals} />
 
       <StaffRecentActivity reviews={recentReviews} />
     </PageShell>
@@ -276,7 +248,7 @@ type Story = StoryObj<typeof StaffHomeHarness>
 
 const SEARCH_PROPERTY_ID = 'prop-00000000-0000-0000-0000-000000000051'
 
-// Populated — responsible portals, KPIs, goals and recent reviews all
+// Populated — responsible portals, KPIs and recent reviews all
 // render through the real hook.
 export const Populated: Story = {
   args: { fns: populatedFns, searchPropertyId: SEARCH_PROPERTY_ID },
@@ -286,8 +258,6 @@ export const Populated: Story = {
     await expect(canvas.getByText('Avg Rating')).toBeVisible()
     await expect(canvas.getByText('Scans')).toBeVisible()
     await expect(canvas.getByText('Feedback')).toBeVisible()
-    // Goals.
-    await expect(canvas.getByText('July scan drive')).toBeVisible()
     // Recent activity.
     await expect(
       canvas.getByText(/check-in was fast and the front desk team was wonderful/i),
@@ -311,9 +281,9 @@ export const Loading: Story = {
     searchPropertyId: SEARCH_PROPERTY_ID,
     fns: {
       ...populatedFns,
-      listStaffGoals: mockServerFn(
-        async () => new Promise<{ goals: typeof goals }>(() => {}),
-      ) as unknown as typeof listStaffGoals,
+      getStaffDashboardData: mockServerFn(
+        async () => new Promise<{ kpis: KPIs; hasAssignments: boolean }>(() => {}),
+      ) as unknown as typeof getStaffDashboardDataFn,
     },
   },
   play: async ({ canvasElement }) => {
@@ -336,17 +306,14 @@ export const Empty: Story = {
         kpis: {
           reviews: { value: 0, priorValue: 0, trend: null },
           avgRating: { value: 0, priorValue: 0, trend: null },
-          scans: { value: 0, priorValue: 0, trend: null },
-          feedback: { value: 0, priorValue: 0, trend: null },
+          scans: unavailableMetricKpi,
+          feedback: unavailableMetricKpi,
         },
         hasAssignments: false,
       })) as unknown as typeof getStaffDashboardDataFn,
       listStaffPortals: mockServerFn(async () => ({
         portals: [],
       })) as unknown as typeof listStaffPortals,
-      listStaffGoals: mockServerFn(async () => ({
-        goals: [],
-      })) as unknown as typeof listStaffGoals,
       getStaffRecentActivity: mockServerFn(async () => ({
         reviews: [],
       })) as unknown as typeof getStaffRecentActivity,

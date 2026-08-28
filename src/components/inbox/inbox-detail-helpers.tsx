@@ -1,9 +1,6 @@
 // Inbox detail helpers — extracted from inbox-detail-sheet for line-count compliance
 import { Star } from 'lucide-react'
 
-// Re-export from extracted file
-export { getStatusActions, getEscalationActions } from './inbox-status-actions'
-
 export function RatingStars({ rating }: Readonly<{ rating: number | null }>) {
   if (rating === null) return null
   return (

@@ -9,11 +9,7 @@ import { useMemo, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
-import {
-  useNotificationFormat,
-  useNotifications,
-  useUnreadNotificationCount,
-} from './notification-queries'
+import { useNotificationFormat, useNotifications } from './notification-queries'
 import { useNotificationMutations } from './notification-mutations'
 import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-announcer'
 import { groupByReadState, type NotificationFilter } from './notification-filters'
@@ -44,18 +40,17 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
   const [filter, setFilter] = useState<NotificationFilter>('all')
   const { announcement, announce } = useNotificationAnnouncer()
 
-  const { count } = useUnreadNotificationCount(
-    notificationFns.getUnreadCount,
-    organizationId,
-  )
-  // Polls only while open: the list used to go stale beside a live badge.
+  // The badge and list head are one snapshot. Polling the shared head while
+  // closed keeps the bell current without a second, racing count request.
   const list = useNotifications(
+    notificationFns.getFeedHead,
     notificationFns.getList,
     organizationId,
     PAGE_SIZE,
     filter,
-    open,
+    true,
   )
+  const count = list.unreadCount
   const format = useNotificationFormat(notificationFns.getUserSettings, organizationId)
   const mutations = useNotificationMutations(
     notificationFns,

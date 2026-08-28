@@ -4,18 +4,16 @@
 // no server function involved. The mutation wraps the client SDK call.
 
 import { useForm } from '@tanstack/react-form'
-import { z } from 'zod/v4'
 import { FieldGroup } from '#/components/ui/field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 
-const resetPasswordSchema = z.object({
-  email: z.email('A valid email address is required'),
-})
-
-type FormValues = z.infer<typeof resetPasswordSchema>
+import {
+  requestPasswordResetFormSchema,
+  type RequestPasswordResetFormInput,
+} from '#/contexts/identity/application/dto/password-reset.dto'
 
 import type { AnyAction } from '#/components/hooks/use-action'
 
@@ -27,11 +25,11 @@ export function ResetPasswordForm({ mutation }: Props) {
   const form = useForm({
     defaultValues: {
       email: '',
-    } satisfies FormValues,
+    } satisfies RequestPasswordResetFormInput,
     validators: {
-      onSubmit: resetPasswordSchema,
+      onSubmit: requestPasswordResetFormSchema,
     },
-    onSubmit: async ({ value }: { value: FormValues }) => {
+    onSubmit: async ({ value }: { value: RequestPasswordResetFormInput }) => {
       await mutation(value)
     },
   })

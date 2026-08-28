@@ -27,7 +27,6 @@ function useActiveSection(): string {
     select: (s) => {
       const path = s.location.pathname
       if (path === '/home' || path === '/') return 'home'
-      if (path.startsWith('/progress')) return 'progress'
       if (path.startsWith('/settings')) return 'settings'
       return 'home'
     },

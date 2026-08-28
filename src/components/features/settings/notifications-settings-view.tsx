@@ -1,4 +1,4 @@
-import { Button } from '#/components/ui/button'
+import type { Action } from '#/components/hooks/use-action'
 import {
   Card,
   CardContent,
@@ -7,7 +7,6 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { Field, FieldLabel } from '#/components/ui/field'
-import { Input } from '#/components/ui/input'
 import {
   Select,
   SelectContent,
@@ -18,12 +17,17 @@ import {
 } from '#/components/ui/select'
 import {
   NOTIFICATION_SETTINGS_CATEGORIES,
-  type NotificationCategory,
+  type ConfigurableNotificationCategory,
   type NotificationChannel,
   type NotificationPreference,
+  type NotificationUserSettings,
 } from '#/contexts/notification/application/public-api'
 import { NotificationsCategoryRow } from './notifications-category-row'
 import { CATEGORY_COPY } from './notifications-type-rows'
+import {
+  NotificationFormattingForm,
+  type NotificationSettingsUpdate,
+} from './notification-formatting-form'
 
 export type NotificationPreferencePatch = Partial<
   Pick<
@@ -32,31 +36,23 @@ export type NotificationPreferencePatch = Partial<
   >
 >
 
+export type { NotificationSettingsUpdate } from './notification-formatting-form'
+
 type NotificationsSettingsViewProps = Readonly<{
   properties: readonly Readonly<{ id: string; name: string }>[]
   propertyId: string
-  locale: string
-  timezone: string
-  /**
-   * Whether `notification.send_email` is allowed for the SELECTED property.
-   *
-   * Email delivery is a non-core capability allowlisted per property, so every
-   * email write is refused server-side when it is off. This screen used to
-   * render the whole Email column fully enabled regardless and report the
-   * refusal as a generic "could not update" toast, which reads as a broken page
-   * rather than an unavailable feature.
-   */
+  initialLocale: string
+  initialTimezone: string
+  /** The selected Property's server-enforced email capability decision. */
   emailAllowed: boolean
   setPropertyId: (value: string) => void
-  setLocale: (value: string) => void
-  setTimezone: (value: string) => void
-  saveUserSettings: () => void
+  updateUserSettings: Action<NotificationSettingsUpdate, NotificationUserSettings>
   preferenceFor: (
-    category: NotificationCategory,
+    category: ConfigurableNotificationCategory,
     channel: NotificationChannel,
   ) => NotificationPreference | undefined
   savePreference: (
-    category: NotificationCategory,
+    category: ConfigurableNotificationCategory,
     channel: NotificationChannel,
     patch: NotificationPreferencePatch,
   ) => Promise<void>
@@ -105,39 +101,11 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {/*
-            A real form, so Enter submits. These were bare inputs beside a bare
-            button: typing a timezone and pressing Enter did nothing at all.
-          */}
-          <form
-            className="grid min-w-0 gap-4 sm:grid-cols-2"
-            onSubmit={(event) => {
-              event.preventDefault()
-              props.saveUserSettings()
-            }}
-          >
-            <Field className="min-w-0">
-              <FieldLabel htmlFor="notifications-locale">Locale</FieldLabel>
-              <Input
-                id="notifications-locale"
-                className="min-w-0"
-                value={props.locale}
-                onChange={(event) => props.setLocale(event.target.value)}
-              />
-            </Field>
-            <Field className="min-w-0">
-              <FieldLabel htmlFor="notifications-timezone">IANA timezone</FieldLabel>
-              <Input
-                id="notifications-timezone"
-                className="min-w-0"
-                value={props.timezone}
-                onChange={(event) => props.setTimezone(event.target.value)}
-              />
-            </Field>
-            <Button type="submit" className="w-fit">
-              Save formatting
-            </Button>
-          </form>
+          <NotificationFormattingForm
+            initialLocale={props.initialLocale}
+            initialTimezone={props.initialTimezone}
+            updateUserSettings={props.updateUserSettings}
+          />
         </CardContent>
       </Card>
 

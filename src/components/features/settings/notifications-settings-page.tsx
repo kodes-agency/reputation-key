@@ -1,10 +1,9 @@
-import { useState } from 'react'
 import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
 import {
   getDefaultEnabled,
   getDefaultCadence,
-  type NotificationCategory,
+  type ConfigurableNotificationCategory,
   type NotificationChannel,
   type NotificationPreference,
   type NotificationUserSettings,
@@ -12,12 +11,13 @@ import {
 import {
   NotificationsSettingsView,
   type NotificationPreferencePatch,
+  type NotificationSettingsUpdate,
 } from './notifications-settings-view'
 
 type PreferenceUpdate = Readonly<{
   data: Readonly<{
     propertyId: string
-    category: NotificationCategory
+    category: ConfigurableNotificationCategory
     channel: NotificationChannel
     enabled: boolean
     cadence: NotificationPreference['cadence']
@@ -25,10 +25,6 @@ type PreferenceUpdate = Readonly<{
     quietHoursStart: string | null
     quietHoursEnd: string | null
   }>
-}>
-
-type SettingsUpdate = Readonly<{
-  data: Readonly<{ locale: string; timezone: string }>
 }>
 
 type Props = Readonly<{
@@ -39,7 +35,7 @@ type Props = Readonly<{
   emailAllowed: boolean
   setPropertyId: (value: string) => void
   updatePreference: Action<PreferenceUpdate, NotificationPreference>
-  updateUserSettings: Action<SettingsUpdate, NotificationUserSettings>
+  updateUserSettings: Action<NotificationSettingsUpdate, NotificationUserSettings>
 }>
 
 export function NotificationsSettingsPage({
@@ -82,15 +78,15 @@ function NotificationFormattingBoundary({
   updatePreference,
   updateUserSettings,
 }: Props) {
-  const [locale, setLocale] = useState(userSettings?.locale ?? 'en')
-  const [timezone, setTimezone] = useState(userSettings?.timezone ?? 'UTC')
-
   // Read straight from the query result. There used to be a `localPreferences`
   // mirror seeded once from this prop and patched by hand after each save,
   // which made it the only render source: the mutation invalidates and the
   // query refetches, but nothing re-seeded the mirror, so persisted state never
   // reached the screen and any server-side normalisation was invisible.
-  const preferenceFor = (category: NotificationCategory, channel: NotificationChannel) =>
+  const preferenceFor = (
+    category: ConfigurableNotificationCategory,
+    channel: NotificationChannel,
+  ) =>
     preferences.find(
       (preference) =>
         preference.propertyId === propertyId &&
@@ -99,7 +95,7 @@ function NotificationFormattingBoundary({
     )
 
   const savePreference = async (
-    category: NotificationCategory,
+    category: ConfigurableNotificationCategory,
     channel: NotificationChannel,
     patch: NotificationPreferencePatch,
   ) => {
@@ -133,19 +129,13 @@ function NotificationFormattingBoundary({
     <NotificationsSettingsView
       properties={properties}
       propertyId={propertyId}
-      locale={locale}
-      timezone={timezone}
+      initialLocale={userSettings?.locale ?? 'en'}
+      initialTimezone={userSettings?.timezone ?? 'UTC'}
       emailAllowed={emailAllowed}
       setPropertyId={setPropertyId}
-      setLocale={setLocale}
-      setTimezone={setTimezone}
       preferenceFor={preferenceFor}
       savePreference={savePreference}
-      saveUserSettings={() =>
-        void updateUserSettings({ data: { locale, timezone } })
-          .then(() => toast.success('Notification formatting updated'))
-          .catch(() => toast.error('Could not update notification formatting'))
-      }
+      updateUserSettings={updateUserSettings}
     />
   )
 }

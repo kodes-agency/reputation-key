@@ -1,12 +1,14 @@
 import { Button } from '#/components/ui/button'
+import type { GuestPortalCopy } from './guest-language-pack'
 
 export function GuestResponseSessionReset({
   pending,
   onStart,
-}: Readonly<{ pending: boolean; onStart: () => void }>) {
+  copy,
+}: Readonly<{ pending: boolean; onStart: () => void; copy: GuestPortalCopy }>) {
   return (
     <div className="rounded-lg border p-4 text-sm">
-      <p>Using a shared device? You can clear this receipt for the next visitor.</p>
+      <p>{copy.sharedDevicePrompt}</p>
       <Button
         type="button"
         variant="link"
@@ -14,9 +16,9 @@ export function GuestResponseSessionReset({
         onClick={onStart}
         className="-ml-4 mt-1 text-current underline"
       >
-        Start a new response
+        {copy.startNewResponse}
       </Button>
-      <p className="mt-2">The response already submitted will remain saved.</p>
+      <p className="mt-2">{copy.earlierResponseSaved}</p>
     </div>
   )
 }

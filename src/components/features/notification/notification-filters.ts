@@ -3,8 +3,7 @@
 // The category tabs are derived from GOVERNING_NOTIFICATION_CATEGORIES, not
 // hardcoded. Retained post-core categories remain visible through All/Unread
 // without advertising a dedicated beta control; `mandatory` governs zero
-// types today, so its tab could only ever render an empty list. One list per
-// question, both from the domain.
+// types today. One list per question, both from the domain.
 
 import {
   GOVERNING_NOTIFICATION_CATEGORIES,
@@ -85,7 +84,8 @@ export function groupByReadState(
 /**
  * Page grouping. The label resolves from the properties the route already
  * loaded, then from the row's own payload — never from `propertyId`, because a
- * UUID is not a group heading.
+ * UUID is not a group heading. Organization account notices form their own
+ * stable group rather than inventing a Property.
  */
 export function groupByProperty(
   notifications: ReadonlyArray<Notification>,
@@ -93,9 +93,10 @@ export function groupByProperty(
 ): ReadonlyArray<NotificationGroup> {
   const order: string[] = []
   const buckets = new Map<string, Notification[]>()
+  const organizationKey = 'organization-account-security'
 
   for (const notification of notifications) {
-    const key = notification.propertyId
+    const key = notification.propertyId ?? organizationKey
     const bucket = buckets.get(key)
     if (bucket) {
       bucket.push(notification)
@@ -109,7 +110,10 @@ export function groupByProperty(
     const rows = buckets.get(key) ?? []
     return {
       key,
-      label: propertyNames[key] ?? rows[0]?.payload.propertyName ?? 'Unnamed property',
+      label:
+        key === organizationKey
+          ? 'Account and security'
+          : (propertyNames[key] ?? rows[0]?.payload.propertyName ?? 'Unnamed property'),
       notifications: rows,
     }
   })

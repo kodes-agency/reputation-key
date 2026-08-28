@@ -7,6 +7,9 @@ import { InboxNotesThread } from './inbox-notes-thread'
 import { InboxReviewAnalysisPanel } from './inbox-review-analysis'
 import { ReplyEditor } from './reply-editor'
 import { ReplyToolbarProvider, ReplyToolbarSlot } from './reply-toolbar-slot'
+import { FeedbackHandlingCard } from './feedback-handling-card'
+import { ResponseTargetCard } from './response-target-card'
+import type { InboxDetailState } from './use-inbox-detail'
 import type { InboxReplyCacheChange } from './inbox-cache-policy'
 import type { InboxDetailFns } from './types'
 import type {
@@ -19,9 +22,12 @@ export type DetailContentProps = Readonly<{
   currentItem: InboxItem
   detail: InboxItemDetailResult | null
   notes: ReadonlyArray<InboxNote>
-  onNoteAdded: () => void
+  onNoteAdded: (resultingCommandRevision: number) => void
   onReplyMutated: (change: InboxReplyCacheChange) => void
   detailFns: InboxDetailFns
+  currentUserId?: string
+  markFeedbackHandled: InboxDetailState['markFeedbackHandled']
+  correctFeedbackHandlingOutcome: InboxDetailState['correctFeedbackHandlingOutcome']
 }>
 
 export function InboxDetailContent({
@@ -31,6 +37,9 @@ export function InboxDetailContent({
   onNoteAdded,
   onReplyMutated,
   detailFns,
+  currentUserId,
+  markFeedbackHandled,
+  correctFeedbackHandlingOutcome,
 }: DetailContentProps) {
   const { can } = usePermissions()
   const canManageReplies = can('reply.manage')
@@ -39,9 +48,11 @@ export function InboxDetailContent({
     <InboxNotesThread
       notes={notes}
       inboxItemId={currentItem.id}
+      expectedCommandRevision={currentItem.commandRevision}
       onNoteAdded={onNoteAdded}
       addInboxNote={detailFns.addInboxNote}
       canAdd={canAddNotes}
+      currentUserId={currentUserId}
     />
   )
 
@@ -55,6 +66,17 @@ export function InboxDetailContent({
       {currentItem.sourceType === 'review' && (
         <InboxReviewAnalysisPanel analysis={detail?.analysis ?? null} />
       )}
+      {detail?.responseTarget ? (
+        <ResponseTargetCard target={detail.responseTarget} />
+      ) : null}
+      {currentItem.sourceType === 'feedback' && detail?.feedbackHandling ? (
+        <FeedbackHandlingCard
+          item={currentItem}
+          state={detail.feedbackHandling}
+          markFeedbackHandled={markFeedbackHandled}
+          correctFeedbackHandlingOutcome={correctFeedbackHandlingOutcome}
+        />
+      ) : null}
 
       {currentItem.sourceType === 'review' && canManageReplies ? (
         <Tabs

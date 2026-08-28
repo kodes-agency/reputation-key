@@ -5,7 +5,13 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { ConnectGoogleButton } from './connect-google-button'
 
-type AuthOpts = { data: { visibility: 'private' | 'organization' } }
+type AuthOpts = {
+  data: {
+    visibility: 'organization'
+    connectionMode: 'new'
+    targetConnectionId: null
+  }
+}
 type GetAuthUrl = (opts: AuthOpts) => Promise<{ url: string }>
 
 const meta: Meta<typeof ConnectGoogleButton> = {

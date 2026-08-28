@@ -2,57 +2,37 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
 import type { ReplyDraftSnapshot } from './use-reply-autosave'
 import {
+  replySuggestionUnavailableMessage,
+  type PendingReplySuggestion,
+  type ReplySuggestionResult,
+  type ReplyTone,
+} from './reply-suggestion-contract'
+import {
   resolveSuggestedReplyLanguageTag,
   type ReplyLanguageTarget,
 } from './reply-language-options'
 
-export type ReplyTone = 'professional' | 'friendly' | 'casual'
-export type ReplySuggestionResult =
-  | Readonly<{
-      status: 'ready'
-      replyText: string
-      provenanceToken: string
-      expiresAtEpochMillis: number
-      baseReplyStateRevision: number
-      concreteLanguageTag: string
-    }>
-  | Readonly<{
-      status: 'unavailable'
-      code: string
-      retryAfterEpochMillis: number | null
-    }>
+export type { ReplySuggestionResult, ReplyTone } from './reply-suggestion-contract'
 
 type Input = Readonly<{
   draft: ReplyDraftSnapshot
   revision: React.RefObject<number>
   target: ReplyLanguageTarget | null
   onFlush: (draft: ReplyDraftSnapshot) => Promise<void>
-  onAccept: (draft: ReplyDraftSnapshot, provenanceToken: string) => Promise<void>
-  onAdopt: (draft: ReplyDraftSnapshot) => void
+  onAccept: (draft: ReplyDraftSnapshot, provenanceToken: string | null) => Promise<void>
+  onAdopt: (draft: ReplyDraftSnapshot, kind: 'personalized' | 'local_fallback') => void
   onGenerate?: (
     tone: ReplyTone,
     target: ReplyLanguageTarget,
   ) => Promise<ReplySuggestionResult>
 }>
 
-function unavailableMessage(code: string): string {
-  if (code === 'language_not_supported')
-    return 'AI drafting is unavailable for this review language.'
-  if (code === 'language_undetermined')
-    return 'The review is too short to determine its language.'
-  if (code === 'target_language_unavailable')
-    return 'AI drafting is unavailable in the selected reply language.'
-  if (code === 'not_authorized')
-    return 'AI reply drafting is not enabled for this property.'
-  if (code === 'no_review_text') return 'This review has no text to draft from.'
-  if (code === 'source_changed') return 'The review changed. Reload and try again.'
-  return 'AI drafting is unavailable right now. Try again.'
-}
-
 export function useReplySuggestion(input: Input) {
   const [tone, setTone] = useState<ReplyTone>('professional')
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isAdopting, setIsAdopting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [suggestion, setSuggestion] = useState<PendingReplySuggestion | null>(null)
   const sequence = useRef(0)
 
   useEffect(
@@ -80,7 +60,7 @@ export function useReplySuggestion(input: Input) {
         )
           return
         if (result.status === 'unavailable') {
-          setError(unavailableMessage(result.code))
+          setError(replySuggestionUnavailableMessage(result.code))
           return
         }
         const verifiedLanguageTag = resolveSuggestedReplyLanguageTag(
@@ -91,7 +71,9 @@ export function useReplySuggestion(input: Input) {
         if (
           !result.replyText ||
           result.replyText.length > MAX_REPLY_LENGTH ||
-          result.expiresAtEpochMillis <= Date.now() ||
+          (result.status === 'ready' &&
+            (result.profileVersion !== 'reply-draft-v2' ||
+              result.expiresAtEpochMillis <= Date.now())) ||
           verifiedLanguageTag === null
         ) {
           setError('The AI draft could not be verified. Try again.')
@@ -101,15 +83,14 @@ export function useReplySuggestion(input: Input) {
           text: result.replyText,
           languageTag: verifiedLanguageTag,
         }
-        await input.onAccept(nextDraft, result.provenanceToken)
-        if (
-          requestSequence === sequence.current &&
-          baseRevision === input.revision.current
-        )
-          input.onAdopt(nextDraft)
+        setSuggestion({
+          draft: nextDraft,
+          kind: result.status === 'ready' ? 'personalized' : 'local_fallback',
+          provenanceToken: result.status === 'ready' ? result.provenanceToken : null,
+        })
       } catch {
         if (requestSequence === sequence.current) {
-          setError('The AI draft could not be saved. Try again.')
+          setError('The draft suggestion could not be generated. Try again.')
         }
       } finally {
         if (requestSequence === sequence.current) setIsGenerating(false)
@@ -118,5 +99,35 @@ export function useReplySuggestion(input: Input) {
     [input, tone],
   )
 
-  return { tone, setTone, isGenerating, error, request }
+  const dismiss = useCallback(() => {
+    sequence.current += 1
+    setSuggestion(null)
+  }, [])
+
+  const adopt = useCallback(async () => {
+    if (suggestion === null || isAdopting) return
+    setIsAdopting(true)
+    setError(null)
+    try {
+      await input.onAccept(suggestion.draft, suggestion.provenanceToken)
+      input.onAdopt(suggestion.draft, suggestion.kind)
+      setSuggestion(null)
+    } catch {
+      setError('The suggested draft could not be saved. Try again.')
+    } finally {
+      setIsAdopting(false)
+    }
+  }, [input, isAdopting, suggestion])
+
+  return {
+    tone,
+    setTone,
+    isGenerating,
+    isAdopting,
+    error,
+    suggestion,
+    request,
+    adopt,
+    dismiss,
+  }
 }

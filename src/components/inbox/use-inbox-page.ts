@@ -17,6 +17,8 @@ import { inboxCachePolicy } from './inbox-cache-policy'
 export type InboxPageNav = (o: {
   to: '.'
   search: (p: InboxSearchParams) => Partial<InboxSearchParams>
+  /** Replace transient typeahead state instead of growing browser history. */
+  replace?: boolean
 }) => void
 
 export function useInboxPage(
@@ -28,6 +30,7 @@ export function useInboxPage(
 ) {
   const queryClient = useQueryClient()
   const stampedOrganization = useRef<string | null>(null)
+  const stampingOrganization = useRef<string | null>(null)
   const { itemId: _, folder, ...rest } = search
   const isMobile = useIsMobile()
   const filters: InboxFilterValues = useMemo(
@@ -62,6 +65,7 @@ export function useInboxPage(
     items,
     nextCursor,
     hasLoadedSuccessfully,
+    responseCutoff,
     totalCount,
     isLoading,
     error,
@@ -77,8 +81,10 @@ export function useInboxPage(
   } = useInboxState(orgId, filters, search.itemId, onNavigate, inboxFns.getInboxItems)
 
   const { mutate: stampInboxVisit } = useMutation({
-    mutationFn: () => inboxFns.stampLastInboxView({ data: {} }),
+    mutationFn: (cutoff: Date) =>
+      inboxFns.stampLastInboxView({ data: { responseCutoff: cutoff } }),
     onSuccess: () => inboxCachePolicy.onInboxVisited(queryClient),
+    retry: 2,
   })
 
   useEffect(() => {
@@ -86,13 +92,24 @@ export function useInboxPage(
       !recordInboxVisit ||
       !orgId ||
       !hasLoadedSuccessfully ||
-      stampedOrganization.current === orgId
+      responseCutoff === null ||
+      stampedOrganization.current === orgId ||
+      stampingOrganization.current === orgId
     ) {
       return
     }
-    stampedOrganization.current = orgId
-    stampInboxVisit()
-  }, [hasLoadedSuccessfully, orgId, recordInboxVisit, stampInboxVisit])
+    stampingOrganization.current = orgId
+    stampInboxVisit(responseCutoff, {
+      onSuccess: () => {
+        stampedOrganization.current = orgId
+      },
+      onSettled: () => {
+        if (stampingOrganization.current === orgId) {
+          stampingOrganization.current = null
+        }
+      },
+    })
+  }, [hasLoadedSuccessfully, orgId, recordInboxVisit, responseCutoff, stampInboxVisit])
 
   // Resolve the selected row from the current query data so status and field
   // changes cannot leave the detail controller holding a stale object.

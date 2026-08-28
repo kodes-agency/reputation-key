@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import type { z } from 'zod/v4'
 import { Button } from '#/components/ui/button'
@@ -18,15 +19,18 @@ import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { useAction } from '#/components/hooks/use-action'
 import { bugBetaFeedbackInputSchema } from '#/shared/beta-feedback-contract'
+import type { MaskedLayoutSnapshot } from '#/shared/beta-feedback-contract'
 import {
   type BetaFeedbackFormProps,
   currentBetaFeedbackContext,
 } from './beta-feedback-form-context'
+import { MaskedLayoutAttachmentControl } from './masked-layout-attachment-control'
 
 type BugFormValues = z.input<typeof bugBetaFeedbackInputSchema>
 
 export function BugFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFormProps) {
   const submit = useAction(submitFeedback)
+  const [attachment, setAttachment] = useState<MaskedLayoutSnapshot | undefined>()
   const defaultValues: BugFormValues = {
     type: 'bug',
     title: '',
@@ -44,6 +48,7 @@ export function BugFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFor
       const data = bugBetaFeedbackInputSchema.parse({
         ...value,
         ...currentBetaFeedbackContext(),
+        ...(attachment ? { attachment } : {}),
       })
       const receipt = await submit({ data })
       onSubmitted(receipt.reference)
@@ -141,6 +146,11 @@ export function BugFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFor
             </Field>
           )}
         </form.Field>
+        <MaskedLayoutAttachmentControl
+          value={attachment}
+          onChange={setAttachment}
+          disabled={submit.isPending}
+        />
       </FieldGroup>
       <DialogFooter>
         <DialogClose asChild>

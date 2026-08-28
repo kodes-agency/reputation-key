@@ -17,14 +17,22 @@ type RowProps = Readonly<{
   portal: PortalListItem
   propertyId: string
   canDelete: boolean
-  deleteMutation: Action<{ data: { portalId: string } }>
+  canUpdate: boolean
+  archiveMutation: Action<{
+    data: { portalId: string; publicationState: 'archived' }
+  }>
+  restoreMutation: Action<{
+    data: { portalId: string; publicationState: 'disabled' }
+  }>
 }>
 
 export function PortalListRow({
   portal,
   propertyId,
   canDelete,
-  deleteMutation,
+  canUpdate,
+  archiveMutation,
+  restoreMutation,
 }: RowProps) {
   return (
     <TableRow>
@@ -54,14 +62,23 @@ export function PortalListRow({
           portal={portal}
           propertyId={propertyId}
           canDelete={canDelete}
-          deleteMutation={deleteMutation}
+          canUpdate={canUpdate}
+          archiveMutation={archiveMutation}
+          restoreMutation={restoreMutation}
         />
       </TableCell>
     </TableRow>
   )
 }
 
-function PortalRowActions({ portal, propertyId, canDelete, deleteMutation }: RowProps) {
+function PortalRowActions({
+  portal,
+  propertyId,
+  canDelete,
+  canUpdate,
+  archiveMutation,
+  restoreMutation,
+}: RowProps) {
   return (
     <div className="flex items-center justify-end gap-1">
       <Button variant="ghost" size="sm" className="min-h-11 sm:min-h-8" asChild>
@@ -74,11 +91,14 @@ function PortalRowActions({ portal, propertyId, canDelete, deleteMutation }: Row
           <Eye className="size-3.5" />
         </Link>
       </Button>
-      {canDelete && (
+      {((portal.publicationState === 'archived' && canUpdate) ||
+        (portal.publicationState !== 'archived' && canDelete)) && (
         <PortalArchiveButton
           portalId={portal.id}
           portalName={portal.name}
-          deleteMutation={deleteMutation}
+          publicationState={portal.publicationState}
+          archiveMutation={archiveMutation}
+          restoreMutation={restoreMutation}
         />
       )}
     </div>

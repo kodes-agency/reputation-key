@@ -1,12 +1,13 @@
 import type { QueryKey } from '@tanstack/react-query'
 import type {
+  NotificationFeedHead,
   Notification,
   NotificationPage,
 } from '#/contexts/notification/application/public-api'
 
 export const NOTIFICATION_POLL_INTERVAL = 30_000
 
-/** Visibility/focus posture shared by the unread count and feed head. */
+/** Visibility/focus posture for the unified badge + feed-head snapshot. */
 export const NOTIFICATION_POLL_OPTIONS = {
   refetchInterval: NOTIFICATION_POLL_INTERVAL,
   refetchIntervalInBackground: false,
@@ -15,16 +16,17 @@ export const NOTIFICATION_POLL_OPTIONS = {
 } as const
 
 type FetchNotificationPage = (offset: number) => Promise<NotificationPage>
+type FetchNotificationFeedHead = () => Promise<NotificationFeedHead>
 
 /** Query options for the only notification page allowed to refresh on a timer. */
 export function notificationHeadQueryOptions(
   queryKey: QueryKey,
-  fetchPage: FetchNotificationPage,
+  fetchHead: FetchNotificationFeedHead,
   poll: boolean,
 ) {
   return {
     queryKey,
-    queryFn: () => fetchPage(0),
+    queryFn: fetchHead,
     ...NOTIFICATION_POLL_OPTIONS,
     refetchInterval: poll ? NOTIFICATION_POLL_INTERVAL : false,
   } as const

@@ -25,7 +25,11 @@ function makeNotificationFns(count: number): NotificationServerFns {
     (async () => result) as unknown as NotificationServerFns[K]
 
   return {
-    getUnreadCount: inert<'getUnreadCount'>({ count }),
+    getFeedHead: inert<'getFeedHead'>({
+      page: { notifications: [], hasMore: false },
+      unreadCount: count,
+      watermark: 'app-top-bar-story',
+    }),
     getList: inert<'getList'>({ notifications: [], hasMore: false }),
     markRead: inert<'markRead'>(undefined),
     markUnread: inert<'markUnread'>(undefined),

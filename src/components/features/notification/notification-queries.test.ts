@@ -22,7 +22,10 @@ import {
   focusManager,
 } from '@tanstack/react-query'
 import { notificationKeys } from '#/shared/queries/query-keys'
-import { makeNotification, notificationPageFixture } from './notification-fixtures'
+import {
+  makeNotification,
+  notificationPageFixture,
+} from './notification.stories.fixtures'
 import {
   mergeNotificationHeadWithHistory,
   notificationHeadQueryOptions,
@@ -125,11 +128,19 @@ describe('notification polling posture', () => {
       offsets.push(offset)
       return notificationPageFixture([], offset < 40)
     })
+    const fetchHead = vi.fn(async () => {
+      offsets.push(0)
+      return {
+        page: notificationPageFixture([], true),
+        unreadCount: 3,
+        watermark: `snapshot-${fetchHead.mock.calls.length}`,
+      }
+    })
     const headObserver = new QueryObserver(
       client,
       notificationHeadQueryOptions(
         notificationKeys.head('org-1', 20, 'all'),
-        fetchPage,
+        fetchHead,
         true,
       ),
     )
@@ -157,6 +168,37 @@ describe('notification polling posture', () => {
 
     unsubscribeHead()
     unsubscribeHistory()
+  })
+
+  it('publishes page, unread count, and watermark through one observer result', async () => {
+    const row = makeNotification({
+      id: '10000000-0000-4000-8000-000000000099',
+      status: 'unread',
+    })
+    const fetchHead = vi.fn(async () => ({
+      page: notificationPageFixture([row]),
+      unreadCount: 7,
+      watermark: '2026-08-27T12:00:00.000Z',
+    }))
+    const observer = new QueryObserver(
+      client,
+      notificationHeadQueryOptions(
+        notificationKeys.head('org-1', 20, 'all'),
+        fetchHead,
+        false,
+      ),
+    )
+    const unsubscribe = observer.subscribe(() => {})
+
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(fetchHead).toHaveBeenCalledTimes(1)
+    expect(observer.getCurrentResult().data).toEqual({
+      page: notificationPageFixture([row]),
+      unreadCount: 7,
+      watermark: '2026-08-27T12:00:00.000Z',
+    })
+    unsubscribe()
   })
 })
 

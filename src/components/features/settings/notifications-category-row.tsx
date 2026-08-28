@@ -13,8 +13,8 @@ import {
   getDefaultCadence,
   getDefaultEnabled,
   isPreferenceDisableable,
+  type ConfigurableNotificationCategory,
   type NotificationCadence,
-  type NotificationCategory,
   type NotificationPreference,
 } from '#/contexts/notification/application/public-api'
 import { QuietHoursEditor } from './quiet-hours-editor'
@@ -29,14 +29,14 @@ export function NotificationsCategoryRow({
   emailAllowed,
   savePreference,
 }: Readonly<{
-  category: NotificationCategory
+  category: ConfigurableNotificationCategory
   label: string
   description: string
   inApp: NotificationPreference | undefined
   email: NotificationPreference | undefined
   emailAllowed: boolean
   savePreference: (
-    category: NotificationCategory,
+    category: ConfigurableNotificationCategory,
     channel: 'in_app' | 'email',
     patch: NotificationPreferencePatch,
   ) => Promise<void>

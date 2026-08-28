@@ -28,11 +28,21 @@ import type {
 import { GoogleReviewDestinationCard } from './google-review-destination-card'
 import type { GoogleReviewDestinationStatus } from './google-review-destination-status'
 import type { PortalPublicationHistory } from '#/contexts/portal/application/public-api'
+import {
+  PortalExperienceSettingsCard,
+  type PortalApprovedDestinationList,
+  type PortalExperienceActions,
+} from './portal-experience-settings-card'
 
 type Props = Readonly<{
   portal: PortalData
+  propertyId?: string
   googleReviewDestination: GoogleReviewDestinationStatus
   publicationHistory: PortalPublicationHistory
+  loadMorePublicationHistory?: Action<
+    { data: { portalId: string; cursor?: number; limit?: number } },
+    PortalPublicationHistory
+  >
   mutation: Action<UpdatePortalVariables>
   completeReviewMutation: Action<CompleteReviewVariables, CompleteReviewResult>
   theme: PortalThemeDraft
@@ -58,12 +68,19 @@ type Props = Readonly<{
       expectedRevision: number
     }
   }>
+  portalExperience?: React.ComponentProps<
+    typeof PortalExperienceSettingsCard
+  >['experience']
+  approvedDestinations?: PortalApprovedDestinationList
+  portalExperienceActions?: PortalExperienceActions
 }>
 
 export function PortalSettings({
   portal,
+  propertyId,
   googleReviewDestination,
   publicationHistory,
+  loadMorePublicationHistory,
   mutation,
   completeReviewMutation,
   theme,
@@ -74,6 +91,9 @@ export function PortalSettings({
   responsibleManagers,
   responsibleManagerMembers,
   updateResponsibleManagersMutation,
+  portalExperience,
+  approvedDestinations,
+  portalExperienceActions,
 }: Props) {
   const { can } = usePermissions()
   const canManage = can('portal.update')
@@ -98,9 +118,28 @@ export function PortalSettings({
 
       <PortalPublicationRow portal={portal} mutation={mutation} canManage={canManage} />
 
-      <PortalPublicationHistoryCard history={publicationHistory} />
+      <PortalPublicationHistoryCard
+        history={publicationHistory}
+        portalId={portal.id}
+        loadMoreAction={loadMorePublicationHistory}
+      />
 
       <GoogleReviewDestinationCard destination={googleReviewDestination} />
+
+      {propertyId &&
+      portalExperience &&
+      approvedDestinations &&
+      portalExperienceActions ? (
+        <PortalExperienceSettingsCard
+          portal={portal}
+          propertyId={propertyId}
+          experience={portalExperience}
+          destinations={approvedDestinations}
+          updatePortal={mutation}
+          actions={portalExperienceActions}
+          disabled={!canEdit}
+        />
+      ) : null}
 
       {responsibleManagers &&
         responsibleManagerMembers &&

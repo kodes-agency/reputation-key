@@ -1,6 +1,7 @@
 import type { QueryClient, QueryKey } from '@tanstack/react-query'
 import type {
   Notification,
+  NotificationFeedHead,
   NotificationPage,
 } from '#/contexts/notification/application/public-api'
 
@@ -29,19 +30,20 @@ export function patchNotificationFeedCache(
   qc: QueryClient,
   listKey: QueryKey,
   headKey: QueryKey,
-  countKey: QueryKey,
   patch: RowPatch,
-  options: Readonly<{ clearContinuation?: boolean }> = {},
+  options: Readonly<{
+    clearContinuation?: boolean
+    unreadCount?: number
+  }> = {},
 ): (() => void) | undefined {
   const previousPages = qc.getQueryData<FeedPages>(listKey)
-  const previousHead = qc.getQueryData<NotificationPage>(headKey)
+  const previousHead = qc.getQueryData<NotificationFeedHead>(headKey)
   if (!previousPages && !previousHead) return undefined
-  const previousCount = qc.getQueryData<{ count: number }>(countKey)
 
   let unreadDelta = 0
   const seen = new Set<string>()
   const cachedPages = [
-    ...(previousHead ? [previousHead] : []),
+    ...(previousHead ? [previousHead.page] : []),
     ...(previousPages?.pages ?? []),
   ]
   for (const page of cachedPages) {
@@ -59,11 +61,13 @@ export function patchNotificationFeedCache(
   }
 
   if (previousHead) {
-    const patchedHead = patchPage(previousHead, patch)
-    qc.setQueryData<NotificationPage>(
-      headKey,
-      options.clearContinuation ? { ...patchedHead, hasMore: false } : patchedHead,
-    )
+    const patchedPage = patchPage(previousHead.page, patch)
+    qc.setQueryData<NotificationFeedHead>(headKey, {
+      ...previousHead,
+      page: options.clearContinuation ? { ...patchedPage, hasMore: false } : patchedPage,
+      unreadCount:
+        options.unreadCount ?? Math.max(0, previousHead.unreadCount + unreadDelta),
+    })
   }
 
   if (previousPages) {
@@ -73,13 +77,8 @@ export function patchNotificationFeedCache(
     })
     qc.setQueryData<FeedPages>(listKey, { ...previousPages, pages })
   }
-  if (previousCount && unreadDelta !== 0) {
-    qc.setQueryData(countKey, { count: Math.max(0, previousCount.count + unreadDelta) })
-  }
-
   return () => {
     if (previousPages) qc.setQueryData(listKey, previousPages)
     if (previousHead) qc.setQueryData(headKey, previousHead)
-    if (previousCount) qc.setQueryData(countKey, previousCount)
   }
 }

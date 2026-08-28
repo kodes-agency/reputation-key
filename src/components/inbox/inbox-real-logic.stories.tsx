@@ -43,19 +43,19 @@ function InboxRealLogic() {
     const { ORG, USER, role } = inboxTestIds
     const ctx = { organizationId: ORG, userId: USER, role } as AuthContext
     void Promise.all([
-      container.useCases.getInboxItems(
+      container.inboxPublicApi.getInboxItems(
         {
           filters: {},
         },
         ctx,
       ),
-      container.useCases.getInboxItems(
+      container.inboxPublicApi.getInboxItems(
         {
           filters: { status: 'open' },
         },
         ctx,
       ),
-      container.useCases.getInboxItems(
+      container.inboxPublicApi.getInboxItems(
         {
           filters: { isEscalated: true },
         },

@@ -5,38 +5,15 @@ import {
   defaultReplyLanguageTag,
   replyLanguageOptions,
   targetForReplyLanguage,
-  type ReplyLanguageTarget,
 } from './reply-language-options'
+import type { ReplyComposerInput } from './reply-suggestion-contract'
 import { useReplyAutosave, type ReplyDraftSnapshot } from './use-reply-autosave'
-import {
-  useReplySuggestion,
-  type ReplySuggestionResult,
-  type ReplyTone,
-} from './use-reply-suggestion'
-
-type Input = Readonly<{
-  initialText: string
-  initialLanguageTag: string | null
-  initialAiGenerated: boolean
-  propertyLanguage: string | null
-  reviewLanguage: string | null
-  canDetectReviewLanguage: boolean
-  onSaveDraft: (
-    text: string,
-    provenanceToken?: string,
-    replyLanguageTag?: string,
-  ) => Promise<unknown>
-  onSubmit: () => Promise<unknown>
-  onGenerate?: (
-    tone: ReplyTone,
-    target: ReplyLanguageTarget,
-  ) => Promise<ReplySuggestionResult>
-}>
+import { useReplySuggestion } from './use-reply-suggestion'
 
 const validDraft = (draft: ReplyDraftSnapshot) =>
   draft.text.trim().length > 0 && draft.text.length <= MAX_REPLY_LENGTH
 
-export function useReplyComposer(input: Input) {
+export function useReplyComposer(input: ReplyComposerInput) {
   const [effectiveReviewLanguage, setEffectiveReviewLanguage] = useState<string | null>(
     () => {
       if (input.reviewLanguage) return input.reviewLanguage
@@ -111,8 +88,11 @@ export function useReplyComposer(input: Input) {
     onFlush: async (snapshot) => {
       if (validDraft(snapshot) && !isAutoDetectingLanguage) await autosave.flush(snapshot)
     },
-    onAccept: autosave.acceptAiDraft,
-    onAdopt: (nextDraft) => {
+    onAccept: async (nextDraft, provenanceToken) => {
+      if (provenanceToken === null) await autosave.flush(nextDraft)
+      else await autosave.acceptAiDraft(nextDraft, provenanceToken)
+    },
+    onAdopt: (nextDraft, kind) => {
       history.current.push(draft)
       setHistoryCount(history.current.length)
       revision.current += 1
@@ -120,11 +100,12 @@ export function useReplyComposer(input: Input) {
         setEffectiveReviewLanguage(nextDraft.languageTag)
       setSelectedLanguage(nextDraft.languageTag)
       setDraft(nextDraft)
-      setHasAiDraft(true)
+      setHasAiDraft(kind === 'personalized')
     },
     onGenerate: input.onGenerate,
   })
   const updateDraft = (next: ReplyDraftSnapshot, nextSelection = selectedLanguage) => {
+    ai.dismiss()
     revision.current += 1
     setDraft(next)
     autosave.schedule(
@@ -150,6 +131,7 @@ export function useReplyComposer(input: Input) {
     updateDraft(restored, previousSelection)
   }
   const updateLanguage = (languageTag: string) => {
+    ai.dismiss()
     if (languageTag === AUTO_DETECT_REVIEW_LANGUAGE) {
       const next = { ...draft, languageTag: null }
       setSelectedLanguage(languageTag)
@@ -191,7 +173,8 @@ export function useReplyComposer(input: Input) {
       !isAutoDetectingLanguage &&
       validDraft(draft) &&
       autosave.status !== 'error' &&
-      !ai.isGenerating,
+      !ai.isGenerating &&
+      !ai.isAdopting,
     updateText: (text: string) => updateDraft({ ...draft, text }),
     updateLanguage,
     flushOnBlur: () => {

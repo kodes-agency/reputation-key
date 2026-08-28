@@ -80,7 +80,7 @@ export function rateVital(
 /**
  * Report a vital metric through the active reporter.
  */
-export function reportVital(metric: VitalMetric): void {
+function reportVital(metric: VitalMetric): void {
   activeReporter(metric)
 }
 

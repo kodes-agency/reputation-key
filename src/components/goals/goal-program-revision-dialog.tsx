@@ -1,9 +1,15 @@
-import { useState, type FormEvent } from 'react'
+import { useState } from 'react'
+import { useForm, useStore } from '@tanstack/react-form'
 import type { reviseGoalProgram } from '#/contexts/goal/server/goal-programs'
 import type {
   GoalMetric,
+  GoalSubject,
   GoalSubjectAssignment,
 } from '#/contexts/goal/application/public-api'
+import {
+  reviseGoalProgramFormSchema,
+  type ReviseGoalProgramFormInput,
+} from '#/contexts/goal/application/dto/goal-program.dto'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { goalKeys } from '#/shared/queries/query-keys'
 import { Button } from '#/components/ui/button'
@@ -17,7 +23,9 @@ import {
   DialogTrigger,
 } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
+import { Field, FieldError, FieldLabel } from '#/components/ui/field'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { SubmitButton } from '#/components/forms/submit-button'
 import {
   GoalSubjectPicker,
   goalSubjectKey,
@@ -47,42 +55,36 @@ const METRICS: readonly Readonly<{ id: GoalMetric; label: string }>[] = [
 ]
 
 export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps) {
-  const initialSubjects = () =>
-    props.assignments.map(({ subject }) => goalSubjectKey(subject))
   const [open, setOpen] = useState(false)
-  const [metric, setMetric] = useState<GoalMetric>(props.metric)
-  const [target, setTarget] = useState(String(props.targetValue))
-  const [reason, setReason] = useState('')
-  const [subjects, setSubjects] = useState<GoalSubjectKey[]>(initialSubjects)
   const mutation = useActionMutation(props.reviseGoalProgramFn, {
     successMessage: 'Goal revision scheduled for the next full month',
     invalidateKeys: [goalKeys.all],
     onSuccess: () => setOpen(false),
   })
+  const initialFormValues = (): ReviseGoalProgramFormInput => ({
+    metric: props.metric,
+    targetValue: props.targetValue,
+    reason: '',
+    subjects: props.assignments.map(({ subject }) => subject) as GoalSubject[],
+  })
+  const form = useForm({
+    defaultValues: initialFormValues(),
+    validators: { onSubmit: reviseGoalProgramFormSchema },
+    onSubmit: async ({ value }) => {
+      await mutation({
+        data: {
+          propertyId: props.property.id,
+          programId: props.programId,
+          ...value,
+        },
+      })
+    },
+  })
+  const metric = useStore(form.store, (state) => state.values.metric)
 
   const onOpenChange = (next: boolean) => {
-    if (next) {
-      setMetric(props.metric)
-      setTarget(String(props.targetValue))
-      setReason('')
-      setSubjects(initialSubjects())
-    }
+    if (next) form.reset(initialFormValues())
     setOpen(next)
-  }
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const targetValue = Number(target)
-    if (!Number.isFinite(targetValue) || !reason.trim() || subjects.length === 0) return
-    mutation({
-      data: {
-        propertyId: props.property.id,
-        programId: props.programId,
-        metric,
-        targetValue,
-        subjects: goalSubjectsFromKeys(subjects),
-        reason,
-      },
-    })
   }
 
   return (
@@ -91,7 +93,14 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
         <Button variant="outline">Revise</Button>
       </DialogTrigger>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
-        <form className="space-y-5" onSubmit={submit}>
+        <form
+          className="space-y-5"
+          onSubmit={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            void form.handleSubmit()
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Revise goal</DialogTitle>
             <DialogDescription>
@@ -100,56 +109,87 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="revision-metric">Metric</Label>
-              <select
-                id="revision-metric"
-                className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                value={metric}
-                onChange={(event) => setMetric(event.target.value as GoalMetric)}
-              >
-                {METRICS.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="revision-target">Monthly target</Label>
-              <Input
-                id="revision-target"
-                type="number"
-                min="1"
-                max={metric === 'portal_rating_average' ? 5 : undefined}
-                step={metric === 'portal_rating_average' ? 0.1 : 1}
-                value={target}
-                onChange={(event) => setTarget(event.target.value)}
-                required
-              />
-            </div>
+            <form.Field name="metric">
+              {(field) => (
+                <Field data-invalid={!field.state.meta.isValid}>
+                  <FieldLabel htmlFor="revision-metric">Metric</FieldLabel>
+                  <select
+                    id="revision-metric"
+                    className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) =>
+                      field.handleChange(event.target.value as GoalMetric)
+                    }
+                    aria-invalid={!field.state.meta.isValid}
+                  >
+                    {METRICS.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>
+                        {candidate.label}
+                      </option>
+                    ))}
+                  </select>
+                  <FieldError errors={field.state.meta.errors} />
+                </Field>
+              )}
+            </form.Field>
+            <form.Field name="targetValue">
+              {(field) => (
+                <Field data-invalid={!field.state.meta.isValid}>
+                  <FieldLabel htmlFor="revision-target">Monthly target</FieldLabel>
+                  <Input
+                    id="revision-target"
+                    type="number"
+                    min="1"
+                    max={metric === 'portal_rating_average' ? 5 : undefined}
+                    step={metric === 'portal_rating_average' ? 0.1 : 1}
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(Number(event.target.value))}
+                    aria-invalid={!field.state.meta.isValid}
+                  />
+                  <FieldError errors={field.state.meta.errors} />
+                </Field>
+              )}
+            </form.Field>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="revision-reason">Reason for the change</Label>
-            <Input
-              id="revision-reason"
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              required
-              maxLength={500}
-            />
-          </div>
-          <GoalSubjectPicker
-            property={props.property}
-            groups={props.groups}
-            portals={props.portals}
-            selected={subjects}
-            onChange={setSubjects}
-          />
+          <form.Field name="reason">
+            {(field) => (
+              <Field data-invalid={!field.state.meta.isValid}>
+                <FieldLabel htmlFor="revision-reason">Reason for the change</FieldLabel>
+                <Input
+                  id="revision-reason"
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.target.value)}
+                  aria-invalid={!field.state.meta.isValid}
+                  maxLength={500}
+                />
+                <FieldError errors={field.state.meta.errors} />
+              </Field>
+            )}
+          </form.Field>
+          <form.Field name="subjects">
+            {(field) => (
+              <Field data-invalid={!field.state.meta.isValid}>
+                <GoalSubjectPicker
+                  property={props.property}
+                  groups={props.groups}
+                  portals={props.portals}
+                  selected={field.state.value.map(goalSubjectKey)}
+                  onChange={(keys: GoalSubjectKey[]) =>
+                    field.handleChange(goalSubjectsFromKeys(keys))
+                  }
+                />
+                <FieldError errors={field.state.meta.errors} />
+              </Field>
+            )}
+          </form.Field>
+          <FormErrorBanner error={mutation.error} />
           <DialogFooter>
-            <Button type="submit" disabled={mutation.isPending || subjects.length === 0}>
-              {mutation.isPending ? 'Scheduling…' : 'Schedule revision'}
-            </Button>
+            <SubmitButton mutation={mutation} form={form}>
+              Schedule revision
+            </SubmitButton>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -26,12 +26,11 @@ const CONNECTION_STATUS_LABELS: Readonly<Record<GoogleConnectionDto['status'], s
   }
 
 function connectionLabel(connection: GoogleConnectionDto): string {
-  const visibilityLabel = connection.visibility === 'private' ? 'you' : 'organization'
   const statusLabel =
     connection.status === 'active'
       ? ''
       : ` — ${CONNECTION_STATUS_LABELS[connection.status]}`
-  return `Google account (${visibilityLabel})${statusLabel}`
+  return `Organization Google account${statusLabel}`
 }
 export function GoogleAccountSelector({
   connections,

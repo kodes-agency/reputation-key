@@ -21,6 +21,7 @@ import { PortalRatingCard } from './portal-rating-card'
 import { PortalCountCard } from './portal-count-card'
 import { PortalMetricEvidenceSummary } from './portal-metric-evidence-summary'
 import { PortalResponseIntegritySummary } from './portal-response-integrity-summary'
+import { PortalLifetimeReconciliationSummary } from './portal-lifetime-reconciliation-summary'
 
 type Props = Readonly<{
   portalId: string
@@ -127,6 +128,12 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
           timeRange={timeRange}
           onChange={(v) => setTimeRange(v as TimeRangePreset)}
         />
+        {data.lifetimeReconciliation !== null && (
+          <PortalLifetimeReconciliationSummary
+            state={data.lifetimeReconciliation}
+            timeZone={propertyTimezone}
+          />
+        )}
         <div className="rounded-lg border border-dashed p-12 text-center">
           <BarChart3 className="mx-auto size-10 text-muted-foreground/50" />
           <h3 className="mt-4 font-semibold">No data yet</h3>
@@ -144,6 +151,12 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
         timeRange={timeRange}
         onChange={(v) => setTimeRange(v as TimeRangePreset)}
       />
+      {data.lifetimeReconciliation !== null && (
+        <PortalLifetimeReconciliationSummary
+          state={data.lifetimeReconciliation}
+          timeZone={propertyTimezone}
+        />
+      )}
       {/* The All Time range has no prior window. Cards render that missing
           comparison as an em dash instead of fabricating a 0% trend. */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -171,15 +184,17 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
           timeZone={propertyTimezone}
         />
       </div>
-      <PortalMetricEvidenceSummary
-        entries={[
-          { label: 'Scans', evidence: data.kpis.scans.evidence },
-          { label: 'Private ratings', evidence: data.kpis.avgRating.evidence },
-          { label: 'Private feedback', evidence: data.kpis.feedback.evidence },
-          { label: 'Review clicks', evidence: data.kpis.reviewLinkClicks.evidence },
-        ]}
-        timeZone={propertyTimezone}
-      />
+      {data.lifetimeReconciliation === null && (
+        <PortalMetricEvidenceSummary
+          entries={[
+            { label: 'Scans', evidence: data.kpis.scans.evidence },
+            { label: 'Private ratings', evidence: data.kpis.avgRating.evidence },
+            { label: 'Private feedback', evidence: data.kpis.feedback.evidence },
+            { label: 'Review clicks', evidence: data.kpis.reviewLinkClicks.evidence },
+          ]}
+          timeZone={propertyTimezone}
+        />
+      )}
       <PortalResponseIntegritySummary summary={data.responseIntegrity} />
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {engagementFunnel !== null && (

@@ -1,6 +1,6 @@
-// Property list page — the org's properties as clickable rows. Destructive
-// Property lifecycle controls are deliberately absent during LIF-01
-// containment. Routing and permissions are provided by Storybook decorators.
+// Property list page — the org's properties as clickable rows. Recoverable
+// lifecycle controls live in each Property's settings so a row click remains
+// unambiguous. Routing and permissions are provided by Storybook decorators.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { PropertyListPage } from './property-list-page'

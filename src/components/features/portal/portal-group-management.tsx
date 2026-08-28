@@ -3,16 +3,13 @@ import { FolderKanban, Plus, UserRoundX, X } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
-import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
 import { Skeleton } from '#/components/ui/skeleton'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PortalGroupRow } from './portal-group-row'
+import { PortalGroupCreateForm } from './portal-group-create-form'
 import type { PortalGroupManagementProps } from './portal-group-types'
-
 export type { PortalGroupView } from './portal-group-types'
-
 export function PortalGroupManagement({
   propertyId,
   groups,
@@ -28,7 +25,6 @@ export function PortalGroupManagement({
 }: PortalGroupManagementProps) {
   const { can } = usePermissions()
   const [showCreate, setShowCreate] = useState(false)
-  const [newName, setNewName] = useState('')
   const portalById = useMemo(
     () => new Map(portals.map((portal) => [portal.id, portal])),
     [portals],
@@ -47,7 +43,6 @@ export function PortalGroupManagement({
   const canCreate = can('portal.create')
   const canUpdate = can('portal.update')
   const canDelete = can('portal.delete')
-
   return (
     <section className="space-y-4" aria-labelledby="portal-groups-heading">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -89,39 +84,12 @@ export function PortalGroupManagement({
       )}
 
       {showCreate && (
-        <form
-          id="create-portal-group-form"
-          className="flex flex-col gap-3 rounded-lg border bg-muted/30 p-4 sm:flex-row sm:items-end"
-          onSubmit={(event) => {
-            event.preventDefault()
-            const name = newName.trim()
-            if (!name) return
-            void createMutation({ data: { propertyId, name } })
-              .then(() => {
-                setNewName('')
-                setShowCreate(false)
-              })
-              .catch(() => undefined)
-          }}
-        >
-          <div className="flex flex-1 flex-col gap-2">
-            <Label htmlFor="portal-group-name">Group name</Label>
-            <Input
-              id="portal-group-name"
-              value={newName}
-              onChange={(event) => setNewName(event.target.value)}
-              maxLength={100}
-              autoFocus
-              required
-              disabled={createMutation.isPending}
-            />
-          </div>
-          <Button type="submit" disabled={createMutation.isPending || !newName.trim()}>
-            {createMutation.isPending ? 'Creating…' : 'Create group'}
-          </Button>
-        </form>
+        <PortalGroupCreateForm
+          propertyId={propertyId}
+          mutation={createMutation}
+          onCreated={() => setShowCreate(false)}
+        />
       )}
-
       <FormErrorBanner error={mutationError ?? (state === 'error' ? error : null)} />
 
       {state === 'loading' && (

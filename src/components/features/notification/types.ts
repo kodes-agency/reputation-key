@@ -3,7 +3,7 @@
 // hooks in notification-queries receive the relevant fn and wrap it internally.
 // Type-only imports (typeof prop typing) — allowed by the boundary gate.
 import type {
-  getUnreadNotificationCountFn,
+  getNotificationFeedHeadFn,
   getNotificationsFn,
   markNotificationReadFn,
   markNotificationUnreadFn,
@@ -16,7 +16,8 @@ import type {
 import type { Notification } from '#/contexts/notification/application/public-api'
 
 export type NotificationServerFns = Readonly<{
-  getUnreadCount: typeof getUnreadNotificationCountFn
+  /** Atomic feed-head authority used by the bell and full feed. */
+  getFeedHead: typeof getNotificationFeedHeadFn
   getList: typeof getNotificationsFn
   markRead: typeof markNotificationReadFn
   markUnread: typeof markNotificationUnreadFn

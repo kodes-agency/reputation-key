@@ -3,10 +3,11 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
   makeNotificationFns,
+  notificationFeedHeadFixture,
   notificationFixtures,
   notificationPageFixture,
   notificationPropertyFixtures,
-} from './notification-fixtures'
+} from './notification.stories.fixtures'
 import { NotificationPage } from './notification-page'
 import {
   matchesNotificationFilter,
@@ -17,20 +18,36 @@ import type { NotificationServerFns } from './types'
 const ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222'
 const unreadCount = notificationFixtures.filter((n) => n.status === 'unread').length
 
-const getFilteredNotifications = async (input: unknown) => {
+const getFilteredNotifications = (input: unknown) => {
   const filter = (input as Readonly<{ data: Readonly<{ filter: string }> }>).data.filter
-  return notificationPageFixture(
-    notificationFixtures.filter((notification) =>
-      matchesNotificationFilter(notification, parseNotificationFilter(filter)),
-    ),
+  return notificationFixtures.filter((notification) =>
+    matchesNotificationFilter(notification, parseNotificationFilter(filter)),
   )
 }
 
+const getFilteredFeedHead = async (input: unknown) => {
+  const notifications = getFilteredNotifications(input)
+  return notificationFeedHeadFixture(
+    notifications,
+    notifications.filter((notification) => notification.status === 'unread').length,
+  )
+}
+
+const getFilteredHistory = async (input: unknown) =>
+  notificationPageFixture(
+    notificationFixtures.filter((notification) =>
+      matchesNotificationFilter(
+        notification,
+        parseNotificationFilter(
+          (input as Readonly<{ data: Readonly<{ filter: string }> }>).data.filter,
+        ),
+      ),
+    ),
+  )
+
 const loadedFns = makeNotificationFns({
-  getUnreadCount: (async () => ({
-    count: unreadCount,
-  })) as unknown as NotificationServerFns['getUnreadCount'],
-  getList: getFilteredNotifications as unknown as NotificationServerFns['getList'],
+  getFeedHead: getFilteredFeedHead as unknown as NotificationServerFns['getFeedHead'],
+  getList: getFilteredHistory as unknown as NotificationServerFns['getList'],
 })
 
 const onFilterChange = fn()
@@ -93,14 +110,11 @@ export const FilterIsAppliedBeforePagination: Story = {
   args: {
     filter: 'urgent',
     notificationFns: makeNotificationFns({
-      getUnreadCount: (async () => ({
-        count: unreadCount,
-      })) as unknown as NotificationServerFns['getUnreadCount'],
-      getList: (async (input: unknown) => {
+      getFeedHead: (async (input: unknown) => {
         const requestedFilter = (
           input as Readonly<{ data: Readonly<{ filter?: string }> }>
         ).data.filter
-        return notificationPageFixture(
+        return notificationFeedHeadFixture(
           requestedFilter === 'urgent'
             ? notificationFixtures.filter(
                 (notification) => notification.priority === 'urgent',
@@ -109,7 +123,7 @@ export const FilterIsAppliedBeforePagination: Story = {
                 (notification) => notification.priority !== 'urgent',
               ),
         )
-      }) as unknown as NotificationServerFns['getList'],
+      }) as unknown as NotificationServerFns['getFeedHead'],
     }),
   },
   play: async ({ canvasElement }) => {
@@ -122,13 +136,11 @@ export const FilterIsAppliedBeforePagination: Story = {
 export const DismissAllRequiresConfirmation: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getUnreadCount: (async () => ({
-        count: unreadCount,
-      })) as unknown as NotificationServerFns['getUnreadCount'],
-      getList: (async () =>
-        notificationPageFixture(
+      getFeedHead: (async () =>
+        notificationFeedHeadFixture(
           notificationFixtures,
-        )) as unknown as NotificationServerFns['getList'],
+          unreadCount,
+        )) as unknown as NotificationServerFns['getFeedHead'],
       dismissAll: (() =>
         Promise.withResolvers<void>()
           .promise) as unknown as NotificationServerFns['dismissAll'],
@@ -161,9 +173,9 @@ export const Empty: Story = {
 export const ErrorState: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getList: (async () => {
+      getFeedHead: (async () => {
         throw new Error('Notifications service unavailable')
-      }) as unknown as NotificationServerFns['getList'],
+      }) as unknown as NotificationServerFns['getFeedHead'],
     }),
   },
   play: async ({ canvasElement }) => {

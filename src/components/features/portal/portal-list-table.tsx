@@ -10,14 +10,22 @@ type Props = Readonly<{
   portals: readonly PortalListItem[]
   propertyId: string
   canDelete: boolean
-  deleteMutation: Action<{ data: { portalId: string } }>
+  canUpdate: boolean
+  archiveMutation: Action<{
+    data: { portalId: string; publicationState: 'archived' }
+  }>
+  restoreMutation: Action<{
+    data: { portalId: string; publicationState: 'disabled' }
+  }>
 }>
 
 export function PortalListTable({
   portals,
   propertyId,
   canDelete,
-  deleteMutation,
+  canUpdate,
+  archiveMutation,
+  restoreMutation,
 }: Props) {
   return (
     <Table>
@@ -36,7 +44,9 @@ export function PortalListTable({
             portal={portal}
             propertyId={propertyId}
             canDelete={canDelete}
-            deleteMutation={deleteMutation}
+            canUpdate={canUpdate}
+            archiveMutation={archiveMutation}
+            restoreMutation={restoreMutation}
           />
         ))}
       </TableBody>

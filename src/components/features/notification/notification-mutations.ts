@@ -46,20 +46,19 @@ export function useNotificationMutations(
   const qc = useQueryClient()
   const listKey = notificationKeys.list(organizationId, limit, filter)
   const headKey = notificationKeys.head(organizationId, limit, filter)
-  const countKey = notificationKeys.count(organizationId)
   const invalidateKeys = [notificationKeys.feed(organizationId)]
 
   const markRead = useActionMutation(fns.markRead, {
     invalidateKeys,
     optimistic: (input) =>
-      patchNotificationFeedCache(qc, listKey, headKey, countKey, (row) =>
+      patchNotificationFeedCache(qc, listKey, headKey, (row) =>
         row.id === input.data.notificationId ? readNow(row) : row,
       ),
   })
   const markUnread = useActionMutation(fns.markUnread, {
     invalidateKeys,
     optimistic: (input) =>
-      patchNotificationFeedCache(qc, listKey, headKey, countKey, (row) =>
+      patchNotificationFeedCache(qc, listKey, headKey, (row) =>
         row.id === input.data.notificationId
           ? { ...row, status: 'unread', readAt: null }
           : row,
@@ -68,22 +67,27 @@ export function useNotificationMutations(
   const dismiss = useActionMutation(fns.dismiss, {
     invalidateKeys,
     optimistic: (input) =>
-      patchNotificationFeedCache(qc, listKey, headKey, countKey, (row) =>
+      patchNotificationFeedCache(qc, listKey, headKey, (row) =>
         row.id === input.data.notificationId ? null : row,
       ),
   })
   const markAllRead = useActionMutation(fns.markAllRead, {
     invalidateKeys,
     optimistic: () =>
-      patchNotificationFeedCache(qc, listKey, headKey, countKey, (row) =>
-        row.status === 'unread' ? readNow(row) : row,
+      patchNotificationFeedCache(
+        qc,
+        listKey,
+        headKey,
+        (row) => (row.status === 'unread' ? readNow(row) : row),
+        { unreadCount: 0 },
       ),
   })
   const dismissAll = useActionMutation(fns.dismissAll, {
     invalidateKeys,
     optimistic: () =>
-      patchNotificationFeedCache(qc, listKey, headKey, countKey, () => null, {
+      patchNotificationFeedCache(qc, listKey, headKey, () => null, {
         clearContinuation: true,
+        unreadCount: 0,
       }),
   })
   const muteCategory = useActionMutation(fns.muteCategory, {
@@ -111,6 +115,10 @@ export function useNotificationMutations(
       void run(dismiss({ data: { notificationId: id } }), 'Notification dismissed.')
     },
     onMuteCategory: (notification) => {
+      if (notification.propertyId === null || notification.category === 'mandatory') {
+        announce('This account notice is always on.')
+        return
+      }
       void run(
         muteCategory({
           data: {

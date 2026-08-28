@@ -159,16 +159,16 @@ export const EmailUnavailableForProperty: Story = {
   },
 }
 
-export const MandatoryCategoryIsLocked: Story = {
+export const MandatoryCategoryIsOrganizationPolicy: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    // Account and safety notices are not opt-out on either channel.
+    // Mandatory account notices are Organization policy, not a Property
+    // preference with disabled controls that imply it could later be changed.
+    expect(canvas.queryByRole('heading', { name: 'Account and safety' })).toBeNull()
     expect(
-      canvas.getByLabelText('In-app', { selector: '#mandatory-in_app' }),
-    ).toBeDisabled()
-    expect(
-      canvas.getByLabelText('Email', { selector: '#mandatory-email' }),
-    ).toBeDisabled()
+      canvas.queryByLabelText('In-app', { selector: '#mandatory-in_app' }),
+    ).toBeNull()
+    expect(canvas.queryByLabelText('Email', { selector: '#mandatory-email' })).toBeNull()
   },
 }
 
@@ -206,6 +206,18 @@ export const SeedsFormattingFromTheServer: Story = {
     // Render source is the query result, not a stale local mirror.
     expect(canvas.getByLabelText('Locale')).toHaveValue('bg')
     expect(canvas.getByLabelText('IANA timezone')).toHaveValue('Europe/Sofia')
+  },
+}
+
+export const FormattingRejectsAnUnknownTimezone: Story = {
+  play: async ({ canvasElement }) => {
+    updateUserSettingsMock.mockClear()
+    const canvas = within(canvasElement)
+    const timezone = canvas.getByLabelText('IANA timezone')
+    await userEvent.clear(timezone)
+    await userEvent.type(timezone, 'Sofia{Enter}')
+    await expect(canvas.findByText('Enter a valid IANA timezone')).resolves.toBeVisible()
+    expect(updateUserSettingsMock).not.toHaveBeenCalled()
   },
 }
 

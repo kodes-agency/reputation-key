@@ -13,9 +13,8 @@ import {
 } from '#/components/ui/alert-dialog'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
-import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
 import { PortalGroupMembers } from './portal-group-members'
+import { PortalGroupRenameForm } from './portal-group-rename-form'
 import type {
   PortalGroupMutations,
   PortalGroupView,
@@ -46,50 +45,18 @@ export function PortalGroupRow({
   removePortalMutation,
 }: Props) {
   const [editing, setEditing] = useState(false)
-  const [editName, setEditName] = useState(group.name)
 
   return (
     <article className="space-y-4 p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         {editing ? (
-          <form
-            className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center"
-            onSubmit={(event) => {
-              event.preventDefault()
-              const name = editName.trim()
-              if (!name) return
-              void updateMutation({ data: { portalGroupId: group.id, name } })
-                .then(() => setEditing(false))
-                .catch(() => undefined)
-            }}
-          >
-            <Label htmlFor={`portal-group-name-${group.id}`} className="sr-only">
-              Group name
-            </Label>
-            <Input
-              id={`portal-group-name-${group.id}`}
-              value={editName}
-              onChange={(event) => setEditName(event.target.value)}
-              maxLength={100}
-              autoFocus
-              required
-              disabled={updateMutation.isPending}
-              className="max-w-md"
-            />
-            <div className="flex gap-2">
-              <Button type="submit" size="sm" disabled={!editName.trim()}>
-                {updateMutation.isPending ? 'Saving…' : 'Save'}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => setEditing(false)}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
+          <PortalGroupRenameForm
+            groupId={group.id}
+            initialName={group.name}
+            mutation={updateMutation}
+            onSaved={() => setEditing(false)}
+            onCancel={() => setEditing(false)}
+          />
         ) : (
           <div className="flex min-w-0 items-center gap-2">
             <h3 className="truncate font-semibold">{group.name}</h3>
@@ -107,7 +74,6 @@ export function PortalGroupRow({
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  setEditName(group.name)
                   setEditing(true)
                 }}
               >

@@ -1,5 +1,5 @@
 // Inbox notes thread — note list + add-note form inside the detail panel.
-// The form wraps addInboxNote via useMutationAction; stories drive the mock fn
+// The form wraps addInboxNote via useActionMutation; stories drive the mock fn
 // to cover the populated/empty states and a real submit interaction.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
@@ -8,7 +8,9 @@ import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
 import type { InboxNote } from '#/contexts/inbox/application/public-api'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 
-type AddNoteInput = { data: { inboxItemId: string; text: string } }
+type AddNoteInput = {
+  data: { inboxItemId: string; text: string; expectedCommandRevision: number }
+}
 
 // Resolving add-note fn — form stays idle after a successful submit.
 const addNoteFn = mockServerFn(async (_input: AddNoteInput) => ({
@@ -48,6 +50,7 @@ export const WithNotes: Story = {
   args: {
     notes,
     inboxItemId: 'inbox-1',
+    expectedCommandRevision: 1,
     currentUserId: 'user-1',
     onNoteAdded: fn(),
     addInboxNote: addNoteFn,
@@ -59,9 +62,15 @@ export const Empty: Story = {
   args: {
     notes: [],
     inboxItemId: 'inbox-1',
+    expectedCommandRevision: 1,
     currentUserId: 'user-1',
     onNoteAdded: fn(),
     addInboxNote: addNoteFn,
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole('button', { name: /add note/i }),
+    ).toBeDisabled()
   },
 }
 
@@ -76,6 +85,7 @@ export const AddNote: Story = {
   args: {
     notes: [],
     inboxItemId: 'inbox-1',
+    expectedCommandRevision: 1,
     currentUserId: 'user-1',
     onNoteAdded: onNoteAddedSpy,
     addInboxNote: addNoteForSubmit,
@@ -85,18 +95,21 @@ export const AddNote: Story = {
     onNoteAddedSpy.mockClear()
     const canvas = within(canvasElement)
     const textarea = canvas.getByPlaceholderText('Add a note…')
-    await userEvent.type(textarea, 'Follow up tomorrow')
+    await userEvent.type(textarea, '  Follow up tomorrow  ')
     await userEvent.click(canvas.getByRole('button', { name: /add note/i }))
     await waitFor(() => {
       expect(submitSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ text: 'Follow up tomorrow' }),
+          data: expect.objectContaining({
+            text: 'Follow up tomorrow',
+            expectedCommandRevision: 1,
+          }),
         }),
       )
     })
     // onSuccess fires onNoteAdded + clears the field once the mutation settles.
     await waitFor(() => {
-      expect(onNoteAddedSpy).toHaveBeenCalled()
+      expect(onNoteAddedSpy).toHaveBeenCalledWith(2)
       expect(textarea).toHaveValue('')
     })
   },

@@ -20,6 +20,7 @@ type Props = Readonly<{
   item: InboxItem | null
   detailState: InboxDetailState
   detailFns: InboxDetailFns
+  currentUserId?: string
 }>
 
 export function InboxDetailSheet({
@@ -28,6 +29,7 @@ export function InboxDetailSheet({
   item,
   detailState,
   detailFns,
+  currentUserId,
 }: Props) {
   if (!item) return null
 
@@ -75,6 +77,9 @@ export function InboxDetailSheet({
             onNoteAdded={detailState.onNoteAdded}
             onReplyMutated={detailState.onReplyMutated}
             detailFns={detailFns}
+            currentUserId={currentUserId}
+            markFeedbackHandled={detailState.markFeedbackHandled}
+            correctFeedbackHandlingOutcome={detailState.correctFeedbackHandlingOutcome}
           />
         )}
       </SheetContent>

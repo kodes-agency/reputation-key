@@ -14,6 +14,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import type {
+  FeedbackHandlingCommandResult,
   InboxItem,
   InboxItemDetailResult,
 } from '#/contexts/inbox/application/public-api'
@@ -84,10 +85,43 @@ export const inboxCachePolicy = {
     await qc.invalidateQueries({ queryKey: inboxKeys.lastVisitCount() })
   },
 
+  /**
+   * A bulk reopen completed, including a partial result. The response does not
+   * carry authoritative item snapshots, so every Inbox folder projection that
+   * can have moved is refreshed together.
+   */
+  onBulkReopened(qc: QueryClient): void {
+    invalidateFolderCaches(qc)
+  },
+
   /** A status command returned the authoritative Inbox item snapshot. */
   onItemStatusChanged(qc: QueryClient, item: InboxItem): void {
     patchItem(qc, item)
     invalidateActivityAfterLag(qc, item.id)
+    invalidateFolderCaches(qc)
+  },
+
+  /**
+   * A private-feedback handling command carries both authoritative surfaces.
+   * Initial completion moves folders; a correction only advances the command
+   * fence and append-only outcome history.
+   */
+  onFeedbackHandlingChanged(
+    qc: QueryClient,
+    result: FeedbackHandlingCommandResult,
+    statusChanged: boolean,
+  ): void {
+    qc.setQueryData<InboxItemDetailResult>(inboxKeys.detail(result.item.id), (old) =>
+      old
+        ? {
+            ...old,
+            item: result.item,
+            feedbackHandling: result.feedbackHandling,
+          }
+        : old,
+    )
+    if (!statusChanged) return
+    invalidateActivityAfterLag(qc, result.item.id)
     invalidateFolderCaches(qc)
   },
 
@@ -101,8 +135,26 @@ export const inboxCachePolicy = {
     patchReply(qc, id, change.reply)
   },
 
-  /** A note was added — refresh notes now, activity after the BullMQ lag. */
-  onNoteAdded(qc: QueryClient, id: string): void {
+  /**
+   * A note was added. The note command advances the Inbox command revision in
+   * the same transaction, so carry that authoritative fence forward before a
+   * manager can issue another command from the still-open detail view.
+   */
+  onNoteAdded(qc: QueryClient, id: string, resultingCommandRevision: number): void {
+    qc.setQueryData<InboxItemDetailResult>(inboxKeys.detail(id), (old) =>
+      old
+        ? {
+            ...old,
+            item: {
+              ...old.item,
+              commandRevision: Math.max(
+                old.item.commandRevision,
+                resultingCommandRevision,
+              ),
+            },
+          }
+        : old,
+    )
     qc.invalidateQueries({ queryKey: inboxKeys.notes(id) })
     invalidateActivityAfterLag(qc, id)
   },

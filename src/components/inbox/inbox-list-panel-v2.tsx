@@ -32,6 +32,8 @@ export function InboxListPanel(props: InboxListPanelProps) {
     onDeselectAll,
     onBulkDone,
     bulkUpdateFn,
+    bulkAssignFn,
+    assignmentOptions,
     onLoadMore,
     onOpenSidebar,
   } = props
@@ -55,6 +57,8 @@ export function InboxListPanel(props: InboxListPanelProps) {
               items={items}
               onBulkDone={onBulkDone}
               bulkUpdateFn={bulkUpdateFn}
+              bulkAssignFn={bulkAssignFn}
+              assignmentOptions={assignmentOptions}
               onSelectAll={onSelectAll}
               onDeselectAll={onDeselectAll}
             />

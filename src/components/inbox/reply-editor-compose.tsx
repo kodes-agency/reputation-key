@@ -11,6 +11,7 @@ import { ReplyLanguageSelect } from './reply-language-select'
 import { ReplyLanguageReadiness } from './reply-language-readiness'
 import { languageDisplayName, type ReplyLanguageTarget } from './reply-language-options'
 import { ReplySuggestionControls } from './reply-suggestion-controls'
+import { ReplySuggestionPreview } from './reply-suggestion-preview'
 import { ReplyToolbarPortal } from './reply-toolbar-slot'
 import { useReplyComposer } from './use-reply-composer'
 import type { ReplySuggestionResult, ReplyTone } from './use-reply-suggestion'
@@ -52,7 +53,7 @@ export function ReplyCompose(props: ReplyComposeProps) {
     onSubmit: props.onSubmit,
     onGenerate: props.onGenerateSuggestion,
   })
-  const busy = props.isSaving || state.ai.isGenerating
+  const busy = props.isSaving || state.ai.isGenerating || state.ai.isAdopting
   const aiUnavailableReason = !props.canDetectReviewLanguage
     ? 'AI drafting needs written review text.'
     : state.target === null
@@ -75,6 +76,15 @@ export function ReplyCompose(props: ReplyComposeProps) {
         hasReviewText={props.canDetectReviewLanguage}
         isAutoDetecting={state.isAutoDetectingLanguage}
       />
+      {state.ai.suggestion && (
+        <ReplySuggestionPreview
+          suggestion={state.ai.suggestion}
+          disabled={busy}
+          isAdopting={state.ai.isAdopting}
+          onAdopt={() => void state.ai.adopt()}
+          onDismiss={state.ai.dismiss}
+        />
+      )}
       <InputGroup>
         {state.hasAiDraft && (
           <InputGroupAddon align="block-start">
@@ -90,7 +100,7 @@ export function ReplyCompose(props: ReplyComposeProps) {
           value={state.draft.text}
           rows={9}
           aria-invalid={state.overLimit}
-          disabled={props.isSaving}
+          disabled={props.isSaving || state.ai.isAdopting}
           onChange={(event) => state.updateText(event.target.value)}
           onBlur={state.flushOnBlur}
         />
@@ -101,7 +111,7 @@ export function ReplyCompose(props: ReplyComposeProps) {
               disabled={busy || aiUnavailableReason !== null}
               unavailableReason={aiUnavailableReason}
               isGenerating={state.ai.isGenerating}
-              hasAiDraft={state.hasAiDraft}
+              hasAiDraft={state.hasAiDraft || state.ai.suggestion !== null}
               canUndo={state.historyCount > 0}
               error={state.ai.error}
               onToneChange={state.ai.setTone}

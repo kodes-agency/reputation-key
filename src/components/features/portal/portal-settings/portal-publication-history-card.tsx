@@ -1,8 +1,12 @@
 import { Badge } from '#/components/ui/badge'
+import { Button } from '#/components/ui/button'
+import { useState } from 'react'
+import type { Action } from '#/components/hooks/use-action'
 import type {
   PortalPublicationHistory,
   PortalPublicationHistoryItem,
 } from '#/contexts/portal/application/public-api'
+import { PortalSavedSettingsStatus } from './portal-saved-settings-status'
 
 const timestampFormatter = new Intl.DateTimeFormat('en', {
   dateStyle: 'medium',
@@ -35,39 +39,6 @@ const closureLabel = (
     case null:
       return null
   }
-}
-
-function SavedSettingsStatus({
-  history,
-}: Readonly<{ history: PortalPublicationHistory }>) {
-  if (history.hasPendingChanges) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        {history.current
-          ? 'Saved changes are ready for the next publication. Guests continue to see the live version until you publish again.'
-          : 'Saved changes are ready for the next publication. They will appear when the public page is published again.'}
-      </p>
-    )
-  }
-  if (history.current) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Saved settings match the live version.
-      </p>
-    )
-  }
-  if (history.priorActivations.length > 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Saved settings match the most recently published version.
-      </p>
-    )
-  }
-  return (
-    <p className="text-sm text-muted-foreground">
-      Your first version will appear here after publication.
-    </p>
-  )
 }
 
 function CurrentPublication({
@@ -132,7 +103,52 @@ function EarlierActivity({
 
 export function PortalPublicationHistoryCard({
   history,
-}: Readonly<{ history: PortalPublicationHistory }>) {
+  portalId,
+  loadMoreAction,
+}: Readonly<{
+  history: PortalPublicationHistory
+  portalId?: string
+  loadMoreAction?: Action<
+    { data: { portalId: string; cursor?: number; limit?: number } },
+    PortalPublicationHistory
+  >
+}>) {
+  const sourceKey = [
+    history.current?.activationSequence ?? 'paused',
+    history.priorActivations
+      .map(({ activationSequence }) => activationSequence)
+      .join(','),
+    history.nextCursor ?? 'end',
+    history.hasPendingChanges ? 'pending' : 'current',
+  ].join(':')
+  const [continuation, setContinuation] = useState<{
+    sourceKey: string
+    pages: PortalPublicationHistory[]
+  }>({ sourceKey, pages: [] })
+  const pages = continuation.sourceKey === sourceKey ? continuation.pages : []
+  const earlier = [
+    ...history.priorActivations,
+    ...pages.flatMap((page) => page.priorActivations),
+  ].filter(
+    (item, index, all) =>
+      all.findIndex(
+        (candidate) => candidate.activationSequence === item.activationSequence,
+      ) === index,
+  )
+  const nextCursor =
+    pages.length > 0 ? pages[pages.length - 1]!.nextCursor : history.nextCursor
+
+  const loadMore = async () => {
+    if (!loadMoreAction || !portalId || nextCursor === null) return
+    const page = await loadMoreAction({
+      data: { portalId, cursor: nextCursor, limit: 20 },
+    })
+    setContinuation((current) => ({
+      sourceKey,
+      pages: current.sourceKey === sourceKey ? [...current.pages, page] : [page],
+    }))
+  }
+
   return (
     <section
       className="space-y-3 rounded-md border px-4 py-3"
@@ -142,10 +158,28 @@ export function PortalPublicationHistoryCard({
         <h3 id="portal-publication-history-title" className="text-sm font-medium">
           Publication history
         </h3>
-        <SavedSettingsStatus history={history} />
+        <PortalSavedSettingsStatus history={history} />
       </div>
       <CurrentPublication current={history.current} />
-      <EarlierActivity activations={history.priorActivations} />
+      <EarlierActivity activations={earlier} />
+      {nextCursor !== null && loadMoreAction && portalId && (
+        <div className="space-y-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={loadMoreAction.isPending}
+            onClick={() => void loadMore()}
+          >
+            {loadMoreAction.isPending ? 'Loading…' : 'Load earlier activity'}
+          </Button>
+          {loadMoreAction.error ? (
+            <p role="alert" className="text-xs text-destructive">
+              Earlier publication activity could not be loaded. Please try again.
+            </p>
+          ) : null}
+        </div>
+      )}
     </section>
   )
 }

@@ -97,7 +97,11 @@ export const FailedVisitCanRetryOnTheNextMount: Story = {
   args: { onPortalVisit: failingOnPortalVisit },
   render: () => renderWithState(true, false, failingOnPortalVisit, FAILURE_SCOPE_KEY),
   play: async () => {
-    await waitFor(() => expect(failingOnPortalVisit).toHaveBeenCalledTimes(1))
+    // One immediate attempt plus the single bounded retry. Only after that
+    // retry is exhausted may the pending marker be cleared for a later mount.
+    await waitFor(() => expect(failingOnPortalVisit).toHaveBeenCalledTimes(2), {
+      timeout: 2_500,
+    })
     await waitFor(() =>
       expect(sessionStorage.getItem(FAILURE_SCAN_RECORDED_KEY)).toBeNull(),
     )

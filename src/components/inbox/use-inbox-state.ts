@@ -23,11 +23,13 @@ import {
 } from './inbox-selection'
 import { useDebouncedValue } from './use-debounced-value'
 import { useScopedInboxSelection } from './use-scoped-inbox-selection'
+import { inboxCachePolicy } from './inbox-cache-policy'
 
 type InboxPage = {
   items: ReadonlyArray<InboxItem>
   nextCursor: Cursor | null
   totalCount: number
+  responseCutoff: Date
 }
 
 export function useInboxState(
@@ -68,6 +70,7 @@ export function useInboxState(
   const items = pages.flatMap((p) => p.items)
   const nextCursor = pages.length ? pages[pages.length - 1]!.nextCursor : null
   const totalCount = pages[0]?.totalCount ?? 0
+  const responseCutoff = pages[0]?.responseCutoff ?? null
 
   // Auto-close the detail if the selected item is no longer in the loaded list.
   useEffect(() => {
@@ -102,9 +105,7 @@ export function useInboxState(
   // Bulk update → clear selection, refetch the list (targeted), close detail.
   const handleBulkDone = useCallback(() => {
     setSelectedIds([])
-    qc.invalidateQueries({ queryKey: inboxKeys.lists() })
-    qc.invalidateQueries({ queryKey: inboxKeys.counts() })
-    qc.invalidateQueries({ queryKey: inboxKeys.lastVisitCount() })
+    inboxCachePolicy.onBulkReopened(qc)
     if (selectedId) closeDetail()
   }, [selectedId, qc, closeDetail, setSelectedIds])
 
@@ -113,6 +114,7 @@ export function useInboxState(
     totalCount,
     nextCursor,
     hasLoadedSuccessfully: query.isSuccess && query.isFetchedAfterMount,
+    responseCutoff,
     isLoading: query.isPending,
     error: query.error ? 'Failed to load inbox. Try again.' : null,
     selectedIds,

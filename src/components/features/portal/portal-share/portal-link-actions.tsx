@@ -2,19 +2,17 @@ import { useState } from 'react'
 import { RefreshCw, ShieldX } from 'lucide-react'
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
-  AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '#/components/ui/alert-dialog'
 import { Button } from '#/components/ui/button'
-import { Field, FieldLabel } from '#/components/ui/field'
-import { Input } from '#/components/ui/input'
 import { Separator } from '#/components/ui/separator'
+import { PortalImmediateReplacementDialog } from './portal-immediate-replacement-dialog'
+import { PortalPlannedReplacementForm } from './portal-planned-replacement-form'
+import { PortalRevokeLinksForm } from './portal-revoke-links-form'
 import type { IssuedPortalLink, PortalShareMutations } from './portal-share-types'
 
 type Props = Readonly<{
@@ -34,63 +32,46 @@ export function PortalLinkActions({
   onLinkIssued,
   onLinksRevoked,
 }: Props) {
-  const [revokeReason, setRevokeReason] = useState('')
-  // The revoke dialog is controlled so the reason field can live in a real
-  // <form>: Enter must submit it (the field was previously unreachable by
-  // keyboard alone). The submit button is a plain Button rather than
-  // AlertDialogAction because AlertDialogAction closes the dialog from its own
-  // click handler, which can unmount the form before the browser dispatches
-  // `submit`; closing from submitRevoke instead keeps one deterministic path.
+  const [plannedReplacementOpen, setPlannedReplacementOpen] = useState(false)
   const [revokeOpen, setRevokeOpen] = useState(false)
-
-  const submitRevoke = () => {
-    const reason = revokeReason.trim()
-    if (!reason || revokeMutation.isPending) return
-    // Close on submit rather than on success, matching the previous behaviour:
-    // a failed revoke surfaces in the page-level error banner, which sits
-    // behind the dialog overlay.
-    setRevokeOpen(false)
-    void revokeMutation({ data: { portalId, reason } })
-      .then(() => {
-        onLinksRevoked()
-        setRevokeReason('')
-      })
-      .catch(() => undefined)
-  }
 
   return (
     <>
       <Separator />
       <div className="flex flex-col gap-2 sm:flex-row">
-        <AlertDialog>
+        <AlertDialog
+          open={plannedReplacementOpen}
+          onOpenChange={setPlannedReplacementOpen}
+        >
           <AlertDialogTrigger asChild>
             <Button variant="outline" disabled={isPending}>
-              <RefreshCw data-icon="inline-start" /> Rotate link
+              <RefreshCw data-icon="inline-start" /> Replace access materials
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Rotate this public link?</AlertDialogTitle>
+              <AlertDialogTitle>Plan an access replacement?</AlertDialogTitle>
               <AlertDialogDescription>
-                A new link will be shown once. Existing printed links remain valid only
-                through their recorded grace period.
+                New QR and NFC addresses will be shown once. Existing printed and
+                programmed materials keep working during the transition period so you have
+                time to replace them.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction
-                disabled={rotateMutation.isPending}
-                onClick={() => {
-                  void rotateMutation({ data: { portalId } })
-                    .then((link) => onLinkIssued({ publicUrl: link.publicUrl }))
-                    .catch(() => undefined)
-                }}
-              >
-                {rotateMutation.isPending ? 'Rotating…' : 'Rotate link'}
-              </AlertDialogAction>
-            </AlertDialogFooter>
+            <PortalPlannedReplacementForm
+              portalId={portalId}
+              mutation={rotateMutation}
+              onStarted={() => setPlannedReplacementOpen(false)}
+              onLinkIssued={onLinkIssued}
+            />
           </AlertDialogContent>
         </AlertDialog>
+
+        <PortalImmediateReplacementDialog
+          portalId={portalId}
+          disabled={isPending}
+          mutation={rotateMutation}
+          onLinkIssued={onLinkIssued}
+        />
 
         <AlertDialog open={revokeOpen} onOpenChange={setRevokeOpen}>
           <AlertDialogTrigger asChild>
@@ -110,36 +91,12 @@ export function PortalLinkActions({
                 period. This does not archive the portal.
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <form
-              className="grid gap-4"
-              onSubmit={(event) => {
-                event.preventDefault()
-                submitRevoke()
-              }}
-            >
-              <Field className="py-2">
-                <FieldLabel htmlFor="portal-revoke-reason">Reason</FieldLabel>
-                <Input
-                  id="portal-revoke-reason"
-                  value={revokeReason}
-                  onChange={(event) => setRevokeReason(event.target.value)}
-                  maxLength={500}
-                  placeholder="Printed code was misplaced"
-                  autoFocus
-                  required
-                />
-              </Field>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <Button
-                  type="submit"
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                  disabled={!revokeReason.trim() || revokeMutation.isPending}
-                >
-                  {revokeMutation.isPending ? 'Revoking…' : 'Revoke links'}
-                </Button>
-              </AlertDialogFooter>
-            </form>
+            <PortalRevokeLinksForm
+              portalId={portalId}
+              mutation={revokeMutation}
+              onStarted={() => setRevokeOpen(false)}
+              onRevoked={onLinksRevoked}
+            />
           </AlertDialogContent>
         </AlertDialog>
       </div>

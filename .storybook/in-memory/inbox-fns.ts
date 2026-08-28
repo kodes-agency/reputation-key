@@ -22,8 +22,12 @@ import {
   resolveEscalationDto,
   addInboxNoteDto,
   bulkUpdateStatusDto,
+  bulkAssignInboxItemsDto,
+  stampLastInboxViewDto,
+  markFeedbackHandledDto,
+  correctFeedbackHandlingOutcomeDto,
 } from '#/contexts/inbox/application/dto/inbox.dto'
-import { propertyId, inboxItemId } from '#/shared/domain/ids'
+import { propertyId, inboxItemId, userId } from '#/shared/domain/ids'
 import type { z } from 'zod/v4'
 import type {
   getInboxItemsFn,
@@ -36,6 +40,9 @@ import type {
   resolveEscalationFn,
   addInboxNoteFn,
   bulkUpdateInboxStatusFn,
+  bulkAssignInboxItemsFn,
+  markFeedbackHandledFn,
+  correctFeedbackHandlingOutcomeFn,
 } from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
 import type { InboxServerFns } from '#/components/inbox/types'
@@ -49,7 +56,7 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
 
   return {
     getInboxItems: (async ({ data }: { data: z.infer<typeof getInboxItemsDto> }) =>
-      container.useCases.getInboxItems(
+      container.inboxPublicApi.getInboxItems(
         {
           filters: {
             propertyId: data.propertyId ? propertyId(data.propertyId) : undefined,
@@ -87,7 +94,7 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
     }: {
       data: z.infer<typeof getInboxItemDetailDto>
     }) =>
-      container.useCases.getInboxItemDetail(
+      container.inboxPublicApi.getInboxItemDetail(
         {
           inboxItemId: inboxItemId(data.inboxItemId),
         },
@@ -95,7 +102,7 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
       )) as unknown as typeof getInboxItemDetailFn,
 
     getInboxNotes: (async ({ data }: { data: z.infer<typeof getInboxNotesDto> }) =>
-      container.useCases.getInboxNotes(
+      container.inboxPublicApi.getInboxNotes(
         {
           inboxItemId: inboxItemId(data.inboxItemId),
         },
@@ -105,22 +112,29 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
     // Folder counts are org-wide (no filters in the DTO); the real use-case
     // computes the per-folder tally over the seeded repo.
     getInboxFolderCounts: (async () =>
-      container.useCases.getInboxFolderCounts(
+      container.inboxPublicApi.getInboxFolderCounts(
         {},
         ctx,
       )) as unknown as typeof getInboxFolderCountsFn,
 
-    stampLastInboxView: (async () =>
-      container.useCases.stampLastInboxView(
-        {},
+    stampLastInboxView: (async ({
+      data,
+    }: {
+      data: z.infer<typeof stampLastInboxViewDto>
+    }) =>
+      container.inboxPublicApi.stampLastInboxView(
+        { responseCutoff: data.responseCutoff },
         ctx,
       )) as unknown as typeof stampLastInboxViewFn,
 
     updateInboxStatus: (async ({ data }: { data: z.infer<typeof updateStatusDto> }) =>
-      container.useCases.updateInboxStatus(
+      container.inboxPublicApi.updateInboxStatus(
         {
           inboxItemId: inboxItemId(data.inboxItemId),
           newStatus: data.status,
+          expectedCommandRevision: data.expectedCommandRevision,
+          reopenReason: data.reopenReason,
+          reopenExplanation: data.reopenExplanation,
         },
         ctx,
       )) as unknown as typeof updateInboxStatusFn,
@@ -130,8 +144,11 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
     }: {
       data: z.infer<typeof escalateInboxItemDto>
     }) =>
-      container.useCases.escalateInboxItem(
-        { inboxItemId: inboxItemId(data.inboxItemId) },
+      container.inboxPublicApi.escalateInboxItem(
+        {
+          inboxItemId: inboxItemId(data.inboxItemId),
+          expectedCommandRevision: data.expectedCommandRevision,
+        },
         ctx,
       )) as unknown as typeof escalateInboxItemFn,
 
@@ -140,16 +157,20 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
     }: {
       data: z.infer<typeof resolveEscalationDto>
     }) =>
-      container.useCases.resolveEscalation(
-        { inboxItemId: inboxItemId(data.inboxItemId) },
+      container.inboxPublicApi.resolveEscalation(
+        {
+          inboxItemId: inboxItemId(data.inboxItemId),
+          expectedCommandRevision: data.expectedCommandRevision,
+        },
         ctx,
       )) as unknown as typeof resolveEscalationFn,
 
     addInboxNote: (async ({ data }: { data: z.infer<typeof addInboxNoteDto> }) =>
-      container.useCases.addInboxNote(
+      container.inboxPublicApi.addInboxNote(
         {
           inboxItemId: inboxItemId(data.inboxItemId),
           text: data.text,
+          expectedCommandRevision: data.expectedCommandRevision,
         },
         ctx,
       )) as unknown as typeof addInboxNoteFn,
@@ -159,13 +180,76 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
     }: {
       data: z.infer<typeof bulkUpdateStatusDto>
     }) =>
-      container.useCases.bulkUpdateInboxStatus(
+      container.inboxPublicApi.bulkUpdateInboxStatus(
         {
-          inboxItemIds: data.inboxItemIds.map((id) => inboxItemId(id)),
+          items: data.items.map((item) => ({
+            inboxItemId: inboxItemId(item.inboxItemId),
+            expectedCommandRevision: item.expectedCommandRevision,
+          })),
           newStatus: data.status,
+          reopenReason: data.reopenReason,
+          reopenExplanation: data.reopenExplanation,
         },
         ctx,
       )) as unknown as typeof bulkUpdateInboxStatusFn,
+
+    bulkAssignInboxItems: (async ({
+      data,
+    }: {
+      data: z.infer<typeof bulkAssignInboxItemsDto>
+    }) =>
+      container.inboxPublicApi.bulkAssignInboxItems(
+        {
+          items: data.items.map((item) => ({
+            inboxItemId: inboxItemId(item.inboxItemId),
+            expectedCommandRevision: item.expectedCommandRevision,
+          })),
+          assignedToUserId: data.assignedToUserId ? userId(data.assignedToUserId) : null,
+        },
+        ctx,
+      )) as unknown as typeof bulkAssignInboxItemsFn,
+
+    markFeedbackHandled: (async ({
+      data,
+    }: {
+      data: z.infer<typeof markFeedbackHandledDto>
+    }) =>
+      container.inboxPublicApi.markFeedbackHandled(
+        {
+          inboxItemId: inboxItemId(data.inboxItemId),
+          expected: {
+            commandRevision: data.expectedCommandRevision,
+            cycleNumber: data.expectedCycleNumber,
+            sourceRevision: data.expectedSourceRevision,
+            stateRevision: data.expectedStateRevision,
+          },
+          outcome: data.outcome,
+          internalNote: data.internalNote ?? null,
+        },
+        ctx,
+      )) as unknown as typeof markFeedbackHandledFn,
+
+    correctFeedbackHandlingOutcome: (async ({
+      data,
+    }: {
+      data: z.infer<typeof correctFeedbackHandlingOutcomeDto>
+    }) =>
+      container.inboxPublicApi.correctFeedbackHandlingOutcome(
+        {
+          inboxItemId: inboxItemId(data.inboxItemId),
+          expected: {
+            commandRevision: data.expectedCommandRevision,
+            cycleNumber: data.expectedCycleNumber,
+            sourceRevision: data.expectedSourceRevision,
+            stateRevision: data.expectedStateRevision,
+            outcomeId: data.expectedOutcomeId,
+            outcomeRevision: data.expectedOutcomeRevision,
+          },
+          outcome: data.outcome,
+          internalNote: data.internalNote ?? null,
+        },
+        ctx,
+      )) as unknown as typeof correctFeedbackHandlingOutcomeFn,
 
     // Cross-context — no in-browser container; honor the real return contracts
     // so the detail pane (mounted on item selection) renders gracefully empty

@@ -17,6 +17,10 @@ import {
   UserPlus,
   FileEdit,
   Send,
+  ShieldCheck,
+  UserCog,
+  UserMinus,
+  Clock,
   type LucideIcon,
 } from 'lucide-react'
 import type { NotificationType } from '#/contexts/notification/application/public-api'
@@ -110,7 +114,11 @@ export function formatAbsoluteTime(
 // ── Icon by notification type ───────────────────────────────────────
 
 const typeIconMap: Record<NotificationType, LucideIcon> = {
+  'account.organization_access_granted': ShieldCheck,
+  'account.organization_role_changed': UserCog,
+  'account.organization_access_removed': UserMinus,
   'review.created': MessageSquare,
+  'review.updated': MessageSquare,
   'feedback.created': MessageSquare,
   'reply.pending_approval': AlertTriangle,
   'reply.approved': CheckCircle,
@@ -118,11 +126,19 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
   'reply.published': Send,
   'reply.publish_failed': AlertTriangle,
   'inbox.escalated': AlertTriangle,
+  'inbox.escalation_resolved': CheckCircle,
+  'inbox.reopened': MessageSquare,
+  'inbox.response_target_halfway': Clock,
+  'inbox.response_target_passed': Clock,
   'inbox.assigned': UserPlus,
+  'inbox.bulk_assigned': UserPlus,
   'inbox_note.added': FileEdit,
   'portal.responsibility_needed': UserPlus,
+  'portal.health_attention': AlertTriangle,
   'property.responsibility_needed': UserPlus,
+  'integration.reauthorization_required': AlertTriangle,
   'goal.completed': Target,
+  'goal.result_revised': Target,
   'badge.awarded': Award,
 }
 

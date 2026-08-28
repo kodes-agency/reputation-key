@@ -26,11 +26,7 @@ import {
 } from '#/components/ui/alert-dialog'
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
-import {
-  useNotificationFormat,
-  useNotifications,
-  useUnreadNotificationCount,
-} from './notification-queries'
+import { useNotificationFormat, useNotifications } from './notification-queries'
 import { useNotificationMutations } from './notification-mutations'
 import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-announcer'
 import { NotificationFilterTabs } from './notification-filter-tabs'
@@ -57,17 +53,15 @@ export function NotificationPage({
   onFilterChange,
 }: Props) {
   const { announcement, announce } = useNotificationAnnouncer()
-  const { count } = useUnreadNotificationCount(
-    notificationFns.getUnreadCount,
-    organizationId,
-  )
   const list = useNotifications(
+    notificationFns.getFeedHead,
     notificationFns.getList,
     organizationId,
     PAGE_SIZE,
     filter,
     true,
   )
+  const count = list.unreadCount
   const format = useNotificationFormat(notificationFns.getUserSettings, organizationId)
   const mutations = useNotificationMutations(
     notificationFns,

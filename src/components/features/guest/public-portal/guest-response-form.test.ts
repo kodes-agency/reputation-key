@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 describe('GuestResponseForm Google navigation safety', () => {
   const source = readFileSync(
-    new URL('./guest-response-form.tsx', import.meta.url),
+    new URL('./use-guest-response-controller.ts', import.meta.url),
     'utf8',
   )
 

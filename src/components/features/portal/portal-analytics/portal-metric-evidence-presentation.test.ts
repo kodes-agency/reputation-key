@@ -45,6 +45,17 @@ describe('Portal metric evidence presentation', () => {
     ).toBe('Updating; figures will appear when checks finish.')
   })
 
+  it('labels anonymous lifetime evidence without inventing a data-through time', () => {
+    expect(
+      portalMetricEvidenceLine({
+        ...evidence,
+        basis: 'anonymous_lifetime',
+        verifiedThrough: null,
+        latestActivity: null,
+      }),
+    ).toBe('All-time aggregate')
+  })
+
   it('turns internal availability reasons into calm manager-facing detail', () => {
     expect(portalMetricAvailabilityDetail('consumer_receipt_pending')).toBe(
       'Recent activity is still processing.',

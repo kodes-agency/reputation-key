@@ -2,17 +2,18 @@ import { useCallback } from 'react'
 import { useAction } from '#/components/hooks/use-action'
 import { Button } from '#/components/ui/button'
 import { Loader2 } from 'lucide-react'
+import type { GoogleAuthUrlInput } from '#/contexts/integration/application/public-api'
+
+type NewGoogleAuthorization = Extract<GoogleAuthUrlInput, { connectionMode: 'new' }>
 
 type Props = Readonly<{
-  visibility?: 'private' | 'organization'
-  getAuthUrl: (opts: {
-    data: { visibility: 'private' | 'organization' }
-  }) => Promise<{ url: string }>
+  visibility?: 'organization'
+  getAuthUrl: (opts: { data: NewGoogleAuthorization }) => Promise<{ url: string }>
   disabled?: boolean
 }>
 
 export function ConnectGoogleButton({
-  visibility = 'private',
+  visibility = 'organization',
   getAuthUrl,
   disabled = false,
 }: Props) {
@@ -20,7 +21,13 @@ export function ConnectGoogleButton({
 
   const handleClick = useCallback(async () => {
     try {
-      const result = await connect({ data: { visibility } })
+      const result = await connect({
+        data: {
+          visibility,
+          connectionMode: 'new',
+          targetConnectionId: null,
+        },
+      })
       window.location.href = result.url
     } catch {
       // useAction retains the rejection for the alert below. Catching it here

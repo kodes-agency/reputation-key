@@ -17,6 +17,7 @@ import type {
   InboxItemDetailResult,
   InboxNote,
 } from '#/contexts/inbox/application/public-api'
+import type { InboxDetailState } from './use-inbox-detail'
 
 const reviewItem: InboxItem = makeInboxItem({
   id: 'rev-det',
@@ -41,6 +42,8 @@ const reviewDetail: InboxItemDetailResult = {
   feedbackRatingValue: null,
   reply: null,
   analysis: null,
+  feedbackHandling: null,
+  responseTarget: null,
 }
 
 const feedbackDetail: InboxItemDetailResult = {
@@ -53,6 +56,16 @@ const feedbackDetail: InboxItemDetailResult = {
   feedbackRatingValue: 5,
   reply: null,
   analysis: null,
+  feedbackHandling: {
+    cycleNumber: 1,
+    sourceRevision: 1,
+    stateRevision: 1,
+    status: 'open',
+    closeReason: null,
+    currentOutcome: null,
+    history: [],
+  },
+  responseTarget: null,
 }
 
 // Google returns its machine translation and the guest's original words in one
@@ -88,23 +101,38 @@ const detailFns = {
   generateReplySuggestion: mockServerFn(
     async ({ data }: Parameters<typeof generateReplySuggestionFn>[0]) => ({
       status: 'ready' as const,
+      profileVersion: 'reply-draft-v2' as const,
       replyText:
         data.targetLanguage.kind === 'review_language'
-          ? 'Değerli yorumunuz için teşekkür ederiz. Sizi yeniden ağırlamayı sabırsızlıkla bekliyoruz.'
+          ? 'Благодарим Ви за отзива. Радваме се, че престоят Ви е бил приятен.'
           : 'Thank you for your review. We look forward to welcoming you again.',
       provenanceToken: 'storybook-provenance-token',
       expiresAtEpochMillis: Date.now() + 60_000,
       baseReplyStateRevision: 0,
-      concreteLanguageTag:
-        data.targetLanguage.kind === 'review_language' ? 'tr-Latn' : 'bg-Cyrl',
+      concreteLanguageTag: 'bg-Cyrl',
     }),
   ) as unknown as typeof generateReplySuggestionFn,
 }
+
+const markFeedbackHandled: InboxDetailState['markFeedbackHandled'] = Object.assign(
+  async (_input: Parameters<InboxDetailState['markFeedbackHandled']>[0]) => {
+    throw new Error('Story action only')
+  },
+  { isPending: false, error: null, isSuccess: false, data: null },
+)
+const correctFeedbackHandlingOutcome: InboxDetailState['correctFeedbackHandlingOutcome'] =
+  Object.assign(
+    async (_input: Parameters<InboxDetailState['correctFeedbackHandlingOutcome']>[0]) => {
+      throw new Error('Story action only')
+    },
+    { isPending: false, error: null, isSuccess: false, data: null },
+  )
 
 const meta: Meta<typeof InboxDetailContent> = {
   title: 'Inbox/Detail Content',
   component: InboxDetailContent,
   tags: ['autodocs'],
+  args: { markFeedbackHandled, correctFeedbackHandlingOutcome },
 }
 export default meta
 type Story = StoryObj<typeof InboxDetailContent>
@@ -207,8 +235,7 @@ export const ReplyToolbarDetectsMissingReviewLanguage: Story = {
     currentItem: reviewItem,
     detail: {
       ...reviewDetail,
-      reviewText:
-        'Bulgaristan’da nadir görülen konforlu bir mekan ve konaklamada sabah kahvaltısı dahil.',
+      reviewText: 'Много уютно място, а закуската по време на престоя беше чудесна.',
       propertyDefaultReplyLanguage: null,
       reviewReplyLanguage: null,
     },
@@ -226,7 +253,7 @@ export const ReplyToolbarDetectsMissingReviewLanguage: Story = {
     await expect(canvas.findByText(/AI draft/i)).resolves.toBeVisible()
     await expect(
       canvas.getByRole('combobox', { name: 'Reply language' }),
-    ).toHaveTextContent(/Turkish\s*·\s*Review language/i)
+    ).toHaveTextContent(/Bulgarian\s*·\s*Review language/i)
   },
 }
 
@@ -253,6 +280,16 @@ export const FeedbackDetail: Story = {
     onNoteAdded: () => {},
     onReplyMutated: () => {},
     detailFns,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Feedback handling')).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Mark as handled' }))
+    const dialog = within(document.body)
+    await expect(
+      dialog.getByRole('heading', { name: 'Mark feedback as handled' }),
+    ).toBeVisible()
+    await expect(dialog.getByText(/never shown to the guest/i)).toBeVisible()
   },
 }
 

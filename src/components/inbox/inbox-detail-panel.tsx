@@ -13,6 +13,7 @@ interface InboxDetailPanelProps {
   detailState: DetailState
   onClose: () => void
   detailFns: InboxDetailFns
+  currentUserId?: string
 }
 
 export function InboxDetailPanel({
@@ -20,6 +21,7 @@ export function InboxDetailPanel({
   detailState,
   onClose,
   detailFns,
+  currentUserId,
 }: InboxDetailPanelProps) {
   const currentItem = detailState.currentItem ?? selectedItem
   return (
@@ -55,6 +57,9 @@ export function InboxDetailPanel({
             onNoteAdded={detailState.onNoteAdded}
             onReplyMutated={detailState.onReplyMutated}
             detailFns={detailFns}
+            currentUserId={currentUserId}
+            markFeedbackHandled={detailState.markFeedbackHandled}
+            correctFeedbackHandlingOutcome={detailState.correctFeedbackHandlingOutcome}
           />
         )}
       </div>

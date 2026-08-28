@@ -1,7 +1,8 @@
 // Notification READS — TanStack Query. Mutations live in notification-mutations.ts.
 //
-// Both the badge count and the list head poll. Previously the infinite list
-// itself carried the interval, so TanStack Query correctly re-requested every
+// The badge count and list head are one snapshot and one polling query.
+// Previously the infinite list itself carried the interval, so TanStack Query
+// correctly re-requested every
 // loaded page to keep an infinite query consistent. That made a long-lived
 // notification page progressively more expensive. Page zero now has its own
 // ordinary query; loaded history is a disabled infinite query advanced only by
@@ -35,28 +36,16 @@ import {
   mergeNotificationHeadWithHistory,
   notificationHeadQueryOptions,
   notificationHistoryQueryOptions,
-  NOTIFICATION_POLL_OPTIONS,
 } from './notification-feed-pagination'
 import type {
-  getUnreadNotificationCountFn,
+  getNotificationFeedHeadFn,
   getNotificationsFn,
   getNotificationUserSettingsFn,
 } from '#/contexts/notification/server/notifications'
 import type { NotificationListFilter } from '#/contexts/notification/application/public-api'
 
-export function useUnreadNotificationCount(
-  getUnreadCount: typeof getUnreadNotificationCountFn,
-  organizationId: string,
-) {
-  const query = useQuery({
-    queryKey: notificationKeys.count(organizationId),
-    queryFn: () => getUnreadCount({ data: undefined }),
-    ...NOTIFICATION_POLL_OPTIONS,
-  })
-  return { count: query.data?.count ?? 0, isLoading: query.isLoading }
-}
-
 export function useNotifications(
+  getFeedHead: typeof getNotificationFeedHeadFn,
   getList: typeof getNotificationsFn,
   organizationId: string,
   limit = 20,
@@ -64,10 +53,11 @@ export function useNotifications(
   poll = false,
 ) {
   const fetchPage = (offset: number) => getList({ data: { limit, offset, filter } })
+  const fetchHead = () => getFeedHead({ data: { limit, filter } })
   const head = useQuery(
     notificationHeadQueryOptions(
       notificationKeys.head(organizationId, limit, filter),
-      fetchPage,
+      fetchHead,
       poll,
     ),
   )
@@ -80,10 +70,14 @@ export function useNotifications(
   )
   const historyPages = history.data?.pages ?? []
   const hasLoadedHistory = historyPages.length > 0
-  const hasMore = hasLoadedHistory ? history.hasNextPage : (head.data?.hasMore ?? false)
+  const hasMore = hasLoadedHistory
+    ? history.hasNextPage
+    : (head.data?.page.hasMore ?? false)
 
   return {
-    notifications: mergeNotificationHeadWithHistory(head.data, historyPages),
+    notifications: mergeNotificationHeadWithHistory(head.data?.page, historyPages),
+    unreadCount: head.data?.unreadCount ?? 0,
+    watermark: head.data?.watermark ?? null,
     isLoading: head.isPending,
     isLoadingMore: history.isFetchingNextPage,
     error: head.error ?? history.error,

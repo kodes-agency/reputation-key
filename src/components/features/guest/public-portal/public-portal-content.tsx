@@ -9,31 +9,43 @@ import {
   type PortalLinkItem,
 } from './portal-secondary-links'
 import type { PublicGoogleReviewDestination } from '#/contexts/portal/application/public-api'
+import { getGuestPortalCopy } from './guest-language-pack'
 
 export type { PortalCategory, PortalLinkItem } from './portal-secondary-links'
 
 export type PublicPortalContentProps = Readonly<{
   /** Omitted only by authenticated manager previews. Public pages must supply it. */
   token?: string
+  /** Public channel marker preserved when the guest switches language. */
+  accessArtifactId?: string
   portal: {
-    id: string
     name: string
     description: string | null
     organizationName: string
     heroImageUrl: string | null
     theme: Record<string, string | number | boolean | null> | null
+    logoUrl?: string | null
   }
   categories: ReadonlyArray<PortalCategory>
   links: ReadonlyArray<PortalLinkItem>
   reviewGateway?: Readonly<{
     privateFeedbackThreshold: number
-    googleReview: PublicGoogleReviewDestination
+    googleReview: Readonly<{ status: PublicGoogleReviewDestination['status'] }>
+  }>
+  localization?: Readonly<{
+    selectedLocale: 'en' | 'bg'
+    primaryLocale: 'en' | 'bg'
+    availableLocales: readonly ('en' | 'bg')[]
+    languagePackVersion?: 'guest-ui-en-v1' | 'guest-ui-bg-v1'
   }>
   selectSecondaryLink?: GuestResponseAction<
     { token: string; csrfNonce: string; linkId: string },
     { url: string }
   >
-  responseForm?: Omit<GuestResponseFormProps, 'token' | 'googleReview'>
+  responseForm?: Omit<
+    GuestResponseFormProps,
+    'token' | 'googleReview' | 'locale' | 'languagePackVersion'
+  >
 }>
 
 /** Secondary text. See `--portal-text-muted` for why this is not `opacity-*`. */
@@ -41,10 +53,12 @@ const MUTED_STYLE = { color: 'var(--portal-text-muted)' }
 
 export function PublicPortalContent({
   token,
+  accessArtifactId,
   portal,
   categories,
   links,
   reviewGateway,
+  localization,
   selectSecondaryLink,
   responseForm,
 }: PublicPortalContentProps) {
@@ -58,6 +72,11 @@ export function PublicPortalContent({
       : '#ffffff'
   const textColor =
     typeof portal.theme?.textColor === 'string' ? portal.theme.textColor : '#111827'
+  const selectedLocale = localization?.selectedLocale ?? 'en'
+  const languagePackVersion =
+    localization?.languagePackVersion ??
+    (selectedLocale === 'bg' ? 'guest-ui-bg-v1' : 'guest-ui-en-v1')
+  const copy = getGuestPortalCopy(selectedLocale, languagePackVersion)
 
   const themeStyle = {
     '--portal-primary': primaryColor,
@@ -86,6 +105,8 @@ export function PublicPortalContent({
             categories={categories}
             links={links}
             selectSecondaryLink={selectSecondaryLink}
+            locale={selectedLocale}
+            languagePackVersion={languagePackVersion}
           />
         )
       : undefined
@@ -97,6 +118,8 @@ export function PublicPortalContent({
   return (
     <div
       className="min-h-screen"
+      lang={selectedLocale}
+      dir="ltr"
       style={{
         backgroundColor: 'var(--portal-bg, #ffffff)',
         color: 'var(--portal-text, #111827)',
@@ -104,6 +127,35 @@ export function PublicPortalContent({
       }}
     >
       <div className="mx-auto max-w-lg space-y-8 px-4 py-8">
+        {token && localization && localization.availableLocales.length > 1 && (
+          <nav
+            aria-label={copy.languageNavigationLabel}
+            className="flex justify-end gap-2 text-sm"
+          >
+            {localization.availableLocales.map((locale) => (
+              <a
+                key={locale}
+                href={`/p/${encodeURIComponent(token)}?locale=${locale}${
+                  accessArtifactId
+                    ? `&accessArtifact=${encodeURIComponent(accessArtifactId)}`
+                    : ''
+                }`}
+                hrefLang={locale}
+                aria-current={locale === localization.selectedLocale ? 'page' : undefined}
+                className="rounded-md border px-2 py-1"
+              >
+                {locale === 'bg' ? 'Български' : 'English'}
+              </a>
+            ))}
+          </nav>
+        )}
+        {portal.logoUrl && (
+          <img
+            src={portal.logoUrl}
+            alt={copy.portalLogoAlt(portal.organizationName)}
+            className="mx-auto h-16 max-w-48 object-contain"
+          />
+        )}
         {portal.heroImageUrl && (
           <img
             src={portal.heroImageUrl}
@@ -134,21 +186,22 @@ export function PublicPortalContent({
           <GuestResponseForm
             token={token}
             googleReview={reviewGateway.googleReview}
+            locale={selectedLocale}
+            languagePackVersion={languagePackVersion}
             secondaryLinks={secondaryLinks}
             {...responseForm}
           />
         ) : isPublicPortal ? (
           <section role="status" className="rounded-lg border p-5 text-center">
-            <h2 className="font-semibold">Review gateway temporarily unavailable</h2>
-            <p className="mt-2 text-sm">Please try again in a little while.</p>
+            <h2 className="font-semibold">{copy.gatewayUnavailableTitle}</h2>
+            <p className="mt-2 text-sm">{copy.gatewayUnavailableBody}</p>
           </section>
         ) : (
           <>
             <section className="rounded-lg border p-5 text-center">
-              <h2 className="text-lg font-semibold">How was your experience?</h2>
+              <h2 className="text-lg font-semibold">{copy.previewRatingTitle}</h2>
               <p className="mt-1 text-sm" style={MUTED_STYLE}>
-                Guests start with a private 1–5 star rating. Google follows after the
-                rating, with private feedback offered when eligible.
+                {copy.previewRatingBody}
               </p>
             </section>
             {secondaryLinks?.(responseForm?.csrfNonce ?? '')}

@@ -23,7 +23,12 @@ export interface PortalListPageProps {
   portals: readonly PortalListItem[]
   propertyId: string
   propertyName: string
-  deleteMutation: Action<{ data: { portalId: string } }>
+  archiveMutation: Action<{
+    data: { portalId: string; publicationState: 'archived' }
+  }>
+  restoreMutation: Action<{
+    data: { portalId: string; publicationState: 'disabled' }
+  }>
   portalGroups: readonly PortalGroupView[]
   createGroupMutation: Action<{
     data: { propertyId: string; name: string; portalIds?: string[] }
@@ -42,7 +47,8 @@ export function PortalListPage({
   portals,
   propertyId,
   propertyName,
-  deleteMutation,
+  archiveMutation,
+  restoreMutation,
   portalGroups,
   createGroupMutation,
   updateGroupMutation,
@@ -88,7 +94,7 @@ export function PortalListPage({
         ]}
         actions={addPortalButton}
       />
-      <FormErrorBanner error={deleteMutation.error} />
+      <FormErrorBanner error={archiveMutation.error ?? restoreMutation.error} />
 
       {portals.length === 0 ? (
         <EmptyState icon={Globe} title="No portals yet">
@@ -128,7 +134,9 @@ export function PortalListPage({
                 portals={visible}
                 propertyId={propertyId}
                 canDelete={can('portal.delete')}
-                deleteMutation={deleteMutation}
+                canUpdate={can('portal.update')}
+                archiveMutation={archiveMutation}
+                restoreMutation={restoreMutation}
               />
               <div className="flex items-center justify-between gap-4">
                 <p aria-live="polite" className="text-sm text-muted-foreground">

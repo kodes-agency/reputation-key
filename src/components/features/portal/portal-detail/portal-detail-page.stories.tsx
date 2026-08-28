@@ -80,15 +80,30 @@ const idleMutation = Object.assign(
 
 const publicUrl = 'https://portal.example/p/opaque-token-shown-once'
 const issueTokenMutation = Object.assign(
-  async (_input: { data: { portalId: string; printBatch?: string } }) => ({
+  async (_input: { data: { portalId: string } }) => ({
     publicUrl,
   }),
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
-) as Action<{ data: { portalId: string; printBatch?: string } }, { publicUrl: string }>
-const rotateTokenMutation = Object.assign(
-  async (_input: { data: { portalId: string } }) => ({ publicUrl }),
-  { isPending: false, error: null as unknown, isSuccess: false, data: null },
 ) as Action<{ data: { portalId: string } }, { publicUrl: string }>
+const rotateTokenMutation = Object.assign(
+  async (_input: {
+    data: {
+      portalId: string
+      replacementKind?: 'planned' | 'security'
+      gracePeriodDays?: number
+    }
+  }) => ({ publicUrl }),
+  { isPending: false, error: null as unknown, isSuccess: false, data: null },
+) as Action<
+  {
+    data: {
+      portalId: string
+      replacementKind?: 'planned' | 'security'
+      gracePeriodDays?: number
+    }
+  },
+  { publicUrl: string }
+>
 const revokeTokenMutation = Object.assign(
   async (_input: { data: { portalId: string; reason: string } }) => ({
     revoked: true,
@@ -103,6 +118,7 @@ const completeReviewMutation = Object.assign(
 // No token issued yet — the Share tab offers the issue form (C2).
 const tokenStatus: PortalTokenStatus = {
   hasActiveToken: false,
+  qualifiedScanReady: false,
   version: null,
   issuedAt: null,
   graceExpiresAt: null,
@@ -142,6 +158,7 @@ const emptyAnalytics: PortalAnalyticsData = {
     endAt: analyticsComputedAt,
     timezone: 'Europe/Sofia',
   },
+  lifetimeReconciliation: null,
   kpis: {
     scans: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },
     avgRating: {
@@ -195,6 +212,7 @@ const baseArgs = {
     },
     priorActivations: [],
     hasPendingChanges: false,
+    nextCursor: null,
   },
   googleReviewDestination: {
     state: 'verified' as const,

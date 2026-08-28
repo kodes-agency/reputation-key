@@ -35,6 +35,8 @@ export type PortalData = Readonly<{
   theme: PortalThemeDraft
   privateFeedbackThreshold: number
   publicationState: PortalPublicationState
+  primaryGuestLocale?: 'en' | 'bg'
+  additionalGuestLocales?: readonly ('en' | 'bg')[]
 }>
 
 export type UpdatePortalVariables = {
@@ -47,6 +49,8 @@ export type UpdatePortalVariables = {
     theme?: PortalThemeDraft
     privateFeedbackThreshold?: number
     publicationState?: PortalPublicationState
+    primaryGuestLocale?: 'en' | 'bg'
+    additionalGuestLocales?: ('en' | 'bg')[]
   }
 }
 

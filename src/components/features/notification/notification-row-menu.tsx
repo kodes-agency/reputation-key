@@ -40,6 +40,7 @@ export function NotificationRowMenu({
 }: Props) {
   const isUnread = notification.status === 'unread'
   const canMute =
+    notification.category !== 'mandatory' &&
     NOTIFICATION_SETTINGS_CATEGORIES.includes(notification.category) &&
     isPreferenceDisableable(notification.category, 'in_app')
 

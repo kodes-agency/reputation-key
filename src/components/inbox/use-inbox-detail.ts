@@ -1,10 +1,5 @@
-// Shared hook for inbox item detail data fetching.
-// Used by the inbox page for both the desktop inline panel and the mobile sheet.
-//
-// Reads via TanStack Query; all invalidation policy (prefix topology, BullMQ
-// activity lag, folder-cache staleness, reply-poll predicate) lives in the
-// InboxCachePolicy module (./inbox-cache-policy) — this hook is wiring only:
-// Query owns cache, dedup, and cancellation.
+// Shared desktop/mobile Inbox detail hook. Query owns cache, dedup, and
+// cancellation; InboxCachePolicy owns invalidation and polling decisions.
 import { useCallback, useEffect, useState } from 'react'
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
@@ -19,10 +14,14 @@ import {
   createInboxItemStatusObserver,
   type InboxItemStatusObserver,
 } from './inbox-item-status-observer'
+import { useTargetDeadlineRefresh } from './response-target-deadline-refresh'
+import { useFeedbackHandlingMutations } from './use-feedback-handling-mutations'
 import type {
   updateInboxStatusFn,
   escalateInboxItemFn,
   resolveEscalationFn,
+  markFeedbackHandledFn,
+  correctFeedbackHandlingOutcomeFn,
 } from '#/contexts/inbox/server/inbox'
 import type { InboxServerFns } from './types'
 import type {
@@ -58,8 +57,16 @@ export type InboxDetailState = Readonly<{
     Parameters<typeof resolveEscalationFn>[0],
     Awaited<ReturnType<typeof resolveEscalationFn>>
   >
+  markFeedbackHandled: Action<
+    Parameters<typeof markFeedbackHandledFn>[0],
+    Awaited<ReturnType<typeof markFeedbackHandledFn>>
+  >
+  correctFeedbackHandlingOutcome: Action<
+    Parameters<typeof correctFeedbackHandlingOutcomeFn>[0],
+    Awaited<ReturnType<typeof correctFeedbackHandlingOutcomeFn>>
+  >
   /** Called after a note is added — refreshes notes + activity. */
-  onNoteAdded: () => void
+  onNoteAdded: (resultingCommandRevision: number) => void
   /** Called after a classified reply change — patches only this item's reply. */
   onReplyMutated: (change: InboxReplyCacheChange) => void
   error: string | null
@@ -88,6 +95,7 @@ function useInboxDetailQueries(
     enabled,
     staleTime: 0,
   })
+  useTargetDeadlineRefresh(enabled, detailQuery.data?.responseTarget, detailQuery.refetch)
 
   const detail = detailQuery.data ?? null
   return {
@@ -164,6 +172,8 @@ export function useInboxDetail(
     | 'updateInboxStatus'
     | 'escalateInboxItem'
     | 'resolveEscalation'
+    | 'markFeedbackHandled'
+    | 'correctFeedbackHandlingOutcome'
   >,
   options?: UseInboxDetailOptions,
 ): InboxDetailState {
@@ -176,6 +186,12 @@ export function useInboxDetail(
   const queries = useInboxDetailQueries(inboxFns, id, enabled, item)
   useInboxAutoCloseDetection(qc, id, queries.polledStatus, statusObserver)
   const mutations = useInboxStatusMutations(
+    inboxFns,
+    qc,
+    statusObserver,
+    onItemStatusChanged,
+  )
+  const feedbackMutations = useFeedbackHandlingMutations(
     inboxFns,
     qc,
     statusObserver,
@@ -199,8 +215,11 @@ export function useInboxDetail(
     updateStatus: mutations.updateStatus,
     escalate: mutations.escalate,
     resolveEscalation: mutations.resolveEscalation,
+    markFeedbackHandled: feedbackMutations.markFeedbackHandled,
+    correctFeedbackHandlingOutcome: feedbackMutations.correctFeedbackHandlingOutcome,
     refetch: queries.refetch,
-    onNoteAdded: () => inboxCachePolicy.onNoteAdded(qc, id),
+    onNoteAdded: (resultingCommandRevision) =>
+      inboxCachePolicy.onNoteAdded(qc, id, resultingCommandRevision),
     onReplyMutated,
     error: queries.error,
     lastMarkedId: null,

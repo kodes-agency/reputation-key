@@ -20,6 +20,9 @@ import type {
   resolveEscalationFn,
   addInboxNoteFn,
   bulkUpdateInboxStatusFn,
+  bulkAssignInboxItemsFn,
+  markFeedbackHandledFn,
+  correctFeedbackHandlingOutcomeFn,
 } from '#/contexts/inbox/server/inbox'
 import type { getActivityTimelineFn } from '#/contexts/activity/server/activity'
 import type { generateReplySuggestionFn } from '#/contexts/ai/server/reply-suggestion'
@@ -36,6 +39,9 @@ export type InboxServerFns = Readonly<{
   resolveEscalation: typeof resolveEscalationFn
   addInboxNote: typeof addInboxNoteFn
   bulkUpdateInboxStatus: typeof bulkUpdateInboxStatusFn
+  bulkAssignInboxItems: typeof bulkAssignInboxItemsFn
+  markFeedbackHandled: typeof markFeedbackHandledFn
+  correctFeedbackHandlingOutcome: typeof correctFeedbackHandlingOutcomeFn
   generateReplySuggestion?: typeof generateReplySuggestionFn
 }>
 

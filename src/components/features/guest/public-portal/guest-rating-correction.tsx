@@ -1,47 +1,48 @@
-import type { FormEvent } from 'react'
 import { Button } from '#/components/ui/button'
-import { RatingChoices } from './guest-response-fields'
+import { GuestRatingForm } from './guest-rating-form'
+import type { GuestPortalCopy } from './guest-language-pack'
 
 export function GuestRatingCorrection({
   rating,
   correcting,
-  pending,
+  mutation,
   correctionDeadline,
-  onRatingChange,
   onSubmit,
   onStart,
+  copy,
 }: Readonly<{
   rating: number | null
   correcting: boolean
-  pending: boolean
+  mutation: Readonly<{ isPending: boolean; error: unknown }>
   correctionDeadline: string | null
-  onRatingChange: (value: number) => void
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onSubmit: (value: Readonly<{ rating: number; honeypot: string }>) => Promise<void>
   onStart: () => void
+  copy: GuestPortalCopy
 }>) {
   return (
     <div className="rounded-lg border p-4">
       {correctionDeadline && (
-        <p className="mb-2 text-sm">
-          Rating correction is available until{' '}
-          {new Date(correctionDeadline).toLocaleString()}.
-        </p>
+        <p className="mb-2 text-sm">{copy.ratingCorrectionUntil(correctionDeadline)}</p>
       )}
       {correcting ? (
-        <form className="space-y-4" onSubmit={onSubmit}>
-          <RatingChoices value={rating} disabled={pending} onChange={onRatingChange} />
-          <Button type="submit" variant="outline" disabled={pending}>
-            Save rating correction
-          </Button>
-        </form>
+        <GuestRatingForm
+          idPrefix="guest-rating-correction"
+          initialRating={rating}
+          mutation={mutation}
+          copy={copy}
+          submitLabel={copy.saveRatingCorrection}
+          className="space-y-4"
+          onSubmit={onSubmit}
+        />
       ) : (
         <Button
           type="button"
           variant="link"
           onClick={onStart}
+          disabled={mutation.isPending}
           className="-ml-4 text-current underline"
         >
-          Change your private rating
+          {copy.changePrivateRating}
         </Button>
       )}
     </div>

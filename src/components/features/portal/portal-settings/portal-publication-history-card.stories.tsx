@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, within } from 'storybook/test'
+import { expect, userEvent, within } from 'storybook/test'
 import { PortalPublicationHistoryCard } from './portal-publication-history-card'
+import type { Action } from '#/components/hooks/use-action'
+import type { PortalPublicationHistory } from '#/contexts/portal/application/public-api'
 
 const meta: Meta<typeof PortalPublicationHistoryCard> = {
   title: 'Portal/PortalPublicationHistoryCard',
@@ -23,6 +25,7 @@ export const LiveVersionMatchesSavedSettings: Story = {
       },
       priorActivations: [],
       hasPendingChanges: false,
+      nextCursor: null,
     },
   },
   play: async ({ canvasElement }) => {
@@ -68,6 +71,7 @@ export const SavedChangesAfterRollback: Story = {
         },
       ],
       hasPendingChanges: true,
+      nextCursor: null,
     },
   },
   play: async ({ canvasElement }) => {
@@ -97,6 +101,7 @@ export const PausedWithRetainedHistory: Story = {
         },
       ],
       hasPendingChanges: false,
+      nextCursor: null,
     },
   },
   play: async ({ canvasElement }) => {
@@ -124,6 +129,7 @@ export const PausedWithSavedChanges: Story = {
         },
       ],
       hasPendingChanges: true,
+      nextCursor: null,
     },
   },
   play: async ({ canvasElement }) => {
@@ -132,5 +138,72 @@ export const PausedWithSavedChanges: Story = {
       canvas.getByText(/they will appear when the public page is published again/i),
     ).toBeInTheDocument()
     await expect(canvas.queryByText(/guests continue to see/i)).toBeNull()
+  },
+}
+
+const loadEarlier = Object.assign(
+  async (): Promise<PortalPublicationHistory> => ({
+    current: {
+      activationSequence: 3,
+      version: 3,
+      kind: 'publish',
+      activatedAt: '2026-08-27T10:00:00.000Z',
+      deactivatedAt: null,
+      deactivationReason: null,
+    },
+    priorActivations: [
+      {
+        activationSequence: 1,
+        version: 1,
+        kind: 'publish',
+        activatedAt: '2026-08-25T10:00:00.000Z',
+        deactivatedAt: '2026-08-26T10:00:00.000Z',
+        deactivationReason: 'replaced',
+      },
+    ],
+    hasPendingChanges: false,
+    nextCursor: null,
+  }),
+  { isPending: false, error: null, isSuccess: false, data: null },
+) as Action<
+  { data: { portalId: string; cursor?: number; limit?: number } },
+  PortalPublicationHistory
+>
+
+export const BoundedHistoryLoadsEarlierActivity: Story = {
+  args: {
+    portalId: 'portal-1',
+    loadMoreAction: loadEarlier,
+    history: {
+      current: {
+        activationSequence: 3,
+        version: 3,
+        kind: 'publish',
+        activatedAt: '2026-08-27T10:00:00.000Z',
+        deactivatedAt: null,
+        deactivationReason: null,
+      },
+      priorActivations: [
+        {
+          activationSequence: 2,
+          version: 2,
+          kind: 'publish',
+          activatedAt: '2026-08-26T10:00:00.000Z',
+          deactivatedAt: '2026-08-27T10:00:00.000Z',
+          deactivationReason: 'replaced',
+        },
+      ],
+      hasPendingChanges: false,
+      nextCursor: 2,
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.queryByText('Version 1 published')).toBeNull()
+    await userEvent.click(canvas.getByRole('button', { name: /load earlier activity/i }))
+    await expect(await canvas.findByText('Version 1 published')).toBeVisible()
+    await expect(
+      canvas.queryByRole('button', { name: /load earlier activity/i }),
+    ).toBeNull()
   },
 }

@@ -98,8 +98,8 @@ export function GoogleImportManagerView({
         <CardHeader>
           <CardTitle>Google Business Profile connection</CardTitle>
           <CardDescription>
-            Discovery content is temporary and is removed when you leave or hide this
-            page.
+            Location details are cleared from this screen when it is hidden. You can
+            resume within a temporary discovery window that expires within 24 hours.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -129,16 +129,16 @@ export function GoogleImportManagerView({
         <Alert>
           <AlertTitle>Connect Google to import properties</AlertTitle>
           <AlertDescription>
-            Use the connection button above. RepKey only shows provider content while this
-            page is active.
+            Use the connection button above. RepKey displays location details only while
+            this page is active, with a temporary resume window of up to 24 hours.
           </AlertDescription>
         </Alert>
       ) : !hasActiveConnection ? (
         <Alert>
           <AlertTitle>Reconnect Google to continue</AlertTitle>
           <AlertDescription>
-            None of the saved Google connections can be used for discovery. Connect Google
-            again to restore access.
+            None of the saved Google connections can be used for discovery. Open
+            Integration settings to reauthorize any connection that needs attention.
           </AlertDescription>
         </Alert>
       ) : !discovery.contentActive ? (
@@ -146,8 +146,9 @@ export function GoogleImportManagerView({
           <AlertTitle>Google location details were cleared</AlertTitle>
           <AlertDescription className="space-y-3">
             <p>
-              RepKey removes temporary provider content when this page is hidden, expires,
-              or loses authorization.
+              RepKey cleared location details from this screen because the page was hidden
+              or the temporary authorization changed. Rediscovery remains available only
+              within the bounded window, which expires within 24 hours.
             </p>
             <Button type="button" variant="outline" onClick={discovery.resumeDiscovery}>
               Rediscover locations

@@ -1,7 +1,3 @@
-// Portal context — edit portal settings form component.
-// Per conventions: receives mutation as prop, uses TanStack Form + Zod schema from DTO.
-// Never imports server functions directly (dependency rules).
-
 import { useForm, useStore } from '@tanstack/react-form'
 import { z } from 'zod/v4'
 import { useEffect } from 'react'
@@ -9,6 +5,7 @@ import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
 import { HeroImageSection } from './hero-image-section'
 import { BasicInfoSection } from './basic-info-section'
+import { PortalFeedbackThresholdField } from './portal-feedback-threshold-field'
 import type { Action } from '#/components/hooks/use-action'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { updatePortalInputSchema } from '#/contexts/portal/application/dto/update-portal.dto'
@@ -19,9 +16,7 @@ import type {
   UpdatePortalVariables,
 } from '../shared/types'
 
-// heroImageUrl remains display/removal form state. New non-null values are
-// server-owned derivatives published by the upload worker; this form may send
-// only explicit `null` removal.
+// This form may display a derivative URL but can submit only explicit removal.
 const editFormSchema = updatePortalInputSchema
   .pick({
     name: true,
@@ -36,9 +31,7 @@ const editFormSchema = updatePortalInputSchema
     // though updatePortal accepts only `null` removal.
     heroImageUrl: z.url().nullable(),
   })
-
 type FormValues = z.infer<typeof editFormSchema>
-
 type Props = Readonly<{
   portal: PortalData
   mutation: Action<UpdatePortalVariables>
@@ -57,7 +50,6 @@ type Props = Readonly<{
     processing: boolean
   }>
 }>
-
 export function EditPortalForm({
   portal,
   mutation,
@@ -99,15 +91,12 @@ export function EditPortalForm({
     },
   })
 
-  // The parent drives submission from a Save button rendered outside this form,
-  // so it needs a handle. Writing the ref during render is a purity violation
-  // React 19 can drop; an effect runs before any click can reach that button.
+  // Publish the external Save handle after render and remove it on unmount.
   useEffect(() => {
     if (!formRef) return
     formRef.current = {
       handleSubmit: () => void form.handleSubmit(),
-      // isDefaultValue, not isDirty: value-based, so undoing every edit clears
-      // the unsaved-changes warning instead of latching on first keystroke.
+      // Value-based so undoing every edit clears the unsaved warning.
       hasUnsavedChanges: () => !form.state.isDefaultValue,
     }
     return () => {
@@ -148,29 +137,12 @@ export function EditPortalForm({
 
       <form.Field name="privateFeedbackThreshold">
         {(field) => (
-          <label
-            className="block space-y-2 text-sm"
-            htmlFor="edit-private-feedback-threshold"
-          >
-            <span className="font-medium">Private feedback threshold</span>
-            <select
-              id="edit-private-feedback-threshold"
-              value={field.state.value}
-              disabled={isDisabled}
-              onChange={(event) => field.handleChange(Number(event.target.value))}
-              className="block w-full rounded-md border bg-background px-3 py-2"
-            >
-              {[1, 2, 3, 4, 5].map((value) => (
-                <option key={value} value={value}>
-                  {value} star{value === 1 ? '' : 's'} or below
-                </option>
-              ))}
-            </select>
-            <span className="block text-muted-foreground">
-              Controls when optional private feedback appears after the private rating. It
-              never changes access to the Google review action.
-            </span>
-          </label>
+          <PortalFeedbackThresholdField
+            field={field}
+            id="edit-private-feedback-threshold"
+            disabled={isDisabled}
+            description="Controls when optional private feedback appears after the private rating. It never changes access to the Google review action."
+          />
         )}
       </form.Field>
     </form>

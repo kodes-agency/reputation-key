@@ -16,10 +16,11 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { isPreferenceDisableable } from '#/contexts/notification/application/public-api'
 import {
   makeNotificationFns,
+  notificationFeedHeadFixture,
   notificationFixtures,
   notificationPageFixture,
   notificationUserSettingsFixture,
-} from './notification-fixtures'
+} from './notification.stories.fixtures'
 import { NotificationPanel } from './notification-panel'
 import type { NotificationServerFns } from './types'
 
@@ -32,13 +33,11 @@ const muteableIndex = notificationFixtures.findIndex((notification) =>
 const muteableNotification = notificationFixtures[muteableIndex]!
 
 const loadedFns = makeNotificationFns({
-  getUnreadCount: (async () => ({
-    count: unreadCount,
-  })) as unknown as NotificationServerFns['getUnreadCount'],
-  getList: (async () =>
-    notificationPageFixture(
-      notificationFixtures,
-    )) as unknown as NotificationServerFns['getList'],
+  getFeedHead: (async () => ({
+    page: notificationPageFixture(notificationFixtures),
+    unreadCount,
+    watermark: 'story-loaded',
+  })) as unknown as NotificationServerFns['getFeedHead'],
 })
 
 const meta: Meta<typeof NotificationPanel> = {
@@ -58,6 +57,32 @@ export const Default: Story = {
     expect(
       await canvas.findByRole('button', { name: `Notifications, ${unreadCount} unread` }),
     ).toBeInTheDocument()
+  },
+}
+
+/** The badge and offset-zero rows come from one request, never two observers. */
+export const AtomicFeedHeadAuthority: Story = {
+  args: {
+    notificationFns: (() => {
+      const getFeedHead = fn(async () => ({
+        page: notificationPageFixture(notificationFixtures),
+        unreadCount,
+        watermark: 'story-atomic-head',
+      }))
+      const getList = fn(async () => notificationPageFixture())
+      return makeNotificationFns({
+        getFeedHead: getFeedHead as unknown as NotificationServerFns['getFeedHead'],
+        getList: getList as unknown as NotificationServerFns['getList'],
+      })
+    })(),
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(
+      await canvas.findByRole('button', { name: `Notifications, ${unreadCount} unread` }),
+    ).toBeInTheDocument()
+    expect(args.notificationFns.getFeedHead).toHaveBeenCalledTimes(1)
+    expect(args.notificationFns.getList).not.toHaveBeenCalled()
   },
 }
 
@@ -82,13 +107,11 @@ export const OpensOnClick: Story = {
 export const DismissRemovesRowOptimistically: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getUnreadCount: (async () => ({
-        count: unreadCount,
-      })) as unknown as NotificationServerFns['getUnreadCount'],
-      getList: (async () =>
-        notificationPageFixture(
+      getFeedHead: (async () =>
+        notificationFeedHeadFixture(
           notificationFixtures,
-        )) as unknown as NotificationServerFns['getList'],
+          unreadCount,
+        )) as unknown as NotificationServerFns['getFeedHead'],
       // Never settles: anything the user sees change is purely optimistic.
       dismiss: (() =>
         Promise.withResolvers<void>()
@@ -111,13 +134,11 @@ export const DismissRemovesRowOptimistically: Story = {
 export const MarkAllReadIsOptimistic: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getUnreadCount: (async () => ({
-        count: unreadCount,
-      })) as unknown as NotificationServerFns['getUnreadCount'],
-      getList: (async () =>
-        notificationPageFixture(
+      getFeedHead: (async () =>
+        notificationFeedHeadFixture(
           notificationFixtures,
-        )) as unknown as NotificationServerFns['getList'],
+          unreadCount,
+        )) as unknown as NotificationServerFns['getFeedHead'],
       markAllRead: (() =>
         Promise.withResolvers<void>()
           .promise) as unknown as NotificationServerFns['markAllRead'],
@@ -139,23 +160,20 @@ export const MarkAllReadIsOptimistic: Story = {
 export const Loading: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getUnreadCount: (() =>
-        Promise.withResolvers<{ count: number }>()
-          .promise) as unknown as NotificationServerFns['getUnreadCount'],
-      getList: (() =>
-        Promise.withResolvers<ReturnType<typeof notificationPageFixture>>()
-          .promise) as unknown as NotificationServerFns['getList'],
+      getFeedHead: (() =>
+        Promise.withResolvers<ReturnType<typeof notificationFeedHeadFixture>>()
+          .promise) as unknown as NotificationServerFns['getFeedHead'],
     }),
   },
 }
 
-/** getList rejects → the error state and its Retry control render. */
+/** The unified feed-head rejects → the error state and its Retry control render. */
 export const ErrorState: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getList: (async () => {
+      getFeedHead: (async () => {
         throw new Error('Notifications service unavailable')
-      }) as unknown as NotificationServerFns['getList'],
+      }) as unknown as NotificationServerFns['getFeedHead'],
     }),
   },
   play: async ({ canvasElement }) => {
@@ -182,13 +200,11 @@ export const MuteCategory: Story = {
     notificationFns: (() => {
       const muteCategory = fn(async () => undefined)
       return makeNotificationFns({
-        getUnreadCount: (async () => ({
-          count: unreadCount,
-        })) as unknown as NotificationServerFns['getUnreadCount'],
-        getList: (async () =>
-          notificationPageFixture(
+        getFeedHead: (async () =>
+          notificationFeedHeadFixture(
             notificationFixtures,
-          )) as unknown as NotificationServerFns['getList'],
+            unreadCount,
+          )) as unknown as NotificationServerFns['getFeedHead'],
         muteCategory: muteCategory as unknown as NotificationServerFns['muteCategory'],
       })
     })(),
@@ -222,13 +238,11 @@ export const MuteCategory: Story = {
 export const HonoursPersistedLocale: Story = {
   args: {
     notificationFns: makeNotificationFns({
-      getUnreadCount: (async () => ({
-        count: unreadCount,
-      })) as unknown as NotificationServerFns['getUnreadCount'],
-      getList: (async () =>
-        notificationPageFixture(
+      getFeedHead: (async () =>
+        notificationFeedHeadFixture(
           notificationFixtures,
-        )) as unknown as NotificationServerFns['getList'],
+          unreadCount,
+        )) as unknown as NotificationServerFns['getFeedHead'],
       getUserSettings: (async () => ({
         ...notificationUserSettingsFixture,
         locale: 'de-DE',

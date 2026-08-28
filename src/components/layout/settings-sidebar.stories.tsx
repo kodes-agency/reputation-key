@@ -2,8 +2,9 @@
 // items off usePermissions(). `organization.update`, `member.list`,
 // `ai.manage` and `integration.manage` each conditionally render a nav
 // entry, so the visible nav changes with the signed-in role:
-//   - AccountAdmin (owner) / PropertyManager (admin): all beta items render —
-//     both roles hold every gated statement.
+//   - AccountAdmin (owner): all beta items render.
+//   - PropertyManager (admin): manager settings render, but Google connection
+//     administration stays AccountAdmin-only.
 //   - Staff (member): only Profile, Security, Preferences, Notifications — the
 //     four always-on entries.
 // `isManager = hasRole(role, 'PropertyManager')` also flips the "Back to app"
@@ -53,9 +54,9 @@ export const AsAccountAdmin: Story = {
   },
 }
 
-// PropertyManager holds the same beta-gated statements as the owner (organization
-// update, member list, AI manage, integration manage), so the nav is
-// identical to AsAccountAdmin. "Back to app" → /properties.
+// PropertyManager can update Organization presentation, list Members, and manage
+// AI settings. Google connection administration remains AccountAdmin-only.
+// "Back to app" → /properties.
 export const AsPropertyManager: Story = {
   decorators: [withRole('PropertyManager')],
   play: async ({ canvasElement }) => {
@@ -64,7 +65,7 @@ export const AsPropertyManager: Story = {
     expect(canvas.getByText(/^members$/i)).toBeInTheDocument()
     expect(canvas.queryByText(/^recognition$/i)).toBeNull()
     expect(canvas.getByText(/^ai & replies$/i)).toBeInTheDocument()
-    expect(canvas.getByText(/^integrations$/i)).toBeInTheDocument()
+    expect(canvas.queryByText(/^integrations$/i)).toBeNull()
   },
 }
 

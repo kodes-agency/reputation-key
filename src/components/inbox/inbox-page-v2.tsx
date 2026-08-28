@@ -7,14 +7,10 @@ import {
 } from '#/components/inbox/inbox-list-panel-v2'
 import { InboxSidebar } from '#/components/layout/inbox-sidebar'
 import { useInboxPage, type InboxPageNav } from './use-inbox-page'
+import { replaceInboxSearch } from './inbox-navigation'
 import type { InboxServerFns } from './types'
 import { useRef, useState } from 'react'
-import {
-  Group,
-  Panel,
-  useDefaultLayout,
-  type LayoutStorage,
-} from 'react-resizable-panels'
+import { Group, Panel, useDefaultLayout } from 'react-resizable-panels'
 import {
   Sheet,
   SheetContent,
@@ -30,25 +26,12 @@ import {
   InboxDetailPane,
   INBOX_PANEL_IDS,
   CLIP_PANEL_CONTENT,
+  inboxLayoutStorage,
 } from './inbox-page-parts'
 import { InboxDetailSheet } from './inbox-detail-sheet'
+import type { InboxAssignmentOption } from './inbox-bulk-assignment-dialog'
 
 export { inboxSearchSchema, type InboxSearchParams } from './inbox-search-schema'
-
-/**
- * `useDefaultLayout` defaults its `storage` param to a bare `localStorage`
- * reference, which is a ReferenceError under SSR. Guarding access makes the
- * server render see "no saved layout" and fall back to the panels' own
- * `defaultSize`; the persisted layout is then applied after mount, which is
- * what the v2 `autoSaveId` prop did.
- */
-const inboxLayoutStorage: LayoutStorage = {
-  getItem: (key) =>
-    typeof window === 'undefined' ? null : window.localStorage.getItem(key),
-  setItem: (key, value) => {
-    if (typeof window !== 'undefined') window.localStorage.setItem(key, value)
-  },
-}
 
 export function InboxPageV2({
   ctx,
@@ -59,6 +42,7 @@ export function InboxPageV2({
   recordInboxVisit = false,
   onPropertyChange,
   activePropertyId,
+  assignmentOptions = [],
 }: {
   ctx: InboxCtx
   search: InboxSearchParams
@@ -71,6 +55,7 @@ export function InboxPageV2({
   onPropertyChange?: (propertyId: string | undefined) => void
   /** Active property — from route param on /reviews, from search on /inbox. */
   activePropertyId?: string
+  assignmentOptions?: ReadonlyArray<InboxAssignmentOption>
 }) {
   const s = useInboxPage(
     ctx.activeOrganization?.id,
@@ -119,8 +104,7 @@ export function InboxPageV2({
     nextCursor: s.nextCursor,
     loadAction: s.loadAction,
     listRef,
-    onSearchChange: (q) =>
-      onNavigate({ to: '.', search: (p) => ({ ...p, q, itemId: undefined }) }),
+    onSearchChange: (q) => onNavigate(replaceInboxSearch(q)),
     onFiltersChange: (patch) =>
       onNavigate({
         to: '.',
@@ -135,6 +119,8 @@ export function InboxPageV2({
     onLoadMore: s.loadMore,
     onBulkDone: s.handleBulkDone,
     bulkUpdateFn: inboxFns.bulkUpdateInboxStatus,
+    bulkAssignFn: inboxFns.bulkAssignInboxItems,
+    assignmentOptions,
   }
 
   // Mobile: the list fills the viewport. Folders/categories live in a left
@@ -176,6 +162,7 @@ export function InboxPageV2({
           item={s.selectedItem}
           detailState={s.detailState}
           detailFns={inboxFns}
+          currentUserId={ctx.user?.id}
         />
       </div>
     )
@@ -219,6 +206,7 @@ export function InboxPageV2({
         isMobile={s.isMobile}
         onClose={s.closeDetail}
         detailFns={inboxFns}
+        currentUserId={ctx.user?.id}
       />
     </Group>
   )
