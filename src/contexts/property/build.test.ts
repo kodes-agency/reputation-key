@@ -62,17 +62,25 @@ describe('PropertyPublicApi', () => {
     })
 
     // ARC-03-T11: `responsibility` is the named member-authority capability.
-    // LIF-01: `organizationExportContributor` is lifecycle composition input,
-    // so it sits beside publicApi rather than inside it.
+    // LIF-01: `organizationExportContributor` and
+    // `organizationLifecycleContributor` are lifecycle composition input, so
+    // they sit beside publicApi rather than inside it. The lifecycle
+    // contributor owns an irreversible purge phase, so keeping it out of the
+    // request-facing surface is what keeps that phase unreachable by default.
     expect(Object.keys(context).sort()).toEqual([
       'internal',
       'organizationExportContributor',
+      'organizationLifecycleContributor',
       'publicApi',
       'responsibility',
       'worker',
     ])
     expect(context.organizationExportContributor.context).toBe('property')
+    expect(context.organizationLifecycleContributor.context).toBe('property')
     expect(Object.keys(context.publicApi)).not.toContain('organizationExportContributor')
+    expect(Object.keys(context.publicApi)).not.toContain(
+      'organizationLifecycleContributor',
+    )
     expect(Object.keys(context.internal).sort()).toEqual(['repos', 'useCases'])
     expect(context.worker.registerOutboxConsumers).toBeTypeOf('function')
     expect(context.publicApi.management).toBeDefined()

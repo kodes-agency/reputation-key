@@ -39,6 +39,7 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createCurrentGoogleReputationSnapshotRepository } from './infrastructure/repositories/current-google-reputation-snapshot.repository'
 import { registerCurrentGoogleReputationConsumer } from './infrastructure/current-google-reputation-outbox-consumers'
 import { createMetricOrganizationExportAdapter } from './infrastructure/adapters/metric-organization-export.adapter'
+import { createMetricOrganizationLifecycleAdapter } from './infrastructure/adapters/metric-organization-lifecycle.adapter'
 
 export type MetricContextBuildInput = Readonly<{
   db: Database
@@ -75,6 +76,13 @@ export type MetricContextApi = Readonly<{
    * surface gains a key from wiring it here.
    */
   organizationExport: ReturnType<typeof createMetricOrganizationExportAdapter>
+  /**
+   * LIF-01 Organization lifecycle contributor. Deliberately outside
+   * `publicApi` for the same reason: only Identity's lifecycle coordinator
+   * consumes it, and the coordinator itself is composed only under an
+   * explicitly reviewed composition.
+   */
+  organizationLifecycle: ReturnType<typeof createMetricOrganizationLifecycleAdapter>
   internal: Readonly<{
     repos: Record<string, never>
     useCases: Readonly<{
@@ -214,6 +222,7 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
     }),
     worker: Object.freeze({ registerOutboxConsumers }),
     organizationExport: createMetricOrganizationExportAdapter(input.db),
+    organizationLifecycle: createMetricOrganizationLifecycleAdapter(input.db),
     internal: {
       repos: {} as const,
       useCases: {

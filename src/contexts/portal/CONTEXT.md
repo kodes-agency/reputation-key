@@ -299,3 +299,37 @@ encrypted raw token), `portal_upload_issuances` and their object keys
 token secret. Goals are exported by the Goal contributor and Guest Responses
 by the Guest contributor, so neither is duplicated here. Each reason is
 recorded in the payload's `excludedRecordClasses`.
+
+## Organization lifecycle contribution (LIF-01)
+
+`infrastructure/adapters/portal-organization-lifecycle.adapter.ts` implements
+`identity/application/ports/organization-lifecycle-contributor.port.ts` on top
+of the shared receipt store
+(`shared/db/lifecycle/organization-lifecycle-receipt-store.ts`), and is
+returned from `build.ts` as `organizationLifecycleContributor` — deliberately
+outside `publicApi`. It owns an irreversible purge phase, so keeping it off the
+request-facing surface is what keeps that phase unreachable by default; it is
+composed only through an explicitly reviewed lifecycle coordinator.
+
+| Phase                  | What Portal does                                                                                                                                                                                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `prepareClosing`       | Deactivates every current `portal_publication_activations` row (`deactivation_reason = 'disabled'`). Public resolution needs an undeactivated activation, so every Portal becomes unavailable. Nothing is deleted. |
+| `verifyPurgeReadiness` | Read-only. Fails closed while any activation for the Organization is still current, so the irreversible boundary is never crossed in front of a live printed address.                                              |
+| `purge`                | Idempotent row deletes over `PORTAL_PURGE_PLAN`, innermost dependency first.                                                                                                                                       |
+
+Closing is a **stop, not a delete**, and it is reversible: the immutable
+publication snapshot survives and `portals.publication_state` keeps the
+tenant's own published/draft intent, so explicit reactivation re-points a new
+activation at the same snapshot rather than guessing what each Portal used to
+be. Ordinary closure cancellation does not itself reactivate Portals — see
+`docs/operations/organization-lifecycle.md`.
+
+`portal_group_members` is purged as a **row delete only**. It is a
+physical-drop-blocked compatibility mirror: the rows are tenant content and
+must go, the table must not. No phase issues a DROP or TRUNCATE.
+
+Not touched by any phase: `portal_upload_issuances` beyond the purge plan
+(`portal.upload` is safety-blocked, so there is no live effect to cancel and a
+lifecycle write there would reach into a dark capability),
+`portal_metric_lifetime_aggregates` (Metric's anonymous aggregate),
+`properties`, and the Staff-owned people rows. Each is another owner's receipt.

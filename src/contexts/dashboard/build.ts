@@ -27,6 +27,7 @@ import type { PortalResponseIntegrityPort } from './application/ports/portal-res
 import type { PortalMetricsPort } from './application/ports/portal-metrics.port'
 import type { PortalLifetimeMetricsPort } from './application/ports/portal-lifetime-metrics.port'
 import { createDashboardOrganizationExportAdapter } from './infrastructure/adapters/dashboard-organization-export.adapter'
+import { createDashboardOrganizationLifecycleAdapter } from './infrastructure/adapters/dashboard-organization-lifecycle.adapter'
 import { createSetupChecklistRepository } from './infrastructure/repositories/setup-checklist.repository'
 import { getSetupChecklist } from './application/use-cases/get-setup-checklist'
 import type { GetSetupChecklist } from './application/use-cases/get-setup-checklist'
@@ -64,6 +65,13 @@ export type DashboardContextApi = Readonly<{
    * surface gains a key from wiring it here.
    */
   organizationExport: ReturnType<typeof createDashboardOrganizationExportAdapter>
+  /**
+   * LIF-01 Organization lifecycle contributor. Deliberately outside
+   * `publicApi` for the same reason: only Identity's lifecycle coordinator
+   * consumes it, and the coordinator itself is composed only under an
+   * explicitly reviewed composition.
+   */
+  organizationLifecycle: ReturnType<typeof createDashboardOrganizationLifecycleAdapter>
   internal: Readonly<{
     repos: Readonly<{
       dashboardRepo: ReturnType<typeof createDashboardRepository>
@@ -142,6 +150,7 @@ export const buildDashboardContext = (
       getSetupChecklist: getSetup,
     },
     organizationExport: createDashboardOrganizationExportAdapter(input.db),
+    organizationLifecycle: createDashboardOrganizationLifecycleAdapter(input.db),
     internal: {
       repos: { dashboardRepo, setupChecklistRepo },
       useCases: {

@@ -32,6 +32,7 @@ import type { PropertyProcessingScopePublicApi } from '#/contexts/property/appli
 import type { AiReplyProvenancePublicKeyring } from './application/ports/ai-suggested-draft-store.port'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
 import { createReviewOrganizationExportContributor } from './infrastructure/adapters/review-organization-export.adapter'
+import { createReviewOrganizationLifecycleContributor } from './infrastructure/adapters/review-organization-lifecycle.adapter'
 import { createReviewRepository } from './infrastructure/repositories/review.repository'
 import { createReviewObservationRepository } from './infrastructure/repositories/review-observation.repository'
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
@@ -196,6 +197,16 @@ export type ReviewContextApi = Readonly<{
    */
   organizationExport: Readonly<{
     contributor: ReturnType<typeof createReviewOrganizationExportContributor>
+  }>
+  /**
+   * LIF-01: Review's own Organization lifecycle contribution (closing, purge
+   * readiness, purge). It is deliberately NOT part of `publicApi` — nothing in
+   * a request path may call it, and adding it here reaches no new capability.
+   * The composition root hands it to Identity's lifecycle coordinator, which is
+   * the only caller and is itself composed only under a reviewed composition.
+   */
+  organizationLifecycle: Readonly<{
+    contributor: ReturnType<typeof createReviewOrganizationLifecycleContributor>
   }>
   /** Bounded operator maintenance. These capabilities preserve Review's
    * invariants without exposing its repositories or request workflows. */
@@ -617,6 +628,9 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     },
     organizationExport: Object.freeze({
       contributor: createReviewOrganizationExportContributor(input.db),
+    }),
+    organizationLifecycle: Object.freeze({
+      contributor: createReviewOrganizationLifecycleContributor(input.db),
     }),
     maintenance: Object.freeze({
       publicationReconciliation: Object.freeze({

@@ -43,6 +43,9 @@ describe('buildInboxContext', () => {
       // LIF-01: the Organization Export contribution is a named capability of
       // its own, deliberately outside `publicApi` so no request path reaches it.
       'organizationExport',
+      // LIF-01: the Organization lifecycle contribution is likewise a named
+      // capability outside `publicApi`; only Identity's coordinator calls it.
+      'organizationLifecycle',
       'publicApi',
       'runtime',
       'worker',
@@ -50,6 +53,10 @@ describe('buildInboxContext', () => {
     expect(Object.keys(context.organizationExport)).toEqual(['contributor'])
     expect(context.organizationExport.contributor.context).toBe('inbox')
     expect(Object.isFrozen(context.organizationExport)).toBe(true)
+    expect(Object.keys(context.organizationLifecycle)).toEqual(['contributor'])
+    expect(context.organizationLifecycle.contributor.context).toBe('inbox')
+    expect(Object.isFrozen(context.organizationLifecycle)).toBe(true)
+    expect(Object.keys(context.publicApi)).not.toContain('organizationLifecycle')
     expect(Object.keys(context.lifecycle).sort()).toEqual([
       'createInboxItem',
       'getInboxResponseTarget',

@@ -25,6 +25,7 @@ describe('buildActivityContext', () => {
     expect(Object.keys(context).sort()).toEqual([
       'internal',
       'organizationExportContributor',
+      'organizationLifecycleContributor',
       'publicApi',
       'worker',
     ])
@@ -32,6 +33,16 @@ describe('buildActivityContext', () => {
     // publicApi key — wiring it must not widen the manager-facing surface.
     expect(context.organizationExportContributor.context).toBe('activity')
     expect(context.publicApi).not.toHaveProperty('organizationExportContributor')
+    // LIF-01-T12/T13/T14: same rule for the lifecycle contributor. It answers
+    // all three phases and stays off the manager-facing surface, so composing
+    // Activity cannot make purge reachable from a product route.
+    expect(context.organizationLifecycleContributor.context).toBe('activity')
+    expect(context.organizationLifecycleContributor.prepareClosing).toBeTypeOf('function')
+    expect(context.organizationLifecycleContributor.verifyPurgeReadiness).toBeTypeOf(
+      'function',
+    )
+    expect(context.organizationLifecycleContributor.purge).toBeTypeOf('function')
+    expect(context.publicApi).not.toHaveProperty('organizationLifecycleContributor')
     // ARC-03-T12: Activity owns the Recent Activity projection; the container
     // no longer publishes its repository for the worker to assemble one.
     expect(Object.keys(context.worker).sort()).toEqual([

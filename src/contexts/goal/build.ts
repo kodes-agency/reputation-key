@@ -26,6 +26,7 @@ import {
   GOAL_PROGRAM_MAINTENANCE_JOB_NAME,
 } from './infrastructure/jobs/goal-program-maintenance.job'
 import { createGoalOrganizationExportAdapter } from './infrastructure/adapters/goal-organization-export.adapter'
+import { createGoalOrganizationLifecycleAdapter } from './infrastructure/adapters/goal-organization-lifecycle.adapter'
 import type { GoalProgramRequestApi } from './application/public-api'
 
 export type GoalContextBuildInput = Readonly<{
@@ -65,6 +66,13 @@ export type GoalContextApi = Readonly<{
    * surface gains a key from wiring it here.
    */
   organizationExport: ReturnType<typeof createGoalOrganizationExportAdapter>
+  /**
+   * LIF-01 Organization lifecycle contributor. Deliberately outside
+   * `publicApi` for the same reason: only Identity's lifecycle coordinator
+   * consumes it, and the coordinator itself is composed only under an
+   * explicitly reviewed composition.
+   */
+  organizationLifecycle: ReturnType<typeof createGoalOrganizationLifecycleAdapter>
   internal: Readonly<{
     repos: Readonly<{
       goalProgramRepo: GoalProgramRepository
@@ -136,6 +144,7 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
       }),
     }),
     organizationExport: createGoalOrganizationExportAdapter(input.db),
+    organizationLifecycle: createGoalOrganizationLifecycleAdapter(input.db),
     internal: {
       repos: { goalProgramRepo },
     },

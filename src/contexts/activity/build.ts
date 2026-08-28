@@ -41,6 +41,7 @@ import type { RecentActivityVocabularyApplyAuthority } from './ports/recent-acti
 import { createRecentActivityVocabularyReconciliationStore } from './infrastructure/recent-activity-vocabulary-reconciliation.store'
 import { createActivityProjectionRuntime } from './application/activity-projection-runtime'
 import { createActivityOrganizationExportContributor } from './infrastructure/adapters/activity-organization-export.adapter'
+import { createActivityOrganizationLifecycleContributor } from './infrastructure/adapters/activity-organization-lifecycle.adapter'
 
 type BuildInput = Readonly<{
   db: Database
@@ -137,6 +138,14 @@ export const buildActivityContext = (input: BuildInput) => {
     // an Identity-orchestrated lifecycle capability, not a manager-facing read —
     // a dark capability must not become reachable by being wired here.
     organizationExportContributor: createActivityOrganizationExportContributor(input.db),
+    // LIF-01-T12/T13/T14: Activity's Organization lifecycle contribution, on
+    // its own named seam for the same reason as the export contributor. Binding
+    // it here does NOT make purge reachable — the coordinator still refuses to
+    // run without all seventeen contributors plus independently reviewed
+    // support authorization, and its worker schedule stays quarantined.
+    organizationLifecycleContributor: createActivityOrganizationLifecycleContributor(
+      input.db,
+    ),
     // ARC-03-T12: Activity owns its projection end to end. The container used
     // to hand bootstrap the recent-activity REPOSITORY so the worker could
     // assemble this itself.

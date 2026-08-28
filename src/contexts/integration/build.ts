@@ -133,6 +133,8 @@ import { createDirectGoogleCredentialUseGate } from './application/google-creden
 import { createGoogleCredentialHomeCapture } from './application/google-credential-home'
 import { createOrganizationGoogleCredentialHomeAuthority } from './infrastructure/organization-google-credential-home-authority'
 import { createIntegrationOrganizationExportContributor } from './infrastructure/adapters/integration-organization-export.adapter'
+import { createIntegrationOrganizationLifecycleContributor } from './infrastructure/adapters/integration-organization-lifecycle.adapter'
+import { createGoogleOrganizationClosureProvider } from './infrastructure/adapters/google-organization-closure-provider.adapter'
 
 /**
  * ADR 0050 §10: the live Google Performance path may not depend on a write
@@ -1478,6 +1480,20 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       // about exporting is reachable from a request surface.
       organizationExportContributor: createIntegrationOrganizationExportContributor(
         deps.db,
+      ),
+      // LIF-01-T12/T13/T14: the three destructive lifecycle phases. Exposing
+      // the contributor does NOT arm it — the coordinator that calls `purge`
+      // is composed only under an explicitly reviewed composition, and nothing
+      // here reaches a request surface.
+      organizationLifecycleContributor: createIntegrationOrganizationLifecycleContributor(
+        {
+          db: deps.db,
+          provider: createGoogleOrganizationClosureProvider({
+            oauth: oauthPort,
+            encryption: encryptionPort,
+            unsubscribeFromNotifications: manageNotificationsUseCase.unsubscribe,
+          }),
+        },
       ),
       prepareConnectorDeparture: useCases.prepareGoogleConnectorDeparture,
       cancelImportsForConnection: useCases.cancelGoogleImportV2ForConnection,

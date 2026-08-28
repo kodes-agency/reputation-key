@@ -158,3 +158,31 @@ account/location/review-destination identifiers (provider-controlled
 identifiers — only the content-free binding and destination _state_ ships),
 and Property policy/capability/access-grant rows, which Identity already
 exports. Each reason is recorded in the payload's `excludedRecordClasses`.
+
+## Organization lifecycle contribution (LIF-01)
+
+`infrastructure/adapters/property-organization-lifecycle.adapter.ts` implements
+`identity/application/ports/organization-lifecycle-contributor.port.ts` on top
+of the shared receipt store
+(`shared/db/lifecycle/organization-lifecycle-receipt-store.ts`), and is
+returned from `build.ts` as `organizationLifecycleContributor` — deliberately
+outside `publicApi`. It owns an irreversible purge phase, so keeping it off the
+request-facing surface is what keeps that phase unreachable by default.
+
+| Phase                  | What Property does                                                                                                                                                                                                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prepareClosing`       | Moves every `active` Property to `suspended` with `lifecycle_reason = organization_closure:<closureLineageId>`. `isPropertyActive` is the request-time gate for provider work and for the public Portal gateway, so this stops new work everywhere at once. Nothing is deleted. |
+| `verifyPurgeReadiness` | Read-only. Fails closed while any Property is still `active` or `disconnecting` — both admit provider work that would outlive the irreversible boundary.                                                                                                                        |
+| `purge`                | Idempotent row deletes over `PROPERTY_PURGE_PLAN`: `property_operation_receipts`, `property_responsible_managers`, `properties`.                                                                                                                                                |
+
+Closing **retains authorized history**: the Google binding, review destination,
+profile confirmation, responsible-manager intervals and operation receipts are
+untouched. Suspension is reversible and precisely identifiable — a Property the
+tenant archived on its own keeps its own state and reason, and explicit
+reactivation restores exactly the rows carrying this closure lineage.
+
+Portal and Guest rows RESTRICT the `properties` delete until those contexts
+have supplied their own purge receipts. That failure is deliberate: the phase
+throws, the lifecycle state stays at `purging`, other contexts keep their
+receipts, and the next pass converges. It is never converted into a cascade
+that erases another owner's rows without that owner's receipt.

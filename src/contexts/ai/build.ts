@@ -39,6 +39,7 @@ import { createReviewAnalysisBackfillAdapter } from './infrastructure/adapters/a
 import { createReviewAnalysisEnrollmentAdapter } from './infrastructure/adapters/ai-review-analysis-enrollment.adapter'
 import { createRedisAiQuotaAdapter } from './infrastructure/adapters/ai-quota.adapter'
 import { createAiOrganizationExportContributor } from './infrastructure/adapters/ai-organization-export.adapter'
+import { createAiOrganizationLifecycleContributor } from './infrastructure/adapters/ai-organization-lifecycle.adapter'
 import { createAiDataLifecycle } from './infrastructure/ai-data-lifecycle'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import {
@@ -253,6 +254,13 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     // make any of them reachable from a request surface.
     lifecycle: Object.freeze({
       organizationExportContributor: createAiOrganizationExportContributor(input.db),
+      // LIF-01-T12/T13/T14: the three destructive lifecycle phases. Exposing
+      // the contributor does NOT arm it — the coordinator that calls `purge`
+      // is composed only under an explicitly reviewed composition, and none of
+      // this reaches a request surface.
+      organizationLifecycleContributor: createAiOrganizationLifecycleContributor(
+        input.db,
+      ),
     }),
     worker: Object.freeze({
       registerOutboxConsumers,

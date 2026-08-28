@@ -147,6 +147,16 @@ describe('sync enqueue routing stamp (BQC-4.2)', () => {
     expect(Object.keys(api.publicApi)).not.toContain('organizationExport')
   })
 
+  it('exposes the Organization lifecycle contribution outside the request public API', () => {
+    const { api } = setup()
+
+    expect(Object.keys(api.organizationLifecycle)).toEqual(['contributor'])
+    expect(api.organizationLifecycle.contributor.context).toBe('review')
+    expect(Object.isFrozen(api.organizationLifecycle)).toBe(true)
+    // LIF-01: the purge path must stay unreachable from any request surface.
+    expect(Object.keys(api.publicApi)).not.toContain('organizationLifecycle')
+  })
+
   it('stamps the content-free routing envelope on a target decision', async () => {
     const resolve = vi.fn(async (): Promise<RoutingDecision> => US_TARGET)
     const { api, jobQueue } = setup({ router: { resolve } })

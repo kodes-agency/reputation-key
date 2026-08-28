@@ -78,6 +78,7 @@ import { registerPortalHealthNotificationConsumer } from './infrastructure/porta
 import { createOrganizationAccountNotificationAuthority } from './infrastructure/adapters/organization-account-notification-authority.adapter'
 import { registerIdentityAccountNotificationConsumers } from './infrastructure/identity-account-outbox-consumers'
 import { createNotificationOrganizationExportContributor } from './infrastructure/adapters/notification-organization-export.adapter'
+import { createNotificationOrganizationLifecycleContributor } from './infrastructure/adapters/notification-organization-lifecycle.adapter'
 
 export const NOTIFICATION_DELIVERY_LAG_GRACE_MS = 60_000
 export const NOTIFICATION_DELIVERY_LAG_LOOKBACK_MS = 24 * 60 * 60 * 1000
@@ -502,6 +503,16 @@ export const buildNotificationContext = (input: BuildInput) => {
     // export is an Identity-orchestrated lifecycle capability, not a
     // manager-facing read.
     organizationExportContributor: createNotificationOrganizationExportContributor(
+      input.db,
+    ),
+    // LIF-01-T12/T13/T14: Notification's Organization lifecycle contribution,
+    // on its own named seam for the same reason as the export contributor.
+    // Closing stops delivery, which is the highest-risk external effect in the
+    // whole closure. Binding it here does NOT make purge reachable — the
+    // coordinator still refuses to run without all seventeen contributors plus
+    // independently reviewed support authorization, and its worker schedule
+    // stays quarantined.
+    organizationLifecycleContributor: createNotificationOrganizationLifecycleContributor(
       input.db,
     ),
     worker: Object.freeze({ registerOutboxConsumers }),

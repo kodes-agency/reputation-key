@@ -203,3 +203,39 @@ activation by the back door), `guest_response_session_bindings`,
 `guest_network_pressure_records`, `guest_response_media`, legacy
 `session_id`/`ip_hash` columns, and the rating/feedback source event ids. Each
 reason is recorded in the payload's `excludedRecordClasses`.
+
+## Organization lifecycle contribution (LIF-01)
+
+`infrastructure/adapters/guest-organization-lifecycle.adapter.ts` implements
+`identity/application/ports/organization-lifecycle-contributor.port.ts` on top
+of the shared receipt store
+(`shared/db/lifecycle/organization-lifecycle-receipt-store.ts`), and is
+returned from `build.ts` as `organizationLifecycleContributor` — deliberately
+outside `publicApi`. It owns an irreversible scrub of the most sensitive rows
+in the product, so keeping it off the request-facing surface is what keeps that
+phase unreachable by default.
+
+| Phase                  | What Guest does                                                                                                                                                                                                                                                                                                                                         |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prepareClosing`       | **Mutates nothing**, and still answers. Every public Guest write re-resolves the Portal by its address token, which requires both a live publication activation and `isPropertyActive`; Portal and Property fence both in the same phase, so Guest has no admission of its own to cancel — and Closing is a recoverable window that must keep the data. |
+| `verifyPurgeReadiness` | Read-only. Fails closed while any Guest-sourced `outbox_events` row for the Organization is unpublished, so corrections, withdrawals and scan retractions reach the anonymous `portal_metric_lifetime_aggregates` row BEFORE the source facts are scrubbed.                                                                                             |
+| `purge`                | Idempotent row deletes over `GUEST_PURGE_PLAN`, innermost dependency first.                                                                                                                                                                                                                                                                             |
+
+Purge removes every guest-authored value: private feedback bodies, legacy
+feedback comments, ratings, permitted contact ciphertext and its key id, media
+object keys, session pseudonyms and network pseudonyms.
+
+Deliberately retained:
+
+- `portal_metric_lifetime_aggregates` — the anonymous lifetime aggregate the
+  metrics depend on. It is Metric's row and Metric's receipt; Guest never edits
+  or deletes it, and the readiness gate above is what keeps it correct.
+- `guest_contact_request_purge_checkpoints` — a single global cursor for the
+  serialized 30-day retention authority. It has no `organization_id` and no
+  tenant content; deleting it would corrupt an unrelated running sweep.
+- `user` rows and other owners' rows. A person who is a member of another
+  Organization keeps their identity; Identity owns identities.
+
+`ratings`, `feedback` and `scan_events` are purged as **row deletes only**.
+They are physical-drop-blocked compatibility mirrors: the rows are guest
+content and must go, the tables must not. No phase issues a DROP or TRUNCATE.

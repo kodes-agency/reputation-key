@@ -153,6 +153,44 @@ exclusion is enumerated in the emitted `excludedRecordClasses`.
 An Organization that never connected Google contributes `no_data`, never an
 invented empty CSV.
 
+## Organization lifecycle contribution
+
+`infrastructure/adapters/integration-organization-lifecycle.adapter.ts`
+implements the Identity-owned `OrganizationLifecycleContributor` port on the
+shared, transaction-bound receipt store, and is exposed on
+`lifecycle.organizationLifecycleContributor` — never on `publicApi`. Composing
+it does not arm it: the coordinator that reaches `purge` is composed only under
+an explicitly reviewed composition.
+
+- **prepareClosing** stops provider effects and deletes nothing. For each still
+  credentialed connection it unsubscribes from GBP notifications and then
+  revokes the OAuth grant through
+  `GoogleOrganizationClosureProviderPort`, whose contract is convergence rather
+  than success: neither method may throw, so a partial provider failure still
+  leaves the local fence committed. It then sets every connection to
+  `disconnected`, retires the credential, redacts the token material, and bumps
+  `lifecycle_version`/`access_version`/`credential_generation` — the fence every
+  in-flight import item, review sync, reply push and discovery handle pins — and
+  bumps `deletion_fence` on `gbp_import_requests` while voiding their replay
+  digests. A second pass sends nothing, because a retired credential is skipped.
+- **verifyPurgeReadiness** is read-only and fails closed while a connection is
+  still credentialed, an import item is still pending or processing, a
+  disconnect-cleanup or OAuth-exchange attempt has no terminal outcome, a
+  credential source operation is still open, a cross-cell broker grant is live,
+  or a discovery handle has not expired.
+- **purge** is irreversible, idempotent and content-free. It deletes this
+  tenant's import work, discovery records, OAuth exchange attempts, broker
+  grants and the legacy `gbp_*` compatibility mirror ROWS — no table is ever
+  dropped and no mirror removed. `google_connections`,
+  `google_organization_credential_homes`,
+  `google_disconnect_revoke_attempts` and `authorization_execution_permits` are
+  scrubbed in place instead of deleted: the disconnect attempt is independently
+  retained content-free evidence and references the other three with ON DELETE
+  RESTRICT.
+
+An Organization that never connected Google answers `no_data` — affirmative
+evidence, never an omitted contributor.
+
 ## Permissions
 
 - `integration.manage` — manage Google connections and authorized discovery.

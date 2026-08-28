@@ -95,6 +95,7 @@ import { createReviewResponseTargetAuthorityAdapter } from './infrastructure/ada
 import type { ReviewResponseTargetAuthority } from '#/contexts/review/application/public-api'
 import { createInboxActorDirectoryAdapter } from './infrastructure/adapters/inbox-actor-directory.adapter'
 import { createInboxOrganizationExportContributor } from './infrastructure/adapters/inbox-organization-export.adapter'
+import { createInboxOrganizationLifecycleContributor } from './infrastructure/adapters/inbox-organization-lifecycle.adapter'
 import { wireUseCases } from './build-use-cases'
 
 export type InboxContextBuildInput = Readonly<{
@@ -172,6 +173,16 @@ export type InboxContextApi = Readonly<{
    */
   organizationExport: Readonly<{
     contributor: ReturnType<typeof createInboxOrganizationExportContributor>
+  }>
+  /**
+   * LIF-01: Inbox's own Organization lifecycle contribution (closing, purge
+   * readiness, purge). Deliberately NOT part of `publicApi` — no request path
+   * may call it, so adding it reaches no new capability. The composition root
+   * hands it to Identity's lifecycle coordinator, which is the only caller and
+   * which is itself composed only under an explicitly reviewed composition.
+   */
+  organizationLifecycle: Readonly<{
+    contributor: ReturnType<typeof createInboxOrganizationLifecycleContributor>
   }>
   /** Bounded operator repair capabilities owned by Inbox. */
   maintenance: Readonly<{
@@ -385,6 +396,9 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     lifecycle,
     organizationExport: Object.freeze({
       contributor: createInboxOrganizationExportContributor(input.db),
+    }),
+    organizationLifecycle: Object.freeze({
+      contributor: createInboxOrganizationLifecycleContributor(input.db),
     }),
     maintenance,
     worker: Object.freeze({ registerOutboxConsumers }),

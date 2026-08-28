@@ -44,6 +44,7 @@ import { createContactRequestResponseAuthorityAdapter } from './infrastructure/a
 import { createContactRequestManagerAuthorityAdapter } from './infrastructure/adapters/contact-request-manager-authority.adapter'
 import { createContactRequestRetentionRepository } from './infrastructure/repositories/contact-request.repository'
 import { createGuestOrganizationExportContributor } from './infrastructure/adapters/guest-organization-export.adapter'
+import { createGuestOrganizationLifecycleContributor } from './infrastructure/adapters/guest-organization-lifecycle.adapter'
 import { contactRequestRetentionSweep } from './application/use-cases/contact-request-retention'
 
 type GuestContextDeps = Readonly<{
@@ -209,5 +210,15 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
      * request-facing surface may reach. The contributor does not read Contact
      * Request, so wiring it here activates nothing. */
     organizationExportContributor: createGuestOrganizationExportContributor(deps.db),
+    /** LIF-01-T12/T13/T14: the Guest-owned Organization lifecycle
+     * contributor. Like the export slice it stays out of `publicApi`: the
+     * purge phase must remain unreachable by default, and it may only ever be
+     * reached through an explicitly reviewed composition of the lifecycle
+     * coordinator, never through a request-facing surface. Its Closing phase
+     * mutates nothing and it never reads Contact Request content, so wiring it
+     * here activates nothing. */
+    organizationLifecycleContributor: createGuestOrganizationLifecycleContributor(
+      deps.db,
+    ),
   } as const
 }

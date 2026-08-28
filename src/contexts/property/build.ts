@@ -39,6 +39,7 @@ import { registerPropertyRetentionConsumer } from './infrastructure/outbox-consu
 import { createRegionMoveRepository } from './infrastructure/repositories/region-move.repository'
 import { createRegionMoveRequestCommandStore } from './infrastructure/adapters/region-move-request-command-store.adapter'
 import { createPropertyOrganizationExportContributor } from './infrastructure/adapters/property-organization-export.adapter'
+import { createPropertyOrganizationLifecycleContributor } from './infrastructure/adapters/property-organization-lifecycle.adapter'
 import { createPropertyResponsibleManagerRepository } from './infrastructure/repositories/property-responsible-manager.repository'
 import {
   listPropertyResponsibleManagers,
@@ -357,6 +358,14 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
      * composition input, not a product capability any request-facing surface
      * may reach. */
     organizationExportContributor: createPropertyOrganizationExportContributor(deps.db),
+    /** LIF-01-T12/T13/T14: the Property-owned Organization lifecycle
+     * contributor. Like the export slice it stays out of `publicApi`: the
+     * purge phase must remain unreachable by default, and it may only ever be
+     * reached through an explicitly reviewed composition of the lifecycle
+     * coordinator, never through a request-facing surface. */
+    organizationLifecycleContributor: createPropertyOrganizationLifecycleContributor(
+      deps.db,
+    ),
     internal: {
       repos: { responsibleManagerRepo } as const,
       useCases,

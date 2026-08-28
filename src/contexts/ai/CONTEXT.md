@@ -223,6 +223,39 @@ emitted `excludedRecordClasses`.
 An Organization that never authorized AI — or whose authorization is disabled or
 revoked — contributes `no_data`, never an invented empty CSV.
 
+## Organization lifecycle contribution
+
+`infrastructure/adapters/ai-organization-lifecycle.adapter.ts` implements the
+Identity-owned `OrganizationLifecycleContributor` port on the shared,
+transaction-bound receipt store, and is exposed on
+`lifecycle.organizationLifecycleContributor` — never on `publicApi`. Composing
+it does not arm it: the coordinator that reaches `purge` is composed only under
+an explicitly reviewed composition.
+
+- **prepareClosing** stops AI work and deletes nothing. It supersedes every
+  non-terminal `ai_review_analysis_enrollments` row and every running
+  `ai_review_analysis_backfill_runs` row with `terminal_reason =
+'organization_closing'`. It deliberately does NOT retire
+  `merchant_ai_enablement`: `guard_merchant_ai_enablement_v1` admits that head
+  row only inside `apply_merchant_ai_transition_v1`, an Identity-owned
+  SECURITY DEFINER authority that requires a live member with AI authority over
+  the Property. Identity's contributor owns that transition.
+- **verifyPurgeReadiness** is read-only and fails closed while the merchant
+  authorization is still `enabled`, an enrollment or backfill is still active,
+  an operation is still in flight, an execution permit is unreleased, a retired
+  generation's derivative erasure has not completed, or a canary head still
+  pins one of this Organization's operations.
+- **purge** is irreversible, idempotent, and content-free. It deletes the
+  retained derivatives together with the cursors, aggregate heads, enrollments
+  and backfill runs a later sweep could rebuild them from, so an erased
+  derivative is not resurrectable. It declares itself through the schema's own
+  `repkey.ai_review_enrollment_eraser` seam, keeps the append-only
+  `merchant_ai_consent_evidence`, and leaves `merchant_ai_enablement` to the
+  schema cascade Property's own purge triggers.
+
+An Organization that never authorized AI answers `no_data` — affirmative
+evidence, never an omitted contributor.
+
 ## Current implementation state
 
 The context contains substantial control, admission, lifecycle, analysis,
