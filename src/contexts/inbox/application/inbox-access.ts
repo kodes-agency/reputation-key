@@ -138,6 +138,23 @@ export const loadInboxItemOrThrow = async (
   return item
 }
 
+/** Reject stale client intent before deriving a command fact. The command
+ * store repeats this fence in PostgreSQL so a later race still commits
+ * neither state nor fact. */
+export const assertExpectedCommandRevision = (
+  item: InboxItem,
+  expectedCommandRevision: number,
+): void => {
+  if (item.commandRevision === expectedCommandRevision) return
+  throw inboxError('revision_conflict', 'Inbox item changed; reload current state', {
+    expectedCommandRevision,
+    currentCommandRevision: item.commandRevision,
+    currentStatus: item.status,
+    currentAssignedTo: item.assignedTo,
+    currentEscalated: item.isEscalated && item.escalationResolvedAt === null,
+  })
+}
+
 /** Throws `forbidden` when the caller lacks access to the given property.
  *
  *  Scope is resolved PER PERMISSION via scopeForPermission: org-wide scope

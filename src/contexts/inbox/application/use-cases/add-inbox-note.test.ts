@@ -76,6 +76,7 @@ const seedItem = (overrides: Partial<InboxItem> = {}): InboxItem => ({
   closedAt: null,
   firstReplySubmittedAt: null,
   firstReplyPublishedAt: null,
+  commandRevision: 1,
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
   ...overrides,
@@ -84,7 +85,6 @@ const seedItem = (overrides: Partial<InboxItem> = {}): InboxItem => ({
 const defaultStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
@@ -99,7 +99,23 @@ const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
     clock: () => FIXED_TIME,
     staffPublicApi: staffApi,
   }
-  const useCase = addInboxNote(deps)
+  const execute = addInboxNote(deps)
+  type CommandInput = Parameters<typeof execute>[0]
+  const useCase = (
+    input: Omit<CommandInput, 'expectedCommandRevision'> &
+      Partial<Pick<CommandInput, 'expectedCommandRevision'>>,
+    ctx: AuthContext,
+  ) =>
+    execute(
+      {
+        ...input,
+        expectedCommandRevision:
+          input.expectedCommandRevision ??
+          repo.items.find((item) => item.id === input.inboxItemId)?.commandRevision ??
+          1,
+      },
+      ctx,
+    )
   return { useCase, repo, noteRepo, events }
 }
 
@@ -117,6 +133,7 @@ describe('addInboxNote', () => {
     expect(note.text).toBe('This is a note') // trimmed
     expect(note.userId).toBe(USER_ID)
     expect(noteRepo.notes).toHaveLength(1)
+    expect(repo.items[0]!.commandRevision).toBe(2)
   })
 
   it('throws error for empty text', async () => {
@@ -141,7 +158,6 @@ describe('addInboxNote', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -159,7 +175,6 @@ describe('addInboxNote', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-other')],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -173,7 +188,6 @@ describe('addInboxNote', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo, noteRepo } = setup(staffApi)
     repo.items.push(seedItem())

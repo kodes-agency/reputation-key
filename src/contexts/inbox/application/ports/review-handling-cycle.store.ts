@@ -1,9 +1,21 @@
 import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
-import type { ReviewHandlingCycle, ReviewHandlingCycleHead } from '../../domain/types'
+import type {
+  HandlingCycleHead,
+  ManualReopenReason,
+  ReviewHandlingCycle,
+  ReviewHandlingCycleHead,
+} from '../../domain/types'
+import type { ReviewCycleTargetAnchor } from './review-response-target-authority.port'
 
 export type ReviewHandlingCycleExpectation = Readonly<{
   cycleNumber: number
   materialReviewRevision: number
+  stateRevision: number
+}>
+
+export type HandlingCycleExpectation = Readonly<{
+  cycleNumber: number
+  sourceRevision: number
   stateRevision: number
 }>
 
@@ -17,8 +29,11 @@ export type StartNextReviewHandlingCycleCommand = Readonly<{
     | 'manual_reopen'
     | 'provider_reply_deleted'
     | 'provider_reply_diverged'
+  manualReopenReason?: ManualReopenReason
+  manualReopenExplanation?: string | null
   openedBy: UserId | null
   openedAt: Date
+  responseTarget: ReviewCycleTargetAnchor
 }>
 
 export type ReviewHandlingCycleResult = Readonly<{
@@ -27,6 +42,10 @@ export type ReviewHandlingCycleResult = Readonly<{
 }>
 
 export type ReviewHandlingCycleStore = Readonly<{
+  findSourceHead?(
+    inboxItemId: InboxItemId,
+    organizationId: OrganizationId,
+  ): Promise<HandlingCycleHead | null>
   findHead(
     inboxItemId: InboxItemId,
     organizationId: OrganizationId,

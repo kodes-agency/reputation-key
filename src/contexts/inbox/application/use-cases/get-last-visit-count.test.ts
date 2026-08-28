@@ -57,6 +57,7 @@ const makeItem = (
   closedAt: null,
   firstReplySubmittedAt: null,
   firstReplyPublishedAt: null,
+  commandRevision: 1,
   createdAt: new Date('2026-08-26T11:00:00.000Z'),
   updatedAt: new Date('2026-08-26T11:00:00.000Z'),
 })
@@ -64,7 +65,6 @@ const makeItem = (
 const staffPublicApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 const viewRepo: InboxViewRepository = {

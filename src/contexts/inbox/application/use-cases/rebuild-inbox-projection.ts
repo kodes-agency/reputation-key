@@ -2,20 +2,22 @@
 //
 // Bounded, idempotent, report-first repair for the review-sourced inbox
 // projection. Derives state from canonical governed data:
-// - reviews (existence / sourceDate / platform / propertyId / content expiry)
+// - reviews (existence / sourceDate / platform / propertyId / stable revision)
 //   via the review source lookup port;
 // - reply milestones (first submitted/published) via the reply lookup port.
 //
 // Reconciles:
-// - missing items created directly in their canonical open/closed state with
+// - missing items created in an open Handling Cycle with
 //   reply milestones (idempotent create — creation-during-rebuild does NOT
 //   re-emit created facts: rebuild is repair, not new information; the durable
 //   record is the report);
-// - expired-but-open items closed (with the status_changed fact — mirrors
-//   the review.expired purge end state);
 // - missing reply milestones stamped (no fact — milestones have no event
-//   type); a published reply newly stamped on an open item auto-closes it
-//   (with fact — mirrors the review.reply.published projection).
+//   type).
+//
+// Status is deliberately OUT of scope. Missing/expired source content and a
+// historical published milestone are not exact-current Handling Cycle
+// authority. Only the source-transition and reply-observation consumers may
+// close a Review cycle while holding Review's current-state permit.
 //
 // NEVER touches inbox-owned fields (assignment, escalation, notes) and never
 // deletes items. Feedback-sourced items are OUT of scope: the guest context
@@ -37,8 +39,6 @@ import type {
 } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
 import { createInboxItem as buildInboxItem } from '../../domain/constructors'
-import { inboxItemStatusChanged } from '../../domain/events'
-import { validateTransition } from '../../domain/rules'
 
 export type RebuildInboxProjectionInput = Readonly<{
   organizationId: OrganizationId
@@ -52,7 +52,7 @@ export type RebuildInboxProjectionReport = Readonly<{
   scanned: number
   /** Items created for canonical reviews that had none. */
   created: number
-  /** Items repaired or initially materialized in the closed state. */
+  /** Retained for report compatibility; rebuild never infers a close. */
   closed: number
   /** Items that received a missing reply milestone stamp. */
   milestones: number
@@ -77,17 +77,11 @@ type Counters = { scanned: number; created: number; closed: number; milestones: 
 
 /** What reconcile must do for one existing item (all fields independent). */
 type ItemRepair = Readonly<{
-  /** Close the item (purged/expired source, or newly-stamped publish). */
-  close: boolean
-  /** closedAt value: publish time for reply closes, rebuild time for expiry. */
-  closeAt: Date
   stampSubmittedAt: Date | null
   stampPublishedAt: Date | null
 }>
 
 const NO_REPAIR: ItemRepair = {
-  close: false,
-  closeAt: new Date(0),
   stampSubmittedAt: null,
   stampPublishedAt: null,
 }
@@ -97,36 +91,13 @@ function decideItemRepair(
   item: InboxItem,
   src: ReviewSourceMeta | undefined,
   ms: ReplyMilestones | undefined,
-  now: Date,
 ): ItemRepair {
-  const sourceExpired =
-    src !== undefined &&
-    src.contentExpiresAt !== null &&
-    src.contentExpiresAt.getTime() <= now.getTime()
-  if (src === undefined || sourceExpired) {
-    // Purged (or purge-pending) source — the review.expired consumer's end
-    // state is closed. Already-closed items need nothing.
-    return item.status === 'open'
-      ? { ...NO_REPAIR, close: true, closeAt: now }
-      : NO_REPAIR
-  }
+  if (src === undefined) return NO_REPAIR
   const stampSubmittedAt =
     item.firstReplySubmittedAt === null ? (ms?.firstSubmittedAt ?? null) : null
   const stampPublishedAt =
     item.firstReplyPublishedAt === null ? (ms?.firstPublishedAt ?? null) : null
-  // Close only when the projection MISSED the publish (milestone not yet
-  // stamped): a stamped-but-open item was reopened by a user — inbox-owned
-  // state that rebuild must not fight.
-  const close =
-    item.status === 'open' &&
-    stampPublishedAt !== null &&
-    validateTransition(item.status, 'closed').isOk()
-  return {
-    close,
-    closeAt: stampPublishedAt ?? now,
-    stampSubmittedAt,
-    stampPublishedAt,
-  }
+  return { stampSubmittedAt, stampPublishedAt }
 }
 
 /** Applies one item's repair through the command store (skipped on dryRun). */
@@ -136,31 +107,21 @@ async function applyItemRepair(
   repair: ItemRepair,
   counters: Counters,
   dryRun: boolean,
+  now: Date,
 ): Promise<void> {
-  if (!repair.close && !repair.stampSubmittedAt && !repair.stampPublishedAt) return
-  if (repair.close) counters.closed += 1
+  if (!repair.stampSubmittedAt && !repair.stampPublishedAt) return
   if (repair.stampSubmittedAt ?? repair.stampPublishedAt) counters.milestones += 1
   if (dryRun) return
   const timestampFields: Partial<Record<string, Date>> = {}
-  if (repair.close) timestampFields.closedAt = repair.closeAt
   if (repair.stampSubmittedAt)
     timestampFields.firstReplySubmittedAt = repair.stampSubmittedAt
   if (repair.stampPublishedAt)
     timestampFields.firstReplyPublishedAt = repair.stampPublishedAt
   await deps.commandStore.updateStatus(
     item,
-    { status: repair.close ? 'closed' : item.status, timestampFields },
-    repair.close
-      ? inboxItemStatusChanged({
-          inboxItemId: item.id,
-          organizationId: item.organizationId,
-          propertyId: item.propertyId,
-          oldStatus: item.status,
-          newStatus: 'closed',
-          occurredAt: repair.closeAt,
-        })
-      : null,
-    repair.closeAt,
+    { status: item.status, timestampFields },
+    null,
+    now,
   )
 }
 
@@ -192,9 +153,8 @@ async function reconcileItemBatch(
       item,
       sourceById.get(item.sourceId as string),
       milestones.get(item.sourceId as string),
-      now,
     )
-    await applyItemRepair(deps, item, repair, counters, dryRun)
+    await applyItemRepair(deps, item, repair, counters, dryRun, now)
   }
 }
 
@@ -235,20 +195,16 @@ export const rebuildInboxProjection =
     }
 
     // Pass B — canonical reviews with no inbox item. Resolve reply milestones
-    // in bounded chunks, then materialize the FINAL state in one pass. Creating
-    // every missing source as open forced expired/published reviews to wait for
-    // a second rebuild before the projection converged.
+    // in bounded chunks, then materialize metadata plus an OPEN initial cycle.
+    // This repair path cannot infer a current handling outcome from expiry or
+    // historical Reply milestones.
     counters.scanned += sources.length
     const missingSources = sources.filter(
       (source) => !seenSourceIds.has(source.id as string),
     )
     for (let offset = 0; offset < missingSources.length; offset += batchSize) {
       const batch = missingSources.slice(offset, offset + batchSize)
-      const liveIds = batch
-        .filter(
-          (source) => source.contentExpiresAt === null || source.contentExpiresAt > now,
-        )
-        .map((source) => source.id)
+      const liveIds = batch.map((source) => source.id)
       const milestones =
         liveIds.length > 0
           ? await deps.replyLookup.getReplyMilestonesByReviewIds(
@@ -258,6 +214,13 @@ export const rebuildInboxProjection =
           : new Map<string, ReplyMilestones>()
 
       for (const src of batch) {
+        if (src.materialReviewRevision === null) {
+          deps.logger.warn(
+            {},
+            'rebuildInboxProjection: skipping review without a stable material revision',
+          )
+          continue
+        }
         const built = buildInboxItem({
           id: deps.idGen(),
           organizationId: input.organizationId,
@@ -278,31 +241,24 @@ export const rebuildInboxProjection =
         }
 
         const reply = milestones.get(src.id as string)
-        const expired = src.contentExpiresAt !== null && src.contentExpiresAt <= now
-        const closeAt = expired ? now : (reply?.firstPublishedAt ?? null)
         const item: InboxItem = {
           ...built.value,
-          status: closeAt ? 'closed' : 'open',
-          closedAt: closeAt,
+          status: 'open',
+          closedAt: null,
           firstReplySubmittedAt: reply?.firstSubmittedAt ?? null,
           firstReplyPublishedAt: reply?.firstPublishedAt ?? null,
         }
 
         counters.created += 1
-        if (closeAt) counters.closed += 1
         if (item.firstReplySubmittedAt ?? item.firstReplyPublishedAt) {
           counters.milestones += 1
         }
         if (!input.dryRun) {
           // Idempotent create, NO created/status fact — rebuild is repair, not
           // new information; the durable record is this report.
-          await deps.commandStore.createItem(
-            item,
-            null,
-            src.materialReviewRevision !== null
-              ? { materialReviewRevision: src.materialReviewRevision }
-              : undefined,
-          )
+          await deps.commandStore.createItem(item, null, {
+            materialReviewRevision: src.materialReviewRevision,
+          })
         }
       }
     }

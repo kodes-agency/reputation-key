@@ -60,6 +60,11 @@ export type InboxRepository = Readonly<{
     ids: ReadonlyArray<InboxItemId>,
     orgId: OrganizationId,
   ): Promise<ReadonlyArray<InboxItem>>
+  /**
+   * Raw source-anchor lookup for durable materialization and repair. Unlike
+   * active serving reads, this deliberately remains able to find a projection
+   * whose current Handling Cycle Head is absent.
+   */
   findBySource(
     sourceType: SourceType,
     sourceId: string,
@@ -132,6 +137,17 @@ export type InboxRepository = Readonly<{
     id: InboxItemId,
     orgId: OrganizationId,
     fields: Readonly<{ sourceDate: Date; platform: string | null }>,
+    now?: Date,
+  ): Promise<InboxItem | null>
+  /**
+   * Remove retained legacy provider-controlled values from one Review Inbox
+   * projection. Durable event handling uses the command store so this write
+   * and its receipt co-commit; this raw repository seam supports faithful
+   * test/repair adapters.
+   */
+  clearReviewSourceContent(
+    id: InboxItemId,
+    orgId: OrganizationId,
     now?: Date,
   ): Promise<InboxItem | null>
   /**

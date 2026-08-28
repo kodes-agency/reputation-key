@@ -3,16 +3,16 @@
 
 import type { GuestFeedbackRetracted } from '#/contexts/guest/application/public-api'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
-import type { EventBus } from '#/shared/events/event-bus'
+import type { InboxCommandStore } from '../../application/ports/inbox-command-store.port'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { unbrand } from '#/shared/domain/ids'
-import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
-import { inboxItemStatusChanged } from '../../domain/events'
-import { validateTransition } from '../../domain/rules'
+import { applyInboxGuestFeedbackRetraction } from '../guest-feedback-outbox-consumers'
 
 export type OnFeedbackRetractedDeps = Readonly<{
-  repo: InboxRepository
-  events: EventBus
+  repo: Pick<InboxRepository, 'findBySource'>
+  commandStore: Pick<InboxCommandStore, 'applySourceWithdrawnOnce' | 'recordReceipt'>
+  logger: LoggerPort
 }>
 
 export const onFeedbackRetracted =
@@ -20,31 +20,19 @@ export const onFeedbackRetracted =
   async (event: GuestFeedbackRetracted): Promise<void> => {
     return trace('event.onFeedbackRetracted', async () => {
       try {
-        const item = await deps.repo.findBySource(
-          'feedback',
-          unbrand(event.feedbackId),
-          event.organizationId,
-        )
-        if (!item || validateTransition(item.status, 'closed').isErr()) return
-        await deps.repo.updateStatus(
-          item.id,
-          item.organizationId,
-          'closed',
-          { closedAt: event.occurredAt },
-          event.occurredAt,
-        )
-        await deps.events.emit(
-          inboxItemStatusChanged({
-            inboxItemId: item.id,
-            organizationId: item.organizationId,
-            propertyId: item.propertyId,
-            oldStatus: item.status,
-            newStatus: 'closed',
+        await applyInboxGuestFeedbackRetraction(
+          { inboxRepo: deps.repo, commandStore: deps.commandStore },
+          {
+            eventId: event.eventId,
+            feedbackId: unbrand(event.feedbackId),
+            organizationId: unbrand(event.organizationId),
+            propertyId: unbrand(event.propertyId),
+            responseRevision: event.responseRevision,
             occurredAt: event.occurredAt,
-          }),
+          },
         )
       } catch (err) {
-        getLogger().error({ err }, 'inbox: failed to handle guest.feedback.retracted')
+        deps.logger.error({ err }, 'inbox: failed to handle guest.feedback.retracted')
       }
     })
   }

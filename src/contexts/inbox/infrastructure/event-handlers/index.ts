@@ -15,13 +15,11 @@
 // catalogue guard discovers bus consumers by scanning this module.
 
 import type { EventBus } from '#/shared/events/event-bus'
-import {
-  resolveCutoverState,
-  type CutoverFamily,
-  type CutoverState,
-} from '#/shared/outbox/cutover-flags'
+import type { LoggerPort } from '#/shared/domain/logger.port'
+import type { CutoverFamily, CutoverState } from '#/shared/outbox/cutover-flags'
 import type { CreateInboxItem } from '../../application/use-cases/create-inbox-item'
 import type { InboxRepository } from '../../application/ports/inbox.repository'
+import type { InboxCommandStore } from '../../application/ports/inbox-command-store.port'
 import { onReviewCreated } from './on-review-created'
 import { onFeedbackSubmitted } from './on-feedback-submitted'
 import { onFeedbackRetracted } from './on-feedback-retracted'
@@ -32,21 +30,19 @@ export type RegisterInboxHandlersDeps = Readonly<{
   events: EventBus
   createInboxItem: CreateInboxItem
   repo: InboxRepository
-  /**
-   * BQC-3.9: per-family cutover state resolver — defaults to the env
-   * resolution (DURABLE_CUTOVER_INBOX*). Tests inject a stub.
-   */
-  cutoverState?: (family: CutoverFamily) => CutoverState
+  commandStore: InboxCommandStore
+  logger: LoggerPort
+  /** BQC-3.9: composition-resolved, per-family durable cutover state. */
+  cutoverState: (family: CutoverFamily) => CutoverState
 }>
 
 export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => {
-  const cutover = deps.cutoverState ?? resolveCutoverState
-
-  if (cutover('review.created') !== 'switch') {
+  if (deps.cutoverState('review.created') !== 'switch') {
     deps.events.on(
       'review.created',
       onReviewCreated({
         createInboxItem: deps.createInboxItem,
+        logger: deps.logger,
       }),
 
       { consumer: 'inbox.event-handlers' },
@@ -59,6 +55,7 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
     'guest.feedback.submitted',
     onFeedbackSubmitted({
       createInboxItem: deps.createInboxItem,
+      logger: deps.logger,
     }),
 
     { consumer: 'inbox.event-handlers' },
@@ -66,7 +63,11 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
 
   deps.events.on(
     'guest.feedback.retracted',
-    onFeedbackRetracted({ repo: deps.repo, events: deps.events }),
+    onFeedbackRetracted({
+      repo: deps.repo,
+      commandStore: deps.commandStore,
+      logger: deps.logger,
+    }),
     { consumer: 'inbox.event-handlers' },
   )
 
@@ -79,17 +80,18 @@ export const registerInboxHandlers = (deps: RegisterInboxHandlersDeps): void => 
     'review.reply.submitted',
     onReplySubmitted({
       repo: deps.repo,
+      logger: deps.logger,
     }),
 
     { consumer: 'inbox.event-handlers' },
   )
 
-  if (cutover('review.expired') !== 'switch') {
+  if (deps.cutoverState('review.expired') !== 'switch') {
     deps.events.on(
       'review.expired',
       onReviewExpired({
         repo: deps.repo,
-        events: deps.events,
+        logger: deps.logger,
       }),
 
       { consumer: 'inbox.event-handlers' },

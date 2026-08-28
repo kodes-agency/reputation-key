@@ -3,7 +3,10 @@
 // Tenant isolation test is NON-NEGOTIABLE.
 
 import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest'
-import { createInboxRepository, inboxSourceIdMatchesAny } from './inbox.repository'
+import {
+  createInboxRepository as createProductionInboxRepository,
+  inboxSourceIdMatchesAny,
+} from './inbox.repository'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import type {
   ReviewLookupPort,
@@ -22,9 +25,16 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import type { InboxItem } from '../../domain/types'
+import type { Database } from '#/shared/db'
+import type { EventBus } from '#/shared/events/event-bus'
+import {
+  createAtomicInboxCommandStore,
+  type InboxCommandAuthority,
+} from '../inbox-command-store'
 
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 
 const ORG_A = organizationId('org-inbox-test-aaaa-1111111111111111')
 const ORG_B = organizationId('org-inbox-test-bbbb-2222222222222222')
@@ -33,9 +43,18 @@ const PROP_A_2 = propertyId('1a000000-0000-0000-0000-000000000002')
 const PROP_B = propertyId('1b000000-0000-0000-0000-000000000002')
 const USER_A = userId('user-inbox-test-aaaa-1111111111111111')
 const REVIEW_ID_A = '11111111-1111-1111-1111-111111111111'
+const TEST_NOW = new Date('2026-06-01T12:00:00.000Z')
+const repositoryRuntime = { clock: () => TEST_NOW, logger: createMockLogger() }
 
 let pool: Pool
 const db = getDb()
+
+const silentEvents: EventBus = {
+  on: () => {},
+  emit: async () => {},
+  clear: () => {},
+}
+const allowAllCommandAuthority: InboxCommandAuthority = async () => ({ allowed: true })
 
 // Stub lookup ports — inbox repo owns the SQL, these just provide enrichment data
 const stubPorts = {
@@ -55,6 +74,85 @@ const stubPorts = {
     getPropertyNameById: async () => null,
     getPropertyNamesByIds: async () => new Map(),
   } satisfies PropertyLookupPort,
+}
+
+type RepositoryPorts = Readonly<{
+  reviewLookup: ReviewLookupPort
+  feedbackLookup: FeedbackLookupPort
+  propertyLookup: PropertyLookupPort
+  aiInsights?: AiReviewInsightsPort
+}>
+
+/**
+ * Actionable fixtures enter through the same atomic item + initial Handling
+ * Cycle path as production. Raw repository creation is reserved for explicit
+ * orphan/repair tests below.
+ */
+function createInboxRepository(database: Database, ports: RepositoryPorts) {
+  const repository = createProductionInboxRepository(database, ports, repositoryRuntime)
+  return {
+    ...repository,
+    create: async (item: InboxItem, orgId: InboxItem['organizationId']) => {
+      if (item.organizationId !== orgId) return repository.create(item, orgId)
+      if (item.sourceType === 'feedback') {
+        return (
+          await createAtomicInboxCommandStore(
+            database,
+            silentEvents,
+            allowAllCommandAuthority,
+            () => TEST_NOW,
+          ).createItem(item, null, {
+            sourceRevision: 1,
+            openedReason: 'feedback_submitted',
+            actorType: 'guest',
+            triggerEventId: null,
+            openedAt: item.createdAt,
+          })
+        ).item
+      }
+
+      await pool.query(
+        `INSERT INTO reviews (
+           id, organization_id, property_id, platform, external_id,
+           external_location_id, rating, reviewed_at, expires_at,
+           source_epoch, source_revision, source_observation_sequence,
+           analysis_sequence, ai_source_byte_length, ai_source_digest,
+           source_content_state, created_at, updated_at
+         ) VALUES (
+           $1, $2, $3, 'google', $4, 'locations/inbox-repository-test',
+           4, $5::timestamptz, $5::timestamptz + INTERVAL '1 year',
+           0, 1, 0, 1, 1, repeat('a', 64), 'active',
+           $5::timestamptz, $5::timestamptz
+         ) ON CONFLICT (id) DO NOTHING`,
+        [
+          item.sourceId,
+          item.organizationId,
+          item.propertyId,
+          `repository-fixture-${item.sourceId}`,
+          item.sourceDate,
+        ],
+      )
+      await pool.query(
+        `INSERT INTO material_review_revisions (
+           review_id, revision, organization_id, property_id, source_epoch,
+           normalization_version, source_digest, normalized_digest, rating,
+           normalized_text, content_state, created_at, updated_at
+         ) VALUES (
+           $1, 1, $2, $3, 0, 'review-material-v1', repeat('b', 64),
+           repeat('b', 64), 4, 'fixture', 'active', $4, $4
+         ) ON CONFLICT (review_id, revision) DO NOTHING`,
+        [item.sourceId, item.organizationId, item.propertyId, item.sourceDate],
+      )
+      return (
+        await createAtomicInboxCommandStore(
+          database,
+          silentEvents,
+          allowAllCommandAuthority,
+          () => TEST_NOW,
+        ).createItem(item, null, { materialReviewRevision: 1 })
+      ).item
+    },
+  }
 }
 
 it('binds large source-id sets as one PostgreSQL array parameter', () => {
@@ -99,6 +197,7 @@ function makeInboxItem(overrides: Partial<InboxItem> = {}): InboxItem {
     closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
+    commandRevision: 1,
     createdAt: now,
     updatedAt: now,
     ...overrides,
@@ -109,6 +208,11 @@ async function truncateInbox(pool: Pool) {
   await pool.query('DELETE FROM inbox_items WHERE organization_id IN ($1, $2)', [
     ORG_A as string,
     ORG_B as string,
+  ])
+  await pool.query('DELETE FROM reviews WHERE organization_id IN ($1, $2) AND id <> $3', [
+    ORG_A as string,
+    ORG_B as string,
+    REVIEW_ID_A,
   ])
 }
 
@@ -245,11 +349,87 @@ describe('inbox repository — CRUD', () => {
   })
 })
 
+describe('inbox repository — active Handling Cycle authority', () => {
+  const repo = createInboxRepository(db, stubPorts)
+  const rawRepo = createProductionInboxRepository(db, stubPorts, repositoryRuntime)
+
+  it.each([
+    ['Review', 'review', reviewId(crypto.randomUUID())],
+    ['feedback', 'feedback', feedbackId(crypto.randomUUID())],
+  ] as const)(
+    'hides an orphan %s projection from every active read and count',
+    async (_label, sourceType, sourceId) => {
+      const orphan = makeInboxItem({
+        sourceType,
+        sourceId,
+        rating: null,
+        snippet: null,
+        reviewerName: null,
+      })
+      await rawRepo.create(orphan, ORG_A)
+
+      await expect(repo.findById(orphan.id, ORG_A)).resolves.toBeNull()
+      await expect(repo.findByIds([orphan.id], ORG_A)).resolves.toEqual([])
+      await expect(repo.findDetailById(orphan.id, ORG_A)).resolves.toBeNull()
+      await expect(repo.countByStatus(ORG_A, 'open')).resolves.toBe(0)
+      await expect(repo.findFilteredPaginated({}, ORG_A)).resolves.toMatchObject({
+        items: [],
+        totalCount: 0,
+      })
+
+      // Integration/repair consumers retain a raw source-anchor lookup so a
+      // legacy row can still be scrubbed or converged instead of becoming
+      // unreachable merely because it is not actionable.
+      await expect(
+        repo.findBySource(sourceType, orphan.sourceId as string, ORG_A),
+      ).resolves.toMatchObject({ id: orphan.id })
+    },
+  )
+
+  it.each([
+    ['Review', 'review', reviewId(crypto.randomUUID())],
+    ['feedback', 'feedback', feedbackId(crypto.randomUUID())],
+  ] as const)(
+    'uses the %s Handling Cycle head status when the compatibility row drifts',
+    async (_label, sourceType, sourceId) => {
+      const item = makeInboxItem({ sourceType, sourceId, status: 'open' })
+      await repo.create(item, ORG_A)
+      await pool.query(
+        `UPDATE inbox_items SET status = 'closed', closed_at = NOW()
+       WHERE id = $1 AND organization_id = $2`,
+        [item.id, ORG_A],
+      )
+
+      await expect(repo.findById(item.id, ORG_A)).resolves.toMatchObject({
+        id: item.id,
+        status: 'open',
+      })
+      await expect(repo.findDetailById(item.id, ORG_A)).resolves.toMatchObject({
+        item: expect.objectContaining({ status: 'open' }),
+      })
+      await expect(repo.countByStatus(ORG_A, 'open')).resolves.toBe(1)
+      await expect(repo.countByStatus(ORG_A, 'closed')).resolves.toBe(0)
+      await expect(
+        repo.findFilteredPaginated({ status: 'open' }, ORG_A),
+      ).resolves.toMatchObject({
+        items: [expect.objectContaining({ id: item.id, status: 'open' })],
+        totalCount: 1,
+      })
+      await expect(
+        repo.findFilteredPaginated({ status: 'closed' }, ORG_A),
+      ).resolves.toMatchObject({ items: [], totalCount: 0 })
+    },
+  )
+})
+
 describe('inbox repository — status transitions', () => {
   const repo = createInboxRepository(db, stubPorts)
 
   it('updates status from new to addressed', async () => {
-    const item = makeInboxItem()
+    const item = makeInboxItem({
+      sourceType: 'feedback',
+      sourceId: feedbackId(crypto.randomUUID()),
+    })
     await repo.create(item, ORG_A)
 
     const now = new Date()
@@ -265,7 +445,10 @@ describe('inbox repository — status transitions', () => {
   })
 
   it('updates status from new to escalated', async () => {
-    const item = makeInboxItem()
+    const item = makeInboxItem({
+      sourceType: 'feedback',
+      sourceId: feedbackId(crypto.randomUUID()),
+    })
     await repo.create(item, ORG_A)
 
     const now = new Date()
@@ -280,7 +463,10 @@ describe('inbox repository — status transitions', () => {
   })
 
   it('updates status from new to archived', async () => {
-    const item = makeInboxItem()
+    const item = makeInboxItem({
+      sourceType: 'feedback',
+      sourceId: feedbackId(crypto.randomUUID()),
+    })
     await repo.create(item, ORG_A)
 
     const now = new Date()
@@ -294,9 +480,15 @@ describe('inbox repository — status transitions', () => {
     expect(updated.status).toBe('closed')
   })
 
-  it('bulkUpdateStatus updates multiple items', async () => {
-    const item1 = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
-    const item2 = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
+  it('bulkUpdateStatus cannot override canonical cycle-head status', async () => {
+    const item1 = makeInboxItem({
+      sourceType: 'feedback',
+      sourceId: feedbackId(crypto.randomUUID()),
+    })
+    const item2 = makeInboxItem({
+      sourceType: 'feedback',
+      sourceId: feedbackId(crypto.randomUUID()),
+    })
     await repo.create(item1, ORG_A)
     await repo.create(item2, ORG_A)
 
@@ -311,7 +503,7 @@ describe('inbox repository — status transitions', () => {
     expect(result.updated).toBe(2)
 
     const found1 = await repo.findById(item1.id, ORG_A)
-    expect(found1!.status).toBe('closed')
+    expect(found1!.status).toBe('open')
   })
 })
 
@@ -543,7 +735,7 @@ describe('inbox repository — pagination', () => {
     await repo.create(
       makeInboxItem({
         sourceId: reviewId(crypto.randomUUID()),
-        propertyId: propertyId('2a000000-0000-0000-0000-000000000099'),
+        propertyId: PROP_A_2,
       }),
       ORG_A,
     )

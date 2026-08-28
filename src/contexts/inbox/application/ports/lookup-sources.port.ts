@@ -33,7 +33,12 @@ export type FeedbackLookupSource = Readonly<{
     orgId: OrganizationId,
   ) => Promise<
     ReadonlyArray<
-      Readonly<{ id: FeedbackId; comment: string | null; ratingValue: number | null }>
+      Readonly<{
+        id: FeedbackId
+        comment: string | null
+        ratingValue: number | null
+        feedbackSubmissionRevision?: number | null
+      }>
     >
   >
   findEligibleResponseIds: (
@@ -45,7 +50,11 @@ export type FeedbackLookupSource = Readonly<{
     orgId: OrganizationId,
   ) => Promise<
     ReadonlyArray<
-      Readonly<{ id: FeedbackId; comment: string | null; ratingValue: number | null }>
+      Readonly<{
+        id: FeedbackId
+        comment: string | null
+        ratingValue: number | null
+      }>
     >
   >
   findEligibleLegacyFeedbackIds: (
@@ -90,6 +99,7 @@ export type ReviewSourceRow = Readonly<{
   id: ReviewId
   propertyId: PropertyId
   platform: string
+  sourceEpoch: number
   reviewedAt: Date
   contentExpiresAt: Date | null
   sourceRevision?: number
@@ -98,6 +108,10 @@ export type ReviewSourceRow = Readonly<{
 /** Review-owned review-metadata reads (satisfied by the review repository, BQC-3.4). */
 export type ReviewSourceLookupSource = Readonly<{
   findById: (id: ReviewId, orgId: OrganizationId) => Promise<ReviewSourceRow | null>
+  findByIds: (
+    ids: ReadonlyArray<ReviewId>,
+    orgId: OrganizationId,
+  ) => Promise<ReadonlyArray<ReviewSourceRow>>
   findByOrganizationId: (orgId: OrganizationId) => Promise<ReadonlyArray<ReviewSourceRow>>
   findByPropertyId: (
     propertyId: PropertyId,

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { assignInboxItem } from './assign-inbox-item'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
@@ -63,6 +63,7 @@ const seedItem = (overrides: Partial<InboxItem> = {}): InboxItem => ({
   closedAt: null,
   firstReplySubmittedAt: null,
   firstReplyPublishedAt: null,
+  commandRevision: 1,
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
   ...overrides,
@@ -71,7 +72,6 @@ const seedItem = (overrides: Partial<InboxItem> = {}): InboxItem => ({
 const defaultStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
@@ -79,7 +79,23 @@ const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
   const events = createCapturingEventBus()
   const commandStore = createSequentialInboxCommandStore({ repo, events })
   const deps = { repo, commandStore, clock: () => FIXED_TIME, staffPublicApi: staffApi }
-  const useCase = assignInboxItem(deps)
+  const execute = assignInboxItem(deps)
+  type CommandInput = Parameters<typeof execute>[0]
+  const useCase = (
+    input: Omit<CommandInput, 'expectedCommandRevision'> &
+      Partial<Pick<CommandInput, 'expectedCommandRevision'>>,
+    ctx: AuthContext,
+  ) =>
+    execute(
+      {
+        ...input,
+        expectedCommandRevision:
+          input.expectedCommandRevision ??
+          repo.items.find((item) => item.id === input.inboxItemId)?.commandRevision ??
+          1,
+      },
+      ctx,
+    )
   return { useCase, repo, events }
 }
 
@@ -97,6 +113,7 @@ describe('assignInboxItem', () => {
     )
 
     expect(updated.assignedTo).toBe(ASSIGNEE_ID)
+    expect(updated.commandRevision).toBe(2)
   })
 
   it('allows AccountAdmin to assign an item', async () => {
@@ -135,7 +152,6 @@ describe('assignInboxItem', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [PROP_1],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -166,7 +182,6 @@ describe('assignInboxItem', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [PROP_1],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(
@@ -295,7 +310,6 @@ describe('assignInboxItem', () => {
       getAccessiblePropertyIds: async (_orgId, uId) =>
         uId === ASSIGNEE_ID ? [PROP_1] : [PROP_OTHER],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -316,7 +330,6 @@ describe('assignInboxItem', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -336,7 +349,6 @@ describe('assignInboxItem', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [PROP_1],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -353,14 +365,16 @@ describe('assignInboxItem', () => {
   })
 
   // ── INBOX-04: Assignee property access ──────────────────────────
-  it('rejects assignment when assignee lacks access to the property', async () => {
-    // Caller (PropertyManager) is assigned to PROP_1 so the caller check passes;
-    // assignee (ASSIGNEE_ID) is NOT assigned to PROP_1 — INBOX-04 rejects.
+  it('defers assignee eligibility to the transaction-bound command authority', async () => {
+    // The application preflight checks only the actor. Assignment itself grants
+    // no authority; the production command store rechecks this target inside
+    // the write transaction. The sequential fake deliberately allows it.
+    const getAccessiblePropertyIds = vi.fn(async (_orgId, uId) =>
+      uId === USER_ID ? [PROP_1] : [PROP_OTHER],
+    )
     const staffApi: StaffPublicApi = {
-      getAccessiblePropertyIds: async (_orgId, uId) =>
-        uId === USER_ID ? [PROP_1] : [PROP_OTHER],
+      getAccessiblePropertyIds,
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem())
@@ -373,7 +387,13 @@ describe('assignInboxItem', () => {
         },
         ctxFor('PropertyManager'),
       ),
-    ).rejects.toSatisfy((e: unknown) => isInboxError(e) && e.code === 'forbidden')
+    ).resolves.toMatchObject({ assignedTo: ASSIGNEE_ID })
+    expect(getAccessiblePropertyIds).toHaveBeenCalledWith(ORG_ID, USER_ID, false)
+    expect(getAccessiblePropertyIds).not.toHaveBeenCalledWith(
+      ORG_ID,
+      ASSIGNEE_ID,
+      expect.anything(),
+    )
   })
 
   // ── Tenant isolation ──────────────────────────────────────────────

@@ -25,14 +25,28 @@ export type GetInboxItemsInput = Readonly<{
 export type GetInboxItemsDeps = Readonly<{
   repo: InboxRepository
   staffPublicApi: StaffPublicApi
+  clock: () => Date
 }>
+
+export type InboxPageResult = PaginatedResult &
+  Readonly<{
+    /** Server cutoff captured before access resolution and page loading. */
+    responseCutoff: Date
+  }>
 
 export const getInboxItems =
   (deps: GetInboxItemsDeps) =>
-  async (input: GetInboxItemsInput, ctx: AuthContext): Promise<PaginatedResult> => {
+  async (input: GetInboxItemsInput, ctx: AuthContext): Promise<InboxPageResult> => {
     if (!canForContext(ctx, 'inbox.read')) {
       throw inboxError('forbidden', 'No inbox read permission')
     }
+    const responseCutoff = deps.clock()
+    const emptyPage = (): InboxPageResult => ({
+      items: [],
+      nextCursor: null,
+      totalCount: 0,
+      responseCutoff,
+    })
     const sourceScopes = await resolveInboxSourceScopes(deps.staffPublicApi, ctx, 'read')
     const readableSources = sourceScopes.map((scope) => scope.sourceType)
     if (
@@ -40,7 +54,7 @@ export const getInboxItems =
       (input.filters.sourceType !== undefined &&
         !readableSources.includes(input.filters.sourceType))
     ) {
-      return { items: [], nextCursor: null, totalCount: 0 }
+      return emptyPage()
     }
 
     // Property scoping resolved per-permission: org-wide scope (AccountAdmin) →
@@ -53,7 +67,7 @@ export const getInboxItems =
       'inbox.read',
     )
     if (visible === 'none') {
-      return { items: [], nextCursor: null, totalCount: 0 }
+      return emptyPage()
     }
 
     let propertyIds: ReadonlyArray<PropertyId> | undefined
@@ -80,12 +94,13 @@ export const getInboxItems =
         readableSources.length === 1 ? readableSources[0] : input.filters.sourceType,
     }
 
-    return deps.repo.findFilteredPaginated(
+    const page = await deps.repo.findFilteredPaginated(
       mergedFilters,
       ctx.organizationId,
       input.cursor,
       input.limit,
     )
+    return { ...page, responseCutoff }
   }
 
 export type GetInboxItems = ReturnType<typeof getInboxItems>

@@ -13,6 +13,7 @@ export type ReviewSourceMeta = Readonly<{
   id: ReviewId
   propertyId: PropertyId
   platform: string
+  sourceEpoch: number
   /** The review's reviewedAt — the inbox item's canonical sourceDate. */
   sourceDate: Date
   /** Source-content expiry clock (ADR 0031); null = no successful fetch yet. */
@@ -27,6 +28,10 @@ export type ReviewSourceLookupPort = Readonly<{
     id: ReviewId,
     orgId: OrganizationId,
   ): Promise<ReviewSourceMeta | null>
+  getReviewSourceMetaByIds(
+    ids: ReadonlyArray<ReviewId>,
+    orgId: OrganizationId,
+  ): Promise<ReadonlyArray<ReviewSourceMeta>>
   /**
    * All review sources for an org (optionally one property). Used by
    * rebuildInboxProjection — a repair command whose full scan is inherently

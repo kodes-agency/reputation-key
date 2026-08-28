@@ -28,14 +28,12 @@ const USER_ID = userId('user-1')
 const adminStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 // Mock: Staff gets specific property IDs (scoped)
 const createScopedStaffApi = (ids: ReadonlyArray<string>): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => ids.map(propertyId),
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): InboxItem {
@@ -62,6 +60,7 @@ function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): I
     closedAt: null,
     firstReplySubmittedAt: null as Date | null,
     firstReplyPublishedAt: null as Date | null,
+    commandRevision: 1,
     createdAt: FIXED_TIME,
     updatedAt: FIXED_TIME,
     ...(restOverrides as Partial<InboxItem>),
@@ -71,7 +70,7 @@ function seedItem(overrides: Omit<Partial<InboxItem>, 'id'> & { id: string }): I
 
 const setup = (staffApi: StaffPublicApi = adminStaffApi) => {
   const repo = createInMemoryInboxRepo()
-  const deps = { repo, staffPublicApi: staffApi }
+  const deps = { repo, staffPublicApi: staffApi, clock: () => FIXED_TIME }
   const useCase = getInboxItems(deps)
   return { useCase, repo }
 }
@@ -115,6 +114,7 @@ describe('getInboxItems', () => {
     expect(result.items).toHaveLength(2)
     expect(result.totalCount).toBe(2)
     expect(result.nextCursor).toBeDefined()
+    expect(result.responseCutoff).toEqual(FIXED_TIME)
   })
 
   it('filters by status', async () => {
@@ -215,7 +215,12 @@ describe('getInboxItems', () => {
       dynamicCtx('inbox.read', 'review.read'),
     )
 
-    expect(result).toEqual({ items: [], nextCursor: null, totalCount: 0 })
+    expect(result).toEqual({
+      items: [],
+      nextCursor: null,
+      totalCount: 0,
+      responseCutoff: FIXED_TIME,
+    })
   })
 
   it('returns no source rows when Inbox read is not paired with an owning-context read', async () => {
@@ -224,7 +229,12 @@ describe('getInboxItems', () => {
 
     const result = await useCase({ filters: {} }, dynamicCtx('inbox.read'))
 
-    expect(result).toEqual({ items: [], nextCursor: null, totalCount: 0 })
+    expect(result).toEqual({
+      items: [],
+      nextCursor: null,
+      totalCount: 0,
+      responseCutoff: FIXED_TIME,
+    })
   })
 
   it('rejects a caller without inbox.read', async () => {

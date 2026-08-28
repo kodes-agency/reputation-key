@@ -1,14 +1,15 @@
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   inboxHandlingCycleHeads,
+  inboxHandlingCycleTransitions,
   inboxHandlingCycles,
   inboxItems,
 } from '#/shared/db/schema/inbox.schema'
-import { materialReviewRevisions, reviews } from '#/shared/db/schema/review.schema'
 import type { Tx } from '#/shared/outbox/commit'
 import {
   inboxItemId,
+  feedbackId,
   organizationId,
   propertyId,
   reviewId,
@@ -20,39 +21,91 @@ import type {
   ReviewHandlingCycleExpectation,
 } from '../application/ports/review-handling-cycle.store'
 import type {
+  HandlingCycle,
+  HandlingCycleActorType,
+  HandlingCycleHead,
+  HandlingCycleOpenReason,
+  HandlingCycleTransition,
   InboxItem,
   ReviewHandlingCycle,
   ReviewHandlingCycleHead,
 } from '../domain/types'
 import {
-  createInitialReviewHandlingCycle,
+  createInitialHandlingCycle,
   createNextReviewHandlingCycle,
+  type HandlingCycleDecision,
 } from '../domain/handling-cycles'
 import { inboxError } from '../domain/errors'
+import {
+  assertReviewResponseTargetAuthorityMatchesCycle,
+  cancelResponseTargetForCycle,
+  insertResponseTargetForHandlingCycle,
+} from './response-target.store'
+import type { ReviewCycleTargetAnchor } from '../application/ports/review-response-target-authority.port'
 
 type CycleRow = typeof inboxHandlingCycles.$inferSelect
 type HeadRow = typeof inboxHandlingCycleHeads.$inferSelect
 
-const cycleFromRow = (row: CycleRow): ReviewHandlingCycle => ({
-  inboxItemId: inboxItemId(row.inboxItemId),
-  cycleNumber: row.cycleNumber,
-  organizationId: organizationId(row.organizationId),
-  propertyId: propertyId(row.propertyId),
-  reviewId: reviewId(row.reviewId),
-  materialReviewRevision: row.materialReviewRevision,
-  openedReason: row.openedReason as ReviewHandlingCycle['openedReason'],
-  supersedesCycleNumber: row.supersedesCycleNumber,
-  openedBy: row.openedBy ? userId(row.openedBy) : null,
-  openedAt: row.openedAt,
-})
+const cycleFromRow = (row: CycleRow): ReviewHandlingCycle => {
+  if (
+    row.sourceType !== 'review' ||
+    row.reviewId === null ||
+    row.materialReviewRevision === null
+  ) {
+    throw inboxError('invalid_input', 'Stored Review Handling Cycle is invalid')
+  }
+  return {
+    inboxItemId: inboxItemId(row.inboxItemId),
+    cycleNumber: row.cycleNumber,
+    organizationId: organizationId(row.organizationId),
+    propertyId: propertyId(row.propertyId),
+    sourceType: 'review',
+    sourceId: reviewId(row.sourceId),
+    sourceRevision: row.sourceRevision,
+    reviewId: reviewId(row.reviewId),
+    materialReviewRevision: row.materialReviewRevision,
+    openedReason: row.openedReason as ReviewHandlingCycle['openedReason'],
+    manualReopenReason:
+      row.manualReopenReason as ReviewHandlingCycle['manualReopenReason'],
+    manualReopenExplanation: row.manualReopenExplanation,
+    supersedesCycleNumber: row.supersedesCycleNumber,
+    openedBy: row.openedBy ? userId(row.openedBy) : null,
+    openedAt: row.openedAt,
+  }
+}
 
-const headFromRow = (row: HeadRow): ReviewHandlingCycleHead => ({
+const headFromRow = (row: HeadRow): ReviewHandlingCycleHead => {
+  if (
+    row.sourceType !== 'review' ||
+    row.reviewId === null ||
+    row.currentMaterialReviewRevision === null
+  ) {
+    throw inboxError('invalid_input', 'Stored Review Handling Cycle head is invalid')
+  }
+  return {
+    inboxItemId: inboxItemId(row.inboxItemId),
+    organizationId: organizationId(row.organizationId),
+    propertyId: propertyId(row.propertyId),
+    sourceType: 'review',
+    sourceId: reviewId(row.sourceId),
+    currentSourceRevision: row.currentSourceRevision,
+    reviewId: reviewId(row.reviewId),
+    currentCycleNumber: row.currentCycleNumber,
+    currentMaterialReviewRevision: row.currentMaterialReviewRevision,
+    stateRevision: row.stateRevision,
+    status: row.status,
+  }
+}
+
+const sourceHeadFromRow = (row: HeadRow): HandlingCycleHead => ({
   inboxItemId: inboxItemId(row.inboxItemId),
   organizationId: organizationId(row.organizationId),
   propertyId: propertyId(row.propertyId),
-  reviewId: reviewId(row.reviewId),
+  sourceType: row.sourceType,
+  sourceId:
+    row.sourceType === 'review' ? reviewId(row.sourceId) : feedbackId(row.sourceId),
   currentCycleNumber: row.currentCycleNumber,
-  currentMaterialReviewRevision: row.currentMaterialReviewRevision,
+  currentSourceRevision: row.currentSourceRevision,
   stateRevision: row.stateRevision,
   status: row.status,
 })
@@ -92,80 +145,139 @@ export async function insertInitialReviewHandlingCycle(
   if (item.sourceType !== 'review') {
     throw inboxError('invalid_input', 'A Review Handling Cycle requires a Review item')
   }
-  const decision = createInitialReviewHandlingCycle({
+  await insertInitialHandlingCycle(tx, item, {
+    sourceRevision: materialReviewRevision,
+    openedReason: 'review_observed',
+    actorType: 'provider',
+    triggerEventId: null,
+  })
+}
+
+export type InitialHandlingCycleAnchor = Readonly<{
+  sourceRevision: number
+  openedReason: Extract<
+    HandlingCycleOpenReason,
+    'legacy_backfill' | 'review_observed' | 'feedback_submitted'
+  >
+  actorType: HandlingCycleActorType
+  triggerEventId: string | null
+  openedAt?: Date
+  responseTarget?: ReviewCycleTargetAnchor | null
+}>
+
+export const cycleInsert = (cycle: HandlingCycle, createdAt: Date) => ({
+  inboxItemId: cycle.inboxItemId,
+  cycleNumber: cycle.cycleNumber,
+  organizationId: cycle.organizationId,
+  propertyId: cycle.propertyId,
+  sourceType: cycle.sourceType,
+  sourceId: cycle.sourceId,
+  sourceRevision: cycle.sourceRevision,
+  reviewId: cycle.sourceType === 'review' ? cycle.sourceId : null,
+  materialReviewRevision: cycle.sourceType === 'review' ? cycle.sourceRevision : null,
+  openedReason: cycle.openedReason,
+  manualReopenReason: cycle.manualReopenReason,
+  manualReopenExplanation: cycle.manualReopenExplanation,
+  supersedesCycleNumber: cycle.supersedesCycleNumber,
+  openedBy: cycle.openedBy,
+  openedAt: cycle.openedAt,
+  createdAt,
+})
+
+export const transitionInsert = (
+  transition: HandlingCycleTransition,
+  createdAt: Date,
+) => ({
+  ...transition,
+  createdAt,
+})
+
+/** Seed any source cycle in the caller's item/source transaction. */
+export async function insertInitialHandlingCycle(
+  tx: Tx,
+  item: InboxItem,
+  anchor: InitialHandlingCycleAnchor,
+): Promise<HandlingCycleDecision> {
+  const decision = createInitialHandlingCycle({
     inboxItemId: item.id,
     organizationId: item.organizationId,
     propertyId: item.propertyId,
-    reviewId: reviewId(item.sourceId as string),
-    materialReviewRevision,
-    openedAt: item.createdAt,
+    sourceType: item.sourceType,
+    sourceId: item.sourceId,
+    sourceRevision: anchor.sourceRevision,
+    openedReason: anchor.openedReason,
+    actorType: anchor.actorType,
+    triggerEventId: anchor.triggerEventId,
+    openedAt: anchor.openedAt ?? item.createdAt,
     status: item.status,
   })
   if (decision.isErr()) throw decision.error
 
-  await tx.insert(inboxHandlingCycles).values({
-    ...decision.value.cycle,
-    createdAt: item.createdAt,
-  })
+  const recordedAt = anchor.openedAt ?? item.createdAt
+  if (anchor.responseTarget !== null) {
+    assertReviewResponseTargetAuthorityMatchesCycle(
+      decision.value.cycle,
+      anchor.responseTarget,
+    )
+  }
+  await tx
+    .insert(inboxHandlingCycles)
+    .values(cycleInsert(decision.value.cycle, recordedAt))
+  if (anchor.responseTarget !== null) {
+    await insertResponseTargetForHandlingCycle(
+      tx,
+      decision.value.cycle,
+      recordedAt,
+      anchor.responseTarget,
+    )
+  }
   await tx.insert(inboxHandlingCycleHeads).values({
-    ...decision.value.head,
-    createdAt: item.createdAt,
-    updatedAt: item.updatedAt,
+    inboxItemId: decision.value.head.inboxItemId,
+    organizationId: decision.value.head.organizationId,
+    propertyId: decision.value.head.propertyId,
+    sourceType: decision.value.head.sourceType,
+    sourceId: decision.value.head.sourceId,
+    currentSourceRevision: decision.value.head.currentSourceRevision,
+    reviewId:
+      decision.value.head.sourceType === 'review' ? decision.value.head.sourceId : null,
+    currentMaterialReviewRevision:
+      decision.value.head.sourceType === 'review'
+        ? decision.value.head.currentSourceRevision
+        : null,
+    currentCycleNumber: decision.value.head.currentCycleNumber,
+    stateRevision: decision.value.head.stateRevision,
+    status: decision.value.head.status,
+    createdAt: recordedAt,
+    updatedAt: recordedAt,
   })
-}
-
-async function assertMaterialRevisionExists(
-  tx: Tx,
-  current: ReviewHandlingCycleHead,
-  materialReviewRevision: number,
-): Promise<void> {
-  const reviewRows = await tx
-    .select({ sourceRevision: reviews.sourceRevision })
-    .from(reviews)
-    .where(
-      and(
-        eq(reviews.organizationId, current.organizationId),
-        eq(reviews.propertyId, current.propertyId),
-        eq(reviews.id, current.reviewId),
+  await tx
+    .insert(inboxHandlingCycleTransitions)
+    .values(
+      decision.value.transitions.map((transition) =>
+        transitionInsert(transition, recordedAt),
       ),
     )
-    .limit(1)
-  if (!reviewRows[0]) {
-    throw inboxError('not_found', 'Review not found for Inbox Handling Cycle')
-  }
-  if (reviewRows[0].sourceRevision !== materialReviewRevision) {
-    throw inboxError(
-      'revision_conflict',
-      'Review Material Revision changed; reload and retry',
-      {
-        requestedMaterialReviewRevision: materialReviewRevision,
-        currentMaterialReviewRevision: reviewRows[0].sourceRevision,
-      },
-    )
-  }
-  const rows = await tx
-    .select({ revision: materialReviewRevisions.revision })
-    .from(materialReviewRevisions)
-    .where(
-      and(
-        eq(materialReviewRevisions.organizationId, current.organizationId),
-        eq(materialReviewRevisions.propertyId, current.propertyId),
-        eq(materialReviewRevisions.reviewId, current.reviewId),
-        eq(materialReviewRevisions.revision, materialReviewRevision),
-      ),
-    )
-    .limit(1)
-  if (!rows[0]) {
-    throw inboxError('not_found', 'Material Review Revision not found for Inbox item', {
-      inboxItemId: current.inboxItemId,
-      materialReviewRevision,
-    })
-  }
+  return decision.value
 }
 
 export const createReviewHandlingCycleStore = (
   db: Database,
 ): ReviewHandlingCycleStore => ({
+  findSourceHead: async (itemId, orgId) => {
+    return trace('inbox.handlingCycle.findSourceHead', async () => {
+      const rows = await db
+        .select()
+        .from(inboxHandlingCycleHeads)
+        .where(
+          and(
+            eq(inboxHandlingCycleHeads.inboxItemId, itemId),
+            eq(inboxHandlingCycleHeads.organizationId, orgId),
+          ),
+        )
+        .limit(1)
+      return rows[0] ? sourceHeadFromRow(rows[0]) : null
+    })
+  },
   findHead: async (itemId, orgId) => {
     return trace('inbox.handlingCycle.findHead', async () => {
       const rows = await db
@@ -224,20 +336,46 @@ export const createReviewHandlingCycleStore = (
           current,
           materialReviewRevision: command.materialReviewRevision,
           openedReason: command.openedReason,
+          manualReopenReason: command.manualReopenReason,
+          manualReopenExplanation: command.manualReopenExplanation,
           openedBy: command.openedBy,
           openedAt: command.openedAt,
         })
         if (decision.isErr()) throw decision.error
-        await assertMaterialRevisionExists(tx, current, command.materialReviewRevision)
-
-        await tx.insert(inboxHandlingCycles).values({
-          ...decision.value.cycle,
-          createdAt: command.openedAt,
-        })
+        assertReviewResponseTargetAuthorityMatchesCycle(
+          decision.value.cycle,
+          command.responseTarget,
+        )
+        if (current.status === 'open') {
+          await cancelResponseTargetForCycle(tx, {
+            inboxItemId: current.inboxItemId,
+            cycleNumber: current.currentCycleNumber,
+            organizationId: current.organizationId,
+            cancelledAt: command.openedAt,
+            reason: 'superseded_by_source_revision',
+          })
+        }
+        await tx
+          .insert(inboxHandlingCycles)
+          .values(cycleInsert(decision.value.cycle, command.openedAt))
+        await tx
+          .insert(inboxHandlingCycleTransitions)
+          .values(
+            decision.value.transitions.map((transition) =>
+              transitionInsert(transition, command.openedAt),
+            ),
+          )
+        await insertResponseTargetForHandlingCycle(
+          tx,
+          decision.value.cycle,
+          command.openedAt,
+          command.responseTarget,
+        )
         const updatedHeads = await tx
           .update(inboxHandlingCycleHeads)
           .set({
             currentCycleNumber: decision.value.head.currentCycleNumber,
+            currentSourceRevision: decision.value.head.currentSourceRevision,
             currentMaterialReviewRevision:
               decision.value.head.currentMaterialReviewRevision,
             stateRevision: decision.value.head.stateRevision,
@@ -264,7 +402,12 @@ export const createReviewHandlingCycleStore = (
 
         const updatedItems = await tx
           .update(inboxItems)
-          .set({ status: 'open', closedAt: null, updatedAt: command.openedAt })
+          .set({
+            status: 'open',
+            closedAt: null,
+            commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
+            updatedAt: command.openedAt,
+          })
           .where(
             and(
               eq(inboxItems.id, command.inboxItemId),

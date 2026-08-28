@@ -6,28 +6,32 @@ Unified triage surface for reviews and feedback — status tracking, assignment,
 
 ## Glossary
 
-| Term               | Definition                                                                                                                                                                                          |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Inbox Item**     | A unified triage entry. Points to either a Review or a Feedback. Carries denormalized filter/sort fields and inbox-specific state (status, assignment).                                             |
-| **Source Type**    | The origin of an inbox item: `'review'` or `'feedback'`.                                                                                                                                            |
-| **Source ID**      | The primary key of the source entity (a `ReviewId` or `FeedbackId`).                                                                                                                                |
-| **Status**         | The triage state of an inbox item: `open` or `closed`.                                                                                                                                              |
-| **Closed**         | The item has been handled. For Review work, only an exact current live Google reply observation may close the active Handling Cycle automatically; authorized users can also close or reopen items. |
-| **Escalated**      | An orthogonal flag for management attention. An open or closed item can be escalated until the flag is resolved.                                                                                    |
-| **Assignment**     | Linking an inbox item to a specific eligible user. An eligible user may explicitly claim or release their own work; managing another assignee additionally requires `inbox.manage`.                 |
-| **Internal Note**  | A text annotation on an inbox item. Stored in `inbox_notes`. Tracks author and timestamp. Multiple notes per item.                                                                                  |
-| **Source Date**    | The denormalized date from the source entity (`reviewedAt` for reviews, `createdAt` for feedback). Used for sorting.                                                                                |
-| **Filtered Total** | Authoritative count of all items matching the governed list filters, calculated before the page cursor and returned with every page.                                                                |
-| **List Sort**      | Stable keyset ordering by `(sourceDate, id)`, newest-first by default with an oldest-first option.                                                                                                  |
-| **Handling Cycle** | An immutable, numbered opening fact for one Review work episode, anchored to one Material Review Revision. More than one cycle may reference the same revision.                                     |
-| **Cycle Head**     | The compare-and-swap pointer to the one current Review cycle, its current Material Review Revision, workflow status, and state revision.                                                            |
+| Term                          | Definition                                                                                                                                                                                                                                                                          |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Inbox Item**                | A unified triage entry. Points to either a Review or a Feedback. Carries denormalized filter/sort fields and inbox-specific state (status, assignment).                                                                                                                             |
+| **Source Type**               | The origin of an inbox item: `'review'` or `'feedback'`.                                                                                                                                                                                                                            |
+| **Source ID**                 | The primary key of the source entity (a `ReviewId` or `FeedbackId`).                                                                                                                                                                                                                |
+| **Status**                    | The triage state of an inbox item: `open` or `closed`.                                                                                                                                                                                                                              |
+| **Closed**                    | The item no longer needs active work. Review closure comes from exact current Google/source authority. Private-feedback closure comes from either a guest withdrawal or a manager-selected Handling Outcome. Manual reopen remains governed and preserves earlier completion facts. |
+| **Escalated**                 | An orthogonal flag for management attention. An open or closed item can be escalated until the flag is resolved.                                                                                                                                                                    |
+| **Assignment**                | Linking an inbox item to a specific eligible user. An eligible user may explicitly claim or release their own work; managing another assignee additionally requires `inbox.manage`.                                                                                                 |
+| **Internal Note**             | A text annotation on an inbox item. Stored in `inbox_notes`. Tracks author and timestamp. Multiple notes per item.                                                                                                                                                                  |
+| **Source Date**               | The denormalized date from the source entity (`reviewedAt` for reviews, `createdAt` for feedback). Used for sorting.                                                                                                                                                                |
+| **Filtered Total**            | Authoritative count of all items matching the governed list filters, calculated before the page cursor and returned with every page.                                                                                                                                                |
+| **Response Cutoff**           | Server time captured before first-page loading. A successful page may monotonically advance the user's seen watermark to this instant, never to request completion time.                                                                                                            |
+| **List Sort**                 | Stable keyset ordering by `(sourceDate, id)`, newest-first by default with an oldest-first option.                                                                                                                                                                                  |
+| **Handling Cycle**            | An immutable, numbered work episode anchored to one source revision: Material Review Revision for Review, Guest Response Revision for feedback. More than one cycle may reference the same revision.                                                                                |
+| **Cycle Head**                | The compare-and-swap pointer to the one current source cycle, its source revision, workflow status, and state revision.                                                                                                                                                             |
+| **Feedback Handling Outcome** | One of five controlled manager completion results for a private-feedback cycle. Its optional internal note is manager-only and never included in guest responses or cross-context facts.                                                                                            |
+| **Outcome Correction**        | A new append-only outcome fact that supersedes the previous result. It never rewrites the original completion time/timing result, reopens work, or changes the guest rating.                                                                                                        |
 
 ## Relationships
 
 - Inbox Item → Review (via `sourceType = 'review'`, `sourceId = reviewId`). Eligible content is read through `ReviewLookupPort`, never cross-context SQL.
-- Inbox Item → Feedback (via `sourceType = 'feedback'`, `sourceId = feedbackId`). Rating value denormalized at creation time from linked `Rating`.
+- Inbox Item → Feedback (via `sourceType = 'feedback'`, `sourceId = feedbackId`). Eligible rating/comment content is enriched through `FeedbackLookupPort`; handling commands never rewrite it.
 - Inbox Item → StaffAssignment (assignment scoped to properties the user can access).
-- Review Inbox Item → Handling Cycle (one-to-many immutable openings) → Material Review Revision; one Cycle Head selects the current actionable episode.
+- Inbox Item → Handling Cycle (one-to-many immutable openings); one Cycle Head selects the current actionable episode. Review cycles anchor Material Review Revisions and feedback cycles anchor Guest Response Revisions.
+- Feedback Handling Cycle → Feedback Handling Outcome (one initial outcome plus zero or more append-only corrections).
 - Inbox Note → Inbox Item (many-to-one).
 - Inbox subscribes to Review/Guest lifecycle facts. `review.reply.observed` is the sole provider-reply authority; `review.reply.published` is retained only as a compatibility receipt.
 
@@ -37,12 +41,21 @@ Unified triage surface for reviews and feedback — status tracking, assignment,
 - Bare ratings (no feedback comment) do not create inbox items.
 - Status transitions must follow the valid graph (see ADR 0004).
 - Claiming or releasing one's own eligible item requires source handling access. Assigning, releasing, or replacing another assignee additionally requires `inbox.manage`.
-- Assignee must have a `staff_assignment` record for the item's property.
+- An assignee must retain the same Identity-owned manager permissions and Property scope as an actor handling that source. A PropertyManager must also have one exact current Staff user link and active participation at the Property; an AccountAdmin intentionally does not require a Staff participant row.
+- Role downgrade, Property grant revocation, and Staff participation archive re-run an idempotent Inbox reconciliation. It proves each assigned Review/feedback permission inside the release transaction and durably clears only assignments that are now ineligible; a retained legacy non-UUID Property key is always releasable and is preserved verbatim in assignment history.
+- Every human command authorizes its complete unique `(principal, Property)` requirement set once inside the write transaction. Multi-item commands cannot lock the permission generation after one item and then acquire a later item's membership or grant row.
+- Human-authored status, assignment, escalation, resolution, and note commands compare-and-swap the client-observed item command revision. Adding a note advances the same item fence atomically with the note and its identifier-only fact.
+- Bulk Close is unavailable. Bulk Reopen accepts at most 100 distinct item/revision pairs, preauthorizes the complete candidate set once, applies compare-and-swap writes in stable Inbox-item-ID order, and reconstructs privacy-safe results in caller order. Only landed rows emit a durable fact; a racing row is reported without rolling back another landed reopen.
 - Review visibility requires `inbox.read ∧ review.read`; private-feedback visibility requires `inbox.read ∧ feedback.read`.
 - Review workflow changes require `inbox.write ∧ review.read`; private-feedback workflow changes require `inbox.write ∧ feedback.handle`. Assignment never grants either permission.
+- Generic status commands never close work. Review closure is provider/source-authoritative; a manager closes an open private-feedback cycle only through `markFeedbackHandled` with exactly one controlled outcome.
+- A feedback Handling Outcome is allowed only for an open feedback cycle. `guest_withdrawn` is a separate guest lifecycle transition and records no manager outcome.
+- Outcome corrections append a directly superseding fact under exact item/cycle/source/state/outcome revision fences. They preserve the first completion instant and deadline result, leave the cycle closed, and never alter the source rating.
+- Feedback outcome history is immutable at the database boundary. The optional internal note is returned only when the caller has current `inbox.write ∧ feedback.handle` Property scope; it is absent from guest surfaces and emitted Inbox lifecycle facts.
 - Each inbox item has exactly one source (review or feedback), never both.
-- Feedback inbox items may have a denormalized rating value (from linked `ratings` row), nullable.
+- Feedback list/detail results may carry an eligible rating value from the Guest-owned lookup; the Inbox handling stores remain content-free.
 - List cursors are bounded canonical base64 JSON. Their `sourceDate` must be a canonical ISO instant and `id` a UUID; malformed cursors are discarded before repository/SQL access and never echoed into logs.
+- Every page carries a response cutoff captured before access resolution and data loading. The client stamps it only after a successful first-page load, and storage advances the per-user watermark monotonically, so arrivals during the load remain new and a slower response cannot move the watermark backward.
 - A Review cycle opening is append-only at the database boundary. Starting a later cycle advances the head only when expected cycle number, Material Review Revision, and state revision all match.
 - `material_revision_changed` must advance to the Review's current Material Review Revision. `manual_reopen` may create another numbered cycle on the same revision. Both preserve every earlier opening fact.
 - Automatic Review closure requires a `review.reply.observed` fact whose identifiers still name the exact current Review-owned live observation head and current source epoch and Material Review Revision. A `confirmed_on_google` observation additionally binds the exact current Reply publication attempt and cycle; an `external_current_live` observation closes as current external truth without claiming RepKey provenance. The event is only a wake-up hint: Inbox receives a content-free permit through its own `ReplyObservationAuthorityPort`, never queries Review tables, and treats a refused permit as obsolete.
@@ -50,43 +63,64 @@ Unified triage surface for reviews and feedback — status tracking, assignment,
 - A current `review.reply.observed` fact that overtakes `review.created` remains retryable: Inbox records no receipt until the item and Handling Cycle materialize. If the observation's Material Review Revision is ahead of Inbox, delivery likewise retries without a receipt; if Inbox is already newer, the observation receives an obsolete receipt. A fact whose Review head is already obsolete also receives an obsolete receipt even when no Inbox item exists.
 - A current observed Google reply deletion reopens the active Review work when the Handling Cycle's material/cycle fences still permit it. An external live edit remains handled and does not reopen work. The retained legacy `diverged` value is receipt-only and never a reopen authority. A stale/replayed fact cannot close or reopen twice.
 - Provider write acknowledgement and the internal `review.reply.published` lifecycle fact are not Google truth and cannot mutate Inbox status.
-- Expand phase is intentionally non-destructive: `inbox_items.status` remains the compatibility projection. Existing status/assignment/escalation commands have not yet cut over to the cycle head and are not claimed as fully revision-fenced.
+- Review source expiry/deletion preserves the stable Inbox row and manager-owned notes/assignment history while an Inbox-owned durable apply removes all legacy `rating`/`snippet`/`reviewer_name` copies, closes open work, and co-commits its status fact and receipt. A validated database check prevents those provider-controlled fields from being restored on Review-sourced items; feedback-sourced values remain Guest/Inbox-owned.
+- `inbox_items.status` remains a write-side compatibility projection, synchronized atomically with the source Handling Cycle head. Active list, detail, and count reads require an exact item/Organization/Property/source Cycle Head and use only the head status for both Review and feedback; an orphan or mismatched compatibility row is repair-visible but never actionable. Generic status commands are reopen-only; source-specific Review authority and private-feedback outcomes own closure.
+
+## Response Targets (IBX-01)
+
+- Google Review Response and Private Feedback Handling Targets both default to 48 elapsed hours. Organization policy may replace either default; only feedback resolves an enabled Property override before Organization/default. There is no Portal override.
+- Every measured Handling Cycle atomically snapshots duration, policy source/version, UTC start/due, and exactly one halfway plus one target-passed reminder slot. Policy changes affect only later cycles; overdue is a read-time derivation that never closes or escalates work.
+- Feedback submission and reopen start timing. An approved `markFeedbackHandled` outcome completes it; guest withdrawal cancels it. Claim/read/assignment/note/escalation do not stop it, and outcome correction preserves the first completion/result.
+- Review supplies content-free exact-current target provenance under its source fence. Ongoing initial work uses Google's source-created/reviewed time; a later Material Review Revision uses source-updated/observation time. Initial onboarding history and legacy-unknown timing remain excluded rather than inferred.
+- Manual Review reopen and exact provider-reply deletion start a new measured target at the live operational reopen instant, even when the original imported cycle was excluded. A newer Material Review Revision cancels an unfinished superseded target before opening the new target; source ineligibility also terminalizes unfinished timing.
+- Only an exact current live Google observation completes a Review target. Both `confirmed_on_google` and `external_current_live` count as observed-live completion; provider acknowledgement and `review.reply.published` do not. A current reply deletion can reopen work, while a live external edit remains closed.
+- Analytics are Property-scope-authorized, target-family-specific, and never mix Review with feedback. Cancelled cycles are excluded; Google reporting separately counts onboarding-history and legacy-unknown exclusions.
+- Reminder release is registered as an enabled five-minute job and co-commits one content-free, stable-ID outbox fact per due current slot. Notification resolves and revalidates current recipients: halfway prefers an eligible assignee, otherwise source responsibility/fallback; target-passed uses the de-duplicated union of both. Reminders never auto-escalate.
+- These statements describe repository wiring, not hosted activation evidence. Deployed scheduler ticks, worker/outbox health, migration state, and end-user delivery must be evidenced separately; see `docs/operations/inbox-response-targets.md`.
 
 ## Events produced
 
-| Tag                                    | Payload                                                                                   | When                                       |
-| -------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------ |
-| `inbox.inbox_item.created`             | inboxItemId, organizationId, propertyId, sourceType, sourceId, occurredAt                 | New review or feedback triggers inbox item |
-| `inbox.inbox_item.status_changed`      | inboxItemId, organizationId, propertyId, userId, oldStatus, newStatus, occurredAt         | Status transition                          |
-| `inbox.inbox_item.assigned`            | inboxItemId, organizationId, propertyId, userId, assignedTo, occurredAt                   | Item assigned to user                      |
-| `inbox.inbox_item.unassigned`          | inboxItemId, organizationId, propertyId, userId, previousAssignee, occurredAt             | Item unassigned from user                  |
-| `inbox.inbox_item.escalated`           | inboxItemId, organizationId, propertyId, userId, occurredAt                               | Escalation flag set                        |
-| `inbox.inbox_item.escalation_resolved` | inboxItemId, organizationId, propertyId, userId, occurredAt                               | Escalation flag resolved                   |
-| `inbox.inbox_note.added`               | inboxItemId, organizationId, propertyId, userId, noteId, occurredAt                       | Internal note added to item                |
-| `inbox.inbox_item.bulk_status_changed` | inboxItemId, organizationId, propertyId, userId, oldStatus, newStatus, bulkId, occurredAt | Item status changed in bulk operation      |
+| Tag                                           | Payload                                                                                    | When                                                                            |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| `inbox.inbox_item.created`                    | inboxItemId, organizationId, propertyId, sourceType, sourceId, occurredAt                  | New review or feedback triggers inbox item                                      |
+| `inbox.inbox_item.status_changed`             | inboxItemId, organizationId, propertyId, userId, oldStatus, newStatus, occurredAt          | Status transition                                                               |
+| `inbox.inbox_item.assigned`                   | inboxItemId, organizationId, propertyId, userId, assignedTo, occurredAt                    | Item assigned to user                                                           |
+| `inbox.inbox_item.unassigned`                 | inboxItemId, organizationId, propertyId, userId, previousAssignee, occurredAt              | Item unassigned from user                                                       |
+| `inbox.inbox_item.escalated`                  | inboxItemId, organizationId, propertyId, userId, occurredAt                                | Escalation flag set                                                             |
+| `inbox.inbox_item.escalation_resolved`        | inboxItemId, organizationId, propertyId, userId, occurredAt                                | Escalation flag resolved                                                        |
+| `inbox.inbox_note.added`                      | inboxItemId, organizationId, propertyId, userId, noteId, occurredAt                        | Internal note added to item                                                     |
+| `inbox.inbox_item.bulk_status_changed`        | inboxItemId, organizationId, propertyId, userId, oldStatus, newStatus, bulkId, occurredAt  | Item status changed in bulk operation                                           |
+| `inbox.inbox_items.bulk_assignment_completed` | organizationId, userId, bulkId, content-free assignment transitions, count, occurredAt     | Atomic bulk assignment command completes                                        |
+| `inbox.handling_cycle.opened`                 | inbox/source/cycle/state revisions, openReason, actor identifiers, occurredAt              | Initial or source-revision Handling Cycle opens                                 |
+| `inbox.handling_cycle.closed`                 | inbox/source/cycle/state revisions, closeReason, actor identifiers, occurredAt             | Current Handling Cycle closes                                                   |
+| `inbox.handling_cycle.reopened`               | inbox/source/cycle/state revisions, reopenReason, actor identifiers, occurredAt            | Manual or provider-authoritative re-handling opens a new cycle                  |
+| `inbox.response_target.reminder_due`          | inbox/cycle/Organization/Property/target/reminder identifiers and scheduled/occurred times | A halfway or target-passed slot is released once to the durable outbox boundary |
+| `inbox.response_target.policy_changed`        | Organization/Property scope, target kind, duration/version, actor, occurredAt              | A compare-and-set policy revision commits                                       |
 
 Note: `inbox.inbox_item.created` has no `userId` — it's emitted by sync pipeline event handlers, not user actions. Activity log attributes it to `'system'`.
 
-Note (BQC-3.4): `inbox.inbox_note.added` carries the note ID, never the note text — notes remain context-owned content. Every fact above is committed atomically with its state change via the `InboxCommandStore` (one PostgreSQL transaction: state + outbox row; post-commit bus emit is best-effort). The projection repair command is `rebuildInboxProjection` (bounded, idempotent, report-first; review-sourced items only — guest/feedback is a dark context).
+Note (BQC-3.4): `inbox.inbox_note.added` carries the note ID, never the note text — notes remain context-owned content. Every fact above is committed atomically with its state change via the `InboxCommandStore` (one PostgreSQL transaction: state + outbox row; post-commit bus emit is best-effort). The `rebuildInboxProjection` repair command remains bounded, idempotent, report-first, and Review-specific; Guest lifecycle delivery owns feedback materialization, while active reads fail closed when its current Cycle Head is absent.
 
 ## Events consumed
 
-| Tag                        | Source context | Handler action                                                                                                                                                               |
-| -------------------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `review.created`           | review         | Create metadata-only inbox item (bus + durable `inbox.on-review-created`, applyOnce co-commits receipt)                                                                      |
-| `review.updated`           | review         | Metadata-only refresh of sourceDate/platform (durable `inbox.on-review-updated`, BQC-3.4)                                                                                    |
-| `guest.feedback.submitted` | guest          | Create metadata-only feedback item (bus + durable `inbox.on-guest-feedback-submitted`)                                                                                       |
-| `guest.feedback.retracted` | guest          | Close open feedback work after Guest purges the body (bus + durable `inbox.on-guest-feedback-retracted`)                                                                     |
-| `review.reply.published`   | review         | Compatibility receipt only; never closes or reopens work (durable `inbox.on-reply-published`)                                                                                |
-| `review.reply.observed`    | review         | Request an exact-current Review permit; an exact live reply closes once, a deletion reopens once, and an external live edit stays closed (durable `inbox.on-reply-observed`) |
-| `review.reply.submitted`   | review         | Stamp `firstReplySubmittedAt` milestone on inbox item (bus only)                                                                                                             |
-| `review.expired`           | review         | Close open inbox item when its source review is purged (bus + durable `inbox.on-review-expired`)                                                                             |
+| Tag                          | Source context | Handler action                                                                                                                                                                             |
+| ---------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `review.created`             | review         | Create metadata-only inbox item (bus + durable `inbox.on-review-created`, applyOnce co-commits receipt)                                                                                    |
+| `review.updated`             | review         | Metadata-only refresh of sourceDate/platform (durable `inbox.on-review-updated`, BQC-3.4)                                                                                                  |
+| `review.source_transitioned` | review         | Preserve identity, scrub legacy provider fields, and close open unservable work (durable `inbox.on-review-source-transitioned`)                                                            |
+| `guest.feedback.submitted`   | guest          | Create metadata-only feedback item (bus + durable `inbox.on-guest-feedback-submitted`)                                                                                                     |
+| `guest.feedback.retracted`   | guest          | Close open feedback work after Guest purges the body; bus acceleration and durable delivery share the same receipt-coordinated Cycle Head apply seam (`inbox.on-guest-feedback-retracted`) |
+| `review.reply.published`     | review         | Compatibility receipt only; never closes or reopens work (durable `inbox.on-reply-published`)                                                                                              |
+| `review.reply.observed`      | review         | Request an exact-current Review permit; an exact live reply closes once, a deletion reopens once, and an external live edit stays closed (durable `inbox.on-reply-observed`)               |
+| `review.reply.submitted`     | review         | Stamp `firstReplySubmittedAt` milestone on inbox item (bus only)                                                                                                                           |
+| `review.expired`             | review         | Legacy transition compatibility: preserve identity and scrub provider copies only; the unversioned event never changes workflow status (bus + durable `inbox.on-review-expired`)           |
 
 ## Architecture layers
 
 ```
 inbox/
-  domain/              types.ts, constructors.ts, events.ts, errors.ts, rules.ts
+  domain/              types.ts, constructors.ts, events.ts, errors.ts, rules.ts,
+                      feedback-handling.ts
   application/
     ports/             inbox.repository.ts, inbox-note.repository.ts, review-lookup.port.ts,
                       feedback-lookup.port.ts, property-lookup.port.ts, new-counter.port.ts
@@ -94,7 +128,8 @@ inbox/
     use-cases/         get-inbox-items.ts, update-inbox-status.ts, bulk-update-inbox-status.ts,
                       assign-inbox-item.ts, add-inbox-note.ts, get-new-count.ts,
                       get-inbox-item-detail.ts, get-inbox-notes.ts, create-inbox-item.ts,
-                      get-folder-counts.ts
+                      get-folder-counts.ts, mark-feedback-handled.ts,
+                      correct-feedback-handling-outcome.ts
     public-api.ts      re-exports domain types, error types, cursor type
   infrastructure/
     adapters/          review-lookup.adapter.ts, feedback-lookup.adapter.ts,
@@ -104,34 +139,39 @@ inbox/
     repositories/      inbox.repository.ts, inbox-note.repository.ts (Drizzle)
     inbox-command-store.ts            atomic state+outbox+receipt commands (BQC-3.4)
     review-handling-cycle.store.ts    immutable cycle append + locked/CAS current head
+    feedback-handling.store.ts        atomic feedback close + append-only outcome correction
     outbox-consumers.ts  durable consumers (applyOnce): review.created/.updated/.expired,
                       reply.published compatibility receipt, reply.observed authority
     event-handlers/    on-review-created.ts, on-review-expired.ts, on-feedback-submitted.ts,
                       on-reply-submitted.ts (bus paths); on-reply-published.ts is quarantined
     (test fake: src/shared/testing/sequential-inbox-command-store.ts)
   server/              inbox.ts, inbox-item-queries.ts, inbox-status.ts, inbox-item-actions.ts,
+                      inbox-feedback-handling.ts,
                       inbox-queries.ts, inbox-shared.ts
   build.ts             composition root
   build-use-cases.ts   use-case factory
+```
 
 ## Use cases
 
-| Use case                | Input                                                               | Output                | Permission    |
-| ----------------------- | ------------------------------------------------------------------- | --------------------- | ------------- |
-| `getInboxItems`         | organizationId, userId, role, filters (including sort), cursor?, limit? | items, next cursor, filtered total | `inbox.read` plus source read |
-| `getInboxItemDetail`    | inboxItemId, organizationId, userId, role                           | `InboxItemDetail`     | `inbox.read` plus source read |
-| `updateInboxStatus`     | inboxItemId, organizationId, newStatus, userId, role                | updated item          | `inbox.write` plus source handle |
-| `bulkUpdateInboxStatus` | inboxItemIds[], organizationId, newStatus, userId, role             | bulk result           | `inbox.write` plus per-item source handle |
-| `assignInboxItem`       | inboxItemId, organizationId, assignedToUserId?, userId, role        | updated item          | source handle; `inbox.manage` for another assignee |
-| `addInboxNote`          | inboxItemId, organizationId, authorUserId, text, role               | `InboxNote`           | `inbox.write` plus source handle |
-| `getInboxNotes`         | inboxItemId, organizationId, userId, role                           | notes                 | `inbox.read` plus source read |
-| `getLastVisitCount`     | organizationId, userId                                              | open-since-last-visit count | `inbox.read` plus per-source read scope |
-| `createInboxItem`       | organizationId, propertyId, sourceType, sourceId, rating?, sourceDate, platform?, snippet? | `InboxItem`           | internal only |
-| `getFolderCounts`       | organizationId, userId, role                                        | `InboxFolderCounts`   | `inbox.read` plus per-source read scope |
-| `escalateInboxItem`     | inboxItemId, organizationId, userId                                 | updated item          | `inbox.write` plus source handle |
-| `resolveEscalation`     | inboxItemId, organizationId, userId                                 | updated item          | `inbox.write` plus source handle |
-| `rebuildInboxProjection` | organizationId, propertyId?, dryRun, batchSize?                    | repair report         | internal repair command (BQC-3.4; operator surface is BQC-7) |
-| `startReviewHandlingCycle` | inboxItemId, Organization, expected cycle/material/state revisions, target Material Review Revision, reason | cycle + current head | internal workflow command; caller owns authorization |
+| Use case                         | Input                                                                                                       | Output                                      | Permission                                                   |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------ |
+| `getInboxItems`                  | organizationId, userId, role, filters (including sort), cursor?, limit?                                     | items, next cursor, filtered total          | `inbox.read` plus source read                                |
+| `getInboxItemDetail`             | inboxItemId, organizationId, userId, role                                                                   | `InboxItemDetail`                           | `inbox.read` plus source read                                |
+| `updateInboxStatus`              | inboxItemId, organizationId, newStatus, userId, role                                                        | updated item                                | `inbox.write` plus source handle                             |
+| `bulkUpdateInboxStatus`          | inboxItemIds[], organizationId, newStatus, userId, role                                                     | bulk result                                 | `inbox.write` plus per-item source handle                    |
+| `assignInboxItem`                | inboxItemId, organizationId, assignedToUserId?, userId, role                                                | updated item                                | source handle; `inbox.manage` for another assignee           |
+| `addInboxNote`                   | inboxItemId, organizationId, authorUserId, text, role                                                       | `InboxNote`                                 | `inbox.write` plus source handle                             |
+| `getInboxNotes`                  | inboxItemId, organizationId, userId, role                                                                   | notes                                       | `inbox.read` plus source read                                |
+| `getLastVisitCount`              | organizationId, userId                                                                                      | open-since-last-visit count                 | `inbox.read` plus per-source read scope                      |
+| `createInboxItem`                | organizationId, propertyId, sourceType, sourceId, rating?, sourceDate, platform?, snippet?                  | `InboxItem`                                 | internal only                                                |
+| `getFolderCounts`                | organizationId, userId, role                                                                                | `InboxFolderCounts`                         | `inbox.read` plus per-source read scope                      |
+| `escalateInboxItem`              | inboxItemId, organizationId, userId                                                                         | updated item                                | `inbox.write` plus source handle                             |
+| `resolveEscalation`              | inboxItemId, organizationId, userId                                                                         | updated item                                | `inbox.write` plus source handle                             |
+| `rebuildInboxProjection`         | organizationId, propertyId?, dryRun, batchSize?                                                             | repair report                               | internal repair command (BQC-3.4; operator surface is BQC-7) |
+| `startReviewHandlingCycle`       | inboxItemId, Organization, expected cycle/material/state revisions, target Material Review Revision, reason | cycle + current head                        | internal workflow command; caller owns authorization         |
+| `markFeedbackHandled`            | inboxItemId, exact command/cycle/source/state revisions, outcome, internal note?                            | updated item + handling history             | `inbox.write ∧ feedback.handle` in Property scope            |
+| `correctFeedbackHandlingOutcome` | inboxItemId, exact command/cycle/source/state/outcome revisions, corrected outcome, internal note?          | updated item + append-only handling history | `inbox.write ∧ feedback.handle` in Property scope            |
 
 ## Public API
 
@@ -140,31 +180,34 @@ Exported from `application/public-api.ts`:
 - Types: `InboxItem`, `InboxNote`, `InboxItemDetail`, `InboxStatus`, `SourceType`, `InboxSort`
 - Error types: `InboxError`, `InboxErrorCode`, `isInboxError`
 - Port types: `Cursor` and paginated results with `totalCount`
-- Constants: `INBOX_BULK_LIMIT` (100 item IDs per bulk status command)
+- Constants: `INBOX_BULK_LIMIT` (100 item IDs per bulk status command), `PRIVATE_FEEDBACK_HANDLING_OUTCOMES`
+- Feedback handling types: outcome, deadline result, immutable outcome fact, expectations, state, and command result
 - Event types: `InboxItemCreated`, `InboxItemStatusChanged`, `InboxItemAssigned`, `InboxItemUnassigned`, `InboxItemEscalated`, `InboxNoteAdded`, `InboxItemBulkStatusChanged`, `InboxEvent`
 
 ## Server functions
 
-| Function                  | Method | Permission    | Route                             |
-| ------------------------- | ------ | ------------- | --------------------------------- |
-| `getInboxItemsFn`         | GET    | `inbox.read`  | Paginated inbox list with filters |
-| `updateInboxStatusFn`     | POST   | `inbox.write` | Update single item status         |
-| `bulkUpdateInboxStatusFn` | POST   | `inbox.write` | Bulk reopen only; Bulk Close is unavailable in initial beta |
-| `assignInboxItemFn`       | POST   | `inbox.write` | Assign/unassign item              |
-| `addInboxNoteFn`          | POST   | `inbox.write` | Add internal note                 |
-| `getLastVisitCountFn`     | GET    | `inbox.read` plus source read | Open items since the caller's previous visit |
-| `getInboxNotesFn`         | GET    | `inbox.read` plus source read | Notes for an item                 |
-| `getInboxFolderCountsFn`  | GET    | `inbox.read` plus source read | Open, escalated, and closed counts |
+| Function                           | Method | Permission                      | Route                                                       |
+| ---------------------------------- | ------ | ------------------------------- | ----------------------------------------------------------- |
+| `getInboxItemsFn`                  | GET    | `inbox.read`                    | Paginated inbox list with filters                           |
+| `updateInboxStatusFn`              | POST   | `inbox.write`                   | Update single item status                                   |
+| `bulkUpdateInboxStatusFn`          | POST   | `inbox.write`                   | Bulk reopen only; Bulk Close is unavailable in initial beta |
+| `assignInboxItemFn`                | POST   | `inbox.write`                   | Assign/unassign item                                        |
+| `addInboxNoteFn`                   | POST   | `inbox.write`                   | Add internal note                                           |
+| `getLastVisitCountFn`              | GET    | `inbox.read` plus source read   | Open items since the caller's previous visit                |
+| `getInboxNotesFn`                  | GET    | `inbox.read` plus source read   | Notes for an item                                           |
+| `getInboxFolderCountsFn`           | GET    | `inbox.read` plus source read   | Open, escalated, and closed counts                          |
+| `markFeedbackHandledFn`            | POST   | `inbox.write ∧ feedback.handle` | Close one open feedback cycle with one controlled outcome   |
+| `correctFeedbackHandlingOutcomeFn` | POST   | `inbox.write ∧ feedback.handle` | Append one superseding outcome correction without reopening |
 
 ## Permissions
 
-| Permission     | AccountAdmin | PropertyManager | Staff |
-| -------------- | ------------ | --------------- | ----- |
-| `inbox.read`   | ✓            | ✓               | ✓     |
-| `inbox.write`  | ✓            | ✓               | ✓     |
-| `inbox.manage` | ✓            | ✓               | —     |
-| `feedback.read` | ✓           | ✓               | —     |
-| `feedback.handle` | ✓         | ✓               | —     |
+| Permission        | AccountAdmin | PropertyManager | Staff |
+| ----------------- | ------------ | --------------- | ----- |
+| `inbox.read`      | ✓            | ✓               | ✓     |
+| `inbox.write`     | ✓            | ✓               | ✓     |
+| `inbox.manage`    | ✓            | ✓               | —     |
+| `feedback.read`   | ✓            | ✓               | —     |
+| `feedback.handle` | ✓            | ✓               | —     |
 
 ## Lookup ports
 
@@ -188,14 +231,24 @@ All ports are implemented by adapters from their respective contexts, wired at c
 - List rows make one additional page-bounded current-analysis lookup for `urgent`. A row displays the Urgent badge only when that governed lookup confirms it; escalation state is never used as an urgency proxy.
 - Both search params must be declared in `inboxSearchSchema`. It is a `z.object`, which strips unknown keys, so an undeclared param arrives as `undefined` and silently filters nothing.
 
-
 - **Timestamp display**: `readAt` timestamp relabelled from "Read" to "Opened" in the detail panel. Auto-transition makes "Read" misleading — "Opened" is honest about what happened. The domain field stays `readAt`; only the display label changes. Status badge for `read` also changes from "Read" to "Opened".
 - **List row styling**: the active item has the accent tint/rail and `aria-current`; checkbox selection is independent. Rows lead with reviewer, property/platform/language metadata, compact rating/date, and a two-line snippet (or `Rating only`).
-- **Bulk status actions**: the contextual toolbar supports close/reopen and caps selection at `INBOX_BULK_LIMIT`; unchecked rows are disabled with an accessible limit explanation once the cap is reached.
-- **Activity timeline**: Inbox detail panel will render an activity timeline using the ReUI timeline component, showing status changes, notes, replies, and assignments in chronological order. Data sourced from the `activity` context's activity log (per Q11 decisions).
-- **Activity event delivery (Q12)**: In-process via `eventBus.on()`. Matching the metric context's subscriber pattern. Handlers are idempotent (`findDuplicate` check before insert) and errors are logged, not propagated. If durability becomes a requirement (audit entries must survive process crashes), migrate to BullMQ-backed delivery per the original Q12 intent — the `CONTEXT.md` in `src/contexts/activity/` documents this trade-off explicitly.
-- **Activity log schema (Q13)**: Polymorphic table `activity_log` with columns: `id` (UUID PK), `actor_id` (FK auth_user), `actor_role` (denormalized, role at time of action), `action` (verb from fixed vocabulary), `resource_type` + `resource_id` (polymorphic target, no typed FK), `property_id` (nullable, account-level events have no property), `account_id` (FK), `payload` (JSONB, uniform `{field, from, to}` grammar), `source` ('web'|'api'|'system'|'import'), `created_at`. Immutable — no `updated_at`. Indexes: `(resource_type, resource_id, created_at)`, `(account_id, property_id, created_at)`, `(actor_id, created_at)`.
-- **Activity event mapping (Q14)**: One activity entry per event per item. Events that produce entries: `inbox.inbox_item.created`, `inbox.inbox_item.status_changed`, `inbox.inbox_item.escalated`, `inbox.inbox_item.assigned`, `inbox.inbox_item.unassigned`, `inbox.inbox_note.added`, `inbox.inbox_item.bulk_status_changed`, `review.reply.published`, `review.reply.submitted`, `review.reply.approved`, `review.reply.rejected`. Excluded: `cache.invalidated`, `item.read` (auto, not user-initiated). Bulk operations produce one entry per affected item with `payload.bulkId` linking them — audit-complete per item, groupable for org-wide feed.
-- **Activity context location (Q15)**: New top-level context `src/contexts/activity/`. Own directory, composition, public API, event handlers, queries, permission filtering. Not shared infrastructure — it's a bounded context with its own schema and business rules.
-- **Activity context structure (Q16)**: `domain/` (activity-log entity, constructors), `ports/` (repository interface, user lookup), `infrastructure/` (drizzle repo, event handlers, identity adapter), `queries/` (timeline + org-wide feed with permission filtering), `application/public-api.ts` (queries only — no commands). No use cases — write-only via event subscription, read-only via queries. Composition wires `eventBus.on()` handlers.
-```
+- **Bulk status actions**: the contextual toolbar supports governed reopen and caps selection at `INBOX_BULK_LIMIT`; Bulk Close is unavailable because each source owns its close authority.
+- **Recent Activity timeline**: Inbox detail reads Activity's bounded, privacy-aware
+  `RecentActivityEntry` projection. It can show allowlisted workflow summaries but
+  is never evidence that an Inbox command or provider effect committed.
+- **Delivery and recovery**: source contexts own durable facts. Activity consumes
+  them through the outbox/queue path with an in-process low-latency acceleration;
+  projection, replay authority, and delivery receipt commit together. An exact
+  source-event replay is idempotent, while conflicting evidence fails closed.
+- **Content boundary**: entries may contain identifiers and allowlisted transition
+  codes only. Inbox notes, private feedback, Review or Reply text, contact details,
+  credentials, and raw network values must never enter the projection or replay
+  fact.
+- **Operational Action History is separate**: restricted action-history records
+  use their own store, authorization, lifecycle, and vocabulary. Recent Activity is
+  not an audit log, immutable ledger, provider-effect receipt, or authorization
+  source.
+- **Ownership**: Activity owns projection/recovery stores, scoped queries, and the
+  public read interface. Inbox owns Handling Cycle state, notes, assignments, and
+  the durable facts from which selected summaries are projected.

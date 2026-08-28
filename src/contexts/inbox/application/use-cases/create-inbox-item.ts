@@ -22,7 +22,9 @@ export type CreateInboxItemInput = Readonly<{
   sourceId: ReviewId | FeedbackId
   sourceDate: Date
   platform: string | null
-  /** Review-only expand anchor; omitted for feedback and legacy callers. */
+  /** Exact source occurrence that opened this Inbox work. */
+  sourceRevision?: number
+  /** Review-only compatibility anchor for older callers. */
   materialReviewRevision?: number
 }>
 
@@ -84,9 +86,17 @@ export const createInboxItem =
         sourceId: item.sourceId,
         occurredAt: item.createdAt,
       }),
-      input.sourceType === 'review' && input.materialReviewRevision !== undefined
-        ? { materialReviewRevision: input.materialReviewRevision }
-        : undefined,
+      input.sourceType === 'feedback' && input.sourceRevision !== undefined
+        ? {
+            sourceRevision: input.sourceRevision,
+            openedReason: 'feedback_submitted',
+            actorType: 'guest',
+            triggerEventId: null,
+            openedAt: input.sourceDate,
+          }
+        : input.sourceType === 'review' && input.materialReviewRevision !== undefined
+          ? { materialReviewRevision: input.materialReviewRevision }
+          : undefined,
     )
 
     if (!created.created) {

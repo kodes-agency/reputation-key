@@ -23,10 +23,15 @@ describe('createFeedbackLookupAdapter', () => {
     const snippets = await adapter.getFeedbackSnippetsByIds([currentId, legacyId], ORG)
 
     expect(legacy).toHaveBeenCalledWith([legacyId], ORG)
-    expect(snippets.get(currentId)).toEqual({ comment: null, ratingValue: null })
+    expect(snippets.get(currentId)).toEqual({
+      comment: null,
+      ratingValue: null,
+      responseRevision: null,
+    })
     expect(snippets.get(legacyId)).toEqual({
       comment: 'Legacy stay',
       ratingValue: 3,
+      responseRevision: null,
     })
   })
 

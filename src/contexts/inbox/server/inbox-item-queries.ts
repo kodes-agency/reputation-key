@@ -24,9 +24,9 @@ export const getInboxItemDetailFn = createServerFn({ method: 'GET' })
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
-        const { useCases } = getContainer()
+        const { inboxPublicApi } = getContainer()
         try {
-          return await useCases.getInboxItemDetail(
+          return await inboxPublicApi.getInboxItemDetail(
             {
               inboxItemId: inboxItemId(data.inboxItemId),
             },
@@ -53,9 +53,9 @@ export const getInboxNotesFn = createServerFn({ method: 'GET' })
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'inbox.read' })
-        const { useCases } = getContainer()
+        const { inboxPublicApi } = getContainer()
         try {
-          return await useCases.getInboxNotes(
+          return await inboxPublicApi.getInboxNotes(
             {
               inboxItemId: inboxItemId(data.inboxItemId),
             },

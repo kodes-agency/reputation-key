@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
-import { getDb } from '#/shared/db'
+import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { EventBus } from '#/shared/events/event-bus'
 import {
   inboxItemId,
@@ -12,7 +13,10 @@ import {
 } from '#/shared/domain/ids'
 import type { InboxItem } from '../domain/types'
 import { isInboxError } from '../domain/errors'
-import { createAtomicInboxCommandStore } from './inbox-command-store'
+import {
+  createAtomicInboxCommandStore as createProductionInboxCommandStore,
+  type InboxCommandAuthority,
+} from './inbox-command-store'
 import { createReviewHandlingCycleStore } from './review-handling-cycle.store'
 
 const ORG_ID = organizationId('org-inbox-cycles-0000000000000001')
@@ -24,11 +28,37 @@ const OPENED_AT = new Date('2026-08-26T10:00:00.000Z')
 const db = getDb()
 let pool: Pool
 
+const responseTargetPermit = (materialReviewRevision: number) => ({
+  reviewAuthority: {
+    authority: 'review.current-response-target.v1' as const,
+    organizationId: ORG_ID,
+    propertyId: PROPERTY_ID,
+    reviewId: REVIEW_ID,
+    sourceEpoch: 0,
+    materialReviewRevision,
+    eligibility: 'legacy_unknown' as const,
+    responseTargetStartAt: null,
+  },
+  targetStart: { basis: 'review_provenance' as const },
+})
+
 const silentEvents: EventBus = {
   on: () => {},
   emit: async () => {},
   clear: () => {},
 }
+
+const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
+  allowed: true,
+})
+
+const createAtomicInboxCommandStore = (database: Database, events: EventBus) =>
+  createProductionInboxCommandStore(
+    database,
+    events,
+    allowAllCommandAuthority,
+    () => OPENED_AT,
+  )
 
 const makeItem = (): InboxItem => ({
   id: ITEM_ID,
@@ -52,6 +82,7 @@ const makeItem = (): InboxItem => ({
   closedAt: null,
   firstReplySubmittedAt: null,
   firstReplyPublishedAt: null,
+  commandRevision: 1,
   createdAt: OPENED_AT,
   updatedAt: OPENED_AT,
 })
@@ -60,7 +91,7 @@ async function clean(): Promise<void> {
   await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [ORG_ID])
   await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG_ID])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG_ID])
-  await pool.query('DELETE FROM organization WHERE id = $1', [ORG_ID])
+  await deleteTestOrganizations(pool, [ORG_ID])
 }
 
 async function seedScope(): Promise<void> {
@@ -180,6 +211,39 @@ describe.sequential('Review Handling Cycle store (PostgreSQL)', () => {
     ])
   })
 
+  it('rejects manual reopen rows without a governed reason at the database fence', async () => {
+    const insertManualCycle = (reason: string | null, explanation: string | null) =>
+      pool.query(
+        `INSERT INTO inbox_handling_cycles (
+           inbox_item_id, cycle_number, organization_id, property_id,
+           source_type, source_id, source_revision, review_id,
+           material_review_revision, opened_reason, manual_reopen_reason,
+           manual_reopen_explanation, supersedes_cycle_number, opened_by,
+           opened_at, created_at
+         ) VALUES (
+           $1, 2, $2, $3, 'review', $4, 1, $4, 1,
+           'manual_reopen', $5, $6, 1, $7, $8, $8
+         )`,
+        [
+          ITEM_ID,
+          ORG_ID,
+          PROPERTY_ID,
+          REVIEW_ID,
+          reason,
+          explanation,
+          USER_ID,
+          OPENED_AT,
+        ],
+      )
+
+    await expect(insertManualCycle(null, null)).rejects.toThrow(
+      'inbox_handling_cycles_manual_reopen_valid',
+    )
+    await expect(insertManualCycle('other', '   ')).rejects.toThrow(
+      'inbox_handling_cycles_manual_reopen_valid',
+    )
+  })
+
   it('appends a later material-revision cycle and preserves cycle one verbatim', async () => {
     const store = createReviewHandlingCycleStore(db)
     const [cycleOne] = await store.listCycles(ITEM_ID, ORG_ID)
@@ -193,12 +257,13 @@ describe.sequential('Review Handling Cycle store (PostgreSQL)', () => {
       openedReason: 'material_revision_changed',
       openedBy: null,
       openedAt: OPENED_AT,
+      responseTarget: responseTargetPermit(2),
     })
 
     expect(result.head).toMatchObject({
       currentCycleNumber: 2,
       currentMaterialReviewRevision: 2,
-      stateRevision: 2,
+      stateRevision: 3,
       status: 'open',
     })
     const cycles = await store.listCycles(ITEM_ID, ORG_ID)
@@ -210,6 +275,38 @@ describe.sequential('Review Handling Cycle store (PostgreSQL)', () => {
       openedReason: 'material_revision_changed',
       supersedesCycleNumber: 1,
     })
+    const transitionRows = await pool.query<{
+      state_revision: string
+      cycle_number: string
+      kind: string
+      transition_reason: string
+    }>(
+      `SELECT state_revision, cycle_number, kind, transition_reason
+       FROM inbox_handling_cycle_transitions
+       WHERE inbox_item_id = $1
+       ORDER BY state_revision`,
+      [ITEM_ID],
+    )
+    expect(transitionRows.rows).toEqual([
+      {
+        state_revision: '1',
+        cycle_number: '1',
+        kind: 'opened',
+        transition_reason: 'review_observed',
+      },
+      {
+        state_revision: '2',
+        cycle_number: '1',
+        kind: 'closed',
+        transition_reason: 'superseded_by_source_revision',
+      },
+      {
+        state_revision: '3',
+        cycle_number: '2',
+        kind: 'opened',
+        transition_reason: 'material_revision_changed',
+      },
+    ])
   })
 
   it('lets exactly one concurrent writer advance the expected head', async () => {
@@ -227,6 +324,7 @@ describe.sequential('Review Handling Cycle store (PostgreSQL)', () => {
       openedReason: 'material_revision_changed' as const,
       openedBy: null,
       openedAt: OPENED_AT,
+      responseTarget: responseTargetPermit(2),
     }
 
     const outcomes = await Promise.allSettled([
@@ -246,14 +344,14 @@ describe.sequential('Review Handling Cycle store (PostgreSQL)', () => {
         current: {
           cycleNumber: 2,
           materialReviewRevision: 2,
-          stateRevision: 2,
+          stateRevision: 3,
         },
       },
     })
     await expect(store.listCycles(ITEM_ID, ORG_ID)).resolves.toHaveLength(2)
   })
 
-  it('permits a same-revision manual reopen but rejects a non-current Review revision', async () => {
+  it('permits a same-revision manual reopen but rejects a mismatched authority permit', async () => {
     const store = createReviewHandlingCycleStore(db)
     await advanceReviewTo(2)
     await store.startNext({
@@ -264,35 +362,76 @@ describe.sequential('Review Handling Cycle store (PostgreSQL)', () => {
       openedReason: 'material_revision_changed',
       openedBy: null,
       openedAt: OPENED_AT,
+      responseTarget: responseTargetPermit(2),
     })
+
+    await pool.query(
+      `UPDATE inbox_handling_cycle_heads SET status = 'closed'
+       WHERE inbox_item_id = $1`,
+      [ITEM_ID],
+    )
+    await pool.query(
+      `UPDATE inbox_items SET status = 'closed', closed_at = $2
+       WHERE id = $1`,
+      [ITEM_ID, OPENED_AT],
+    )
 
     const reopened = await store.startNext({
       inboxItemId: ITEM_ID,
       organizationId: ORG_ID,
-      expected: { cycleNumber: 2, materialReviewRevision: 2, stateRevision: 2 },
+      expected: { cycleNumber: 2, materialReviewRevision: 2, stateRevision: 3 },
       materialReviewRevision: 2,
       openedReason: 'manual_reopen',
+      manualReopenReason: 'internal_follow_up_still_needed',
+      manualReopenExplanation: null,
       openedBy: USER_ID,
       openedAt: OPENED_AT,
+      responseTarget: responseTargetPermit(2),
     })
     expect(reopened.cycle).toMatchObject({
       cycleNumber: 3,
       materialReviewRevision: 2,
       openedBy: USER_ID,
+      manualReopenReason: 'internal_follow_up_still_needed',
+      manualReopenExplanation: null,
+    })
+    await expect(
+      pool.query<{
+        state_revision: string
+        cycle_number: string
+        kind: string
+        transition_reason: string
+      }>(
+        `SELECT state_revision, cycle_number, kind, transition_reason
+         FROM inbox_handling_cycle_transitions
+         WHERE inbox_item_id = $1
+         ORDER BY state_revision DESC
+         LIMIT 1`,
+        [ITEM_ID],
+      ),
+    ).resolves.toMatchObject({
+      rows: [
+        {
+          state_revision: '4',
+          cycle_number: '3',
+          kind: 'reopened',
+          transition_reason: 'internal_follow_up_still_needed',
+        },
+      ],
     })
 
-    await insertMaterialRevision(3)
     await expect(
       store.startNext({
         inboxItemId: ITEM_ID,
         organizationId: ORG_ID,
-        expected: { cycleNumber: 3, materialReviewRevision: 2, stateRevision: 3 },
+        expected: { cycleNumber: 3, materialReviewRevision: 2, stateRevision: 4 },
         materialReviewRevision: 3,
         openedReason: 'material_revision_changed',
         openedBy: null,
         openedAt: OPENED_AT,
+        responseTarget: responseTargetPermit(2),
       }),
-    ).rejects.toMatchObject({ code: 'revision_conflict' })
+    ).rejects.toMatchObject({ code: 'invalid_input' })
     await expect(store.listCycles(ITEM_ID, ORG_ID)).resolves.toHaveLength(3)
   })
 })

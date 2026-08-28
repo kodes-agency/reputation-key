@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest'
-import { bulkUpdateInboxStatus } from './bulk-update-inbox-status'
+import { describe, it, expect, vi } from 'vitest'
+import {
+  bulkUpdateInboxStatus,
+  type BulkUpdateInboxStatusInput,
+} from './bulk-update-inbox-status'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
 import { createInMemoryInboxRepo } from '#/shared/testing/in-memory-inbox-repo'
 import { createMockLogger } from '#/shared/testing/mock-logger'
@@ -18,8 +21,12 @@ import type { Role } from '#/shared/domain/roles'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Permission } from '#/shared/domain/permissions'
 import { createScopedAuthContext } from '#/shared/testing/scoped-auth-context'
+import { isInboxError } from '../../domain/errors'
+import type { ReviewSourceLookupPort } from '../ports/review-source-lookup.port'
+import type { ReviewResponseTargetAuthorityPort } from '../ports/review-response-target-authority.port'
 
 const FIXED_TIME = new Date('2026-04-15T12:00:00Z')
+const PROVIDER_TIME = new Date('2026-04-10T12:00:00Z')
 const ORG_ID = organizationId('org-1')
 const OTHER_ORG_ID = organizationId('org-other')
 const USER_ID = userId('user-1')
@@ -65,6 +72,7 @@ function seedItem(
     closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
+    commandRevision: 1,
     createdAt: FIXED_TIME,
     updatedAt: FIXED_TIME,
   }
@@ -73,22 +81,68 @@ function seedItem(
 const defaultStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 const setup = (staffApi: StaffPublicApi = defaultStaffApi) => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
   const commandStore = createSequentialInboxCommandStore({ repo, events })
+  const reviewSourceLookup: ReviewSourceLookupPort = {
+    getReviewSourceMetaById: async () => null,
+    getReviewSourceMetaByIds: async (ids) =>
+      ids.flatMap((id) => {
+        const item = repo.items.find(
+          (candidate) => candidate.sourceType === 'review' && candidate.sourceId === id,
+        )
+        return item
+          ? [
+              {
+                id,
+                propertyId: item.propertyId,
+                platform: 'google',
+                sourceEpoch: 1,
+                sourceDate: item.sourceDate,
+                contentExpiresAt: null,
+                materialReviewRevision: 1,
+              },
+            ]
+          : []
+      }),
+    listReviewSources: async () => [],
+  }
+  const responseTargetAuthority: ReviewResponseTargetAuthorityPort = {
+    withExactCurrent: async () => ({ status: 'obsolete' }),
+    withInboxProjection: async () => ({ status: 'obsolete' }),
+    withExactCurrentBatch: async (expectations, apply) => ({
+      status: 'current',
+      value: await apply(
+        expectations.map((expectation) => ({
+          ...expectation,
+          authority: 'review.current-response-target.v1',
+          materialReviewRevision: 1,
+          eligibility: 'measured',
+          responseTargetStartAt: PROVIDER_TIME,
+        })),
+      ),
+    }),
+  }
   const deps = {
     repo,
     commandStore,
     clock: () => FIXED_TIME,
+    idGen: () => '6a000000-0000-4000-8000-000000000002',
     staffPublicApi: staffApi,
+    reviewSourceLookup,
+    responseTargetAuthority,
     logger: createMockLogger(),
   }
-  const useCase = bulkUpdateInboxStatus(deps)
-  return { useCase, repo, events }
+  const execute = bulkUpdateInboxStatus(deps)
+  const useCase = (
+    input: Omit<BulkUpdateInboxStatusInput, 'reopenReason'> &
+      Partial<Pick<BulkUpdateInboxStatusInput, 'reopenReason'>>,
+    ctx: AuthContext,
+  ) => execute({ reopenReason: 'new_information', ...input }, ctx)
+  return { useCase, repo, events, commandStore }
 }
 
 const expectItemStatuses = (
@@ -98,23 +152,77 @@ const expectItemStatuses = (
   statuses.forEach((status, i) => expect(repo.items[i]?.status).toBe(status))
 }
 
+const bulkCommands = (...ids: string[]) =>
+  ids.map((id) => ({
+    inboxItemId: inboxItemId(id),
+    expectedCommandRevision: 1,
+  }))
+
 describe('bulkUpdateInboxStatus', () => {
   it('updates multiple items with valid transitions', async () => {
-    const { useCase, repo } = setup()
+    const { useCase, repo, commandStore } = setup()
+    const storeCall = vi.spyOn(commandStore, 'bulkUpdateStatus')
     repo.items.push(seedItem('ii-1', 'closed'))
     repo.items.push(seedItem('ii-2', 'closed'))
 
     const result = await useCase(
       {
-        inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+        items: bulkCommands('ii-1', 'ii-2'),
         newStatus: 'open',
       },
       ctxFor('AccountAdmin'),
     )
 
     expect(result.updated).toBe(2)
+    expect(result.results).toEqual([
+      { inboxItemId: inboxItemId('ii-1'), outcome: 'reopened' },
+      { inboxItemId: inboxItemId('ii-2'), outcome: 'reopened' },
+    ])
     expect(repo.items[0].status).toBe('open')
     expect(repo.items[1].status).toBe('open')
+    const targets = storeCall.mock.calls[0]?.[3]
+    expect(targets).toBeInstanceOf(Map)
+    expect([...(targets?.values() ?? [])]).toEqual([
+      expect.objectContaining({
+        reviewAuthority: expect.objectContaining({
+          eligibility: 'measured',
+          responseTargetStartAt: PROVIDER_TIME,
+        }),
+        targetStart: { basis: 'operational_reopen', at: FIXED_TIME },
+      }),
+      expect.objectContaining({
+        reviewAuthority: expect.objectContaining({
+          eligibility: 'measured',
+          responseTargetStartAt: PROVIDER_TIME,
+        }),
+        targetStart: { basis: 'operational_reopen', at: FIXED_TIME },
+      }),
+    ])
+  })
+
+  it('forwards the governed reason and Other explanation to the store', async () => {
+    const { useCase, repo, commandStore } = setup()
+    repo.items.push(seedItem('ii-1', 'closed', 'prop-1', 'feedback'))
+    const storeCall = vi.spyOn(commandStore, 'bulkUpdateStatus')
+
+    await useCase(
+      {
+        items: bulkCommands('ii-1'),
+        newStatus: 'open',
+        reopenReason: 'other',
+        reopenExplanation: '  A new guest message needs follow-up.  ',
+      },
+      ctxFor('AccountAdmin'),
+    )
+
+    expect(storeCall).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: inboxItemId('ii-1') })],
+      [expect.objectContaining({ newStatus: 'open' })],
+      {
+        reason: 'other',
+        explanation: '  A new guest message needs follow-up.  ',
+      },
+    )
   })
 
   it('skips items with invalid transitions', async () => {
@@ -124,7 +232,7 @@ describe('bulkUpdateInboxStatus', () => {
 
     const result = await useCase(
       {
-        inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+        items: bulkCommands('ii-1', 'ii-2'),
         newStatus: 'open',
       },
       ctxFor('AccountAdmin'),
@@ -132,6 +240,10 @@ describe('bulkUpdateInboxStatus', () => {
 
     // ii-1: closed→open (valid), ii-2: open→open (invalid — same status)
     expect(result.updated).toBe(1)
+    expect(result.results).toEqual([
+      { inboxItemId: inboxItemId('ii-1'), outcome: 'reopened' },
+      { inboxItemId: inboxItemId('ii-2'), outcome: 'already_open' },
+    ])
     expectItemStatuses(repo, 'open', 'open')
   })
 
@@ -141,13 +253,52 @@ describe('bulkUpdateInboxStatus', () => {
 
     const result = await useCase(
       {
-        inboxItemIds: [inboxItemId('ii-1')],
+        items: bulkCommands('ii-1'),
         newStatus: 'open', // open → open is invalid
       },
       ctxFor('AccountAdmin'),
     )
 
     expect(result.updated).toBe(0)
+    expect(result.results).toEqual([
+      { inboxItemId: inboxItemId('ii-1'), outcome: 'already_open' },
+    ])
+  })
+
+  it('reports a stale client revision without mutating or emitting a fact', async () => {
+    const { useCase, repo, events } = setup()
+    repo.items.push(seedItem('ii-1', 'closed'))
+
+    const result = await useCase(
+      {
+        items: [
+          {
+            inboxItemId: inboxItemId('ii-1'),
+            expectedCommandRevision: 2,
+          },
+        ],
+        newStatus: 'open',
+      },
+      ctxFor('AccountAdmin'),
+    )
+
+    expect(result).toEqual({
+      updated: 0,
+      results: [{ inboxItemId: inboxItemId('ii-1'), outcome: 'revision_conflict' }],
+    })
+    expect(repo.items[0]!.status).toBe('closed')
+    expect(events.capturedByTag('inbox.inbox_item.bulk_status_changed')).toEqual([])
+  })
+
+  it('rejects duplicate command IDs at the application boundary', async () => {
+    const { useCase } = setup()
+    const duplicate = bulkCommands('ii-1', 'ii-1')
+
+    await expect(
+      useCase({ items: duplicate, newStatus: 'open' }, ctxFor('AccountAdmin')),
+    ).rejects.toSatisfy(
+      (error: unknown) => isInboxError(error) && error.code === 'invalid_input',
+    )
   })
 
   it('emits bulk status changed events for each updated item with shared bulkId', async () => {
@@ -157,7 +308,7 @@ describe('bulkUpdateInboxStatus', () => {
 
     await useCase(
       {
-        inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+        items: bulkCommands('ii-1', 'ii-2'),
         newStatus: 'open',
       },
       ctxFor('AccountAdmin'),
@@ -177,7 +328,7 @@ describe('bulkUpdateInboxStatus', () => {
 
     const result = await useCase(
       {
-        inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+        items: bulkCommands('ii-1', 'ii-2'),
         newStatus: 'open',
       },
       ctxFor('AccountAdmin'),
@@ -195,13 +346,17 @@ describe('bulkUpdateInboxStatus', () => {
 
     const result = await useCase(
       {
-        inboxItemIds: [inboxItemId('ii-review'), inboxItemId('ii-feedback')],
+        items: bulkCommands('ii-review', 'ii-feedback'),
         newStatus: 'open',
       },
       ctxWith('inbox.write', 'review.read'),
     )
 
     expect(result.updated).toBe(1)
+    expect(result.results).toEqual([
+      { inboxItemId: inboxItemId('ii-review'), outcome: 'reopened' },
+      { inboxItemId: inboxItemId('ii-feedback'), outcome: 'unavailable' },
+    ])
     expectItemStatuses(repo, 'open', 'closed')
   })
 
@@ -211,13 +366,16 @@ describe('bulkUpdateInboxStatus', () => {
 
     const result = await useCase(
       {
-        inboxItemIds: [inboxItemId('ii-feedback')],
+        items: bulkCommands('ii-feedback'),
         newStatus: 'open',
       },
       ctxWith('inbox.write', 'feedback.read'),
     )
 
     expect(result.updated).toBe(0)
+    expect(result.results).toEqual([
+      { inboxItemId: inboxItemId('ii-feedback'), outcome: 'unavailable' },
+    ])
     expect(repo.items[0]!.status).toBe('closed')
   })
 
@@ -235,11 +393,7 @@ describe('bulkUpdateInboxStatus', () => {
 
     const result = await useCase(
       {
-        inboxItemIds: [
-          inboxItemId('review-2'),
-          inboxItemId('feedback-1'),
-          inboxItemId('feedback-2'),
-        ],
+        items: bulkCommands('review-2', 'feedback-1', 'feedback-2'),
         newStatus: 'open',
       },
       createScopedAuthContext({
@@ -261,7 +415,6 @@ describe('bulkUpdateInboxStatus', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'closed', 'prop-1'))
@@ -269,13 +422,17 @@ describe('bulkUpdateInboxStatus', () => {
 
     const result = await useCase(
       {
-        inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+        items: bulkCommands('ii-1', 'ii-2'),
         newStatus: 'open',
       },
       ctxFor('Staff'),
     )
 
     expect(result.updated).toBe(0)
+    expect(result.results).toEqual([
+      { inboxItemId: inboxItemId('ii-1'), outcome: 'unavailable' },
+      { inboxItemId: inboxItemId('ii-2'), outcome: 'unavailable' },
+    ])
     expect(repo.items[0].status).toBe('closed')
     expect(repo.items[1].status).toBe('closed')
   })
@@ -284,7 +441,6 @@ describe('bulkUpdateInboxStatus', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'closed', 'prop-1'))
@@ -292,7 +448,7 @@ describe('bulkUpdateInboxStatus', () => {
 
     const result = await useCase(
       {
-        inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+        items: bulkCommands('ii-1', 'ii-2'),
         newStatus: 'open',
       },
       ctxFor('Staff'),
@@ -306,7 +462,6 @@ describe('bulkUpdateInboxStatus', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('prop-1')],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'closed', 'prop-1'))
@@ -314,7 +469,7 @@ describe('bulkUpdateInboxStatus', () => {
 
     const result = await useCase(
       {
-        inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+        items: bulkCommands('ii-1', 'ii-2'),
         newStatus: 'open',
       },
       ctxFor('PropertyManager'),
@@ -328,14 +483,13 @@ describe('bulkUpdateInboxStatus', () => {
     const staffApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'closed', 'prop-1'))
 
     const result = await useCase(
       {
-        inboxItemIds: [inboxItemId('ii-1')],
+        items: bulkCommands('ii-1'),
         newStatus: 'open',
       },
       ctxFor('PropertyManager'),
@@ -351,7 +505,6 @@ describe('bulkUpdateInboxStatus', () => {
         throw new Error('Should not be called for AccountAdmin')
       },
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const { useCase, repo } = setup(staffApi)
     repo.items.push(seedItem('ii-1', 'closed', 'prop-1'))
@@ -359,7 +512,7 @@ describe('bulkUpdateInboxStatus', () => {
 
     const result = await useCase(
       {
-        inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+        items: bulkCommands('ii-1', 'ii-2'),
         newStatus: 'open',
       },
       ctxFor('AccountAdmin'),
@@ -378,7 +531,7 @@ describe('bulkUpdateInboxStatus', () => {
 
     const result = await useCase(
       {
-        inboxItemIds: [inboxItemId('ii-1'), inboxItemId('ii-2')],
+        items: bulkCommands('ii-1', 'ii-2'),
         newStatus: 'open',
       },
       ctxFor('AccountAdmin', OTHER_ORG_ID),
@@ -386,6 +539,10 @@ describe('bulkUpdateInboxStatus', () => {
 
     // Items belong to ORG_ID; caller is in OTHER_ORG_ID — zero updates, items unchanged
     expect(result.updated).toBe(0)
+    expect(result.results).toEqual([
+      { inboxItemId: inboxItemId('ii-1'), outcome: 'unavailable' },
+      { inboxItemId: inboxItemId('ii-2'), outcome: 'unavailable' },
+    ])
     expect(repo.items[0].status).toBe('closed')
     expect(repo.items[1].status).toBe('closed')
   })

@@ -10,7 +10,11 @@ import {
   getInboxItemsDto,
   INBOX_BULK_LIMIT,
   assignInboxItemDto,
+  bulkAssignInboxItemsDto,
   addInboxNoteDto,
+  markFeedbackHandledDto,
+  correctFeedbackHandlingOutcomeDto,
+  stampLastInboxViewDto,
 } from '../application/dto/inbox.dto'
 import { inboxError, isInboxError } from '../domain/errors'
 
@@ -20,6 +24,7 @@ describe('updateStatusDto', () => {
   const validInput = {
     inboxItemId: '550e8400-e29b-41d4-a716-446655440000',
     status: 'closed' as const,
+    expectedCommandRevision: 1,
   }
 
   it('parses valid input', () => {
@@ -43,6 +48,27 @@ describe('updateStatusDto', () => {
       false,
     )
   })
+
+  it('requires a governed reason for reopen and an explanation only for Other', () => {
+    expect(updateStatusDto.safeParse({ ...validInput, status: 'open' }).success).toBe(
+      false,
+    )
+    expect(
+      updateStatusDto.safeParse({
+        ...validInput,
+        status: 'open',
+        reopenReason: 'new_information',
+      }).success,
+    ).toBe(true)
+    expect(
+      updateStatusDto.safeParse({
+        ...validInput,
+        status: 'open',
+        reopenReason: 'other',
+        reopenExplanation: ' ',
+      }).success,
+    ).toBe(false)
+  })
 })
 
 describe('getInboxItemsDto', () => {
@@ -56,10 +82,33 @@ describe('getInboxItemsDto', () => {
   })
 })
 
+describe('stampLastInboxViewDto', () => {
+  it('normalizes an issued ISO response cutoff', () => {
+    expect(
+      stampLastInboxViewDto.parse({
+        responseCutoff: '2026-08-27T12:00:00.000Z',
+      }),
+    ).toEqual({ responseCutoff: new Date('2026-08-27T12:00:00.000Z') })
+  })
+
+  it('requires a valid response cutoff', () => {
+    expect(stampLastInboxViewDto.safeParse({}).success).toBe(false)
+    expect(
+      stampLastInboxViewDto.safeParse({ responseCutoff: 'not-a-date' }).success,
+    ).toBe(false)
+  })
+})
+
 describe('bulkUpdateStatusDto', () => {
   const validInput = {
-    inboxItemIds: ['550e8400-e29b-41d4-a716-446655440000'],
+    items: [
+      {
+        inboxItemId: '550e8400-e29b-41d4-a716-446655440000',
+        expectedCommandRevision: 1,
+      },
+    ],
     status: 'open' as const,
+    reopenReason: 'new_information' as const,
   }
 
   it('parses valid input', () => {
@@ -67,15 +116,31 @@ describe('bulkUpdateStatusDto', () => {
   })
 
   it('rejects empty array', () => {
-    expect(
-      bulkUpdateStatusDto.safeParse({ ...validInput, inboxItemIds: [] }).success,
-    ).toBe(false)
+    expect(bulkUpdateStatusDto.safeParse({ ...validInput, items: [] }).success).toBe(
+      false,
+    )
   })
 
   it('rejects array exceeding 100 items', () => {
-    const ids = Array(INBOX_BULK_LIMIT + 1).fill('550e8400-e29b-41d4-a716-446655440000')
+    const items = Array.from({ length: INBOX_BULK_LIMIT + 1 }, (_, index) => ({
+      inboxItemId: `550e8400-e29b-41d4-a716-${String(index).padStart(12, '0')}`,
+      expectedCommandRevision: 1,
+    }))
+    expect(bulkUpdateStatusDto.safeParse({ ...validInput, items }).success).toBe(false)
+  })
+
+  it('rejects duplicate IDs and missing revisions', () => {
     expect(
-      bulkUpdateStatusDto.safeParse({ ...validInput, inboxItemIds: ids }).success,
+      bulkUpdateStatusDto.safeParse({
+        ...validInput,
+        items: [...validInput.items, ...validInput.items],
+      }).success,
+    ).toBe(false)
+    expect(
+      bulkUpdateStatusDto.safeParse({
+        ...validInput,
+        items: [{ inboxItemId: validInput.items[0]!.inboxItemId }],
+      }).success,
     ).toBe(false)
   })
 
@@ -96,13 +161,37 @@ describe('bulkUpdateStatusDto', () => {
       bulkUpdateStatusDto.safeParse({ ...validInput, status: 'closed' }).success,
     ).toBe(false)
   })
+
+  it('requires Other to have a bounded explanation and rejects stray explanations', () => {
+    expect(
+      bulkUpdateStatusDto.safeParse({
+        ...validInput,
+        reopenReason: 'other',
+        reopenExplanation: ' ',
+      }).success,
+    ).toBe(false)
+    expect(
+      bulkUpdateStatusDto.safeParse({
+        ...validInput,
+        reopenReason: 'other',
+        reopenExplanation: 'A new guest message needs follow-up.',
+      }).success,
+    ).toBe(true)
+    expect(
+      bulkUpdateStatusDto.safeParse({
+        ...validInput,
+        reopenExplanation: 'not applicable',
+      }).success,
+    ).toBe(false)
+  })
 })
 
 describe('assignInboxItemDto', () => {
-  it('parses valid assignment', () => {
+  it('accepts the opaque Better Auth user ID used by real assignment targets', () => {
     const result = assignInboxItemDto.safeParse({
       inboxItemId: '550e8400-e29b-41d4-a716-446655440000',
-      assignedToUserId: '660e8400-e29b-41d4-a716-446655440000',
+      assignedToUserId: 'V1StGXR8_Z5jdHi6B-myT',
+      expectedCommandRevision: 1,
     })
     expect(result.success).toBe(true)
   })
@@ -111,17 +200,69 @@ describe('assignInboxItemDto', () => {
     const result = assignInboxItemDto.safeParse({
       inboxItemId: '550e8400-e29b-41d4-a716-446655440000',
       assignedToUserId: null,
+      expectedCommandRevision: 1,
     })
     expect(result.success).toBe(true)
   })
 
-  it('rejects non-UUID userId', () => {
-    const result = assignInboxItemDto.safeParse({
-      inboxItemId: '550e8400-e29b-41d4-a716-446655440000',
-      assignedToUserId: 'not-a-uuid',
-    })
-    expect(result.success).toBe(false)
+  it.each(['', 'contains whitespace', 'line\nbreak', '<script>', 'x'.repeat(256)])(
+    'rejects malformed or unbounded opaque user ID %j',
+    (assignedToUserId) => {
+      expect(
+        assignInboxItemDto.safeParse({
+          inboxItemId: '550e8400-e29b-41d4-a716-446655440000',
+          assignedToUserId,
+          expectedCommandRevision: 1,
+        }).success,
+      ).toBe(false)
+    },
+  )
+})
+
+describe('bulkAssignInboxItemsDto', () => {
+  const item = {
+    inboxItemId: '550e8400-e29b-41d4-a716-446655440000',
+    expectedCommandRevision: 1,
+  }
+
+  it('accepts assign and release while bounding and de-duplicating the batch', () => {
+    expect(
+      bulkAssignInboxItemsDto.safeParse({
+        items: [item],
+        assignedToUserId: 'V1StGXR8_Z5jdHi6B-myT',
+      }).success,
+    ).toBe(true)
+    expect(
+      bulkAssignInboxItemsDto.safeParse({
+        items: [item],
+        assignedToUserId: null,
+      }).success,
+    ).toBe(true)
+    expect(
+      bulkAssignInboxItemsDto.safeParse({
+        items: [item, item],
+        assignedToUserId: null,
+      }).success,
+    ).toBe(false)
+    expect(
+      bulkAssignInboxItemsDto.safeParse({
+        items: [],
+        assignedToUserId: null,
+      }).success,
+    ).toBe(false)
   })
+
+  it.each(['', 'contains whitespace', 'line\nbreak', '<script>', 'x'.repeat(256)])(
+    'rejects malformed or unbounded opaque user ID %j',
+    (assignedToUserId) => {
+      expect(
+        bulkAssignInboxItemsDto.safeParse({
+          items: [item],
+          assignedToUserId,
+        }).success,
+      ).toBe(false)
+    },
+  )
 })
 
 describe('addInboxNoteDto', () => {
@@ -129,6 +270,7 @@ describe('addInboxNoteDto', () => {
     const result = addInboxNoteDto.safeParse({
       inboxItemId: '550e8400-e29b-41d4-a716-446655440000',
       text: 'Called the customer',
+      expectedCommandRevision: 1,
     })
     expect(result.success).toBe(true)
   })
@@ -137,16 +279,94 @@ describe('addInboxNoteDto', () => {
     const result = addInboxNoteDto.safeParse({
       inboxItemId: '550e8400-e29b-41d4-a716-446655440000',
       text: '',
+      expectedCommandRevision: 1,
     })
     expect(result.success).toBe(false)
+  })
+
+  it('rejects whitespace-only text and normalizes surrounding whitespace', () => {
+    expect(
+      addInboxNoteDto.safeParse({
+        inboxItemId: '550e8400-e29b-41d4-a716-446655440000',
+        text: '   ',
+        expectedCommandRevision: 1,
+      }).success,
+    ).toBe(false)
+    expect(
+      addInboxNoteDto.parse({
+        inboxItemId: '550e8400-e29b-41d4-a716-446655440000',
+        text: '  Called the customer  ',
+        expectedCommandRevision: 1,
+      }).text,
+    ).toBe('Called the customer')
   })
 
   it('rejects text exceeding 5000 chars', () => {
     const result = addInboxNoteDto.safeParse({
       inboxItemId: '550e8400-e29b-41d4-a716-446655440000',
       text: 'x'.repeat(5001),
+      expectedCommandRevision: 1,
     })
     expect(result.success).toBe(false)
+  })
+})
+
+describe('private-feedback handling DTOs', () => {
+  const base = {
+    inboxItemId: '550e8400-e29b-41d4-a716-446655440000',
+    outcome: 'follow_up_completed' as const,
+    internalNote: 'Guest confirmed the issue was resolved.',
+    expectedCommandRevision: 2,
+    expectedCycleNumber: 1,
+    expectedSourceRevision: 4,
+    expectedStateRevision: 3,
+  }
+
+  it('accepts exactly the controlled manager outcomes and an optional internal note', () => {
+    expect(markFeedbackHandledDto.safeParse(base).success).toBe(true)
+    expect(
+      markFeedbackHandledDto.safeParse({ ...base, internalNote: null }).success,
+    ).toBe(true)
+    expect(
+      markFeedbackHandledDto.safeParse({ ...base, outcome: 'guest_withdrawn' }).success,
+    ).toBe(false)
+    expect(markFeedbackHandledDto.safeParse({ ...base, outcome: 'closed' }).success).toBe(
+      false,
+    )
+  })
+
+  it('requires positive safe revision fences and bounds internal notes', () => {
+    expect(
+      markFeedbackHandledDto.safeParse({ ...base, expectedCycleNumber: 0 }).success,
+    ).toBe(false)
+    expect(
+      markFeedbackHandledDto.safeParse({ ...base, expectedStateRevision: 1.5 }).success,
+    ).toBe(false)
+    expect(
+      markFeedbackHandledDto.safeParse({ ...base, internalNote: 'x'.repeat(2_001) })
+        .success,
+    ).toBe(false)
+  })
+
+  it('requires the exact outcome fact when correcting history', () => {
+    const correction = {
+      ...base,
+      expectedOutcomeId: '650e8400-e29b-41d4-a716-446655440000',
+      expectedOutcomeRevision: 1,
+    }
+    expect(correctFeedbackHandlingOutcomeDto.safeParse(correction).success).toBe(true)
+    expect(
+      correctFeedbackHandlingOutcomeDto.safeParse({
+        ...correction,
+        expectedOutcomeId: 'not-an-id',
+      }).success,
+    ).toBe(false)
+    expect(
+      correctFeedbackHandlingOutcomeDto.safeParse({
+        ...correction,
+        expectedOutcomeRevision: 0,
+      }).success,
+    ).toBe(false)
   })
 })
 

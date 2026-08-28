@@ -63,7 +63,6 @@ describe('Inbox source-specific access', () => {
     const staffPublicApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('property-1')],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const ctx = createScopedAuthContext({
       organizationId: organizationId('org-1'),
@@ -85,7 +84,6 @@ describe('Inbox source-specific access', () => {
     const staffPublicApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [propertyId('property-1')],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const ctx = createScopedAuthContext({
       organizationId: organizationId('org-1'),

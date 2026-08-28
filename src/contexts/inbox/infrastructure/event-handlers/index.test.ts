@@ -11,6 +11,7 @@ import type { EventBus } from '#/shared/events/event-bus'
 import type { CutoverFamily, CutoverState } from '#/shared/outbox/cutover-flags'
 import { registerInboxHandlers } from './index'
 import type { RegisterInboxHandlersDeps } from './index'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 
 function recordingBus() {
   const registrations: Array<{ tag: string; consumer?: string }> = []
@@ -26,13 +27,15 @@ function recordingBus() {
 
 function depsFor(
   events: EventBus,
-  cutoverState?: (family: CutoverFamily) => CutoverState,
+  cutoverState: (family: CutoverFamily) => CutoverState = () => 'record-only',
 ): RegisterInboxHandlersDeps {
   return {
     events,
     createInboxItem: vi.fn() as unknown as RegisterInboxHandlersDeps['createInboxItem'],
     repo: {} as RegisterInboxHandlersDeps['repo'],
-    ...(cutoverState ? { cutoverState } : {}),
+    commandStore: {} as RegisterInboxHandlersDeps['commandStore'],
+    logger: createMockLogger(),
+    cutoverState,
   }
 }
 

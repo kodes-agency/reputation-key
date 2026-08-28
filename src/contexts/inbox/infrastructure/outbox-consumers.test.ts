@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
   handleInboxReviewCreated,
   handleInboxReviewExpired,
+  handleInboxReviewSourceTransitioned,
   handleInboxReviewUpdated,
   handleInboxReplyObserved,
   handleInboxReplyPublished,
@@ -31,6 +32,11 @@ import type {
 import type { ApplyReceiptStatus } from '../application/ports/inbox-command-store.port'
 import type { ReviewHandlingCycleStore } from '../application/ports/review-handling-cycle.store'
 import type { ReplyObservationAuthorityPort } from '../application/ports/reply-observation-authority.port'
+import type { SourceTransitionAuthorityPort } from '../application/ports/source-transition-authority.port'
+import type {
+  ReviewResponseTargetAuthorityPort,
+  ReviewResponseTargetExpectation,
+} from '../application/ports/review-response-target-authority.port'
 import { createNextReviewHandlingCycle } from '../domain/handling-cycles'
 import { inboxError } from '../domain/errors'
 import {
@@ -45,6 +51,7 @@ import type {
   FeedbackLookupPort,
   FeedbackSnippet,
 } from '../application/ports/feedback-lookup.port'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => ({
@@ -84,6 +91,7 @@ function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
     closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
+    commandRevision: 1,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -91,11 +99,15 @@ function makeItem(overrides: Partial<InboxItem> = {}): InboxItem {
 }
 
 function makeEvent(eventType: string, payload: Record<string, unknown>): ConsumerEvent {
+  const versionedPayload =
+    eventType === 'review.created' || eventType === 'review.updated'
+      ? { sourceEpoch: 1, sourceRevision: 1, ...payload }
+      : payload
   return {
     eventId: 'evt-1',
     eventType,
     eventVersion: 1,
-    payload,
+    payload: versionedPayload,
     organizationId: 'org-1',
     propertyId: 'prop-1',
     sourceContext: 'review',
@@ -119,6 +131,7 @@ const SOURCE_META: ReviewSourceMeta = {
   id: REV,
   propertyId: PROP,
   platform: 'google',
+  sourceEpoch: 1,
   sourceDate: new Date('2026-06-10'),
   contentExpiresAt: null,
   materialReviewRevision: 1,
@@ -141,6 +154,8 @@ function makeDeps(overrides: {
   sourceMeta?: ReviewSourceMeta | null
   feedback?: FeedbackSnippet | null
   observationCurrent?: boolean
+  sourceTransitionCurrent?: boolean
+  responseTargetCurrent?: boolean
   handlingCycleMissing?: boolean
   handlingCycleMaterialReviewRevision?: number
 }) {
@@ -169,6 +184,11 @@ function makeDeps(overrides: {
     getReviewSourceMetaById: vi.fn(async () =>
       overrides.sourceMeta === undefined ? SOURCE_META : overrides.sourceMeta,
     ),
+    getReviewSourceMetaByIds: vi.fn(async () => {
+      const source =
+        overrides.sourceMeta === undefined ? SOURCE_META : overrides.sourceMeta
+      return source ? [source] : []
+    }),
     listReviewSources: vi.fn(async () => []),
   } satisfies ReviewSourceLookupPort
 
@@ -213,6 +233,8 @@ function makeDeps(overrides: {
         current: handlingCycleHead,
         materialReviewRevision: command.materialReviewRevision,
         openedReason: command.openedReason,
+        manualReopenReason: command.manualReopenReason,
+        manualReopenExplanation: command.manualReopenExplanation,
         openedBy: command.openedBy,
         openedAt: command.openedAt,
       })
@@ -234,20 +256,127 @@ function makeDeps(overrides: {
           state: expectation.resolution === 'absent' ? 'absent' : 'live',
           observedAt: expectation.occurredAt,
           authority: 'review.current-google-reply-observation.v1',
+          reviewSourceContentState: 'active',
+          responseTargetEligibility: 'measured',
+          responseTargetStartAt: SOURCE_META.sourceDate,
         }),
       }
     }),
   } satisfies ReplyObservationAuthorityPort
 
+  const sourceTransitionAuthority = {
+    withExactCurrent: vi.fn(async (expectation, apply) => {
+      if (overrides.sourceTransitionCurrent === false) {
+        return { status: 'obsolete' as const }
+      }
+      return {
+        status: 'current' as const,
+        value: await apply({
+          ...expectation,
+          authority: 'review.current-source-transition.v1',
+        }),
+      }
+    }),
+  } satisfies SourceTransitionAuthorityPort
+
+  const responseTargetAuthority = {
+    withExactCurrent: vi.fn(async (expectation, apply) => {
+      if (overrides.responseTargetCurrent === false) {
+        return { status: 'obsolete' as const }
+      }
+      const meta = overrides.sourceMeta === undefined ? SOURCE_META : overrides.sourceMeta
+      return {
+        status: 'current' as const,
+        value: await apply({
+          ...expectation,
+          authority: 'review.current-response-target.v1',
+          materialReviewRevision: meta?.materialReviewRevision ?? 1,
+          eligibility: 'measured',
+          responseTargetStartAt: meta?.sourceDate ?? NOW,
+        }),
+      }
+    }),
+    withExactCurrentBatch: vi.fn(async (expectations, apply) => {
+      if (overrides.responseTargetCurrent === false) {
+        return { status: 'obsolete' as const }
+      }
+      const meta = overrides.sourceMeta === undefined ? SOURCE_META : overrides.sourceMeta
+      return {
+        status: 'current' as const,
+        value: await apply(
+          expectations.map((expectation: ReviewResponseTargetExpectation) => ({
+            ...expectation,
+            authority: 'review.current-response-target.v1' as const,
+            materialReviewRevision: meta?.materialReviewRevision ?? 1,
+            eligibility: 'measured' as const,
+            responseTargetStartAt: meta?.sourceDate ?? NOW,
+          })),
+        ),
+      }
+    }),
+    withInboxProjection: vi.fn(async (expectation, apply) => {
+      if (
+        overrides.responseTargetCurrent === false ||
+        overrides.sourceMeta === null ||
+        overrides.snippetResult?.status === 'not_found'
+      ) {
+        return { status: 'obsolete' as const }
+      }
+      const meta = overrides.sourceMeta ?? SOURCE_META
+      const revisionCount = meta.materialReviewRevision ?? 1
+      return {
+        status: 'current' as const,
+        value: await apply({
+          authority: 'review.current-inbox-projection.v1',
+          organizationId: expectation.organizationId,
+          propertyId: expectation.propertyId,
+          reviewId: expectation.reviewId,
+          sourceEpoch: expectation.sourceEpoch,
+          platform: 'google',
+          sourceDate: meta.sourceDate,
+          sourceContentState: 'active',
+          sourceContentErasedAt: null,
+          currentMaterialReviewRevision: revisionCount,
+          revisions: Array.from({ length: revisionCount }, (_, index) => ({
+            authority: 'review.inbox-projection-revision.v1' as const,
+            organizationId: expectation.organizationId,
+            propertyId: expectation.propertyId,
+            reviewId: expectation.reviewId,
+            sourceEpoch: expectation.sourceEpoch,
+            materialReviewRevision: index + 1,
+            eligibility: 'measured' as const,
+            responseTargetStartAt: meta.sourceDate,
+            observedAt: new Date(NOW.getTime() + index),
+          })) as [
+            {
+              authority: 'review.inbox-projection-revision.v1'
+              organizationId: string
+              propertyId: string
+              reviewId: string
+              sourceEpoch: number
+              materialReviewRevision: number
+              eligibility: 'measured'
+              responseTargetStartAt: Date
+              observedAt: Date
+            },
+          ],
+        }),
+      }
+    }),
+  } satisfies ReviewResponseTargetAuthorityPort
+
   const deps: InboxConsumerDeps = {
     commandStore,
     handlingCycleStore,
     replyObservationAuthority,
+    responseTargetAuthority,
+    sourceTransitionAuthority,
     reviewLookup,
     reviewSourceLookup,
     inboxRepo: repo,
     idGen: () => INBOX,
     clock: () => NOW,
+    logger: createMockLogger(),
   }
   const guestDeps = {
     commandStore,
@@ -264,6 +393,7 @@ function makeDeps(overrides: {
     receipts,
     handlingCycleStore,
     replyObservationAuthority,
+    sourceTransitionAuthority,
     materializeHandlingCycle: (materializedItem: InboxItem) => {
       handlingCycleHead = {
         inboxItemId: materializedItem.id,
@@ -453,6 +583,64 @@ describe('handleInboxGuestFeedbackRetracted (durable private feedback)', () => {
       },
     ])
   })
+
+  it('lets the cycle store decide closure when the compatibility row is already closed', async () => {
+    const item = makeItem({
+      sourceType: 'feedback',
+      sourceId: feedbackId('feedback-1'),
+      platform: null,
+      status: 'closed',
+      closedAt: new Date('2026-06-14T12:00:00Z'),
+    })
+    const { guestDeps } = makeDeps({ item })
+    const apply = vi
+      .spyOn(guestDeps.commandStore, 'applySourceWithdrawnOnce')
+      .mockResolvedValue('applied')
+
+    await handleInboxGuestFeedbackRetracted(
+      guestDeps,
+      makeEvent('guest.feedback.retracted', {
+        feedbackId: 'feedback-1',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+        portalId: 'portal-1',
+        supersedesSourceEventId: 'source-event-1',
+        occurredAt: NOW.toISOString(),
+      }),
+    )
+
+    expect(apply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        item,
+        fact: expect.objectContaining({ oldStatus: 'open', newStatus: 'closed' }),
+      }),
+    )
+  })
+
+  it('fails closed when the projected item belongs to a different Property', async () => {
+    const item = makeItem({
+      sourceType: 'feedback',
+      sourceId: feedbackId('feedback-1'),
+      propertyId: propertyId('prop-2'),
+      platform: null,
+    })
+    const { guestDeps, receipts } = makeDeps({ item })
+
+    await expect(
+      handleInboxGuestFeedbackRetracted(
+        guestDeps,
+        makeEvent('guest.feedback.retracted', {
+          feedbackId: 'feedback-1',
+          organizationId: 'org-1',
+          propertyId: 'prop-1',
+          portalId: 'portal-1',
+          supersedesSourceEventId: 'source-event-1',
+          occurredAt: NOW.toISOString(),
+        }),
+      ),
+    ).rejects.toThrow('scope does not match')
+    expect(receipts).toEqual([])
+  })
 })
 
 describe('handleInboxReviewCreated (BQC-3.4 applyOnce)', () => {
@@ -482,6 +670,7 @@ describe('handleInboxReviewCreated (BQC-3.4 applyOnce)', () => {
       item: null,
       snippetResult: AVAILABLE_SNIPPET,
     })
+    const apply = vi.spyOn(deps.commandStore, 'applyReviewProjectionOnce')
     const result = await handleInboxReviewCreated(
       deps,
       makeEvent('review.created', {
@@ -494,14 +683,31 @@ describe('handleInboxReviewCreated (BQC-3.4 applyOnce)', () => {
     )
 
     expect(result).toEqual({ status: 'applied' })
-    expect(deps.reviewLookup.getReviewSnippetById).toHaveBeenCalledWith(REV, ORG)
+    expect(deps.reviewLookup.getReviewSnippetById).not.toHaveBeenCalled()
     // BQC-1.2: metadata only — no rating/snippet/reviewerName copied.
     expect(repo.items).toHaveLength(1)
-    expect(repo.items[0]!.sourceDate).toEqual(NOW)
+    expect(repo.items[0]!.sourceDate).toEqual(SOURCE_META.sourceDate)
     expect(repo.items[0]!.platform).toBe('google')
     expect(repo.items[0]!.rating).toBeNull()
     expect(repo.items[0]!.snippet).toBeNull()
     expect(events.capturedByTag('inbox.inbox_item.created')).toHaveLength(1)
+    expect(apply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventKind: 'created',
+        projection: expect.objectContaining({
+          authority: 'review.current-inbox-projection.v1',
+          currentMaterialReviewRevision: 1,
+          revisions: [
+            expect.objectContaining({
+              authority: 'review.inbox-projection-revision.v1',
+              materialReviewRevision: 1,
+              eligibility: 'measured',
+              responseTargetStartAt: SOURCE_META.sourceDate,
+            }),
+          ],
+        }),
+      }),
+    )
     expect(receipts).toEqual([
       { eventId: 'evt-1', consumerName: 'inbox.on-review-created', status: 'applied' },
     ])
@@ -543,8 +749,14 @@ describe('handleInboxReviewCreated (BQC-3.4 applyOnce)', () => {
 })
 
 describe('handleInboxReviewExpired (BQC-3.4 applyOnce)', () => {
-  it('closes the open item, emits the fact, and records the receipt atomically', async () => {
-    const { deps, repo, events, receipts } = makeDeps({})
+  it('scrubs legacy content but never stale-closes current work', async () => {
+    const { deps, repo, events, receipts } = makeDeps({
+      item: makeItem({
+        rating: 2,
+        snippet: 'restored provider review text',
+        reviewerName: 'Restored guest',
+      }),
+    })
     const result = await handleInboxReviewExpired(
       deps,
       makeEvent('review.expired', {
@@ -555,16 +767,28 @@ describe('handleInboxReviewExpired (BQC-3.4 applyOnce)', () => {
     )
 
     expect(result).toEqual({ status: 'applied' })
-    expect(repo.items[0]!.status).toBe('closed')
-    expect(repo.items[0]!.closedAt).toEqual(NOW)
-    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(1)
+    expect(repo.items[0]).toMatchObject({
+      status: 'open',
+      closedAt: null,
+      rating: null,
+      snippet: null,
+      reviewerName: null,
+    })
+    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
     expect(receipts).toEqual([
       { eventId: 'evt-1', consumerName: 'inbox.on-review-expired', status: 'applied' },
     ])
   })
 
-  it('already closed: receipt recorded, no second status_changed fact', async () => {
-    const { deps, events, receipts } = makeDeps({ item: makeItem({ status: 'closed' }) })
+  it('already closed: scrubs restored legacy content without a false status fact', async () => {
+    const { deps, repo, events, receipts } = makeDeps({
+      item: makeItem({
+        status: 'closed',
+        rating: 2,
+        snippet: 'restored provider review text',
+        reviewerName: 'Restored guest',
+      }),
+    })
     const result = await handleInboxReviewExpired(
       deps,
       makeEvent('review.expired', {
@@ -575,6 +799,13 @@ describe('handleInboxReviewExpired (BQC-3.4 applyOnce)', () => {
     )
 
     expect(result).toEqual({ status: 'applied' })
+    expect(repo.items[0]).toMatchObject({
+      id: INBOX,
+      status: 'closed',
+      rating: null,
+      snippet: null,
+      reviewerName: null,
+    })
     expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
     expect(receipts).toEqual([
       { eventId: 'evt-1', consumerName: 'inbox.on-review-expired', status: 'applied' },
@@ -597,11 +828,186 @@ describe('handleInboxReviewExpired (BQC-3.4 applyOnce)', () => {
   })
 })
 
+describe('handleInboxReviewSourceTransitioned (REV-01 content-free handoff)', () => {
+  it('preserves the Inbox identity while closing and scrubbing a legacy Review projection', async () => {
+    const { deps, repo, events, receipts, sourceTransitionAuthority } = makeDeps({
+      item: makeItem({
+        rating: 1,
+        snippet: 'legacy provider-controlled review text',
+        reviewerName: 'Legacy guest',
+      }),
+    })
+
+    const result = await handleInboxReviewSourceTransitioned(
+      deps,
+      makeEvent('review.source_transitioned', {
+        reviewId: 'rev-1',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+        sourceEpoch: 1,
+        sourceRevision: 2,
+        analysisSequence: 2,
+        change: 'source_expired',
+        occurredAt: NOW.toISOString(),
+      }),
+    )
+
+    expect(result).toEqual({ status: 'applied' })
+    expect(sourceTransitionAuthority.withExactCurrent).toHaveBeenCalledWith(
+      {
+        reviewId: 'rev-1',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+        sourceEpoch: 1,
+        sourceRevision: 2,
+        analysisSequence: 2,
+        change: 'source_expired',
+        occurredAt: NOW,
+      },
+      expect.any(Function),
+    )
+    expect(repo.items).toHaveLength(1)
+    expect(repo.items[0]).toMatchObject({
+      id: INBOX,
+      sourceId: REV,
+      status: 'closed',
+      closedAt: NOW,
+      rating: null,
+      snippet: null,
+      reviewerName: null,
+    })
+    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(1)
+    expect(receipts).toEqual([
+      {
+        eventId: 'evt-1',
+        consumerName: 'inbox.on-review-source-transitioned',
+        status: 'applied',
+      },
+    ])
+  })
+
+  it('receipts a stale transition as obsolete without changing a re-observed Inbox item', async () => {
+    const { deps, repo, events, receipts } = makeDeps({
+      sourceTransitionCurrent: false,
+      item: makeItem({
+        rating: null,
+        snippet: null,
+        reviewerName: null,
+      }),
+    })
+
+    const result = await handleInboxReviewSourceTransitioned(
+      deps,
+      makeEvent('review.source_transitioned', {
+        reviewId: 'rev-1',
+        organizationId: 'org-1',
+        propertyId: 'prop-1',
+        sourceEpoch: 1,
+        sourceRevision: 2,
+        analysisSequence: 2,
+        change: 'source_expired',
+        occurredAt: NOW.toISOString(),
+      }),
+    )
+
+    expect(result).toEqual({ status: 'obsolete' })
+    expect(repo.items[0]).toMatchObject({
+      id: INBOX,
+      status: 'open',
+      closedAt: null,
+    })
+    expect(events.capturedByTag('inbox.inbox_item.status_changed')).toHaveLength(0)
+    expect(receipts).toEqual([
+      {
+        eventId: 'evt-1',
+        consumerName: 'inbox.on-review-source-transitioned',
+        status: 'obsolete',
+      },
+    ])
+  })
+
+  it('stays retryable when it overtakes creation of the stable Inbox identity', async () => {
+    const { deps, receipts } = makeDeps({ item: null })
+
+    await expect(
+      handleInboxReviewSourceTransitioned(
+        deps,
+        makeEvent('review.source_transitioned', {
+          reviewId: 'rev-1',
+          organizationId: 'org-1',
+          propertyId: 'prop-1',
+          sourceEpoch: 1,
+          sourceRevision: 2,
+          analysisSequence: 2,
+          change: 'provider_deleted',
+          occurredAt: NOW.toISOString(),
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(receipts).toEqual([])
+  })
+
+  it('marks obsolete when both the Inbox item and stable Review identity are gone', async () => {
+    const { deps, receipts } = makeDeps({
+      item: null,
+      sourceTransitionCurrent: false,
+    })
+
+    await expect(
+      handleInboxReviewSourceTransitioned(
+        deps,
+        makeEvent('review.source_transitioned', {
+          reviewId: 'rev-1',
+          organizationId: 'org-1',
+          propertyId: 'prop-1',
+          sourceEpoch: 1,
+          sourceRevision: 2,
+          analysisSequence: 2,
+          change: 'provider_deleted',
+          occurredAt: NOW.toISOString(),
+        }),
+      ),
+    ).resolves.toEqual({ status: 'obsolete' })
+
+    expect(receipts).toEqual([
+      {
+        eventId: 'evt-1',
+        consumerName: 'inbox.on-review-source-transitioned',
+        status: 'obsolete',
+      },
+    ])
+  })
+
+  it('rejects cross-Property envelope attribution before any Inbox mutation', async () => {
+    const { deps, repo, receipts } = makeDeps({
+      item: makeItem({ snippet: 'legacy provider text' }),
+    })
+    const event = makeEvent('review.source_transitioned', {
+      reviewId: 'rev-1',
+      organizationId: 'org-1',
+      propertyId: 'different-property',
+      sourceEpoch: 1,
+      sourceRevision: 2,
+      analysisSequence: 2,
+      change: 'source_expired',
+      occurredAt: NOW.toISOString(),
+    })
+
+    await expect(handleInboxReviewSourceTransitioned(deps, event)).rejects.toThrow(
+      'envelope attribution',
+    )
+    expect(repo.items[0]!.snippet).toBe('legacy provider text')
+    expect(receipts).toEqual([])
+  })
+})
+
 describe('handleInboxReviewUpdated (BQC-3.4 — BQC-3.1 orphan resolved)', () => {
-  it('opens one new cycle when the current Material Review Revision advances', async () => {
-    const { deps, handlingCycleStore } = makeDeps({
+  it('delegates a Material Review Revision advance to the atomic command', async () => {
+    const { deps } = makeDeps({
       sourceMeta: { ...SOURCE_META, materialReviewRevision: 2 },
     })
+    const apply = vi.spyOn(deps.commandStore, 'applyReviewProjectionOnce')
     const event = makeEvent('review.updated', {
       reviewId: 'rev-1',
       organizationId: 'org-1',
@@ -610,18 +1016,23 @@ describe('handleInboxReviewUpdated (BQC-3.4 — BQC-3.1 orphan resolved)', () =>
     })
 
     await handleInboxReviewUpdated(deps, event)
-    await handleInboxReviewUpdated(deps, event)
 
-    expect(handlingCycleStore.startNext).toHaveBeenCalledTimes(1)
-    expect(handlingCycleStore.startNext).toHaveBeenCalledWith(
+    expect(deps.handlingCycleStore.startNext).not.toHaveBeenCalled()
+    expect(apply).toHaveBeenCalledTimes(1)
+    expect(apply).toHaveBeenCalledWith(
       expect.objectContaining({
-        expected: {
-          cycleNumber: 1,
-          materialReviewRevision: 1,
-          stateRevision: 1,
-        },
-        materialReviewRevision: 2,
-        openedReason: 'material_revision_changed',
+        eventId: 'evt-1',
+        consumerName: 'inbox.on-review-updated',
+        eventKind: 'updated',
+        item: expect.objectContaining({ id: INBOX, sourceId: REV }),
+        projection: expect.objectContaining({
+          currentMaterialReviewRevision: 2,
+          revisions: [
+            expect.objectContaining({ materialReviewRevision: 1 }),
+            expect.objectContaining({ materialReviewRevision: 2 }),
+          ],
+        }),
+        now: NOW,
       }),
     )
   })
@@ -645,8 +1056,8 @@ describe('handleInboxReviewUpdated (BQC-3.4 — BQC-3.1 orphan resolved)', () =>
     ])
   })
 
-  it('missing item: applied no-op with a receipt (rebuild heals)', async () => {
-    const { deps, repo, receipts } = makeDeps({ item: null })
+  it('missing item: bootstraps the stable item and records the update receipt', async () => {
+    const { deps, repo, receipts, events } = makeDeps({ item: null })
     const result = await handleInboxReviewUpdated(
       deps,
       makeEvent('review.updated', {
@@ -657,13 +1068,15 @@ describe('handleInboxReviewUpdated (BQC-3.4 — BQC-3.1 orphan resolved)', () =>
     )
 
     expect(result).toEqual({ status: 'applied' })
-    expect(repo.items).toHaveLength(0)
+    expect(repo.items).toHaveLength(1)
+    expect(repo.items[0]).toMatchObject({ sourceType: 'review', sourceId: REV })
+    expect(events.capturedByTag('inbox.inbox_item.created')).toHaveLength(1)
     expect(receipts).toEqual([
       { eventId: 'evt-1', consumerName: 'inbox.on-review-updated', status: 'applied' },
     ])
   })
 
-  it('missing review row: applied no-op with a receipt', async () => {
+  it('missing Review authority: records an obsolete receipt', async () => {
     const { deps, repo, receipts } = makeDeps({ sourceMeta: null })
     const result = await handleInboxReviewUpdated(
       deps,
@@ -674,9 +1087,15 @@ describe('handleInboxReviewUpdated (BQC-3.4 — BQC-3.1 orphan resolved)', () =>
       }),
     )
 
-    expect(result).toEqual({ status: 'applied' })
+    expect(result).toEqual({ status: 'obsolete' })
     expect(repo.items[0]!.sourceDate).toEqual(new Date('2026-06-01'))
-    expect(receipts).toHaveLength(1)
+    expect(receipts).toEqual([
+      {
+        eventId: 'evt-1',
+        consumerName: 'inbox.on-review-updated',
+        status: 'obsolete',
+      },
+    ])
   })
 })
 

@@ -14,8 +14,10 @@ export type NullBackfillResult = Readonly<{
   rowsNulled: number
 }>
 
+type NullBackfillDatabase = Pick<Database, 'execute'>
+
 export async function nullInboxSourceCopies(
-  db: Database,
+  db: NullBackfillDatabase,
   options: {
     batchSize?: number
     onBatch?: (batch: number, rows: number) => void
@@ -34,7 +36,8 @@ export async function nullInboxSourceCopies(
       SET snippet = NULL, reviewer_name = NULL, rating = NULL
       WHERE id IN (
         SELECT id FROM inbox_items
-        WHERE snippet IS NOT NULL OR reviewer_name IS NOT NULL OR rating IS NOT NULL
+        WHERE source_type = 'review'
+          AND (snippet IS NOT NULL OR reviewer_name IS NOT NULL OR rating IS NOT NULL)
         LIMIT ${batchSize}
       )
       RETURNING id

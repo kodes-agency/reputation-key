@@ -6,8 +6,19 @@
 // then emits on the in-process bus after commit (expand-phase dual path
 // until the durable switch).
 
-import type { OrganizationId, UserId } from '#/shared/domain/ids'
-import type { InboxItem, InboxNote, InboxStatus } from '../../domain/types'
+import type { InboxItemId, OrganizationId, UserId } from '#/shared/domain/ids'
+import type {
+  HandlingCycleActorType,
+  HandlingCycleCloseReason,
+  InboxItem,
+  InboxNote,
+  InboxStatus,
+} from '../../domain/types'
+import type { ManualReopenReason } from '../../domain/types'
+import type {
+  HandlingCycleExpectation,
+  ReviewHandlingCycleExpectation,
+} from './review-handling-cycle.store'
 import type {
   InboxItemAssigned,
   InboxItemBulkStatusChanged,
@@ -19,6 +30,10 @@ import type {
   InboxNoteAdded,
 } from '../../domain/events'
 import type { CurrentReplyObservationPermit } from './reply-observation-authority.port'
+import type {
+  CurrentReviewInboxProjectionPermit,
+  ReviewCycleTargetAnchor,
+} from './review-response-target-authority.port'
 
 /** Status mutation + the timestamp fields derived for the target status. */
 export type InboxStatusUpdate = Readonly<{
@@ -31,9 +46,63 @@ export type ApplyReceiptStatus = 'applied' | 'duplicate' | 'obsolete'
 
 export type CreateItemResult = Readonly<{ item: InboxItem; created: boolean }>
 
-/** Optional Review-cycle anchor used during the expand phase. */
+/** Canonical immutable source occurrence that opens cycle one. */
+export type HandlingCycleCreationAnchor = Readonly<{
+  sourceRevision: number
+  openedReason: 'legacy_backfill' | 'review_observed' | 'feedback_submitted'
+  actorType: HandlingCycleActorType
+  triggerEventId: string | null
+  openedAt: Date
+  /** Null explicitly suppresses a target for a source that is not active. */
+  responseTarget?: ReviewCycleTargetAnchor | null
+}>
+
+/** Compatibility input for existing Review repair callers. */
 export type ReviewCycleCreationAnchor = Readonly<{
   materialReviewRevision: number
+}>
+
+export type BulkStatusStoreItemResult = Readonly<{
+  inboxItemId: InboxItemId
+  outcome: 'reopened' | 'revision_conflict'
+}>
+
+export type BulkStatusStoreResult = Readonly<{
+  updated: number
+  results: ReadonlyArray<BulkStatusStoreItemResult>
+}>
+
+export type BulkAssignmentStoreItemResult = Readonly<{
+  inboxItemId: InboxItemId
+  outcome: 'assigned' | 'reassigned' | 'released' | 'unchanged' | 'revision_conflict'
+}>
+
+export type BulkAssignmentStoreResult = Readonly<{
+  updated: number
+  results: ReadonlyArray<BulkAssignmentStoreItemResult>
+}>
+
+export type BulkAssignmentCommand = Readonly<{
+  items: ReadonlyArray<InboxItem>
+  assignedTo: UserId | null
+  actorId: UserId
+  bulkId: string
+  occurredAt: Date
+}>
+
+export type BulkReopenGovernance = Readonly<{
+  reason: ManualReopenReason
+  explanation: string | null
+}>
+
+export type ReopenReviewHandlingCycleCommand = Readonly<{
+  item: InboxItem
+  expected: HandlingCycleExpectation | ReviewHandlingCycleExpectation
+  reason: ManualReopenReason
+  explanation: string | null
+  fact: InboxItemStatusChanged
+  now: Date
+  responseTarget?: ReviewCycleTargetAnchor
 }>
 
 /**
@@ -47,21 +116,7 @@ export type ApplySourceCreatedCommand = Readonly<{
   consumerName: string
   item: InboxItem
   fact: InboxItemCreated
-  /** Present for Review items; absent for Guest feedback until its revision model lands. */
-  reviewCycleAnchor?: ReviewCycleCreationAnchor
-}>
-
-/**
- * review.expired apply command: guarded close (skips when the item's status
- * moved concurrently) + status_changed fact (only when the close landed) +
- * receipt — one transaction.
- */
-export type ApplyReviewExpiredCommand = Readonly<{
-  eventId: string
-  consumerName: string
-  item: InboxItem
-  now: Date
-  fact: InboxItemStatusChanged
+  cycleAnchor?: HandlingCycleCreationAnchor
 }>
 
 /** Source withdrawal: guarded close + status fact + consumer receipt. */
@@ -69,6 +124,7 @@ export type ApplySourceWithdrawnCommand = Readonly<{
   eventId: string
   consumerName: string
   item: InboxItem
+  sourceRevision?: number
   now: Date
   fact: InboxItemStatusChanged
 }>
@@ -84,7 +140,42 @@ export type ApplyReviewUpdatedCommand = Readonly<{
   item: InboxItem
   sourceDate: Date
   platform: string | null
+  materialReviewRevision?: number | null
+  responseTarget?: ReviewCycleTargetAnchor
   now: Date
+}>
+
+/**
+ * Ordered, content-free Review projection convergence command. Review holds
+ * its current source fence while this one Inbox transaction creates the
+ * stable item, restores every Material Revision cycle, closes inactive work,
+ * emits facts, and commits the consumer receipt.
+ */
+export type ApplyReviewProjectionCommand = Readonly<{
+  eventId: string
+  consumerName: string
+  eventKind: 'created' | 'updated'
+  item: InboxItem
+  fact: InboxItemCreated
+  projection: CurrentReviewInboxProjectionPermit
+  now: Date
+}>
+
+/**
+ * REV-01 source transition: preserve the stable Inbox identity while removing
+ * every legacy provider-controlled projection value. The store decides under
+ * its row lock whether open work also closes and emits `closeFact` only when
+ * that open -> closed transition actually lands.
+ */
+export type ApplyReviewSourceTransitionedCommand = Readonly<{
+  eventId: string
+  consumerName: string
+  item: InboxItem
+  transitionedAt: Date
+  /** Exact-current source transitions close; unversioned legacy expiry only scrubs. */
+  closeIfOpen: boolean
+  closeReason?: HandlingCycleCloseReason
+  closeFact: InboxItemStatusChanged
 }>
 
 /** Legacy review.reply.published compatibility envelope. The apply method is
@@ -129,6 +220,22 @@ export type InboxCommandStore = Readonly<{
   ): Promise<Readonly<{ released: number }>>
 
   /**
+   * Eligibility reconciliation: re-check every currently assigned Property
+   * against the exact assignee authority inside the write transaction, then
+   * clear only assignments whose authority is definitively no longer current.
+   * The operation is idempotent and writes one durable unassigned fact and
+   * append-only history row for every assignment it clears.
+   */
+  releaseIneligibleAssignmentsForUser(
+    input: Readonly<{
+      organizationId: OrganizationId
+      userId: UserId
+      actorId: UserId
+      at: Date
+    }>,
+  ): Promise<Readonly<{ released: number }>>
+
+  /**
    * Insert the item + inbox.inbox_item.created fact in one transaction.
    * Idempotent on the (sourceType, sourceId, organizationId) unique anchor:
    * a conflicting concurrent insert returns the existing row with
@@ -139,7 +246,7 @@ export type InboxCommandStore = Readonly<{
   createItem(
     item: InboxItem,
     event: InboxItemCreated | null,
-    reviewCycleAnchor?: ReviewCycleCreationAnchor,
+    cycleAnchor?: HandlingCycleCreationAnchor | ReviewCycleCreationAnchor,
   ): Promise<CreateItemResult>
 
   /**
@@ -156,15 +263,33 @@ export type InboxCommandStore = Readonly<{
   ): Promise<InboxItem>
 
   /**
-   * ONE bulk update statement + N per-item bulk_status_changed outbox rows
-   * in one transaction (kills the partial-fan-out window), then N
-   * post-commit emits. Target status/timestamps derive from the events —
-   * they share newStatus + occurredAt by construction.
+   * Append a governed manual-reopen cycle and advance its canonical head while
+   * synchronizing the legacy item projection and status fact in one
+   * head-before-item transaction. A still-assigned manager is retained only
+   * while their source-specific Property authority remains current.
+   */
+  reopenReviewCycle(command: ReopenReviewHandlingCycleCommand): Promise<InboxItem>
+
+  /**
+   * One transaction preauthorizes the complete reopen set, applies one CAS per
+   * item, and writes a bulk_status_changed fact only for each landed CAS.
+   * Per-item results preserve input order at the use-case boundary; landed
+   * facts emit after commit. Bulk Close is rejected.
    */
   bulkUpdateStatus(
     items: ReadonlyArray<InboxItem>,
     perItemEvents: ReadonlyArray<InboxItemBulkStatusChanged>,
-  ): Promise<{ updated: number }>
+    governance: BulkReopenGovernance,
+    reviewResponseTargets?: ReadonlyMap<string, ReviewCycleTargetAnchor>,
+  ): Promise<BulkStatusStoreResult>
+
+  /**
+   * All-or-nothing bounded assignment command. The store locks every Review
+   * head and Inbox row in canonical order, revalidates actor + assignee
+   * authority for the complete set, then commits every row/history/per-item
+   * fact and one content-free completion fact in one transaction.
+   */
+  bulkAssign(command: BulkAssignmentCommand): Promise<BulkAssignmentStoreResult>
 
   /**
    * Assignment update + assigned/unassigned fact in one transaction
@@ -196,7 +321,7 @@ export type InboxCommandStore = Readonly<{
   ): Promise<InboxItem>
 
   /** Note insert + inbox.inbox_note.added fact (note ID, never text) in one transaction. */
-  addNote(note: InboxNote, event: InboxNoteAdded): Promise<InboxNote>
+  addNote(item: InboxItem, note: InboxNote, event: InboxNoteAdded): Promise<InboxNote>
 
   // ── Projection applyOnce (durable consumers) ──────────────────────
   // Each co-commits the projection state change, any emitted fact, and the
@@ -207,12 +332,19 @@ export type InboxCommandStore = Readonly<{
   applySourceCreatedOnce(
     command: ApplySourceCreatedCommand,
   ): Promise<'applied' | 'duplicate'>
-  /** review.expired: guarded close + status_changed fact + receipt. */
-  applyReviewExpiredOnce(command: ApplyReviewExpiredCommand): Promise<'applied'>
+  applyReviewProjectionOnce(
+    command: ApplyReviewProjectionCommand,
+  ): Promise<'applied' | 'duplicate'>
   /** Guest feedback withdrawal: close its metadata-only work item. */
-  applySourceWithdrawnOnce(command: ApplySourceWithdrawnCommand): Promise<'applied'>
+  applySourceWithdrawnOnce(
+    command: ApplySourceWithdrawnCommand,
+  ): Promise<'applied' | 'obsolete'>
   /** review.updated: metadata-only sourceDate/platform refresh + receipt. */
   applyReviewUpdatedOnce(command: ApplyReviewUpdatedCommand): Promise<'applied'>
+  /** Review source transition: scrub legacy content, close open work, and receipt. */
+  applyReviewSourceTransitionedOnce(
+    command: ApplyReviewSourceTransitionedCommand,
+  ): Promise<'applied'>
   /** review.reply.published compatibility receipt; never mutates Inbox state. */
   applyReplyPublishedOnce(command: ApplyReplyPublishedCommand): Promise<'applied'>
   /**

@@ -43,6 +43,7 @@ export const inboxItemFromRow = (row: InboxItemRow): Omit<InboxItem, 'propertyNa
   closedAt: row.closedAt,
   firstReplySubmittedAt: row.firstReplySubmittedAt,
   firstReplyPublishedAt: row.firstReplyPublishedAt,
+  commandRevision: row.commandRevision,
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 })
@@ -71,4 +72,5 @@ export const inboxItemToInsertRow = (
   closedAt: item.closedAt,
   firstReplySubmittedAt: item.firstReplySubmittedAt,
   firstReplyPublishedAt: item.firstReplyPublishedAt,
+  commandRevision: item.commandRevision,
 })

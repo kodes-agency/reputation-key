@@ -35,20 +35,32 @@ async function getFeedbackSnippetsByIds(
 ): ReturnType<FeedbackLookupPort['getFeedbackSnippetsByIds']> {
   const snippets = new Map<
     string,
-    { comment: string | null; ratingValue: number | null }
+    {
+      comment: string | null
+      ratingValue: number | null
+      responseRevision: number | null
+    }
   >()
   if (ids.length === 0) return snippets
 
   const current = await deps.findResponseSnippetsByIds(ids, orgId)
   for (const row of current) {
-    snippets.set(row.id, { comment: row.comment, ratingValue: row.ratingValue })
+    snippets.set(row.id, {
+      comment: row.comment,
+      ratingValue: row.ratingValue,
+      responseRevision: row.feedbackSubmissionRevision ?? null,
+    })
   }
 
   const unresolved = ids.filter((id) => !snippets.has(id))
   if (unresolved.length === 0) return snippets
   const legacy = await deps.findLegacyFeedbackSnippetsByIds(unresolved, orgId)
   for (const row of legacy) {
-    snippets.set(row.id, { comment: row.comment, ratingValue: row.ratingValue })
+    snippets.set(row.id, {
+      comment: row.comment,
+      ratingValue: row.ratingValue,
+      responseRevision: null,
+    })
   }
   return snippets
 }

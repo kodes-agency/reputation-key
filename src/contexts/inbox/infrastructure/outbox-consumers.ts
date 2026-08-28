@@ -25,28 +25,33 @@ import type { InboxRepository } from '../application/ports/inbox.repository'
 import type { InboxCommandStore } from '../application/ports/inbox-command-store.port'
 import type { ReviewHandlingCycleStore } from '../application/ports/review-handling-cycle.store'
 import type { ReplyObservationAuthorityPort } from '../application/ports/reply-observation-authority.port'
+import type { SourceTransitionAuthorityPort } from '../application/ports/source-transition-authority.port'
+import type { ReviewResponseTargetAuthorityPort } from '../application/ports/review-response-target-authority.port'
 import type { InboxItemId } from '#/shared/domain/ids'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createInboxItem as buildInboxItem } from '../domain/constructors'
 import { inboxError } from '../domain/errors'
 import { inboxItemCreated, inboxItemStatusChanged } from '../domain/events'
-import { validateTransition } from '../domain/rules'
 import { organizationId, propertyId, reviewId, unbrand } from '#/shared/domain/ids'
-import { getLogger } from '#/shared/observability/logger'
 
 export type InboxConsumerDeps = Readonly<{
   commandStore: InboxCommandStore
   handlingCycleStore: ReviewHandlingCycleStore
   replyObservationAuthority: ReplyObservationAuthorityPort
+  responseTargetAuthority: ReviewResponseTargetAuthorityPort
+  sourceTransitionAuthority: SourceTransitionAuthorityPort
   reviewLookup: ReviewLookupPort
   reviewSourceLookup: ReviewSourceLookupPort
   inboxRepo: InboxRepository
   idGen: () => InboxItemId
   clock: () => Date
+  logger: LoggerPort
 }>
 
 const ON_REVIEW_CREATED = 'inbox.on-review-created'
 const ON_REVIEW_EXPIRED = 'inbox.on-review-expired'
 const ON_REVIEW_UPDATED = 'inbox.on-review-updated'
+const ON_REVIEW_SOURCE_TRANSITIONED = 'inbox.on-review-source-transitioned'
 const ON_REPLY_PUBLISHED = 'inbox.on-reply-published'
 const ON_REPLY_OBSERVED = 'inbox.on-reply-observed'
 
@@ -54,6 +59,8 @@ type ReviewIdPayload = Readonly<{
   reviewId: string
   organizationId: string
   propertyId: string
+  sourceEpoch?: number
+  sourceRevision?: number
 }>
 
 type ReviewCreatedPayload = ReviewIdPayload &
@@ -61,7 +68,17 @@ type ReviewCreatedPayload = ReviewIdPayload &
     occurredAt?: string | Date
     platform?: string
     externalId?: string
-    sourceRevision?: number
+    sourceEpoch: number
+    sourceRevision: number
+  }>
+
+type ReviewSourceTransitionedPayload = ReviewIdPayload &
+  Readonly<{
+    sourceEpoch: number
+    sourceRevision: number
+    analysisSequence: number
+    change: 'source_expired' | 'provider_deleted'
+    occurredAt: string | Date
   }>
 
 type ReplyObservedPayload = ReviewIdPayload &
@@ -86,26 +103,86 @@ function asReviewIdPayload(payload: unknown): ReviewIdPayload {
   return payload as ReviewIdPayload
 }
 
+function asReviewSourceTransitionedPayload(
+  payload: unknown,
+): ReviewSourceTransitionedPayload {
+  return payload as ReviewSourceTransitionedPayload
+}
+
 function asReplyObservedPayload(payload: unknown): ReplyObservedPayload {
   return payload as ReplyObservedPayload
 }
 
-/**
- * Record a consumer no-op (BQC-5.9 E20): warn with the consumer's log fields,
- * mark the event applied via the receipt, and return the applied result.
- * Used when the row the event targets is gone — the receipt marks the event
- * as consumed and rebuild heals if the projection row should exist.
- */
-async function appliedNoopReceipt(
+async function handleInboxReviewProjection(
   deps: InboxConsumerDeps,
   event: ConsumerEvent,
-  consumerName: string,
-  logFields: Readonly<Record<string, unknown>>,
-  message: string,
+  eventKind: 'created' | 'updated',
+  consumerName: typeof ON_REVIEW_CREATED | typeof ON_REVIEW_UPDATED,
 ): Promise<ConsumerResult> {
-  getLogger().warn(logFields, message)
-  await deps.commandStore.recordReceipt(event.eventId, consumerName, 'applied')
-  return { status: 'applied' }
+  const payload = asReviewCreatedPayload(event.payload)
+  if (
+    payload.organizationId !== event.organizationId ||
+    payload.propertyId !== event.propertyId
+  ) {
+    throw new Error('Review projection envelope attribution does not match payload')
+  }
+  if (
+    !Number.isSafeInteger(payload.sourceEpoch) ||
+    payload.sourceEpoch < 0 ||
+    !Number.isSafeInteger(payload.sourceRevision) ||
+    payload.sourceRevision < 1
+  ) {
+    throw new Error('Review projection source version is invalid')
+  }
+  const orgId = organizationId(payload.organizationId)
+  const rId = reviewId(payload.reviewId)
+  const authority = await deps.responseTargetAuthority.withInboxProjection(
+    {
+      organizationId: payload.organizationId,
+      propertyId: payload.propertyId,
+      reviewId: payload.reviewId,
+      sourceEpoch: payload.sourceEpoch,
+      eventSourceRevision: payload.sourceRevision,
+      eventKind,
+    },
+    async (projection) => {
+      const initialRevision = projection.revisions[0]
+      const built = buildInboxItem({
+        id: deps.idGen(),
+        organizationId: orgId,
+        propertyId: propertyId(projection.propertyId),
+        sourceType: 'review',
+        sourceId: rId,
+        sourceDate: projection.sourceDate,
+        platform: projection.platform,
+        assignedTo: null,
+        clock: () => initialRevision.observedAt,
+      })
+      if (built.isErr()) throw built.error
+      const item = built.value
+      return deps.commandStore.applyReviewProjectionOnce({
+        eventId: event.eventId,
+        consumerName,
+        eventKind,
+        item,
+        fact: inboxItemCreated({
+          inboxItemId: item.id,
+          organizationId: item.organizationId,
+          propertyId: item.propertyId,
+          sourceType: item.sourceType,
+          sourceId: item.sourceId,
+          occurredAt: item.createdAt,
+        }),
+        projection,
+        now: deps.clock(),
+      })
+    },
+  )
+  if (authority.status === 'obsolete') {
+    await deps.commandStore.recordReceipt(event.eventId, consumerName, 'obsolete')
+    return { status: 'obsolete' }
+  }
+  return { status: authority.value }
 }
 
 /** Exported for unit tests — review.created durable handler body. */
@@ -113,60 +190,7 @@ export async function handleInboxReviewCreated(
   deps: InboxConsumerDeps,
   event: ConsumerEvent,
 ): Promise<ConsumerResult> {
-  const logger = getLogger()
-  const payload = asReviewCreatedPayload(event.payload)
-  const orgId = organizationId(payload.organizationId)
-  const rId = reviewId(payload.reviewId)
-
-  // Existence check only — BQC-1.2: content is never copied onto inbox
-  // items; both fresh and expired reviews get a metadata-only item (reads
-  // resolve live via the eligibility-enforcing lookup).
-  const result = await deps.reviewLookup.getReviewSnippetById(rId, orgId)
-
-  if (result.status === 'not_found') {
-    logger.warn(
-      { correlationId: event.correlationId ?? undefined },
-      'inbox.on-review-created: review not found — marking obsolete',
-    )
-    await deps.commandStore.recordReceipt(event.eventId, ON_REVIEW_CREATED, 'obsolete')
-    return { status: 'obsolete' }
-  }
-
-  const sourceDate =
-    payload.occurredAt != null ? new Date(payload.occurredAt) : deps.clock()
-
-  const built = buildInboxItem({
-    id: deps.idGen(),
-    organizationId: orgId,
-    propertyId: propertyId(payload.propertyId),
-    sourceType: 'review',
-    sourceId: rId,
-    sourceDate,
-    platform: (payload.platform as 'google') ?? 'google',
-    assignedTo: null,
-    clock: deps.clock,
-  })
-  if (built.isErr()) throw built.error
-  const item = built.value
-
-  // One tx: idempotent create + created fact (only when created) + receipt.
-  const outcome = await deps.commandStore.applySourceCreatedOnce({
-    eventId: event.eventId,
-    consumerName: ON_REVIEW_CREATED,
-    item,
-    fact: inboxItemCreated({
-      inboxItemId: item.id,
-      organizationId: item.organizationId,
-      propertyId: item.propertyId,
-      sourceType: item.sourceType,
-      sourceId: item.sourceId,
-      occurredAt: item.createdAt,
-    }),
-    ...(payload.sourceRevision !== undefined
-      ? { reviewCycleAnchor: { materialReviewRevision: payload.sourceRevision } }
-      : {}),
-  })
-  return { status: outcome }
+  return handleInboxReviewProjection(deps, event, 'created', ON_REVIEW_CREATED)
 }
 
 /** BQC-3.4 / BQR-2.4: close open inbox item when source review expires. */
@@ -186,29 +210,110 @@ export async function handleInboxReviewExpired(
     return { status: 'applied' }
   }
 
-  if (validateTransition(item.status, 'closed').isErr()) {
-    // Already closed (or other illegal transition) — idempotent.
-    await deps.commandStore.recordReceipt(event.eventId, ON_REVIEW_EXPIRED, 'applied')
-    return { status: 'applied' }
-  }
-
-  // One tx: guarded close + status_changed fact (only when the close lands)
-  // + receipt. The pre-BQC-3.4 crash window that could lose the fact is gone.
-  await deps.commandStore.applyReviewExpiredOnce({
+  // Legacy review.expired delivery converges on the same content-free Inbox
+  // command as review.source_transitioned. This matters for restored/pending
+  // old events: an already-closed item must still lose provider-controlled
+  // projection values rather than taking the former receipt-only shortcut.
+  await deps.commandStore.applyReviewSourceTransitionedOnce({
     eventId: event.eventId,
     consumerName: ON_REVIEW_EXPIRED,
     item,
-    now,
-    fact: inboxItemStatusChanged({
+    transitionedAt: now,
+    // This compatibility envelope has no source epoch/revision. It may be
+    // arbitrarily delayed past re-observation, so it may erase forbidden
+    // legacy projection copies but can never decide current workflow status.
+    closeIfOpen: false,
+    closeReason: 'source_ineligible',
+    closeFact: inboxItemStatusChanged({
       inboxItemId: item.id,
       organizationId: item.organizationId,
       propertyId: item.propertyId,
-      oldStatus: item.status,
+      oldStatus: 'open',
       newStatus: 'closed',
       occurredAt: now,
     }),
   })
   return { status: 'applied' }
+}
+
+/**
+ * REV-01 content-free handoff. Review owns the source lifecycle and emits an
+ * identifier-only transition. Inbox owns its stable projection, so it closes
+ * unservable work and removes legacy provider-controlled copies itself. The
+ * command store co-commits the scrub, optional status fact, and receipt.
+ */
+export async function handleInboxReviewSourceTransitioned(
+  deps: InboxConsumerDeps,
+  event: ConsumerEvent,
+): Promise<ConsumerResult> {
+  const payload = asReviewSourceTransitionedPayload(event.payload)
+  if (
+    payload.organizationId !== event.organizationId ||
+    payload.propertyId !== event.propertyId
+  ) {
+    throw new Error(
+      'Review source transition envelope attribution does not match payload',
+    )
+  }
+  const transitionedAt = new Date(payload.occurredAt)
+  if (Number.isNaN(transitionedAt.getTime())) {
+    throw new Error('Review source transition occurredAt is invalid')
+  }
+  const orgId = organizationId(payload.organizationId)
+  const rId = reviewId(payload.reviewId)
+  const authority = await deps.sourceTransitionAuthority.withExactCurrent(
+    {
+      organizationId: payload.organizationId,
+      propertyId: payload.propertyId,
+      reviewId: payload.reviewId,
+      sourceEpoch: payload.sourceEpoch,
+      sourceRevision: payload.sourceRevision,
+      analysisSequence: payload.analysisSequence,
+      change: payload.change,
+      occurredAt: transitionedAt,
+    },
+    async () => {
+      // Resolve the projection while Review holds the stable-source fence.
+      // A current transition may overtake review.created, so absence is
+      // retryable; an obsolete transition is handled outside the callback.
+      const item = await deps.inboxRepo.findBySource('review', unbrand(rId), orgId)
+      if (!item) {
+        throw inboxError(
+          'not_found',
+          'Current Review source transition is waiting for its Inbox item',
+        )
+      }
+      if (item.propertyId !== payload.propertyId) {
+        throw new Error('Review source transition Property does not match Inbox item')
+      }
+
+      return deps.commandStore.applyReviewSourceTransitionedOnce({
+        eventId: event.eventId,
+        consumerName: ON_REVIEW_SOURCE_TRANSITIONED,
+        item,
+        transitionedAt,
+        closeIfOpen: true,
+        closeReason: 'source_ineligible',
+        closeFact: inboxItemStatusChanged({
+          inboxItemId: item.id,
+          organizationId: item.organizationId,
+          propertyId: item.propertyId,
+          oldStatus: 'open',
+          newStatus: 'closed',
+          occurredAt: transitionedAt,
+        }),
+      })
+    },
+  )
+  if (authority.status === 'obsolete') {
+    await deps.commandStore.recordReceipt(
+      event.eventId,
+      ON_REVIEW_SOURCE_TRANSITIONED,
+      'obsolete',
+    )
+    return { status: 'obsolete' }
+  }
+  return { status: authority.value }
 }
 
 /**
@@ -220,82 +325,7 @@ export async function handleInboxReviewUpdated(
   deps: InboxConsumerDeps,
   event: ConsumerEvent,
 ): Promise<ConsumerResult> {
-  const payload = asReviewIdPayload(event.payload)
-  const orgId = organizationId(payload.organizationId)
-  const rId = reviewId(payload.reviewId)
-
-  const item = await deps.inboxRepo.findBySource('review', unbrand(rId), orgId)
-  if (!item) {
-    // No projection row — nothing to refresh. Rebuild heals if the item
-    // should exist; the receipt marks the event as consumed.
-    return appliedNoopReceipt(
-      deps,
-      event,
-      ON_REVIEW_UPDATED,
-      { reviewId: payload.reviewId, eventId: event.eventId },
-      'inbox.on-review-updated: no inbox item — applied no-op (rebuild heals)',
-    )
-  }
-
-  const meta = await deps.reviewSourceLookup.getReviewSourceMetaById(rId, orgId)
-  if (!meta) {
-    return appliedNoopReceipt(
-      deps,
-      event,
-      ON_REVIEW_UPDATED,
-      { reviewId: payload.reviewId, eventId: event.eventId },
-      'inbox.on-review-updated: review missing — applied no-op',
-    )
-  }
-
-  // A material source change starts a new numbered work episode before the
-  // event receipt is committed. If the process stops between these steps,
-  // redelivery observes the already-advanced head and safely records only the
-  // remaining metadata/receipt transaction.
-  if (meta.materialReviewRevision !== null) {
-    const head = await deps.handlingCycleStore.findHead(item.id, orgId)
-    if (
-      head !== null &&
-      meta.materialReviewRevision > head.currentMaterialReviewRevision
-    ) {
-      try {
-        await deps.handlingCycleStore.startNext({
-          inboxItemId: item.id,
-          organizationId: orgId,
-          expected: {
-            cycleNumber: head.currentCycleNumber,
-            materialReviewRevision: head.currentMaterialReviewRevision,
-            stateRevision: head.stateRevision,
-          },
-          materialReviewRevision: meta.materialReviewRevision,
-          openedReason: 'material_revision_changed',
-          openedBy: null,
-          openedAt: deps.clock(),
-        })
-      } catch (error) {
-        // A concurrent writer may have advanced the same (or a later) Review
-        // revision. Treat that as convergence; any other conflict/failure is
-        // retried by the durable consumer.
-        const latest = await deps.handlingCycleStore.findHead(item.id, orgId)
-        if (
-          latest === null ||
-          latest.currentMaterialReviewRevision < meta.materialReviewRevision
-        ) {
-          throw error
-        }
-      }
-    }
-  }
-
-  await deps.commandStore.applyReviewUpdatedOnce({
-    eventId: event.eventId,
-    consumerName: ON_REVIEW_UPDATED,
-    item,
-    sourceDate: meta.sourceDate,
-    platform: meta.platform,
-    now: deps.clock(),
-  })
-  return { status: 'applied' }
+  return handleInboxReviewProjection(deps, event, 'updated', ON_REVIEW_UPDATED)
 }
 
 /** Compatibility consumer for the internal publication lifecycle fact.
@@ -423,8 +453,6 @@ export async function handleInboxReplyObserved(
  * Called during worker startup (after bootstrap).
  */
 export function registerInboxConsumers(deps: InboxConsumerDeps): void {
-  const logger = getLogger()
-
   // Consumer names MUST stay string literals here — the event-job catalogue
   // guard discovers durable consumers by scanning registerConsumer calls.
   registerConsumer({
@@ -449,6 +477,13 @@ export function registerInboxConsumers(deps: InboxConsumerDeps): void {
   })
 
   registerConsumer({
+    eventType: 'review.source_transitioned',
+    consumerName: 'inbox.on-review-source-transitioned',
+    module: 'inbox.outbox-consumers',
+    handler: (event) => handleInboxReviewSourceTransitioned(deps, event),
+  })
+
+  registerConsumer({
     eventType: 'review.reply.published',
     consumerName: 'inbox.on-reply-published',
     module: 'inbox.outbox-consumers',
@@ -462,5 +497,5 @@ export function registerInboxConsumers(deps: InboxConsumerDeps): void {
     handler: (event) => handleInboxReplyObserved(deps, event),
   })
 
-  logger.info('Inbox consumers registered with outbox dispatcher (5 consumers)')
+  deps.logger.info('Inbox consumers registered with outbox dispatcher (6 consumers)')
 }

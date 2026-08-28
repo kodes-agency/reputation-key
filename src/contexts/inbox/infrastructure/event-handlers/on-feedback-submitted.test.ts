@@ -12,6 +12,7 @@ import {
   portalId,
   ratingId,
 } from '#/shared/domain/ids'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 
 const ORG_ID = organizationId('org-1')
 const FEEDBACK_ID = feedbackId('fb-1')
@@ -29,13 +30,14 @@ const mockEvent: GuestFeedbackSubmitted = {
   portalId: PORTAL_ID,
   propertyId: PROP_ID,
   ratingId: RATING_ID,
+  responseRevision: 3,
   occurredAt: NOW,
 }
 
 describe('onFeedbackSubmitted', () => {
   it('creates inbox item with event metadata only (BQC-1.2)', async () => {
     const createInboxItem = vi.fn(async () => ({})) as unknown as CreateInboxItem
-    const deps = { createInboxItem }
+    const deps = { createInboxItem, logger: createMockLogger() }
 
     await onFeedbackSubmitted(deps)(mockEvent)
 
@@ -46,6 +48,7 @@ describe('onFeedbackSubmitted', () => {
       sourceId: FEEDBACK_ID,
       sourceDate: NOW,
       platform: null,
+      sourceRevision: 3,
     })
   })
 
@@ -60,7 +63,7 @@ describe('onFeedbackSubmitted', () => {
     const createInboxItem = vi.fn(async () => {
       throw alreadyExistsErr
     }) as unknown as CreateInboxItem
-    const deps = { createInboxItem }
+    const deps = { createInboxItem, logger: createMockLogger() }
 
     await expect(onFeedbackSubmitted(deps)(mockEvent)).resolves.toBeUndefined()
   })
@@ -69,7 +72,7 @@ describe('onFeedbackSubmitted', () => {
     const createInboxItem = vi.fn(async () => {
       throw new Error('DB down')
     }) as unknown as CreateInboxItem
-    const deps = { createInboxItem }
+    const deps = { createInboxItem, logger: createMockLogger() }
 
     await expect(onFeedbackSubmitted(deps)(mockEvent)).resolves.toBeUndefined()
   })

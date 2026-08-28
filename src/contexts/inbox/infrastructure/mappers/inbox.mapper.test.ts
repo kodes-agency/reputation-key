@@ -31,6 +31,7 @@ const sampleRow: InboxItemRow = {
   escalatedAt: null,
   firstReplySubmittedAt: null,
   firstReplyPublishedAt: null,
+  commandRevision: 1,
   createdAt: now,
   updatedAt: now,
 }
@@ -58,6 +59,7 @@ describe('inboxItemFromRow', () => {
     expect(item.reviewerName).toBeNull()
     expect(item.closedAt).toEqual(closedAt)
     expect(item.escalatedAt).toBeNull()
+    expect(item.commandRevision).toBe(1)
     expect(item.createdAt).toBe(now)
     expect(item.updatedAt).toBe(now)
   })
@@ -105,6 +107,7 @@ describe('inboxItemToInsertRow', () => {
     expect(row.assignedTo).toBe(sampleRow.assignedTo)
     expect(row.closedAt).toBe(sampleRow.closedAt)
     expect(row.escalatedAt).toBe(sampleRow.escalatedAt)
+    expect(row.commandRevision).toBe(sampleRow.commandRevision)
   })
 
   it('excludes createdAt and updatedAt', () => {

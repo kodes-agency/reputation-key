@@ -4,13 +4,14 @@
 // reads resolve live via the eligibility-enforcing review lookup.
 
 import type { ReviewCreated } from '#/contexts/review/application/public-api'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { CreateInboxItem } from '../../application/use-cases/create-inbox-item'
 import { isInboxError } from '../../domain/errors'
-import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
 export type OnReviewCreatedDeps = Readonly<{
   createInboxItem: CreateInboxItem
+  logger: LoggerPort
 }>
 
 export const onReviewCreated =
@@ -29,7 +30,7 @@ export const onReviewCreated =
         })
       } catch (err) {
         if (isInboxError(err) && err.code === 'already_exists') return
-        getLogger().error({ err }, 'inbox: failed to handle review.created')
+        deps.logger.error({ err }, 'inbox: failed to handle review.created')
       }
     })
   }

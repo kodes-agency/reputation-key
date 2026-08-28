@@ -14,12 +14,14 @@ import { inboxItemEscalated } from '../../domain/events'
 import { inboxError } from '../../domain/errors'
 import {
   loadInboxItemOrThrow,
+  assertExpectedCommandRevision,
   assertInboxSourcePropertyAccessible,
   canHandleInboxSource,
 } from '../inbox-access'
 
 export type EscalateInboxItemInput = Readonly<{
   inboxItemId: InboxItemId
+  expectedCommandRevision: number
 }>
 
 export type EscalateInboxItemDeps = Readonly<{
@@ -46,6 +48,7 @@ export const escalateInboxItem =
       input.inboxItemId,
       ctx.organizationId,
     )
+    assertExpectedCommandRevision(item, input.expectedCommandRevision)
     if (!canHandleInboxSource(ctx, item.sourceType)) {
       throw inboxError('forbidden', 'No permission to handle this inbox source')
     }

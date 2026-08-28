@@ -37,6 +37,9 @@ export type CurrentReplyObservationPermit = Readonly<{
   matchedReplyId: string | null
   matchedPublicationCycle: number | null
   observedAt: Date
+  reviewSourceContentState: 'active' | 'source_expired' | 'provider_deleted'
+  responseTargetEligibility: 'measured' | 'historical_onboarding' | 'legacy_unknown'
+  responseTargetStartAt: Date | null
 }>
 
 export type ReplyObservationAuthorityResult<T> =

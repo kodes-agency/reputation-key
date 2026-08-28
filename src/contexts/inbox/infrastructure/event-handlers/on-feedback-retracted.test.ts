@@ -10,10 +10,7 @@ import {
   portalId,
   propertyId,
 } from '#/shared/domain/ids'
-
-vi.mock('#/shared/observability/logger', () => ({
-  getLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
-}))
+import { createMockLogger } from '#/shared/testing/mock-logger'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')
 const ORG = organizationId('org-1')
@@ -41,6 +38,7 @@ const item: InboxItem = {
   closedAt: null,
   firstReplySubmittedAt: null,
   firstReplyPublishedAt: null,
+  commandRevision: 1,
   createdAt: NOW,
   updatedAt: NOW,
 }
@@ -59,50 +57,48 @@ const event: GuestFeedbackRetracted = {
 
 describe('onFeedbackRetracted', () => {
   it('closes an open feedback item after its text is purged', async () => {
-    const updateStatus = vi.fn(async () => ({ ...item, status: 'closed' as const }))
+    const applySourceWithdrawnOnce = vi.fn(async () => 'applied' as const)
     const deps = {
       repo: {
         findBySource: vi.fn(async () => item),
-        updateStatus,
       } as unknown as InboxRepository,
-      events: {
-        emit: vi.fn(async () => {}),
-      } as unknown as import('#/shared/events/event-bus').EventBus,
+      commandStore: { applySourceWithdrawnOnce, recordReceipt: vi.fn() },
+      logger: createMockLogger(),
     }
 
     await onFeedbackRetracted(deps)(event)
 
     expect(deps.repo.findBySource).toHaveBeenCalledWith('feedback', 'feedback-1', ORG)
-    expect(updateStatus).toHaveBeenCalledWith(
-      item.id,
-      ORG,
-      'closed',
-      { closedAt: NOW },
-      NOW,
-    )
-    expect(deps.events.emit).toHaveBeenCalledWith(
+    expect(applySourceWithdrawnOnce).toHaveBeenCalledWith(
       expect.objectContaining({
-        _tag: 'inbox.inbox_item.status_changed',
-        oldStatus: 'open',
-        newStatus: 'closed',
+        eventId: 'event-1',
+        consumerName: 'inbox.on-guest-feedback-retracted',
+        item,
+        sourceRevision: 1,
+        now: NOW,
+        fact: expect.objectContaining({
+          _tag: 'inbox.inbox_item.status_changed',
+          oldStatus: 'open',
+          newStatus: 'closed',
+        }),
       }),
     )
   })
 
-  it('is idempotent when the item is already closed', async () => {
-    const updateStatus = vi.fn()
+  it('lets the locked Handling Cycle decide idempotency when compatibility status is closed', async () => {
+    const closedItem = { ...item, status: 'closed' as const }
+    const applySourceWithdrawnOnce = vi.fn(async () => 'applied' as const)
     const deps = {
       repo: {
-        findBySource: vi.fn(async () => ({ ...item, status: 'closed' as const })),
-        updateStatus,
+        findBySource: vi.fn(async () => closedItem),
       } as unknown as InboxRepository,
-      events: {
-        emit: vi.fn(async () => {}),
-      } as unknown as import('#/shared/events/event-bus').EventBus,
+      commandStore: { applySourceWithdrawnOnce, recordReceipt: vi.fn() },
+      logger: createMockLogger(),
     }
 
     await expect(onFeedbackRetracted(deps)(event)).resolves.toBeUndefined()
-    expect(updateStatus).not.toHaveBeenCalled()
-    expect(deps.events.emit).not.toHaveBeenCalled()
+    expect(applySourceWithdrawnOnce).toHaveBeenCalledWith(
+      expect.objectContaining({ item: closedItem }),
+    )
   })
 })

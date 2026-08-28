@@ -60,6 +60,7 @@ function seedEscalated(overrides?: Partial<InboxItem>): InboxItem {
     closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
+    commandRevision: 1,
     createdAt: FIXED_TIME,
     updatedAt: FIXED_TIME,
     ...overrides,
@@ -69,19 +70,34 @@ function seedEscalated(overrides?: Partial<InboxItem>): InboxItem {
 const allAccess: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 const setup = (staffPublicApi: StaffPublicApi = allAccess) => {
   const repo = createInMemoryInboxRepo()
   const events = createCapturingEventBus()
   const commandStore = createSequentialInboxCommandStore({ repo, events })
-  const useCase = resolveEscalation({
+  const execute = resolveEscalation({
     repo,
     commandStore,
     clock: () => FIXED_TIME,
     staffPublicApi,
   })
+  type CommandInput = Parameters<typeof execute>[0]
+  const useCase = (
+    input: Omit<CommandInput, 'expectedCommandRevision'> &
+      Partial<Pick<CommandInput, 'expectedCommandRevision'>>,
+    ctx: AuthContext,
+  ) =>
+    execute(
+      {
+        ...input,
+        expectedCommandRevision:
+          input.expectedCommandRevision ??
+          repo.items.find((item) => item.id === input.inboxItemId)?.commandRevision ??
+          1,
+      },
+      ctx,
+    )
   return { useCase, repo, events }
 }
 
@@ -95,6 +111,7 @@ describe('resolveEscalation', () => {
     expect(updated.isEscalated).toBe(false)
     expect(updated.escalationResolvedAt).toBe(FIXED_TIME)
     expect(updated.escalationResolvedBy).toBe(USER_ID)
+    expect(updated.commandRevision).toBe(2)
   })
 
   it('emits the escalation_resolved event', async () => {

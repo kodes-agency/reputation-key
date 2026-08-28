@@ -3,13 +3,14 @@
 // BQC-1.2: metadata only — guest rating/comment resolve live at read time.
 
 import type { GuestFeedbackSubmitted } from '#/contexts/guest/application/public-api'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { CreateInboxItem } from '../../application/use-cases/create-inbox-item'
 import { isInboxError } from '../../domain/errors'
-import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
 export type OnFeedbackSubmittedDeps = Readonly<{
   createInboxItem: CreateInboxItem
+  logger: LoggerPort
 }>
 
 export const onFeedbackSubmitted =
@@ -24,10 +25,11 @@ export const onFeedbackSubmitted =
           sourceId: event.feedbackId,
           sourceDate: event.occurredAt,
           platform: null,
+          sourceRevision: event.responseRevision ?? 1,
         })
       } catch (err) {
         if (isInboxError(err) && err.code === 'already_exists') return
-        getLogger().error({ err }, 'inbox: failed to handle feedback.submitted')
+        deps.logger.error({ err }, 'inbox: failed to handle feedback.submitted')
       }
     })
   }
