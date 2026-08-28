@@ -1,15 +1,17 @@
-import { startAiEgressGateway } from './bootstrap'
-import { createLocalAiProviderFetch } from './local-provider-transport'
-import { createOpenAiConnector } from './openai-connector'
+import { runSidecarStartup } from '../sidecar-operational-runtime'
 
-async function main(): Promise<void> {
+await runSidecarStartup('ai-egress-gateway', async () => {
+  const [
+    { startAiEgressGateway },
+    { createLocalAiProviderFetch },
+    { createOpenAiConnector },
+  ] = await Promise.all([
+    import('./bootstrap'),
+    import('./local-provider-transport'),
+    import('./openai-connector'),
+  ])
   const outboundFetch = createLocalAiProviderFetch()
   await startAiEgressGateway((input) =>
     createOpenAiConnector({ ...input, outboundFetch }),
   )
-}
-
-void main().catch((error: unknown) => {
-  console.error(error)
-  process.exit(1)
 })

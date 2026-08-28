@@ -3,8 +3,9 @@ ARG SOURCE_REVISION=unknown
 # ─────────────────────────────────────────────────────────────────────────────
 # BQC-7.1 — production WEB image (TanStack Start + Nitro, node-server preset).
 #
-# One build path: this Dockerfile (nixpacks.toml was removed). Railway builds
-# it per railway.json (build.builder=DOCKERFILE, dockerfilePath=Dockerfile).
+# One build path: this Dockerfile (nixpacks.toml was removed). CI builds and
+# signs it once; the release controller connects its immutable registry digest
+# to the Railway service. The IaC graph never rebuilds a working tree.
 #
 # Reproducibility:
 #   - base image pinned by digest (node:22-slim bookworm; bump deliberately)
@@ -20,18 +21,21 @@ ARG SOURCE_REVISION=unknown
 #     placeholders CI uses (required only so `vite build` can evaluate the
 #     env schema); real config arrives via Railway service variables
 #
-# Deploy contract (railway.json):
+# Deploy contract (.railway/railway.ts):
+#   - the signed web image also powers the restart-NEVER `schema-migrator`
+#     first-rollout job; `release:migrate-cell` attaches its exact digest
 #   - preDeployCommand: `node dist-worker/migrate-deploy.js` (advisory-locked,
 #     idempotent migration sequence; see scripts/migrate-deploy.ts header)
-#   - healthcheck: GET /api/health/started (healthcheckTimeout 30s) — BQC-7.2:
-#     the platform activation gate consumes STARTUP semantics (container +
-#     migrations + policy complete), NOT liveness. Activation ≠ liveness:
+#   - healthcheck: GET /api/health/ready (healthcheckTimeout 30s) — BQC-7.2:
+#     the platform activation gate consumes READINESS semantics (database,
+#     queue Redis, migrations, and policy), NOT liveness. Activation ≠ liveness:
 #     /api/health/live stays dependency-free and backs the container-level
 #     HEALTHCHECK below (a post-activation dependency flap degrades readiness
 #     but must never restart the process).
 #   - numReplicas 1, restart ON_FAILURE×10, drainingSeconds 30 (> web drain)
-#   - region: platform/dashboard setting, deliberately not pinned in code
-#     (ADR 0048 single 'us' cell: us-west2 / us-east4-eqdc4a)
+#   - beta has one production Data Cell: `cell-us`, pinned to Railway's
+#     US West/California compute region `us-west2` (ADR 0057). The separate
+#     object bucket is pinned to Railway's `sjc` storage region.
 #
 # Graceful shutdown: SIGTERM → srvx drains HTTP (5s) in parallel with the
 # nitro graceful-shutdown plugin closing BullMQ queue connections, the shared
@@ -147,7 +151,7 @@ COPY scripts/migrations/2026-07-06-permission-version-triggers.sql \
 USER node
 EXPOSE 3000
 # Container-level HEALTHCHECK stays on /api/health/live (continuous LIVENESS
-# → restart posture); the platform activation gate is /api/health/started.
+# → restart posture); the Railway activation gate is /api/health/ready.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.NITRO_PORT||process.env.PORT||3000)+'/api/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 CMD ["node", "--import", "./.output/server/web-observability-preload.mjs", ".output/server/index.mjs"]

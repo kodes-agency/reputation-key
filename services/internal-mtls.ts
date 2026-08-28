@@ -40,7 +40,7 @@ function readTlsFile(path: string): Buffer {
 class InternalRequestRejectedError extends Error {}
 class InternalPeerRejectedError extends Error {}
 
-export function loadInternalMtlsMaterial(
+function loadInternalMtlsMaterial(
   input: Readonly<{
     caPath: string
     certPath: string

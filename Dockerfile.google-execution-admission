@@ -33,5 +33,5 @@ RUN rm -rf /opt/corepack /pnpm \
     /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg
 COPY --from=build /app/dist-google-execution-admission ./dist-google-execution-admission
 USER node
-EXPOSE 8443
+EXPOSE 8080 8443
 CMD ["node", "dist-google-execution-admission/index.js"]

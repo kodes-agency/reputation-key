@@ -1,4 +1,9 @@
-import { startAiEgressGateway } from './bootstrap'
-import { createOpenAiConnector } from './openai-connector'
+import { runSidecarStartup } from '../sidecar-operational-runtime'
 
-await startAiEgressGateway((input) => createOpenAiConnector(input))
+await runSidecarStartup('ai-egress-gateway', async () => {
+  const [{ startAiEgressGateway }, { createOpenAiConnector }] = await Promise.all([
+    import('./bootstrap'),
+    import('./openai-connector'),
+  ])
+  await startAiEgressGateway((input) => createOpenAiConnector(input))
+})

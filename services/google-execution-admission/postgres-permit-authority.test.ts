@@ -41,7 +41,7 @@ const permitRow = {
 
 function authorityWith(startOutcome: 'started' | 'changed' | 'expired') {
   const query = vi.fn(async (text: string) => {
-    if (text.includes('start_google_execution_permit_v1')) {
+    if (text.includes('start_google_execution_permit_v3')) {
       return { rows: [{ outcome: startOutcome }], rowCount: 1 }
     }
     return { rows: [permitRow], rowCount: 1 }
@@ -63,11 +63,11 @@ describe('Postgres Google admission start boundary', () => {
     await expect(authority.start(snapshot)).resolves.toBe('started')
 
     const startCall = query.mock.calls.find(([text]) =>
-      text.includes('start_google_execution_permit_v1'),
+      text.includes('start_google_execution_permit_v3'),
     )
     expect(startCall).toBeDefined()
     const sql = startCall?.[0] ?? ''
-    expect(sql).toContain('SELECT outcome FROM start_google_execution_permit_v1')
+    expect(sql).toContain('SELECT outcome FROM start_google_execution_permit_v3')
     expect(sql).not.toContain('authorization_execution_permits')
   })
 

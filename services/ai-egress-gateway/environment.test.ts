@@ -5,6 +5,7 @@ import { AI_GATEWAY_BUILD_ATTESTATION_DIGEST } from '../../src/shared/ai-gateway
 import { AI_GATEWAY_KEY_INVENTORY_V1 } from '../../src/shared/ai-openai-provider-profile'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation-profiles'
 import { AI_RUNTIME_CAPABILITIES_V1_DIGEST } from '../../src/shared/ai-runtime-capability-contract'
+import { PRODUCTION_RAILWAY_PROJECT_NAME } from '../../src/shared/release/railway-deployment-profile'
 import {
   AI_CANARY_REQUIRED_ENVIRONMENT_NAMES,
   AI_EGRESS_PROBE_REQUIRED_ENVIRONMENT_NAMES,
@@ -21,7 +22,9 @@ const gatewayEnvironment = (): Record<string, string> => ({
     AI_GATEWAY_REQUIRED_ENVIRONMENT_NAMES.map((name) => [name, 'masked']),
   ),
   HOST: '::',
-  PORT: '8443',
+  PORT: '8080',
+  INTERNAL_MTLS_PORT: '8443',
+  PROCESSING_CELL: 'us',
   RELEASE_SHA: 'a'.repeat(40),
   AI_KEY_INVENTORY_PROFILE: 'production-v1',
   AI_EXECUTION_ADMISSION_ORIGIN: 'https://ai-execution-admission.railway.internal:8443',
@@ -81,7 +84,6 @@ describe('AI gateway startup isolation', () => {
     'PGPASSWORD',
     'POSTGRES_PASSWORD',
     'AWS_SECRET_ACCESS_KEY',
-    'SENTRY_DSN',
     'RESEND_API_KEY',
     'RAILWAY_TOKEN',
     'UNKNOWN_FLAG',
@@ -139,10 +141,12 @@ describe('AI gateway startup isolation', () => {
       ).toThrow(message)
     }
   })
-  it('defaults missing gateway host, port, and profile metadata', () => {
+  it('defaults missing gateway host, ports, cell, and profile metadata', () => {
     const environment = gatewayEnvironment()
     delete environment.HOST
     delete environment.PORT
+    delete environment.INTERNAL_MTLS_PORT
+    delete environment.PROCESSING_CELL
     delete environment.AI_KEY_INVENTORY_PROFILE
     expect(() => assertAiGatewayRequiredEnvironment(environment)).not.toThrow()
   })
@@ -151,6 +155,8 @@ describe('AI gateway startup isolation', () => {
     ['HOST', '::1', 'AI gateway bind address is invalid'],
     ['PORT', '8444', 'AI gateway bind address is invalid'],
     ['PORT', '443', 'AI gateway bind address is invalid'],
+    ['INTERNAL_MTLS_PORT', '8080', 'AI gateway bind address is invalid'],
+    ['INTERNAL_MTLS_PORT', '8444', 'AI gateway bind address is invalid'],
     [
       'AI_EXECUTION_ADMISSION_ORIGIN',
       'https://ai-execution-admission:8443',
@@ -167,6 +173,22 @@ describe('AI gateway startup isolation', () => {
     ).toThrow(message)
   })
 
+  it('accepts monitoring variables and refuses a dormant beta cell', () => {
+    expect(() =>
+      assertAiGatewayRequiredEnvironment({
+        ...gatewayEnvironment(),
+        SENTRY_DSN: 'https://public@ingest.de.sentry.io/1',
+        SENTRY_TRACES_SAMPLE_RATE: '0.1',
+      }),
+    ).not.toThrow()
+    expect(() =>
+      assertAiGatewayRequiredEnvironment({
+        ...gatewayEnvironment(),
+        PROCESSING_CELL: 'global',
+      }),
+    ).toThrow('AI gateway processing cell is invalid')
+  })
+
   it('accepts the documented Node/Railway deployment metadata inventory only', () => {
     const environment = {
       ...gatewayEnvironment(),
@@ -181,7 +203,7 @@ describe('AI gateway startup isolation', () => {
       RAILWAY_BETA_ENABLE_RUNTIME_V2: '1',
       RAILWAY_DEPLOYMENT_ID: 'deployment',
       RAILWAY_ENVIRONMENT_ID: 'environment',
-      RAILWAY_ENVIRONMENT_NAME: 'google-closed-beta',
+      RAILWAY_ENVIRONMENT_NAME: 'cell-us',
       RAILWAY_GIT_AUTHOR: 'owner',
       RAILWAY_GIT_BRANCH: 'main',
       RAILWAY_GIT_COMMIT_MESSAGE: 'release',
@@ -190,7 +212,7 @@ describe('AI gateway startup isolation', () => {
       RAILWAY_GIT_REPO_OWNER: 'owner',
       RAILWAY_PRIVATE_DOMAIN: 'ai-egress-gateway.railway.internal',
       RAILWAY_PROJECT_ID: 'project',
-      RAILWAY_PROJECT_NAME: 'reputation-key',
+      RAILWAY_PROJECT_NAME: PRODUCTION_RAILWAY_PROJECT_NAME,
       RAILWAY_REPLICA_ID: 'replica',
       RAILWAY_REPLICA_REGION: 'us-west2',
       RAILWAY_SERVICE_ID: 'service',

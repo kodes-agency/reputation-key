@@ -26,6 +26,10 @@ import {
 import { loadGoogleAdmissionDatabaseTlsConfiguration } from './database-tls'
 import { assertGoogleAdmissionRequiredEnvironment } from './environment'
 import { consumeGoogleAdmissionRuntimeSecrets } from './runtime-secrets'
+import { createSidecarPlatformHealthServer } from '../platform-health'
+import { registerSidecarOperationalLifecycle } from '../sidecar-operational-runtime'
+import { resolveSidecarRuntimePorts } from '../sidecar-runtime-ports'
+import { captureObservabilityException } from '../../src/shared/observability/telemetry'
 
 assertGoogleAdmissionRequiredEnvironment(process.env)
 
@@ -33,18 +37,6 @@ function requiredEnv(name: string): string {
   const value = process.env[name]
   if (!value) throw new Error(`required execution-admission setting is missing: ${name}`)
   return value
-}
-
-function portFromEnv(): number {
-  const raw = process.env.PORT ?? '8443'
-  if (!/^[0-9]+$/.test(raw)) {
-    throw new Error('execution-admission port is invalid')
-  }
-  const port = Number(raw)
-  if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
-    throw new Error('execution-admission port is invalid')
-  }
-  return port
 }
 
 const { databaseTls, grantKeyring, pool, redis } = consumeGoogleAdmissionRuntimeSecrets(
@@ -95,11 +87,13 @@ const { databaseTls, grantKeyring, pool, redis } = consumeGoogleAdmissionRuntime
     }
   },
 )
-pool.on('error', () => {
+pool.on('error', (error) => {
+  captureObservabilityException(error, { source: 'sidecar-dependency' })
   process.stderr.write('execution_admission_db_idle_error\n')
 })
 
-redis.on('error', () => {
+redis.on('error', (error) => {
+  captureObservabilityException(error, { source: 'sidecar-dependency' })
   process.stderr.write('execution_admission_redis_error\n')
 })
 await redis.connect()
@@ -142,12 +136,20 @@ const authority = createPostgresGoogleAdmissionPermitAuthority({
   gatewayIdentity,
   releaseSha: requiredEnv('RELEASE_SHA'),
 })
+const readiness = async (signal: AbortSignal): Promise<boolean> => {
+  if (signal.aborted) return false
+  try {
+    const [redisReply, databaseReady] = await Promise.all([
+      redis.ping(),
+      authority.readiness(),
+    ])
+    return !signal.aborted && redisReply === 'PONG' && databaseReady
+  } catch {
+    return false
+  }
+}
 try {
-  const [redisReply, databaseReady] = await Promise.all([
-    redis.ping(),
-    authority.readiness(),
-  ])
-  if (redisReply !== 'PONG' || !databaseReady) {
+  if (!(await readiness(AbortSignal.timeout(5_000)))) {
     throw new Error('Google execution-admission dependencies are not ready')
   }
 } catch (error) {
@@ -180,9 +182,11 @@ const tls = loadInternalMtlsMaterialFromOneSource({
   base64: { ca: base64Tls[0], cert: base64Tls[1], key: base64Tls[2] },
   path: { ca: pathTls[0], cert: pathTls[1], key: pathTls[2] },
 })
+const host = process.env.HOST ?? '0.0.0.0'
+const { healthPort, protectedMtlsPort } = resolveSidecarRuntimePorts(process.env)
 const server = createInternalMtlsWebServer({
-  host: process.env.HOST ?? '0.0.0.0',
-  port: portFromEnv(),
+  host,
+  port: protectedMtlsPort,
   tls,
   maxRequestBytes: 32 * 1024,
   resolvePeerIdentity: createGoogleAdmissionPeerIdentityResolver(),
@@ -191,29 +195,35 @@ const server = createInternalMtlsWebServer({
       request,
       gatewayIdentity: peerIdentity,
       service,
-      readiness: async () => {
-        try {
-          const [redisReply, databaseReady] = await Promise.all([
-            redis.ping(),
-            authority.readiness(),
-          ])
-          return redisReply === 'PONG' && databaseReady
-        } catch {
-          return false
-        }
-      },
+      readiness: () => readiness(AbortSignal.timeout(2_000)),
     }),
 })
-
-server.listen(portFromEnv(), process.env.HOST ?? '0.0.0.0')
+const platformHealth = createSidecarPlatformHealthServer({
+  host,
+  healthPort,
+  protectedMtlsPort,
+  readiness,
+})
 
 let shuttingDown = false
 async function shutdown(): Promise<void> {
   if (shuttingDown) return
   shuttingDown = true
-  await new Promise<void>((resolve) => server.close(() => resolve()))
+  let failure: unknown
   try {
-    await Promise.allSettled([redis.quit(), pool.end()])
+    await server.stopAndDrain()
+  } catch (error) {
+    failure = error
+  }
+  for (const operation of [redis.quit(), pool.end()]) {
+    try {
+      await operation
+    } catch (error) {
+      failure ??= error
+    }
+  }
+  try {
+    if (failure !== undefined) throw failure
   } finally {
     databaseTls.dispose()
     grantKeyring.dispose()
@@ -223,9 +233,24 @@ async function shutdown(): Promise<void> {
   }
 }
 
-process.once('SIGTERM', () => {
-  void shutdown().finally(() => process.exit(0))
-})
-process.once('SIGINT', () => {
-  void shutdown().finally(() => process.exit(0))
+try {
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(protectedMtlsPort, host, () => {
+      server.removeListener('error', reject)
+      resolve()
+    })
+  })
+  await platformHealth.listen()
+} catch (error) {
+  platformHealth.beginDrain()
+  await Promise.allSettled([shutdown(), platformHealth.stop()])
+  throw error
+}
+
+registerSidecarOperationalLifecycle({
+  service: 'google-execution-admission',
+  health: platformHealth,
+  shutdown,
+  shutdownTimeoutMs: 25_000,
 })

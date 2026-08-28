@@ -11,3 +11,4 @@
 !e2e/fixtures
 !e2e/fixtures/gbp-stub.ts
 !e2e/fixtures/mail-stub.ts
+!e2e/fixtures/ai-provider-stub.ts

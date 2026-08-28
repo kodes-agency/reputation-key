@@ -46,6 +46,8 @@ const RUNTIME_METADATA_NAMES = Object.freeze([
 const GATEWAY_OWNED_NAMES = Object.freeze([
   'AI_KEY_INVENTORY_PROFILE',
   'HOST',
+  'INTERNAL_MTLS_PORT',
+  'PROCESSING_CELL',
   'OPENAI_API_KEY',
   'AI_EXECUTION_ADMISSION_ORIGIN',
   'AI_INTERNAL_MTLS_CA_B64',
@@ -69,9 +71,15 @@ const GATEWAY_OWNED_NAMES = Object.freeze([
 const GATEWAY_REQUIRED_NAMES = Object.freeze([...GATEWAY_OWNED_NAMES, 'PORT'] as const)
 export const AI_GATEWAY_REQUIRED_ENVIRONMENT_NAMES = GATEWAY_REQUIRED_NAMES
 
+const OBSERVABILITY_NAMES = Object.freeze([
+  'SENTRY_DSN',
+  'SENTRY_TRACES_SAMPLE_RATE',
+] as const)
+
 const GATEWAY_ALLOWED = new Set<string>([
   ...RUNTIME_METADATA_NAMES,
   ...GATEWAY_OWNED_NAMES,
+  ...OBSERVABILITY_NAMES,
 ])
 const PROBE_OWNED_NAMES = Object.freeze([
   'AI_EGRESS_PROBE_RELEASE_SHA',
@@ -101,7 +109,9 @@ export const AI_CANARY_REQUIRED_ENVIRONMENT_NAMES = CANARY_OWNED_NAMES
 const CANARY_ALLOWED = new Set<string>([...RUNTIME_METADATA_NAMES, ...CANARY_OWNED_NAMES])
 
 const AI_GATEWAY_RUNTIME_DEFAULT_HOST = '::'
-const AI_GATEWAY_RUNTIME_DEFAULT_PORT = '8443'
+const AI_GATEWAY_RUNTIME_DEFAULT_PORT = '8080'
+const AI_GATEWAY_RUNTIME_DEFAULT_MTLS_PORT = '8443'
+const AI_GATEWAY_RUNTIME_DEFAULT_CELL = 'us'
 const AI_GATEWAY_RUNTIME_DEFAULT_KEY_INVENTORY_PROFILE = 'production-v1'
 
 function normalizeAiGatewayRuntimeDefaults(
@@ -109,6 +119,9 @@ function normalizeAiGatewayRuntimeDefaults(
 ): Record<string, string> {
   const host = environment.HOST ?? AI_GATEWAY_RUNTIME_DEFAULT_HOST
   const port = environment.PORT ?? AI_GATEWAY_RUNTIME_DEFAULT_PORT
+  const internalMtlsPort =
+    environment.INTERNAL_MTLS_PORT ?? AI_GATEWAY_RUNTIME_DEFAULT_MTLS_PORT
+  const processingCell = environment.PROCESSING_CELL ?? AI_GATEWAY_RUNTIME_DEFAULT_CELL
   const aiKeyInventoryProfile =
     environment.AI_KEY_INVENTORY_PROFILE ??
     AI_GATEWAY_RUNTIME_DEFAULT_KEY_INVENTORY_PROFILE
@@ -117,6 +130,8 @@ function normalizeAiGatewayRuntimeDefaults(
     ...environment,
     HOST: host,
     PORT: port,
+    INTERNAL_MTLS_PORT: internalMtlsPort,
+    PROCESSING_CELL: processingCell,
     AI_KEY_INVENTORY_PROFILE: aiKeyInventoryProfile,
   } as Record<string, string>
 }
@@ -276,9 +291,13 @@ export function assertAiGatewayRequiredEnvironment(
   }
   if (
     required(normalizedEnvironment, 'HOST') !== '::' ||
-    required(normalizedEnvironment, 'PORT') !== '8443'
+    required(normalizedEnvironment, 'PORT') !== '8080' ||
+    required(normalizedEnvironment, 'INTERNAL_MTLS_PORT') !== '8443'
   ) {
     throw new Error('AI gateway bind address is invalid')
+  }
+  if (required(normalizedEnvironment, 'PROCESSING_CELL') !== 'us') {
+    throw new Error('AI gateway processing cell is invalid')
   }
   if (
     required(normalizedEnvironment, 'AI_EXECUTION_ADMISSION_ORIGIN') !==

@@ -13,11 +13,32 @@ describe('Google admission database authority architecture', () => {
     )
 
     expect(authority).toContain('load_google_execution_permit_v1')
-    expect(authority).toContain('start_google_execution_permit_v1')
+    expect(authority).toContain('start_google_execution_permit_v3')
     expect(authority).toContain('fail_google_execution_permit_v1')
     expect(authority).toContain('complete_google_execution_permit_v1')
     expect(authority).not.toMatch(/\b(?:FROM|UPDATE) authorization_execution_permits\b/u)
     expect(authority).not.toContain('capability_compliance_approvals AS approval')
+  })
+
+  it('keeps prospective exchange admission and adds exact disconnect cleanup admission', () => {
+    const exchangeMigration = source('drizzle/0162_google_oauth_gateway_admission.sql')
+    const migration = source('drizzle/0164_google_provider_recovery_authority.sql')
+
+    expect(migration).toContain('FUNCTION public.start_google_execution_permit_v3')
+    expect(migration).toContain("p_route_key <> 'oauth.revoke'")
+    expect(migration).toContain('public.start_google_execution_permit_v2(')
+    expect(migration).toContain('google_disconnect_revoke_attempts AS attempt')
+    expect(migration).toContain("connection.credential_use_state = 'cleanup_only'")
+    expect(exchangeMigration).toContain("'exchange_new'")
+    expect(exchangeMigration).toContain("'exchange_existing'")
+    expect(exchangeMigration).toContain('google_organization_credential_homes AS home')
+    expect(exchangeMigration).toContain('connection.id IS NULL')
+    expect(exchangeMigration).toContain(
+      "permit.operation_key = 'provider.oauth.token.exchange'",
+    )
+    expect(migration).toMatch(
+      /REVOKE ALL ON FUNCTION public\.start_google_execution_permit_v3\([\s\S]*? FROM PUBLIC/u,
+    )
   })
 
   it('journals security-definer operations and removes public execution', () => {

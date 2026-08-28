@@ -13,7 +13,9 @@ function environment(): Record<string, string> {
       GOOGLE_GATEWAY_REQUIRED_ENVIRONMENT_NAMES.map((name) => [name, 'masked']),
     ),
     HOST: '0.0.0.0',
-    PORT: '8443',
+    PORT: '8080',
+    INTERNAL_MTLS_PORT: '8443',
+    PROCESSING_CELL: 'us',
     GOOGLE_EXECUTION_ADMISSION_ORIGIN:
       'https://google-execution-admission.railway.internal:8443',
     GOOGLE_EXECUTION_ADMISSION_SERVER_NAME: 'google-execution-admission',
@@ -45,6 +47,31 @@ describe('Google egress-gateway startup isolation', () => {
     expect(() => assertGoogleGatewayRequiredEnvironment(environment())).not.toThrow()
     expect(() =>
       assertGoogleGatewayRequiredProductionEnvironment(environment()),
+    ).not.toThrow()
+  })
+
+  it('accepts only the separated health/mTLS ports and the single beta cell', () => {
+    expect(() =>
+      assertGoogleGatewayRequiredEnvironment({ ...environment(), PORT: '8443' }),
+    ).toThrow('Google gateway bind address is invalid')
+    expect(() =>
+      assertGoogleGatewayRequiredEnvironment({
+        ...environment(),
+        INTERNAL_MTLS_PORT: '8080',
+      }),
+    ).toThrow('Google gateway bind address is invalid')
+    expect(() =>
+      assertGoogleGatewayRequiredEnvironment({
+        ...environment(),
+        PROCESSING_CELL: 'global',
+      }),
+    ).toThrow('Google gateway processing cell is invalid')
+    expect(() =>
+      assertGoogleGatewayRequiredEnvironment({
+        ...environment(),
+        SENTRY_DSN: 'https://public@ingest.de.sentry.io/1',
+        SENTRY_TRACES_SAMPLE_RATE: '0.1',
+      }),
     ).not.toThrow()
   })
 

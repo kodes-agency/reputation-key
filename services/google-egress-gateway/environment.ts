@@ -40,6 +40,8 @@ const RUNTIME_METADATA_NAMES = Object.freeze([
 const BASE_OWNED_NAMES = [
   'HOST',
   'PORT',
+  'INTERNAL_MTLS_PORT',
+  'PROCESSING_CELL',
   'GOOGLE_EXECUTION_ADMISSION_ORIGIN',
   'GOOGLE_EXECUTION_ADMISSION_SERVER_NAME',
   'GOOGLE_EGRESS_GATEWAY_IDENTITY',
@@ -57,6 +59,8 @@ const BASE_OWNED_NAMES = [
   'IMAGE_SOURCE_REVISION',
 ] as const
 
+const OBSERVABILITY_NAMES = ['SENTRY_DSN', 'SENTRY_TRACES_SAMPLE_RATE'] as const
+
 export const GOOGLE_GATEWAY_REQUIRED_ENVIRONMENT_NAMES = Object.freeze(
   BASE_OWNED_NAMES.filter((name) => !name.endsWith('_PATH')),
 )
@@ -64,6 +68,7 @@ export const GOOGLE_GATEWAY_REQUIRED_ENVIRONMENT_NAMES = Object.freeze(
 const PRODUCTION_ALLOWED_NAMES = new Set<string>([
   ...RUNTIME_METADATA_NAMES,
   ...BASE_OWNED_NAMES,
+  ...OBSERVABILITY_NAMES,
 ])
 
 function assertEnvironmentIsIsolatedAgainst(
@@ -89,6 +94,7 @@ export function assertGoogleGatewayEnvironmentIsIsolated(
     new Set<string>([
       ...RUNTIME_METADATA_NAMES,
       ...BASE_OWNED_NAMES,
+      ...OBSERVABILITY_NAMES,
       'GOOGLE_PROVIDER_SIMULATOR_ORIGIN',
     ]),
   )
@@ -100,7 +106,9 @@ function valuesWithDefaults(
   return {
     ...environment,
     HOST: environment.HOST ?? '0.0.0.0',
-    PORT: environment.PORT ?? '8443',
+    PORT: environment.PORT ?? '8080',
+    INTERNAL_MTLS_PORT: environment.INTERNAL_MTLS_PORT ?? '8443',
+    PROCESSING_CELL: environment.PROCESSING_CELL ?? 'us',
   }
 }
 
@@ -131,8 +139,15 @@ function assertCommonRequiredEnvironment(
   ) {
     throw new Error('Google gateway mTLS configuration is invalid')
   }
-  if (values.HOST !== '0.0.0.0' || values.PORT !== '8443') {
+  if (
+    values.HOST !== '0.0.0.0' ||
+    values.PORT !== '8080' ||
+    values.INTERNAL_MTLS_PORT !== '8443'
+  ) {
     throw new Error('Google gateway bind address is invalid')
+  }
+  if (values.PROCESSING_CELL !== 'us') {
+    throw new Error('Google gateway processing cell is invalid')
   }
   if (
     values.GOOGLE_EXECUTION_ADMISSION_SERVER_NAME !== 'google-execution-admission' ||

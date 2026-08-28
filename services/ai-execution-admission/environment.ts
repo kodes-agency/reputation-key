@@ -47,6 +47,8 @@ const ADMISSION_OWNED_NAMES = Object.freeze([
   'HOST',
   'AI_KEY_INVENTORY_PROFILE',
   'PORT',
+  'INTERNAL_MTLS_PORT',
+  'PROCESSING_CELL',
   'AI_CONTROL_DATABASE_URL',
   'AI_CONTROL_DATABASE_CA_B64',
   'AI_ADMISSION_ED25519_PRIVATE_KEY_B64',
@@ -64,8 +66,15 @@ const ADMISSION_OWNED_NAMES = Object.freeze([
 ] as const)
 export const AI_ADMISSION_REQUIRED_ENVIRONMENT_NAMES = ADMISSION_OWNED_NAMES
 
+const OBSERVABILITY_NAMES = Object.freeze([
+  'SENTRY_DSN',
+  'SENTRY_TRACES_SAMPLE_RATE',
+] as const)
+
 const AI_ADMISSION_RUNTIME_DEFAULT_HOST = '::'
-const AI_ADMISSION_RUNTIME_DEFAULT_PORT = '8443'
+const AI_ADMISSION_RUNTIME_DEFAULT_PORT = '8080'
+const AI_ADMISSION_RUNTIME_DEFAULT_MTLS_PORT = '8443'
+const AI_ADMISSION_RUNTIME_DEFAULT_CELL = 'us'
 const AI_ADMISSION_RUNTIME_DEFAULT_KEY_INVENTORY_PROFILE = 'production-v1'
 
 function normalizeAiAdmissionRuntimeDefaults(
@@ -75,6 +84,9 @@ function normalizeAiAdmissionRuntimeDefaults(
     ...environment,
     HOST: environment.HOST ?? AI_ADMISSION_RUNTIME_DEFAULT_HOST,
     PORT: environment.PORT ?? AI_ADMISSION_RUNTIME_DEFAULT_PORT,
+    INTERNAL_MTLS_PORT:
+      environment.INTERNAL_MTLS_PORT ?? AI_ADMISSION_RUNTIME_DEFAULT_MTLS_PORT,
+    PROCESSING_CELL: environment.PROCESSING_CELL ?? AI_ADMISSION_RUNTIME_DEFAULT_CELL,
     AI_KEY_INVENTORY_PROFILE:
       environment.AI_KEY_INVENTORY_PROFILE ??
       AI_ADMISSION_RUNTIME_DEFAULT_KEY_INVENTORY_PROFILE,
@@ -84,6 +96,7 @@ function normalizeAiAdmissionRuntimeDefaults(
 const ADMISSION_ALLOWED = new Set<string>([
   ...RUNTIME_METADATA_NAMES,
   ...ADMISSION_OWNED_NAMES,
+  ...OBSERVABILITY_NAMES,
 ])
 
 function required(
@@ -153,8 +166,12 @@ export function assertAiAdmissionRequiredEnvironment(
   }
   if (
     required(normalizedEnvironment, 'HOST') !== '::' ||
-    required(normalizedEnvironment, 'PORT') !== '8443'
+    required(normalizedEnvironment, 'PORT') !== '8080' ||
+    required(normalizedEnvironment, 'INTERNAL_MTLS_PORT') !== '8443'
   ) {
     throw new Error('AI admission bind address is invalid')
+  }
+  if (required(normalizedEnvironment, 'PROCESSING_CELL') !== 'us') {
+    throw new Error('AI admission processing cell is invalid')
   }
 }

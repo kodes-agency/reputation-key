@@ -34,7 +34,7 @@ RUN rm -rf /opt/corepack /pnpm \
     /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg
 COPY --from=build /app/dist-google-egress-gateway ./dist-google-egress-gateway
 USER node
-EXPOSE 8443
+EXPOSE 8080 8443
 CMD ["node", "dist-google-egress-gateway/index.js"]
 
 FROM runtime AS local-tools

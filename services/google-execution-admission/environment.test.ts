@@ -13,7 +13,9 @@ function environment(): Record<string, string> {
       GOOGLE_ADMISSION_REQUIRED_ENVIRONMENT_NAMES.map((name) => [name, 'masked']),
     ),
     HOST: '0.0.0.0',
-    PORT: '8443',
+    PORT: '8080',
+    INTERNAL_MTLS_PORT: '8443',
+    PROCESSING_CELL: 'us',
     RELEASE_SHA: 'a'.repeat(40),
     IMAGE_SOURCE_REVISION: 'a'.repeat(40),
   }
@@ -60,6 +62,18 @@ describe('Google execution-admission startup isolation', () => {
     expect(() =>
       assertGoogleAdmissionRequiredEnvironment({ ...environment(), PORT: '8444' }),
     ).toThrow('Google admission bind address is invalid')
+    expect(() =>
+      assertGoogleAdmissionRequiredEnvironment({
+        ...environment(),
+        INTERNAL_MTLS_PORT: '8080',
+      }),
+    ).toThrow('Google admission bind address is invalid')
+    expect(() =>
+      assertGoogleAdmissionRequiredEnvironment({
+        ...environment(),
+        PROCESSING_CELL: 'europe',
+      }),
+    ).toThrow('Google admission processing cell is invalid')
   })
 
   it('accepts documented Node and Railway runtime metadata', () => {
@@ -75,7 +89,7 @@ describe('Google execution-admission startup isolation', () => {
         SHLVL: '1',
         RAILWAY_DEPLOYMENT_ID: 'deployment',
         RAILWAY_ENVIRONMENT_ID: 'environment',
-        RAILWAY_ENVIRONMENT_NAME: 'cell-europe',
+        RAILWAY_ENVIRONMENT_NAME: 'cell-us',
         RAILWAY_GIT_COMMIT_SHA: 'a'.repeat(40),
         RAILWAY_PRIVATE_DOMAIN: 'google-execution-admission.railway.internal',
         RAILWAY_PROJECT_ID: 'project',
@@ -83,6 +97,8 @@ describe('Google execution-admission startup isolation', () => {
         RAILWAY_REPLICA_REGION: 'europe-west4',
         RAILWAY_SERVICE_ID: 'service',
         RAILWAY_SERVICE_NAME: 'google-execution-admission',
+        SENTRY_DSN: 'https://public@ingest.de.sentry.io/1',
+        SENTRY_TRACES_SAMPLE_RATE: '0.1',
       }),
     ).not.toThrow()
   })

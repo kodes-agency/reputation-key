@@ -19,6 +19,10 @@ import { createAiExecutionAdmissionService } from './service'
 import { assertAiAdmissionRequiredEnvironment } from './environment'
 import { loadEd25519PrivateKey } from './key-material'
 import { consumeAiAdmissionRuntimeSecrets } from './runtime-secrets'
+import { createSidecarPlatformHealthServer } from '../platform-health'
+import { registerSidecarOperationalLifecycle } from '../sidecar-operational-runtime'
+import { resolveSidecarRuntimePorts } from '../sidecar-runtime-ports'
+import { captureObservabilityException } from '../../src/shared/observability/telemetry'
 
 const GATEWAY_IDENTITY = 'spiffe://repkey.internal/ai-egress-gateway'
 assertAiAdmissionRequiredEnvironment(process.env)
@@ -28,16 +32,6 @@ function requiredEnv(name: string): string {
   const value = process.env[name]
   if (!value) throw new Error(`required AI admission setting is missing: ${name}`)
   return value
-}
-
-function portFromEnv(): number {
-  const raw = process.env.PORT ?? '8443'
-  if (!/^[0-9]+$/.test(raw)) throw new Error('AI admission port is invalid')
-  const port = Number(raw)
-  if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
-    throw new Error('AI admission port is invalid')
-  }
-  return port
 }
 
 const signingKid = requiredEnv('AI_ADMISSION_ED25519_KID')
@@ -74,7 +68,8 @@ const { databaseTls, pool, requestBindingKeys, signingPrivateKey, tls } =
       tls,
     }
   })
-pool.on('error', () => {
+pool.on('error', (error) => {
+  captureObservabilityException(error, { source: 'sidecar-dependency' })
   process.stderr.write('ai_admission_db_idle_error\n')
 })
 assertAiRequestBindingKeyringInventory(requestBindingKeys, keyInventory)
@@ -88,11 +83,20 @@ const service = createAiExecutionAdmissionService({
   signingPrivateKey,
   database: createPostgresAiAdmissionAuthority({ pool, signingKid }),
 })
+const readiness = async (signal: AbortSignal): Promise<boolean> => {
+  if (signal.aborted) return false
+  try {
+    const ready = await service.readiness()
+    return !signal.aborted && ready
+  } catch {
+    return false
+  }
+}
 const host = process.env.HOST ?? '::'
-const port = portFromEnv()
+const { healthPort, protectedMtlsPort } = resolveSidecarRuntimePorts(process.env)
 const server = createInternalMtlsWebServer({
   host,
-  port,
+  port: protectedMtlsPort,
   tls,
   maxRequestBytes: AI_AUTHORIZE_MAX_BYTES,
   shutdownDrainTimeoutMs: AI_SERVICE_HANDLER_DRAIN_TIMEOUT_MILLIS_V1,
@@ -109,8 +113,14 @@ const server = createInternalMtlsWebServer({
       service,
     }),
 })
+const platformHealth = createSidecarPlatformHealthServer({
+  host,
+  healthPort,
+  protectedMtlsPort,
+  readiness,
+})
 
-if (!(await service.readiness())) {
+if (!(await readiness(AbortSignal.timeout(5_000)))) {
   try {
     await pool.end()
   } finally {
@@ -123,10 +133,9 @@ if (!(await service.readiness())) {
   throw new Error('AI admission readiness verification failed')
 }
 
-server.listen(port, host)
-
 const reaper = setInterval(() => {
-  void service.reapExpired(100).catch(() => {
+  void service.reapExpired(100).catch((error) => {
+    captureObservabilityException(error, { source: 'sidecar-dependency' })
     process.stderr.write('ai_admission_reaper_error\n')
   })
 }, 5 * 60_000)
@@ -137,9 +146,19 @@ async function shutdown(): Promise<void> {
   if (shuttingDown) return
   shuttingDown = true
   clearInterval(reaper)
+  let failure: unknown
   try {
     await server.stopAndDrain()
+  } catch (error) {
+    failure = error
+  }
+  try {
     await pool.end()
+  } catch (error) {
+    failure ??= error
+  }
+  try {
+    if (failure !== undefined) throw failure
   } finally {
     requestBindingKeys.dispose()
     databaseTls.dispose()
@@ -149,9 +168,24 @@ async function shutdown(): Promise<void> {
   }
 }
 
-process.once('SIGTERM', () => {
-  void shutdown().finally(() => process.exit(0))
-})
-process.once('SIGINT', () => {
-  void shutdown().finally(() => process.exit(0))
+try {
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(protectedMtlsPort, host, () => {
+      server.removeListener('error', reject)
+      resolve()
+    })
+  })
+  await platformHealth.listen()
+} catch (error) {
+  platformHealth.beginDrain()
+  await Promise.allSettled([shutdown(), platformHealth.stop()])
+  throw error
+}
+
+registerSidecarOperationalLifecycle({
+  service: 'ai-execution-admission',
+  health: platformHealth,
+  shutdown,
+  shutdownTimeoutMs: 125_000,
 })

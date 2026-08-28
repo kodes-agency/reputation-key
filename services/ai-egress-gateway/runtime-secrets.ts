@@ -9,7 +9,7 @@ export const AI_GATEWAY_RUNTIME_SECRET_NAMES = Object.freeze([
   'AI_PROVENANCE_ED25519_PRIVATE_KEY_B64',
 ] as const)
 
-export const AI_CANARY_RUNTIME_SECRET_NAMES = Object.freeze([
+const AI_CANARY_RUNTIME_SECRET_NAMES = Object.freeze([
   'OPENAI_API_KEY',
   'AI_INTERNAL_MTLS_CA_B64',
   'AI_INTERNAL_MTLS_CERT_B64',

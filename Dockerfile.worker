@@ -10,7 +10,7 @@ ARG SOURCE_REVISION=unknown
 # node:22-slim, corepack-pinned pnpm, --frozen-lockfile everywhere, non-root
 # `node` user, no runtime disk writes → read-only root + tmpfs /tmp posture).
 #
-# Deploy contract (railway.worker.json):
+# Deploy contract (.railway/railway.ts):
 #   - startCommand: image CMD (Node preloads error monitoring, then runs
 #     dist-worker/index.js)
 #   - NO healthcheckPath: the worker serves no HTTP (liveness is the process
@@ -21,7 +21,8 @@ ARG SOURCE_REVISION=unknown
 #     >1 replica would double-process schedules)
 #   - restart ON_FAILURE×10, drainingSeconds 30 — the outer bound for the
 #     DRAIN_BUDGET_MS (default 25s) graceful drain in src/worker/index.ts
-#   - region: platform/dashboard setting (ADR 0048 single 'us' cell)
+#   - region: Railway US West/California `us-west2` in the single `cell-us`
+#     beta deployment (ADR 0057)
 #
 # Graceful shutdown: SIGTERM/SIGINT → stop the outbox relay, close BullMQ
 # workers (stops fetching, drains in-flight), close queues — raced against

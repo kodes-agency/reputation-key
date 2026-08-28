@@ -39,6 +39,8 @@ const RUNTIME_METADATA_NAMES = Object.freeze([
 const OWNED_NAMES = Object.freeze([
   'HOST',
   'PORT',
+  'INTERNAL_MTLS_PORT',
+  'PROCESSING_CELL',
   'DATABASE_URL',
   'GOOGLE_ADMISSION_DATABASE_CA_B64',
   'REDIS_URL',
@@ -55,12 +57,21 @@ const OWNED_NAMES = Object.freeze([
   'IMAGE_SOURCE_REVISION',
 ] as const)
 
+const OBSERVABILITY_NAMES = Object.freeze([
+  'SENTRY_DSN',
+  'SENTRY_TRACES_SAMPLE_RATE',
+] as const)
+
 export const GOOGLE_ADMISSION_REQUIRED_ENVIRONMENT_NAMES = Object.freeze(
   OWNED_NAMES.filter(
     (name) => !name.endsWith('_PATH') && name !== 'PROVIDER_REDIS_TLS_CA_PEM',
   ),
 )
-const ALLOWED_NAMES = new Set<string>([...RUNTIME_METADATA_NAMES, ...OWNED_NAMES])
+const ALLOWED_NAMES = new Set<string>([
+  ...RUNTIME_METADATA_NAMES,
+  ...OWNED_NAMES,
+  ...OBSERVABILITY_NAMES,
+])
 
 function normalized(
   environment: Readonly<Record<string, string | undefined>>,
@@ -68,7 +79,9 @@ function normalized(
   return {
     ...environment,
     HOST: environment.HOST ?? '0.0.0.0',
-    PORT: environment.PORT ?? '8443',
+    PORT: environment.PORT ?? '8080',
+    INTERNAL_MTLS_PORT: environment.INTERNAL_MTLS_PORT ?? '8443',
+    PROCESSING_CELL: environment.PROCESSING_CELL ?? 'us',
   }
 }
 
@@ -121,8 +134,15 @@ export function assertGoogleAdmissionRequiredEnvironment(
   ) {
     throw new Error('Google admission mTLS configuration is invalid')
   }
-  if (values.HOST !== '0.0.0.0' || values.PORT !== '8443') {
+  if (
+    values.HOST !== '0.0.0.0' ||
+    values.PORT !== '8080' ||
+    values.INTERNAL_MTLS_PORT !== '8443'
+  ) {
     throw new Error('Google admission bind address is invalid')
+  }
+  if (values.PROCESSING_CELL !== 'us') {
+    throw new Error('Google admission processing cell is invalid')
   }
   if (
     !/^[a-f0-9]{40}$/u.test(values.RELEASE_SHA ?? '') ||

@@ -17,6 +17,9 @@ import {
   assertGoogleGatewayRequiredLocalEnvironment,
   assertGoogleGatewayRequiredProductionEnvironment,
 } from './environment'
+import { createSidecarPlatformHealthServer } from '../platform-health'
+import { registerSidecarOperationalLifecycle } from '../sidecar-operational-runtime'
+import { resolveSidecarRuntimePorts } from '../sidecar-runtime-ports'
 
 declare const __REPKEY_GOOGLE_LOCAL_SANDBOX__: boolean
 
@@ -30,16 +33,6 @@ function requiredEnv(name: string): string {
   const value = process.env[name]
   if (!value) throw new Error(`required egress-gateway setting is missing: ${name}`)
   return value
-}
-
-function portFromEnv(): number {
-  const raw = process.env.PORT ?? '8443'
-  if (!/^[0-9]+$/.test(raw)) throw new Error('egress-gateway port is invalid')
-  const port = Number(raw)
-  if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
-    throw new Error('egress-gateway port is invalid')
-  }
-  return port
 }
 
 function allowedCallerIdentities(): ReadonlySet<string> {
@@ -106,9 +99,26 @@ const gateway = createGoogleEgressGateway({
   fetch,
 })
 
+const readiness = async (signal: AbortSignal): Promise<boolean> => {
+  if (signal.aborted) return false
+  try {
+    const raw = await admissionTransport.get('/health/ready', { signal })
+    return (
+      !signal.aborted &&
+      typeof raw === 'object' &&
+      raw !== null &&
+      (raw as Record<string, unknown>).ok === true
+    )
+  } catch {
+    return false
+  }
+}
+
+const host = process.env.HOST ?? '0.0.0.0'
+const { healthPort, protectedMtlsPort } = resolveSidecarRuntimePorts(process.env)
 const server = createInternalMtlsWebServer({
-  host: process.env.HOST ?? '0.0.0.0',
-  port: portFromEnv(),
+  host,
+  port: protectedMtlsPort,
   tls,
   maxRequestBytes: 256 * 1024,
   resolvePeerIdentity: createGoogleEgressPeerIdentityResolver(),
@@ -118,34 +128,63 @@ const server = createInternalMtlsWebServer({
       callerIdentity: peerIdentity,
       allowedCallerIdentities: callerIdentities,
       gateway,
-      readiness: async () => {
-        try {
-          const raw = await admissionTransport.get('/health/ready')
-          return (
-            typeof raw === 'object' &&
-            raw !== null &&
-            (raw as Record<string, unknown>).ok === true
-          )
-        } catch {
-          return false
-        }
-      },
+      readiness: () => readiness(AbortSignal.timeout(2_000)),
     }),
 })
-server.listen(portFromEnv(), process.env.HOST ?? '0.0.0.0')
+const platformHealth = createSidecarPlatformHealthServer({
+  host,
+  healthPort,
+  protectedMtlsPort,
+  readiness,
+})
 
 let shuttingDown = false
 async function shutdown(): Promise<void> {
   if (shuttingDown) return
   shuttingDown = true
-  const closed = Promise.withResolvers<void>()
-  server.close(() => closed.resolve())
-  await closed.promise
+  let failure: unknown
+  try {
+    await server.stopAndDrain()
+  } catch (error) {
+    failure = error
+  }
+  try {
+    admissionTransport.close()
+  } catch (error) {
+    failure ??= error
+  }
+  try {
+    if (failure !== undefined) throw failure
+  } finally {
+    grantKeyring.dispose()
+    credentialKeyring.dispose()
+    tls.ca.fill(0)
+    tls.cert.fill(0)
+    tls.key.fill(0)
+  }
 }
 
-process.once('SIGTERM', () => {
-  void shutdown().finally(() => process.exit(0))
-})
-process.once('SIGINT', () => {
-  void shutdown().finally(() => process.exit(0))
+try {
+  if (!(await readiness(AbortSignal.timeout(5_000)))) {
+    throw new Error('Google egress-gateway dependencies are not ready')
+  }
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject)
+    server.listen(protectedMtlsPort, host, () => {
+      server.removeListener('error', reject)
+      resolve()
+    })
+  })
+  await platformHealth.listen()
+} catch (error) {
+  platformHealth.beginDrain()
+  await Promise.allSettled([shutdown(), platformHealth.stop()])
+  throw error
+}
+
+registerSidecarOperationalLifecycle({
+  service: 'google-egress-gateway',
+  health: platformHealth,
+  shutdown,
+  shutdownTimeoutMs: 25_000,
 })
