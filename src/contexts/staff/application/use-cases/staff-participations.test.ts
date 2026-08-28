@@ -201,6 +201,43 @@ describe('StaffParticipation lifecycle', () => {
     expect(calls).toEqual([[ctx.organizationId, 'linked-manager', ctx.userId]])
   })
 
+  it('retries eligibility reconciliation after the archive already committed', async () => {
+    const repo = fakeRepository()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    repo.participations.push({
+      id: PARTICIPATION_ID,
+      organizationId: ctx.organizationId,
+      propertyId: PROPERTY_ID,
+      staffParticipantId: 'b0000000-0000-4000-8000-000000000002',
+      linkedUserId: 'linked-manager',
+      displayName: 'Linked manager',
+      status: 'active',
+      startedAt: NOW,
+      endedAt: null,
+      archiveReason: null,
+      revision: 1,
+      createdBy: ctx.userId,
+      updatedAt: NOW,
+    })
+    let attempts = 0
+    const archive = archiveStaffParticipation({
+      ...deps(repo),
+      reconcileResponsibleManagerEligibility: async () => {
+        attempts += 1
+        if (attempts === 1) throw new Error('temporary reconciliation failure')
+      },
+    })
+    const input = {
+      staffParticipationId: PARTICIPATION_ID,
+      reason: 'left property',
+      expectedRevision: 1,
+    }
+
+    await expect(archive(input, ctx)).rejects.toThrow('temporary reconciliation failure')
+    await expect(archive(input, ctx)).resolves.toMatchObject({ status: 'archived' })
+    expect(attempts).toBe(2)
+  })
+
   it('creates a participant without requiring a login identity', async () => {
     const repo = fakeRepository()
     const create = createStaffParticipation(deps(repo))

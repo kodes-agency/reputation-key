@@ -5,7 +5,6 @@ import {
   staffParticipants,
   staffParticipations,
   staffUserLinks,
-  teamMemberships,
 } from '#/shared/db/schema/people-access.schema'
 import { portals } from '#/shared/db/schema/portal.schema'
 import { staffError } from '../../domain/errors'
@@ -280,16 +279,6 @@ export const createStaffParticipationRepository = (
             eq(portalResponsibilities.organizationId, organizationId),
             eq(portalResponsibilities.staffParticipationId, staffParticipationId),
             isNull(portalResponsibilities.effectiveTo),
-          ),
-        )
-      await tx
-        .update(teamMemberships)
-        .set({ effectiveTo: at, endReason: 'participation_archived' })
-        .where(
-          and(
-            eq(teamMemberships.organizationId, organizationId),
-            eq(teamMemberships.staffParticipationId, staffParticipationId),
-            isNull(teamMemberships.effectiveTo),
           ),
         )
       const [archived] = await tx

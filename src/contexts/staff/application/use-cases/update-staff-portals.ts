@@ -66,18 +66,16 @@ function buildCreateCommand(
   const assignment = buildResult.value
   return {
     assignment,
-    event: {
-      ...staffAssigned({
-        assignmentId: assignment.id,
-        organizationId: assignment.organizationId,
-        userId: assignment.userId,
-        propertyId: assignment.propertyId,
-        teamId: assignment.teamId,
-        portalId: assignment.portalId,
-        occurredAt: assignment.createdAt,
-      }),
+    event: staffAssigned({
+      assignmentId: assignment.id,
+      organizationId: assignment.organizationId,
+      userId: assignment.userId,
+      propertyId: assignment.propertyId,
+      teamId: assignment.teamId,
+      portalId: assignment.portalId,
+      occurredAt: assignment.createdAt,
       correlationId,
-    },
+    }),
   }
 }
 
@@ -118,17 +116,15 @@ function buildPortalDiff(
       removals.push({
         assignmentId: assignment.id,
         organizationId: ctx.organizationId,
-        event: {
-          ...staffUnassigned({
-            assignmentId: assignment.id,
-            organizationId: assignment.organizationId,
-            userId: assignment.userId,
-            propertyId: assignment.propertyId,
-            portalId: assignment.portalId,
-            occurredAt: deps.clock(),
-          }),
+        event: staffUnassigned({
+          assignmentId: assignment.id,
+          organizationId: assignment.organizationId,
+          userId: assignment.userId,
+          propertyId: assignment.propertyId,
+          portalId: assignment.portalId,
+          occurredAt: deps.clock(),
           correlationId,
-        },
+        }),
       })
     }
   }

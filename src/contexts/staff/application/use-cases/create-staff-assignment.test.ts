@@ -21,13 +21,11 @@ const FIXED_PROPERTY = propertyId('a0000000-0000-0000-0000-000000000001')
 const allAccessStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 const noAccessStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => [],
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 const allowAllMembership: IdentityMembershipPort = { isMember: async () => true }

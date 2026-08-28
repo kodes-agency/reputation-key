@@ -22,6 +22,10 @@ rollback until contraction is safe.
 - Current `StaffUserLink` reads honor both interval boundaries. If retained data
   contains overlapping current links for a Participant or login, interactive
   eligibility resolves no link until reconciliation removes the ambiguity.
+- Authorization-sensitive participation checks run in the caller's command
+  transaction and lock the one unambiguous current `StaffUserLink` before the
+  exact Organization/Property `StaffParticipation`. Link or participation
+  revocation therefore cannot race the protected write.
 - At most one active Primary Staff Attribution exists per Portal. Supporting
   relationships do not confer primary credit.
 - Participation and responsibility never grant login or Property access and never
@@ -85,25 +89,28 @@ no outcome performs or authorizes a write.
 
 ## Active application surface
 
-| Use case                       | Purpose                                                                                   | Permission                         |
-| ------------------------------ | ----------------------------------------------------------------------------------------- | ---------------------------------- |
-| `createStaffParticipation`     | Create a login-independent StaffParticipant and start active participation at a Property. | `staff.manage` plus Property scope |
-| `listStaffParticipations`      | List participants and current Portal Responsibility selections.                           | `staff.read` plus Property scope   |
-| `archiveStaffParticipation`    | Archive participation and close its active relationships.                                 | `staff.manage` plus Property scope |
-| `updatePortalResponsibilities` | Replace a responsibility set without rewriting unchanged intervals.                       | `staff.manage` plus Property scope |
-| `listStaffPortals`             | Resolve a Staff user's published Portals from current PortalResponsibility.               | `staff.read`                       |
+| Use case                       | Purpose                                                                                            | Permission                         |
+| ------------------------------ | -------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `createStaffParticipation`     | Create a login-independent StaffParticipant and start active participation at a Property.          | `staff.manage` plus Property scope |
+| `listStaffParticipations`      | List participants and current Portal Responsibility selections.                                    | `staff.read` plus Property scope   |
+| `archiveStaffParticipation`    | Archive participation and close active Portal Responsibilities; retained Team rows stay untouched. | `staff.manage` plus Property scope |
+| `updatePortalResponsibilities` | Replace a responsibility set without rewriting unchanged intervals.                                | `staff.manage` plus Property scope |
+| `listStaffPortals`             | Resolve a Staff user's published Portals from current PortalResponsibility.                        | `staff.read`                       |
 
 The People route uses only these participation/responsibility seams, the Identity
 member directory, and Portal options. It has no Team dependency.
 
 ## Legacy quarantine
 
-Legacy assignment repositories, the older plural `property_access_grants` table,
-inactive use-case/source files, events, and Team data remain because the migration
-has not reached contraction. Their network endpoints and activity consumers have
-been removed; they must not gain a new beta consumer. The deterministic authority
-report is the current review input; older conversion utilities are not authority
-to revive Team or infer access/manager responsibility. Schema removal waits for:
+Legacy assignment repository source, the older plural `property_access_grants`
+table, inactive use-case/source files, events, and Team data remain because the
+migration has not reached contraction. The legacy repository and its membership
+adapter are no longer constructed or exposed by production composition. Their
+network endpoints and activity consumers have been removed; they must not gain a
+new beta consumer. The deterministic authority report is the current review
+input; older conversion utilities are not authority to revive Team or infer
+access/manager responsibility. Active Staff archive and People cutover paths
+never update retained Team Membership rows. Schema removal waits for:
 
 1. an exact/mappable/conflict/orphan/unsafe reconciliation report with zero
    unexplained rows;
@@ -122,12 +129,13 @@ staff/
   infrastructure/
     repositories/      effective-dated participation/responsibility and legacy assignment
   server/              manager participation/responsibility endpoints only
-  build.ts             constructs canonical and quarantine seams
+  build.ts             constructs canonical participation/attribution seams only
 ```
 
 ## Deferred work
 
 - Contract the nullable legacy `staff_participations.user_id` and display-name
   shadows only after rollback/parity evidence permits it.
-- Cut over remaining internal legacy readers (including any Badge/recognition path)
-  and contract inactive source/data only after the quarantine gates pass.
+- Contract inactive legacy source/data only after row, export, restore, and
+  verified-release quarantine gates pass. No Badge/Recognition runtime reader
+  remains to cut over.

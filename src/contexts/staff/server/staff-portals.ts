@@ -30,8 +30,8 @@ export const listStaffPortals = createServerFn({ method: 'GET' })
         })
 
         try {
-          const { useCases } = getContainer()
-          return await useCases.listStaffPortals(
+          const { management } = getContainer().staffPublicApi
+          return await management.listStaffPortals(
             { userId: ctx.userId, propertyId: toPropertyId(data.propertyId) },
             ctx,
           )

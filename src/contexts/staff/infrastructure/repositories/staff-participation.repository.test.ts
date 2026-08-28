@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createStaffParticipationRepository } from './staff-participation.repository'
 
 const ORG_A = 'org-staff-participation-a'
@@ -10,6 +11,8 @@ const PROPERTY_A = 'db000000-0000-4000-8000-000000000001'
 const PROPERTY_B = 'db000000-0000-4000-8000-000000000002'
 const PARTICIPATION = 'db000000-0000-4000-8000-000000000011'
 const PARTICIPANT = 'db000000-0000-4000-8000-000000000010'
+const RETAINED_TEAM = 'db000000-0000-4000-8000-000000000012'
+const RETAINED_MEMBERSHIP = 'db000000-0000-4000-8000-000000000013'
 const PORTAL_A = 'db000000-0000-4000-8000-000000000021'
 const PORTAL_B = 'db000000-0000-4000-8000-000000000022'
 const PORTAL_C = 'db000000-0000-4000-8000-000000000023'
@@ -40,6 +43,7 @@ afterAll(async () => {
     'DELETE FROM portal_responsibilities WHERE organization_id IN ($1, $2)',
     [ORG_A, ORG_B],
   )
+  await pool.query('DELETE FROM team_memberships WHERE organization_id = $1', [ORG_A])
   await pool.query('DELETE FROM staff_participations WHERE organization_id IN ($1, $2)', [
     ORG_A,
     ORG_B,
@@ -52,6 +56,7 @@ afterAll(async () => {
     ORG_A,
     ORG_B,
   ])
+  await pool.query('DELETE FROM teams WHERE organization_id = $1', [ORG_A])
   await pool.query('DELETE FROM portals WHERE organization_id IN ($1, $2)', [
     ORG_A,
     ORG_B,
@@ -60,7 +65,7 @@ afterAll(async () => {
     PROPERTY_A,
     PROPERTY_B,
   ])
-  await pool.query('DELETE FROM organization WHERE id IN ($1, $2)', [ORG_A, ORG_B])
+  await deleteTestOrganizations(pool, [ORG_A, ORG_B])
   await pool.end()
 })
 
@@ -69,6 +74,7 @@ beforeEach(async () => {
     'DELETE FROM portal_responsibilities WHERE organization_id IN ($1, $2)',
     [ORG_A, ORG_B],
   )
+  await pool.query('DELETE FROM team_memberships WHERE organization_id = $1', [ORG_A])
   await pool.query('DELETE FROM staff_participations WHERE organization_id IN ($1, $2)', [
     ORG_A,
     ORG_B,
@@ -81,6 +87,7 @@ beforeEach(async () => {
     ORG_A,
     ORG_B,
   ])
+  await pool.query('DELETE FROM teams WHERE organization_id = $1', [ORG_A])
   await pool.query('DELETE FROM portals WHERE organization_id IN ($1, $2)', [
     ORG_A,
     ORG_B,
@@ -342,6 +349,19 @@ describe('staff participation repository', () => {
   it('archives participation and closes responsibility history transactionally', async () => {
     const repo = createStaffParticipationRepository(getDb())
     await createFixture(repo)
+    await pool.query(
+      `INSERT INTO teams
+         (id, organization_id, property_id, name, created_at, updated_at)
+       VALUES ($1, $2, $3, 'Retained Team', $4, $4)`,
+      [RETAINED_TEAM, ORG_A, PROPERTY_A, START],
+    )
+    await pool.query(
+      `INSERT INTO team_memberships
+         (id, organization_id, property_id, team_id, staff_participation_id,
+          role, effective_from, created_by)
+       VALUES ($1, $2, $3, $4, $5, 'member', $6, 'legacy-import')`,
+      [RETAINED_MEMBERSHIP, ORG_A, PROPERTY_A, RETAINED_TEAM, PARTICIPATION, START],
+    )
     await repo.replaceResponsibilities({
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
@@ -369,5 +389,12 @@ describe('staff participation repository', () => {
     )
     expect(new Date(history.rows[0].effective_to)).toEqual(CHANGE)
     expect(history.rows[0].end_reason).toBe('participation_archived')
+    const retainedMembership = await pool.query(
+      `SELECT effective_to, end_reason
+       FROM team_memberships
+       WHERE id = $1`,
+      [RETAINED_MEMBERSHIP],
+    )
+    expect(retainedMembership.rows).toEqual([{ effective_to: null, end_reason: null }])
   })
 })

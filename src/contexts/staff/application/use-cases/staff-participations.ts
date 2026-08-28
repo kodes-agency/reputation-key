@@ -162,7 +162,19 @@ export const archiveStaffParticipation =
       throw staffError('participation_not_found', 'staff participation not found')
     }
     await requirePropertyManage(deps, ctx, participation.propertyId)
-    if (participation.status === 'archived') return participation
+    if (participation.status === 'archived') {
+      // The archive write and cross-context eligibility reconciliation cannot
+      // share one transaction. Re-run the idempotent reconciliation when an
+      // operator retries after a post-commit failure.
+      if (participation.linkedUserId) {
+        await deps.reconcileResponsibleManagerEligibility?.(
+          ctx.organizationId,
+          participation.linkedUserId,
+          ctx.userId,
+        )
+      }
+      return participation
+    }
     const reason = input.reason.trim()
     if (reason.length === 0) {
       throw staffError('invalid_input', 'archive reason is required')

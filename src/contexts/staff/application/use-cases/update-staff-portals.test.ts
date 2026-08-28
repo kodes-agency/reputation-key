@@ -40,7 +40,6 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     staffPublicApi: {
       getAccessiblePropertyIds: async () => accessible,
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     } satisfies StaffPublicApi,
     clock,
     idGen,

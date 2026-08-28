@@ -2,16 +2,17 @@
 // Wires staff repos, use cases, and the PublicApi surface.
 // Per ADR-0001: the composition root calls this and passes publicApi to consumers.
 //
-// Legacy StaffAssignment persistence remains exposed only for quarantined Team
-// reconciliation. No legacy assignment use case or network endpoint is built.
+// Legacy StaffAssignment persistence remains source-only for reconciliation and
+// is deliberately absent from runtime composition.
 
 import type { Database } from '#/shared/db'
-import type { StaffAssignmentRepository } from './application/ports/staff-assignment.repository'
 import type { AccessiblePropertyLookupPort } from './application/ports/accessible-property-lookup.port'
 import { trace } from '#/shared/observability/trace'
 import type { StaffPortalLookupPort } from './application/ports/portal-lookup.port'
-import type { IdentityMembershipPort } from './application/ports/identity-membership.port'
-import type { StaffPublicApi } from './application/public-api'
+import type {
+  PrimaryStaffAttributionPublicApi,
+  StaffPublicApi,
+} from './application/public-api'
 import {
   portalId,
   type OrganizationId,
@@ -26,19 +27,17 @@ import {
   listStaffParticipations,
   updatePortalResponsibilities,
 } from './application/use-cases/staff-participations'
-import { randomUUID } from 'crypto'
+import {
+  decideCurrentUserParticipationAuthority,
+  type CurrentUserParticipationAuthorityDatabase,
+} from './infrastructure/repositories/current-user-participation-authority'
+import { createPrimaryStaffAttributionResolver } from './infrastructure/primary-staff-attribution'
 
 type StaffContextDeps = Readonly<{
   db: Database
-  repo: StaffAssignmentRepository
   portalLookup: StaffPortalLookupPort
   clock: () => Date
-  /**
-   * Validates that a target userId is a member of ctx.organizationId before
-   * creating a staff assignment (ADR 0006). Wired in the composition root to
-   * an adapter backed by the identity context.
-   */
-  identityMembership: IdentityMembershipPort
+  idGen: () => string
   /**
    * BQC-2.3: the ONLY source of property-access scope — the identity-owned
    * PropertyAccessGrant repository (ADR 0039). Staff/team/portal
@@ -54,8 +53,9 @@ type StaffContextDeps = Readonly<{
 }>
 
 export const buildStaffContext = (deps: StaffContextDeps) => {
-  const idGen = () => randomUUID()
+  const idGen = deps.idGen
   const participationRepo = createStaffParticipationRepository(deps.db)
+  const resolvePrimaryStaffAttribution = createPrimaryStaffAttributionResolver(deps.db)
 
   const responsibilityLookup = {
     listAssignedPortalIds: async (
@@ -77,7 +77,7 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
     },
   } as const
 
-  const publicApi: StaffPublicApi = {
+  const staffFactsApi: StaffPublicApi & PrimaryStaffAttributionPublicApi = {
     getAccessiblePropertyIds: async (
       orgId: OrganizationId,
       userId: UserId,
@@ -100,10 +100,7 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
         input.propertyId,
       )
     },
-    countAssignmentsByTeam: async (orgId, teamId) => {
-      const assignments = await deps.repo.listByTeam(orgId, teamId)
-      return assignments.length
-    },
+    resolvePrimaryStaffAttribution,
     findParticipationById: (organizationId, staffParticipationId) =>
       participationRepo.findById(organizationId, staffParticipationId),
     findActiveParticipation: (organizationId, propertyId, userId) =>
@@ -144,14 +141,29 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
     }),
   } as const
 
+  const publicApi = Object.freeze({
+    ...staffFactsApi,
+    management: Object.freeze(useCases),
+  })
+
+  const decideUserParticipationAuthority = (
+    tx: CurrentUserParticipationAuthorityDatabase,
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      userId: string
+      at: Date
+    }>,
+  ) => decideCurrentUserParticipationAuthority(tx, input)
+
   return {
     publicApi,
     internal: {
       repos: {
-        staffAssignmentRepo: deps.repo,
         staffParticipationRepo: participationRepo,
       } as const,
       useCases,
+      decideUserParticipationAuthority,
     },
   } as const
 }

@@ -41,7 +41,7 @@ async function softDeleteAssignment(
   tx: Tx,
   command: UnassignStaffCommand,
 ): Promise<void> {
-  const now = new Date()
+  const now = command.event.occurredAt
   await tx
     .update(staffAssignments)
     .set({ deletedAt: now, updatedAt: now })
@@ -55,10 +55,10 @@ async function softDeleteAssignment(
   await insertOutboxRow(tx, command.event)
 }
 
-export function createAtomicStaffCommandStore(
+export const createAtomicStaffCommandStore = (
   db: Database,
   events: EventBus,
-): StaffCommandStore {
+): StaffCommandStore => {
   return {
     assignStaff: async (command: AssignStaffCommand) => {
       return trace('staff.commandStore.assignStaff', async () => {
@@ -101,7 +101,7 @@ export function createAtomicStaffCommandStore(
     unassignStaff: async (command: UnassignStaffCommand) => {
       return trace('staff.commandStore.unassignStaff', async () => {
         await db.transaction(async (tx) => {
-          const now = new Date()
+          const now = command.event.occurredAt
           const updated = await tx
             .update(staffAssignments)
             .set({ deletedAt: now, updatedAt: now })
