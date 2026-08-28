@@ -560,12 +560,66 @@ candidate-bound contract rather than an arbitrary attachment:
   recovery generation, RPO/RTO, routing cutover/rollback read-backs and forward
   recovery. Reverse DDL is structurally forbidden.
 
-The schemas and final validator do not run these operations. The safe deployed
-runner, external/platform canary observer, and report-first recovery
-orchestrator must still produce the real artifacts; missing producers are a
-closed gate, not permission to hand-author a passing result. Every dependency
-digest named inside a typed summary must also be retained and byte-verified as
-a sibling reference under that same Gate F gate.
+The schemas and final validator do not run these operations. Three producers
+do, and each is fail-closed: it exits non-zero with a precise reason rather than
+emitting a well-formed artifact from absent, stubbed, or defaulted data. Every
+dependency digest named inside a typed summary is written beside the artifact as
+a `<sha256>.dependency` file, because Gate F rejects a dependency it cannot
+byte-verify as a sibling reference under that same gate.
+
+### `pnpm release:deployed-journeys`
+
+`scripts/release/run-deployed-critical-journeys.ts` drives the isolated
+`deployed-critical` Playwright project against the production `cell-us` origin
+and emits `repkey-deployed-critical-journeys-1`.
+
+- the suite lives in `e2e/deployed/`, is read-only by construction, and cannot
+  import a seed or fixture helper — `e2e/deployed/deployed-target.test.ts`
+  asserts that no file there can reach the mutating local helpers;
+- `e2e/deployed/deployed-target.ts` refuses an absent `DEPLOYED_BASE_URL`, any
+  origin other than `https://us.reputationkey.app`, and any Organization other
+  than the approved synthetic one;
+- the `deployed-critical` project declares `retries: 0`, `workers: 1` and no
+  `setup` dependency, and the `full` project's `testIgnore` excludes
+  `deployed/` so a local run can never load the deployed spec;
+- the authorization window is checked **before** the browser launches; results
+  are emitted in exactly `permittedTestIds` order; a non-zero orphaned-resource
+  count or any prohibited-field occurrence forces `outcome: "failed"`;
+- there is no `--retries` flag and the output is written with `wx`.
+
+### `pnpm release:observe-canary`
+
+`scripts/release/observe-canary-window.ts` samples the approved signals and
+emits `repkey-canary-window-1`.
+
+- the threshold profile is repository authority
+  (`security/rel-01-canary-threshold-profile.json`, decided by ADR 0059) and
+  binds that ADR's digest, so a silently edited ADR invalidates the profile;
+- the observation **duration is an OPEN operating decision**. Until an operating
+  owner ratifies it in the profile, the command exits non-zero naming the open
+  decision. There is no default duration and no override flag; engineering
+  cannot ratify its own release gate;
+- `application_metrics` samples are read from `GET /api/health/metrics` with the
+  `x-ops-token` header; the fail-closed 404 is recorded as a **missing** sample,
+  never a pass. A signal whose source has no configured endpoint is refused
+  before the window starts;
+- unavailable data is failure, not absence: a read that throws, times out, or
+  cannot resolve its approved value pointer increments `missingSamples` and
+  forces `outcome: "failed"`. A drifted `RELEASE_SHA`/`RELEASE_MANIFEST_SHA256`
+  increments `continuity.releaseIdentityMismatches` and fails the window;
+- a window in which no configuration head was ever observed is refused outright
+  rather than emitted with an invented continuity digest;
+- `--app-origin` must be the production origin, `--retries` is refused, and the
+  output is written with `wx`.
+
+### `pnpm release:rehearse-recovery`
+
+`scripts/release/rehearse-recovery.ts` is report-first with a mandatory human
+pause: `--plan` writes the plan and stops, and `--apply` proceeds only with an
+authorization carrying the exact digest of that plan. It never issues a restore
+— it consumes a platform-issued receipt by path — and reverse DDL is
+structurally impossible to emit. See `backup-and-lifecycle.md` for the full
+contract.
 
 ## Rollback boundary
 

@@ -98,6 +98,11 @@ export default defineConfig({
             // bugs in them present as product-spec failures in the slowest job
             // in CI. `e2e/fixtures/**` was already here for the same reason.
             'e2e/helpers/**/*.test.ts',
+            // REL-01: the deployed-journey target guard is a pure Node module
+            // whose whole job is refusing a wrong origin. It must be unit
+            // tested here — Playwright never loads it against production
+            // unless the guard already passed.
+            'e2e/deployed/**/*.test.ts',
           ],
           exclude: [
             'src/**/infrastructure/repositories/*.test.ts',

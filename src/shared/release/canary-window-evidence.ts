@@ -45,7 +45,13 @@ const signalProfileSchema = z
   })
   .strict()
 
-const canaryThresholdProfileSchema = z
+/**
+ * Exported so the ratification layer in `canary-threshold-profile.ts` validates
+ * a derived profile against the SAME rules Gate F will apply to the embedded
+ * copy. A second, looser definition beside this one would let a profile pass
+ * ratification and then fail — or worse, pass — under different constraints.
+ */
+export const canaryThresholdProfileSchema = z
   .object({
     version: z.literal(CANARY_THRESHOLD_PROFILE_VERSION),
     durationMs: z.number().int().safe().positive(),

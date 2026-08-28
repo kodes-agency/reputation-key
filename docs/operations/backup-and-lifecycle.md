@@ -164,6 +164,50 @@ retention reconciliation, restored-authority fencing, and that fenced outbox
 rows cannot be claimed or published. A timed live Railway PITR and cutover is
 still required independently for every Data Cell before it becomes accepting.
 
+### Rehearsal orchestration and the mandatory authorization pause
+
+`pnpm release:rehearse-recovery` (`scripts/release/rehearse-recovery.ts`) turns
+the procedure above into `repkey-recovery-rehearsal-1` evidence for Gate F's
+`promotion.restore_rollback` key. It runs in two invocations, and the split is
+the control:
+
+```bash
+# 1. Plan. Mutates nothing; writes one file and stops.
+pnpm release:rehearse-recovery -- --plan \
+  --recovery-path=incompatible_data_restore \
+  --candidate=<candidate-binding.json> --operator=<id> --change-record=<id> \
+  --reviewer=<id> --reviewed-at=<ISO-8601> --output=<plan.json>
+
+# 2. A human reads plan.json and records an authorization carrying its exact
+#    printed sha256, then:
+pnpm release:rehearse-recovery -- --apply \
+  --plan-file=<plan.json> --authorization=<authorization.json> \
+  --observations=<read-back.json> --platform-receipt=<platform receipt file> \
+  --inputs-dir=<retained artifacts> --operator=<id> --reason="<text>" \
+  --output=<recovery-rehearsal.json>
+```
+
+What the orchestrator will not do:
+
+- it never issues the restore. It spawns no process and calls no Railway API;
+  the point-in-time restore is performed by the operator against the platform,
+  and the **platform-issued receipt** is supplied here by path. Its digest must
+  equal the receipt digest named in the read-back, or the command refuses;
+- `--apply` refuses unless the authorization's `planSha256` equals the digest of
+  the supplied plan file, so an edited plan invalidates its own approval;
+- `--apply` refuses without `--operator` and `--reason`, before it reads
+  anything, exactly like `release:beta --apply`;
+- a plan naming `DROP TABLE`/`DROP COLUMN`/`ALTER ... DROP`/`TRUNCATE`/reverse
+  DDL is rejected at build time, and the emitted evidence always records
+  `reverseDdlExecuted: false`. There is no input that can set it true;
+- RPO and RTO are **computed** from the operator's measured timestamps
+  (`latestCommittedAt − restorePointAt` and
+  `readinessRecoveredAt − restoreStartedAt`), never accepted as claims.
+  Exceeding 15 minutes or 4 hours forces `outcome: "failed"`;
+- every digest the evidence names is written beside it as a
+  `<sha256>.dependency` file, and a named dependency with no retained file is a
+  refusal rather than an emitted artifact.
+
 ## 2. Redis durability
 
 **Posture: disposable-and-rebuild, physically split.** `Queue Redis` holds

@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { localStackPlaywrightEnv } from './src/shared/testing/local-stack-playwright-env'
 import { COMPATIBILITY_PROJECTS } from './e2e/helpers/compatibility-projects'
+import { DEPLOYED_CRITICAL_PLAYWRIGHT_PROJECT } from './e2e/deployed/deployed-target'
 
 // CI previously used retries: 2. With a missing seed user every test timed out
 // at 30s × 3 attempts × 12 specs ≈ 18 minutes of red "pending" e2e.
@@ -107,9 +108,18 @@ export default defineConfig({
     {
       name: 'full',
       testMatch: /^(?!.*\/critical\/).*\.spec\.ts$/,
-      testIgnore: /compatibility\/.*\.spec\.ts/,
+      // REL-01: `deployed/` MUST stay in this ignore list. The testMatch above
+      // only excludes `critical/`, so without this entry the local full run
+      // would load e2e/deployed/closed-beta-critical-journeys.spec.ts, whose
+      // target guard throws — and, if DEPLOYED_BASE_URL happened to be
+      // exported, would point the local suite at production.
+      testIgnore: [/compatibility\/.*\.spec\.ts/, /deployed\/.*\.spec\.ts/],
       dependencies: ['setup'],
     },
+    // REL-01 deployed critical journeys: retries 0, workers 1, and no `setup`
+    // dependency (the local seed state neither exists nor may exist for a
+    // production target). Only `pnpm release:deployed-journeys` invokes it.
+    DEPLOYED_CRITICAL_PLAYWRIGHT_PROJECT,
     ...COMPATIBILITY_PROJECTS,
   ],
 })
