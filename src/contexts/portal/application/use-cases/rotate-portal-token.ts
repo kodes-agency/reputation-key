@@ -1,5 +1,5 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { portalId } from '#/shared/domain/ids'
+import { portalAccessArtifactId, portalId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import type { PortalTokenCodec } from '../ports/portal-token-codec.port'
@@ -7,11 +7,13 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { rotateToken } from '../../domain/portal-token'
 import { portalError } from '../../domain/errors'
-import { portalTokenRotated } from '../../domain/events'
+import { portalAccessArtifactPublished, portalTokenRotated } from '../../domain/events'
+import { publishPortalAccessArtifact } from '../../domain/portal-access-artifact'
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
 import { nextPortalCommandAt } from '../portal-command-version'
 
-const MAX_GRACE_SECONDS = 7 * 24 * 60 * 60
+const SECONDS_PER_DAY = 24 * 60 * 60
+const MAX_PLANNED_GRACE_DAYS = 90
 
 export type RotatePortalTokenDeps = Readonly<{
   portalRepo: PortalRepository
@@ -28,12 +30,17 @@ export type RotatePortalTokenDeps = Readonly<{
 export const rotatePortalToken =
   (deps: RotatePortalTokenDeps) =>
   async (
-    input: Readonly<{ portalId: string; gracePeriodSeconds?: number }>,
+    input: Readonly<{
+      portalId: string
+      replacementKind?: 'planned' | 'security'
+      gracePeriodDays?: number
+    }>,
     ctx: AuthContext,
   ): Promise<
     Readonly<{
       rawToken: string
       publicUrl: string
+      publicUrls: Readonly<{ qr: string; nfc: string }>
       tokenIdentifier: string
       version: number
       gracePeriodEnds: Date
@@ -43,17 +50,27 @@ export const rotatePortalToken =
       permission: 'portal.update',
       forbiddenMessage: 'Insufficient permissions to rotate portal tokens',
     })
-    const graceSeconds = input.gracePeriodSeconds ?? deps.defaultGracePeriodSeconds
+    const replacementKind = input.replacementKind ?? 'planned'
+    if (replacementKind === 'security' && input.gracePeriodDays !== undefined) {
+      throw portalError(
+        'token_unavailable',
+        'Immediate security replacement cannot include a grace period',
+      )
+    }
+    const defaultGraceDays = deps.defaultGracePeriodSeconds / SECONDS_PER_DAY
+    const graceDays = input.gracePeriodDays ?? defaultGraceDays
     if (
-      !Number.isInteger(graceSeconds) ||
-      graceSeconds < 0 ||
-      graceSeconds > MAX_GRACE_SECONDS
+      replacementKind === 'planned' &&
+      (!Number.isInteger(graceDays) ||
+        graceDays < 1 ||
+        graceDays > MAX_PLANNED_GRACE_DAYS)
     ) {
       throw portalError(
         'token_unavailable',
-        'Token grace period must be between 0 and 7 days',
+        'Planned replacement must keep existing printed links for 1 to 90 days',
       )
     }
+    const graceSeconds = replacementKind === 'security' ? 0 : graceDays * SECONDS_PER_DAY
     const current = await deps.portalTokenRepo.findLatestForPortal(
       ctx.organizationId,
       portal.id,
@@ -94,6 +111,36 @@ export const rotatePortalToken =
       sourceAggregateVersion: revision.toISOString(),
       occurredAt,
     })
+    const qrArtifact = publishPortalAccessArtifact({
+      id: portalAccessArtifactId(deps.idGen()),
+      organizationId: portal.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      portalTokenId: result.newToken.id,
+      channel: 'qr',
+      now: occurredAt,
+    })
+    const nfcArtifact = publishPortalAccessArtifact({
+      id: portalAccessArtifactId(deps.idGen()),
+      organizationId: portal.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      portalTokenId: result.newToken.id,
+      channel: 'nfc',
+      now: occurredAt,
+    })
+    const accessArtifacts = [qrArtifact, nfcArtifact] as const
+    const eventFor = (artifact: (typeof accessArtifacts)[number]) =>
+      portalAccessArtifactPublished({
+        accessArtifactId: artifact.id,
+        portalId: portal.id,
+        organizationId: portal.organizationId,
+        propertyId: portal.propertyId,
+        channel: artifact.channel,
+        sourceAggregateVersion: revision.toISOString(),
+        occurredAt,
+      })
+    const accessArtifactEvents = [eventFor(qrArtifact), eventFor(nfcArtifact)] as const
     await deps.commandStore.rotatePortalToken({
       organizationId: ctx.organizationId,
       propertyId: portal.propertyId,
@@ -101,13 +148,25 @@ export const rotatePortalToken =
       expectedPortalUpdatedAt: portal.updatedAt,
       oldToken: result.oldToken,
       newToken: result.newToken,
+      accessArtifacts,
       revision,
       occurredAt,
       event,
+      accessArtifactEvents,
     })
+    const publicUrlFor = (artifact: (typeof accessArtifacts)[number]) => {
+      const url = new URL(`/p/${material.rawToken}`, deps.baseUrl)
+      url.searchParams.set('accessArtifact', artifact.id)
+      return url.toString()
+    }
+    const publicUrls = {
+      qr: publicUrlFor(qrArtifact),
+      nfc: publicUrlFor(nfcArtifact),
+    }
     return {
       rawToken: material.rawToken,
-      publicUrl: new URL(`/p/${material.rawToken}`, deps.baseUrl).toString(),
+      publicUrl: publicUrls.qr,
+      publicUrls,
       tokenIdentifier: result.newToken.tokenIdentifier,
       version: result.newToken.version,
       gracePeriodEnds,

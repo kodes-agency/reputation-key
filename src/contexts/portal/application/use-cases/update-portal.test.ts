@@ -18,15 +18,17 @@ const NEXT_TIME = new Date(FIXED_TIME.getTime() + 1)
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 const setup = (
   accessible: ReadonlyArray<PropertyId> | null = null,
   destinationState: 'verified' | 'unavailable' = 'verified',
+  propertyLifecycle: 'active' | 'inactive' | 'error' = 'active',
 ) => {
   const portalRepo = createInMemoryPortalRepo()
   const events = createCapturingEventBus()
   let destinationLookups = 0
+  let propertyLifecycleLookups = 0
+  let commandWrites = 0
   let lastUpdateCommand: UpdatePortalCommand | null = null
   let generatedId = 0
   const baseCommandStore = createInMemoryPortalCommandStore({ portalRepo, events })
@@ -49,6 +51,30 @@ const setup = (
             privateFeedbackThreshold: portal.privateFeedbackThreshold,
             organizationId: portal.organizationId,
             propertyId: portal.propertyId,
+            experience: {
+              primaryGuestLocale: 'en' as const,
+              localeSet: ['en'] as const,
+              languagePackVersions: {
+                en: 'guest-ui-en-v1',
+                bg: 'guest-ui-bg-v1',
+              } as const,
+              localizedContent: {
+                en: {
+                  title: portal.name,
+                  shortDescription: portal.description ?? 'Tell us about your visit.',
+                  heroImageUrl: portal.heroImageUrl,
+                },
+              },
+              brandProfile: {
+                displayName: 'Example Organization',
+                logoUrl: null,
+                defaultHeroImageUrl: null,
+                primaryColor: '#1D4ED8',
+                backgroundColor: '#FFFFFF',
+                textColor: '#111827',
+                version: 1,
+              },
+            },
           }
         : null
     },
@@ -58,7 +84,12 @@ const setup = (
     }),
     findSnapshotByVersion: async () => null,
     findActiveForPortal: async () => null,
-    listActivationHistory: async () => [],
+    listActivationHistoryPage: async () => ({
+      records: [],
+      latest: null,
+      current: null,
+      nextCursor: null,
+    }),
     resolveActiveByTokenDigest: async () => null,
   }
   const deps = {
@@ -66,11 +97,20 @@ const setup = (
     commandStore: {
       ...baseCommandStore,
       updatePortal: async (command: UpdatePortalCommand) => {
+        commandWrites += 1
         lastUpdateCommand = command
         await baseCommandStore.updatePortal(command)
       },
     },
     publicationRepo,
+    portalTokenRepo: {
+      findResolvableSummaryForPortal: async () => ({
+        version: 1,
+        issuedAt: FIXED_TIME,
+        gracePeriodEnds: null,
+        hasPublishedAccessArtifact: true,
+      }),
+    },
     propertyGoogleReviewDestinationApi: {
       getGoogleReviewDestination: async () => {
         destinationLookups += 1
@@ -91,6 +131,15 @@ const setup = (
             }
       },
     },
+    propertyLifecycleApi: {
+      isPropertyActive: async () => {
+        propertyLifecycleLookups += 1
+        if (propertyLifecycle === 'error') {
+          throw new Error('Property lifecycle authority unavailable')
+        }
+        return propertyLifecycle === 'active'
+      },
+    },
     staffPublicApi: staffApiMock(accessible),
     idGen: () => `publication-id-${(generatedId += 1)}`,
     clock: () => FIXED_TIME,
@@ -101,6 +150,8 @@ const setup = (
     portalRepo,
     events,
     destinationLookups: () => destinationLookups,
+    propertyLifecycleLookups: () => propertyLifecycleLookups,
+    commandWrites: () => commandWrites,
     lastUpdateCommand: () => lastUpdateCommand,
   }
 }
@@ -186,6 +237,94 @@ describe('updatePortal', () => {
     )
   })
 
+  it('restores an archived Portal to Disabled without a destination or publication activation', async () => {
+    const { useCase, portalRepo, destinationLookups, lastUpdateCommand } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const archived = buildTestPortal({ publicationState: 'archived' })
+    portalRepo.seed([archived])
+
+    const restored = await useCase(
+      { portalId: archived.id, publicationState: 'disabled' },
+      ctx,
+    )
+
+    expect(restored.publicationState).toBe('disabled')
+    expect(destinationLookups()).toBe(0)
+    expect(lastUpdateCommand()?.publication).toBeUndefined()
+    expect(lastUpdateCommand()?.lifecycleEvent).toMatchObject({
+      _tag: 'portal.restored',
+      organizationId: archived.organizationId,
+      propertyId: archived.propertyId,
+      portalId: archived.id,
+      userId: ctx.userId,
+      sourceAggregateVersion: NEXT_TIME.toISOString(),
+      occurredAt: FIXED_TIME,
+    })
+  })
+
+  it('archives a Portal with a dedicated actor-attributed lifecycle fact', async () => {
+    const { useCase, portalRepo, lastUpdateCommand } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const disabled = buildTestPortal({ publicationState: 'disabled' })
+    portalRepo.seed([disabled])
+
+    const archived = await useCase(
+      { portalId: disabled.id, publicationState: 'archived' },
+      ctx,
+    )
+
+    expect(archived.publicationState).toBe('archived')
+    expect(lastUpdateCommand()?.lifecycleEvent).toMatchObject({
+      _tag: 'portal.archived',
+      organizationId: disabled.organizationId,
+      propertyId: disabled.propertyId,
+      portalId: disabled.id,
+      userId: ctx.userId,
+      sourceAggregateVersion: NEXT_TIME.toISOString(),
+      occurredAt: FIXED_TIME,
+    })
+  })
+
+  it('keeps an archived Portal read-only until it is restored', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const archived = buildTestPortal({
+      publicationState: 'archived',
+      name: 'Archived Reception',
+    })
+    portalRepo.seed([archived])
+
+    await expect(
+      useCase({ portalId: archived.id, name: 'Edited while archived' }, ctx),
+    ).rejects.toMatchObject({ code: 'portal_inactive' })
+    expect(portalRepo.all()[0]).toMatchObject({
+      name: 'Archived Reception',
+      publicationState: 'archived',
+    })
+  })
+
+  it('does not bundle content changes into restore', async () => {
+    const { useCase, portalRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const archived = buildTestPortal({
+      publicationState: 'archived',
+      description: 'Retained configuration',
+    })
+    portalRepo.seed([archived])
+
+    await expect(
+      useCase(
+        {
+          portalId: archived.id,
+          publicationState: 'disabled',
+          description: 'Changed during restore',
+        },
+        ctx,
+      ),
+    ).rejects.toMatchObject({ code: 'portal_inactive' })
+    expect(portalRepo.all()[0]?.description).toBe('Retained configuration')
+  })
+
   it('keeps occurrence time from the clock while allocating a later revision', async () => {
     const { useCase, portalRepo, events, lastUpdateCommand } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
@@ -207,6 +346,7 @@ describe('updatePortal', () => {
       occurredAt: FIXED_TIME,
       revision: NEXT_TIME,
     })
+    expect(lastUpdateCommand()?.lifecycleEvent).toBeUndefined()
     expect(emitted[0]).not.toHaveProperty('name')
     expect(emitted[0]).not.toHaveProperty('slug')
   })
@@ -354,10 +494,76 @@ describe('updatePortal', () => {
       },
       activation: { activationSequence: 1, kind: 'publish' },
     })
+    expect(lastUpdateCommand()?.lifecycleEvent).toMatchObject({
+      _tag: 'portal.publication.published',
+      organizationId: portal.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      publicationSnapshotId: 'publication-id-1',
+      publicationVersion: 1,
+      publicationDigest: expect.stringMatching(/^[0-9a-f]{64}$/u),
+      userId: ctx.userId,
+      sourceAggregateVersion: NEXT_TIME.toISOString(),
+      occurredAt: FIXED_TIME,
+    })
   })
 
-  it('does not require a destination to transition out of published', async () => {
-    const { useCase, portalRepo, lastUpdateCommand } = setup(null, 'unavailable')
+  it('fails closed before destination lookup or persistence when the Property is inactive', async () => {
+    const {
+      useCase,
+      portalRepo,
+      propertyLifecycleLookups,
+      destinationLookups,
+      commandWrites,
+    } = setup(null, 'verified', 'inactive')
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft' })
+    portalRepo.seed([portal])
+
+    await expect(
+      useCase({ portalId: portal.id, publicationState: 'published' }, ctx),
+    ).rejects.toMatchObject({ code: 'portal_inactive' })
+
+    expect(propertyLifecycleLookups()).toBe(1)
+    expect(destinationLookups()).toBe(0)
+    expect(commandWrites()).toBe(0)
+    expect(portalRepo.all()[0]?.publicationState).toBe('draft')
+  })
+
+  it('fails closed without leaking a lifecycle lookup error or causing downstream effects', async () => {
+    const {
+      useCase,
+      portalRepo,
+      propertyLifecycleLookups,
+      destinationLookups,
+      commandWrites,
+    } = setup(null, 'verified', 'error')
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft' })
+    portalRepo.seed([portal])
+
+    await expect(
+      useCase({ portalId: portal.id, publicationState: 'published' }, ctx),
+    ).rejects.toMatchObject({
+      _tag: 'PortalError',
+      code: 'portal_inactive',
+      message: 'This Portal cannot be published while its Property is unavailable',
+    })
+
+    expect(propertyLifecycleLookups()).toBe(1)
+    expect(destinationLookups()).toBe(0)
+    expect(commandWrites()).toBe(0)
+    expect(portalRepo.all()[0]?.publicationState).toBe('draft')
+  })
+
+  it('keeps deactivation available without lifecycle or destination authority', async () => {
+    const {
+      useCase,
+      portalRepo,
+      lastUpdateCommand,
+      propertyLifecycleLookups,
+      destinationLookups,
+    } = setup(null, 'unavailable', 'error')
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     const portal = buildTestPortal({ publicationState: 'published' })
     portalRepo.seed([portal])
@@ -373,6 +579,8 @@ describe('updatePortal', () => {
       reason: 'disabled',
       at: FIXED_TIME,
     })
+    expect(propertyLifecycleLookups()).toBe(0)
+    expect(destinationLookups()).toBe(0)
   })
 
   // The shape the beta journey actually sends: publish bundled with a content
@@ -446,6 +654,8 @@ describe('resolvePortalContentFields', () => {
       heroImageUrl: 'https://cdn.example.com/hero.png',
       theme: { primaryColor: '#112233' },
       privateFeedbackThreshold: 3,
+      primaryGuestLocale: 'en',
+      additionalGuestLocales: [],
     })
   })
 

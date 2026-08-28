@@ -17,7 +17,6 @@ const NEXT_TIME = new Date(FIXED_TIME.getTime() + 1)
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null, revokedCount = 1) => {
   const portalRepo = createInMemoryPortalRepo()

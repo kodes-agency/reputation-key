@@ -25,6 +25,29 @@ export type PortalPublicationActivationRecord = Readonly<{
   snapshot: PortalPublicationSnapshot
 }>
 
+export type PortalPublicationActivationPage = Readonly<{
+  records: ReadonlyArray<PortalPublicationActivationRecord>
+  /** Newest activation in the full scoped history, independent of this page. */
+  latest: PortalPublicationActivationRecord | null
+  /** Open activation, if the Portal is currently Published. */
+  current: PortalPublicationActivationRecord | null
+  /** Exclusive activation-sequence cursor for the next page. */
+  nextCursor: number | null
+}>
+
+export type PortalPendingContentChange = Readonly<{
+  kind:
+    | 'portal_configuration'
+    | 'portal_links'
+    | 'property_brand_profile'
+    | 'property_brand_content'
+    | 'portal_localized_override'
+    | 'approved_destination'
+  key: string
+  sourceVersion: string
+  changedAt: Date
+}>
+
 export type PortalPublicationRepository = Readonly<{
   loadWorkingCopy: (
     organizationId: OrganizationId,
@@ -43,11 +66,17 @@ export type PortalPublicationRepository = Readonly<{
     organizationId: OrganizationId,
     portalId: PortalId,
   ) => Promise<PortalPublicationSnapshot | null>
-  listActivationHistory: (
+  listActivationHistoryPage: (
     organizationId: OrganizationId,
     propertyId: PropertyId,
     portalId: PortalId,
-  ) => Promise<ReadonlyArray<PortalPublicationActivationRecord>>
+    page: Readonly<{ beforeSequence: number | null; limit: number }>,
+  ) => Promise<PortalPublicationActivationPage>
+  listOpenPendingContentChanges?: (
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    portalId: PortalId,
+  ) => Promise<readonly PortalPendingContentChange[]>
   resolveActiveByTokenDigest: (
     digest: Readonly<{
       tokenIdentifier: string

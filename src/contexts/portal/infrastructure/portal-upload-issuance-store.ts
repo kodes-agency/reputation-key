@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { portalUploadIssuances, portals } from '#/shared/db/schema/portal.schema'
 import { organizationId, portalId, propertyId, unbrand } from '#/shared/domain/ids'
@@ -61,6 +61,8 @@ function toIssuance(row: UploadRow): PortalUploadIssuance | null {
     heroDerivativeKey: row.heroDerivativeKey,
     thumbnailDerivativeKey: row.thumbnailDerivativeKey,
     heroImageUrl: row.heroImageUrl,
+    sourceDeletedAt: row.sourceDeletedAt,
+    orphanDerivativesDeletedAt: row.orphanDerivativesDeletedAt,
   }
   return issuance.objectKey === expectedPortalHeroSourceObjectKey(issuance)
     ? issuance
@@ -133,7 +135,9 @@ async function lockIssuance(
   return row ? toIssuance(row) : null
 }
 
-export function createPortalUploadIssuanceStore(db: Database): PortalUploadIssuanceStore {
+export const createPortalUploadIssuanceStore = (
+  db: Database,
+): PortalUploadIssuanceStore => {
   return {
     create: async (issuance) =>
       trace('portalUploadIssuance.create', async () => {
@@ -161,6 +165,8 @@ export function createPortalUploadIssuanceStore(db: Database): PortalUploadIssua
           heroDerivativeKey: issuance.heroDerivativeKey,
           thumbnailDerivativeKey: issuance.thumbnailDerivativeKey,
           heroImageUrl: issuance.heroImageUrl,
+          sourceDeletedAt: issuance.sourceDeletedAt,
+          orphanDerivativesDeletedAt: issuance.orphanDerivativesDeletedAt,
         })
       }),
 
@@ -303,7 +309,6 @@ export function createPortalUploadIssuanceStore(db: Database): PortalUploadIssua
             throw new Error('Portal upload publication lost its locked issuance')
           }
           const published = portalHeroImagePublished({
-            eventId: issuance.id,
             uploadId: issuance.id,
             organizationId: scope.organizationId,
             propertyId: scope.propertyId,
@@ -318,5 +323,109 @@ export function createPortalUploadIssuanceStore(db: Database): PortalUploadIssua
           }
         }),
       ),
+
+    listSourceCleanupCandidates: async (before, limit) =>
+      trace('portalUploadIssuance.listSourceCleanupCandidates', async () => {
+        const boundedLimit = Math.min(500, Math.max(1, Math.trunc(limit)))
+        const dueIssued = await db
+          .select({ id: portalUploadIssuances.id })
+          .from(portalUploadIssuances)
+          .where(
+            and(
+              eq(portalUploadIssuances.state, 'issued'),
+              lte(portalUploadIssuances.expiresAt, before),
+              isNull(portalUploadIssuances.sourceDeletedAt),
+            ),
+          )
+          .orderBy(asc(portalUploadIssuances.expiresAt), asc(portalUploadIssuances.id))
+          .limit(boundedLimit)
+        if (dueIssued.length > 0) {
+          await db
+            .update(portalUploadIssuances)
+            .set({ state: 'expired', expiredAt: before, updatedAt: before })
+            .where(
+              and(
+                inArray(
+                  portalUploadIssuances.id,
+                  dueIssued.map((row) => row.id),
+                ),
+                eq(portalUploadIssuances.state, 'issued'),
+                lte(portalUploadIssuances.expiresAt, before),
+                isNull(portalUploadIssuances.sourceDeletedAt),
+              ),
+            )
+        }
+
+        const rows = await db
+          .select()
+          .from(portalUploadIssuances)
+          .where(
+            and(
+              or(
+                eq(portalUploadIssuances.state, 'finalized'),
+                eq(portalUploadIssuances.state, 'superseded'),
+                eq(portalUploadIssuances.state, 'rejected'),
+                eq(portalUploadIssuances.state, 'expired'),
+              ),
+              or(
+                isNull(portalUploadIssuances.sourceDeletedAt),
+                and(
+                  or(
+                    eq(portalUploadIssuances.state, 'superseded'),
+                    eq(portalUploadIssuances.state, 'rejected'),
+                    eq(portalUploadIssuances.state, 'expired'),
+                  ),
+                  isNull(portalUploadIssuances.orphanDerivativesDeletedAt),
+                ),
+              ),
+            ),
+          )
+          .orderBy(asc(portalUploadIssuances.expiresAt), asc(portalUploadIssuances.id))
+          .limit(boundedLimit)
+        return rows.flatMap((row) => {
+          const issuance = toIssuance(row)
+          return issuance ? [issuance] : []
+        })
+      }),
+
+    markSourceDeleted: async (scope, expectedState, at) =>
+      trace('portalUploadIssuance.markSourceDeleted', async () => {
+        if (expectedState === 'issued' || expectedState === 'consumed') return false
+        const rows = await db
+          .update(portalUploadIssuances)
+          .set({ sourceDeletedAt: at, updatedAt: at })
+          .where(
+            and(
+              scopeWhere(scope),
+              eq(portalUploadIssuances.state, expectedState),
+              isNull(portalUploadIssuances.sourceDeletedAt),
+            ),
+          )
+          .returning({ id: portalUploadIssuances.id })
+        return rows.length === 1
+      }),
+
+    markOrphanDerivativesDeleted: async (scope, expectedState, at) =>
+      trace('portalUploadIssuance.markOrphanDerivativesDeleted', async () => {
+        if (
+          expectedState === 'issued' ||
+          expectedState === 'consumed' ||
+          expectedState === 'finalized'
+        ) {
+          return false
+        }
+        const rows = await db
+          .update(portalUploadIssuances)
+          .set({ orphanDerivativesDeletedAt: at, updatedAt: at })
+          .where(
+            and(
+              scopeWhere(scope),
+              eq(portalUploadIssuances.state, expectedState),
+              isNull(portalUploadIssuances.orphanDerivativesDeletedAt),
+            ),
+          )
+          .returning({ id: portalUploadIssuances.id })
+        return rows.length === 1
+      }),
   }
 }

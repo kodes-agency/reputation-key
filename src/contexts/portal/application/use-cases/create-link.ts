@@ -9,13 +9,15 @@ import { generateKeyBetween } from 'fractional-indexing'
 import { portalLinkCreated } from '../../domain/events'
 import { portalId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/ids'
 
-import { isValidExternalUrl } from '../../domain/rules'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
 import { nextPortalCommandAt } from '../portal-command-version'
 import { canForContext } from '#/shared/domain/permissions'
+import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
+import { resolveApprovedPortalDestination } from '../resolve-approved-portal-destination'
+import type { PortalDestinationNetworkValidator } from '../ports/portal-destination-network-validator.port'
 
 export type CreateLinkInput = Readonly<{
   categoryId: string
@@ -30,6 +32,8 @@ export type CreateLinkDeps = Readonly<{
   portalLinkRepo: PortalLinkRepository
   staffPublicApi: StaffPublicApi
   commandStore: PortalCommandStore
+  destinationRepo: Pick<PortalApprovedDestinationRepository, 'request'>
+  destinationNetworkValidator: PortalDestinationNetworkValidator
   idGen: () => string
   clock: () => Date
 }>
@@ -55,9 +59,11 @@ export const createLink =
       forbiddenMessage: 'Insufficient permissions to create portal links',
     })
 
-    if (!isValidExternalUrl(input.url)) {
-      throw portalError('invalid_url', 'link URL must use https:// scheme')
-    }
+    const destination = await resolveApprovedPortalDestination(
+      deps,
+      { uri: input.url, propertyId: portal.propertyId },
+      ctx,
+    )
 
     const existing = await deps.portalLinkRepo.listLinks(
       ctx.organizationId,
@@ -74,8 +80,11 @@ export const createLink =
       categoryId: portalLinkCategoryId(input.categoryId),
       portalId: portalId(input.portalId),
       organizationId: ctx.organizationId,
+      propertyId: portal.propertyId,
+      destinationId: destination.id,
+      legacyDestinationState: 'migrated',
       label: input.label,
-      url: input.url,
+      url: destination.normalizedUri,
       iconKey: input.iconKey,
       sortKey,
       now: occurredAt,

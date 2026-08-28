@@ -16,10 +16,10 @@ import type {
   PortalGroupId,
   PortalLinkCategoryId,
   PortalLinkId,
+  PortalApprovedDestinationId,
 } from '#/shared/domain/ids'
 import type { PortalError } from './errors'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
-import { propertyId, teamId, userId } from '#/shared/domain/ids'
 import {
   normalizeSlug,
   validateSlug,
@@ -39,8 +39,6 @@ export type BuildPortalInput = Readonly<{
   id: PortalId
   organizationId: OrganizationId
   propertyId: PropertyId
-  entityType?: 'property' | 'team' | 'staff'
-  entityId?: string
   name: string
   providedSlug?: string
   description?: string | null
@@ -49,6 +47,8 @@ export type BuildPortalInput = Readonly<{
   publicationState?: Portal['publicationState']
   createdBy?: UserId | null
   hasInitialResponsibleManager?: boolean
+  primaryGuestLocale?: 'en' | 'bg'
+  additionalGuestLocales?: readonly ('en' | 'bg')[]
   now: Date
 }>
 
@@ -73,14 +73,8 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
       id: input.id,
       organizationId: input.organizationId,
       propertyId: input.propertyId,
-      entityType: input.entityType ?? 'property',
-      entityId: input.entityId
-        ? input.entityType === 'team'
-          ? teamId(input.entityId)
-          : input.entityType === 'staff'
-            ? userId(input.entityId)
-            : propertyId(input.entityId)
-        : input.propertyId,
+      entityType: 'property',
+      entityId: input.propertyId,
       name: validName,
       slug: validSlug,
       description: validDesc,
@@ -92,6 +86,8 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
       responsibleManagerRevision: 1,
       responsibilityNeededSince:
         input.hasInitialResponsibleManager === true ? null : input.now,
+      primaryGuestLocale: input.primaryGuestLocale ?? 'en',
+      additionalGuestLocales: input.additionalGuestLocales ?? [],
       createdAt: input.now,
       updatedAt: input.now,
       deletedAt: null,
@@ -159,6 +155,9 @@ export type BuildLinkInput = Readonly<{
   categoryId: PortalLinkCategoryId
   portalId: PortalId
   organizationId: OrganizationId
+  propertyId: PropertyId
+  destinationId?: PortalApprovedDestinationId | null
+  legacyDestinationState?: PortalLink['legacyDestinationState']
   label: string
   url: string
   iconKey?: string | null
@@ -176,6 +175,13 @@ export const buildPortalLink = (
     categoryId: input.categoryId,
     portalId: input.portalId,
     organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    destinationId: input.destinationId ?? null,
+    legacyDestinationState:
+      input.legacyDestinationState ??
+      (input.destinationId === undefined || input.destinationId === null
+        ? 'unclassified'
+        : 'migrated'),
     label: validLabel,
     url: validUrl,
     iconKey: input.iconKey ?? null,

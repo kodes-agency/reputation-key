@@ -13,7 +13,7 @@ import {
   type UserId,
 } from '#/shared/domain/ids'
 
-export function createPostgresPortalFixtureStore(db: Database) {
+export const createPostgresPortalFixtureStore = (db: Database) => {
   return {
     insert: async (
       organizationId: OrganizationId,

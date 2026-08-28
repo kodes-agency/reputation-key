@@ -15,8 +15,13 @@ export type {
   PortalConfigurationCompletenessRecorded,
   PortalContentReviewCompleted,
   PortalDeleted,
+  PortalArchived,
+  PortalRestored,
+  PortalPublicationPublished,
+  PortalPublicationRolledBack,
   PortalResponsibilityNeeded,
   PortalEvent,
+  PortalAccessArtifactPublished,
   PortalGroupDeleted,
 } from '../domain/events'
 
@@ -31,10 +36,18 @@ export type {
 
 import type {
   OrganizationId,
+  PortalAccessArtifactId,
   PropertyId,
   PortalId,
   PortalGroupId,
 } from '#/shared/domain/ids'
+import type { PortalAccessArtifactChannel } from '../domain/portal-access-artifact'
+import type { PortalHealthReason, PortalHealthStatus } from '../domain/portal-health'
+import type { PortalContactRequestManagerAuthorityFacts } from './use-cases/portal-contact-request-authority'
+import type { AiReplyBrandProfile } from '#/shared/ai-reply-brand-profile'
+import type { Tx } from '#/shared/outbox/commit'
+
+export type { PortalContactRequestManagerAuthorityFacts } from './use-cases/portal-contact-request-authority'
 
 /** Result of resolving a portal's context (org + property) by portal ID. */
 export type PortalContextResult = Readonly<{
@@ -70,6 +83,7 @@ export type PublicPortalResult = Readonly<{
     description: string | null
     heroImageUrl: string | null
     theme: Record<string, string | number | boolean | null> | null
+    logoUrl?: string | null
 
     organizationName: string
   }
@@ -87,6 +101,13 @@ export type PublicPortalResult = Readonly<{
     /** A stale/unavailable Property URI is never serialized to the guest. */
     googleReview: PublicGoogleReviewDestination
   }>
+  localization: Readonly<{
+    selectedLocale: 'en' | 'bg'
+    primaryLocale: 'en' | 'bg'
+    availableLocales: readonly ('en' | 'bg')[]
+    /** Exact immutable UI copy pack pinned by the Publication Snapshot. */
+    languagePackVersion: 'guest-ui-en-v1' | 'guest-ui-bg-v1'
+  }>
   responseConfiguration: PublicPortalResponseConfiguration
   organizationId: string
   propertyId: string
@@ -95,6 +116,38 @@ export type PublicPortalResult = Readonly<{
 export type PublicPortalByTokenOutcome =
   | Readonly<{ status: 'found'; result: PublicPortalResult }>
   | Readonly<{ status: 'unavailable' }>
+
+/**
+ * Narrow owning-context facts used to recheck Contact Request reveal authority.
+ * This carries identifiers only: no contact, feedback, permission, or session data.
+ */
+export type PortalContactRequestManagerAuthorityPublicApi = Readonly<{
+  getContactRequestManagerAuthorityFacts: (
+    orgId: OrganizationId,
+    portalId: PortalId,
+  ) => Promise<PortalContactRequestManagerAuthorityFacts | null>
+}>
+
+/**
+ * Portal-owned authority for the sole Property Brand field permitted in AI
+ * Reply Drafting. The transaction-bound check lets Review adopt a browser-held
+ * suggestion without querying Portal tables or leaving a profile-change race.
+ */
+export type PortalAiReplyBrandProfilePublicApi = Readonly<{
+  readCurrentAiReplyBrandProfile: (
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<AiReplyBrandProfile | null>
+  isCurrentAiReplyBrandProfile: (
+    tx: Tx,
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      version: number
+      displayNameDigest: string
+    }>,
+  ) => Promise<boolean>
+}>
 
 /** Portal context public API — consumed by guest and other contexts. */
 export type PortalPublicApi = Readonly<{
@@ -117,17 +170,60 @@ export type PortalPublicApi = Readonly<{
     name: string
     publicationState: 'draft' | 'published' | 'disabled' | 'archived'
   }> | null>
+  /** Bounded, deterministic request-time snapshot for explicit Goal assignment. */
+  listCurrentPortalIds: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+    limit: number,
+  ) => Promise<ReadonlyArray<PortalId>>
 
   /**
    * Resolve a full public portal through a revocable opaque capability token.
    * Every unavailable posture deliberately collapses to one outcome.
    */
-  findPublicPortalByToken: (rawToken: string) => Promise<PublicPortalByTokenOutcome>
+  findPublicPortalByToken: (
+    rawToken: string,
+    preference?: Readonly<{
+      requestedLocale?: string | null
+      sessionLocale?: string | null
+      acceptLanguage?: string | null
+    }>,
+  ) => Promise<PublicPortalByTokenOutcome>
+  /** Verifies a channel marker against its address and exact live publication. */
+  resolvePublishedAccessArtifact: (
+    input: Readonly<{
+      accessArtifactId: PortalAccessArtifactId
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      portalId: PortalId
+      publicationSnapshotId: string
+      /** Ephemeral presented address capability; never persisted or emitted. */
+      rawToken: string
+      asOf: Date
+    }>,
+  ) => Promise<Readonly<{
+    accessArtifactId: PortalAccessArtifactId
+    organizationId: OrganizationId
+    propertyId: PropertyId
+    portalId: PortalId
+    portalGroupId: PortalGroupId | null
+    channel: PortalAccessArtifactChannel
+  }> | null>
   /** Current assigned managers, revalidated against role/access/participation. */
   getResponsibleManagerUserIds: (
     orgId: OrganizationId,
     portalId: PortalId,
   ) => Promise<ReadonlyArray<import('#/shared/domain/ids').UserId>>
+  /** Exact current enum/fence state for delayed health-notification admission. */
+  findPortalHealthNotificationFacts: (
+    orgId: OrganizationId,
+    portalId: PortalId,
+  ) => Promise<Readonly<{
+    propertyId: PropertyId
+    status: PortalHealthStatus
+    reason: PortalHealthReason
+    sourceVersion: string
+  }> | null>
 }>
 
 /** Minimal portal group info for cross-context consumers. */

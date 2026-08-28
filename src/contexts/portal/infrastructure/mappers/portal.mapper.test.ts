@@ -24,6 +24,8 @@ const sampleRow: PortalRow = {
   createdBy: 'creator-1',
   responsibleManagerRevision: 1,
   responsibilityNeededSince: null,
+  primaryGuestLocale: 'en',
+  additionalGuestLocales: [],
   createdAt: now,
   updatedAt: now,
   deletedAt: null,

@@ -3,7 +3,7 @@
 // Tenant isolation test is NON-NEGOTIABLE.
 
 import { beforeEach, describe, it, expect } from 'vitest'
-import { createPortalRepository } from './portal.repository'
+import { createCurrentPortalIdReader, createPortalRepository } from './portal.repository'
 import { getDb } from '#/shared/db'
 import { buildTestPortal } from '#/shared/testing/fixtures'
 import { organizationId, propertyId } from '#/shared/domain/ids'
@@ -185,6 +185,62 @@ describe('portalRepository (integration)', () => {
     })
   })
 
+  describe('current Portal ID snapshot', () => {
+    it('is tenant/property scoped, excludes archived Portals, and applies the limit in SQL', async () => {
+      const readCurrentIds = createCurrentPortalIdReader(getDb())
+      const firstId = '30000000-0000-4000-8000-000000000001'
+      const secondId = '30000000-0000-4000-8000-000000000002'
+      for (const portal of [
+        buildTestPortal({
+          id: firstId,
+          organizationId: ORG_A,
+          propertyId: PROPERTY_A,
+          name: 'Current first',
+          slug: 'current-first',
+          publicationState: 'draft',
+        }),
+        buildTestPortal({
+          id: secondId,
+          organizationId: ORG_A,
+          propertyId: PROPERTY_A,
+          name: 'Current second',
+          slug: 'current-second',
+          publicationState: 'disabled',
+        }),
+        buildTestPortal({
+          id: '30000000-0000-4000-8000-000000000003',
+          organizationId: ORG_A,
+          propertyId: PROPERTY_A,
+          name: 'Archived',
+          slug: 'archived',
+          publicationState: 'archived',
+        }),
+        buildTestPortal({
+          id: '30000000-0000-4000-8000-000000000004',
+          organizationId: ORG_A,
+          propertyId: PROPERTY_ALT,
+          name: 'Other property',
+          slug: 'other-property',
+        }),
+        buildTestPortal({
+          id: '30000000-0000-4000-8000-000000000005',
+          organizationId: ORG_B,
+          propertyId: PROPERTY_B,
+          name: 'Other tenant',
+          slug: 'other-tenant',
+        }),
+      ]) {
+        await fixtures().insert(portal.organizationId, portal)
+      }
+
+      await expect(readCurrentIds(ORG_A, PROPERTY_A, 1)).resolves.toEqual([firstId])
+      await expect(readCurrentIds(ORG_A, PROPERTY_A, 10)).resolves.toEqual([
+        firstId,
+        secondId,
+      ])
+    })
+  })
+
   describe('softDelete', () => {
     it('removes portal from queries but preserves row', async () => {
       const db = getDb()
@@ -282,11 +338,11 @@ describe('portalRepository (integration)', () => {
       )
       await pool.query(
         `INSERT INTO portal_links
-           (id, category_id, portal_id, organization_id, label, url, sort_key)
+           (id, category_id, portal_id, organization_id, property_id, label, url, sort_key)
          VALUES
-           ($1, $5, $3, $4, 'A', 'https://example.com/a', 'same'),
-           ($2, $6, $3, $4, 'B', 'https://example.com/b', 'same')`,
-        [linkA, linkB, portal.id, ORG_A, categoryA, categoryB],
+           ($1, $5, $3, $4, $7, 'A', 'https://example.com/a', 'same'),
+           ($2, $6, $3, $4, $7, 'B', 'https://example.com/b', 'same')`,
+        [linkA, linkB, portal.id, ORG_A, categoryA, categoryB, PROPERTY_A],
       )
 
       const publicPortal = await repo.findPublicPortalById(ORG_A, portal.id)

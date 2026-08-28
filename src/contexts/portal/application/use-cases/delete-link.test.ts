@@ -20,7 +20,6 @@ const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {

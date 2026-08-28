@@ -20,6 +20,14 @@ export const updatePortalInputSchema = z
       })
       .optional(),
     publicationState: z.enum(['draft', 'published', 'disabled', 'archived']).optional(),
+    primaryGuestLocale: z.enum(['en', 'bg']).optional(),
+    additionalGuestLocales: z
+      .array(z.enum(['en', 'bg']))
+      .max(1)
+      .refine((locales) => new Set(locales).size === locales.length, {
+        message: 'Guest locales must be unique',
+      })
+      .optional(),
   })
   .strict()
 

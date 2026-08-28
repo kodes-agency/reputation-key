@@ -12,7 +12,9 @@ const transitions: Readonly<
   draft: new Set(['published', 'archived']),
   published: new Set(['disabled', 'archived']),
   disabled: new Set(['published', 'archived']),
-  archived: new Set(),
+  // Restore is deliberately non-public. A manager must re-check the retained
+  // configuration and perform a separate Disabled -> Published transition.
+  archived: new Set(['disabled']),
 }
 
 export function transitionPortalPublication(

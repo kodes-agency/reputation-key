@@ -303,10 +303,13 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
       ])
 
     const repo = createPortalPublicationRepository(getDb())
-    const history = await repo.listActivationHistory(ORG, PROPERTY, PORTAL)
+    const history = await repo.listActivationHistoryPage(ORG, PROPERTY, PORTAL, {
+      beforeSequence: null,
+      limit: 2,
+    })
 
     expect(
-      history.map(({ activation, snapshot: publication }) => ({
+      history.records.map(({ activation, snapshot: publication }) => ({
         sequence: activation.activationSequence,
         kind: activation.kind,
         version: publication.version,
@@ -315,18 +318,32 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
     ).toEqual([
       { sequence: 3, kind: 'rollback', version: 1, current: true },
       { sequence: 2, kind: 'publish', version: 2, current: false },
-      { sequence: 1, kind: 'publish', version: 1, current: false },
     ])
+    expect(history.current?.activation.activationSequence).toBe(3)
+    expect(history.latest?.activation.activationSequence).toBe(3)
+    expect(history.nextCursor).toBe(2)
+
+    const secondPage = await repo.listActivationHistoryPage(ORG, PROPERTY, PORTAL, {
+      beforeSequence: history.nextCursor,
+      limit: 2,
+    })
+    expect(secondPage.records).toHaveLength(1)
+    expect(secondPage.records[0]?.activation.activationSequence).toBe(1)
+    expect(secondPage.nextCursor).toBeNull()
     await expect(
-      repo.listActivationHistory(
+      repo.listActivationHistoryPage(
         ORG,
         propertyId('f4d00000-0000-4000-8000-000000000099'),
         PORTAL,
+        { beforeSequence: null, limit: 2 },
       ),
-    ).resolves.toEqual([])
+    ).resolves.toMatchObject({ records: [], latest: null, current: null })
     await expect(
-      repo.listActivationHistory(OTHER_ORG, PROPERTY, PORTAL),
-    ).resolves.toEqual([])
+      repo.listActivationHistoryPage(OTHER_ORG, PROPERTY, PORTAL, {
+        beforeSequence: null,
+        limit: 2,
+      }),
+    ).resolves.toMatchObject({ records: [], latest: null, current: null })
   })
 
   it('fails closed if durable snapshot content no longer matches its digest', async () => {

@@ -4,14 +4,22 @@
 
 import type {
   PropertyGoogleReviewDestinationPublicApi,
+  PropertyLifecyclePublicApi,
   PropertyPublicApi,
 } from '#/contexts/property/application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { IdentityPublicApi } from '#/contexts/identity/application/public-api'
-import type { PortalPublicApi } from './application/public-api'
+import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
+import type {
+  PortalAiReplyBrandProfilePublicApi,
+  PortalContactRequestManagerAuthorityPublicApi,
+  PortalPublicApi,
+} from './application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
-import { createPortalRepository } from './infrastructure/repositories/portal.repository'
+import {
+  createCurrentPortalIdReader,
+  createPortalRepository,
+} from './infrastructure/repositories/portal.repository'
 import { createPortalLinkRepository } from './infrastructure/repositories/portal-link.repository'
 import { createPortalGroupRepository } from './infrastructure/repositories/portal-group.repository'
 import { createLinkResolverPort } from './infrastructure/repositories/link-resolver.repository'
@@ -20,6 +28,11 @@ import { createPortalTokenRepository } from './infrastructure/repositories/porta
 import { createPortalPublicationRepository } from './infrastructure/repositories/portal-publication.repository'
 import { createPortalScopeRepository } from './infrastructure/repositories/portal-scope.repository'
 import { createPortalResponsibleManagerRepository } from './infrastructure/repositories/portal-responsible-manager.repository'
+import { createPortalAccessArtifactRepository } from './infrastructure/repositories/portal-access-artifact.repository'
+import { createPortalApprovedDestinationRepository } from './infrastructure/repositories/portal-approved-destination.repository'
+import { createPortalExperienceRepository } from './infrastructure/repositories/portal-experience.repository'
+import { createPortalHealthRepository } from './infrastructure/repositories/portal-health.repository'
+import { createPortalAiReplyBrandProfileAuthority } from './infrastructure/ai-reply-brand-profile-authority'
 import type { PortalStoragePort } from './application/ports/storage.port'
 import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-codec'
 import { createPortal } from './application/use-cases/create-portal'
@@ -56,26 +69,45 @@ import {
   listPortalResponsibleManagers,
   updatePortalResponsibleManagers,
 } from './application/use-cases/portal-responsible-managers'
+import { getPortalContactRequestManagerAuthorityFacts } from './application/use-cases/portal-contact-request-authority'
 import { createPortalWorkflowFactStore } from './infrastructure/portal-workflow-fact-store'
 import { createAtomicPortalCommandStore } from './infrastructure/portal-command-store'
 import { createPortalUploadIssuanceStore } from './infrastructure/portal-upload-issuance-store'
 import { decidePublicExecution } from '#/shared/auth/execution-policy'
-import { portalId, portalGroupId, userId } from '#/shared/domain/ids'
-import { listEligiblePortalManagers } from './application/portal-manager-eligibility'
+import { portalId, portalGroupId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createProcessIssuedPortalImage } from './infrastructure/jobs/process-image.job'
 import { registerPortalConsumers } from './infrastructure/outbox-consumers'
+import { registerPortalHealthConsumers } from './infrastructure/portal-health-outbox-consumers'
+import { createPortalHealthReconciliationStore } from './infrastructure/portal-health-reconciliation-store'
+import { createPortalDestinationNetworkValidator } from './infrastructure/adapters/portal-destination-network-validator.adapter'
+import {
+  getPropertyPortalExperience,
+  savePortalLocalizedOverride,
+  savePropertyPortalBrandContent,
+  savePropertyPortalBrandProfile,
+} from './application/use-cases/manage-portal-experience'
+import {
+  approvePortalApprovedDestination,
+  disablePortalApprovedDestination,
+  listPortalApprovedDestinations,
+  revalidatePortalApprovedDestinations,
+  requestPortalApprovedDestination,
+} from './application/use-cases/manage-portal-approved-destinations'
 
 type PortalContextDeps = Readonly<{
   db: Database
   events: EventBus
   outboxRepo?: import('#/shared/outbox').OutboxRepository
   clock: () => Date
-  propertyApi: PropertyPublicApi & PropertyGoogleReviewDestinationPublicApi
+  propertyApi: PropertyPublicApi &
+    PropertyGoogleReviewDestinationPublicApi &
+    PropertyLifecyclePublicApi
   staffPublicApi: StaffPublicApi
-  identityPublicApi: IdentityPublicApi
+  identityManagerFacts: IdentityManagerFactsPublicApi
   baseUrl: string
   idGen: () => string
+  secureRandomBytes: (size: number) => Buffer
   tokenHashSecret: string
   logger: LoggerPort
   storageConfig: Readonly<{
@@ -94,15 +126,38 @@ type PortalContextDeps = Readonly<{
 
 export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalRepo = createPortalRepository(deps.db)
+  const listCurrentPortalIds = createCurrentPortalIdReader(deps.db)
   const portalCommandStore = createAtomicPortalCommandStore(deps.db, deps.events)
   const portalUploadStore = createPortalUploadIssuanceStore(deps.db)
-  const portalLinkRepo = createPortalLinkRepository(deps.db)
+  const portalLinkRepo = createPortalLinkRepository(deps.db, deps.clock)
   const portalGroupRepo = createPortalGroupRepository(deps.db)
+  const portalAccessArtifactRepo = createPortalAccessArtifactRepository(
+    deps.db,
+    portalGroupRepo,
+  )
+  const portalApprovedDestinationRepo = createPortalApprovedDestinationRepository(
+    deps.db,
+    deps.events,
+  )
+  const portalExperienceRepo = createPortalExperienceRepository(deps.db, deps.events)
+  const aiReplyBrandProfileAuthority = createPortalAiReplyBrandProfileAuthority(deps.db)
+  const portalHealthRepo = createPortalHealthRepository(deps.db)
+  const portalHealthReconciliationStore = createPortalHealthReconciliationStore(
+    deps.db,
+    deps.events,
+    { clock: deps.clock, idGen: deps.idGen },
+  )
+  const portalDestinationNetworkValidator = createPortalDestinationNetworkValidator({
+    clock: deps.clock,
+  })
   const portalTokenRepo = createPortalTokenRepository(deps.db)
   const portalPublicationRepo = createPortalPublicationRepository(deps.db)
   const portalScopeRepo = createPortalScopeRepository(deps.db)
   const portalResponsibleManagerRepo = createPortalResponsibleManagerRepository(deps.db)
-  const portalTokenCodec = createPortalTokenCodec({ secret: deps.tokenHashSecret })
+  const portalTokenCodec = createPortalTokenCodec({
+    secret: deps.tokenHashSecret,
+    randomBytes: deps.secureRandomBytes,
+  })
   const linkResolver = createLinkResolverPort(deps.db)
   const portalWorkflowFactStore = createPortalWorkflowFactStore(deps.db, deps.events)
   const storage =
@@ -123,8 +178,74 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     storage,
     uploadStore: portalUploadStore,
     clock: deps.clock,
+    logger: deps.logger,
   })
   const useCases = {
+    revalidatePortalApprovedDestinations: revalidatePortalApprovedDestinations({
+      destinationRepo: portalApprovedDestinationRepo,
+      destinationNetworkValidator: portalDestinationNetworkValidator,
+      clock: deps.clock,
+    }),
+    listPortalApprovedDestinations: listPortalApprovedDestinations({
+      portalRepo,
+      destinationRepo: portalApprovedDestinationRepo,
+      destinationNetworkValidator: portalDestinationNetworkValidator,
+      staffPublicApi: deps.staffPublicApi,
+      idGen: deps.idGen,
+      clock: deps.clock,
+    }),
+    requestPortalApprovedDestination: requestPortalApprovedDestination({
+      portalRepo,
+      destinationRepo: portalApprovedDestinationRepo,
+      destinationNetworkValidator: portalDestinationNetworkValidator,
+      staffPublicApi: deps.staffPublicApi,
+      idGen: deps.idGen,
+      clock: deps.clock,
+    }),
+    approvePortalApprovedDestination: approvePortalApprovedDestination({
+      portalRepo,
+      destinationRepo: portalApprovedDestinationRepo,
+      destinationNetworkValidator: portalDestinationNetworkValidator,
+      staffPublicApi: deps.staffPublicApi,
+      idGen: deps.idGen,
+      clock: deps.clock,
+    }),
+    disablePortalApprovedDestination: disablePortalApprovedDestination({
+      portalRepo,
+      destinationRepo: portalApprovedDestinationRepo,
+      destinationNetworkValidator: portalDestinationNetworkValidator,
+      staffPublicApi: deps.staffPublicApi,
+      idGen: deps.idGen,
+      clock: deps.clock,
+    }),
+    getPropertyPortalExperience: getPropertyPortalExperience({
+      experienceRepo: portalExperienceRepo,
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      idGen: deps.idGen,
+      clock: deps.clock,
+    }),
+    savePropertyPortalBrandProfile: savePropertyPortalBrandProfile({
+      experienceRepo: portalExperienceRepo,
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      idGen: deps.idGen,
+      clock: deps.clock,
+    }),
+    savePropertyPortalBrandContent: savePropertyPortalBrandContent({
+      experienceRepo: portalExperienceRepo,
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      idGen: deps.idGen,
+      clock: deps.clock,
+    }),
+    savePortalLocalizedOverride: savePortalLocalizedOverride({
+      experienceRepo: portalExperienceRepo,
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      idGen: deps.idGen,
+      clock: deps.clock,
+    }),
     resolvePortalManagementScope: portalScopeRepo.resolvePortal,
     resolvePortalGroupManagementScope: portalScopeRepo.resolveGroup,
     resolvePortalCategoryManagementScope: portalScopeRepo.resolveCategory,
@@ -133,14 +254,14 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     listPortalResponsibleManagers: listPortalResponsibleManagers({
       portalRepo,
       managerRepo: portalResponsibleManagerRepo,
-      identityPublicApi: deps.identityPublicApi,
+      identityPublicApi: deps.identityManagerFacts,
       staffPublicApi: deps.staffPublicApi,
       clock: deps.clock,
     }),
     updatePortalResponsibleManagers: updatePortalResponsibleManagers({
       portalRepo,
       managerRepo: portalResponsibleManagerRepo,
-      identityPublicApi: deps.identityPublicApi,
+      identityPublicApi: deps.identityManagerFacts,
       staffPublicApi: deps.staffPublicApi,
       clock: deps.clock,
       events: deps.events,
@@ -157,7 +278,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       commandStore: portalCommandStore,
       propertyApi: deps.propertyApi,
       staffPublicApi: deps.staffPublicApi,
-      identityPublicApi: deps.identityPublicApi,
+      identityPublicApi: deps.identityManagerFacts,
       idGen: portalIdGen,
       clock: deps.clock,
     }),
@@ -165,7 +286,9 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       commandStore: portalCommandStore,
       publicationRepo: portalPublicationRepo,
+      portalTokenRepo,
       propertyGoogleReviewDestinationApi: deps.propertyApi,
+      propertyLifecycleApi: deps.propertyApi,
       staffPublicApi: deps.staffPublicApi,
       idGen: deps.idGen,
       clock: deps.clock,
@@ -230,6 +353,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalLinkRepo,
       staffPublicApi: deps.staffPublicApi,
       commandStore: portalCommandStore,
+      destinationRepo: portalApprovedDestinationRepo,
+      destinationNetworkValidator: portalDestinationNetworkValidator,
       idGen: linkIdGen,
       clock: deps.clock,
     }),
@@ -238,6 +363,9 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalLinkRepo,
       staffPublicApi: deps.staffPublicApi,
       commandStore: portalCommandStore,
+      destinationRepo: portalApprovedDestinationRepo,
+      destinationNetworkValidator: portalDestinationNetworkValidator,
+      idGen: deps.idGen,
       clock: deps.clock,
     }),
     deleteLink: deleteLink({
@@ -335,7 +463,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       idGen: deps.idGen,
       clock: deps.clock,
       baseUrl: deps.baseUrl,
-      defaultGracePeriodSeconds: 15 * 60,
+      defaultGracePeriodSeconds: 30 * 24 * 60 * 60,
     }),
     revokePortalTokens: revokePortalTokens({
       portalRepo,
@@ -348,7 +476,17 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
 
   // ── Public API — consumed by guest context and other cross-context callers ──
 
-  const publicApi: PortalPublicApi = {
+  const contactRequestManagerAuthorityFacts =
+    getPortalContactRequestManagerAuthorityFacts({
+      portalRepo,
+      managerRepo: portalResponsibleManagerRepo,
+      identityPublicApi: deps.identityManagerFacts,
+      staffPublicApi: deps.staffPublicApi,
+    })
+
+  const publicApi: PortalPublicApi &
+    PortalContactRequestManagerAuthorityPublicApi &
+    PortalAiReplyBrandProfilePublicApi = {
     resolvePortalContext: (portalIdParam) =>
       portalRepo.resolvePortalContext(portalIdParam),
     getPortalInfo: (orgId, pid) =>
@@ -357,40 +495,67 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
         .then((p) =>
           p ? { id: p.id, name: p.name, publicationState: p.publicationState } : null,
         ),
-    findPublicPortalByToken: async (rawToken) => {
+    listCurrentPortalIds: async (orgId, propertyId, limit) => {
+      return listCurrentPortalIds(orgId, propertyId, limit)
+    },
+    findPublicPortalByToken: async (rawToken, preference) => {
       const outcome = await resolvePublicPortalToken({
         tokenCodec: portalTokenCodec,
         portalPublicationRepo,
+        portalHealthRepo,
+        listApprovedSecondaryDestinationUris:
+          portalApprovedDestinationRepo.listApprovedUris,
+        isPropertyActive: deps.propertyApi.isPropertyActive,
         getGoogleReviewDestination: deps.propertyApi.getGoogleReviewDestination,
         decidePublic: decidePublicExecution,
-        reportGoogleDestinationFailure: (error) =>
+        reportGoogleDestinationFailure: () =>
           deps.logger.warn(
-            { err: error },
+            { errorCode: 'portal_google_destination_unavailable' },
             'Portal Google review destination unavailable — serving degraded gateway',
           ),
         clock: deps.clock,
-      })(rawToken)
+      })(rawToken, preference)
       return outcome.status === 'found'
         ? { status: 'found', result: outcome.data }
         : { status: 'unavailable' }
     },
+    resolvePublishedAccessArtifact: ({ rawToken, ...input }) => {
+      const tokenDigest = portalTokenCodec.digest(rawToken)
+      return tokenDigest
+        ? portalAccessArtifactRepo.resolvePublished({ ...input, tokenDigest })
+        : Promise.resolve(null)
+    },
+    getContactRequestManagerAuthorityFacts: contactRequestManagerAuthorityFacts,
+    readCurrentAiReplyBrandProfile:
+      aiReplyBrandProfileAuthority.readCurrentAiReplyBrandProfile,
+    isCurrentAiReplyBrandProfile:
+      aiReplyBrandProfileAuthority.isCurrentAiReplyBrandProfile,
     getResponsibleManagerUserIds: async (orgId, pid) => {
+      const facts = await contactRequestManagerAuthorityFacts(orgId, pid)
+      return facts?.responsibleManagerUserIds ?? []
+    },
+    findPortalHealthNotificationFacts: async (orgId, pid) => {
       const portal = await portalRepo.findById(orgId, pid)
-      if (!portal) return []
-      const [assignments, eligible] = await Promise.all([
-        portalResponsibleManagerRepo.listActive(orgId, pid),
-        listEligiblePortalManagers(deps, orgId, portal.propertyId),
-      ])
-      const eligibleIds = new Set(eligible.map((manager) => manager.userId))
-      return assignments
-        .filter((assignment) => eligibleIds.has(assignment.userId))
-        .map((assignment) => userId(assignment.userId))
+      if (!portal) return null
+      const health = await portalHealthRepo.getCurrent(orgId, portal.propertyId, pid)
+      return health
+        ? {
+            propertyId: portal.propertyId,
+            status: health.status,
+            reason: health.reason,
+            sourceVersion: health.sourceVersion,
+          }
+        : null
     },
   }
 
   const portalGroupPublicApi: import('./application/public-api').PortalGroupPublicApi = {
     findGroupForPortal: async (orgId, pid, asOf) => {
-      const group = await portalGroupRepo.findGroupForPortal(orgId, pid, asOf)
+      const group = await portalGroupRepo.findGroupForPortal(
+        orgId,
+        pid,
+        asOf ?? deps.clock(),
+      )
       if (!group) return null
       return { id: group.id, propertyId: group.propertyId, name: group.name }
     },
@@ -404,33 +569,45 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     },
   }
 
+  const registerOutboxConsumers = () => {
+    if (!deps.outboxRepo) {
+      throw new Error('Portal upload outbox repository is unavailable')
+    }
+    registerPortalConsumers({
+      processIssuedPortalImage,
+      receipts: deps.outboxRepo,
+    })
+    registerPortalHealthConsumers(portalHealthReconciliationStore)
+  }
+
   return {
     publicApi: {
       portal: publicApi,
       portalGroup: portalGroupPublicApi,
+      /** Request-facing Portal capabilities. This is intentionally namespaced
+       * and contains only application functions, never repositories/storage. */
+      management: Object.freeze(useCases),
     },
+    worker: Object.freeze({
+      registerOutboxConsumers,
+      revalidateApprovedDestinations: useCases.revalidatePortalApprovedDestinations,
+    }),
     internal: {
       repos: {
         portalRepo,
         portalLinkRepo,
         portalGroupRepo,
+        portalAccessArtifactRepo,
         portalTokenRepo,
         portalPublicationRepo,
+        portalHealthRepo,
+        portalHealthReconciliationStore,
         portalResponsibleManagerRepo,
         portalUploadStore,
         linkResolver,
       },
       useCases,
       storage,
-      registerOutboxConsumers: () => {
-        if (!deps.outboxRepo) {
-          throw new Error('Portal upload outbox repository is unavailable')
-        }
-        registerPortalConsumers({
-          processIssuedPortalImage,
-          receipts: deps.outboxRepo,
-        })
-      },
     },
   } as const
 }

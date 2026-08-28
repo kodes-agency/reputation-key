@@ -13,16 +13,17 @@ import { portalError } from '../../domain/errors'
 import { portalCreated, portalResponsibilityNeeded } from '../../domain/events'
 import { propertyId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { IdentityPublicApi } from '#/contexts/identity/application/public-api'
+import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
 import { assertNewPortalPropertyAccess } from '../load-accessible-portal'
 import { isEligiblePortalManager } from '../portal-manager-eligibility'
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import { derivePortalHealth } from '../../domain/portal-health'
 
 export type CreatePortalDeps = Readonly<{
   portalRepo: PortalRepository
   propertyApi: PropertyPublicApi
   staffPublicApi: StaffPublicApi
-  identityPublicApi: IdentityPublicApi
+  identityPublicApi: IdentityManagerFactsPublicApi
   commandStore: PortalCommandStore
   idGen: () => PortalId
   clock: () => Date
@@ -63,8 +64,6 @@ export const createPortal =
       id: deps.idGen(),
       organizationId: ctx.organizationId,
       propertyId: propertyId(input.propertyId),
-      entityType: input.entityType,
-      entityId: input.entityId,
       name: input.name,
       providedSlug: input.slug,
       description: input.description,
@@ -106,6 +105,20 @@ export const createPortal =
       initialResponsibleManagerId: creatorIsEligible ? ctx.userId : null,
       event: createdEvent,
       ...(responsibilityNeededEvent ? { responsibilityNeededEvent } : {}),
+      health: {
+        id: deps.idGen(),
+        value: derivePortalHealth({
+          publicationState: portal.publicationState,
+          propertyAvailable: true,
+          hasActivePublicationSnapshot: false,
+          hasResolvablePublicAddress: false,
+          hasResponsibleManager: creatorIsEligible,
+          googleDestinationState: 'unavailable',
+        }),
+        sourceVersion: portal.updatedAt.toISOString(),
+        effectiveAt: portal.createdAt,
+        observedAt: portal.createdAt,
+      },
     })
 
     // 7. Return

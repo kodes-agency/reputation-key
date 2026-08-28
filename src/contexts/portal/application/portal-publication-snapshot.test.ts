@@ -110,6 +110,64 @@ describe('Portal publication snapshot', () => {
     expect(first.configuration.portal.name).toBe('Lobby review gateway')
   })
 
+  it('pins the complete accessible EN/BG brand experience in schema version 2', () => {
+    const snapshot = buildPortalPublicationSnapshot({
+      id: '30000000-0000-4000-8000-000000000010',
+      portalId: source.portal.id,
+      organizationId: source.organizationId,
+      propertyId: source.propertyId,
+      version: 3,
+      source: {
+        ...source,
+        experience: {
+          primaryGuestLocale: 'bg',
+          localeSet: ['bg', 'en'],
+          languagePackVersions: {
+            en: 'guest-ui-en-v1',
+            bg: 'guest-ui-bg-v1',
+          },
+          localizedContent: {
+            en: {
+              title: 'Tell us about your stay',
+              shortDescription: 'Your view matters.',
+              heroImageUrl: null,
+            },
+            bg: {
+              title: 'Разкажете ни за престоя си',
+              shortDescription: 'Вашето мнение е важно.',
+              heroImageUrl: 'https://cdn.example.com/bg-hero.webp',
+            },
+          },
+          brandProfile: {
+            displayName: 'Хотел Пример',
+            logoUrl: null,
+            defaultHeroImageUrl: null,
+            primaryColor: '#1D4ED8',
+            backgroundColor: '#FFFFFF',
+            textColor: '#111827',
+            version: 7,
+          },
+        },
+      },
+      destination,
+      createdBy: 'manager-1',
+      createdAt: NOW,
+    })
+
+    expect(snapshot.configuration).toMatchObject({
+      schemaVersion: 2,
+      guestLocale: 'bg',
+      languagePackVersion: 'guest-ui-bg-v1',
+      localeSet: ['bg', 'en'],
+      brandProfile: { displayName: 'Хотел Пример', version: 7 },
+      localizedContent: {
+        bg: { title: 'Разкажете ни за престоя си' },
+        en: { title: 'Tell us about your stay' },
+      },
+    })
+    expect(verifyPortalPublicationSnapshot(snapshot)).toBe(true)
+  })
+
   it('fails verification when stored content no longer matches its digest', () => {
     const snapshot = buildPortalPublicationSnapshot({
       id: '30000000-0000-4000-8000-000000000001',

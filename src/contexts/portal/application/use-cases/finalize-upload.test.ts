@@ -8,6 +8,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { portalId, propertyId, type PropertyId } from '#/shared/domain/ids'
 import type { IssuedPortalUploadStoragePort } from '../ports/storage.port'
 import { createPortalHeroUploadIssuance } from '../../domain/upload-issuance'
+import { portalHeroImageProcessingRequested } from '../../domain/events'
 
 const ISSUANCE_ID = '70000000-0000-4000-8000-000000000001'
 const SECOND_ISSUANCE_ID = '70000000-0000-4000-8000-000000000002'
@@ -16,7 +17,6 @@ const FIXED_TIME = new Date('2026-08-26T12:00:00.000Z')
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const setup = (input?: Readonly<{ accessible?: ReadonlyArray<PropertyId> | null }>) => {
@@ -123,6 +123,46 @@ describe('finalizeUpload', () => {
       (error: unknown) => isPortalError(error) && error.code === 'upload_failed',
     )
     expect(harness.confirmIssuedPortalUpload).toHaveBeenCalledOnce()
+  })
+
+  it('never deletes a source that a concurrent finalizer has already consumed', async () => {
+    const harness = setup()
+    const ctx = buildTestAuthContext()
+    const portal = buildTestPortal({})
+    harness.portalRepo.seed([portal])
+    await seedIssuedUpload(harness, portal)
+    harness.confirmIssuedPortalUpload.mockImplementationOnce(async () => {
+      await harness.uploadStore.stage(
+        {
+          organizationId: portal.organizationId,
+          propertyId: portal.propertyId,
+          portalId: portal.id,
+          issuanceId: ISSUANCE_ID,
+        },
+        {
+          contentType: 'image/png',
+          sizeBytes: 1024,
+          sourceETag: '"concurrent-etag"',
+        },
+        portalHeroImageProcessingRequested({
+          uploadId: ISSUANCE_ID,
+          organizationId: portal.organizationId,
+          propertyId: portal.propertyId,
+          portalId: portal.id,
+          sourceETag: '"concurrent-etag"',
+          occurredAt: FIXED_TIME,
+        }),
+        FIXED_TIME,
+      )
+      throw new Error('verification transport failed in losing request')
+    })
+
+    await expect(
+      harness.buildUseCase()({ portalId: portal.id, uploadId: ISSUANCE_ID }, ctx),
+    ).rejects.toMatchObject({ code: 'upload_failed' })
+
+    expect(harness.uploadStore.all()[0]?.state).toBe('consumed')
+    expect(harness.deleteIssuedPortalUpload).not.toHaveBeenCalled()
   })
 
   it('rejects a cross-Portal issuance without inspecting its object', async () => {

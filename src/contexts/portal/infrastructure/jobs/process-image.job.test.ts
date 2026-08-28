@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Job } from 'bullmq'
 import { createProcessImageJob, type ProcessImageJobData } from './process-image.job'
 import { createInMemoryPortalUploadIssuanceStore } from '#/shared/testing/in-memory-portal-upload-issuance-store'
@@ -7,6 +7,20 @@ import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
 import type { IssuedPortalUploadStoragePort } from '../../application/ports/storage.port'
 import { portalHeroImageProcessingRequested } from '../../domain/events'
+
+const mockLogger = vi.hoisted(() => {
+  const logger = {
+    trace: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    fatal: vi.fn(),
+    child: vi.fn(),
+  }
+  logger.child.mockReturnValue(logger)
+  return logger
+})
 
 const NOW = new Date('2026-08-26T12:00:00.000Z')
 const ORG_ID = organizationId('org-1')
@@ -67,6 +81,10 @@ const processingEvent = (uploadId: string) =>
   })
 
 describe('process-image job', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
   it('publishes newly derived variants once and ignores an already-derived retry', async () => {
     const uploadStore = createInMemoryPortalUploadIssuanceStore()
     const issuance = issued()
@@ -96,7 +114,12 @@ describe('process-image job', () => {
       deleteIssuedPortalUpload,
     } as unknown as IssuedPortalUploadStoragePort
 
-    await createProcessImageJob({ storage, uploadStore, clock: () => NOW })(jobData())
+    await createProcessImageJob({
+      storage,
+      uploadStore,
+      clock: () => NOW,
+      logger: mockLogger,
+    })(jobData())
 
     expect(readIssuedPortalUpload).toHaveBeenCalledWith(
       expect.objectContaining({ id: UPLOAD_ID }),
@@ -119,7 +142,12 @@ describe('process-image job', () => {
     readIssuedPortalUpload.mockClear()
     writePortalUploadDerivative.mockClear()
     deleteIssuedPortalUpload.mockClear()
-    await createProcessImageJob({ storage, uploadStore, clock: () => NOW })(jobData())
+    await createProcessImageJob({
+      storage,
+      uploadStore,
+      clock: () => NOW,
+      logger: mockLogger,
+    })(jobData())
     expect(readIssuedPortalUpload).not.toHaveBeenCalled()
     expect(writePortalUploadDerivative).not.toHaveBeenCalled()
     expect(deleteIssuedPortalUpload).not.toHaveBeenCalled()
@@ -155,9 +183,12 @@ describe('process-image job', () => {
       writePortalUploadDerivative,
     } as unknown as IssuedPortalUploadStoragePort
 
-    await createProcessImageJob({ storage, uploadStore, clock: () => NOW })(
-      jobData(old.id),
-    )
+    await createProcessImageJob({
+      storage,
+      uploadStore,
+      clock: () => NOW,
+      logger: mockLogger,
+    })(jobData(old.id))
 
     expect(readIssuedPortalUpload).not.toHaveBeenCalled()
     expect(writePortalUploadDerivative).not.toHaveBeenCalled()
@@ -186,9 +217,54 @@ describe('process-image job', () => {
     } as unknown as IssuedPortalUploadStoragePort
 
     await expect(
-      createProcessImageJob({ storage, uploadStore, clock: () => NOW })(jobData()),
+      createProcessImageJob({
+        storage,
+        uploadStore,
+        clock: () => NOW,
+        logger: mockLogger,
+      })(jobData()),
     ).rejects.toBeDefined()
     expect(writePortalUploadDerivative).not.toHaveBeenCalled()
     expect(uploadStore.all()[0]?.state).toBe('consumed')
+  })
+
+  it('does not copy private storage details into failure logs', async () => {
+    const uploadStore = createInMemoryPortalUploadIssuanceStore()
+    const issuance = issued()
+    await uploadStore.create(issuance)
+    await uploadStore.stage(
+      {
+        organizationId: ORG_ID,
+        propertyId: PROPERTY_ID,
+        portalId: PORTAL_ID,
+        issuanceId: UPLOAD_ID,
+      },
+      observed,
+      processingEvent(UPLOAD_ID),
+      NOW,
+    )
+    const privateDetail = `private/portal-uploads/${UPLOAD_ID}/${SOURCE_ETAG}`
+    const storage = {
+      readIssuedPortalUpload: async () => {
+        throw new Error(privateDetail)
+      },
+      writePortalUploadDerivative: vi.fn(),
+      deleteIssuedPortalUpload: vi.fn(),
+    } as unknown as IssuedPortalUploadStoragePort
+
+    await expect(
+      createProcessImageJob({
+        storage,
+        uploadStore,
+        clock: () => NOW,
+        logger: mockLogger,
+      })(jobData()),
+    ).rejects.toThrow(privateDetail)
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      { errorCode: 'portal_image_processing_failed' },
+      'Issued portal image processing failed',
+    )
+    expect(JSON.stringify(mockLogger.error.mock.calls)).not.toContain(privateDetail)
   })
 })

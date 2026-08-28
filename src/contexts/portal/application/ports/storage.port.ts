@@ -1,6 +1,6 @@
 // Portal context — storage port
 // Per architecture: "Ports are TypeScript types defining capability contracts."
-// Abstracts R2/S3 storage operations for image uploads.
+// Abstracts S3-compatible storage operations for image uploads.
 
 import type { PortalUploadIssuance } from '../../domain/upload-issuance'
 
@@ -31,6 +31,10 @@ export type IssuedPortalUploadStoragePort = Readonly<{
     contentType: 'image/webp',
   ) => Promise<{ objectKey: string; publicUrl: string }>
   deleteIssuedPortalUpload: (issuance: PortalUploadIssuance) => Promise<void>
+  deletePortalUploadDerivative: (
+    issuance: PortalUploadIssuance,
+    derivative: PortalUploadDerivative,
+  ) => Promise<void>
 }>
 
 /**
@@ -56,5 +60,5 @@ export type StoragePort = Readonly<{
   putObject: (key: string, body: Buffer, contentType: string) => Promise<void>
 }>
 
-/** Production S3 implements both independently consumed capability surfaces. */
+/** Production S3-compatible storage implements both capability surfaces. */
 export type PortalStoragePort = StoragePort & IssuedPortalUploadStoragePort

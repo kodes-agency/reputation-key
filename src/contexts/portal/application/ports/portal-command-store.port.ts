@@ -44,8 +44,16 @@ import type {
   PortalGroupDeleted,
   PortalResponsibilityNeeded,
   PortalUpdated,
+  PortalAccessArtifactPublished,
+  PortalArchived,
+  PortalLocaleSetUpdated,
+  PortalPublicationPublished,
+  PortalPublicationRolledBack,
+  PortalRestored,
 } from '../../domain/events'
 import type { PortalToken } from '../../domain/portal-token'
+import type { PortalAccessArtifact } from '../../domain/portal-access-artifact'
+import type { PortalHealth } from '../../domain/portal-health'
 
 export type CreatePortalCommand = Readonly<{
   organizationId: OrganizationId
@@ -53,12 +61,21 @@ export type CreatePortalCommand = Readonly<{
   initialResponsibleManagerId: UserId | null
   event: PortalCreated
   responsibilityNeededEvent?: PortalResponsibilityNeeded
+  health?: Readonly<{
+    id: string
+    value: PortalHealth
+    sourceVersion: string
+    effectiveAt: Date
+    observedAt: Date
+  }>
 }>
 
 export type UpdatePortalCommand = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId
+  /** Authenticated actor whose identity may be retained in semantic lifecycle facts. */
+  actorUserId: UserId
   /** Optimistic fence captured by the application pre-read. */
   expectedUpdatedAt: Date
   /** Monotonic aggregate revision; may be later than business occurrence time. */
@@ -67,8 +84,24 @@ export type UpdatePortalCommand = Readonly<{
   occurredAt: Date
   patch: Readonly<Omit<Partial<Portal>, 'updatedAt'>>
   publication?: PortalPublicationMutation
+  health?: Readonly<{
+    id: string
+    value: PortalHealth
+    sourceVersion: string
+    effectiveAt: Date
+    observedAt: Date
+  }>
+  localeSetEvent?: PortalLocaleSetUpdated
+  /** Required semantic fact for publish, rollback, archive, and restore transitions. */
+  lifecycleEvent?: PortalSemanticLifecycleEvent
   event: PortalUpdated
 }>
+
+export type PortalSemanticLifecycleEvent =
+  | PortalPublicationPublished
+  | PortalPublicationRolledBack
+  | PortalArchived
+  | PortalRestored
 
 export type PortalPublicationMutation =
   | Readonly<{
@@ -80,6 +113,7 @@ export type PortalPublicationMutation =
       kind: 'rollback'
       snapshotId: string
       snapshotVersion: number
+      publicationDigest: string
       activation: PortalPublicationActivation & Readonly<{ kind: 'rollback' }>
     }>
   | Readonly<{
@@ -205,7 +239,12 @@ export type UpdatePortalLinkCommand = PortalContentCommandBase &
   Readonly<{
     linkId: PortalLinkId
     categoryId: PortalLinkCategoryId
-    patch: Readonly<{ label: string; url: string; iconKey: string | null }>
+    patch: Readonly<
+      Pick<
+        PortalLink,
+        'label' | 'url' | 'destinationId' | 'legacyDestinationState' | 'iconKey'
+      >
+    >
     event: PortalLinkUpdated
   }>
 
@@ -221,14 +260,24 @@ type PortalTokenCommandBase = PortalContentCommandBase
 export type IssuePortalTokenCommand = PortalTokenCommandBase &
   Readonly<{
     token: PortalToken
+    accessArtifacts: readonly [PortalAccessArtifact, PortalAccessArtifact]
     event: PortalTokenIssued
+    accessArtifactEvents: readonly [
+      PortalAccessArtifactPublished,
+      PortalAccessArtifactPublished,
+    ]
   }>
 
 export type RotatePortalTokenCommand = PortalTokenCommandBase &
   Readonly<{
     oldToken: PortalToken
     newToken: PortalToken
+    accessArtifacts: readonly [PortalAccessArtifact, PortalAccessArtifact]
     event: PortalTokenRotated
+    accessArtifactEvents: readonly [
+      PortalAccessArtifactPublished,
+      PortalAccessArtifactPublished,
+    ]
   }>
 
 export type RevokePortalTokensCommand = PortalTokenCommandBase &

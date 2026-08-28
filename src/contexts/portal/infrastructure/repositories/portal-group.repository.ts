@@ -305,7 +305,7 @@ export const createPortalGroupRepository = (db: Database): PortalGroupRepository
     return rows.map((row) => portalGroupId(row.portalGroupId))
   },
 
-  findGroupForPortal: async (orgId, pid, asOf = new Date()) => {
+  findGroupForPortal: async (orgId, pid, asOf) => {
     return trace('portalGroup.findGroupForPortal', async () => {
       const [row] = await db
         .select({ group: portalGroups })

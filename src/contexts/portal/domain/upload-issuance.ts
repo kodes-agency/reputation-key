@@ -36,6 +36,8 @@ export type PortalUploadIssuance = Readonly<{
   heroDerivativeKey: string | null
   thumbnailDerivativeKey: string | null
   heroImageUrl: string | null
+  sourceDeletedAt: Date | null
+  orphanDerivativesDeletedAt: Date | null
 }>
 
 export type PortalUploadObservedMetadata = Readonly<{
@@ -118,6 +120,8 @@ export function createPortalHeroUploadIssuance(
     heroDerivativeKey: null,
     thumbnailDerivativeKey: null,
     heroImageUrl: null,
+    sourceDeletedAt: null,
+    orphanDerivativesDeletedAt: null,
   }
 }
 

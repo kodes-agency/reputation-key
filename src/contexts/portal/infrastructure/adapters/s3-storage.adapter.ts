@@ -1,6 +1,6 @@
-// Portal context — S3 storage adapter
-// Implements StoragePort using AWS S3.
-// Uses @aws-sdk/client-s3 for S3 operations.
+// Portal context — S3-compatible object-storage adapter.
+// Beta targets a private Railway bucket through its S3-compatible API; the
+// repository-pinned AWS SDK is the protocol client, not a hosting claim.
 
 import {
   S3Client,
@@ -126,6 +126,9 @@ export const createS3StorageAdapter = (config: S3StorageConfig): PortalStoragePo
       deleteIssuedPortalUpload: async () => {
         throw portalError('upload_failed', 'S3 storage is not configured')
       },
+      deletePortalUploadDerivative: async () => {
+        throw portalError('upload_failed', 'S3 storage is not configured')
+      },
       createPresignedUploadUrl: async () => {
         throw portalError('upload_failed', 'S3 storage is not configured')
       },
@@ -249,6 +252,16 @@ export const createS3StorageAdapter = (config: S3StorageConfig): PortalStoragePo
       await trace('s3.deleteIssuedPortalUpload', () =>
         internalClient.send(
           new DeleteObjectCommand({ Bucket: bucketName, Key: issuance.objectKey }),
+        ),
+      )
+    },
+
+    deletePortalUploadDerivative: async (issuance, derivative) => {
+      assertIssuedPortalObject(issuance)
+      const objectKey = portalDerivativeObjectKey(issuance, derivative)
+      await trace('s3.deletePortalUploadDerivative', () =>
+        internalClient.send(
+          new DeleteObjectCommand({ Bucket: bucketName, Key: objectKey }),
         ),
       )
     },

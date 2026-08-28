@@ -35,7 +35,6 @@ const existing = {
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 function setup(notFound = false, accessible: ReadonlyArray<PropertyId> | null = null) {

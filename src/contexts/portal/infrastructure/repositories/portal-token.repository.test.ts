@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { getDb } from '#/shared/db'
 import { organizationId, portalId } from '#/shared/domain/ids'
 import { createPortalTokenRepository } from './portal-token.repository'
@@ -48,6 +49,10 @@ beforeAll(async () => {
 })
 
 afterAll(async () => {
+  await pool.query(
+    'DELETE FROM portal_access_artifacts WHERE organization_id IN ($1, $2)',
+    [ORG, OTHER_ORG],
+  )
   await pool.query('DELETE FROM portal_tokens WHERE organization_id IN ($1, $2)', [
     ORG,
     OTHER_ORG,
@@ -60,11 +65,15 @@ afterAll(async () => {
     PROPERTY,
     PROPERTY_OTHER,
   ])
-  await pool.query('DELETE FROM organization WHERE id IN ($1, $2)', [ORG, OTHER_ORG])
+  await deleteTestOrganizations(pool, [ORG, OTHER_ORG])
   await pool.end()
 })
 
 beforeEach(async () => {
+  await pool.query(
+    'DELETE FROM portal_access_artifacts WHERE organization_id IN ($1, $2)',
+    [ORG, OTHER_ORG],
+  )
   await pool.query('DELETE FROM portal_tokens WHERE organization_id IN ($1, $2)', [
     ORG,
     OTHER_ORG,
@@ -225,7 +234,12 @@ describe('portal token repository', () => {
     const current = makeToken()
     await repo.insert(current)
     const active = await repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW)
-    expect(active).toEqual({ version: 1, issuedAt: NOW, gracePeriodEnds: null })
+    expect(active).toEqual({
+      version: 1,
+      issuedAt: NOW,
+      gracePeriodEnds: null,
+      hasPublishedAccessArtifact: false,
+    })
 
     const rotation = rotateToken(
       current,
@@ -282,10 +296,94 @@ describe('portal token repository', () => {
       version: 1,
       issuedAt: NOW,
       gracePeriodEnds: rotation.oldToken.gracePeriodEnds,
+      hasPublishedAccessArtifact: false,
     })
     await expect(
       repo.findResolvableSummaryForPortal(ORG, PORTAL, new Date(NOW.getTime() + 60_001)),
     ).resolves.toBeNull()
+  })
+
+  it('reports legacy-address readiness and permits a retired channel marker to be replaced', async () => {
+    const repo = createPortalTokenRepository(getDb())
+    const token = makeToken()
+    await repo.insert(token)
+
+    await expect(
+      repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW),
+    ).resolves.toMatchObject({ hasPublishedAccessArtifact: false })
+    await expect(repo.listAccessArtifactReadinessGaps(NOW, [ORG])).resolves.toEqual([
+      {
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        portalId: PORTAL,
+        tokenVersion: 1,
+        tokenStatus: 'active',
+        issuedAt: NOW,
+        gracePeriodEnds: null,
+      },
+    ])
+
+    await pool.query(
+      `INSERT INTO portal_access_artifacts
+         (id, organization_id, property_id, portal_id, portal_token_id, channel,
+          status, published_at, retired_at)
+       VALUES ($1, $2, $3::uuid, $4::uuid, $5::uuid, 'qr', 'published', $6, NULL)`,
+      ['de000000-0000-4000-8000-000000000041', ORG, PROPERTY, PORTAL, token.id, NOW],
+    )
+    await expect(
+      repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW),
+    ).resolves.toMatchObject({ hasPublishedAccessArtifact: true })
+    await expect(repo.listAccessArtifactReadinessGaps(NOW, [ORG])).resolves.toEqual([])
+
+    const replacedAt = new Date(NOW.getTime() + 1_000)
+    await pool.query(
+      `UPDATE portal_access_artifacts
+       SET status = 'retired', retired_at = $2
+       WHERE id = $1`,
+      ['de000000-0000-4000-8000-000000000041', replacedAt],
+    )
+    await pool.query(
+      `INSERT INTO portal_access_artifacts
+         (id, organization_id, property_id, portal_id, portal_token_id, channel,
+          status, published_at, retired_at)
+       VALUES ($1, $2, $3::uuid, $4::uuid, $5::uuid, 'qr', 'published', $6, NULL)`,
+      [
+        'de000000-0000-4000-8000-000000000042',
+        ORG,
+        PROPERTY,
+        PORTAL,
+        token.id,
+        replacedAt,
+      ],
+    )
+
+    const history = await pool.query(
+      `SELECT status FROM portal_access_artifacts
+       WHERE portal_token_id = $1::uuid AND channel = 'qr'
+       ORDER BY published_at`,
+      [token.id],
+    )
+    expect(history.rows).toEqual([{ status: 'retired' }, { status: 'published' }])
+    await expect(
+      repo.findResolvableSummaryForPortal(ORG, PORTAL, replacedAt),
+    ).resolves.toMatchObject({ hasPublishedAccessArtifact: true })
+
+    await expect(
+      pool.query(
+        `INSERT INTO portal_access_artifacts
+           (id, organization_id, property_id, portal_id, portal_token_id, channel,
+            status, published_at, retired_at)
+         VALUES ($1, $2, $3::uuid, $4::uuid, $5::uuid, 'qr', 'published', $6, NULL)`,
+        [
+          'de000000-0000-4000-8000-000000000043',
+          ORG,
+          PROPERTY,
+          PORTAL,
+          token.id,
+          new Date(replacedAt.getTime() + 1_000),
+        ],
+      ),
+    ).rejects.toMatchObject({ constraint: 'portal_access_artifacts_token_channel_key' })
   })
 })
 

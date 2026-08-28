@@ -25,10 +25,12 @@ vi.mock('#/shared/auth/middleware', () => ({
 }))
 vi.mock('#/composition', () => ({
   getContainer: vi.fn(() => ({
-    useCases: {
-      listPortalResponsibleManagers: mocks.list,
-      updatePortalResponsibleManagers: mocks.update,
-      resolvePortalManagementScope: mocks.resolvePortalManagementScope,
+    portalPublicApi: {
+      management: {
+        listPortalResponsibleManagers: mocks.list,
+        updatePortalResponsibleManagers: mocks.update,
+        resolvePortalManagementScope: mocks.resolvePortalManagementScope,
+      },
     },
   })),
 }))

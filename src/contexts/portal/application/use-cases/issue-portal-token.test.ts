@@ -33,6 +33,11 @@ describe('issuePortalToken', () => {
       findLatestForPortal: vi.fn(async () => null),
       insert,
     } as unknown as PortalTokenRepository
+    const ids = [
+      '6a100000-0000-4000-8000-000000000001',
+      '6a100000-0000-4000-8000-000000000002',
+      '6a100000-0000-4000-8000-000000000003',
+    ]
     const useCase = issuePortalToken({
       portalRepo,
       portalTokenRepo,
@@ -43,16 +48,21 @@ describe('issuePortalToken', () => {
         portalTokenRepo,
         events,
       }),
-      idGen: () => 'portal-token-1',
+      idGen: () => ids.shift()!,
       clock: () => NOW,
       baseUrl: 'https://example.test',
     })
 
     await expect(
-      useCase({ portalId: portal.id, printBatch: 'batch-1' }, buildTestAuthContext()),
+      useCase({ portalId: portal.id }, buildTestAuthContext()),
     ).resolves.toEqual({
       rawToken: 'raw-token',
-      publicUrl: 'https://example.test/p/raw-token',
+      publicUrl:
+        'https://example.test/p/raw-token?accessArtifact=6a100000-0000-4000-8000-000000000002',
+      publicUrls: {
+        qr: 'https://example.test/p/raw-token?accessArtifact=6a100000-0000-4000-8000-000000000002',
+        nfc: 'https://example.test/p/raw-token?accessArtifact=6a100000-0000-4000-8000-000000000003',
+      },
       tokenIdentifier: 'token-id',
       version: 1,
       issuedAt: NOW,
@@ -63,11 +73,27 @@ describe('issuePortalToken', () => {
         propertyId: portal.propertyId,
         portalId: portal.id,
         tokenHash: 'token-hash',
-        printBatch: 'batch-1',
+        printBatch: null,
       }),
     )
     expect(events.capturedByTag('portal.token.issued')).toEqual([
       expect.objectContaining({
+        sourceAggregateVersion: NEXT_REVISION.toISOString(),
+        occurredAt: NOW,
+      }),
+    ])
+    expect(events.capturedByTag('portal.access_artifact.published')).toEqual([
+      expect.objectContaining({
+        accessArtifactId: '6a100000-0000-4000-8000-000000000002',
+        portalId: portal.id,
+        channel: 'qr',
+        sourceAggregateVersion: NEXT_REVISION.toISOString(),
+        occurredAt: NOW,
+      }),
+      expect.objectContaining({
+        accessArtifactId: '6a100000-0000-4000-8000-000000000003',
+        portalId: portal.id,
+        channel: 'nfc',
         sourceAggregateVersion: NEXT_REVISION.toISOString(),
         occurredAt: NOW,
       }),

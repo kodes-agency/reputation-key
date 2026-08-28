@@ -27,7 +27,18 @@ export type PortalPublicationHistory = Readonly<{
   current: PortalPublicationHistoryItem | null
   priorActivations: ReadonlyArray<PortalPublicationHistoryItem>
   hasPendingChanges: boolean
+  pendingChanges?: ReadonlyArray<
+    Readonly<{
+      kind: import('../ports/portal-publication.repository').PortalPendingContentChange['kind']
+      key: string
+      changedAt: string
+    }>
+  >
+  nextCursor: number | null
 }>
+
+const DEFAULT_HISTORY_PAGE_SIZE = 20
+const MAX_HISTORY_PAGE_SIZE = 50
 
 type Deps = Readonly<{
   portalRepo: PortalRepository
@@ -36,15 +47,59 @@ type Deps = Readonly<{
 }>
 
 function publishedContent(snapshot: PortalPublicationSnapshot) {
+  const configuration = snapshot.configuration
   return {
-    portal: snapshot.configuration.portal,
-    categories: snapshot.configuration.categories,
-    links: snapshot.configuration.links,
-    privateFeedbackThreshold:
-      snapshot.configuration.reviewGateway.privateFeedbackThreshold,
+    portal: configuration.portal,
+    categories: configuration.categories,
+    links: configuration.links,
+    privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
     organizationId: snapshot.organizationId,
     propertyId: snapshot.propertyId,
-  } satisfies PortalPublicationSource
+    ...(configuration.schemaVersion === 2
+      ? {
+          experience: {
+            primaryGuestLocale: configuration.guestLocale,
+            localeSet: configuration.localeSet,
+            languagePackVersions: configuration.languagePackVersions,
+            localizedContent: configuration.localizedContent,
+            brandProfile: configuration.brandProfile,
+          },
+        }
+      : {}),
+  }
+}
+
+function comparableWorkingContent(workingCopy: PortalPublicationSource) {
+  const experience = workingCopy.experience
+  return {
+    portal: workingCopy.portal,
+    categories: workingCopy.categories,
+    links: workingCopy.links,
+    privateFeedbackThreshold: workingCopy.privateFeedbackThreshold,
+    organizationId: workingCopy.organizationId,
+    propertyId: workingCopy.propertyId,
+    ...(experience
+      ? {
+          experience: {
+            primaryGuestLocale: experience.primaryGuestLocale,
+            localeSet: experience.localeSet,
+            languagePackVersions: Object.fromEntries(
+              experience.localeSet.map((locale) => [
+                locale,
+                experience.languagePackVersions[locale],
+              ]),
+            ),
+            localizedContent: Object.fromEntries(
+              experience.localeSet.map((locale) => [
+                locale,
+                experience.localizedContent[locale],
+              ]),
+            ),
+            brandProfile: experience.brandProfile,
+          },
+        }
+      : {}),
+  }
 }
 
 function workingCopyMatches(
@@ -52,7 +107,8 @@ function workingCopyMatches(
   snapshot: PortalPublicationSnapshot,
 ): boolean {
   return (
-    canonicalizeRfc8785(workingCopy) === canonicalizeRfc8785(publishedContent(snapshot))
+    canonicalizeRfc8785(comparableWorkingContent(workingCopy)) ===
+    canonicalizeRfc8785(publishedContent(snapshot))
   )
 }
 
@@ -72,7 +128,7 @@ function historyItem(
 export const getPortalPublicationHistory =
   (deps: Deps) =>
   async (
-    input: Readonly<{ portalId: string }>,
+    input: Readonly<{ portalId: string; cursor?: number; limit?: number }>,
     ctx: AuthContext,
   ): Promise<PortalPublicationHistory> => {
     const pid = portalId(input.portalId)
@@ -80,13 +136,27 @@ export const getPortalPublicationHistory =
       permission: 'portal.read',
       forbiddenMessage: 'Insufficient permissions to view Portal publication history',
     })
-    const [workingCopy, records] = await Promise.all([
+    const requestedLimit = input.limit ?? DEFAULT_HISTORY_PAGE_SIZE
+    const limit = Number.isSafeInteger(requestedLimit)
+      ? Math.min(MAX_HISTORY_PAGE_SIZE, Math.max(1, requestedLimit))
+      : DEFAULT_HISTORY_PAGE_SIZE
+    const beforeSequence =
+      input.cursor !== undefined && Number.isSafeInteger(input.cursor) && input.cursor > 0
+        ? input.cursor
+        : null
+    const [workingCopy, page, pendingChanges] = await Promise.all([
       deps.publicationRepo.loadWorkingCopy(ctx.organizationId, pid),
-      deps.publicationRepo.listActivationHistory(
+      deps.publicationRepo.listActivationHistoryPage(
         ctx.organizationId,
         portal.propertyId,
         pid,
+        { beforeSequence, limit },
       ),
+      deps.publicationRepo.listOpenPendingContentChanges?.(
+        ctx.organizationId,
+        portal.propertyId,
+        pid,
+      ) ?? Promise.resolve([]),
     ])
     if (!workingCopy) {
       throw portalError(
@@ -95,18 +165,26 @@ export const getPortalPublicationHistory =
       )
     }
 
-    const currentRecord = records.find(
-      ({ activation }) => activation.deactivatedAt === null,
-    )
-    const baseline = currentRecord ?? records[0]
+    const currentRecord = page.current
+    const baseline = page.current ?? page.latest
     return {
       current: currentRecord ? historyItem(currentRecord) : null,
-      priorActivations: records
-        .filter((record) => record !== currentRecord)
+      priorActivations: page.records
+        .filter(
+          (record) =>
+            record.activation.activationSequence !==
+            currentRecord?.activation.activationSequence,
+        )
         .map(historyItem),
-      hasPendingChanges: baseline
-        ? !workingCopyMatches(workingCopy, baseline.snapshot)
-        : false,
+      hasPendingChanges:
+        pendingChanges.length > 0 ||
+        (baseline ? !workingCopyMatches(workingCopy, baseline.snapshot) : false),
+      pendingChanges: pendingChanges.map((change) => ({
+        kind: change.kind,
+        key: change.key,
+        changedAt: change.changedAt.toISOString(),
+      })),
+      nextCursor: page.nextCursor,
     }
   }
 

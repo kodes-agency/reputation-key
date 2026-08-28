@@ -6,7 +6,7 @@ import type { PortalPublicationRepository } from '../ports/portal-publication.re
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { portalError } from '../../domain/errors'
-import { portalUpdated } from '../../domain/events'
+import { portalPublicationRolledBack, portalUpdated } from '../../domain/events'
 import { nextPortalCommandAt } from '../portal-command-version'
 
 export type RollbackPortalPublicationDeps = Readonly<{
@@ -67,6 +67,7 @@ export const rollbackPortalPublication =
       organizationId: ctx.organizationId,
       propertyId: portal.propertyId,
       portalId: pid,
+      actorUserId: ctx.userId,
       expectedUpdatedAt: portal.updatedAt,
       revision,
       occurredAt,
@@ -75,6 +76,7 @@ export const rollbackPortalPublication =
         kind: 'rollback',
         snapshotId: target.id,
         snapshotVersion: target.version,
+        publicationDigest: target.configurationDigest,
         activation: {
           id: deps.idGen(),
           organizationId: unbrand(ctx.organizationId),
@@ -89,6 +91,17 @@ export const rollbackPortalPublication =
           deactivationReason: null,
         },
       },
+      lifecycleEvent: portalPublicationRolledBack({
+        organizationId: ctx.organizationId,
+        propertyId: portal.propertyId,
+        portalId: pid,
+        publicationSnapshotId: target.id,
+        publicationVersion: target.version,
+        publicationDigest: target.configurationDigest,
+        userId: ctx.userId,
+        sourceAggregateVersion: revision.toISOString(),
+        occurredAt,
+      }),
       event: portalUpdated({
         portalId: pid,
         organizationId: ctx.organizationId,

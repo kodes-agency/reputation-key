@@ -24,7 +24,6 @@ const staffApiMock = (
 ): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
   findActiveParticipation: async () => (participates ? ({} as never) : null),
 })
 
@@ -48,6 +47,7 @@ const setup = (
       findBySlug: async () => null,
       getProcessingRegion: async () => 'us',
       findIdsByGoogleConnection: async () => [],
+      findGoogleNotificationAnchor: async () => null,
       clearGoogleConnectionRef: async () => {},
     },
     staffPublicApi: staffApiMock(accessible, participates),
@@ -84,6 +84,8 @@ describe('createPortal', () => {
     expect(portal.slug).toBe('my-portal')
     expect(portal.theme.primaryColor).toBe('#6366F1')
     expect(portal.publicationState).toBe('draft')
+    expect(portal.entityType).toBe('property')
+    expect(portal.entityId).toBe(portal.propertyId)
     expect(portal.privateFeedbackThreshold).toBe(3)
     expect(portal.createdBy).toBe(ctx.userId)
     expect(portal.responsibilityNeededSince).toBeNull()

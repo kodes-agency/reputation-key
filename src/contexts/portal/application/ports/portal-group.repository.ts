@@ -10,10 +10,6 @@ import type {
   PortalId,
 } from '#/shared/domain/ids'
 
-export type PortalGroupWithPortals = Readonly<{
-  group: PortalGroup
-  portalIds: ReadonlyArray<PortalId>
-}>
 export type PortalGroupRepository = Readonly<{
   findById: (orgId: OrganizationId, id: PortalGroupId) => Promise<PortalGroup | null>
   listByProperty: (
@@ -62,6 +58,6 @@ export type PortalGroupRepository = Readonly<{
   findGroupForPortal: (
     orgId: OrganizationId,
     portalId: PortalId,
-    asOf?: Date,
+    asOf: Date,
   ) => Promise<PortalGroup | null>
 }>

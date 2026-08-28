@@ -12,13 +12,24 @@ import {
   portalLinkCategories,
   portalLinks,
   portalResponsibleManagers,
+  portalAccessArtifacts,
+  portalApprovedDestinations,
+  portalLocalizedOverrides,
+  propertyPortalBrandContents,
+  propertyPortalBrandProfiles,
+  portalHealthIntervals,
   portals,
   portalTokens,
 } from '#/shared/db/schema/portal.schema'
 import { portalGroups } from '#/shared/db/schema/portal-group.schema'
 import { portalGroupMemberships } from '#/shared/db/schema/people-access.schema'
 import type { EventBus } from '#/shared/events/event-bus'
-import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
+import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { lockPortalPublicationProperty } from './portal-publication-serialization'
+import {
+  recordPortalPendingContentChange,
+  resolvePortalPendingContentChanges,
+} from './portal-pending-content-changes'
 import { trace } from '#/shared/observability/trace'
 import { unbrand } from '#/shared/domain/ids'
 import type {
@@ -59,7 +70,44 @@ type PortalSetValues = {
   theme?: Record<string, unknown>
   privateFeedbackThreshold?: number
   publicationState?: Portal['publicationState']
+  primaryGuestLocale?: Portal['primaryGuestLocale']
+  additionalGuestLocales?: Portal['additionalGuestLocales']
   updatedAt?: Date
+}
+
+const PORTAL_WORKING_COPY_FIELDS: ReadonlySet<string> = new Set([
+  'name',
+  'slug',
+  'description',
+  'heroImageUrl',
+  'theme',
+  'privateFeedbackThreshold',
+  'primaryGuestLocale',
+  'additionalGuestLocales',
+])
+
+function hasPortalWorkingCopyPatch(patch: UpdatePortalCommand['patch']): boolean {
+  return Object.keys(patch).some((key) => PORTAL_WORKING_COPY_FIELDS.has(key))
+}
+
+async function recordPortalContentCommandPending(
+  tx: Tx,
+  command: Readonly<{
+    organizationId: UpdatePortalCommand['organizationId']
+    propertyId: UpdatePortalCommand['propertyId']
+    portalId: UpdatePortalCommand['portalId']
+    revision: Date
+    occurredAt: Date
+  }>,
+): Promise<void> {
+  await recordPortalPendingContentChange(tx, {
+    organizationId: unbrand(command.organizationId),
+    propertyId: unbrand(command.propertyId),
+    portalId: unbrand(command.portalId),
+    kind: 'portal_links',
+    sourceVersion: command.revision.toISOString(),
+    changedAt: command.occurredAt,
+  })
 }
 
 const sameInstant = (left: Date, right: Date): boolean =>
@@ -107,6 +155,15 @@ function assertCreateCommand(command: CreatePortalCommand): void {
     )
   }
   if (
+    command.health &&
+    (command.health.sourceVersion !== portal.updatedAt.toISOString() ||
+      !sameInstant(command.health.effectiveAt, portal.createdAt) ||
+      command.health.value.status !== 'unavailable' ||
+      command.health.value.reason !== 'publication_draft')
+  ) {
+    throw portalError('forbidden', 'Initial Portal Health does not match Draft state')
+  }
+  if (
     initialResponsibleManagerId !== null &&
     portal.createdBy !== initialResponsibleManagerId
   ) {
@@ -142,6 +199,10 @@ function buildPortalSetClause(patch: Readonly<Partial<Portal>>): PortalSetValues
   if (patch.privateFeedbackThreshold !== undefined)
     set.privateFeedbackThreshold = patch.privateFeedbackThreshold
   if (patch.publicationState !== undefined) set.publicationState = patch.publicationState
+  if (patch.primaryGuestLocale !== undefined)
+    set.primaryGuestLocale = patch.primaryGuestLocale
+  if (patch.additionalGuestLocales !== undefined)
+    set.additionalGuestLocales = patch.additionalGuestLocales
   return set
 }
 
@@ -166,6 +227,19 @@ function assertUpdateCommand(command: UpdatePortalCommand): void {
       'revision_conflict',
       'Portal command revision must advance monotonically',
     )
+  }
+  if (
+    command.localeSetEvent &&
+    (command.localeSetEvent.organizationId !== command.organizationId ||
+      command.localeSetEvent.propertyId !== command.propertyId ||
+      command.localeSetEvent.portalId !== command.portalId ||
+      command.localeSetEvent.sourceAggregateVersion !== command.revision.toISOString() ||
+      !sameInstant(command.localeSetEvent.occurredAt, command.occurredAt) ||
+      command.localeSetEvent.primaryGuestLocale !== command.patch.primaryGuestLocale ||
+      JSON.stringify(command.localeSetEvent.additionalGuestLocales) !==
+        JSON.stringify(command.patch.additionalGuestLocales))
+  ) {
+    throw portalError('forbidden', 'Portal locale-set fact does not match its update')
   }
 
   const previous = command.event.previousPublicationState
@@ -223,6 +297,7 @@ function assertUpdateCommand(command: UpdatePortalCommand): void {
       next !== 'published' ||
       publication.snapshotId !== activation.snapshotId ||
       publication.snapshotVersion < 1 ||
+      !/^[0-9a-f]{64}$/u.test(publication.publicationDigest) ||
       activation.organizationId !== unbrand(command.organizationId) ||
       activation.propertyId !== unbrand(command.propertyId) ||
       activation.portalId !== unbrand(command.portalId) ||
@@ -247,6 +322,143 @@ function assertUpdateCommand(command: UpdatePortalCommand): void {
       'Publication deactivation does not match the Portal state transition',
     )
   }
+  if (
+    command.health &&
+    (command.health.sourceVersion !== command.revision.toISOString() ||
+      !sameInstant(command.health.effectiveAt, command.occurredAt) ||
+      command.health.observedAt < command.health.effectiveAt)
+  ) {
+    throw portalError('forbidden', 'Portal Health does not match its command version')
+  }
+
+  assertSemanticLifecycleEvent(command)
+}
+
+function assertSemanticLifecycleEvent(command: UpdatePortalCommand): void {
+  const previous = command.event.previousPublicationState
+  const next = command.event.publicationState
+  const publication = command.publication
+  const expectedTag =
+    publication?.kind === 'publish'
+      ? 'portal.publication.published'
+      : publication?.kind === 'rollback'
+        ? 'portal.publication.rolled_back'
+        : previous !== 'archived' && next === 'archived'
+          ? 'portal.archived'
+          : previous === 'archived' && next === 'disabled'
+            ? 'portal.restored'
+            : null
+  const event = command.lifecycleEvent
+
+  if ((event?._tag ?? null) !== expectedTag) {
+    throw portalError(
+      'forbidden',
+      expectedTag === null
+        ? 'Portal update carried an unrelated semantic lifecycle fact'
+        : `Portal transition requires ${expectedTag}`,
+    )
+  }
+  if (!event) return
+  if (
+    event.organizationId !== command.organizationId ||
+    event.propertyId !== command.propertyId ||
+    event.portalId !== command.portalId ||
+    event.sourceAggregateVersion !== command.revision.toISOString() ||
+    !sameInstant(event.occurredAt, command.occurredAt) ||
+    event.userId !== command.actorUserId
+  ) {
+    throw portalError(
+      'forbidden',
+      'Portal semantic lifecycle fact does not match its committed transition',
+    )
+  }
+
+  if (
+    event._tag === 'portal.publication.published' &&
+    (publication?.kind !== 'publish' ||
+      event.publicationSnapshotId !== publication.snapshot.id ||
+      event.publicationVersion !== publication.snapshot.version ||
+      event.publicationDigest !== publication.snapshot.configurationDigest ||
+      String(event.userId) !== publication.snapshot.createdBy)
+  ) {
+    throw portalError(
+      'forbidden',
+      'Portal publication fact does not match its immutable snapshot',
+    )
+  }
+  if (
+    event._tag === 'portal.publication.rolled_back' &&
+    (publication?.kind !== 'rollback' ||
+      event.publicationSnapshotId !== publication.snapshotId ||
+      event.publicationVersion !== publication.snapshotVersion ||
+      event.publicationDigest !== publication.publicationDigest ||
+      String(event.userId) !== publication.activation.activatedBy)
+  ) {
+    throw portalError(
+      'forbidden',
+      'Portal rollback fact does not match its target immutable snapshot',
+    )
+  }
+}
+
+async function applyPortalHealthMutation(
+  tx: Parameters<Parameters<Database['transaction']>[0]>[0],
+  command: UpdatePortalCommand &
+    Readonly<{ health: NonNullable<UpdatePortalCommand['health']> }>,
+): Promise<void> {
+  const [current] = await tx
+    .select()
+    .from(portalHealthIntervals)
+    .where(
+      and(
+        eq(portalHealthIntervals.organizationId, unbrand(command.organizationId)),
+        eq(portalHealthIntervals.propertyId, unbrand(command.propertyId)),
+        eq(portalHealthIntervals.portalId, unbrand(command.portalId)),
+        isNull(portalHealthIntervals.effectiveTo),
+      ),
+    )
+    .limit(1)
+  if (
+    current?.status === command.health.value.status &&
+    current.reason === command.health.value.reason
+  ) {
+    await tx
+      .update(portalHealthIntervals)
+      .set({
+        sourceVersion: command.health.sourceVersion,
+        observedAt:
+          command.health.observedAt < current.observedAt
+            ? current.observedAt
+            : command.health.observedAt,
+      })
+      .where(eq(portalHealthIntervals.id, current.id))
+    return
+  }
+  const effectiveFrom =
+    current && command.health.effectiveAt <= current.effectiveFrom
+      ? new Date(current.effectiveFrom.getTime() + 1)
+      : command.health.effectiveAt
+  if (current) {
+    await tx
+      .update(portalHealthIntervals)
+      .set({ effectiveTo: effectiveFrom })
+      .where(eq(portalHealthIntervals.id, current.id))
+  }
+  await tx.insert(portalHealthIntervals).values({
+    id: command.health.id,
+    organizationId: unbrand(command.organizationId),
+    propertyId: unbrand(command.propertyId),
+    portalId: unbrand(command.portalId),
+    status: command.health.value.status,
+    reason: command.health.value.reason,
+    sourceVersion: command.health.sourceVersion,
+    effectiveFrom,
+    effectiveTo: null,
+    observedAt:
+      command.health.observedAt < effectiveFrom
+        ? effectiveFrom
+        : command.health.observedAt,
+  })
 }
 
 async function assertSnapshotMatchesCommittedWorkingCopy(
@@ -291,8 +503,20 @@ async function assertSnapshotMatchesCommittedWorkingCopy(
     )
     .orderBy(portalLinkCategories.sortKey, portalLinkCategories.id)
   const links = await tx
-    .select()
+    .select({
+      link: portalLinks,
+      destinationUri: portalApprovedDestinations.normalizedUri,
+      destinationApprovalState: portalApprovedDestinations.approvalState,
+    })
     .from(portalLinks)
+    .leftJoin(
+      portalApprovedDestinations,
+      and(
+        eq(portalApprovedDestinations.organizationId, portalLinks.organizationId),
+        eq(portalApprovedDestinations.propertyId, portalLinks.propertyId),
+        eq(portalApprovedDestinations.id, portalLinks.destinationId),
+      ),
+    )
     .where(
       and(
         eq(portalLinks.organizationId, unbrand(command.organizationId)),
@@ -308,6 +532,52 @@ async function assertSnapshotMatchesCommittedWorkingCopy(
     )
   }
 
+  const approved = command.publication.snapshot.configuration
+  const localized = approved.schemaVersion === 2
+  const [brandProfile, brandContents, localizedOverrides] = localized
+    ? await Promise.all([
+        tx
+          .select()
+          .from(propertyPortalBrandProfiles)
+          .where(
+            and(
+              eq(
+                propertyPortalBrandProfiles.organizationId,
+                unbrand(command.organizationId),
+              ),
+              eq(propertyPortalBrandProfiles.propertyId, unbrand(command.propertyId)),
+            ),
+          )
+          .limit(1),
+        tx
+          .select()
+          .from(propertyPortalBrandContents)
+          .where(
+            and(
+              eq(
+                propertyPortalBrandContents.organizationId,
+                unbrand(command.organizationId),
+              ),
+              eq(propertyPortalBrandContents.propertyId, unbrand(command.propertyId)),
+            ),
+          ),
+        tx
+          .select()
+          .from(portalLocalizedOverrides)
+          .where(
+            and(
+              eq(
+                portalLocalizedOverrides.organizationId,
+                unbrand(command.organizationId),
+              ),
+              eq(portalLocalizedOverrides.propertyId, unbrand(command.propertyId)),
+              eq(portalLocalizedOverrides.portalId, unbrand(command.portalId)),
+            ),
+          ),
+      ])
+    : [[], [], []]
+  const brand = brandProfile[0]
+
   const committed = {
     portal: {
       id: portal.id,
@@ -316,23 +586,33 @@ async function assertSnapshotMatchesCommittedWorkingCopy(
       description: portal.description,
       heroImageUrl: portal.heroImageUrl,
       theme: portal.theme,
-      organizationName: organization.name,
+      organizationName: localized ? brand?.displayName : organization.name,
     },
     categories: categories.map((category) => ({
       id: category.id,
       title: category.title,
       sortKey: category.sortKey,
     })),
-    links: links.map((link) => ({
-      id: link.id,
-      label: link.label,
-      url: link.url,
-      categoryId: link.categoryId,
-      sortKey: link.sortKey,
-    })),
+    links: links.flatMap(({ link, destinationUri, destinationApprovalState }) => {
+      const url = localized
+        ? destinationApprovalState === 'approved'
+          ? destinationUri
+          : null
+        : link.url
+      return url
+        ? [
+            {
+              id: link.id,
+              label: link.label,
+              url,
+              categoryId: link.categoryId,
+              sortKey: link.sortKey,
+            },
+          ]
+        : []
+    }),
     privateFeedbackThreshold: portal.privateFeedbackThreshold,
   }
-  const approved = command.publication.snapshot.configuration
   const snapshotted = {
     portal: approved.portal,
     categories: approved.categories,
@@ -345,11 +625,71 @@ async function assertSnapshotMatchesCommittedWorkingCopy(
       'Portal content changed while the publication snapshot was being committed',
     )
   }
+  if (localized) {
+    if (!brand) {
+      throw portalError(
+        'revision_conflict',
+        'Property Brand Profile changed while the publication snapshot was committed',
+      )
+    }
+    const contents = new Map(brandContents.map((item) => [item.locale, item]))
+    const overrides = new Map(localizedOverrides.map((item) => [item.locale, item]))
+    const localizedContent = Object.fromEntries(
+      approved.localeSet.flatMap((locale) => {
+        const content = contents.get(locale)
+        if (!content) return []
+        const override = overrides.get(locale)
+        return [
+          [
+            locale,
+            {
+              title: override?.title ?? content.title,
+              shortDescription: override?.shortDescription ?? content.shortDescription,
+              heroImageUrl: override?.heroImageUrl ?? brand.defaultHeroImageUrl ?? null,
+            },
+          ],
+        ]
+      }),
+    )
+    const expectedExperience = {
+      localeSet: [
+        portal.primaryGuestLocale,
+        ...((Array.isArray(portal.additionalGuestLocales)
+          ? portal.additionalGuestLocales
+          : []) as string[]),
+      ].filter((locale, index, all) => all.indexOf(locale) === index),
+      localizedContent,
+      brandProfile: {
+        displayName: brand.displayName,
+        logoUrl: brand.logoUrl,
+        defaultHeroImageUrl: brand.defaultHeroImageUrl,
+        primaryColor: brand.primaryColor,
+        backgroundColor: brand.backgroundColor,
+        textColor: brand.textColor,
+        version: brand.version,
+      },
+    }
+    const approvedExperience = {
+      localeSet: approved.localeSet,
+      localizedContent: approved.localizedContent,
+      brandProfile: approved.brandProfile,
+    }
+    if (
+      canonicalizeRfc8785(expectedExperience) !== canonicalizeRfc8785(approvedExperience)
+    ) {
+      throw portalError(
+        'revision_conflict',
+        'Portal brand or localized content changed during publication',
+      )
+    }
+  }
 }
 
 function snapshotToRow(
   snapshot: import('../domain/portal-publication-snapshot').PortalPublicationSnapshot,
 ) {
+  const localized =
+    snapshot.configuration.schemaVersion === 2 ? snapshot.configuration : null
   return {
     id: snapshot.id,
     organizationId: snapshot.organizationId,
@@ -360,6 +700,12 @@ function snapshotToRow(
     configuration: snapshot.configuration,
     guestLocale: snapshot.configuration.guestLocale,
     languagePackVersion: snapshot.configuration.languagePackVersion,
+    localeSet: localized?.localeSet ?? ['en'],
+    languagePackVersions: localized?.languagePackVersions ?? {
+      en: 'guest-ui-en-v1',
+    },
+    localizedContent: localized?.localizedContent ?? {},
+    brandProfileVersion: localized?.brandProfile.version ?? null,
     privateFeedbackThreshold:
       snapshot.configuration.reviewGateway.privateFeedbackThreshold,
     destinationUri: snapshot.destinationUri,
@@ -697,12 +1043,69 @@ function portalTokenToRow(
   }
 }
 
+function accessArtifactToRow(
+  artifact: import('../domain/portal-access-artifact').PortalAccessArtifact,
+): typeof portalAccessArtifacts.$inferInsert {
+  return {
+    id: artifact.id,
+    organizationId: artifact.organizationId,
+    propertyId: artifact.propertyId,
+    portalId: artifact.portalId,
+    portalTokenId: artifact.portalTokenId,
+    channel: artifact.channel,
+    status: artifact.status,
+    publishedAt: artifact.publishedAt,
+    retiredAt: artifact.retiredAt,
+  }
+}
+
+function accessArtifactSetMatches(
+  command: Readonly<{
+    organizationId: IssuePortalTokenCommand['organizationId']
+    propertyId: IssuePortalTokenCommand['propertyId']
+    portalId: IssuePortalTokenCommand['portalId']
+    revision: Date
+    occurredAt: Date
+    accessArtifacts: IssuePortalTokenCommand['accessArtifacts']
+    accessArtifactEvents: IssuePortalTokenCommand['accessArtifactEvents']
+  }>,
+  portalTokenId: string,
+): boolean {
+  if (
+    command.accessArtifacts[0].channel !== 'qr' ||
+    command.accessArtifacts[1].channel !== 'nfc'
+  ) {
+    return false
+  }
+  return command.accessArtifacts.every((artifact, index) => {
+    const event = command.accessArtifactEvents[index]
+    return (
+      event !== undefined &&
+      artifact.organizationId === command.organizationId &&
+      artifact.propertyId === command.propertyId &&
+      artifact.portalId === command.portalId &&
+      artifact.portalTokenId === portalTokenId &&
+      artifact.status === 'published' &&
+      artifact.retiredAt === null &&
+      sameInstant(artifact.publishedAt, command.occurredAt) &&
+      event.accessArtifactId === artifact.id &&
+      event.organizationId === command.organizationId &&
+      event.propertyId === command.propertyId &&
+      event.portalId === command.portalId &&
+      event.channel === artifact.channel &&
+      event.sourceAggregateVersion === command.revision.toISOString() &&
+      sameInstant(event.occurredAt, command.occurredAt)
+    )
+  })
+}
+
 function assertIssueTokenCommand(command: IssuePortalTokenCommand): void {
   if (
     command.token.organizationId !== unbrand(command.organizationId) ||
     command.token.propertyId !== unbrand(command.propertyId) ||
     command.token.portalId !== unbrand(command.portalId) ||
     command.token.status !== 'active' ||
+    !accessArtifactSetMatches(command, command.token.id) ||
     command.event.organizationId !== command.organizationId ||
     command.event.propertyId !== command.propertyId ||
     command.event.portalId !== command.portalId ||
@@ -730,6 +1133,7 @@ function assertRotateTokenCommand(command: RotatePortalTokenCommand): void {
     newToken.portalId !== oldToken.portalId ||
     newToken.status !== 'active' ||
     newToken.version !== oldToken.version + 1 ||
+    !accessArtifactSetMatches(command, newToken.id) ||
     command.event.organizationId !== command.organizationId ||
     command.event.propertyId !== command.propertyId ||
     command.event.portalId !== command.portalId ||
@@ -786,6 +1190,20 @@ export const createAtomicPortalCommandStore = (
               createdBy: command.initialResponsibleManagerId,
             })
           }
+          if (command.health) {
+            await tx.insert(portalHealthIntervals).values({
+              id: command.health.id,
+              organizationId: unbrand(command.organizationId),
+              propertyId: unbrand(command.portal.propertyId),
+              portalId: unbrand(command.portal.id),
+              status: command.health.value.status,
+              reason: command.health.value.reason,
+              sourceVersion: command.health.sourceVersion,
+              effectiveFrom: command.health.effectiveAt,
+              effectiveTo: null,
+              observedAt: command.health.observedAt,
+            })
+          }
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.portal.createdAt,
           })
@@ -805,6 +1223,13 @@ export const createAtomicPortalCommandStore = (
       trace('portal.commandStore.updatePortal', async () => {
         assertUpdateCommand(command)
         await db.transaction(async (tx) => {
+          if (command.publication?.kind === 'publish') {
+            await lockPortalPublicationProperty(
+              tx,
+              unbrand(command.organizationId),
+              unbrand(command.propertyId),
+            )
+          }
           const [updated] = await tx
             .update(portals)
             .set({ ...buildPortalSetClause(command.patch), updatedAt: command.revision })
@@ -860,9 +1285,19 @@ export const createAtomicPortalCommandStore = (
             await tx
               .insert(portalPublicationActivations)
               .values(activationToRow(command.publication.activation))
+            await resolvePortalPendingContentChanges(tx, {
+              organizationId: unbrand(command.organizationId),
+              propertyId: unbrand(command.propertyId),
+              portalId: unbrand(command.portalId),
+              snapshotId: command.publication.snapshot.id,
+              resolvedAt: command.occurredAt,
+            })
           } else if (command.publication?.kind === 'rollback') {
             const [target] = await tx
-              .select({ id: portalPublicationSnapshots.id })
+              .select({
+                id: portalPublicationSnapshots.id,
+                configurationDigest: portalPublicationSnapshots.configurationDigest,
+              })
               .from(portalPublicationSnapshots)
               .where(
                 and(
@@ -886,6 +1321,12 @@ export const createAtomicPortalCommandStore = (
                 'The requested rollback snapshot does not belong to this Portal',
               )
             }
+            if (target.configurationDigest !== command.publication.publicationDigest) {
+              throw portalError(
+                'publication_snapshot_unavailable',
+                'The rollback publication digest does not match its immutable snapshot',
+              )
+            }
             const closed = await closeActivePublication(tx, command, 'replaced')
             if (closed !== 1) {
               throw portalError(
@@ -902,11 +1343,48 @@ export const createAtomicPortalCommandStore = (
             // is impossible under the partial unique index.
             await closeActivePublication(tx, command, command.publication.reason)
           }
+          if (command.health) {
+            await applyPortalHealthMutation(
+              tx,
+              command as UpdatePortalCommand & {
+                health: NonNullable<UpdatePortalCommand['health']>
+              },
+            )
+          }
+          if (
+            command.publication?.kind !== 'publish' &&
+            hasPortalWorkingCopyPatch(command.patch)
+          ) {
+            await recordPortalPendingContentChange(tx, {
+              organizationId: unbrand(command.organizationId),
+              propertyId: unbrand(command.propertyId),
+              portalId: unbrand(command.portalId),
+              kind: 'portal_configuration',
+              sourceVersion: command.revision.toISOString(),
+              changedAt: command.occurredAt,
+            })
+          }
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.event.occurredAt,
           })
+          if (command.lifecycleEvent) {
+            await insertOutboxRow(tx, command.lifecycleEvent, {
+              recordedAt: command.lifecycleEvent.occurredAt,
+            })
+          }
+          if (command.localeSetEvent) {
+            await insertOutboxRow(tx, command.localeSetEvent, {
+              recordedAt: command.localeSetEvent.occurredAt,
+            })
+          }
         })
         await emitAfterCommit(events, command.event)
+        if (command.lifecycleEvent) {
+          await emitAfterCommit(events, command.lifecycleEvent)
+        }
+        if (command.localeSetEvent) {
+          await emitAfterCommit(events, command.localeSetEvent)
+        }
       }),
 
     deletePortal: async (command) =>
@@ -1175,6 +1653,7 @@ export const createAtomicPortalCommandStore = (
         await db.transaction(async (tx) => {
           await fencePortalContent(tx, command)
           await tx.insert(portalLinkCategories).values(categoryToRow(command.category))
+          await recordPortalContentCommandPending(tx, command)
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -1204,6 +1683,7 @@ export const createAtomicPortalCommandStore = (
               'Portal category changed during update',
             )
           }
+          await recordPortalContentCommandPending(tx, command)
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -1232,6 +1712,7 @@ export const createAtomicPortalCommandStore = (
               'Portal category changed during delete',
             )
           }
+          await recordPortalContentCommandPending(tx, command)
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -1278,6 +1759,7 @@ export const createAtomicPortalCommandStore = (
                 ),
               )
           }
+          await recordPortalContentCommandPending(tx, command)
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -1291,6 +1773,7 @@ export const createAtomicPortalCommandStore = (
         await db.transaction(async (tx) => {
           await fencePortalContent(tx, command)
           await tx.insert(portalLinks).values(linkToRow(command.link))
+          await recordPortalContentCommandPending(tx, command)
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -1305,7 +1788,16 @@ export const createAtomicPortalCommandStore = (
           await fencePortalContent(tx, command)
           const [updated] = await tx
             .update(portalLinks)
-            .set({ ...command.patch, updatedAt: command.occurredAt })
+            .set({
+              label: command.patch.label,
+              destinationId: command.patch.destinationId
+                ? unbrand(command.patch.destinationId)
+                : null,
+              url: command.patch.destinationId ? null : command.patch.url,
+              legacyDestinationState: command.patch.legacyDestinationState,
+              iconKey: command.patch.iconKey,
+              updatedAt: command.occurredAt,
+            })
             .where(
               and(
                 eq(portalLinks.organizationId, unbrand(command.organizationId)),
@@ -1318,6 +1810,7 @@ export const createAtomicPortalCommandStore = (
           if (!updated) {
             throw portalError('revision_conflict', 'Portal link changed during update')
           }
+          await recordPortalContentCommandPending(tx, command)
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -1344,6 +1837,7 @@ export const createAtomicPortalCommandStore = (
           if (!deleted) {
             throw portalError('revision_conflict', 'Portal link changed during delete')
           }
+          await recordPortalContentCommandPending(tx, command)
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -1386,6 +1880,7 @@ export const createAtomicPortalCommandStore = (
                 ),
               )
           }
+          await recordPortalContentCommandPending(tx, command)
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -1429,11 +1924,20 @@ export const createAtomicPortalCommandStore = (
             )
           }
           await tx.insert(portalTokens).values(portalTokenToRow(command.token))
+          await tx
+            .insert(portalAccessArtifacts)
+            .values(command.accessArtifacts.map(accessArtifactToRow))
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
+          for (const event of command.accessArtifactEvents) {
+            await insertOutboxRow(tx, event, { recordedAt: command.occurredAt })
+          }
         })
         await emitAfterCommit(events, command.event)
+        for (const event of command.accessArtifactEvents) {
+          await emitAfterCommit(events, event)
+        }
       }),
 
     rotatePortalToken: async (command) =>
@@ -1463,11 +1967,20 @@ export const createAtomicPortalCommandStore = (
             throw portalError('revision_conflict', 'Portal token changed during rotation')
           }
           await tx.insert(portalTokens).values(portalTokenToRow(command.newToken))
+          await tx
+            .insert(portalAccessArtifacts)
+            .values(command.accessArtifacts.map(accessArtifactToRow))
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
+          for (const event of command.accessArtifactEvents) {
+            await insertOutboxRow(tx, event, { recordedAt: command.occurredAt })
+          }
         })
         await emitAfterCommit(events, command.event)
+        for (const event of command.accessArtifactEvents) {
+          await emitAfterCommit(events, event)
+        }
       }),
 
     revokePortalTokens: async (command) =>

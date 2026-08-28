@@ -39,8 +39,15 @@ import {
   portalTokenRevoked,
   portalTokenIssued,
   portalTokenRotated,
+  portalAccessArtifactPublished,
+  portalArchived,
+  portalPublicationPublished,
+  portalPublicationRolledBack,
+  portalRestored,
   portalUpdated,
 } from '../domain/events'
+import { publishPortalAccessArtifact } from '../domain/portal-access-artifact'
+import { portalAccessArtifactId } from '#/shared/domain/ids'
 import { createAtomicPortalCommandStore } from './portal-command-store'
 import { createPortalWorkflowFactStore } from './portal-workflow-fact-store'
 import { buildPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
@@ -94,6 +101,7 @@ const { getPool } = setupIntegrationDb({
     'portal_link_categories',
     'portal_group_memberships',
     'portal_groups',
+    'portal_access_artifacts',
     'portal_tokens',
     'portal_responsible_managers',
     'outbox_events',
@@ -106,6 +114,47 @@ const silentEvents: EventBus = {
   on: () => {},
   emit: async () => {},
   clear: () => {},
+}
+
+function accessArtifactCommandParts(
+  token: ReturnType<typeof issueToken>,
+  id: string,
+  revision: Date,
+) {
+  const nfcId = id.replace(/^7c/u, '7d')
+  const qrArtifact = publishPortalAccessArtifact({
+    id: portalAccessArtifactId(id),
+    organizationId: ORG_A,
+    propertyId: PROPERTY_A,
+    portalId: PORTAL_A,
+    portalTokenId: token.id,
+    channel: 'qr',
+    now: revision,
+  })
+  const nfcArtifact = publishPortalAccessArtifact({
+    id: portalAccessArtifactId(nfcId),
+    organizationId: ORG_A,
+    propertyId: PROPERTY_A,
+    portalId: PORTAL_A,
+    portalTokenId: token.id,
+    channel: 'nfc',
+    now: revision,
+  })
+  const accessArtifacts = [qrArtifact, nfcArtifact] as const
+  const eventFor = (artifact: (typeof accessArtifacts)[number]) =>
+    portalAccessArtifactPublished({
+      accessArtifactId: artifact.id,
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalId: PORTAL_A,
+      channel: artifact.channel,
+      sourceAggregateVersion: revision.toISOString(),
+      occurredAt: revision,
+    })
+  return {
+    accessArtifacts,
+    accessArtifactEvents: [eventFor(qrArtifact), eventFor(nfcArtifact)] as const,
+  }
 }
 
 const makePortal = (overrides: Parameters<typeof buildTestPortal>[0] = {}) =>
@@ -220,6 +269,24 @@ function publicationMutation(
   }
 }
 
+function publicationPublishedFact(
+  portal: ReturnType<typeof makePortal>,
+  publication: ReturnType<typeof publicationMutation>,
+  revision: Date,
+) {
+  return portalPublicationPublished({
+    organizationId: portal.organizationId,
+    propertyId: portal.propertyId,
+    portalId: portal.id,
+    publicationSnapshotId: publication.snapshot.id,
+    publicationVersion: publication.snapshot.version,
+    publicationDigest: publication.snapshot.configurationDigest,
+    userId: MANAGER,
+    sourceAggregateVersion: revision.toISOString(),
+    occurredAt: revision,
+  })
+}
+
 beforeEach(async () => {
   clearEventSchemas()
   registerAllEventSchemas()
@@ -301,7 +368,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     expect(managers.rows).toHaveLength(0)
   })
 
-  it('updates Portal state and one identifier-only versioned fact atomically', async () => {
+  it('publishes Portal state and exact immutable snapshot evidence atomically', async () => {
     const portal = makePortal({ publicationState: 'draft' })
     const store = createAtomicPortalCommandStore(getDb(), silentEvents)
     await store.createPortal({
@@ -319,11 +386,14 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       sourceAggregateVersion: UPDATED_AT.toISOString(),
       occurredAt: UPDATED_AT,
     })
+    const publication = publicationMutation(portal, { name: 'Reception Gateway' })
+    const lifecycleEvent = publicationPublishedFact(portal, publication, UPDATED_AT)
 
     await store.updatePortal({
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
       portalId: portal.id,
+      actorUserId: MANAGER,
       expectedUpdatedAt: CREATED_AT,
       revision: UPDATED_AT,
       occurredAt: UPDATED_AT,
@@ -331,7 +401,8 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         name: 'Reception Gateway',
         publicationState: 'published',
       },
-      publication: publicationMutation(portal, { name: 'Reception Gateway' }),
+      publication,
+      lifecycleEvent,
       event,
     })
 
@@ -363,6 +434,29 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     })
     expect(fact.rows[0].payload).not.toHaveProperty('name')
     expect(fact.rows[0].payload).not.toHaveProperty('slug')
+    const publicationFact = await getPool().query(
+      `SELECT id, payload FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'portal.publication.published'`,
+      [ORG_A],
+    )
+    expect(publicationFact.rows).toEqual([
+      {
+        id: lifecycleEvent.eventId,
+        payload: expect.objectContaining({
+          organizationId: ORG_A,
+          propertyId: PROPERTY_A,
+          portalId: PORTAL_A,
+          publicationSnapshotId: publication.snapshot.id,
+          publicationVersion: 1,
+          publicationDigest: publication.snapshot.configurationDigest,
+          userId: MANAGER,
+          sourceAggregateVersion: UPDATED_AT.toISOString(),
+          occurredAt: UPDATED_AT.toISOString(),
+        }),
+      },
+    ])
+    expect(publicationFact.rows[0].payload).not.toHaveProperty('name')
+    expect(publicationFact.rows[0].payload).not.toHaveProperty('destinationUri')
     const publications = await getPool().query(
       `SELECT s.version, s.configuration_digest, a.activation_sequence,
               a.deactivated_at
@@ -374,10 +468,444 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     expect(publications.rows).toEqual([
       {
         version: 1,
-        configuration_digest: publicationMutation(portal, { name: 'Reception Gateway' })
-          .snapshot.configurationDigest,
+        configuration_digest: publication.snapshot.configurationDigest,
         activation_sequence: 1,
         deactivated_at: null,
+      },
+    ])
+  })
+
+  it('rolls back Portal state and snapshot activation when the dedicated publication fact conflicts', async () => {
+    const portal = makePortal({ publicationState: 'draft' })
+    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    await store.createPortal({
+      organizationId: ORG_A,
+      portal,
+      initialResponsibleManagerId: MANAGER,
+      event: createdFact(portal),
+    })
+    const publication = publicationMutation(portal, { name: portal.name })
+    const lifecycleEvent = publicationPublishedFact(portal, publication, UPDATED_AT)
+    const event = portalUpdated({
+      portalId: PORTAL_A,
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      previousPublicationState: 'draft',
+      publicationState: 'published',
+      sourceAggregateVersion: UPDATED_AT.toISOString(),
+      occurredAt: UPDATED_AT,
+    })
+    await getPool().query(
+      `INSERT INTO outbox_events
+         (id, event_type, event_version, payload, organization_id, property_id,
+          source_context, source_aggregate_id, created_at)
+       VALUES ($1, 'portal.publication.published', 1, '{}'::jsonb, $2, $3,
+               'portal', $4, $5)`,
+      [lifecycleEvent.eventId, ORG_A, PROPERTY_A, PORTAL_A, UPDATED_AT],
+    )
+
+    await expect(
+      store.updatePortal({
+        organizationId: ORG_A,
+        propertyId: PROPERTY_A,
+        portalId: PORTAL_A,
+        actorUserId: MANAGER,
+        expectedUpdatedAt: CREATED_AT,
+        revision: UPDATED_AT,
+        occurredAt: UPDATED_AT,
+        patch: { publicationState: 'published' },
+        publication,
+        lifecycleEvent,
+        event,
+      }),
+    ).rejects.toSatisfy((error: unknown) => hasDatabaseErrorCode(error, '23505'))
+
+    const state = await getPool().query(
+      `SELECT publication_state, updated_at FROM portals
+       WHERE organization_id = $1 AND id = $2`,
+      [ORG_A, PORTAL_A],
+    )
+    const snapshots = await getPool().query(
+      `SELECT id FROM portal_publication_snapshots
+       WHERE organization_id = $1 AND portal_id = $2`,
+      [ORG_A, PORTAL_A],
+    )
+    const genericFact = await getPool().query(
+      `SELECT id FROM outbox_events
+       WHERE organization_id = $1 AND id = $2`,
+      [ORG_A, event.eventId],
+    )
+    expect(state.rows).toEqual([{ publication_state: 'draft', updated_at: CREATED_AT }])
+    expect(snapshots.rows).toHaveLength(0)
+    expect(genericFact.rows).toHaveLength(0)
+  })
+
+  it('rejects archive when portal.updated is supplied without its dedicated semantic fact', async () => {
+    const portal = makePortal({ publicationState: 'disabled' })
+    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    await store.createPortal({
+      organizationId: ORG_A,
+      portal,
+      initialResponsibleManagerId: MANAGER,
+      event: createdFact(portal),
+    })
+    const genericEvent = portalUpdated({
+      portalId: PORTAL_A,
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      previousPublicationState: 'disabled',
+      publicationState: 'archived',
+      sourceAggregateVersion: UPDATED_AT.toISOString(),
+      occurredAt: UPDATED_AT,
+    })
+
+    await expect(
+      store.updatePortal({
+        organizationId: ORG_A,
+        propertyId: PROPERTY_A,
+        portalId: PORTAL_A,
+        actorUserId: MANAGER,
+        expectedUpdatedAt: CREATED_AT,
+        revision: UPDATED_AT,
+        occurredAt: UPDATED_AT,
+        patch: { publicationState: 'archived' },
+        event: genericEvent,
+      }),
+    ).rejects.toMatchObject({ _tag: 'PortalError', code: 'forbidden' })
+
+    const state = await getPool().query(
+      `SELECT publication_state, updated_at FROM portals
+       WHERE organization_id = $1 AND id = $2`,
+      [ORG_A, PORTAL_A],
+    )
+    const transitionFacts = await getPool().query(
+      `SELECT event_type FROM outbox_events
+       WHERE organization_id = $1
+         AND (id = $2 OR event_type = 'portal.archived')`,
+      [ORG_A, genericEvent.eventId],
+    )
+    expect(state.rows).toEqual([
+      { publication_state: 'disabled', updated_at: CREATED_AT },
+    ])
+    expect(transitionFacts.rows).toHaveLength(0)
+  })
+
+  it('commits archive and restore facts once while stale replay changes nothing', async () => {
+    const portal = makePortal({ publicationState: 'disabled' })
+    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    await store.createPortal({
+      organizationId: ORG_A,
+      portal,
+      initialResponsibleManagerId: MANAGER,
+      event: createdFact(portal),
+    })
+    const archived = portalArchived({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalId: PORTAL_A,
+      userId: MANAGER,
+      sourceAggregateVersion: UPDATED_AT.toISOString(),
+      occurredAt: UPDATED_AT,
+    })
+    const archiveUpdated = portalUpdated({
+      portalId: PORTAL_A,
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      previousPublicationState: 'disabled',
+      publicationState: 'archived',
+      sourceAggregateVersion: UPDATED_AT.toISOString(),
+      occurredAt: UPDATED_AT,
+    })
+    const archiveCommand = {
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalId: PORTAL_A,
+      actorUserId: MANAGER,
+      expectedUpdatedAt: CREATED_AT,
+      revision: UPDATED_AT,
+      occurredAt: UPDATED_AT,
+      patch: { publicationState: 'archived' as const },
+      lifecycleEvent: archived,
+      event: archiveUpdated,
+    }
+
+    await store.updatePortal(archiveCommand)
+    await expect(store.updatePortal(archiveCommand)).rejects.toMatchObject({
+      _tag: 'PortalError',
+      code: 'revision_conflict',
+    })
+
+    const restoredAt = new Date(UPDATED_AT.getTime() + 60_000)
+    const restored = portalRestored({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalId: PORTAL_A,
+      userId: MANAGER,
+      sourceAggregateVersion: restoredAt.toISOString(),
+      occurredAt: restoredAt,
+    })
+    await store.updatePortal({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalId: PORTAL_A,
+      actorUserId: MANAGER,
+      expectedUpdatedAt: UPDATED_AT,
+      revision: restoredAt,
+      occurredAt: restoredAt,
+      patch: { publicationState: 'disabled' },
+      lifecycleEvent: restored,
+      event: portalUpdated({
+        portalId: PORTAL_A,
+        organizationId: ORG_A,
+        propertyId: PROPERTY_A,
+        previousPublicationState: 'archived',
+        publicationState: 'disabled',
+        sourceAggregateVersion: restoredAt.toISOString(),
+        occurredAt: restoredAt,
+      }),
+    })
+
+    const state = await getPool().query(
+      `SELECT publication_state, updated_at FROM portals
+       WHERE organization_id = $1 AND id = $2`,
+      [ORG_A, PORTAL_A],
+    )
+    const facts = await getPool().query(
+      `SELECT event_type, payload FROM outbox_events
+       WHERE organization_id = $1
+         AND event_type IN ('portal.archived', 'portal.restored')
+       ORDER BY event_type`,
+      [ORG_A],
+    )
+    expect(state.rows).toEqual([
+      { publication_state: 'disabled', updated_at: restoredAt },
+    ])
+    expect(facts.rows).toEqual([
+      {
+        event_type: 'portal.archived',
+        payload: expect.objectContaining({
+          organizationId: ORG_A,
+          propertyId: PROPERTY_A,
+          portalId: PORTAL_A,
+          userId: MANAGER,
+          sourceAggregateVersion: UPDATED_AT.toISOString(),
+          occurredAt: UPDATED_AT.toISOString(),
+        }),
+      },
+      {
+        event_type: 'portal.restored',
+        payload: expect.objectContaining({
+          organizationId: ORG_A,
+          propertyId: PROPERTY_A,
+          portalId: PORTAL_A,
+          userId: MANAGER,
+          sourceAggregateVersion: restoredAt.toISOString(),
+          occurredAt: restoredAt.toISOString(),
+        }),
+      },
+    ])
+    for (const fact of facts.rows) {
+      expect(fact.payload).not.toHaveProperty('name')
+      expect(fact.payload).not.toHaveProperty('destinationUri')
+    }
+  })
+
+  it('rolls back to an earlier immutable snapshot with one exact target fact', async () => {
+    const portal = makePortal({ publicationState: 'draft' })
+    const store = createAtomicPortalCommandStore(getDb(), silentEvents)
+    await store.createPortal({
+      organizationId: ORG_A,
+      portal,
+      initialResponsibleManagerId: MANAGER,
+      event: createdFact(portal),
+    })
+
+    const publishedV1At = UPDATED_AT
+    const publicationV1 = publicationMutation(portal, {
+      name: portal.name,
+      version: 1,
+      activationSequence: 1,
+      snapshotId: '6d000000-0000-4000-8000-000000000011',
+      activationId: '6e000000-0000-4000-8000-000000000011',
+      at: publishedV1At,
+    })
+    await store.updatePortal({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalId: PORTAL_A,
+      actorUserId: MANAGER,
+      expectedUpdatedAt: CREATED_AT,
+      revision: publishedV1At,
+      occurredAt: publishedV1At,
+      patch: { publicationState: 'published' },
+      publication: publicationV1,
+      lifecycleEvent: publicationPublishedFact(portal, publicationV1, publishedV1At),
+      event: portalUpdated({
+        portalId: PORTAL_A,
+        organizationId: ORG_A,
+        propertyId: PROPERTY_A,
+        previousPublicationState: 'draft',
+        publicationState: 'published',
+        sourceAggregateVersion: publishedV1At.toISOString(),
+        occurredAt: publishedV1At,
+      }),
+    })
+
+    const disabledAt = new Date(publishedV1At.getTime() + 60_000)
+    await store.updatePortal({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalId: PORTAL_A,
+      actorUserId: MANAGER,
+      expectedUpdatedAt: publishedV1At,
+      revision: disabledAt,
+      occurredAt: disabledAt,
+      patch: { publicationState: 'disabled' },
+      publication: { kind: 'deactivate', reason: 'disabled', at: disabledAt },
+      event: portalUpdated({
+        portalId: PORTAL_A,
+        organizationId: ORG_A,
+        propertyId: PROPERTY_A,
+        previousPublicationState: 'published',
+        publicationState: 'disabled',
+        sourceAggregateVersion: disabledAt.toISOString(),
+        occurredAt: disabledAt,
+      }),
+    })
+
+    const disabledPortal = {
+      ...portal,
+      publicationState: 'disabled' as const,
+      updatedAt: disabledAt,
+    }
+    const publishedV2At = new Date(disabledAt.getTime() + 60_000)
+    const publicationV2 = publicationMutation(disabledPortal, {
+      name: portal.name,
+      version: 2,
+      activationSequence: 2,
+      snapshotId: '6d000000-0000-4000-8000-000000000012',
+      activationId: '6e000000-0000-4000-8000-000000000012',
+      at: publishedV2At,
+    })
+    await store.updatePortal({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalId: PORTAL_A,
+      actorUserId: MANAGER,
+      expectedUpdatedAt: disabledAt,
+      revision: publishedV2At,
+      occurredAt: publishedV2At,
+      patch: { publicationState: 'published' },
+      publication: publicationV2,
+      lifecycleEvent: publicationPublishedFact(
+        disabledPortal,
+        publicationV2,
+        publishedV2At,
+      ),
+      event: portalUpdated({
+        portalId: PORTAL_A,
+        organizationId: ORG_A,
+        propertyId: PROPERTY_A,
+        previousPublicationState: 'disabled',
+        publicationState: 'published',
+        sourceAggregateVersion: publishedV2At.toISOString(),
+        occurredAt: publishedV2At,
+      }),
+    })
+
+    const rolledBackAt = new Date(publishedV2At.getTime() + 60_000)
+    const rolledBack = portalPublicationRolledBack({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalId: PORTAL_A,
+      publicationSnapshotId: publicationV1.snapshot.id,
+      publicationVersion: publicationV1.snapshot.version,
+      publicationDigest: publicationV1.snapshot.configurationDigest,
+      userId: MANAGER,
+      sourceAggregateVersion: rolledBackAt.toISOString(),
+      occurredAt: rolledBackAt,
+    })
+    const rollbackUpdated = portalUpdated({
+      portalId: PORTAL_A,
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      previousPublicationState: 'published',
+      publicationState: 'published',
+      sourceAggregateVersion: rolledBackAt.toISOString(),
+      occurredAt: rolledBackAt,
+    })
+    const rollbackCommand = {
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalId: PORTAL_A,
+      actorUserId: MANAGER,
+      expectedUpdatedAt: publishedV2At,
+      revision: rolledBackAt,
+      occurredAt: rolledBackAt,
+      patch: {},
+      publication: {
+        kind: 'rollback' as const,
+        snapshotId: publicationV1.snapshot.id,
+        snapshotVersion: publicationV1.snapshot.version,
+        publicationDigest: publicationV1.snapshot.configurationDigest,
+        activation: {
+          id: '6e000000-0000-4000-8000-000000000013',
+          organizationId: ORG_A,
+          propertyId: PROPERTY_A,
+          portalId: PORTAL_A,
+          snapshotId: publicationV1.snapshot.id,
+          activationSequence: 3,
+          kind: 'rollback' as const,
+          activatedBy: MANAGER,
+          activatedAt: rolledBackAt,
+          deactivatedAt: null,
+          deactivationReason: null,
+        },
+      },
+      lifecycleEvent: rolledBack,
+      event: rollbackUpdated,
+    }
+
+    await store.updatePortal(rollbackCommand)
+    await expect(store.updatePortal(rollbackCommand)).rejects.toMatchObject({
+      _tag: 'PortalError',
+      code: 'revision_conflict',
+    })
+
+    const active = await getPool().query(
+      `SELECT s.id, s.version, s.configuration_digest
+       FROM portal_publication_activations a
+       JOIN portal_publication_snapshots s ON s.id = a.snapshot_id
+       WHERE a.organization_id = $1 AND a.portal_id = $2
+         AND a.deactivated_at IS NULL`,
+      [ORG_A, PORTAL_A],
+    )
+    const facts = await getPool().query(
+      `SELECT payload FROM outbox_events
+       WHERE organization_id = $1
+         AND event_type = 'portal.publication.rolled_back'`,
+      [ORG_A],
+    )
+    expect(active.rows).toEqual([
+      {
+        id: publicationV1.snapshot.id,
+        version: 1,
+        configuration_digest: publicationV1.snapshot.configurationDigest,
+      },
+    ])
+    expect(facts.rows).toEqual([
+      {
+        payload: expect.objectContaining({
+          organizationId: ORG_A,
+          propertyId: PROPERTY_A,
+          portalId: PORTAL_A,
+          publicationSnapshotId: publicationV1.snapshot.id,
+          publicationVersion: 1,
+          publicationDigest: publicationV1.snapshot.configurationDigest,
+          userId: MANAGER,
+          sourceAggregateVersion: rolledBackAt.toISOString(),
+          occurredAt: rolledBackAt.toISOString(),
+        }),
       },
     ])
   })
@@ -419,6 +947,10 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       publicationState: 'published',
       sourceAggregateVersion: publishAt.toISOString(),
       occurredAt: publishAt,
+    })
+    const publishMutation = publicationMutation(portal, {
+      name: portal.name,
+      at: publishAt,
     })
     const lockClass = 43_821
     const lockObject = 7
@@ -484,14 +1016,13 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         organizationId: ORG_A,
         propertyId: PROPERTY_A,
         portalId: PORTAL_A,
+        actorUserId: MANAGER,
         expectedUpdatedAt: CREATED_AT,
         revision: publishAt,
         occurredAt: publishAt,
         patch: { publicationState: 'published' },
-        publication: publicationMutation(portal, {
-          name: portal.name,
-          at: publishAt,
-        }),
+        publication: publishMutation,
+        lifecycleEvent: publicationPublishedFact(portal, publishMutation, publishAt),
         event: publishEvent,
       })
       pending.push(publish)
@@ -1169,6 +1700,11 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         portalId: PORTAL_A,
         expectedPortalUpdatedAt: CREATED_AT,
         token,
+        ...accessArtifactCommandParts(
+          token,
+          '7c000000-0000-4000-8000-000000000001',
+          UPDATED_AT,
+        ),
         revision: UPDATED_AT,
         occurredAt: UPDATED_AT,
         event,
@@ -1462,6 +1998,9 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       categoryId: category.id,
       portalId: PORTAL_A,
       organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      destinationId: null,
+      legacyDestinationState: 'unclassified' as const,
       label: 'City guide',
       url: 'https://example.test/guide',
       iconKey: null,
@@ -1598,6 +2137,9 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       categoryId: category.id,
       portalId: PORTAL_A,
       organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      destinationId: null,
+      legacyDestinationState: 'unclassified' as const,
       label: 'City guide',
       url: 'https://example.test/guide',
       iconKey: null,
@@ -1659,6 +2201,8 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       patch: {
         label: 'Updated city guide',
         url: 'https://example.test/updated-guide',
+        destinationId: null,
+        legacyDestinationState: 'quarantined',
         iconKey: 'guide',
       },
       event: portalLinkUpdated({
@@ -1963,6 +2507,11 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       portalId: PORTAL_A,
       expectedPortalUpdatedAt: CREATED_AT,
       token: firstToken,
+      ...accessArtifactCommandParts(
+        firstToken,
+        '7c000000-0000-4000-8000-000000000002',
+        issueAt,
+      ),
       revision: issueAt,
       occurredAt: issueAt,
       event: issued,
@@ -1997,6 +2546,11 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       expectedPortalUpdatedAt: issueAt,
       oldToken: rotation.oldToken,
       newToken: rotation.newToken,
+      ...accessArtifactCommandParts(
+        rotation.newToken,
+        '7c000000-0000-4000-8000-000000000003',
+        rotateAt,
+      ),
       revision: rotateAt,
       occurredAt: rotateAt,
       event: rotated,

@@ -63,7 +63,6 @@ const versionTwo = buildPortalPublicationSnapshot({
 const staffPublicApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 function setup(
@@ -84,7 +83,12 @@ function setup(
     findSnapshotByVersion: async (_organizationId, _portalId, version) =>
       options.targetExists === false || version !== 1 ? null : versionOne,
     findActiveForPortal: async () => versionTwo,
-    listActivationHistory: async () => [],
+    listActivationHistoryPage: async () => ({
+      records: [],
+      latest: null,
+      current: null,
+      nextCursor: null,
+    }),
     resolveActiveByTokenDigest: async () => null,
   }
   const useCase = rollbackPortalPublication({
@@ -121,6 +125,7 @@ describe('rollbackPortalPublication', () => {
       kind: 'rollback',
       snapshotId: 'snapshot-v1',
       snapshotVersion: 1,
+      publicationDigest: versionOne.configurationDigest,
       activation: {
         id: 'activation-rollback-3',
         organizationId: portal.organizationId,
@@ -134,6 +139,18 @@ describe('rollbackPortalPublication', () => {
         deactivatedAt: null,
         deactivationReason: null,
       },
+    })
+    expect(harness.command()?.lifecycleEvent).toMatchObject({
+      _tag: 'portal.publication.rolled_back',
+      organizationId: portal.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      publicationSnapshotId: 'snapshot-v1',
+      publicationVersion: 1,
+      publicationDigest: versionOne.configurationDigest,
+      userId: ctx.userId,
+      sourceAggregateVersion: NOW.toISOString(),
+      occurredAt: NOW,
     })
     expect(harness.portalRepo.all()[0].publicationState).toBe('published')
   })

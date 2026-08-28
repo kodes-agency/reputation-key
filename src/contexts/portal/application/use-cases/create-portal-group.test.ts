@@ -94,7 +94,6 @@ const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const TEST_PORTAL_ID = portalId('p-00000000-0000-0000-0000-000000000001')
@@ -116,6 +115,8 @@ const seedPortal = (): Portal => ({
   createdBy: null,
   responsibleManagerRevision: 1,
   responsibilityNeededSince: FIXED_TIME,
+  primaryGuestLocale: 'en',
+  additionalGuestLocales: [],
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
   deletedAt: null,
@@ -143,6 +144,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
       findBySlug: async () => null,
       getProcessingRegion: async () => 'us',
       findIdsByGoogleConnection: async () => [],
+      findGoogleNotificationAnchor: async () => null,
       clearGoogleConnectionRef: async () => {},
     },
     commandStore: createInMemoryPortalCommandStore({

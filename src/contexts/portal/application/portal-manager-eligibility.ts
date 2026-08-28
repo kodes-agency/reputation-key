@@ -1,5 +1,5 @@
 import type {
-  IdentityPublicApi,
+  IdentityManagerFactsPublicApi,
   ManagerMembership,
 } from '#/contexts/identity/application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
@@ -10,7 +10,7 @@ import {
 } from '#/shared/responsible-manager-eligibility'
 
 export type PortalManagerEligibilityDeps = Readonly<{
-  identityPublicApi: IdentityPublicApi
+  identityPublicApi: IdentityManagerFactsPublicApi
   staffPublicApi: StaffPublicApi
 }>
 

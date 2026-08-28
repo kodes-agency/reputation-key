@@ -31,7 +31,6 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
   // null simulates AccountAdmin org-wide bypass; an array simulates PM/Staff scoping.
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
@@ -122,6 +121,8 @@ const seedPortal = (): Portal => ({
   createdBy: null,
   responsibleManagerRevision: 1,
   responsibilityNeededSince: FIXED_TIME,
+  primaryGuestLocale: 'en',
+  additionalGuestLocales: [],
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
   deletedAt: null,

@@ -35,7 +35,9 @@ async function authorizePortal(
     capability: action === 'portal.read' ? 'portal.read' : 'portal.write',
     notFound: portalError('portal_not_found', 'portal not found'),
     lookup: () =>
-      getContainer().useCases.resolvePortalManagementScope(portalId(rawPortalId)),
+      getContainer().portalPublicApi.management.resolvePortalManagementScope(
+        portalId(rawPortalId),
+      ),
   })
 }
 
@@ -47,7 +49,10 @@ export const listPortalResponsibleManagers = createServerFn({ method: 'GET' })
         const ctx = await resolveTenantContext(await headersFromContext())
         try {
           await authorizePortal(ctx, data.portalId, 'portal.read')
-          return await getContainer().useCases.listPortalResponsibleManagers(data, ctx)
+          return await getContainer().portalPublicApi.management.listPortalResponsibleManagers(
+            data,
+            ctx,
+          )
         } catch (error) {
           rethrow(error)
         }
@@ -65,7 +70,10 @@ export const updatePortalResponsibleManagers = createServerFn({ method: 'POST' }
         const ctx = await resolveTenantContext(await headersFromContext())
         try {
           await authorizePortal(ctx, data.portalId, 'portal.update')
-          return await getContainer().useCases.updatePortalResponsibleManagers(data, ctx)
+          return await getContainer().portalPublicApi.management.updatePortalResponsibleManagers(
+            data,
+            ctx,
+          )
         } catch (error) {
           rethrow(error)
         }

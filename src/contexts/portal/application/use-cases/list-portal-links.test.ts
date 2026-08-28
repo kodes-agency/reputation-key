@@ -7,6 +7,7 @@ import {
   portalId,
   portalLinkCategoryId,
   portalLinkId,
+  propertyId,
 } from '#/shared/domain/ids'
 import type { PortalLinkCategory, PortalLink } from '../../domain/types'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
@@ -16,7 +17,6 @@ import type { PropertyId } from '#/shared/domain/ids'
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const ORG_ID = organizationId('org-00000000-0000-0000-0000-000000000001')
@@ -41,6 +41,9 @@ const sampleLinks: ReadonlyArray<PortalLink> = [
     categoryId: portalLinkCategoryId('cat-0001'),
     portalId: PORT,
     organizationId: ORG_ID,
+    propertyId: propertyId('a0000000-0000-4000-8000-000000000001'),
+    destinationId: null,
+    legacyDestinationState: 'unclassified',
     label: 'Twitter',
     url: 'https://x.com',
     sortKey: 'a0',

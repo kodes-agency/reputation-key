@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { getDb } from '#/shared/db'
 import { organizationId, portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
 import { createPortalGroupRepository } from './portal-group.repository'
@@ -56,7 +57,7 @@ afterAll(async () => {
   await pool.query('DELETE FROM properties WHERE id = ANY($1)', [
     [PROPERTY_A, PROPERTY_B, PROPERTY_OTHER],
   ])
-  await pool.query('DELETE FROM organization WHERE id = ANY($1)', [orgs])
+  await deleteTestOrganizations(pool, orgs)
   await pool.end()
 })
 

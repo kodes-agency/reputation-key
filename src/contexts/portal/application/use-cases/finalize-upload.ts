@@ -30,6 +30,22 @@ export type FinalizeUploadDeps = Readonly<{
   clock: () => Date
 }>
 
+async function rejectIssuedAndDeleteIfWon(
+  deps: FinalizeUploadDeps,
+  scope: Parameters<PortalUploadIssuanceStore['rejectIssued']>[0],
+  issuance: Parameters<IssuedPortalUploadStoragePort['deleteIssuedPortalUpload']>[0],
+  reason: 'rejected' | 'expired',
+  at: Date,
+): Promise<void> {
+  const rejected = await deps.uploadStore.rejectIssued(scope, reason, at)
+  if (!rejected) return
+  try {
+    await deps.storage.deleteIssuedPortalUpload(issuance)
+  } catch {
+    // The terminal row remains durable for the bounded cleanup retry.
+  }
+}
+
 export const finalizeUpload =
   (deps: FinalizeUploadDeps) =>
   async (
@@ -54,12 +70,7 @@ export const finalizeUpload =
 
     const checkedAt = deps.clock()
     if (checkedAt >= issuance.expiresAt) {
-      await deps.uploadStore.rejectIssued(scope, 'expired', checkedAt)
-      try {
-        await deps.storage.deleteIssuedPortalUpload(issuance)
-      } catch {
-        // Expired authorization stays terminal even if orphan cleanup retries later.
-      }
+      await rejectIssuedAndDeleteIfWon(deps, scope, issuance, 'expired', checkedAt)
       throw portalError('upload_failed', 'Upload authorization has expired')
     }
 
@@ -69,12 +80,7 @@ export const finalizeUpload =
     try {
       observed = await deps.storage.confirmIssuedPortalUpload(issuance)
     } catch {
-      await deps.uploadStore.rejectIssued(scope, 'rejected', deps.clock())
-      try {
-        await deps.storage.deleteIssuedPortalUpload(issuance)
-      } catch {
-        // The rejected row remains durable for an orphan-cleanup retry.
-      }
+      await rejectIssuedAndDeleteIfWon(deps, scope, issuance, 'rejected', deps.clock())
       throw portalError('upload_failed', 'Uploaded object could not be verified')
     }
 
@@ -82,12 +88,7 @@ export const finalizeUpload =
       !portalUploadMetadataMatches(issuance, observed) ||
       !isSafePortalObjectETag(observed.sourceETag)
     ) {
-      await deps.uploadStore.rejectIssued(scope, 'rejected', deps.clock())
-      try {
-        await deps.storage.deleteIssuedPortalUpload(issuance)
-      } catch {
-        // The rejected row remains durable for an orphan-cleanup retry.
-      }
+      await rejectIssuedAndDeleteIfWon(deps, scope, issuance, 'rejected', deps.clock())
       throw portalError(
         'upload_failed',
         'Uploaded object did not match its authorization',

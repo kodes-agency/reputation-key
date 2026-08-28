@@ -67,7 +67,11 @@ function makeHarness(existingFactCount: 0 | 1 | 3 = 0) {
         where: vi.fn(async () => {
           order.push('tx.check')
           return Array.from({ length: existingFactCount }, (_, index) => ({
-            id: `existing-${index}`,
+            eventType: [
+              'portal.content_review.completed',
+              'portal.configuration_completeness.recorded',
+              'portal.approved_destination_ratio.recorded',
+            ][index],
           }))
         }),
       })),
@@ -179,7 +183,7 @@ describe('Portal workflow fact store', () => {
     ])
   })
 
-  it('uses deterministic event IDs and makes a replay a no-op', async () => {
+  it('uses the locked semantic command identity and makes a replay a no-op', async () => {
     const first = makeHarness()
     const duplicate = makeHarness(3)
     const firstResult = await createPortalWorkflowFactStore(
@@ -192,15 +196,14 @@ describe('Portal workflow fact store', () => {
     ).recordCompletedReview(command)
 
     expect(duplicateResult.status).toBe('duplicate')
-    expect(duplicateResult.events.map((event) => event.eventId)).toEqual(
-      firstResult.events.map((event) => event.eventId),
-    )
+    expect(firstResult.events).toHaveLength(3)
+    expect(duplicateResult.events).toEqual([])
     expect(duplicate.events.emit).not.toHaveBeenCalled()
     expect(duplicate.tx.update).not.toHaveBeenCalled()
     expect(duplicate.outboxRows).toHaveLength(0)
   })
 
-  it('rejects a partial deterministic fact set without advancing the Portal revision', async () => {
+  it('rejects a partial semantic fact set without advancing the Portal revision', async () => {
     const partial = makeHarness(1)
 
     await expect(

@@ -15,13 +15,22 @@ import {
   validatePrivateFeedbackThreshold,
 } from '../../domain/rules'
 import { portalError } from '../../domain/errors'
-import { portalUpdated } from '../../domain/events'
+import {
+  portalArchived,
+  portalLocaleSetUpdated,
+  portalPublicationPublished,
+  portalRestored,
+  portalUpdated,
+} from '../../domain/events'
 import type { Result } from '#/shared/domain'
 import type { PortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
 import { transitionPortalPublication } from '../../domain/portal-publication'
-import type { PropertyGoogleReviewDestinationPublicApi } from '#/contexts/property/application/public-api'
+import type {
+  PropertyGoogleReviewDestinationPublicApi,
+  PropertyLifecyclePublicApi,
+} from '#/contexts/property/application/public-api'
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
 import type { PortalPublicationMutation } from '../ports/portal-command-store.port'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
@@ -31,12 +40,16 @@ import type {
 } from '../../domain/portal-publication-snapshot'
 import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
 import { nextPortalCommandAt } from '../portal-command-version'
+import type { PortalTokenRepository } from '../ports/portal-token.repository'
+import { derivePortalHealth } from '../../domain/portal-health'
 
 export type UpdatePortalDeps = Readonly<{
   portalRepo: PortalRepository
   commandStore: PortalCommandStore
   publicationRepo: PortalPublicationRepository
+  portalTokenRepo: Pick<PortalTokenRepository, 'findResolvableSummaryForPortal'>
   propertyGoogleReviewDestinationApi: PropertyGoogleReviewDestinationPublicApi
+  propertyLifecycleApi: PropertyLifecyclePublicApi
   staffPublicApi: StaffPublicApi
   idGen: () => string
   clock: () => Date
@@ -50,6 +63,8 @@ type PortalPatch = {
   theme: PortalTheme
   privateFeedbackThreshold: number
   publicationState: Portal['publicationState']
+  primaryGuestLocale: Portal['primaryGuestLocale']
+  additionalGuestLocales: Portal['additionalGuestLocales']
 }
 
 function unwrap<T>(r: Result<T, PortalError>): T {
@@ -63,7 +78,13 @@ export function resolvePortalContentFields(
   existing: Portal,
 ): Pick<
   PortalPatch,
-  'name' | 'description' | 'heroImageUrl' | 'theme' | 'privateFeedbackThreshold'
+  | 'name'
+  | 'description'
+  | 'heroImageUrl'
+  | 'theme'
+  | 'privateFeedbackThreshold'
+  | 'primaryGuestLocale'
+  | 'additionalGuestLocales'
 > {
   const requestedHeroImageUrl = (input as { heroImageUrl?: unknown }).heroImageUrl
   if (requestedHeroImageUrl !== undefined && requestedHeroImageUrl !== null) {
@@ -89,6 +110,9 @@ export function resolvePortalContentFields(
       input.privateFeedbackThreshold !== undefined
         ? unwrap(validatePrivateFeedbackThreshold(input.privateFeedbackThreshold))
         : existing.privateFeedbackThreshold,
+    primaryGuestLocale: input.primaryGuestLocale ?? existing.primaryGuestLocale,
+    additionalGuestLocales:
+      input.additionalGuestLocales ?? existing.additionalGuestLocales,
   }
 }
 
@@ -123,6 +147,26 @@ async function loadVerifiedGoogleReviewDestination(
   }
 }
 
+async function assertPropertyAllowsPublication(
+  deps: UpdatePortalDeps,
+  orgId: OrganizationId,
+  existing: Portal,
+): Promise<void> {
+  let active = false
+  try {
+    active = await deps.propertyLifecycleApi.isPropertyActive(orgId, existing.propertyId)
+  } catch {
+    // The lifecycle authority is a publication safety gate. Its implementation
+    // details are deliberately not exposed through the Portal error boundary.
+  }
+  if (!active) {
+    throw portalError(
+      'portal_inactive',
+      'This Portal cannot be published while its Property is unavailable',
+    )
+  }
+}
+
 type PublicationStateResolution = Readonly<{
   state: Portal['publicationState']
   destination: VerifiedPublicationDestination | null
@@ -146,6 +190,7 @@ async function resolvePublicationState(
     )
   }
   if (transition === 'published') {
+    await assertPropertyAllowsPublication(deps, orgId, existing)
     return {
       state: transition,
       destination: await loadVerifiedGoogleReviewDestination(deps, orgId, existing),
@@ -189,6 +234,24 @@ async function buildPortalPatch(
   // Order is load-bearing: content validation, then the publication precondition,
   // then slug uniqueness — so which error surfaces first stays stable.
   const content = resolvePortalContentFields(input, existing)
+  if (
+    content.additionalGuestLocales.includes(content.primaryGuestLocale) ||
+    new Set(content.additionalGuestLocales).size !== content.additionalGuestLocales.length
+  ) {
+    throw portalError(
+      'publication_snapshot_unavailable',
+      'Additional guest locales must be unique and must not repeat the primary locale',
+    )
+  }
+  if (
+    input.publicationState === 'published' &&
+    (input.primaryGuestLocale !== undefined || input.additionalGuestLocales !== undefined)
+  ) {
+    throw portalError(
+      'publication_snapshot_unavailable',
+      'Save guest locale changes before publishing the Portal',
+    )
+  }
   const publication = await resolvePublicationState(input, existing, deps, orgId)
   const slug = await resolveSlug(input, existing, deps, orgId)
   return {
@@ -233,6 +296,23 @@ async function buildPublicationMutation(
         'A verified destination must be pinned to the publication snapshot',
       )
     }
+    if (existing.responsibilityNeededSince !== null) {
+      throw portalError(
+        'responsible_manager_ineligible',
+        'Assign at least one responsible manager before publishing',
+      )
+    }
+    const address = await deps.portalTokenRepo.findResolvableSummaryForPortal(
+      ctx.organizationId,
+      existing.id,
+      at,
+    )
+    if (!address?.hasPublishedAccessArtifact) {
+      throw portalError(
+        'token_unavailable',
+        'Create the Portal public address before publishing',
+      )
+    }
     const [workingCopy, cursor] = await Promise.all([
       deps.publicationRepo.loadWorkingCopy(ctx.organizationId, existing.id),
       deps.publicationRepo.getCursor(ctx.organizationId, existing.id),
@@ -241,6 +321,12 @@ async function buildPublicationMutation(
       throw portalError(
         'publication_snapshot_unavailable',
         'Portal publication content is unavailable',
+      )
+    }
+    if (!workingCopy.experience) {
+      throw portalError(
+        'publication_snapshot_unavailable',
+        'Complete the Property Brand Profile and every enabled guest locale before publishing',
       )
     }
     const snapshot = buildPortalPublicationSnapshot({
@@ -289,8 +375,41 @@ function hasPortalChanges(existing: Portal, patch: PortalPatch): boolean {
     patch.heroImageUrl !== existing.heroImageUrl ||
     JSON.stringify(patch.theme) !== JSON.stringify(existing.theme) ||
     patch.privateFeedbackThreshold !== existing.privateFeedbackThreshold ||
+    patch.primaryGuestLocale !== existing.primaryGuestLocale ||
+    JSON.stringify(patch.additionalGuestLocales) !==
+      JSON.stringify(existing.additionalGuestLocales) ||
     patch.publicationState !== existing.publicationState
   )
+}
+
+function assertArchivedMutationIsRestore(
+  input: UpdatePortalInput,
+  existing: Portal,
+): void {
+  if (existing.publicationState !== 'archived') return
+
+  // Keep invalid attempts to publish an archived Portal on the ordinary
+  // transition-error path. The sole accepted archived mutation is an explicit,
+  // unbundled restore to Disabled; archived configuration itself is read-only.
+  if (
+    input.publicationState === 'published' ||
+    input.publicationState === 'draft' ||
+    (input.publicationState === 'archived' && Object.keys(input).length === 2)
+  ) {
+    return
+  }
+  const keys = Object.keys(input)
+  const isRestoreOnly =
+    input.publicationState === 'disabled' &&
+    keys.length === 2 &&
+    keys.includes('portalId') &&
+    keys.includes('publicationState')
+  if (!isRestoreOnly) {
+    throw portalError(
+      'portal_inactive',
+      'Archived Portal configuration is read-only; restore it before editing',
+    )
+  }
 }
 
 function buildUpdatedPortal(
@@ -325,6 +444,8 @@ export const updatePortal =
       existing.propertyId,
     )
 
+    assertArchivedMutationIsRestore(input, existing)
+
     const { patch, publicationDestination } = await buildPortalPatch(
       input,
       existing,
@@ -346,15 +467,88 @@ export const updatePortal =
       ctx,
       occurredAt,
     )
+    const publicationStateChanged = existing.publicationState !== patch.publicationState
+    const localeSetChanged =
+      existing.primaryGuestLocale !== patch.primaryGuestLocale ||
+      JSON.stringify(existing.additionalGuestLocales) !==
+        JSON.stringify(patch.additionalGuestLocales)
+    const health = publicationStateChanged
+      ? {
+          id: deps.idGen(),
+          value: derivePortalHealth({
+            publicationState: patch.publicationState,
+            propertyAvailable: true,
+            hasActivePublicationSnapshot: patch.publicationState === 'published',
+            hasResolvablePublicAddress: patch.publicationState === 'published',
+            hasResponsibleManager:
+              patch.publicationState === 'published'
+                ? existing.responsibilityNeededSince === null
+                : false,
+            googleDestinationState:
+              patch.publicationState === 'published' ? 'verified' : 'unavailable',
+          }),
+          sourceVersion: revision.toISOString(),
+          effectiveAt: occurredAt,
+          observedAt: occurredAt,
+        }
+      : undefined
+    const lifecycleEvent =
+      publication?.kind === 'publish'
+        ? portalPublicationPublished({
+            organizationId: ctx.organizationId,
+            propertyId: existing.propertyId,
+            portalId: pid,
+            publicationSnapshotId: publication.snapshot.id,
+            publicationVersion: publication.snapshot.version,
+            publicationDigest: publication.snapshot.configurationDigest,
+            userId: ctx.userId,
+            sourceAggregateVersion: revision.toISOString(),
+            occurredAt,
+          })
+        : existing.publicationState !== 'archived' &&
+            patch.publicationState === 'archived'
+          ? portalArchived({
+              organizationId: ctx.organizationId,
+              propertyId: existing.propertyId,
+              portalId: pid,
+              userId: ctx.userId,
+              sourceAggregateVersion: revision.toISOString(),
+              occurredAt,
+            })
+          : existing.publicationState === 'archived' &&
+              patch.publicationState === 'disabled'
+            ? portalRestored({
+                organizationId: ctx.organizationId,
+                propertyId: existing.propertyId,
+                portalId: pid,
+                userId: ctx.userId,
+                sourceAggregateVersion: revision.toISOString(),
+                occurredAt,
+              })
+            : undefined
     await deps.commandStore.updatePortal({
       organizationId: ctx.organizationId,
       propertyId: existing.propertyId,
       portalId: pid,
+      actorUserId: ctx.userId,
       expectedUpdatedAt: existing.updatedAt,
       revision,
       occurredAt,
       patch,
       publication,
+      health,
+      lifecycleEvent,
+      localeSetEvent: localeSetChanged
+        ? portalLocaleSetUpdated({
+            portalId: pid,
+            organizationId: ctx.organizationId,
+            propertyId: existing.propertyId,
+            primaryGuestLocale: patch.primaryGuestLocale,
+            additionalGuestLocales: patch.additionalGuestLocales,
+            sourceAggregateVersion: revision.toISOString(),
+            occurredAt,
+          })
+        : undefined,
       event: portalUpdated({
         portalId: pid,
         organizationId: ctx.organizationId,

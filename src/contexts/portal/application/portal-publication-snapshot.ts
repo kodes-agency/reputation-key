@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import { portalError } from '../domain/errors'
 import {
+  LEGACY_PORTAL_PUBLICATION_SCHEMA_VERSION,
   PORTAL_PUBLICATION_SCHEMA_VERSION,
   PRIMARY_GUEST_LANGUAGE_PACK_VERSION,
   PRIMARY_GUEST_LOCALE,
@@ -10,6 +11,7 @@ import {
   type PortalPublicationSource,
   type VerifiedPublicationDestination,
 } from '../domain/portal-publication-snapshot'
+import { assertCompletePortalPublicationExperience } from '../domain/portal-experience'
 
 function digestConfiguration(configuration: PortalPublicationConfiguration): string {
   return createHash('sha256')
@@ -76,6 +78,9 @@ function assertPublicationInput(
       'Portal publication requires a complete verified Google destination binding',
     )
   }
+  if (input.source.experience) {
+    assertCompletePortalPublicationExperience(input.source.experience)
+  }
 }
 
 export function buildPortalPublicationSnapshot(
@@ -92,16 +97,13 @@ export function buildPortalPublicationSnapshot(
   }>,
 ): PortalPublicationSnapshot {
   assertPublicationInput(input)
-  const configuration: PortalPublicationConfiguration = {
-    schemaVersion: PORTAL_PUBLICATION_SCHEMA_VERSION,
-    guestLocale: PRIMARY_GUEST_LOCALE,
-    languagePackVersion: PRIMARY_GUEST_LANGUAGE_PACK_VERSION,
+  const common = {
     portal: input.source.portal,
     categories: input.source.categories,
     links: input.source.links,
     reviewGateway: {
       privateFeedbackThreshold: input.source.privateFeedbackThreshold,
-      googleReview: { status: 'available', uri: input.destination.uri },
+      googleReview: { status: 'available' as const, uri: input.destination.uri },
     },
     googleReviewBinding: {
       retrievedAt: input.destination.retrievedAt.toISOString(),
@@ -109,6 +111,35 @@ export function buildPortalPublicationSnapshot(
       profileVersion: input.destination.profileVersion,
     },
   }
+  const experience = input.source.experience
+  const configuration: PortalPublicationConfiguration = experience
+    ? {
+        ...common,
+        schemaVersion: PORTAL_PUBLICATION_SCHEMA_VERSION,
+        guestLocale: experience.primaryGuestLocale,
+        languagePackVersion:
+          experience.languagePackVersions[experience.primaryGuestLocale],
+        localeSet: experience.localeSet,
+        languagePackVersions: Object.fromEntries(
+          experience.localeSet.map((locale) => [
+            locale,
+            experience.languagePackVersions[locale],
+          ]),
+        ),
+        localizedContent: Object.fromEntries(
+          experience.localeSet.map((locale) => [
+            locale,
+            experience.localizedContent[locale],
+          ]),
+        ),
+        brandProfile: experience.brandProfile,
+      }
+    : {
+        ...common,
+        schemaVersion: LEGACY_PORTAL_PUBLICATION_SCHEMA_VERSION,
+        guestLocale: PRIMARY_GUEST_LOCALE,
+        languagePackVersion: PRIMARY_GUEST_LANGUAGE_PACK_VERSION,
+      }
   return {
     id: input.id,
     organizationId: input.organizationId,
@@ -131,7 +162,7 @@ export function verifyPortalPublicationSnapshot(
   snapshot: PortalPublicationSnapshot,
 ): boolean {
   const configuration = snapshot.configuration
-  return (
+  const commonIsValid =
     snapshot.id.length > 0 &&
     snapshot.portalId.length > 0 &&
     snapshot.organizationId.length > 0 &&
@@ -139,9 +170,6 @@ export function verifyPortalPublicationSnapshot(
     snapshot.createdBy.length > 0 &&
     Number.isSafeInteger(snapshot.version) &&
     snapshot.version >= 1 &&
-    configuration.schemaVersion === PORTAL_PUBLICATION_SCHEMA_VERSION &&
-    configuration.guestLocale === PRIMARY_GUEST_LOCALE &&
-    configuration.languagePackVersion === PRIMARY_GUEST_LANGUAGE_PACK_VERSION &&
     configuration.portal.id === snapshot.portalId &&
     Number.isInteger(configuration.reviewGateway.privateFeedbackThreshold) &&
     configuration.reviewGateway.privateFeedbackThreshold >= 1 &&
@@ -153,7 +181,32 @@ export function verifyPortalPublicationSnapshot(
     configuration.googleReviewBinding.sourceEpoch === snapshot.destinationSourceEpoch &&
     configuration.googleReviewBinding.profileVersion ===
       snapshot.destinationProfileVersion &&
-    !Number.isNaN(snapshot.createdAt.getTime()) &&
-    digestConfiguration(configuration) === snapshot.configurationDigest
-  )
+    !Number.isNaN(snapshot.createdAt.getTime())
+  if (!commonIsValid) return false
+  if (configuration.schemaVersion === LEGACY_PORTAL_PUBLICATION_SCHEMA_VERSION) {
+    if (
+      configuration.guestLocale !== PRIMARY_GUEST_LOCALE ||
+      configuration.languagePackVersion !== PRIMARY_GUEST_LANGUAGE_PACK_VERSION
+    ) {
+      return false
+    }
+  } else if (configuration.schemaVersion === PORTAL_PUBLICATION_SCHEMA_VERSION) {
+    try {
+      assertCompletePortalPublicationExperience({
+        primaryGuestLocale: configuration.guestLocale,
+        localeSet: configuration.localeSet,
+        languagePackVersions: {
+          en: configuration.languagePackVersions.en ?? '',
+          bg: configuration.languagePackVersions.bg ?? '',
+        },
+        localizedContent: configuration.localizedContent,
+        brandProfile: configuration.brandProfile,
+      })
+    } catch {
+      return false
+    }
+  } else {
+    return false
+  }
+  return digestConfiguration(configuration) === snapshot.configurationDigest
 }

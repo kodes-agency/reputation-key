@@ -26,6 +26,35 @@ const source = {
   organizationId: portal.organizationId,
   propertyId: portal.propertyId,
 } as const
+const localizedExperience = {
+  primaryGuestLocale: 'en',
+  localeSet: ['en'],
+  languagePackVersions: {
+    en: 'guest-ui-en-v1',
+    bg: 'guest-ui-bg-v1',
+  },
+  localizedContent: {
+    en: {
+      title: 'Tell us about your stay',
+      shortDescription: 'Your view matters.',
+      heroImageUrl: null,
+    },
+    bg: {
+      title: 'Разкажете ни за престоя си',
+      shortDescription: 'Вашето мнение е важно.',
+      heroImageUrl: null,
+    },
+  },
+  brandProfile: {
+    displayName: 'Example Hotel',
+    logoUrl: null,
+    defaultHeroImageUrl: null,
+    primaryColor: '#1D4ED8',
+    backgroundColor: '#FFFFFF',
+    textColor: '#111827',
+    version: 1,
+  },
+} as const
 const destination = {
   state: 'verified',
   uri: 'https://search.google.com/local/writereview?placeid=history-test',
@@ -53,56 +82,81 @@ const staffPublicApi = (
 ): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
-function setup(options?: Readonly<{ workingName?: string; accessible?: PropertyId[] }>) {
+function setup(
+  options?: Readonly<{
+    workingName?: string
+    accessible?: PropertyId[]
+    durablePending?: boolean
+  }>,
+) {
   const portalRepo = createInMemoryPortalRepo()
   portalRepo.seed([portal])
   const versionOne = publishedSnapshot(1, portal.name)
   const versionTwo = publishedSnapshot(2, 'Second published name')
-  const listActivationHistory = vi.fn<
-    PortalPublicationRepository['listActivationHistory']
-  >(async () => [
-    {
-      activation: {
-        id: 'activation-3',
-        organizationId: portal.organizationId,
-        propertyId: portal.propertyId,
-        portalId: portal.id,
-        snapshotId: versionOne.id,
-        activationSequence: 3,
-        kind: 'rollback',
-        activatedBy: 'manager-2',
-        activatedAt: NOW,
-        deactivatedAt: null,
-        deactivationReason: null,
+  const listActivationHistoryPage = vi.fn<
+    PortalPublicationRepository['listActivationHistoryPage']
+  >(async () => {
+    const records = [
+      {
+        activation: {
+          id: 'activation-3',
+          organizationId: portal.organizationId,
+          propertyId: portal.propertyId,
+          portalId: portal.id,
+          snapshotId: versionOne.id,
+          activationSequence: 3,
+          kind: 'rollback',
+          activatedBy: 'manager-2',
+          activatedAt: NOW,
+          deactivatedAt: null,
+          deactivationReason: null,
+        },
+        snapshot: versionOne,
       },
-      snapshot: versionOne,
-    },
-    {
-      activation: {
-        id: 'activation-2',
-        organizationId: portal.organizationId,
-        propertyId: portal.propertyId,
-        portalId: portal.id,
-        snapshotId: versionTwo.id,
-        activationSequence: 2,
-        kind: 'publish',
-        activatedBy: 'manager-1',
-        activatedAt: new Date(NOW.getTime() - 60_000),
-        deactivatedAt: NOW,
-        deactivationReason: 'replaced',
+      {
+        activation: {
+          id: 'activation-2',
+          organizationId: portal.organizationId,
+          propertyId: portal.propertyId,
+          portalId: portal.id,
+          snapshotId: versionTwo.id,
+          activationSequence: 2,
+          kind: 'publish',
+          activatedBy: 'manager-1',
+          activatedAt: new Date(NOW.getTime() - 60_000),
+          deactivatedAt: NOW,
+          deactivationReason: 'replaced',
+        },
+        snapshot: versionTwo,
       },
-      snapshot: versionTwo,
-    },
-  ])
+    ] as const
+    return {
+      records,
+      latest: records[0],
+      current: records[0],
+      nextCursor: 1,
+    }
+  })
   const publicationRepo = {
     loadWorkingCopy: vi.fn(async () => ({
       ...source,
       portal: { ...source.portal, name: options?.workingName ?? portal.name },
     })),
-    listActivationHistory,
+    listActivationHistoryPage,
+    listOpenPendingContentChanges: vi.fn(async () =>
+      options?.durablePending
+        ? [
+            {
+              kind: 'property_brand_content' as const,
+              key: 'bg',
+              sourceVersion: 'v2',
+              changedAt: NOW,
+            },
+          ]
+        : [],
+    ),
   } as unknown as PortalPublicationRepository
   return {
     useCase: getPortalPublicationHistory({
@@ -111,8 +165,66 @@ function setup(options?: Readonly<{ workingName?: string; accessible?: PropertyI
       staffPublicApi: staffPublicApi(options?.accessible ?? null),
     }),
     publicationRepo,
-    listActivationHistory,
+    listActivationHistoryPage,
   }
+}
+
+function setupLocalized(options?: Readonly<{ workingDisplayName?: string }>) {
+  const portalRepo = createInMemoryPortalRepo()
+  portalRepo.seed([portal])
+  const publishedSource = { ...source, experience: localizedExperience }
+  const snapshot = buildPortalPublicationSnapshot({
+    id: 'localized-snapshot-version-1',
+    portalId: portal.id,
+    organizationId: portal.organizationId,
+    propertyId: portal.propertyId,
+    version: 1,
+    source: publishedSource,
+    destination,
+    createdBy: 'manager-1',
+    createdAt: NOW,
+  })
+  const record = {
+    activation: {
+      id: 'localized-activation-1',
+      organizationId: portal.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      snapshotId: snapshot.id,
+      activationSequence: 1,
+      kind: 'publish' as const,
+      activatedBy: 'manager-1',
+      activatedAt: NOW,
+      deactivatedAt: null,
+      deactivationReason: null,
+    },
+    snapshot,
+  }
+  const publicationRepo = {
+    loadWorkingCopy: vi.fn(async () => ({
+      ...publishedSource,
+      experience: {
+        ...localizedExperience,
+        brandProfile: {
+          ...localizedExperience.brandProfile,
+          displayName:
+            options?.workingDisplayName ?? localizedExperience.brandProfile.displayName,
+        },
+      },
+    })),
+    listActivationHistoryPage: vi.fn(async () => ({
+      records: [record],
+      latest: record,
+      current: record,
+      nextCursor: null,
+    })),
+  } as unknown as PortalPublicationRepository
+
+  return getPortalPublicationHistory({
+    portalRepo,
+    publicationRepo,
+    staffPublicApi: staffPublicApi(),
+  })
 }
 
 describe('getPortalPublicationHistory', () => {
@@ -139,11 +251,27 @@ describe('getPortalPublicationHistory', () => {
         },
       ],
       hasPendingChanges: false,
+      pendingChanges: [],
+      nextCursor: 1,
     })
-    expect(harness.listActivationHistory).toHaveBeenCalledWith(
+    expect(harness.listActivationHistoryPage).toHaveBeenCalledWith(
       ctx.organizationId,
       portal.propertyId,
       portal.id,
+      { beforeSequence: null, limit: 20 },
+    )
+  })
+
+  it('passes a bounded exclusive cursor to the repository', async () => {
+    const harness = setup()
+
+    await harness.useCase({ portalId: portal.id, cursor: 2, limit: 1 }, ctx)
+
+    expect(harness.listActivationHistoryPage).toHaveBeenCalledWith(
+      ctx.organizationId,
+      portal.propertyId,
+      portal.id,
+      { beforeSequence: 2, limit: 1 },
     )
   })
 
@@ -156,6 +284,39 @@ describe('getPortalPublicationHistory', () => {
     expect(result.current).toMatchObject({ version: 1, kind: 'rollback' })
   })
 
+  it('surfaces a durable pending change even when the resolved content still matches', async () => {
+    const harness = setup({ durablePending: true })
+
+    const result = await harness.useCase({ portalId: portal.id }, ctx)
+
+    expect(result).toMatchObject({
+      hasPendingChanges: true,
+      pendingChanges: [
+        {
+          kind: 'property_brand_content',
+          key: 'bg',
+          changedAt: NOW.toISOString(),
+        },
+      ],
+    })
+  })
+
+  it('does not mark an identical localized experience as pending', async () => {
+    const useCase = setupLocalized()
+
+    const result = await useCase({ portalId: portal.id }, ctx)
+
+    expect(result.hasPendingChanges).toBe(false)
+  })
+
+  it('marks a changed Property brand profile as pending', async () => {
+    const useCase = setupLocalized({ workingDisplayName: 'Updated Example Hotel' })
+
+    const result = await useCase({ portalId: portal.id }, ctx)
+
+    expect(result.hasPendingChanges).toBe(true)
+  })
+
   it('checks property access before reading publication content', async () => {
     const harness = setup({ accessible: [] })
     const propertyManager = buildTestAuthContext({ role: 'PropertyManager' })
@@ -164,6 +325,6 @@ describe('getPortalPublicationHistory', () => {
       harness.useCase({ portalId: portal.id }, propertyManager),
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(harness.publicationRepo.loadWorkingCopy).not.toHaveBeenCalled()
-    expect(harness.listActivationHistory).not.toHaveBeenCalled()
+    expect(harness.listActivationHistoryPage).not.toHaveBeenCalled()
   })
 })

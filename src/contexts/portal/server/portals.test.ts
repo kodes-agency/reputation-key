@@ -197,6 +197,31 @@ describe('createPortal input validation', () => {
     expect(result.success).toBe(true)
   })
 
+  it.each(['team', 'staff'] as const)(
+    'rejects legacy %s ownership on new Portal commands',
+    (entityType) => {
+      expect(
+        createPortalInputSchema.safeParse({
+          name: 'Guest Portal',
+          propertyId: 'prop-123',
+          entityType,
+          entityId: `${entityType}-123`,
+        }).success,
+      ).toBe(false)
+    },
+  )
+
+  it('rejects a compatibility entityId that does not match the owning Property', () => {
+    expect(
+      createPortalInputSchema.safeParse({
+        name: 'Guest Portal',
+        propertyId: 'prop-123',
+        entityType: 'property',
+        entityId: 'another-property',
+      }).success,
+    ).toBe(false)
+  })
+
   it('rejects create input missing required name', () => {
     const result = createPortalInputSchema.safeParse({
       propertyId: 'prop-123',

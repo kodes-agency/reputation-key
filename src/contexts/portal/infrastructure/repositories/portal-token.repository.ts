@@ -1,6 +1,6 @@
-import { and, desc, eq, gte, or } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, notExists, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { portalTokens } from '#/shared/db/schema/portal.schema'
+import { portalAccessArtifacts, portalTokens } from '#/shared/db/schema/portal.schema'
 import type { PortalTokenRepository } from '../../application/ports/portal-token.repository'
 import type { PortalToken, TokenStatus } from '../../domain/portal-token'
 import { portalError } from '../../domain/errors'
@@ -90,8 +90,20 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
           version: portalTokens.version,
           issuedAt: portalTokens.issuedAt,
           gracePeriodEnds: portalTokens.gracePeriodEnds,
+          accessArtifactId: portalAccessArtifacts.id,
         })
         .from(portalTokens)
+        .leftJoin(
+          portalAccessArtifacts,
+          and(
+            eq(portalAccessArtifacts.portalTokenId, portalTokens.id),
+            eq(portalAccessArtifacts.organizationId, portalTokens.organizationId),
+            eq(portalAccessArtifacts.propertyId, portalTokens.propertyId),
+            eq(portalAccessArtifacts.portalId, portalTokens.portalId),
+            eq(portalAccessArtifacts.status, 'published'),
+            isNull(portalAccessArtifacts.retiredAt),
+          ),
+        )
         .where(
           and(
             eq(portalTokens.organizationId, unbrand(organizationId)),
@@ -101,7 +113,14 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
         )
         .orderBy(desc(portalTokens.version))
         .limit(1)
-      return row ?? null
+      return row
+        ? {
+            version: row.version,
+            issuedAt: row.issuedAt,
+            gracePeriodEnds: row.gracePeriodEnds,
+            hasPublishedAccessArtifact: row.accessArtifactId !== null,
+          }
+        : null
     }),
 
   findResolvableByDigest: async (digest, asOf) =>
@@ -119,6 +138,57 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
         )
         .limit(1)
       return row ? tokenFromRow(row) : null
+    }),
+
+  listAccessArtifactReadinessGaps: async (asOf, organizationIds) =>
+    trace('portalToken.listAccessArtifactReadinessGaps', async () => {
+      const rows = await db
+        .select({
+          organizationId: portalTokens.organizationId,
+          propertyId: portalTokens.propertyId,
+          portalId: portalTokens.portalId,
+          tokenVersion: portalTokens.version,
+          tokenStatus: portalTokens.status,
+          issuedAt: portalTokens.issuedAt,
+          gracePeriodEnds: portalTokens.gracePeriodEnds,
+        })
+        .from(portalTokens)
+        .where(
+          and(
+            resolvableAsOf(asOf),
+            organizationIds && organizationIds.length > 0
+              ? inArray(portalTokens.organizationId, [...organizationIds])
+              : undefined,
+            notExists(
+              db
+                .select({ id: portalAccessArtifacts.id })
+                .from(portalAccessArtifacts)
+                .where(
+                  and(
+                    eq(portalAccessArtifacts.portalTokenId, portalTokens.id),
+                    eq(portalAccessArtifacts.status, 'published'),
+                    isNull(portalAccessArtifacts.retiredAt),
+                  ),
+                ),
+            ),
+          ),
+        )
+        .orderBy(
+          asc(portalTokens.organizationId),
+          asc(portalTokens.propertyId),
+          asc(portalTokens.portalId),
+          asc(portalTokens.version),
+        )
+      return rows.flatMap((row) =>
+        row.tokenStatus === 'active' || row.tokenStatus === 'rotating'
+          ? [
+              {
+                ...row,
+                tokenStatus: row.tokenStatus,
+              },
+            ]
+          : [],
+      )
     }),
 
   insert: async (token) =>

@@ -46,4 +46,22 @@ export type PortalUploadIssuanceStore = Readonly<{
     }>,
     at: Date,
   ): Promise<PublishPortalUploadResult>
+  /**
+   * Returns a bounded oldest-first batch whose private source object is safe
+   * to remove. Expired issued rows are terminally expired before return.
+   */
+  listSourceCleanupCandidates(
+    before: Date,
+    limit: number,
+  ): Promise<readonly PortalUploadIssuance[]>
+  markSourceDeleted(
+    scope: PortalUploadScope,
+    expectedState: PortalUploadIssuance['state'],
+    at: Date,
+  ): Promise<boolean>
+  markOrphanDerivativesDeleted(
+    scope: PortalUploadScope,
+    expectedState: PortalUploadIssuance['state'],
+    at: Date,
+  ): Promise<boolean>
 }>

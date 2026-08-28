@@ -18,6 +18,7 @@ const ISSUED_AT = new Date('2026-08-26T12:00:00.000Z')
 const STAGED_AT = new Date('2026-08-26T12:01:00.000Z')
 const PUBLISHED_AT = new Date('2026-08-26T12:02:00.000Z')
 const FUTURE_REVISION = new Date('2026-08-26T12:03:00.000Z')
+const CLEANUP_AT = new Date('2026-08-26T12:16:00.000Z')
 const SOURCE_ETAG = '"d41d8cd98f00b204e9800998ecf8427e"'
 
 const { getPool } = setupIntegrationDb({
@@ -269,25 +270,31 @@ describe.sequential('Portal upload issuance store (real PostgreSQL)', () => {
     await store.create(makeIssuance(UPLOAD_A))
     await store.stage(scope(UPLOAD_A), observed, processingRequest(UPLOAD_A), STAGED_AT)
     await getPool().query(
-      `INSERT INTO outbox_events
-         (id, event_type, event_version, payload, organization_id, property_id,
-          source_context, source_aggregate_id, created_at)
-       VALUES ($1, 'test.portal_upload_completion_collision', 1, '{}'::jsonb,
-               $2, $3, 'test', $4, $5)`,
-      [UPLOAD_A, ORG_A, PROPERTY_A, UPLOAD_A, PUBLISHED_AT],
+      `ALTER TABLE outbox_events
+       ADD CONSTRAINT test_reject_portal_upload_completion
+       CHECK (event_type <> 'portal.hero_image.published')`,
     )
 
-    await expect(
-      store.publishDerivative(
-        scope(UPLOAD_A),
-        {
-          heroKey: `public/portal-heroes/${UPLOAD_A}/hero.webp`,
-          thumbnailKey: `public/portal-heroes/${UPLOAD_A}/thumbnail.webp`,
-          heroImageUrl: `https://cdn.example.com/${UPLOAD_A}/hero.webp`,
-        },
-        PUBLISHED_AT,
-      ),
-    ).rejects.toMatchObject({ cause: { constraint: 'outbox_events_pkey' } })
+    try {
+      await expect(
+        store.publishDerivative(
+          scope(UPLOAD_A),
+          {
+            heroKey: `public/portal-heroes/${UPLOAD_A}/hero.webp`,
+            thumbnailKey: `public/portal-heroes/${UPLOAD_A}/thumbnail.webp`,
+            heroImageUrl: `https://cdn.example.com/${UPLOAD_A}/hero.webp`,
+          },
+          PUBLISHED_AT,
+        ),
+      ).rejects.toMatchObject({
+        cause: { constraint: 'test_reject_portal_upload_completion' },
+      })
+    } finally {
+      await getPool().query(
+        `ALTER TABLE outbox_events
+         DROP CONSTRAINT IF EXISTS test_reject_portal_upload_completion`,
+      )
+    }
 
     const state = await getPool().query(
       `SELECT p.hero_image_url, p.updated_at, i.state, i.finalized_at
@@ -386,5 +393,65 @@ describe.sequential('Portal upload issuance store (real PostgreSQL)', () => {
         }),
       },
     ])
+  })
+
+  it('expires due issuances and records idempotent private-source cleanup', async () => {
+    const store = createPortalUploadIssuanceStore(getDb())
+    await store.create(makeIssuance(UPLOAD_A))
+
+    await expect(store.listSourceCleanupCandidates(CLEANUP_AT, 100)).resolves.toEqual([
+      expect.objectContaining({
+        id: UPLOAD_A,
+        state: 'expired',
+        expiredAt: CLEANUP_AT,
+        sourceDeletedAt: null,
+        orphanDerivativesDeletedAt: null,
+      }),
+    ])
+    await expect(
+      store.markSourceDeleted(scope(UPLOAD_A), 'expired', CLEANUP_AT),
+    ).resolves.toBe(true)
+    await expect(
+      store.markSourceDeleted(scope(UPLOAD_A), 'expired', CLEANUP_AT),
+    ).resolves.toBe(false)
+    await expect(store.listSourceCleanupCandidates(CLEANUP_AT, 100)).resolves.toEqual([
+      expect.objectContaining({
+        id: UPLOAD_A,
+        sourceDeletedAt: CLEANUP_AT,
+        orphanDerivativesDeletedAt: null,
+      }),
+    ])
+    await expect(
+      store.markOrphanDerivativesDeleted(scope(UPLOAD_A), 'expired', CLEANUP_AT),
+    ).resolves.toBe(true)
+    await expect(
+      store.markOrphanDerivativesDeleted(scope(UPLOAD_A), 'expired', CLEANUP_AT),
+    ).resolves.toBe(false)
+    await expect(store.listSourceCleanupCandidates(CLEANUP_AT, 100)).resolves.toEqual([])
+
+    const row = await getPool().query(
+      `SELECT state, expired_at, source_deleted_at, orphan_derivatives_deleted_at
+       FROM portal_upload_issuances WHERE id = $1`,
+      [UPLOAD_A],
+    )
+    expect(row.rows).toEqual([
+      {
+        state: 'expired',
+        expired_at: CLEANUP_AT,
+        source_deleted_at: CLEANUP_AT,
+        orphan_derivatives_deleted_at: CLEANUP_AT,
+      },
+    ])
+  })
+
+  it('never exposes an active consumed source to cleanup', async () => {
+    const store = createPortalUploadIssuanceStore(getDb())
+    await store.create(makeIssuance(UPLOAD_A))
+    await store.stage(scope(UPLOAD_A), observed, processingRequest(UPLOAD_A), STAGED_AT)
+
+    await expect(store.listSourceCleanupCandidates(CLEANUP_AT, 100)).resolves.toEqual([])
+    await expect(
+      store.markSourceDeleted(scope(UPLOAD_A), 'consumed', CLEANUP_AT),
+    ).resolves.toBe(false)
   })
 })

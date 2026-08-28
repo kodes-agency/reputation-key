@@ -35,7 +35,7 @@ async function authorizePortalGroupResource(
       capability: action === 'portal.read' ? 'portal.read' : 'portal.write',
       notFound: portalError('group_not_found', 'portal group not found'),
       lookup: () =>
-        getContainer().useCases.resolvePortalGroupManagementScope(
+        getContainer().portalPublicApi.management.resolvePortalGroupManagementScope(
           toPortalGroupId(rawGroupId),
         ),
     })
@@ -58,11 +58,11 @@ async function authorizePortalGroupMembership(
       notFound: portalError('portal_not_in_group', 'portal and group do not match'),
       lookups: [
         () =>
-          getContainer().useCases.resolvePortalGroupManagementScope(
+          getContainer().portalPublicApi.management.resolvePortalGroupManagementScope(
             toPortalGroupId(input.portalGroupId),
           ),
         () =>
-          getContainer().useCases.resolvePortalManagementScope(
+          getContainer().portalPublicApi.management.resolvePortalManagementScope(
             toPortalId(input.portalId),
           ),
       ],
@@ -91,7 +91,7 @@ export const createPortalGroup = createServerFn({ method: 'POST' })
         })
 
         try {
-          const { useCases } = getContainer()
+          const { management: useCases } = getContainer().portalPublicApi
           const group = await useCases.createPortalGroup(data, ctx)
           return { group }
         } catch (e) {
@@ -117,7 +117,7 @@ export const updatePortalGroup = createServerFn({ method: 'POST' })
         await authorizePortalGroupResource(ctx, data.portalGroupId, 'portal.update')
 
         try {
-          const { useCases } = getContainer()
+          const { management: useCases } = getContainer().portalPublicApi
           const group = await useCases.updatePortalGroup(data, ctx)
           return { group }
         } catch (e) {
@@ -152,7 +152,7 @@ export const listPortalGroups = createServerFn({ method: 'GET' })
         })
 
         try {
-          const { useCases } = getContainer()
+          const { management: useCases } = getContainer().portalPublicApi
           const groups = await useCases.listPortalGroups(data, ctx)
           return { groups }
         } catch (e) {
@@ -182,7 +182,7 @@ export const getPortalGroup = createServerFn({ method: 'GET' })
         await authorizePortalGroupResource(ctx, data.portalGroupId, 'portal.read')
 
         try {
-          const { useCases } = getContainer()
+          const { management: useCases } = getContainer().portalPublicApi
           const group = await useCases.getPortalGroup(data, ctx)
           return { group }
         } catch (e) {
@@ -208,7 +208,7 @@ export const softDeletePortalGroup = createServerFn({ method: 'POST' })
         await authorizePortalGroupResource(ctx, data.portalGroupId, 'portal.delete')
 
         try {
-          const { useCases } = getContainer()
+          const { management: useCases } = getContainer().portalPublicApi
           await useCases.softDeletePortalGroup(data, ctx)
           return { deleted: true, portalGroupId: data.portalGroupId }
         } catch (e) {
@@ -239,7 +239,7 @@ export const addPortalToGroup = createServerFn({ method: 'POST' })
         await authorizePortalGroupMembership(ctx, data)
 
         try {
-          const { useCases } = getContainer()
+          const { management: useCases } = getContainer().portalPublicApi
           await useCases.addPortalToGroup(data, ctx)
           return { added: true }
         } catch (e) {
@@ -265,7 +265,7 @@ export const removePortalFromGroup = createServerFn({ method: 'POST' })
         await authorizePortalGroupMembership(ctx, data)
 
         try {
-          const { useCases } = getContainer()
+          const { management: useCases } = getContainer().portalPublicApi
           await useCases.removePortalFromGroup(data, ctx)
           return { removed: true }
         } catch (e) {

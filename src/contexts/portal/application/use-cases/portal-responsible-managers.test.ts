@@ -104,7 +104,6 @@ const setup = () => {
       getAccessiblePropertyIds: async (_org: string, userId: string) =>
         userId === 'manager-ineligible' ? [] : [PORTAL.propertyId],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
       findActiveParticipation: async (_org: string, _property: string, userId: string) =>
         userId === 'manager-ineligible' ? null : ({} as never),
     },

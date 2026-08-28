@@ -7,6 +7,7 @@ import type { Database } from '#/shared/db'
 import {
   portalLinkCategories,
   portalLinks,
+  portalApprovedDestinations,
   portals,
 } from '#/shared/db/schema/portal.schema'
 import type { PortalLinkRepository } from '../../application/ports/portal-link.repository'
@@ -48,7 +49,10 @@ const linkCat = (categoryId: PortalLinkCategoryId): SQL<unknown> =>
 const linkPortal = (portalId: PortalId): SQL<unknown> =>
   eq(portalLinks.portalId, unbrand(portalId))
 
-export const createPortalLinkRepository = (db: Database): PortalLinkRepository => ({
+export const createPortalLinkRepository = (
+  db: Database,
+  clock: () => Date,
+): PortalLinkRepository => ({
   listCategories: async (orgId, portalId) => {
     return trace('portalLink.listCategories', async () => {
       const rows = await db
@@ -63,22 +67,44 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
   listLinks: async (orgId, portalId, categoryId) => {
     return trace('portalLink.listLinks', async () => {
       const rows = await db
-        .select()
+        .select({
+          link: portalLinks,
+          destinationUri: portalApprovedDestinations.normalizedUri,
+        })
         .from(portalLinks)
+        .leftJoin(
+          portalApprovedDestinations,
+          and(
+            eq(portalApprovedDestinations.organizationId, portalLinks.organizationId),
+            eq(portalApprovedDestinations.propertyId, portalLinks.propertyId),
+            eq(portalApprovedDestinations.id, portalLinks.destinationId),
+          ),
+        )
         .where(and(linkOrg(orgId), linkPortal(portalId), linkCat(categoryId)))
         .orderBy(portalLinks.sortKey)
-      return rows.map(linkFromRow)
+      return rows.map((row) => linkFromRow(row.link, row.destinationUri))
     })
   },
 
   listAllLinks: async (orgId, portalId) => {
     return trace('portalLink.listAllLinks', async () => {
       const rows = await db
-        .select()
+        .select({
+          link: portalLinks,
+          destinationUri: portalApprovedDestinations.normalizedUri,
+        })
         .from(portalLinks)
+        .leftJoin(
+          portalApprovedDestinations,
+          and(
+            eq(portalApprovedDestinations.organizationId, portalLinks.organizationId),
+            eq(portalApprovedDestinations.propertyId, portalLinks.propertyId),
+            eq(portalApprovedDestinations.id, portalLinks.destinationId),
+          ),
+        )
         .where(and(linkOrg(orgId), linkPortal(portalId)))
         .orderBy(portalLinks.sortKey)
-      return rows.map(linkFromRow)
+      return rows.map((row) => linkFromRow(row.link, row.destinationUri))
     })
   },
 
@@ -115,6 +141,7 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
 
   reorderCategories: async (orgId, portalId, updates) => {
     return trace('portalLink.reorderCategories', async () => {
+      const updatedAt = clock()
       await db.transaction(async (tx) => {
         const ids = updates.map(({ id }) => unbrand(id))
         if (ids.length > 0) {
@@ -135,7 +162,7 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
         for (const { id, sortKey } of updates) {
           await tx
             .update(portalLinkCategories)
-            .set({ sortKey, updatedAt: new Date() })
+            .set({ sortKey, updatedAt })
             .where(and(catOrg(orgId), catPortal(portalId), catIdEq(id)))
         }
       })
@@ -155,7 +182,17 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
     return trace('portalLink.updateLink', async () => {
       const setValues: Partial<typeof portalLinks.$inferInsert> = {}
       if (patch.label !== undefined) setValues.label = patch.label
-      if (patch.url !== undefined) setValues.url = patch.url
+      if (patch.destinationId !== undefined) {
+        setValues.destinationId = patch.destinationId
+          ? unbrand(patch.destinationId)
+          : null
+        setValues.url = patch.destinationId ? null : patch.url
+      } else if (patch.url !== undefined) {
+        setValues.url = patch.url
+      }
+      if (patch.legacyDestinationState !== undefined) {
+        setValues.legacyDestinationState = patch.legacyDestinationState
+      }
       if (patch.iconKey !== undefined) setValues.iconKey = patch.iconKey
       if (patch.sortKey !== undefined) setValues.sortKey = patch.sortKey
       if (patch.updatedAt !== undefined) setValues.updatedAt = patch.updatedAt
@@ -177,6 +214,7 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
 
   reorderLinks: async (orgId, portalId, categoryId, updates) => {
     return trace('portalLink.reorderLinks', async () => {
+      const updatedAt = clock()
       await db.transaction(async (tx) => {
         const ids = updates.map(({ id }) => unbrand(id))
         if (ids.length > 0) {
@@ -198,7 +236,7 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
         for (const { id, sortKey } of updates) {
           await tx
             .update(portalLinks)
-            .set({ sortKey, updatedAt: new Date() })
+            .set({ sortKey, updatedAt })
             .where(
               and(
                 linkOrg(orgId),
@@ -226,11 +264,22 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
   findLinkById: async (orgId, id) => {
     return trace('portalLink.findLinkById', async () => {
       const rows = await db
-        .select()
+        .select({
+          link: portalLinks,
+          destinationUri: portalApprovedDestinations.normalizedUri,
+        })
         .from(portalLinks)
+        .leftJoin(
+          portalApprovedDestinations,
+          and(
+            eq(portalApprovedDestinations.organizationId, portalLinks.organizationId),
+            eq(portalApprovedDestinations.propertyId, portalLinks.propertyId),
+            eq(portalApprovedDestinations.id, portalLinks.destinationId),
+          ),
+        )
         .where(and(linkOrg(orgId), linkIdEq(id)))
         .limit(1)
-      return rows[0] ? linkFromRow(rows[0]) : null
+      return rows[0] ? linkFromRow(rows[0].link, rows[0].destinationUri) : null
     })
   },
 
@@ -261,7 +310,11 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
   findLinkCommandTarget: async (orgId, id) => {
     return trace('portalLink.findLinkCommandTarget', async () => {
       const [row] = await db
-        .select({ link: portalLinks, portalUpdatedAt: portals.updatedAt })
+        .select({
+          link: portalLinks,
+          destinationUri: portalApprovedDestinations.normalizedUri,
+          portalUpdatedAt: portals.updatedAt,
+        })
         .from(portalLinks)
         .innerJoin(
           portals,
@@ -271,10 +324,21 @@ export const createPortalLinkRepository = (db: Database): PortalLinkRepository =
             isNull(portals.deletedAt),
           ),
         )
+        .leftJoin(
+          portalApprovedDestinations,
+          and(
+            eq(portalApprovedDestinations.organizationId, portalLinks.organizationId),
+            eq(portalApprovedDestinations.propertyId, portalLinks.propertyId),
+            eq(portalApprovedDestinations.id, portalLinks.destinationId),
+          ),
+        )
         .where(and(linkOrg(orgId), linkIdEq(id)))
         .limit(1)
       return row
-        ? { link: linkFromRow(row.link), portalUpdatedAt: row.portalUpdatedAt }
+        ? {
+            link: linkFromRow(row.link, row.destinationUri),
+            portalUpdatedAt: row.portalUpdatedAt,
+          }
         : null
     })
   },

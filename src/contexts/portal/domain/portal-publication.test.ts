@@ -15,7 +15,11 @@ describe('portal publication lifecycle', () => {
     })
   })
 
-  it('makes archive terminal', () => {
+  it('restores an archived Portal to Disabled without publishing it', () => {
+    expect(transitionPortalPublication('archived', 'disabled')).toBe('disabled')
+  })
+
+  it('does not let restore bypass deliberate republication', () => {
     expect(transitionPortalPublication('archived', 'published')).toEqual({
       code: 'invalid_publication_transition',
       from: 'archived',

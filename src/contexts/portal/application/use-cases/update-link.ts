@@ -4,7 +4,7 @@ import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalLink } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalError } from '../../domain/errors'
-import { validateLinkLabel, isValidExternalUrl } from '../../domain/rules'
+import { validateLinkLabel } from '../../domain/rules'
 import { canForContext } from '#/shared/domain/permissions'
 import { portalLinkId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
@@ -13,6 +13,9 @@ import { assertPortalPropertyAccess } from '../assert-property-access'
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
 import { nextPortalCommandAt } from '../portal-command-version'
 import { portalLinkUpdated } from '../../domain/events'
+import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
+import { resolveApprovedPortalDestination } from '../resolve-approved-portal-destination'
+import type { PortalDestinationNetworkValidator } from '../ports/portal-destination-network-validator.port'
 
 export type UpdateLinkInput = Readonly<{
   linkId: string
@@ -26,6 +29,9 @@ export type UpdateLinkDeps = Readonly<{
   portalLinkRepo: PortalLinkRepository
   staffPublicApi: StaffPublicApi
   commandStore: PortalCommandStore
+  destinationRepo: Pick<PortalApprovedDestinationRepository, 'request'>
+  destinationNetworkValidator: PortalDestinationNetworkValidator
+  idGen: () => string
   clock: () => Date
 }>
 
@@ -64,12 +70,15 @@ export const updateLink =
       needsUpdate = true
     }
 
-    if (input.url !== undefined) {
-      if (!isValidExternalUrl(input.url)) {
-        throw portalError('invalid_url', 'Link URL must use https:// scheme')
-      }
-      needsUpdate = true
-    }
+    const destination =
+      input.url === undefined
+        ? null
+        : await resolveApprovedPortalDestination(
+            deps,
+            { uri: input.url, propertyId: portal.propertyId },
+            ctx,
+          )
+    if (destination) needsUpdate = true
 
     if (input.iconKey !== undefined) {
       needsUpdate = true
@@ -79,7 +88,8 @@ export const updateLink =
 
     const expectedPortalUpdatedAt = target.portalUpdatedAt ?? portal.updatedAt
     const newLabel = validatedLabel ?? existing.label
-    const newUrl = input.url ?? existing.url
+    const newUrl = destination?.normalizedUri ?? existing.url
+    const destinationId = destination?.id ?? existing.destinationId
     const newIconKey = input.iconKey !== undefined ? input.iconKey : existing.iconKey
 
     const occurredAt = deps.clock()
@@ -93,7 +103,15 @@ export const updateLink =
       occurredAt,
       linkId: existing.id,
       categoryId: existing.categoryId,
-      patch: { label: newLabel, url: newUrl, iconKey: newIconKey },
+      patch: {
+        label: newLabel,
+        url: newUrl,
+        destinationId,
+        legacyDestinationState: destination
+          ? 'migrated'
+          : existing.legacyDestinationState,
+        iconKey: newIconKey,
+      },
       event: portalLinkUpdated({
         portalId: existing.portalId,
         linkId: existing.id,
@@ -109,6 +127,8 @@ export const updateLink =
       ...existing,
       label: newLabel,
       url: newUrl,
+      destinationId,
+      legacyDestinationState: destination ? 'migrated' : existing.legacyDestinationState,
       iconKey: newIconKey,
       updatedAt: occurredAt,
     }

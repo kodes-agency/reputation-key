@@ -14,7 +14,6 @@ const NOW = new Date('2026-08-26T12:00:00.000Z')
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {

@@ -2,13 +2,14 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Every query filters by organization_id AND deleted_at IS NULL via baseWhere().
 
-import { and, eq, not, sql, inArray, isNull } from 'drizzle-orm'
+import { and, asc, eq, ne, not, sql, inArray, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
 import {
   portals,
   portalLinkCategories,
   portalLinks,
+  portalApprovedDestinations,
   portalGroupMembers,
 } from '#/shared/db/schema/portal.schema'
 import type {
@@ -19,8 +20,10 @@ import type {
 import { portalFromRow } from '../mappers/portal.mapper'
 import { portalError } from '../../domain/errors'
 import {
+  portalId as toPortalId,
   unbrand,
   type OrganizationId,
+  type PortalId,
   type PropertyId,
   type PortalGroupId,
 } from '#/shared/domain/ids'
@@ -53,8 +56,20 @@ async function loadPublicPortal(
       )
       .orderBy(portalLinkCategories.sortKey, portalLinkCategories.id),
     db
-      .select()
+      .select({
+        link: portalLinks,
+        destinationUri: portalApprovedDestinations.normalizedUri,
+        destinationApprovalState: portalApprovedDestinations.approvalState,
+      })
       .from(portalLinks)
+      .leftJoin(
+        portalApprovedDestinations,
+        and(
+          eq(portalApprovedDestinations.organizationId, portalLinks.organizationId),
+          eq(portalApprovedDestinations.propertyId, portalLinks.propertyId),
+          eq(portalApprovedDestinations.id, portalLinks.destinationId),
+        ),
+      )
       .where(
         and(
           eq(portalLinks.organizationId, portalRow.organizationId),
@@ -78,13 +93,20 @@ async function loadPublicPortal(
       title: category.title,
       sortKey: category.sortKey,
     })),
-    links: links.map((link) => ({
-      id: link.id,
-      label: link.label,
-      url: link.url,
-      categoryId: link.categoryId,
-      sortKey: link.sortKey,
-    })),
+    links: links.flatMap(({ link, destinationUri, destinationApprovalState }) => {
+      const url = destinationApprovalState === 'approved' ? destinationUri : link.url
+      return url
+        ? [
+            {
+              id: link.id,
+              label: link.label,
+              url,
+              categoryId: link.categoryId,
+              sortKey: link.sortKey,
+            },
+          ]
+        : []
+    }),
     privateFeedbackThreshold: portal.privateFeedbackThreshold,
     organizationId: org.id,
     propertyId: portalRow.propertyId,
@@ -209,3 +231,27 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
     })
   },
 })
+
+/** A deterministic, database-bounded snapshot for explicit Goal assignment. */
+export const createCurrentPortalIdReader =
+  (db: Database) =>
+  async (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+    limit: number,
+  ): Promise<ReadonlyArray<PortalId>> => {
+    if (!Number.isInteger(limit) || limit < 1) return []
+    const rows = await db
+      .select({ id: portals.id })
+      .from(portals)
+      .where(
+        and(
+          ...baseWhere(portals, orgId),
+          eq(portals.propertyId, propertyId),
+          ne(portals.publicationState, 'archived'),
+        ),
+      )
+      .orderBy(asc(portals.id))
+      .limit(limit)
+    return rows.map((row) => toPortalId(row.id))
+  }

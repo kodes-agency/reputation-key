@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
@@ -112,25 +111,11 @@ function parseContentRow(value: unknown): PortalWorkflowContentRow | null {
   }
 }
 
-function deterministicEventId(
-  command: PortalWorkflowFactCommand,
-  eventType: PortalWorkflowFactEvent['_tag'],
-): string {
-  const hex = createHash('sha256')
-    .update(
-      [
-        command.organizationId,
-        command.propertyId,
-        command.portalId,
-        command.reviewId,
-        String(command.revision),
-        eventType,
-      ].join(':'),
-    )
-    .digest('hex')
-  const variant = ((Number.parseInt(hex[16] ?? '0', 16) & 0x3) | 0x8).toString(16)
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`
-}
+const WORKFLOW_FACT_TYPES = [
+  'portal.content_review.completed',
+  'portal.configuration_completeness.recorded',
+  'portal.approved_destination_ratio.recorded',
+] as const satisfies readonly PortalWorkflowFactEvent['_tag'][]
 
 function calculateSnapshot(row: PortalWorkflowSnapshotRow): PortalWorkflowSnapshot {
   if (row.publicationState !== 'published') {
@@ -255,25 +240,16 @@ function buildEvents(
   return [
     portalContentReviewCompleted({
       ...common,
-      eventId: deterministicEventId(command, 'portal.content_review.completed'),
       supersedesSourceEventId: command.supersedes?.contentReviewSourceEventId ?? null,
     }),
     portalConfigurationCompletenessRecorded({
       ...common,
-      eventId: deterministicEventId(
-        command,
-        'portal.configuration_completeness.recorded',
-      ),
       supersedesSourceEventId: command.supersedes?.configurationSourceEventId ?? null,
       completedFields: snapshot.completedFields,
       requiredFields: snapshot.requiredFields,
     }),
     portalApprovedDestinationRatioRecorded({
       ...common,
-      eventId: deterministicEventId(
-        command,
-        'portal.approved_destination_ratio.recorded',
-      ),
       supersedesSourceEventId: command.supersedes?.destinationRatioSourceEventId ?? null,
       approvedDestinations: snapshot.approvedDestinations,
       configuredDestinations: snapshot.configuredDestinations,
@@ -292,28 +268,36 @@ async function insertFacts(
   return inserted
 }
 
-export function createPortalWorkflowFactStore(
+export const createPortalWorkflowFactStore = (
   db: Database,
   events: EventBus,
-): PortalWorkflowFactStore {
+): PortalWorkflowFactStore => {
   return {
     recordCompletedReview: async (
       command: PortalWorkflowFactCommand,
     ): Promise<PortalWorkflowFactResult> => {
       const result = await db.transaction(async (tx) => {
         const snapshot = await loadSnapshot(tx, command)
-        const candidateFacts = buildEvents(command, snapshot, snapshot.aggregateRevision)
         const existingFacts = await tx
-          .select({ id: outboxEvents.id })
+          .select({ eventType: outboxEvents.eventType })
           .from(outboxEvents)
           .where(
-            inArray(
-              outboxEvents.id,
-              candidateFacts.map((fact) => fact.eventId),
+            and(
+              eq(outboxEvents.organizationId, command.organizationId),
+              eq(outboxEvents.propertyId, command.propertyId),
+              eq(outboxEvents.sourceContext, 'portal'),
+              eq(outboxEvents.sourceAggregateId, command.reviewId),
+              inArray(outboxEvents.eventType, WORKFLOW_FACT_TYPES),
+              sql`${outboxEvents.payload}->>'portalId' = ${command.portalId}`,
+              sql`${outboxEvents.payload}->>'revision' = ${String(command.revision)}`,
             ),
           )
-        if (existingFacts.length === candidateFacts.length) {
-          return { status: 'duplicate' as const, events: candidateFacts }
+        const existingTypes = new Set(existingFacts.map(({ eventType }) => eventType))
+        if (
+          existingFacts.length === WORKFLOW_FACT_TYPES.length &&
+          WORKFLOW_FACT_TYPES.every((eventType) => existingTypes.has(eventType))
+        ) {
+          return { status: 'duplicate' as const, events: [] }
         }
         if (existingFacts.length !== 0) {
           throw new Error('partial Portal workflow fact set detected')

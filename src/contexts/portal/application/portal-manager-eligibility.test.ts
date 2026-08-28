@@ -34,7 +34,6 @@ describe('Portal Responsible Manager eligibility', () => {
           getAccessiblePropertyIds: async (_org, managerId) =>
             managerId === userId('manager-no-grant') ? [] : [propertyId('property-1')],
           getAssignedPortals: async () => [],
-          countAssignmentsByTeam: async () => 0,
           findActiveParticipation: async (_org, _property, managerId) =>
             managerId === userId('manager-no-participation') ? null : ({} as never),
         },
@@ -72,7 +71,6 @@ describe('Portal Responsible Manager eligibility', () => {
         staffPublicApi: {
           getAccessiblePropertyIds: async () => [],
           getAssignedPortals: async () => [],
-          countAssignmentsByTeam: async () => 0,
           findActiveParticipation: async () => ({}) as never,
         },
       },
