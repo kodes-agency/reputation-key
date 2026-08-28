@@ -13,9 +13,12 @@ import { properties } from '#/shared/db/schema/property.schema'
 import type { PropertyRegionRecord } from '#/shared/auth/policy-diagnostic'
 import { resolvePersistedDataCellId } from '#/shared/domain/data-cell-catalogue'
 
-export function createPropertyRegionLoader(deps: {
+export const createPropertyRegionLoader = (deps: {
   db: Database
-}): (organizationId: string, propertyId: string) => Promise<PropertyRegionRecord | null> {
+}): ((
+  organizationId: string,
+  propertyId: string,
+) => Promise<PropertyRegionRecord | null>) => {
   return async (organizationId, propertyId) => {
     const rows = await deps.db
       .select({

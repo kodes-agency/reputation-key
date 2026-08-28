@@ -1,5 +1,5 @@
 // Property context — public API surface for cross-context consumers.
-// Other contexts (team, portal, integration) consume this typed interface
+// Other contexts (portal, integration) consume this typed interface
 // to query property data. Per ADR-0001.
 
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
@@ -7,8 +7,10 @@ import type { PropertyGoogleBindingStore } from './ports/property-google-binding
 export { buildGoogleImportedProperty } from './build-google-imported-property'
 export type { BuildGoogleImportedPropertyInput } from './build-google-imported-property'
 export type {
+  PropertyArchived,
   PropertyCreated,
   PropertyDeleted,
+  PropertyRestored,
   PropertyUpdated,
   PropertyResponsibilityNeeded,
 } from '../domain/events'
@@ -24,6 +26,11 @@ export type PropertyLookupResult = Readonly<{
   id: string
   organizationId: string
   googleConnectionId: string | null
+  gbpAccountId: string | null
+  gbpLocationId: string | null
+  googleBindingState:
+    'unbound' | 'account_confirmation_required' | 'active' | 'disconnected'
+  sourceEpoch: number
 }>
 
 // Sanctioned fail-closed cell gates for protected workloads (BQC-4.1 / ADR 0048).
@@ -59,6 +66,11 @@ export type PropertyGoogleReviewDestinationPublicApi = Readonly<{
   ) => Promise<
     import('../domain/google-review-destination').PropertyGoogleReviewDestination | null
   >
+}>
+
+/** Fail-closed current lifecycle authority for public and external-effect gates. */
+export type PropertyLifecyclePublicApi = Readonly<{
+  isPropertyActive: (orgId: OrganizationId, propertyId: PropertyId) => Promise<boolean>
 }>
 
 export type PropertyPublicApi = Readonly<{
@@ -106,6 +118,17 @@ export type PropertyPublicApi = Readonly<{
     connectionId: GoogleConnectionId,
     orgId: OrganizationId,
   ) => Promise<ReadonlyArray<string>>
+
+  /**
+   * Stable Property scope used only to persist/deliver an Organization-level
+   * Google connection notice. Prefers an affected linked Property, then the
+   * first active Property in the Organization. Null only when the Organization
+   * has no Property rows at all.
+   */
+  findGoogleNotificationAnchor: (
+    connectionId: GoogleConnectionId,
+    orgId: OrganizationId,
+  ) => Promise<string | null>
 
   /**
    * Null out all googleConnectionId references for a given connection.

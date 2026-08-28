@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { googleConnectionId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -128,7 +129,7 @@ beforeEach(async () => {
 afterAll(async () => {
   await cleanup()
   await pool.query('DELETE FROM google_connections WHERE organization_id = $1', [ORG_ID])
-  await pool.query('DELETE FROM organization WHERE id = $1', [ORG_ID])
+  await deleteTestOrganizations(pool, [ORG_ID])
   clearEventSchemas()
   await pool.end()
 })

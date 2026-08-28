@@ -1,6 +1,7 @@
 // BQC-4.1 — property region reconciliation (real PostgreSQL).
 //
-// Phase BQC-4 §3/§4.1 + ADR 0048: backfill every active property's processing
+// Phase BQC-4 §3/§4.1 + ADR 0054 as amended by ADR 0057: reconcile every
+// active Property's processing
 // region from durable, property-owned country data with a reviewable report —
 // never a blind conversion. The report classifies each non-deleted property:
 //   resolved   — region set and consistent with the stored country
@@ -14,6 +15,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   buildRegionReconcileReport,
   applyRegionReconciliation,
@@ -22,12 +24,13 @@ import {
 const db = getDb()
 const ORG = 'org-region-recon'
 const OTHER_ORG = 'org-region-recon-other'
+const CLOCK = () => new Date('2026-08-28T00:00:00.000Z')
 
 let propResolvableUs: string
 let propResolvableEurope: string
 let propMissing: string
 let propConflictStored: string
-let propAmbiguous: string
+let propResolvableJapan: string
 let propResolved: string
 let propDeleted: string
 
@@ -80,8 +83,8 @@ async function regionRow(id: string) {
 beforeAll(async () => {
   for (const org of [ORG, OTHER_ORG]) {
     await db.execute(sql`DELETE FROM properties WHERE organization_id = ${org}`)
-    await db.execute(sql`DELETE FROM organization WHERE id = ${org}`)
   }
+  await deleteTestOrganizations(db, [ORG, OTHER_ORG])
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt") VALUES
       (${ORG}, 'Region Recon', ${ORG}, now()),
@@ -92,20 +95,19 @@ beforeAll(async () => {
   propResolvableUs = await insertProperty('recon-us', {
     countryCode: 'US',
   })
-  // resolvable: unresolved + DE country (apply → europe; still denied for
-  // processing, but the routing fact resolves)
+  // resolvable: unresolved + DE country (apply → the single beta cell)
   propResolvableEurope = await insertProperty('recon-de', {
     countryCode: 'DE',
   })
   // missing: no country anywhere
   propMissing = await insertProperty('recon-missing')
-  // conflict: resolved region disagrees with the stored country
+  // conflict: a stale future-cell assignment disagrees with current policy
   propConflictStored = await insertProperty('recon-conflict-stored', {
     countryCode: 'DE',
-    processingRegion: 'us',
+    processingRegion: 'europe',
   })
-  // Global is a deterministic catalogue assignment even while provisioning.
-  propAmbiguous = await insertProperty('recon-ambiguous', {
+  // Every other supported country is also a deterministic US assignment.
+  propResolvableJapan = await insertProperty('recon-japan', {
     countryCode: 'JP',
   })
   // resolved: region set and consistent
@@ -123,29 +125,29 @@ beforeAll(async () => {
 afterAll(async () => {
   for (const org of [ORG, OTHER_ORG]) {
     await db.execute(sql`DELETE FROM properties WHERE organization_id = ${org}`)
-    await db.execute(sql`DELETE FROM organization WHERE id = ${org}`)
   }
+  await deleteTestOrganizations(db, [ORG, OTHER_ORG])
 })
 
 describe('region reconciliation report (BQC-4.1)', () => {
   const SCOPE = { organizationId: ORG }
 
   it('classifies every non-deleted property', async () => {
-    const report = await buildRegionReconcileReport(db, SCOPE)
+    const report = await buildRegionReconcileReport(db, CLOCK, SCOPE)
     const byId = new Map(report.rows.map((r) => [r.propertyId, r]))
 
     expect(byId.get(propResolvableUs)?.classification).toBe('resolvable')
     expect(byId.get(propResolvableEurope)?.classification).toBe('resolvable')
     expect(byId.get(propMissing)?.classification).toBe('missing')
     expect(byId.get(propConflictStored)?.classification).toBe('conflict')
-    expect(byId.get(propAmbiguous)?.classification).toBe('resolvable')
+    expect(byId.get(propResolvableJapan)?.classification).toBe('resolvable')
     expect(byId.get(propResolved)?.classification).toBe('resolved')
     // soft-deleted properties are never reported
     expect(byId.has(propDeleted)).toBe(false)
   })
 
   it('aggregates per-organization counts', async () => {
-    const report = await buildRegionReconcileReport(db, SCOPE)
+    const report = await buildRegionReconcileReport(db, CLOCK, SCOPE)
     const org = report.organizations.find((o) => o.organizationId === ORG)
     expect(org).toEqual({
       organizationId: ORG,
@@ -159,7 +161,7 @@ describe('region reconciliation report (BQC-4.1)', () => {
   })
 
   it('separates operator-review rows (missing/conflict/ambiguous)', async () => {
-    const report = await buildRegionReconcileReport(db, SCOPE)
+    const report = await buildRegionReconcileReport(db, CLOCK, SCOPE)
     const reviewIds = report.reviewRows.map((r) => r.propertyId).sort()
     expect(reviewIds).toEqual([propMissing, propConflictStored].sort())
     for (const row of report.reviewRows) {
@@ -168,7 +170,9 @@ describe('region reconciliation report (BQC-4.1)', () => {
   })
 
   it('scopes to a single organization', async () => {
-    const report = await buildRegionReconcileReport(db, { organizationId: OTHER_ORG })
+    const report = await buildRegionReconcileReport(db, CLOCK, {
+      organizationId: OTHER_ORG,
+    })
     expect(report.rows).toHaveLength(0)
     expect(report.organizations).toHaveLength(0)
   })
@@ -178,7 +182,7 @@ describe('region reconciliation apply (BQC-4.1)', () => {
   const SCOPE = { organizationId: ORG }
 
   it('applies only resolvable rows and is idempotent', async () => {
-    const report = await buildRegionReconcileReport(db, SCOPE)
+    const report = await buildRegionReconcileReport(db, CLOCK, SCOPE)
     const first = await applyRegionReconciliation(db, report, { scope: SCOPE })
     expect(first.applied).toBe(3)
 
@@ -186,22 +190,22 @@ describe('region reconciliation apply (BQC-4.1)', () => {
     expect(us.processing_region).toBe('us')
     expect(us.data_cell_id).toBe('us')
     expect(us.processing_region_source).toBe('country_default')
-    expect(us.routing_policy_version).toBe(2)
+    expect(us.routing_policy_version).toBe(3)
     expect(us.processing_region_resolved_at).not.toBeNull()
 
     const europe = await regionRow(propResolvableEurope)
-    expect(europe.processing_region).toBe('europe')
-    expect(europe.data_cell_id).toBe('europe')
-    expect(europe.routing_policy_version).toBe(2)
+    expect(europe.processing_region).toBe('us')
+    expect(europe.data_cell_id).toBe('us')
+    expect(europe.routing_policy_version).toBe(3)
 
-    const global = await regionRow(propAmbiguous)
-    expect(global.processing_region).toBe('global')
-    expect(global.data_cell_id).toBe('global')
+    const japan = await regionRow(propResolvableJapan)
+    expect(japan.processing_region).toBe('us')
+    expect(japan.data_cell_id).toBe('us')
 
     // Operator-review rows are NEVER auto-converted
     expect((await regionRow(propMissing)).processing_region).toBe('unresolved')
     expect((await regionRow(propMissing)).routing_policy_version).toBe(1)
-    expect((await regionRow(propConflictStored)).processing_region).toBe('us')
+    expect((await regionRow(propConflictStored)).processing_region).toBe('europe')
     expect((await regionRow(propConflictStored)).routing_policy_version).toBe(1)
     // Already-resolved rows are untouched
     expect((await regionRow(propResolved)).routing_policy_version).toBe(1)
@@ -209,7 +213,7 @@ describe('region reconciliation apply (BQC-4.1)', () => {
     // Second run resolves nothing new
     const second = await applyRegionReconciliation(
       db,
-      await buildRegionReconcileReport(db, SCOPE),
+      await buildRegionReconcileReport(db, CLOCK, SCOPE),
       { scope: SCOPE },
     )
     expect(second.applied).toBe(0)

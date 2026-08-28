@@ -1,4 +1,4 @@
-// BQC-4.5 — region move workflow state machine (ADR 0048). Unit tests.
+// BQC-4.5 — region move workflow state machine (ADR 0057 retained seam). Unit tests.
 //
 // Proves: every legal transition, the notable illegal ones, the authority
 // rule per state (exactly ONE authoritative cell at every state), terminal

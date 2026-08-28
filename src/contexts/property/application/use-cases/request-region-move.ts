@@ -1,13 +1,12 @@
-// Property context — request region move use case (BQC-4.5 / ADR 0048).
+// Property context — request region move use case (BQC-4.5 / ADR 0057,
+// retaining the ADR 0048 workflow seam for future expansion).
 //
-// Operator-only (the policy.admin gate lives at the SERVER layer, mirroring
-// BQC-2.7). A target must be in the catalogue's accepting set; denied requests
-// never create a
-// region_moves row; the operator audit (content-free, mirroring the BQC-4.4
-// diagnostic audit) is the evidence. When the target is accepting (tests use
-// an injected future policy) the move row is
-// created in state 'requested' and the stepper (advance-region-move) drives
-// it from there.
+// Operator-only: the use case owns the primary policy.admin gate and the
+// server boundary repeats it as defense in depth. A target must be in the catalogue's
+// accepting set. Denied requests
+// never create a region_moves row; the content-free operator audit is the
+// evidence. When the target is accepting (tests inject a future policy), the
+// move row and allow decision co-commit before the stepper drives it forward.
 //
 // Denial taxonomy (closed set):
 //   property_missing         — no such property in the caller's org
@@ -22,19 +21,23 @@
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { propertyId as toPropertyId } from '#/shared/domain/ids'
+import { canForContext } from '#/shared/domain/permissions'
+import { propertyError } from '../../domain/errors'
 import {
   KNOWN_REGION_IDENTIFIERS,
   type RegionMoveRecord,
 } from '../../domain/region-move-workflow'
 import type { PropertyRepository } from '../ports/property.repository'
 import type {
+  RegionMoveAuditEntry,
   RegionMoveAuditWriter,
-  RegionMoveStore,
-} from '../ports/region-move-store.port'
+  RegionMoveRequestCommandStore,
+} from '../ports/region-move-request-command-store.port'
 
 export type RegionMoveDenialReason =
   | 'target_cell_not_approved'
   | 'already_in_cell'
+  | 'active_move_exists'
   | 'property_missing'
   | 'region_unresolved'
 
@@ -51,8 +54,8 @@ export type RequestRegionMoveResult =
 
 export type RequestRegionMoveDeps = Readonly<{
   propertyRepo: PropertyRepository
-  moveStore: RegionMoveStore
-  /** Approved processing cells (ADR 0048: {'us'} for beta; tests stub wider). */
+  requestCommandStore: RegionMoveRequestCommandStore
+  /** Accepting Data Cells (ADR 0057: {'us'} for beta; tests stub wider). */
   approvedCells: ReadonlySet<string>
   writeOperatorAudit: RegionMoveAuditWriter
   idGen: () => string
@@ -65,6 +68,9 @@ export const requestRegionMove =
     input: RequestRegionMoveInput,
     ctx: AuthContext,
   ): Promise<RequestRegionMoveResult> => {
+    if (!canForContext(ctx, 'policy.admin')) {
+      throw propertyError('forbidden', 'policy administration permission is required')
+    }
     if (input.reason.trim().length < 3) {
       throw new Error('reason is required (min 3 chars)')
     }
@@ -73,14 +79,15 @@ export const requestRegionMove =
     const deny = async (
       reason: RegionMoveDenialReason,
     ): Promise<RequestRegionMoveResult> => {
-      await deps.writeOperatorAudit({
+      const audit: RegionMoveAuditEntry = {
         actorUserId: ctx.userId,
         organizationId: ctx.organizationId,
         propertyId: input.propertyId,
         action: 'policy.region.move.request',
         decision: 'deny',
         reason: `region move request denied: ${reason} (${input.reason})`.slice(0, 200),
-      })
+      }
+      await deps.writeOperatorAudit(audit)
       return { ok: false, reason }
     }
 
@@ -103,6 +110,7 @@ export const requestRegionMove =
       fromRegion,
       toRegion: input.toRegion,
       state: 'requested',
+      stateRevision: 1,
       denialReason: null,
       requestedBy: ctx.userId,
       requestedAt: now,
@@ -110,8 +118,7 @@ export const requestRegionMove =
       completedAt: null,
       error: null,
     }
-    await deps.moveStore.insertMove(move)
-    await deps.writeOperatorAudit({
+    const audit = {
       actorUserId: ctx.userId,
       organizationId: ctx.organizationId,
       propertyId: property.id,
@@ -122,7 +129,9 @@ export const requestRegionMove =
           0,
           200,
         ),
-    })
+    } as const satisfies RegionMoveAuditEntry
+    const outcome = await deps.requestCommandStore.recordRequest({ move, audit })
+    if (outcome === 'active_move_exists') return deny(outcome)
     return { ok: true, move }
   }
 

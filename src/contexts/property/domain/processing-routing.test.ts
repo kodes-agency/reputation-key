@@ -44,31 +44,31 @@ describe('resolvePropertyRouting', () => {
     expect(routing.processingRegionResolvedAt).toBe(NOW)
   })
 
-  it('resolves EEA/UK/CH to europe', () => {
+  it('routes European countries to the single US beta cell', () => {
     expect(
       resolvePropertyRouting({
         countryCode: 'DE',
         countrySource: 'manual',
         now: NOW,
       }).processingRegion,
-    ).toBe('europe')
+    ).toBe('us')
     expect(
       resolvePropertyRouting({
         countryCode: 'GB',
         countrySource: 'manual',
         now: NOW,
       }).processingRegion,
-    ).toBe('europe')
+    ).toBe('us')
   })
 
-  it('resolves other countries to global', () => {
+  it('routes the rest of the supported world to the single US beta cell', () => {
     const routing = resolvePropertyRouting({
       countryCode: 'JP',
       countrySource: 'manual',
       now: NOW,
     })
-    expect(routing.processingRegion).toBe('global')
-    expect(routing.dataCellId).toBe('global')
+    expect(routing.processingRegion).toBe('us')
+    expect(routing.dataCellId).toBe('us')
   })
 })
 
@@ -80,18 +80,18 @@ describe('wouldChangeResolvedRegion', () => {
 
   it('is false when new country maps to the same region', () => {
     expect(wouldChangeResolvedRegion('us', 'PR')).toBe(false)
-    expect(wouldChangeResolvedRegion('europe', 'FR')).toBe(false)
+    expect(wouldChangeResolvedRegion('us', 'FR')).toBe(false)
+    expect(wouldChangeResolvedRegion('us', 'JP')).toBe(false)
   })
 
-  it('is true when new country would change a resolved region', () => {
-    expect(wouldChangeResolvedRegion('us', 'DE')).toBe(true)
+  it('detects stale assignments to dormant future cells', () => {
     expect(wouldChangeResolvedRegion('europe', 'US')).toBe(true)
     expect(wouldChangeResolvedRegion('global', 'US')).toBe(true)
   })
 })
 
-// Cell identity and activation are separate: a known provisioning cell is a
-// valid allocation target but not yet executable.
+// Cell identity and activation are separate: future cells remain readable
+// historical identifiers but are neither allocation nor execution targets.
 describe('isRegionProcessable', () => {
   it('allows the existing accepting US cell', () => {
     expect(isRegionProcessable('us')).toBe(true)
@@ -115,7 +115,7 @@ describe('processable regions vs routed regions (contract)', () => {
     expect(unrouted).toEqual([])
   })
 
-  it('keeps known provisioning cells routable but non-executable', () => {
+  it('keeps known dormant cells recognizable but non-executable', () => {
     expect(ROUTED_REGIONS).toEqual(new Set(['us', 'europe', 'global']))
     expect([...ROUTED_REGIONS].filter((region) => !isRegionProcessable(region))).toEqual([
       'europe',
@@ -130,7 +130,7 @@ describe('assertRegionResolved', () => {
   })
 
   it.each(['europe', 'global'])(
-    'fails closed while the known %s cell is provisioning',
+    'fails closed while the known %s cell is dormant',
     (region) => {
       expect(() => assertRegionResolved({ dataCellId: region })).toThrow(
         /accepting Data Cell/,
@@ -158,7 +158,7 @@ describe('regionBlockedReason', () => {
   })
 
   it.each(['europe', 'global'])(
-    'reports region_denied while the known %s cell is provisioning',
+    'reports region_denied while the known %s cell is dormant',
     (region) => {
       expect(regionBlockedReason(region)).toBe('region_denied')
     },

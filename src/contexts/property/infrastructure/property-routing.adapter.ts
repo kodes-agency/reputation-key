@@ -17,9 +17,9 @@ import type { Database } from '#/shared/db'
 import { properties } from '#/shared/db/schema/property.schema'
 import type { PropertyRoutingRecord } from '#/shared/routing/processing-router'
 
-export function createPropertyRoutingLoader(deps: {
+export const createPropertyRoutingLoader = (deps: {
   db: Database
-}): (propertyId: string) => Promise<PropertyRoutingRecord | null> {
+}): ((propertyId: string) => Promise<PropertyRoutingRecord | null>) => {
   return async (propertyId) => {
     const rows = await deps.db
       .select({

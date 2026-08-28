@@ -9,7 +9,9 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createProcessingRouter } from '#/shared/routing/processing-router'
+import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 import { createPropertyRoutingLoader } from '../property-routing.adapter'
 
 const db = getDb()
@@ -30,20 +32,19 @@ async function insertProperty(slug: string): Promise<string> {
 
 beforeAll(async () => {
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt")
     VALUES (${ORG}, 'Routing Adapter', ${ORG}, now())
   `)
 
-  // Approved cell: region resolved to 'us', policy version bumped by a
-  // resolution change (ADR 0048 — every resolution change bumps the version).
+  // Approved cell: exact policy-v3 canonical + compatibility assignments.
   propUs = await insertProperty('routing-us')
   await db.execute(sql`
     UPDATE properties
     SET processing_region = 'us', data_cell_id = 'us',
         processing_region_source = 'country_default',
-        routing_policy_version = 2, processing_region_resolved_at = now(),
+        routing_policy_version = ${DATA_CELL_CATALOGUE_POLICY_VERSION}, processing_region_resolved_at = now(),
         country_code = 'US', country_source = 'google_address'
     WHERE id = ${propUs}
   `)
@@ -54,7 +55,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
 })
 
 describe('createPropertyRoutingLoader (BQC-4.2)', () => {
@@ -66,7 +67,7 @@ describe('createPropertyRoutingLoader (BQC-4.2)', () => {
     expect(record).toEqual({
       dataCellId: 'us',
       processingRegion: 'us',
-      routingPolicyVersion: 2,
+      routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
     })
   })
 
@@ -102,7 +103,7 @@ describe('ProcessingRouter over the production adapter (BQC-4.2)', () => {
       region: 'us',
       queue: 'default',
       provider: 'gbp-default',
-      routingPolicyVersion: 2,
+      routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
     })
   })
 

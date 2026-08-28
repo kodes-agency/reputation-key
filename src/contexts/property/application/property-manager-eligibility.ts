@@ -1,4 +1,4 @@
-import type { IdentityPublicApi } from '#/contexts/identity/application/public-api'
+import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import {
   isEligibleResponsibleManager,
@@ -7,7 +7,7 @@ import {
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 
 export type PropertyManagerEligibilityDeps = Readonly<{
-  identityPublicApi: IdentityPublicApi
+  identityPublicApi: IdentityManagerFactsPublicApi
   staffPublicApi: StaffPublicApi
 }>
 

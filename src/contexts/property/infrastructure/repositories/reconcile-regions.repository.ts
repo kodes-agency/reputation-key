@@ -1,10 +1,11 @@
 // BQC-4.1 — property region reconciliation (operator tool, real PostgreSQL).
 //
-// Phase BQC-4 §3/§4.1 + ADR 0048: backfill every non-deleted property's
+// Phase BQC-4 §3/§4.1 + ADR 0054 as amended by ADR 0057: reconcile every
+// non-deleted Property's
 // processing region from durable, property-owned country data with a reviewable
 // report — never a blind conversion (mirrors BQC-2.3 staff→grant
 // reconciliation). The report classifies each property; --apply converts
-// ONLY `resolvable` rows, bumps routing_policy_version in the same
+// ONLY `resolvable` rows, stamps the current catalogue policy in the same
 // statement, and is idempotent.
 //
 // Classifications (operator-review rows are NEVER auto-converted):
@@ -15,8 +16,12 @@
 //   ambiguous  — stored country is not covered by the signed catalogue
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { Clock } from '#/shared/domain/clock'
 import { resolveRegion } from '#/shared/domain/processing-profile'
-import { dataCellById } from '#/shared/domain/data-cell-catalogue'
+import {
+  DATA_CELL_CATALOGUE_POLICY_VERSION,
+  dataCellById,
+} from '#/shared/domain/data-cell-catalogue'
 
 export type RegionClassification =
   'resolved' | 'resolvable' | 'missing' | 'conflict' | 'ambiguous'
@@ -153,6 +158,7 @@ function classify(r: PropertyScanRow): RegionReconcileRow {
 
 export async function buildRegionReconcileReport(
   db: Database,
+  clock: Clock,
   scope?: RegionReconcileScope,
 ): Promise<RegionReconcileReport> {
   const rows = (await loadProperties(db, scope)).map(classify)
@@ -197,7 +203,7 @@ export async function buildRegionReconcileReport(
       r.classification === 'ambiguous',
   )
 
-  return { organizations, rows, reviewRows, generatedAt: new Date() }
+  return { organizations, rows, reviewRows, generatedAt: clock() }
 }
 
 export async function applyRegionReconciliation(
@@ -212,9 +218,9 @@ export async function applyRegionReconciliation(
   for (const row of rows) {
     if (row.classification !== 'resolvable' || row.countryCode == null) continue
     const region = resolveRegion(row.countryCode.trim().toUpperCase())
-    // One UPDATE per property (ADR 0048): resolve the region with
+    // One UPDATE per Property (ADR 0054 as amended by ADR 0057): resolve with
     // country_default provenance (mirrors resolvePropertyRouting), stamp the
-    // resolution time, and bump routing_policy_version in the same statement.
+    // resolution time and stamp the current routing policy in the same statement.
     // The WHERE guard keeps it idempotent and never clobbers a concurrent
     // manual correction (region resolved elsewhere, or country changed).
     const updated = await db.execute(sql`
@@ -223,7 +229,7 @@ export async function applyRegionReconciliation(
           data_cell_id = ${region},
           processing_region_source = 'country_default',
           processing_region_resolved_at = now(),
-          routing_policy_version = routing_policy_version + 1,
+          routing_policy_version = ${DATA_CELL_CATALOGUE_POLICY_VERSION},
           updated_at = now()
       WHERE id = ${row.propertyId}
         AND deleted_at IS NULL

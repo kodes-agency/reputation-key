@@ -170,8 +170,8 @@ describe('buildProperty', () => {
     expect(result.isOk()).toBe(true)
     if (result.isOk()) {
       expect(result.value.countryCode).toBe('DE')
-      expect(result.value.processingRegion).toBe('europe')
-      expect(result.value.dataCellId).toBe('europe')
+      expect(result.value.processingRegion).toBe('us')
+      expect(result.value.dataCellId).toBe('us')
       expect(result.value.processingRegionSource).toBe('country_default')
       expect(result.value.processingRegionResolvedAt).toBe(FIXED_TIME)
     }

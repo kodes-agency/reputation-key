@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import type { QuarantineQueuePort } from '#/shared/jobs/queue-quarantine'
-import { isPropertyError } from '../../domain/errors'
+import { isPropertyError, propertyError } from '../../domain/errors'
 import {
   authoritativeCellFor,
   type RegionMoveRecord,
@@ -32,6 +32,7 @@ function makeMove(state: RegionMoveState = 'requested'): RegionMoveRecord {
     fromRegion: 'us',
     toRegion: 'europe',
     state,
+    stateRevision: 1,
     denialReason: null,
     requestedBy: ctx.userId,
     requestedAt: T0,
@@ -59,34 +60,60 @@ function createFakeQueue(counts: Record<string, number> = {}) {
   return { port, state }
 }
 
-function setup(move: RegionMoveRecord, queueCounts: Record<string, number> = {}) {
+function setup(
+  move: RegionMoveRecord,
+  queueCounts: Record<string, number> = {},
+  options: Readonly<{
+    loseCasTo?: RegionMoveRecord
+    failTransitionTo?: RegionMoveState
+  }> = {},
+) {
   const rows: RegionMoveRecord[] = [move]
   const queue = createFakeQueue(queueCounts)
   const calls = { activate: 0, restore: 0 }
   let now = T0
   const store: RegionMoveStore = {
-    insertMove: async (m) => {
-      rows.push(m)
-    },
     findMoveById: async (_orgId, moveId) => rows.find((r) => r.id === moveId) ?? null,
     findActiveMoveForProperty: async () => null,
     updateMoveState: async (_orgId, moveId, update: RegionMoveStateUpdate) => {
       const i = rows.findIndex((r) => r.id === moveId)
-      if (i >= 0) rows[i] = { ...rows[i], ...update }
-    },
-    activateTargetRegion: async () => {
-      calls.activate += 1
-      return 'swapped'
-    },
-    restoreSourceRegion: async () => {
-      calls.restore += 1
-      return 'already_active'
+      if (i < 0) return 'stale'
+      if (options.loseCasTo) {
+        rows[i] = options.loseCasTo
+        return 'stale'
+      }
+      if (options.failTransitionTo === update.state) {
+        throw propertyError(
+          'region_move_conflict',
+          'injected authority transition failure',
+        )
+      }
+      if (
+        rows[i].state !== update.expectedState ||
+        rows[i].stateRevision !== update.expectedStateRevision
+      ) {
+        return 'stale'
+      }
+      if (update.state === 'target_activated') calls.activate += 1
+      if (update.state === 'rolling_back') calls.restore += 1
+      const {
+        expectedState: _state,
+        expectedStateRevision: _revision,
+        ...changes
+      } = update
+      rows[i] = {
+        ...rows[i],
+        ...changes,
+        stateRevision: rows[i].stateRevision + 1,
+      }
+      return 'updated'
     },
   }
   const useCase = advanceRegionMove({
     moveStore: store,
     queues: [{ name: 'default', queue: queue.port }],
     clock: () => now,
+    logger: { info: () => {} },
   })
   return {
     useCase,
@@ -116,6 +143,27 @@ const advance = (
   )
 
 describe('advanceRegionMove (BQC-4.5 stepper)', () => {
+  it('requires policy administration authority before effects or writes', async () => {
+    const { useCase, rows, queue, calls } = setup(makeMove())
+    const unauthorized = buildTestAuthContext({ role: 'Staff' })
+
+    await expect(
+      useCase(
+        {
+          moveId: rows[0].id,
+          toState: 'writes_paused',
+          confirmedBy: unauthorized.userId,
+        },
+        unauthorized,
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isPropertyError(error) && error.code === 'forbidden',
+    )
+    expect(rows[0]).toEqual(makeMove())
+    expect(queue.state.pauseCalls).toBe(0)
+    expect(calls).toEqual({ activate: 0, restore: 0 })
+  })
+
   it('drives the full happy path requested → … → completed', async () => {
     const { useCase, rows, calls, advanceTime, getNow } = setup(makeMove())
     const path: ReadonlyArray<RegionMoveState> = [
@@ -254,6 +302,23 @@ describe('advanceRegionMove (BQC-4.5 stepper)', () => {
     )
   })
 
+  it('fails closed when a stale stepper loses the state-revision CAS', async () => {
+    const staleMove = makeMove('verified')
+    const terminal = {
+      ...staleMove,
+      state: 'completed' as const,
+      stateRevision: 8,
+      completedAt: new Date('2026-07-18T12:08:00.000Z'),
+    }
+    const { useCase, rows, calls } = setup(staleMove, {}, { loseCasTo: terminal })
+
+    await expect(advance(useCase, 'target_activated')).rejects.toSatisfy(
+      (error: unknown) => isPropertyError(error) && error.code === 'region_move_conflict',
+    )
+    expect(rows[0]).toEqual(terminal)
+    expect(calls.activate).toBe(0)
+  })
+
   it('rolls back: failed → rolling_back resumes queues + restores source, rolled_back is terminal', async () => {
     const { useCase, queue, calls, rows } = setup(makeMove('writes_paused'))
     await queue.port.pause()
@@ -278,5 +343,35 @@ describe('advanceRegionMove (BQC-4.5 stepper)', () => {
     await expect(advance(useCase, 'requested')).rejects.toSatisfy(
       (e: unknown) => isPropertyError(e) && e.code === 'invalid_transition',
     )
+  })
+
+  it('keeps queues paused when source-authority restoration fails', async () => {
+    const { useCase, queue, rows } = setup(
+      makeMove('failed'),
+      {},
+      {
+        failTransitionTo: 'rolling_back',
+      },
+    )
+    await queue.port.pause()
+
+    await expect(advance(useCase, 'rolling_back')).rejects.toSatisfy(
+      (error: unknown) => isPropertyError(error) && error.code === 'region_move_conflict',
+    )
+
+    expect(queue.state.paused).toBe(true)
+    expect(queue.state.resumeCalls).toBe(0)
+    expect(rows[0].state).toBe('failed')
+  })
+
+  it('retries queue resume after rolling-back authority already committed', async () => {
+    const { useCase, queue } = setup(makeMove('rolling_back'))
+    await queue.port.pause()
+
+    const result = await advance(useCase, 'rolling_back')
+
+    expect(result).toMatchObject({ advanced: false, note: 'already_in_state' })
+    expect(queue.state.paused).toBe(false)
+    expect(queue.state.resumeCalls).toBe(1)
   })
 })

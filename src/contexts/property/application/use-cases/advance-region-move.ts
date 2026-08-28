@@ -1,11 +1,11 @@
-// Property context — advance region move use case (BQC-4.5 / ADR 0048).
+// Property context — advance region move use case (BQC-4.5 / ADR 0057,
+// retaining the ADR 0048 workflow seam for future expansion).
 //
 // The operator-driven stepper for the move rehearsal and future real moves.
 // One call requests ONE transition ({ toState }); the machine
-// (domain/region-move-workflow) validates it and the stepper executes the
-// per-state effect BEFORE writing the state — a crash leaves the state behind
-// the effects, and retrying the same { toState } is an idempotent no-op
-// ('already_in_state'), so every step is safely re-runnable.
+// (domain/region-move-workflow) validates it. External effects are ordered so
+// crashes remain safely retryable; Property authority changes co-commit with
+// the state CAS, and rollback resumes queues only after source restoration.
 //
 // Per-state effects:
 //   writes_paused    — PAUSE the property-scoped queues via the BQC-0.4
@@ -17,21 +17,19 @@
 //                      recorded on the row. Real copy lands with the second
 //                      cell (BQC-7 / Europe evidence).
 //   verified         — POLICY GATE (same comment as data_copied)
-//   target_activated — the source-of-truth swap: ONE guarded UPDATE on
-//                      properties (processing_region + routing_policy_version+1)
-//                      — the atomic authority change
+//   target_activated — the repository co-commits the source-of-truth swap and
+//                      state-revision CAS in ONE PostgreSQL transaction
 //   source_erased    — record-only while there is one cell (nothing exists to
 //                      erase; the erasure contract is the transition itself)
 //   completed        — terminal; completed_at stamped
 //   failed           — operator-recorded failure; error kept content-free
 //                      (first line only)
-//   rolling_back     — RESUME queues (jobs were preserved) + restore the
-//                      source region if activation had committed (guarded,
-//                      idempotent) — the source stays the single authority
-//                      throughout and no external effect is duplicated
+//   rolling_back     — RESUME queues (jobs were preserved); the repository
+//                      co-commits source restoration with the state CAS
 //   rolled_back      — terminal record
 
 import type { AuthContext } from '#/shared/domain/auth-context'
+import { canForContext } from '#/shared/domain/permissions'
 import {
   pauseQueueForQuarantine,
   resumeQueueFromQuarantine,
@@ -39,7 +37,7 @@ import {
   type QuarantineQueuePort,
 } from '#/shared/jobs/queue-quarantine'
 import { readQueueDepth } from '#/shared/health/queue-depth'
-import { getLogger } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { propertyError } from '../../domain/errors'
 import {
   assertValidMoveTransition,
@@ -62,6 +60,7 @@ export type AdvanceRegionMoveDeps = Readonly<{
   moveStore: RegionMoveStore
   queues: ReadonlyArray<RegionMoveQueueBinding>
   clock: () => Date
+  logger: Pick<LoggerPort, 'info'>
 }>
 
 export type AdvanceRegionMoveInput = Readonly<{
@@ -92,53 +91,34 @@ async function queuesDrained(deps: AdvanceRegionMoveDeps): Promise<boolean> {
   return true
 }
 
+async function resumeMoveQueues(deps: AdvanceRegionMoveDeps): Promise<void> {
+  for (const { name, queue } of deps.queues) {
+    if (!queue) continue
+    await resumeQueueFromQuarantine(queue)
+    deps.logger.info({ queue: name }, 'region move: queue resumed')
+  }
+}
+
 /** Execute the toState effect. Returns 'queues_not_drained' when the step
  * must stay (no state write), otherwise null. */
 async function applyStepEffect(
   deps: AdvanceRegionMoveDeps,
-  move: RegionMoveRecord,
   toState: RegionMoveState,
-  now: Date,
 ): Promise<'queues_not_drained' | null> {
-  const logger = getLogger()
   switch (toState) {
     case 'writes_paused':
       for (const { name, queue } of deps.queues) {
         if (!queue) continue
         await pauseQueueForQuarantine(queue)
-        logger.info({ queue: name }, 'region move: queue paused')
+        deps.logger.info({ queue: name }, 'region move: queue paused')
       }
       return null
     case 'queues_drained':
       return (await queuesDrained(deps)) ? null : 'queues_not_drained'
-    case 'rolling_back':
-      for (const { name, queue } of deps.queues) {
-        if (!queue) continue
-        await resumeQueueFromQuarantine(queue)
-        logger.info({ queue: name }, 'region move: queue resumed')
-      }
-      // Restore the source when activation had committed (guarded — a
-      // pre-activation failure reports already_active and changes nothing).
-      await deps.moveStore.restoreSourceRegion({
-        orgId: move.organizationId,
-        propertyId: move.propertyId,
-        fromRegion: move.fromRegion,
-        toRegion: move.toRegion,
-        resolvedAt: now,
-      })
-      return null
-    case 'target_activated':
-      await deps.moveStore.activateTargetRegion({
-        orgId: move.organizationId,
-        propertyId: move.propertyId,
-        fromRegion: move.fromRegion,
-        toRegion: move.toRegion,
-        resolvedAt: now,
-      })
-      return null
     default:
-      // data_copied / verified: policy gates (see header). source_erased:
-      // record-only with one cell. completed / rolled_back: terminal records.
+      // data_copied / verified: policy gates (see header). target_activated
+      // and rolling_back: transaction-owned authority effects. source_erased:
+      // record-only with one cell. completed / rolled_back: terminal records;
       // failed: no external effect — the error line is written by the step.
       return null
   }
@@ -154,6 +134,9 @@ export const advanceRegionMove =
     input: AdvanceRegionMoveInput,
     ctx: AuthContext,
   ): Promise<AdvanceRegionMoveResult> => {
+    if (!canForContext(ctx, 'policy.admin')) {
+      throw propertyError('forbidden', 'policy administration permission is required')
+    }
     const move = await deps.moveStore.findMoveById(ctx.organizationId, input.moveId)
     if (!move) {
       throw propertyError(
@@ -163,6 +146,7 @@ export const advanceRegionMove =
     }
     // Idempotent retry of a reached state — the crash/retry contract.
     if (move.state === input.toState) {
+      if (input.toState === 'rolling_back') await resumeMoveQueues(deps)
       return { move, advanced: false, note: 'already_in_state' }
     }
     assertValidMoveTransition(move.state, input.toState)
@@ -171,18 +155,52 @@ export const advanceRegionMove =
     }
 
     const now = deps.clock()
-    const note = await applyStepEffect(deps, move, input.toState, now)
+    const note = await applyStepEffect(deps, input.toState)
     if (note) return { move, advanced: false, note }
 
     const update: RegionMoveStateUpdate = {
+      expectedState: move.state,
+      expectedStateRevision: move.stateRevision,
       state: input.toState,
       requestedBy: input.confirmedBy,
       stateChangedAt: now,
       ...(input.toState === 'completed' ? { completedAt: now } : {}),
       ...(input.toState === 'failed' ? { error: firstLine(input.error ?? '') } : {}),
     }
-    await deps.moveStore.updateMoveState(ctx.organizationId, input.moveId, update)
-    return { move: { ...move, ...update }, advanced: true, note: null }
+    const outcome = await deps.moveStore.updateMoveState(
+      ctx.organizationId,
+      input.moveId,
+      update,
+    )
+    if (outcome === 'stale') {
+      const current = await deps.moveStore.findMoveById(ctx.organizationId, input.moveId)
+      if (current?.state === input.toState) {
+        if (input.toState === 'rolling_back') await resumeMoveQueues(deps)
+        return { move: current, advanced: false, note: 'already_in_state' }
+      }
+      throw propertyError(
+        'region_move_conflict',
+        'region move changed while this step was being committed',
+        {
+          moveId: input.moveId,
+          expectedState: move.state,
+          expectedStateRevision: move.stateRevision,
+          currentState: current?.state ?? null,
+          currentStateRevision: current?.stateRevision ?? null,
+        },
+      )
+    }
+    if (input.toState === 'rolling_back') await resumeMoveQueues(deps)
+    const nextMove: RegionMoveRecord = {
+      ...move,
+      state: update.state,
+      stateRevision: move.stateRevision + 1,
+      requestedBy: update.requestedBy,
+      stateChangedAt: update.stateChangedAt,
+      ...(update.completedAt !== undefined ? { completedAt: update.completedAt } : {}),
+      ...(update.error !== undefined ? { error: update.error } : {}),
+    }
+    return { move: nextMove, advanced: true, note: null }
   }
 
 export type AdvanceRegionMove = ReturnType<typeof advanceRegionMove>

@@ -1,4 +1,5 @@
-// BQC-4.5 — region move workflow state machine (ADR 0048, phase BQC-4 §4.5).
+// BQC-4.5 — region move workflow state machine (retained by ADR 0057 from the
+// historical ADR 0048 design, phase BQC-4 §4.5).
 //
 // Models an operator-driven cross-cell property move as a durable machine:
 //
@@ -25,7 +26,7 @@
 //
 // A move target must be in the catalogue's accepting set. The full lifecycle
 // is proven against a simulated approved target in the rehearsal test while
-// Europe/Global remain provisioning.
+// Europe/Global remain dormant.
 
 import { propertyError } from './errors'
 import { DATA_CELL_IDS } from '#/shared/domain/data-cell-catalogue'
@@ -139,7 +140,8 @@ export function authoritativeCellFor(
 }
 
 /**
- * One region move (the region_moves row, migration 0016). state_changed_at +
+ * One region move (the region_moves row, migrations 0016, 0147–0148).
+ * state_changed_at +
  * requested_by advance on EVERY step (the operator confirming the step is
  * recorded); requested_at is the immutable request timestamp. error holds a
  * content-free first line only; denial_reason holds the typed denial when a
@@ -152,6 +154,8 @@ export type RegionMoveRecord = Readonly<{
   fromRegion: string
   toRegion: string
   state: RegionMoveState
+  /** Monotonic compare-and-swap fence for stepper transitions. */
+  stateRevision: number
   denialReason: string | null
   requestedBy: string
   requestedAt: Date

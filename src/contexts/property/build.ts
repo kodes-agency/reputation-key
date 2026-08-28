@@ -12,27 +12,30 @@ import type {
   PropertyResponsibleManagerPublicApi,
   PropertyGoogleReviewDestinationPublicApi,
   PropertyReplyLanguagePublicApi,
+  PropertyLifecyclePublicApi,
 } from './application/public-api'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
-import type { IdentityPublicApi } from '#/contexts/identity/application/public-api'
+import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
 import type { OrganizationId, PropertyId, GoogleConnectionId } from '#/shared/domain/ids'
 import type { EventBus } from '#/shared/events/event-bus'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createProperty } from './application/use-cases/create-property'
 import { updateProperty } from './application/use-cases/update-property'
 import { listProperties } from './application/use-cases/list-properties'
 import { getProperty } from './application/use-cases/get-property'
-import { deleteProperty } from './application/use-cases/soft-delete-property'
 import { requestRegionMove } from './application/use-cases/request-region-move'
 import {
   advanceRegionMove,
   type RegionMoveQueueBinding,
 } from './application/use-cases/advance-region-move'
-import type { RegionMoveAuditWriter } from './application/ports/region-move-store.port'
+import type { RegionMoveAuditWriter } from './application/ports/region-move-request-command-store.port'
 import { createAtomicPropertyCommandStore } from './infrastructure/property-command-store'
 import { createPropertyGoogleBindingStore } from './infrastructure/property-google-binding-store'
+import { createPropertyLifecycleCommandStore } from './infrastructure/property-lifecycle-command-store'
 import type { PropertyGoogleBindingPublicApi } from './application/public-api'
 import { registerPropertyRetentionConsumer } from './infrastructure/outbox-consumers'
 import { createRegionMoveRepository } from './infrastructure/repositories/region-move.repository'
+import { createRegionMoveRequestCommandStore } from './infrastructure/adapters/region-move-request-command-store.adapter'
 import { createPropertyResponsibleManagerRepository } from './infrastructure/repositories/property-responsible-manager.repository'
 import {
   listPropertyResponsibleManagers,
@@ -40,14 +43,18 @@ import {
 } from './application/use-cases/property-responsible-managers'
 import { isEligiblePropertyManager } from './application/property-manager-eligibility'
 import { propertyId } from '#/shared/domain/ids'
-import { randomUUID } from 'crypto'
+import {
+  archiveProperty,
+  disconnectPropertyGoogleBinding,
+  restoreProperty,
+} from './application/use-cases/property-lifecycle'
 import {
   ACCEPTING_DATA_CELL_IDS,
   type DataCellId,
 } from '#/shared/domain/data-cell-catalogue'
 
 /**
- * BQC-4.5 region-move wiring. approvedCells defaults to the catalogue's
+ * BQC-4.5 / ADR 0057 region-move wiring. approvedCells defaults to the catalogue's
  * accepting set; widening therefore requires a reviewed catalogue state
  * transition. queues binds the cell's property-scoped queues for the
  * stepper's pause/drain/resume (BQC-0.4 primitive + BQC-3.7 depth reader).
@@ -63,10 +70,11 @@ type PropertyContextDeps = Readonly<{
   repo: PropertyRepository
   events: EventBus
   clock: () => Date
+  idGen: () => string
   /** REG-01: process-local repository/command-store cell fence. */
   localCell: DataCellId
   staffPublicApi: StaffPublicApi
-  identityPublicApi: IdentityPublicApi
+  identityManagerFacts: IdentityManagerFactsPublicApi
   regionMove: RegionMoveContextDeps
   /**
    * BQC-2.7 parity for the manual creation path: grant a newly created
@@ -81,30 +89,55 @@ type PropertyContextDeps = Readonly<{
       createdBy: string
     }>,
   ) => Promise<void>
-  logger?: Readonly<{ warn: (obj: object, msg: string) => void }>
+  logger: Pick<LoggerPort, 'info' | 'warn'>
 }>
 
 export const buildPropertyContext = (deps: PropertyContextDeps) => {
-  const idGen = () => propertyId(randomUUID())
+  const idGen = () => propertyId(deps.idGen())
   // BQC-3.5: every property state mutation + fact commits atomically here.
   const commandStore = createAtomicPropertyCommandStore(
     deps.db,
     deps.events,
     deps.localCell,
   )
-  // BQC-4.5: the region move store (region_moves, migration 0016) + the
-  // guarded authority swap on properties.
+  // BQC-4.5: the accepted-request authority co-commits the machine row and
+  // operator decision. The transition store then owns guarded authority swaps.
   const regionMoveStore = createRegionMoveRepository(deps.db)
+  const regionMoveRequestCommandStore = createRegionMoveRequestCommandStore(deps.db)
   const bindingApi: PropertyGoogleBindingPublicApi = createPropertyGoogleBindingStore(
+    deps.db,
+    deps.events,
+    deps.localCell,
+  )
+  const lifecycleStore = createPropertyLifecycleCommandStore(
     deps.db,
     deps.events,
     deps.localCell,
   )
   const responsibleManagerRepo = createPropertyResponsibleManagerRepository(deps.db)
   const managerEligibility = {
-    identityPublicApi: deps.identityPublicApi,
+    identityPublicApi: deps.identityManagerFacts,
     staffPublicApi: deps.staffPublicApi,
   }
+  const lifecycleReadiness = {
+    hasEligibleResponsibleManager: async (
+      organizationId: OrganizationId,
+      pid: PropertyId,
+    ) => {
+      const assignments = await responsibleManagerRepo.listActive(organizationId, pid)
+      const eligibility = await Promise.all(
+        assignments.map((assignment) =>
+          isEligiblePropertyManager(
+            managerEligibility,
+            organizationId,
+            pid,
+            assignment.userId,
+          ),
+        ),
+      )
+      return eligibility.some(Boolean)
+    },
+  } as const
 
   const useCases = {
     createProperty: createProperty({
@@ -133,18 +166,37 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     }),
     requestRegionMove: requestRegionMove({
       propertyRepo: deps.repo,
-      moveStore: regionMoveStore,
+      requestCommandStore: regionMoveRequestCommandStore,
       approvedCells: deps.regionMove.approvedCells ?? new Set(ACCEPTING_DATA_CELL_IDS),
       writeOperatorAudit: deps.regionMove.writeOperatorAudit,
-      idGen: () => randomUUID(),
+      idGen: deps.idGen,
       clock: deps.clock,
     }),
     advanceRegionMove: advanceRegionMove({
       moveStore: regionMoveStore,
       queues: deps.regionMove.queues,
       clock: deps.clock,
+      logger: deps.logger,
     }),
-    softDeleteProperty: deleteProperty(),
+    archiveProperty: archiveProperty({
+      propertyRepo: deps.repo,
+      lifecycleStore,
+      staffPublicApi: deps.staffPublicApi,
+      clock: deps.clock,
+    }),
+    restoreProperty: restoreProperty({
+      propertyRepo: deps.repo,
+      lifecycleStore,
+      staffPublicApi: deps.staffPublicApi,
+      readiness: lifecycleReadiness,
+      clock: deps.clock,
+    }),
+    disconnectPropertyGoogleBinding: disconnectPropertyGoogleBinding({
+      propertyRepo: deps.repo,
+      staffPublicApi: deps.staffPublicApi,
+      bindingStore: bindingApi,
+      clock: deps.clock,
+    }),
     listPropertyResponsibleManagers: listPropertyResponsibleManagers({
       propertyRepo: deps.repo,
       managerRepo: responsibleManagerRepo,
@@ -160,12 +212,15 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     }),
   } as const
 
-  const publicApi: PropertyPublicApi &
+  const propertyFactsApi: PropertyPublicApi &
     PropertyFactsPublicApi &
     PropertyProcessingScopePublicApi &
     PropertyReplyLanguagePublicApi &
     PropertyGoogleReviewDestinationPublicApi &
-    PropertyResponsibleManagerPublicApi = {
+    PropertyLifecyclePublicApi &
+    PropertyResponsibleManagerPublicApi &
+    PropertyGoogleBindingPublicApi = {
+    ...bindingApi,
     propertyExists: async (orgId: OrganizationId, pid: PropertyId) => {
       const p = await deps.repo.findById(orgId, pid)
       return p !== null
@@ -186,6 +241,10 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       const property = await deps.repo.findById(orgId, pid)
       return property?.googleReviewDestination ?? null
     },
+    isPropertyActive: async (orgId: OrganizationId, pid: PropertyId) => {
+      const property = await deps.repo.findById(orgId, pid)
+      return property?.lifecycleState === 'active'
+    },
     getPropertyNames: async (
       orgId: OrganizationId,
       propertyIds: ReadonlyArray<PropertyId>,
@@ -200,6 +259,10 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
         id: p.id,
         organizationId: p.organizationId,
         googleConnectionId: p.googleConnectionId,
+        gbpAccountId: p.gbpAccountId,
+        gbpLocationId: p.gbpLocationId,
+        googleBindingState: p.googleBindingState,
+        sourceEpoch: p.sourceEpoch,
       }
     },
     findBySlug: async (slug: string) => {
@@ -225,6 +288,19 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       orgId: OrganizationId,
     ) => {
       return deps.repo.findIdsByGoogleConnection(connectionId, orgId)
+    },
+    findGoogleNotificationAnchor: async (
+      connectionId: GoogleConnectionId,
+      orgId: OrganizationId,
+    ) => {
+      const linked = [
+        ...(await deps.repo.findIdsByGoogleConnection(connectionId, orgId)),
+      ].sort()
+      if (linked[0]) return linked[0]
+      const active = [...(await deps.repo.list(orgId))]
+        .map((candidate) => candidate.id as string)
+        .sort()
+      return active[0] ?? null
     },
     clearGoogleConnectionRef: async (
       orgId: OrganizationId,
@@ -259,13 +335,19 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     },
   }
 
+  const publicApi = Object.freeze({
+    ...propertyFactsApi,
+    management: Object.freeze(useCases),
+  })
+
   return {
     publicApi,
-    bindingApi,
+    worker: Object.freeze({
+      registerOutboxConsumers: () => registerPropertyRetentionConsumer(publicApi),
+    }),
     internal: {
       repos: { responsibleManagerRepo } as const,
       useCases,
-      registerOutboxConsumers: () => registerPropertyRetentionConsumer(bindingApi),
     },
   } as const
 }

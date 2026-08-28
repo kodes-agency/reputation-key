@@ -43,8 +43,8 @@ export const requestRegionMoveFn = createServerFn({ method: 'POST' })
         })
 
         try {
-          const { useCases } = getContainer()
-          return await useCases.requestRegionMove(
+          const { management } = getContainer().propertyPublicApi
+          return await management.requestRegionMove(
             {
               propertyId: data.propertyId,
               toRegion: data.toRegion,

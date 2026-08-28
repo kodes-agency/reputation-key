@@ -51,12 +51,18 @@ describe('propertyErrorStatus (imported from server module)', () => {
       'invalid_name',
       'invalid_timezone',
       'invalid_country',
+      'invalid_lifecycle_reason',
       'region_locked',
       'invalid_transition',
       'property_not_active',
       'region_unresolved',
       'region_move_conflict',
       'stale_property',
+      'property_recovery_expired',
+      'property_restore_not_ready',
+      'google_binding_not_disconnectable',
+      'responsible_manager_ineligible',
+      'revision_conflict',
     ]
     for (const code of codes) {
       const status = propertyErrorStatus(code)

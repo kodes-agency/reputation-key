@@ -205,11 +205,11 @@ function assertBindingProfile(input: {
   }
 }
 
-export function createPropertyGoogleBindingStore(
+export const createPropertyGoogleBindingStore = (
   db: Database,
   events: EventBus,
   localCell?: DataCellId,
-): PropertyGoogleBindingStore {
+): PropertyGoogleBindingStore => {
   const cellWhere = () => (localCell ? [eq(properties.dataCellId, localCell)] : [])
   const readReceipt: PropertyGoogleBindingStore['readReceipt'] = async (
     organizationIdValue,

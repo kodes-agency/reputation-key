@@ -27,9 +27,11 @@ vi.mock('#/shared/auth/execution-policy', () => ({
 }))
 vi.mock('#/composition', () => ({
   getContainer: vi.fn(() => ({
-    useCases: {
-      listPropertyResponsibleManagers: mocks.list,
-      updatePropertyResponsibleManagers: mocks.update,
+    propertyPublicApi: {
+      management: {
+        listPropertyResponsibleManagers: mocks.list,
+        updatePropertyResponsibleManagers: mocks.update,
+      },
     },
   })),
 }))

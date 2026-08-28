@@ -21,6 +21,12 @@ export const propertyErrorStatus = (code: PropertyErrorCode): number =>
     .with('slug_taken', 'region_locked', 'revision_conflict', () => HTTP_STATUS.CONFLICT)
     .with('property_not_active', 'invalid_transition', () => HTTP_STATUS.CONFLICT)
     .with(
+      'property_recovery_expired',
+      'property_restore_not_ready',
+      'google_binding_not_disconnectable',
+      () => HTTP_STATUS.CONFLICT,
+    )
+    .with(
       'region_unresolved',
       'region_move_conflict',
       'stale_property',
@@ -31,6 +37,7 @@ export const propertyErrorStatus = (code: PropertyErrorCode): number =>
       'invalid_name',
       'invalid_timezone',
       'invalid_country',
+      'invalid_lifecycle_reason',
       'responsible_manager_ineligible',
       () => HTTP_STATUS.BAD_REQUEST,
     )

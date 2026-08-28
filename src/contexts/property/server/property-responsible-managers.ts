@@ -35,7 +35,10 @@ export const listPropertyResponsibleManagers = createServerFn({ method: 'GET' })
             action: 'property.read',
             propertyId: data.propertyId,
           })
-          return await getContainer().useCases.listPropertyResponsibleManagers(data, ctx)
+          return await getContainer().propertyPublicApi.management.listPropertyResponsibleManagers(
+            data,
+            ctx,
+          )
         } catch (error) {
           rethrow(error)
         }
@@ -57,7 +60,7 @@ export const updatePropertyResponsibleManagers = createServerFn({ method: 'POST'
             action: 'property.update',
             propertyId: data.propertyId,
           })
-          return await getContainer().useCases.updatePropertyResponsibleManagers(
+          return await getContainer().propertyPublicApi.management.updatePropertyResponsibleManagers(
             data,
             ctx,
           )

@@ -71,11 +71,11 @@ function buildPropertySetClause(patch: Readonly<Partial<Property>>): PropertySet
   return set
 }
 
-export function createAtomicPropertyCommandStore(
+export const createAtomicPropertyCommandStore = (
   db: Database,
   events: EventBus,
   localCell?: DataCellId,
-): PropertyCommandStore {
+): PropertyCommandStore => {
   return {
     createProperty: async (command: CreatePropertyCommand) => {
       return trace('property.commandStore.createProperty', async () => {

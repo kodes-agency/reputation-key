@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 
 const db = getDb()
 const ORG = 'org-data-cell-immutability'
@@ -48,7 +49,7 @@ function hasPostgresCode(error: unknown, code: string): boolean {
 
 beforeAll(async () => {
   await clearFixtures()
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt")
     VALUES (${ORG}, 'Data Cell Guard', ${ORG}, now())
@@ -62,7 +63,7 @@ beforeEach(async () => {
 
 afterAll(async () => {
   await clearFixtures()
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
 })
 
 describe.sequential('Property Data Cell assignment guard', () => {

@@ -17,6 +17,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { sql } from 'drizzle-orm'
 import type { Queue } from 'bullmq'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createJobQueue } from '#/shared/jobs/queue'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -25,6 +26,7 @@ import { organizationId, userId } from '#/shared/domain/ids'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import { createRegionMoveRepository } from './region-move.repository'
+import { createRegionMoveRequestCommandStore } from '../adapters/region-move-request-command-store.adapter'
 import { requestRegionMove } from '../../application/use-cases/request-region-move'
 import { advanceRegionMove } from '../../application/use-cases/advance-region-move'
 import { updateProperty } from '../../application/use-cases/update-property'
@@ -65,7 +67,6 @@ const silentEvents: EventBus = {
 const stubStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 let defaultQueue: Queue
@@ -82,7 +83,7 @@ let moveSeq = 0
 function makeUseCases(approvedCells: ReadonlySet<string>) {
   const request = requestRegionMove({
     propertyRepo: createPropertyRepository(db),
-    moveStore: store,
+    requestCommandStore: createRegionMoveRequestCommandStore(db),
     approvedCells,
     writeOperatorAudit: async (entry) => {
       audits.push(entry)
@@ -104,6 +105,7 @@ function makeUseCases(approvedCells: ReadonlySet<string>) {
       { name: 'background', queue: backgroundQueue },
     ],
     clock: () => now,
+    logger: { info: () => {} },
   })
   const update = updateProperty({
     propertyRepo: createPropertyRepository(db),
@@ -167,8 +169,8 @@ async function clearOrgFixtures() {
     sql`DELETE FROM properties WHERE organization_id = ${ORG}`,
     sql`DELETE FROM member WHERE "organizationId" = ${ORG}`,
     sql`DELETE FROM "user" WHERE id = ${OPERATOR}`,
-    sql`DELETE FROM organization WHERE id = ${ORG}`,
   ])
+  await deleteTestOrganizations(db, [ORG])
 }
 
 beforeAll(async () => {
@@ -283,6 +285,7 @@ describe('region move rehearsal (BQC-4.5, real PostgreSQL + Redis)', () => {
     const rows = await moveRowsFor(PROP_LIFECYCLE)
     expect(rows).toHaveLength(1)
     expect(rows[0].state).toBe('completed')
+    expect(rows[0].state_revision).toBe(8)
     const asTime = (v: unknown) => new Date(v as string).getTime()
     expect(asTime(rows[0].requested_at)).toBe(T0.getTime())
     expect(asTime(rows[0].state_changed_at)).toBe(stateChangedTicks.at(-1)?.getTime())

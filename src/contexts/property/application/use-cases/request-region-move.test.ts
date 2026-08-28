@@ -1,6 +1,6 @@
 // BQC-4.5 — request region move use case (unit, in-memory ports).
 //
-// Beta reality (ADR 0048): 'us' is the ONLY approved cell, so every real
+// Beta reality (ADR 0057): 'us' is the ONLY accepting Data Cell, so every real
 // move request resolves to a TYPED DENIAL + operator audit — denied requests
 // never create a region_moves row. The approved path is proven here with a
 // stubbed approved-cell set ('europe' injected), mirroring the rehearsal.
@@ -8,45 +8,44 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { createInMemoryPropertyRepo } from '#/shared/testing/in-memory-property-repo'
 import { buildTestAuthContext, buildTestProperty } from '#/shared/testing/fixtures'
+import { isPropertyError } from '../../domain/errors'
 import type { RegionMoveRecord } from '../../domain/region-move-workflow'
 import type {
   RegionMoveAuditWriter,
-  RegionMoveStateUpdate,
-  RegionMoveStore,
-} from '../ports/region-move-store.port'
+  RegionMoveRequestCommandStore,
+} from '../ports/region-move-request-command-store.port'
 import { requestRegionMove, type RegionMoveDenialReason } from './request-region-move'
 
 const NOW = new Date('2026-07-18T12:00:00.000Z')
 let moveSeq = 0
 
-function createInMemoryMoveStore() {
+function createInMemoryMoveStore(
+  recordOutcome: 'recorded' | 'active_move_exists' = 'recorded',
+) {
   const rows: RegionMoveRecord[] = []
-  const store: RegionMoveStore = {
-    insertMove: async (move) => {
-      rows.push(move)
+  const audits: AuditEntry[] = []
+  const store: RegionMoveRequestCommandStore = {
+    recordRequest: async (command) => {
+      if (recordOutcome === 'active_move_exists') return recordOutcome
+      rows.push(command.move)
+      audits.push(command.audit)
+      return recordOutcome
     },
-    findMoveById: async (_orgId, moveId) => rows.find((r) => r.id === moveId) ?? null,
-    findActiveMoveForProperty: async (_orgId, propertyId) =>
-      rows.find((r) => r.propertyId === propertyId && r.state === 'requested') ?? null,
-    updateMoveState: async (_orgId, moveId, update: RegionMoveStateUpdate) => {
-      const i = rows.findIndex((r) => r.id === moveId)
-      if (i >= 0) rows[i] = { ...rows[i], ...update }
-    },
-    activateTargetRegion: async () => 'swapped',
-    restoreSourceRegion: async () => 'already_active',
   }
-  return { store, rows }
+  return { store, rows, audits }
 }
 
 type AuditEntry = Parameters<RegionMoveAuditWriter>[0]
 
-function setup(approvedCells: ReadonlySet<string> = new Set(['us'])) {
+function setup(
+  approvedCells: ReadonlySet<string> = new Set(['us']),
+  recordOutcome: 'recorded' | 'active_move_exists' = 'recorded',
+) {
   const propertyRepo = createInMemoryPropertyRepo()
-  const { store, rows } = createInMemoryMoveStore()
-  const audits: AuditEntry[] = []
+  const { store, rows, audits } = createInMemoryMoveStore(recordOutcome)
   const useCase = requestRegionMove({
     propertyRepo,
-    moveStore: store,
+    requestCommandStore: store,
     approvedCells,
     writeOperatorAudit: async (entry) => {
       audits.push(entry)
@@ -71,6 +70,26 @@ function seedUsProperty() {
 describe('requestRegionMove (BQC-4.5)', () => {
   beforeEach(() => {
     moveSeq = 0
+  })
+
+  it('requires policy administration authority before reading or writing', async () => {
+    const { useCase, rows, audits } = setup(new Set(['us', 'europe']))
+    const unauthorized = buildTestAuthContext({ role: 'Staff' })
+
+    await expect(
+      useCase(
+        {
+          propertyId: 'a0000000-0000-0000-0000-00000000dead',
+          toRegion: 'europe',
+          reason: 'unauthorized move request',
+        },
+        unauthorized,
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isPropertyError(error) && error.code === 'forbidden',
+    )
+    expect(rows).toHaveLength(0)
+    expect(audits).toHaveLength(0)
   })
 
   describe('typed denials — beta approved cell set is us-only', () => {
@@ -204,6 +223,7 @@ describe('requestRegionMove (BQC-4.5)', () => {
         fromRegion: 'us',
         toRegion: 'europe',
         state: 'requested',
+        stateRevision: 1,
         requestedBy: ctx.userId,
         requestedAt: NOW,
         stateChangedAt: NOW,
@@ -238,6 +258,31 @@ describe('requestRegionMove (BQC-4.5)', () => {
       expect(result.ok).toBe(true)
       expect(rows).toHaveLength(1)
       expect(rows[0]).toMatchObject({ fromRegion: 'europe', toRegion: 'us' })
+    })
+
+    it('returns a typed denial when the PostgreSQL authority wins a concurrent request', async () => {
+      const { useCase, propertyRepo, rows, audits } = setup(
+        new Set(['us', 'europe']),
+        'active_move_exists',
+      )
+      const prop = seedUsProperty()
+      propertyRepo.seed([prop])
+
+      await expect(
+        useCase(
+          {
+            propertyId: prop.id,
+            toRegion: 'europe',
+            reason: 'concurrent operator request',
+          },
+          ctx,
+        ),
+      ).resolves.toEqual({ ok: false, reason: 'active_move_exists' })
+      expect(rows).toHaveLength(0)
+      expect(audits).toEqual([
+        expect.objectContaining({ decision: 'deny', reason: expect.any(String) }),
+      ])
+      expect(audits[0]?.reason).toContain('active_move_exists')
     })
   })
 })

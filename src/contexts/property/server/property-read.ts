@@ -32,8 +32,8 @@ export const listProperties = createServerFn({ method: 'GET' }).handler(
       await requireExecutionAllowed({ actor: ctx, action: 'property.read' })
 
       try {
-        const { useCases } = getContainer()
-        const properties = await useCases.listProperties(ctx)
+        const { management } = getContainer().propertyPublicApi
+        const properties = await management.listProperties(ctx)
         return { properties }
       } catch (e) {
         if (isPropertyError(e))
@@ -62,8 +62,8 @@ export const getProperty = createServerFn({ method: 'GET' })
         })
 
         try {
-          const { useCases } = getContainer()
-          const property = await useCases.getProperty(data, ctx)
+          const { management } = getContainer().propertyPublicApi
+          const property = await management.getProperty(data, ctx)
           return { property }
         } catch (e) {
           if (isPropertyError(e))
@@ -94,7 +94,8 @@ export const deleteProperty = createServerFn({ method: 'POST' })
         // LIF-01: keep this stale-client boundary so callers receive a typed,
         // mild denial, but deliberately provide no edge to the legacy
         // destructive use case. Archive/Disconnect and support-mediated
-        // erasure will be separate commands when their lifecycle exists.
+        // erasure remains separate. The implemented recoverable lifecycle uses
+        // the dedicated Archive/Restore/Property-binding-disconnect commands.
         const unavailable = propertyError(
           'forbidden',
           PROPERTY_DELETION_UNAVAILABLE_MESSAGE,

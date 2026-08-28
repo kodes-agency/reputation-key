@@ -4,7 +4,7 @@
 // No silent region change after a property is already resolved.
 //
 // Private beta executes only in catalogue cells whose lifecycle state is
-// `accepting`. Provisioning or unresolved cells fail closed.
+// `accepting`. Dormant or unresolved cells fail closed.
 
 import { resolveRegion } from '#/shared/domain/processing-profile'
 import {
@@ -35,7 +35,7 @@ export type PropertyRoutingFields = Pick<
  * Resolve processing-profile fields from a country code.
  *
  * - Null/empty country → explicit `unresolved` (not a silent default region).
- * - Non-empty country → `resolveRegion` (us | europe | global) with
+ * - Supported non-empty country → `resolveRegion` (the beta `us` cell) with
  *   `country_default` provenance and a resolution timestamp.
  */
 export function resolvePropertyRouting(args: {

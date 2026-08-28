@@ -11,6 +11,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -90,7 +91,7 @@ beforeAll(async () => {
 afterAll(async () => {
   clearEventSchemas()
   await truncateAll(pool)
-  await pool.query('DELETE FROM organization WHERE id = $1', [ORG_ID])
+  await deleteTestOrganizations(pool, [ORG_ID])
   await pool.end()
 })
 

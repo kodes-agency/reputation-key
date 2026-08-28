@@ -26,7 +26,9 @@ vi.mock('#/shared/auth/execution-policy', () => ({
 }))
 vi.mock('#/composition', () => ({
   getContainer: vi.fn(() => ({
-    useCases: { softDeleteProperty: mocks.destructiveDelete },
+    propertyPublicApi: {
+      management: { softDeleteProperty: mocks.destructiveDelete },
+    },
   })),
 }))
 

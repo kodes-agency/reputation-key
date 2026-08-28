@@ -20,7 +20,6 @@ const createTestStaffApi = (
     return assignments.get(userId as string) ?? []
   },
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const setup = () => {
