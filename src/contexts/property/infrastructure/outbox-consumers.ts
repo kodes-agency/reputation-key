@@ -1,6 +1,6 @@
 import { organizationId } from '#/shared/domain/ids'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import type { PropertyGoogleBindingStore } from '../application/ports/property-google-binding.port'
 
 const EVENT_TYPE = 'integration.property_import.retention_released'
@@ -38,8 +38,10 @@ export async function handlePropertyRetentionReleased(
 }
 
 export function registerPropertyRetentionConsumer(
+  registry: ConsumerRegistry,
   store: PropertyGoogleBindingStore,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'integration.property_import.retention_released',
     consumerName: 'property.import-retention-release',

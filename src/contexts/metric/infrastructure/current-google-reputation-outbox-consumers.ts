@@ -1,10 +1,6 @@
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import {
-  registerConsumer,
-  type ConsumerEvent,
-  type ConsumerResult,
-} from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, ConsumerResult } from '#/shared/outbox'
 import type { CurrentGoogleReputationSnapshotStore } from '../application/ports/current-google-reputation-snapshot.port'
 
 const EVENT_TYPE = 'review.google_reputation_snapshot.verified' as const
@@ -66,8 +62,10 @@ export const handleCurrentGoogleReputationSnapshot = async (
 }
 
 export const registerCurrentGoogleReputationConsumer = (
+  registry: ConsumerRegistry,
   store: CurrentGoogleReputationSnapshotStore,
 ): void => {
+  const { registerConsumer } = registry
   // Keep these literals mechanically discoverable by the governance
   // catalogues. The store exports the same consumer name for its receipt.
   registerConsumer({

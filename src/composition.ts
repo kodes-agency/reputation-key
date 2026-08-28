@@ -39,13 +39,16 @@ import {
 } from '#/shared/jobs/runtime-observations'
 import { createAlertDispatcher } from '#/shared/observability/alert-dispatcher'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
+import { createConsumerRegistry } from '#/shared/outbox'
 import { resolveCutoverState } from '#/shared/outbox/cutover-flags'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
 import { createGrantAccessLookup } from '#/contexts/identity/infrastructure/adapters/grant-access-lookup.adapter'
 import { BetaFeedbackTriageRepository } from '#/contexts/identity/infrastructure/beta-feedback-triage.repository'
-import { registerExecutionPolicyInit } from '#/shared/auth/execution-policy'
-import { registerDelayedExecutionPolicyInit } from '#/shared/auth/system-execution-policy'
+import {
+  bindProcessPolicies,
+  registerProcessPolicyColdBoot,
+} from '#/shared/auth/process-policy-binding'
 import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
 import type { GoogleOAuthProviderCallAuthorizer } from '#/contexts/integration/application/ports/google-oauth.port'
 import type { GoogleImportContentAuthorizer } from '#/contexts/integration/application/google-import-command-authorizer'
@@ -163,6 +166,10 @@ import {
 } from './composition/provider-runtime'
 import { buildInfrastructure } from './composition/infrastructure'
 import { bindPropertyCapabilityProvisioning } from './composition/property-capability-provisioning'
+import {
+  createContainerShutdown,
+  type ContainerShutdown,
+} from './composition/container-lifecycle'
 
 export {
   applyProviderEndpointOverrides,
@@ -471,6 +478,12 @@ export function createContainer(options?: {
   // The outbox records domain events durably. Event schemas are registered
   // once at startup so the relay can validate payloads before publishing.
   const outboxRepo = createOutboxRepository(db)
+  // ARC-03-T7: the durable consumer registry is CONTAINER-OWNED. It used to be
+  // a module-level Map whose duplicate check spanned the whole process, so a
+  // second container could not register its consumers at all. Every context
+  // registers into this instance; the worker's readiness gate and the
+  // dispatcher read the same one.
+  const consumerRegistry = createConsumerRegistry()
   registerAllEventSchemas()
 
   // ── Context builds (dependency order) ──────────────────────────────
@@ -1608,6 +1621,18 @@ export function createContainer(options?: {
         clock,
       })
     : null
+  // ARC-03-T6: registered in release order. Identity's persisted policy store
+  // starts a POLICY_REFRESH_INTERVAL_MS poller while the container is being
+  // built; without this hook the interval outlives every shutdown path.
+  const containerShutdown: ContainerShutdown = createContainerShutdown(
+    [
+      {
+        label: 'identity-policy-store-poller',
+        release: identity.internal.stopPolicyPolling,
+      },
+    ],
+    logger,
+  )
   const operationsSnapshot = createOperationsSnapshot({
     db,
     outboxRepo,
@@ -1663,6 +1688,17 @@ export function createContainer(options?: {
       clock,
       webhookUrl: env.ALERT_WEBHOOK_URL,
     }),
+    // ARC-03-T6: the container's owned release seam. Everything a build()
+    // starts for the life of the process registers here, so the web
+    // graceful-shutdown plugin, the worker drain and closeContainer() all stop
+    // the same resources through one capability instead of leaking them.
+    shutdown: containerShutdown,
+    // ARC-03-T8: the policy trio this container owns. Constructing it installs
+    // nothing process-wide — an entry point calls bindProcessPolicies(container)
+    // exactly once, so a second container can never silently take over.
+    capabilityPolicyStore: identity.internal.capabilityPolicyStore,
+    executionPolicy: identity.internal.executionPolicy,
+    delayedExecutionPolicy: identity.internal.delayedExecutionPolicy,
     cache: infra.cache,
     rateLimiter: infra.rateLimiter,
     jobQueue: infra.jobQueue,
@@ -1780,18 +1816,21 @@ export function createContainer(options?: {
       review.internal.registerWorkerJobs({
         discoveryIntervalMs: reviewDiscoveryIntervalMs,
       }),
+    /** ARC-03-T7: the durable consumer registry this container owns. */
+    consumerRegistry,
     // Worker-only durable consumer registration contributed by owning contexts.
+    // Every context registers into THIS container's registry.
     registerOutboxConsumers: () => {
-      integration.worker.registerOutboxConsumers()
-      review.worker.registerOutboxConsumers()
-      portal.worker.registerOutboxConsumers()
-      property.worker.registerOutboxConsumers()
-      inbox.worker.registerOutboxConsumers()
-      metricApi.worker.registerOutboxConsumers()
-      goal.worker.registerOutboxConsumers(goalCorrectionPolicy)
-      ai.worker.registerOutboxConsumers()
-      activity.worker.registerOutboxConsumers()
-      notification.worker.registerOutboxConsumers()
+      integration.worker.registerOutboxConsumers(consumerRegistry)
+      review.worker.registerOutboxConsumers(consumerRegistry)
+      portal.worker.registerOutboxConsumers(consumerRegistry)
+      property.worker.registerOutboxConsumers(consumerRegistry)
+      inbox.worker.registerOutboxConsumers(consumerRegistry)
+      metricApi.worker.registerOutboxConsumers(consumerRegistry)
+      goal.worker.registerOutboxConsumers(consumerRegistry, goalCorrectionPolicy)
+      ai.worker.registerOutboxConsumers(consumerRegistry)
+      activity.worker.registerOutboxConsumers(consumerRegistry)
+      notification.worker.registerOutboxConsumers(consumerRegistry)
     },
     providerEphemeralRedis,
   } as const
@@ -1842,6 +1881,13 @@ export async function closeContainer(): Promise<void> {
   const container = store[CONTAINER_KEY]
   store[CONTAINER_KEY] = undefined
   if (!container) return
+  // ARC-03-T6: release container-owned background work FIRST. The policy
+  // poller re-reads the database on every tick, so stopping it before the
+  // connections go away is what keeps shutdown quiet instead of logging a
+  // refresh failure against a closing pool. Optional because the singleton is
+  // keyed by Symbol.for and shared across the two composition bundles the
+  // production build emits — an older bundle's container may predate the seam.
+  await container.shutdown?.run()
   await Promise.all([
     container.jobQueue?.close(),
     container.backgroundQueue?.close(),
@@ -1850,14 +1896,35 @@ export async function closeContainer(): Promise<void> {
   await closeJobQueueConnections()
 }
 
-// Cold-boot race fix: the policy singletons (interactive + delayed) are
-// installed inside createContainer, but policy checks can run BEFORE any
-// getContainer() call in a fresh process (e.g. the first dashboard load
-// after a dev-server restart — requireExecutionAllowed precedes the fn's
-// own getContainer call and used to fail with "[EXECUTION POLICY] not
-// initialized"). Registering getContainer as the lazy initializer means the
-// first policy read builds the root on demand. Tests that reset the
-// singletons and don't need the lazy path are unaffected — the hooks only
-// fire while a policy is uninitialized.
-registerExecutionPolicyInit(() => getContainer())
-registerDelayedExecutionPolicyInit(() => getContainer())
+/**
+ * ARC-03-T8: make the singleton container's policy trio the process answer.
+ *
+ * Binding is idempotent for the same container and throws for a different one,
+ * so a simulation, an operator command's own policy boot, or a second
+ * container can no longer silently take the process over — which is exactly
+ * what building a container used to do.
+ *
+ * Each long-lived process names its installation point: the worker binds the
+ * container it builds (src/worker/index.ts), the operator harness binds its
+ * minimal policy boot (scripts/ops/operator-command.ts), and the web process
+ * binds through the cold-boot fallback registered below.
+ */
+export function bindProcessPoliciesFromSingleton(): void {
+  bindProcessPolicies(getContainer())
+}
+
+// Cold-boot fallback for the WEB process — one named registration, no policy
+// installation. A policy check can run before any getContainer() call in a
+// fresh process (requireExecutionAllowed precedes the server function's own
+// getContainer; historically the first dashboard load after a dev-server
+// restart failed with "[EXECUTION POLICY] not initialized"), so the first
+// policy read binds the root on demand.
+//
+// WHY it lives here rather than in a process entry file: this is the only
+// server-side module loaded in BOTH the vite dev SSR runtime and the built
+// server before the first gated request. Nitro plugins do not execute under
+// vite dev, and src/start.ts is an import-protection graph entry for the
+// client environment where '**/composition.ts' is denied. What changed is
+// that the installation itself now goes through the single guarded owner
+// (bindProcessPolicies) instead of two raw singleton writes.
+registerProcessPolicyColdBoot(bindProcessPoliciesFromSingleton)

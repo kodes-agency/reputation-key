@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
 import {
-  clearConsumers,
-  listRegisteredConsumers,
+  createConsumerRegistry,
+  type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -16,6 +16,9 @@ import {
   ON_INBOX_RESPONSE_TARGET_REMINDER_DUE_CONSUMER,
   registerResponseTargetNotificationConsumer,
 } from './response-target-outbox-consumers'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const EVENT_ID = '94000000-0000-4000-8000-000000000001'
 const ITEM = inboxItemId('94000000-0000-4000-8000-000000000002')
@@ -121,19 +124,19 @@ const makeDeps = () => {
 
 describe('Response Target reminder durable consumer', () => {
   beforeEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
     registerAllEventSchemas()
   })
 
   afterEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
   })
 
   it('registers the stable durable consumer identity', () => {
-    registerResponseTargetNotificationConsumer(makeDeps())
-    expect(listRegisteredConsumers()).toEqual([
+    registerResponseTargetNotificationConsumer(consumerRegistry, makeDeps())
+    expect(consumerRegistry.list()).toEqual([
       {
         eventType: 'inbox.response_target.reminder_due',
         consumerName: ON_INBOX_RESPONSE_TARGET_REMINDER_DUE_CONSUMER,

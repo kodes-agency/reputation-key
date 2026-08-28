@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
 import {
-  clearConsumers,
-  listRegisteredConsumers,
+  createConsumerRegistry,
+  type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -18,6 +18,9 @@ import {
   ON_GOOGLE_REAUTHORIZATION_REQUIRED_CONSUMER,
   registerIntegrationNotificationConsumers,
 } from './integration-outbox-consumers'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const EVENT_ID = '83000000-0000-4000-8000-000000000001'
 const ORG = organizationId('org-google-reauth-durable-notification')
@@ -60,20 +63,20 @@ const makeDeps = () => {
 
 describe('Google reauthorization notification durable consumer', () => {
   beforeEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
     registerAllEventSchemas()
   })
 
   afterEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
   })
 
   it('registers and writes its receipt after deterministic fan-out', async () => {
     const deps = makeDeps()
-    registerIntegrationNotificationConsumers(deps)
-    expect(listRegisteredConsumers()).toContainEqual({
+    registerIntegrationNotificationConsumers(consumerRegistry, deps)
+    expect(consumerRegistry.list()).toContainEqual({
       eventType: 'integration.google_account.reauthorization_required',
       consumerName: ON_GOOGLE_REAUTHORIZATION_REQUIRED_CONSUMER,
     })

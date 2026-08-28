@@ -5,7 +5,7 @@ import type {
 } from '#/contexts/portal/application/public-api'
 import { organizationId, portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import {
   onApprovedDestinationRatioRecorded,
   onConfigurationCompletenessRecorded,
@@ -102,8 +102,10 @@ function portalWorkflowDomainEvent(
 }
 
 export function registerPortalWorkflowMetricConsumers(
+  registry: ConsumerRegistry,
   deps: PortalWorkflowMetricDeps,
 ): void {
+  const { registerConsumer } = registry
   const contentReviewHandler = onContentReviewCompleted(deps)
   const completenessHandler = onConfigurationCompletenessRecorded(deps)
   const ratioHandler = onApprovedDestinationRatioRecorded(deps)

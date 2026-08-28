@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
 import {
-  clearConsumers,
-  listRegisteredConsumers,
+  createConsumerRegistry,
+  type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -12,6 +12,9 @@ import {
   ON_PORTAL_HEALTH_CHANGED_CONSUMER,
   registerPortalHealthNotificationConsumer,
 } from './portal-health-outbox-consumers'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const IDS = {
   event: '85000000-0000-4000-8000-000000000001',
@@ -80,19 +83,19 @@ const makeDeps = () => {
 
 describe('Portal Health notification durable consumer', () => {
   beforeEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
     registerAllEventSchemas()
   })
 
   afterEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
   })
 
   it('registers the exact durable Portal Health route', () => {
-    registerPortalHealthNotificationConsumer(makeDeps())
-    expect(listRegisteredConsumers()).toEqual([
+    registerPortalHealthNotificationConsumer(consumerRegistry, makeDeps())
+    expect(consumerRegistry.list()).toEqual([
       {
         eventType: 'portal.health.changed',
         consumerName: ON_PORTAL_HEALTH_CHANGED_CONSUMER,

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ConsumerRegistry } from '#/shared/outbox'
 
 const mocks = vi.hoisted(() => ({
   registerConsumer: vi.fn(),
@@ -7,12 +8,15 @@ const mocks = vi.hoisted(() => ({
   ),
 }))
 
-vi.mock('#/shared/outbox', () => ({
-  registerConsumer: mocks.registerConsumer,
-}))
 vi.mock('#/shared/events/schema-registry', () => ({
   validateEventPayload: mocks.validateEventPayload,
 }))
+
+// ARC-03-T7: the consumers register on the registry they are handed, so the
+// spy is a stand-in registry rather than a mocked module export.
+const consumerRegistry = {
+  registerConsumer: mocks.registerConsumer,
+} as unknown as ConsumerRegistry
 
 import { registerPublicReputationMetricConsumers } from './public-reputation-outbox-consumers'
 import type { RecordMetricInput } from '../application/use-cases/record-metric'
@@ -48,7 +52,7 @@ describe('Public Reputation metric durable consumer', () => {
 
   it('registers review.created and records the governed Google rating', async () => {
     const readings: RecordMetricInput[] = []
-    registerPublicReputationMetricConsumers({
+    registerPublicReputationMetricConsumers(consumerRegistry, {
       recordMetric: vi.fn(async (input: RecordMetricInput) => {
         readings.push(input)
         return { status: 'recorded' as const, reading: {} as never }
@@ -92,7 +96,7 @@ describe('Public Reputation metric durable consumer', () => {
           ? ({ status: 'duplicate', existingReadingId: 'reading-1' } as const)
           : ({ status: 'recorded', reading: {} as never } as const),
       )
-      registerPublicReputationMetricConsumers({
+      registerPublicReputationMetricConsumers(consumerRegistry, {
         recordMetric,
         reviewRatingLookup: { getEligibleRatingById: vi.fn(async () => rating) },
       })
@@ -112,7 +116,7 @@ describe('Public Reputation metric durable consumer', () => {
   })
 
   it('fails closed on envelope attribution drift or an invalid source time', async () => {
-    registerPublicReputationMetricConsumers({
+    registerPublicReputationMetricConsumers(consumerRegistry, {
       recordMetric: vi.fn(),
       reviewRatingLookup: { getEligibleRatingById: vi.fn(async () => 4) },
     })
@@ -140,7 +144,7 @@ describe('Public Reputation metric durable consumer', () => {
         reason: 'definition_not_approved',
         sourceEventId: 'event-review-created',
       })
-    registerPublicReputationMetricConsumers({
+    registerPublicReputationMetricConsumers(consumerRegistry, {
       recordMetric,
       reviewRatingLookup: { getEligibleRatingById: vi.fn(async () => 4) },
     })

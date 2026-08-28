@@ -21,6 +21,7 @@ import {
   RESTORE_ISOLATED_LOG_LINE,
 } from '#/shared/config/restore-mode'
 import { createContainer } from '#/composition'
+import { bindProcessPolicies } from '#/shared/auth/process-policy-binding'
 import { bootstrap, createBootstrapRuntimeConfig } from '#/bootstrap'
 import {
   BACKGROUND_QUEUE_CONCURRENCY,
@@ -121,6 +122,13 @@ async function main() {
   // Build the dependency container
   const container = createContainer({ enableJobs: true })
 
+  // ARC-03-T8: the worker's ONE explicit policy installation. Building the
+  // container no longer installs the ExecutionPolicy / DelayedExecutionPolicy
+  // / CapabilityPolicyStore, so the dispatch gate would otherwise answer from
+  // the capability-boot-guard's env-only store. This must precede the first
+  // refresh and every job.
+  bindProcessPolicies(container)
+
   // BQC-2.2: strong read of persisted policy state before any job runs —
   // worker decisions see DB truth from the start (allowlist/suspension).
   await container.refreshPolicyStore()
@@ -162,6 +170,10 @@ async function main() {
     dispatcherEnabled: Boolean(
       container.outboxRepo && jobRedisUrl && env.OUTBOX_DISPATCHER_ENABLED,
     ),
+    // ARC-03-T7: readiness validates THIS container's registry. The old
+    // process-global default could pass on consumers another container had
+    // registered.
+    listConsumers: container.consumerRegistry.list,
   })
 
   // BQC-3.2: dispatch-time scope resolution for jobs whose envelope lacks the
@@ -358,6 +370,7 @@ async function main() {
       })
       stopRelay = relay.start(5_000)
       const dispatchHandler = createDispatcherHandler(container.outboxRepo, {
+        consumers: container.consumerRegistry,
         localCell: env.PROCESSING_CELL,
       })
       domainEventsWorker = createJobWorker(
@@ -402,6 +415,10 @@ async function main() {
         namedCloseable('background', backgroundWorker),
         namedCloseable('domain-events', domainEventsWorker),
       ],
+      // ARC-03-T6: the worker built this container, so the worker releases
+      // what it started (identity policy poller) — the process no longer
+      // relies on exit() to clean up background work.
+      shutdown: container.shutdown,
       queues: [
         namedCloseable('default', container.jobQueue),
         namedCloseable('background', container.backgroundQueue),

@@ -429,7 +429,15 @@ const RESTORE_ISOLATED_STORE: CapabilityPolicyStore = {
   isPropertySuspended: () => false,
 }
 
-/** Initialize the capability policy store. Call once at startup. */
+/**
+ * Initialize the capability policy store. Call once at startup.
+ *
+ * ARC-03-T8: application processes install through the single owner
+ * (shared/auth/process-policy-binding.bindProcessPolicies), which binds this
+ * store together with the two policies that read it — a half-swapped trio is
+ * how a decision ends up consulting one container's tenant state and another
+ * container's audit sink. The boot guard and tests still install directly.
+ */
 export function initCapabilityPolicyStore(store: CapabilityPolicyStore): void {
   _store = store
 }

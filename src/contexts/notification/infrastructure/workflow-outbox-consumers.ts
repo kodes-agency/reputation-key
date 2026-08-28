@@ -6,11 +6,7 @@
 // per-recipient job enqueue succeeds. The handlers use <eventId>-<userId> job
 // identities, so immediate bus delivery and later durable replay converge.
 
-import {
-  registerConsumer,
-  type ConsumerEvent,
-  type OutboxRepository,
-} from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
   inboxItemId,
@@ -342,8 +338,10 @@ export async function handleWorkflowNotificationEvent(
 }
 
 export function registerWorkflowNotificationConsumers(
+  registry: ConsumerRegistry,
   deps: WorkflowNotificationConsumerDeps,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'inbox.inbox_item.assigned',
     consumerName: 'notification.on-inbox-inbox_item-assigned',

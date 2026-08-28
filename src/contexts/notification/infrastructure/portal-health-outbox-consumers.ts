@@ -1,5 +1,4 @@
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
-import type { OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { organizationId, portalId, propertyId, unbrand } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -121,8 +120,10 @@ export async function handleNotificationPortalHealthChanged(
 }
 
 export function registerPortalHealthNotificationConsumer(
+  registry: ConsumerRegistry,
   deps: PortalHealthNotificationConsumerDeps,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'portal.health.changed',
     consumerName: 'notification.on-portal-health-changed',

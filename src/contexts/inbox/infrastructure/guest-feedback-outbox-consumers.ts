@@ -1,10 +1,6 @@
 import type { InboxItemId } from '#/shared/domain/ids'
 import { feedbackId, organizationId, propertyId } from '#/shared/domain/ids'
-import {
-  registerConsumer,
-  type ConsumerEvent,
-  type ConsumerResult,
-} from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, ConsumerResult } from '#/shared/outbox'
 import type { FeedbackLookupPort } from '../application/ports/feedback-lookup.port'
 import type { InboxCommandStore } from '../application/ports/inbox-command-store.port'
 import type { InboxRepository } from '../application/ports/inbox.repository'
@@ -194,7 +190,11 @@ export async function handleInboxGuestFeedbackRetracted(
   })
 }
 
-export function registerGuestFeedbackConsumer(deps: GuestFeedbackConsumerDeps): void {
+export function registerGuestFeedbackConsumer(
+  registry: ConsumerRegistry,
+  deps: GuestFeedbackConsumerDeps,
+): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'guest.feedback.submitted',
     consumerName: 'inbox.on-guest-feedback-submitted',

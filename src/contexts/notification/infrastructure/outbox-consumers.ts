@@ -31,8 +31,7 @@
 //
 // Content-free: identifiers, an enum and counts only (ADR 0030 / BQC-7.3).
 
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
-import type { OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
   inboxItemId as brandInboxItemId,
@@ -148,7 +147,11 @@ export async function handleNotificationInboxItemCreated(
  * Register notification consumers with the outbox dispatcher.
  * Called during worker startup (after bootstrap).
  */
-export function registerNotificationConsumers(deps: NotificationConsumerDeps): void {
+export function registerNotificationConsumers(
+  registry: ConsumerRegistry,
+  deps: NotificationConsumerDeps,
+): void {
+  const { registerConsumer } = registry
   // Consumer names MUST stay string literals here — both governance catalogue
   // guards discover durable consumers by scanning registerConsumer calls.
   registerConsumer({

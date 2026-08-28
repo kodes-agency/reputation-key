@@ -8,6 +8,7 @@
 //     registration; the worker calls it before optional durable dispatch start.
 
 import type { Database } from '#/shared/db'
+import type { ConsumerRegistry } from '#/shared/outbox'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { CutoverFamily, CutoverState } from '#/shared/outbox/cutover-flags'
@@ -159,7 +160,9 @@ export type InboxContextApi = Readonly<{
     rebuildInboxProjection: RebuildInboxProjection
   }>
   /** Context-owned worker registration; exposes no repositories or use cases. */
-  worker: Readonly<{ registerOutboxConsumers: () => void }>
+  worker: Readonly<{
+    registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) => void
+  }>
   internal: Readonly<{
     repos: Readonly<{
       inboxRepo: InboxRepository
@@ -320,8 +323,8 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   // contribution. The worker calls this before optional durable dispatch
   // start; wiring stays a single assignment in the composition root while
   // the deps stay captured here.
-  const registerOutboxConsumers = () => {
-    registerInboxConsumers({
+  const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
+    registerInboxConsumers(consumerRegistry, {
       commandStore,
       handlingCycleStore,
       replyObservationAuthority,
@@ -334,7 +337,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
       clock: input.clock,
       logger: input.logger,
     })
-    registerGuestFeedbackConsumer({
+    registerGuestFeedbackConsumer(consumerRegistry, {
       commandStore,
       feedbackLookup,
       inboxRepo,

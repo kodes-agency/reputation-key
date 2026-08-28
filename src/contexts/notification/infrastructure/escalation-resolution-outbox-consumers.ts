@@ -1,5 +1,4 @@
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
-import type { OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { inboxItemId, organizationId, unbrand, userId } from '#/shared/domain/ids'
 import type { EscalationResolutionLookupPort } from '../application/ports/escalation-resolution-lookup.port'
@@ -137,8 +136,10 @@ export async function handleNotificationInboxEscalationResolved(
 }
 
 export function registerEscalationResolutionNotificationConsumer(
+  registry: ConsumerRegistry,
   deps: EscalationResolutionNotificationConsumerDeps,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'inbox.inbox_item.escalation_resolved',
     consumerName: 'notification.on-inbox-escalation-resolved',

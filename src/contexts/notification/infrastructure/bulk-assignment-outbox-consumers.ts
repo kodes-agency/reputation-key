@@ -3,8 +3,7 @@
 // facts remain activity history and deliberately do not notify independently.
 
 import { z } from 'zod/v4'
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
-import type { OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
   inboxItemId,
@@ -150,8 +149,10 @@ export async function handleNotificationBulkAssignmentCompleted(
 }
 
 export function registerBulkAssignmentNotificationConsumer(
+  registry: ConsumerRegistry,
   deps: BulkAssignmentNotificationConsumerDeps,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'inbox.inbox_items.bulk_assignment_completed',
     consumerName: 'notification.on-inbox-bulk-assignment-completed',

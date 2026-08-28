@@ -1,4 +1,5 @@
 import type { Database } from '#/shared/db'
+import type { ConsumerRegistry } from '#/shared/outbox'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { ActivityPublicApi } from './application/public-api'
@@ -112,8 +113,8 @@ export const buildActivityContext = (input: BuildInput) => {
     exportOperationalActionHistory: exportHistory,
   }
 
-  const registerOutboxConsumers = () =>
-    registerActivityOutboxConsumers({
+  const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) =>
+    registerActivityOutboxConsumers(consumerRegistry, {
       deliveryStore,
       userLookup,
       inboxItemLookup,

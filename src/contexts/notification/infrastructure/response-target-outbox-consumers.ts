@@ -6,8 +6,7 @@
 // changes therefore fail closed without turning a timing reminder into an
 // escalation or leaking source content.
 
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
-import type { OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { inboxItemId, organizationId, propertyId, unbrand } from '#/shared/domain/ids'
 import type { NotificationType } from '../domain/types'
@@ -149,8 +148,10 @@ export async function handleNotificationResponseTargetReminder(
 }
 
 export function registerResponseTargetNotificationConsumer(
+  registry: ConsumerRegistry,
   deps: ResponseTargetNotificationConsumerDeps,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: EVENT_TYPE,
     consumerName: ON_INBOX_RESPONSE_TARGET_REMINDER_DUE_CONSUMER,

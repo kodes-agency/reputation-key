@@ -269,7 +269,13 @@ export function createDelayedExecutionPolicy(
 
 let _delayed: DelayedExecutionPolicy | undefined
 
-/** Install the delayed policy — called once from composition. */
+/**
+ * Install the delayed policy.
+ *
+ * ARC-03-T8: production code installs through the single owner
+ * (shared/auth/process-policy-binding.bindProcessPolicies) so a second
+ * container cannot silently re-install it. Tests still install directly.
+ */
 export function initDelayedExecutionPolicy(policy: DelayedExecutionPolicy): void {
   _delayed = policy
 }
@@ -289,7 +295,12 @@ export function resetDelayedExecutionPolicy(): void {
  */
 let _ensureDelayedPolicy: (() => void) | undefined
 
-/** Register the lazy initializer — called once from composition module load. */
+/**
+ * Register the lazy initializer.
+ *
+ * ARC-03-T8: registered explicitly by the web entry (src/start.ts) through
+ * registerProcessPolicyColdBoot, not as a composition import-time side effect.
+ */
 export function registerDelayedExecutionPolicyInit(ensure: () => void): void {
   _ensureDelayedPolicy = ensure
 }

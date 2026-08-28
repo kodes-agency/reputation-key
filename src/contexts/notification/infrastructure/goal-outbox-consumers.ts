@@ -1,5 +1,4 @@
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
-import type { OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import type {
   GoalSubject,
@@ -313,8 +312,10 @@ export async function handleNotificationGoalMonthlyResultRevised(
 }
 
 export function registerGoalNotificationConsumer(
+  registry: ConsumerRegistry,
   deps: GoalNotificationConsumerDeps,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'goal.monthly_result.closed',
     consumerName: 'notification.on-goal-monthly-result-closed',

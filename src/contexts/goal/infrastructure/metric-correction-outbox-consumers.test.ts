@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ConsumerEvent } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 
 const mocks = vi.hoisted(() => ({
   registerConsumer: vi.fn(),
@@ -8,10 +8,15 @@ const mocks = vi.hoisted(() => ({
   ),
 }))
 
-vi.mock('#/shared/outbox', () => ({ registerConsumer: mocks.registerConsumer }))
 vi.mock('#/shared/events/schema-registry', () => ({
   validateEventPayload: mocks.validateEventPayload,
 }))
+
+// ARC-03-T7: the consumers register on the registry they are handed, so the
+// spy is a stand-in registry rather than a mocked module export.
+const consumerRegistry = {
+  registerConsumer: mocks.registerConsumer,
+} as unknown as ConsumerRegistry
 
 import {
   GOAL_METRIC_CORRECTION_CONSUMER,
@@ -57,7 +62,7 @@ describe('Goal Metric correction durable consumer', () => {
       revised: 1,
       unchanged: 0,
     }))
-    registerGoalMetricCorrectionConsumer(reconcile)
+    registerGoalMetricCorrectionConsumer(consumerRegistry, reconcile)
     const registration = mocks.registerConsumer.mock.calls[0]?.[0] as {
       eventType: string
       consumerName: string
@@ -87,7 +92,7 @@ describe('Goal Metric correction durable consumer', () => {
 
   it('rejects missing or mismatched property attribution before reconciliation', async () => {
     const reconcile = vi.fn()
-    registerGoalMetricCorrectionConsumer(reconcile)
+    registerGoalMetricCorrectionConsumer(consumerRegistry, reconcile)
     const handler = mocks.registerConsumer.mock.calls[0]?.[0].handler as (
       event: ConsumerEvent,
     ) => Promise<unknown>
@@ -105,7 +110,7 @@ describe('Goal Metric correction durable consumer', () => {
     const reconcile = vi.fn(async () => {
       throw new Error('Goal metric correction reconciliation is pending')
     })
-    registerGoalMetricCorrectionConsumer(reconcile)
+    registerGoalMetricCorrectionConsumer(consumerRegistry, reconcile)
     const handler = mocks.registerConsumer.mock.calls[0]?.[0].handler as (
       event: ConsumerEvent,
     ) => Promise<unknown>

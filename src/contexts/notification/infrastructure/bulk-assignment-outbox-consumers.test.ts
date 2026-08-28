@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import {
-  clearConsumers,
-  listRegisteredConsumers,
+  createConsumerRegistry,
+  type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -12,6 +12,9 @@ import {
   ON_INBOX_BULK_ASSIGNMENT_COMPLETED_CONSUMER,
   registerBulkAssignmentNotificationConsumer,
 } from './bulk-assignment-outbox-consumers'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const EVENT_ID = '90000000-0000-4000-8000-000000000001'
 const ORG = '90000000-0000-4000-8000-000000000002'
@@ -78,19 +81,19 @@ const makeDeps = () => {
 
 describe('bulk-assignment notification durable consumer', () => {
   beforeEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
     registerAllEventSchemas()
   })
 
   afterEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
   })
 
   it('registers the completion fact as the sole grouped replay boundary', () => {
-    registerBulkAssignmentNotificationConsumer(makeDeps())
-    expect(listRegisteredConsumers()).toContainEqual({
+    registerBulkAssignmentNotificationConsumer(consumerRegistry, makeDeps())
+    expect(consumerRegistry.list()).toContainEqual({
       eventType: 'inbox.inbox_items.bulk_assignment_completed',
       consumerName: ON_INBOX_BULK_ASSIGNMENT_COMPLETED_CONSUMER,
     })

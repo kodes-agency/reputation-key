@@ -39,7 +39,7 @@ import { createReviewAnalysisBackfillAdapter } from './infrastructure/adapters/a
 import { createReviewAnalysisEnrollmentAdapter } from './infrastructure/adapters/ai-review-analysis-enrollment.adapter'
 import { createRedisAiQuotaAdapter } from './infrastructure/adapters/ai-quota.adapter'
 import { createAiDataLifecycle } from './infrastructure/ai-data-lifecycle'
-import type { OutboxRepository } from '#/shared/outbox'
+import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import {
   registerAiConsumers,
   type RegisterAiConsumersInput,
@@ -189,11 +189,11 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       })
     })
 
-  const registerOutboxConsumers = () => {
+  const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
     if (!input.enqueuePropertyTrend) {
       throw new Error('AI property trend queue is unavailable')
     }
-    registerAiConsumers({
+    registerAiConsumers(consumerRegistry, {
       enqueuePropertyTrend: input.enqueuePropertyTrend,
       analyzeReviewEvent,
       advanceReviewAnalysisBackfill: advanceReviewAnalysisBackfill.advanceProperty,

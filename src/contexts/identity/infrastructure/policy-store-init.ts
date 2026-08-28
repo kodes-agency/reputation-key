@@ -16,11 +16,11 @@
 // fresh/strong read via the same function (BQC-2.5).
 
 import type { Database } from '#/shared/db'
-import type { CapabilityPolicyEnv } from '#/shared/auth/beta-capabilities'
-import {
-  createEnvCapabilityPolicyStore,
-  initCapabilityPolicyStore,
+import type {
+  CapabilityPolicyEnv,
+  CapabilityPolicyStore,
 } from '#/shared/auth/beta-capabilities'
+import { createEnvCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
 import {
   createCompositePolicyStore,
   createPersistedPolicyStore,
@@ -29,13 +29,13 @@ import {
 } from '#/shared/auth/persisted-policy-store'
 import {
   createExecutionPolicy,
-  initExecutionPolicy,
   parseOperatorIdentities,
+  type ExecutionPolicy,
   type MerchantAiConsentFence,
 } from '#/shared/auth/execution-policy'
 import {
   createDelayedExecutionPolicy,
-  initDelayedExecutionPolicy,
+  type DelayedExecutionPolicy,
 } from '#/shared/auth/system-execution-policy'
 import { organizationId, userId } from '#/shared/domain/ids'
 import {
@@ -54,10 +54,23 @@ const MERCHANT_AI_PURPOSES = new Set([
   'ai.detect_trends',
 ])
 
-/** Revocation/suspension bound: tenant policy state is at most this stale. */
-const POLICY_REFRESH_INTERVAL_MS = 5_000
+/**
+ * Revocation/suspension bound: tenant policy state is at most this stale.
+ * Exported so the container-shutdown evidence (ARC-03-T6) advances timers
+ * against the real interval instead of a copy that could silently drift.
+ */
+export const POLICY_REFRESH_INTERVAL_MS = 5_000
 
 export type PolicyStoreHandle = Readonly<{
+  /**
+   * ARC-03-T8: the trio is RETURNED, never installed here. Making the process
+   * installation a separate, named step (shared/auth/process-policy-binding)
+   * is what stops a second container in the same process from silently
+   * re-pointing the singletons at its own audit sink and consent reader.
+   */
+  capabilityPolicyStore: CapabilityPolicyStore
+  executionPolicy: ExecutionPolicy
+  delayedExecutionPolicy: DelayedExecutionPolicy
   /** Version-gated strong read — await before decisions that must be fresh. */
   refresh: PersistedPolicyStore['refresh']
   /** Required refresh for provider calls and external effects; cache never authorizes failure. */
@@ -91,14 +104,15 @@ export function initPersistedCapabilityPolicyStore(deps: {
         'policy snapshot refresh failed — keeping previous snapshot',
       ),
   })
-  initCapabilityPolicyStore(
+  const capabilityPolicyStore: CapabilityPolicyStore = Object.freeze(
     createCompositePolicyStore({ globalStore: envStore, tenantStore: persisted }),
   )
 
-  // BQC-2.4: install the ExecutionPolicy with identity-owned deps — the grant
+  // BQC-2.4: build the ExecutionPolicy with identity-owned deps — the grant
   // adapter (property scope), the consent reader (purpose classes), and the
-  // content-free decision-audit writer. Decisions consult the capability
-  // store installed above, so tenant state stays consistent across both.
+  // content-free decision-audit writer. Decisions consult whichever capability
+  // store the process bound; binding this handle's trio together (ARC-03-T8)
+  // is what keeps tenant state consistent across both.
   // BQC-7.5: the operator branch's named-operator allowlist binds from
   // OPS_OPERATOR_IDENTITIES (absent/empty = every operator command denies).
   const grantLookup = createGrantAccessLookup(deps.db, deps.clock)
@@ -123,7 +137,7 @@ export function initPersistedCapabilityPolicyStore(deps: {
     const consent = await getActiveConsent(deps.db, input)
     return consent !== null
   }
-  initExecutionPolicy(
+  const executionPolicy: ExecutionPolicy = Object.freeze(
     createExecutionPolicy({
       listAccessiblePropertyIds: async (orgId, uid) => {
         const ids = await grantLookup(organizationId(orgId), userId(uid))
@@ -140,10 +154,10 @@ export function initPersistedCapabilityPolicyStore(deps: {
     }),
   )
 
-  // BQC-2.5: install the delayed/system policy contract — the strong read
-  // for external-effect actions is the same version-gated refresh (worker
+  // BQC-2.5: the delayed/system policy contract — the strong read for
+  // external-effect actions is the same version-gated refresh (worker
   // call-site integration is BQC-3's).
-  initDelayedExecutionPolicy(
+  const delayedExecutionPolicy: DelayedExecutionPolicy = Object.freeze(
     createDelayedExecutionPolicy({
       refreshPolicy: () => persisted.refresh(),
       hasActiveConsent,
@@ -159,6 +173,9 @@ export function initPersistedCapabilityPolicyStore(deps: {
   void persisted.refresh()
 
   return {
+    capabilityPolicyStore,
+    executionPolicy,
+    delayedExecutionPolicy,
     refresh: () => persisted.refresh(),
     refreshRequired: () => persisted.refreshRequired(),
     currentEmergencyKillVersion: () => persisted.currentEmergencyKillVersion(),

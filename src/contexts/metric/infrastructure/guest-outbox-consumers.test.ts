@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ConsumerRegistry } from '#/shared/outbox'
 
 const mocks = vi.hoisted(() => ({
   registerConsumer: vi.fn(),
@@ -7,12 +8,15 @@ const mocks = vi.hoisted(() => ({
   ),
 }))
 
-vi.mock('#/shared/outbox', () => ({
-  registerConsumer: mocks.registerConsumer,
-}))
 vi.mock('#/shared/events/schema-registry', () => ({
   validateEventPayload: mocks.validateEventPayload,
 }))
+
+// ARC-03-T7: the consumers register on the registry they are handed, so the
+// spy is a stand-in registry rather than a mocked module export.
+const consumerRegistry = {
+  registerConsumer: mocks.registerConsumer,
+} as unknown as ConsumerRegistry
 
 import { registerGuestMetricConsumers } from './guest-outbox-consumers'
 import { createMockLogger } from '#/shared/testing/mock-logger'
@@ -30,7 +34,7 @@ describe('Guest metric durable consumers', () => {
   it('registers all Guest metric facts and applies a rating fanout', async () => {
     const recordMetric = vi.fn().mockResolvedValue({ status: 'recorded' })
     const retractMetric = vi.fn().mockResolvedValue({ status: 'retracted' })
-    registerGuestMetricConsumers({
+    registerGuestMetricConsumers(consumerRegistry, {
       recordMetric,
       retractMetric,
       findGroupForPortal: vi.fn().mockResolvedValue(null),
@@ -126,7 +130,7 @@ describe('Guest metric durable consumers', () => {
     const recordMetric = vi.fn().mockResolvedValue({ status: 'recorded' })
     const retractMetric = vi.fn().mockResolvedValue({ status: 'retracted' })
     const findGroupForPortal = vi.fn()
-    registerGuestMetricConsumers({
+    registerGuestMetricConsumers(consumerRegistry, {
       recordMetric,
       retractMetric,
       findGroupForPortal,
@@ -188,7 +192,7 @@ describe('Guest metric durable consumers', () => {
 
   it('propagates metric persistence failures so the dispatcher can retry', async () => {
     const recordMetric = vi.fn().mockRejectedValue(new Error('database unavailable'))
-    registerGuestMetricConsumers({
+    registerGuestMetricConsumers(consumerRegistry, {
       recordMetric,
       retractMetric: vi.fn().mockResolvedValue({ status: 'retracted' }),
       findGroupForPortal: vi.fn().mockResolvedValue(null),
@@ -217,7 +221,7 @@ describe('Guest metric durable consumers', () => {
     'replays the versioned scan-source vocabulary for v$eventVersion',
     async ({ eventVersion, sourceField }) => {
       const recordMetric = vi.fn().mockResolvedValue({ status: 'recorded' })
-      registerGuestMetricConsumers({
+      registerGuestMetricConsumers(consumerRegistry, {
         recordMetric,
         retractMetric: vi.fn().mockResolvedValue({ status: 'retracted' }),
         findGroupForPortal: vi.fn().mockResolvedValue(null),

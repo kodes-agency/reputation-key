@@ -2,16 +2,18 @@
 // Finding 1.3 — registerInboxConsumers had zero callers.
 // Static-source checks only (no cross-zone imports into contexts/).
 
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { join, relative } from 'node:path'
-import {
-  clearConsumers,
-  listRegisteredConsumers,
-  registerConsumer,
-} from '#/shared/outbox/consumer-registry'
+import { join, relative, resolve } from 'node:path'
+import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
 import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
 import { walk } from '#/shared/testing/source-tree'
+import { createContainer, type Container } from '#/composition'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { createInMemoryQueue } from '#/shared/testing/in-memory-queue'
+import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
+import type { Database } from '#/shared/db'
+import type { Clock } from '#/shared/domain/clock'
 
 const ROOT = process.cwd()
 
@@ -53,10 +55,6 @@ const CATALOGUE_CONSUMER_MODULES: ReadonlySet<string> = new Set(
 )
 
 describe('BQR-2.2: outbox consumer registration', () => {
-  beforeEach(() => {
-    clearConsumers()
-  })
-
   it('worker wires registerOutboxConsumers when outbox is available', () => {
     const workerSrc = readFileSync(join(ROOT, 'src/worker/index.ts'), 'utf-8')
     expect(workerSrc).toContain('registerOutboxConsumers')
@@ -121,16 +119,17 @@ describe('BQR-2.2: outbox consumer registration', () => {
     expect(consumerSrc).toContain("consumerName: 'review.on-reply-publication-requested'")
   })
 
-  it('listRegisteredConsumers is empty after clear', () => {
-    registerConsumer({
+  it('a registry lists what was registered on it and nothing after clear', () => {
+    const consumerRegistry = createConsumerRegistry()
+    consumerRegistry.registerConsumer({
       eventType: 'x.y',
       consumerName: 'c',
       module: 'inbox.outbox-consumers',
       handler: async () => ({ status: 'applied' }),
     })
-    expect(listRegisteredConsumers()).toHaveLength(1)
-    clearConsumers()
-    expect(listRegisteredConsumers()).toEqual([])
+    expect(consumerRegistry.list()).toHaveLength(1)
+    consumerRegistry.clear()
+    expect(consumerRegistry.list()).toEqual([])
   })
 
   it('BQR-2.4 / BQC-3.4: consumers perform real projection work via applyOnce', () => {
@@ -201,5 +200,97 @@ describe('BQR-2.2: outbox consumer registration', () => {
         .map((r) => `${r.file}: ${r.consumerName} → ${r.module as string}`)
       expect(misattributed).toEqual([])
     })
+  })
+})
+
+// ARC-03-T7 — the consumer registry is container-scoped.
+//
+// The old module-level Map made duplicate detection process-wide, so a SECOND
+// container in one process could not register its consumers at all: every
+// registration collided with the first container's. These tests pin the fix
+// end to end — two real containers, both fully registered, each reading only
+// its own registry.
+describe('ARC-03-T7: container-scoped consumer registry', () => {
+  const FIXED_DATE = new Date('2026-01-15T12:00:00.000Z')
+  const clock: Clock = () => FIXED_DATE
+
+  /** Query-free guard: any DB access during construction throws. */
+  const dbStub = new Proxy(
+    {},
+    {
+      get: () => {
+        throw new Error('composition must not query the DB during construction')
+      },
+    },
+  ) as unknown as Database
+
+  function build(): Container {
+    clearEventSchemas()
+    return createContainer({
+      clock,
+      queue: createInMemoryQueue({ clock }),
+      backgroundQueue: createInMemoryQueue({ clock }),
+      opsDomainEventsQueue: createInMemoryQueue({ clock }),
+      opsQuarantineQueue: createInMemoryQueue({ clock }),
+      redis: undefined,
+      enableJobs: true,
+      db: dbStub,
+      identityPort: createInMemoryIdentityPort(),
+      email: async () => {},
+    })
+  }
+
+  it('lets two containers in one process both register every consumer', async () => {
+    const containerA = build()
+    const containerB = build()
+
+    expect(() => containerA.registerOutboxConsumers()).not.toThrow()
+    expect(() => containerB.registerOutboxConsumers()).not.toThrow()
+
+    expect(containerA.consumerRegistry).not.toBe(containerB.consumerRegistry)
+    expect(containerA.consumerRegistry.list()).toEqual(containerB.consumerRegistry.list())
+    expect(containerA.consumerRegistry.list().length).toBeGreaterThan(0)
+
+    await containerA.shutdown.run()
+    await containerB.shutdown.run()
+  })
+
+  it('holds no module-level registration state and exports no free registrar', () => {
+    const registrySrc = readFileSync(
+      resolve('src/shared/outbox/consumer-registry.ts'),
+      'utf8',
+    )
+    const barrelSrc = readFileSync(resolve('src/shared/outbox/index.ts'), 'utf8')
+
+    expect(registrySrc).not.toMatch(/^const consumersByType/m)
+    expect(registrySrc).toContain('export function createConsumerRegistry')
+    expect(barrelSrc).not.toMatch(/^export \{[^}]*\bregisterConsumer\b/m)
+    expect(barrelSrc).toContain(
+      "export { createConsumerRegistry } from './consumer-registry'",
+    )
+  })
+
+  it('checks the Notification trigger matrix against the injected registry', () => {
+    const notificationBuild = readFileSync(
+      resolve('src/contexts/notification/build.ts'),
+      'utf8',
+    )
+
+    expect(notificationBuild).toContain(
+      'assertBetaNotificationTriggerMatrix(consumerRegistry.list())',
+    )
+    expect(notificationBuild).not.toContain('listRegisteredConsumers')
+  })
+
+  it('gates worker readiness on the container registry rather than a global default', () => {
+    const readiness = readFileSync(resolve('src/shared/jobs/readiness.ts'), 'utf8')
+    const worker = readFileSync(resolve('src/worker/index.ts'), 'utf8')
+
+    // Required, not optional: no `listConsumers?:` and no ambient fallback.
+    expect(readiness).toContain('listConsumers: () => ReadonlyArray<ConsumerListing>')
+    expect(readiness).not.toContain('listConsumers?:')
+    expect(readiness).not.toContain('listRegisteredConsumers')
+    expect(worker).toContain('listConsumers: container.consumerRegistry.list')
+    expect(worker).toContain('consumers: container.consumerRegistry')
   })
 })

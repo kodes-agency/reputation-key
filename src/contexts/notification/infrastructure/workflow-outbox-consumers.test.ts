@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
-  clearConsumers,
-  listRegisteredConsumers,
+  createConsumerRegistry,
+  type ConsumerRegistry,
   type ConsumerEvent,
 } from '#/shared/outbox/consumer-registry'
 import {
@@ -18,6 +18,9 @@ import {
   type FakeEventHandlerDeps,
 } from './event-handlers/test-fixtures'
 import { unbrand } from '#/shared/domain/ids'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const EVENT_ID = '30000000-0000-4000-8000-000000000008'
 
@@ -65,20 +68,20 @@ const event = (
 
 describe('durable workflow notification consumers', () => {
   beforeEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
     registerAllEventSchemas()
   })
 
   afterEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
   })
 
   it('registers every recorded beta workflow trigger under a stable identity', () => {
-    registerWorkflowNotificationConsumers(makeDeps())
+    registerWorkflowNotificationConsumers(consumerRegistry, makeDeps())
 
-    expect(listRegisteredConsumers()).toEqual(
+    expect(consumerRegistry.list()).toEqual(
       WORKFLOW_NOTIFICATION_CONSUMERS.map(({ eventType, consumerName }) => ({
         eventType,
         consumerName,

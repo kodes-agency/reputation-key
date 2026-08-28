@@ -1,8 +1,4 @@
-import {
-  registerConsumer,
-  type ConsumerEvent,
-  type OutboxRepository,
-} from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { organizationId, unbrand } from '#/shared/domain/ids'
 import type { NotificationType } from '../domain/types'
 import type { OrganizationAccountNotificationEventType } from '../application/ports/organization-account-notification-authority.port'
@@ -84,8 +80,10 @@ export async function handleIdentityAccountNotificationEvent(
 }
 
 export function registerIdentityAccountNotificationConsumers(
+  registry: ConsumerRegistry,
   deps: IdentityAccountNotificationConsumerDeps,
 ): void {
+  const { registerConsumer } = registry
   // Written explicitly so governance can mechanically prove the exact
   // event→consumer identities without executing context composition.
   registerConsumer({

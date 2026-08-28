@@ -12,11 +12,16 @@
 // directly to construct adapters and start runtime loops.
 
 export { emitAndRecord } from './emit-and-record'
-export { registerConsumer, listRegisteredConsumers } from './consumer-registry'
+// ARC-03-T7: no free registration function. Consumers are registered on the
+// registry their container owns, so a second container in one process can
+// register the same consumers without colliding with the first.
+export { createConsumerRegistry } from './consumer-registry'
 export type {
   ConsumerEvent,
   ConsumerHandler,
+  ConsumerListing,
   ConsumerRegistration,
+  ConsumerRegistry,
   ConsumerResult,
 } from './consumer-registry'
 export type {

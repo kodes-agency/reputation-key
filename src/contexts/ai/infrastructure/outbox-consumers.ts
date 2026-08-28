@@ -1,10 +1,10 @@
 import { z } from 'zod/v4'
-import {
-  registerConsumer,
-  type ConsumerEvent,
-  type ConsumerResult,
+import type {
+  ConsumerEvent,
+  ConsumerRegistry,
+  ConsumerResult,
+  OutboxRepository,
 } from '#/shared/outbox'
-import type { OutboxRepository } from '#/shared/outbox'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type {
@@ -230,7 +230,11 @@ export async function handleAiAuthorizationLifecycleChanged(
   }
 }
 
-export function registerAiConsumers(dependencies: RegisterAiConsumersInput): void {
+export function registerAiConsumers(
+  registry: ConsumerRegistry,
+  dependencies: RegisterAiConsumersInput,
+): void {
+  const { registerConsumer } = registry
   if (dependencies.applyAiAuthorizationLifecycle) {
     registerConsumer({
       eventType: 'identity.merchant_ai.changed',

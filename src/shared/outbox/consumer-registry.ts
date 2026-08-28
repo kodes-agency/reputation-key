@@ -4,6 +4,22 @@
 // deliberately a separate runtime module: importing this registry must never
 // pull worker-only dependencies into context builds, readiness checks, or web
 // bundles.
+//
+// ARC-03-T7 — the registry is CONTAINER-SCOPED, not process-global.
+//
+// RULE: a registry instance belongs to the container that created it. Nothing
+// in this module holds registrations at module scope.
+//
+// WHY: this file used to own a module-level Map, and registerConsumer threw on
+// a duplicate {eventType, consumerName}. Duplicate detection is the right
+// behaviour — two consumers under one name silently share a receipt key — but
+// with process-wide storage it also meant a SECOND container in the same
+// process could not register its consumers at all: the first container's
+// entries were still there, so every registration collided. Simulations, a
+// worker that rebuilds its container, and any test that builds two containers
+// were all blocked by a rule that was only ever meant to catch a naming
+// mistake inside one runtime. Scoping the storage keeps the duplicate check
+// exactly as strict, per container.
 
 import type { ConsumerEvent } from './envelope'
 
@@ -31,49 +47,64 @@ export type ConsumerRegistration = Readonly<{
   handler: ConsumerHandler
 }>
 
-const consumersByType = new Map<string, ConsumerRegistration[]>()
+/** Consumer name + event type, the shape readiness and diagnostics consume. */
+export type ConsumerListing = Readonly<{
+  eventType: string
+  consumerName: string
+}>
 
-/**
- * Register a consumer for an event type.
- * Multiple consumers can register for the same event type — each is invoked
- * independently when the event is dispatched.
- */
-export function registerConsumer(registration: ConsumerRegistration): void {
-  const registrations = consumersByType.get(registration.eventType) ?? []
-  if (
-    registrations.some(
-      (candidate) => candidate.consumerName === registration.consumerName,
-    )
-  ) {
-    throw new Error(
-      `Duplicate consumer "${registration.consumerName}" for event type "${registration.eventType}"`,
-    )
-  }
-  registrations.push(registration)
-  consumersByType.set(registration.eventType, registrations)
-}
+export type ConsumerRegistry = Readonly<{
+  /**
+   * Register a consumer for an event type. Multiple consumers may register
+   * for the same event type — each is invoked independently on dispatch.
+   * Throws when this registry already holds the same consumer name for the
+   * same event type.
+   */
+  registerConsumer: (registration: ConsumerRegistration) => void
+  /** Worker-runtime lookup; not re-exported by the public outbox barrel. */
+  listFor: (eventType: string) => ReadonlyArray<ConsumerRegistration>
+  /** Registered consumers for readiness and operator diagnostics. */
+  list: () => ReadonlyArray<ConsumerListing>
+  /** Clear this registry — a test-isolation seam, not a production operation. */
+  clear: () => void
+}>
 
-/** Worker-runtime lookup; not re-exported by the public outbox barrel. */
-export function registeredConsumersFor(
-  eventType: string,
-): readonly ConsumerRegistration[] {
-  return consumersByType.get(eventType) ?? []
-}
+/** Create an independent, container-owned consumer registry. */
+export function createConsumerRegistry(): ConsumerRegistry {
+  const consumersByType = new Map<string, ConsumerRegistration[]>()
 
-/** Clear all consumers — a test-isolation seam, not a production operation. */
-export function clearConsumers(): void {
-  consumersByType.clear()
-}
+  return Object.freeze({
+    registerConsumer(registration: ConsumerRegistration): void {
+      const registrations = consumersByType.get(registration.eventType) ?? []
+      if (
+        registrations.some(
+          (candidate) => candidate.consumerName === registration.consumerName,
+        )
+      ) {
+        throw new Error(
+          `Duplicate consumer "${registration.consumerName}" for event type "${registration.eventType}"`,
+        )
+      }
+      registrations.push(registration)
+      consumersByType.set(registration.eventType, registrations)
+    },
 
-/** List registered consumers for readiness and operator diagnostics. */
-export function listRegisteredConsumers(): ReadonlyArray<
-  Readonly<{ eventType: string; consumerName: string }>
-> {
-  const registered: Array<{ eventType: string; consumerName: string }> = []
-  for (const [eventType, registrations] of consumersByType) {
-    for (const registration of registrations) {
-      registered.push({ eventType, consumerName: registration.consumerName })
-    }
-  }
-  return registered
+    listFor(eventType: string): ReadonlyArray<ConsumerRegistration> {
+      return consumersByType.get(eventType) ?? []
+    },
+
+    list(): ReadonlyArray<ConsumerListing> {
+      const registered: ConsumerListing[] = []
+      for (const [eventType, registrations] of consumersByType) {
+        for (const registration of registrations) {
+          registered.push({ eventType, consumerName: registration.consumerName })
+        }
+      }
+      return registered
+    },
+
+    clear(): void {
+      consumersByType.clear()
+    },
+  })
 }

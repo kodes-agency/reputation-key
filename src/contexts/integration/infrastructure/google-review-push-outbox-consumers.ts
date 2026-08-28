@@ -2,11 +2,7 @@ import {
   GBP_PUSH_SYNC_INITIATOR_ID,
   type TargetedGoogleReviewQueuePort,
 } from '#/contexts/review/application/public-api'
-import {
-  registerConsumer,
-  type ConsumerEvent,
-  type OutboxRepository,
-} from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 
 export const GBP_REVIEW_PUSH_DISPATCH_CONSUMER =
@@ -73,11 +69,13 @@ export async function handleGoogleReviewPushAccepted(
 }
 
 export function registerGoogleReviewPushDispatchConsumer(
+  registry: ConsumerRegistry,
   deps: Readonly<{
     queue: TargetedGoogleReviewQueuePort
     receipts: Pick<OutboxRepository, 'insertReceipt'>
   }>,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'integration.google_review_push.accepted',
     consumerName: 'integration.google-review-push-dispatch',

@@ -5,6 +5,7 @@
 // the only active durable consumer reconciles GoalProgram result corrections.
 
 import type { Database } from '#/shared/db'
+import type { ConsumerRegistry } from '#/shared/outbox'
 import type { MetricPublicApi } from '#/contexts/metric/application/public-api'
 import type {
   PortalGroupPublicApi,
@@ -46,7 +47,10 @@ export type GoalContextApi = Readonly<{
   }>
   /** Context-owned worker registration; exposes no repositories or use cases. */
   worker: Readonly<{
-    registerOutboxConsumers: (policy: GoalExecutionPolicy) => void
+    registerOutboxConsumers: (
+      consumerRegistry: ConsumerRegistry,
+      policy: GoalExecutionPolicy,
+    ) => void
     programMaintenance: Readonly<{
       jobName: typeof GOAL_PROGRAM_MAINTENANCE_JOB_NAME
       createHandler: (
@@ -83,9 +87,13 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
       now: input.clock,
     })
 
-  const registerOutboxConsumers = (policy: GoalExecutionPolicy): void => {
+  const registerOutboxConsumers = (
+    consumerRegistry: ConsumerRegistry,
+    policy: GoalExecutionPolicy,
+  ): void => {
     const goalPrograms = buildGoalPrograms(policy)
     registerGoalMetricCorrectionConsumer(
+      consumerRegistry,
       reconcileMetricCorrection({
         findImpacts: input.metricApi.findGoalMetricCorrectionImpacts,
         findCandidates: goalProgramRepo.findClosedResultIdsForMetricImpact,

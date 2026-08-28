@@ -1,5 +1,4 @@
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
-import type { OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import {
@@ -69,8 +68,10 @@ export async function handleNotificationPortalResponsibilityNeeded(
 }
 
 export function registerPortalNotificationConsumers(
+  registry: ConsumerRegistry,
   deps: PortalNotificationConsumerDeps,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'portal.responsibility_became_needed',
     consumerName: 'notification.on-portal-responsibility-needed',

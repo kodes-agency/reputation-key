@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
 import {
-  clearConsumers,
-  listRegisteredConsumers,
+  createConsumerRegistry,
+  type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -11,6 +11,9 @@ import {
   IDENTITY_ACCOUNT_NOTIFICATION_CONSUMERS,
   registerIdentityAccountNotificationConsumers,
 } from './identity-account-outbox-consumers'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const ORG = 'org-account-notice'
 const EVENT_ID = '91000000-0000-4000-8000-000000000001'
@@ -41,19 +44,19 @@ const makeDeps = () => ({
 
 describe('Identity account mandatory notification consumers', () => {
   beforeEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
     registerAllEventSchemas()
   })
   afterEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
   })
 
   it('registers only the three existing durable affected-account facts', () => {
-    registerIdentityAccountNotificationConsumers(makeDeps())
+    registerIdentityAccountNotificationConsumers(consumerRegistry, makeDeps())
 
-    expect(listRegisteredConsumers()).toEqual(
+    expect(consumerRegistry.list()).toEqual(
       expect.arrayContaining(
         IDENTITY_ACCOUNT_NOTIFICATION_CONSUMERS.map(({ eventType, consumerName }) => ({
           eventType,
@@ -61,7 +64,7 @@ describe('Identity account mandatory notification consumers', () => {
         })),
       ),
     )
-    expect(listRegisteredConsumers()).not.toContainEqual(
+    expect(consumerRegistry.list()).not.toContainEqual(
       expect.objectContaining({ eventType: 'identity.member.invited' }),
     )
   })

@@ -62,7 +62,10 @@ import {
 import { createOutboxRelay, type OutboxRelay } from '#/shared/outbox/relay'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
-import { clearConsumers } from '#/shared/outbox/consumer-registry'
+import {
+  createConsumerRegistry,
+  type ConsumerRegistry,
+} from '#/shared/outbox/consumer-registry'
 import { buildConsumerEvent } from '#/shared/outbox/envelope'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import {
@@ -77,6 +80,10 @@ import {
   type CapabilityPolicyEnv,
 } from '#/shared/auth/beta-capabilities'
 import { resetDelayedExecutionPolicy } from '#/shared/auth/system-execution-policy'
+import {
+  bindProcessPolicies,
+  releaseProcessPolicies,
+} from '#/shared/auth/process-policy-binding'
 import { initPersistedCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
 import {
   reviewCreated,
@@ -117,6 +124,9 @@ import type {
 import type { ReviewSourceLookupPort } from '#/contexts/inbox/application/ports/review-source-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
+
 // ── Constants (hex-only UUID fixtures) ──────────────────────────────
 
 const EVENTS_QUEUE = `bqc39-events-${process.pid}`
@@ -156,7 +166,7 @@ let eventsQueue: Queue | undefined
 let jobsQueue: Queue | undefined
 let worker: Worker | undefined
 let relay: OutboxRelay | undefined
-let policyHandle: { stopPolling: () => void } | undefined
+let policyHandle: ReturnType<typeof initPersistedCapabilityPolicyStore> | undefined
 
 /** Deterministic hex-only inbox item ids. */
 let idCounter = 0
@@ -384,7 +394,7 @@ async function redeliver(eventId: string, eventType: string): Promise<void> {
     sourceAggregateId: row.source_aggregate_id as string,
     recordedAt: row.created_at as Date,
   })
-  const handler = createDispatcherHandler(outboxRepo)
+  const handler = createDispatcherHandler(outboxRepo, { consumers: consumerRegistry })
   await handler({ id: eventId, name: eventType, data: envelope } as unknown as Job)
 }
 
@@ -511,10 +521,13 @@ beforeAll(async () => {
     clock: () => new Date(),
     logger: { warn: () => {} },
   })
+  // ARC-03-T8: the handle no longer installs itself — the dispatcher's BQC-3.2
+  // consumer gate reads the process-bound delayed policy, so bind explicitly.
+  bindProcessPolicies(policyHandle)
 
-  // Durable consumers (module-global registry — clear first for isolation).
-  clearConsumers()
-  registerInboxConsumers({
+  // Durable consumers registered on this run's own registry (ARC-03-T7).
+  consumerRegistry = createConsumerRegistry()
+  registerInboxConsumers(consumerRegistry, {
     commandStore: createAtomicInboxCommandStore(
       db,
       silentEvents,
@@ -543,10 +556,14 @@ beforeAll(async () => {
   })
 
   // The REAL dispatcher on a REAL BullMQ worker (the worker/index.ts wiring).
-  worker = new Worker(EVENTS_QUEUE, createDispatcherHandler(outboxRepo), {
-    connection,
-    concurrency: 4,
-  })
+  worker = new Worker(
+    EVENTS_QUEUE,
+    createDispatcherHandler(outboxRepo, { consumers: consumerRegistry }),
+    {
+      connection,
+      concurrency: 4,
+    },
+  )
   await worker.waitUntilReady()
   relay = createOutboxRelay(outboxRepo, eventsQueue)
 
@@ -585,9 +602,10 @@ afterAll(async () => {
   await jobsQueue?.close()
   redisLease?.release()
   policyHandle?.stopPolling()
+  releaseProcessPolicies()
   resetDelayedExecutionPolicy()
   resetCapabilityPolicyStore()
-  clearConsumers()
+  consumerRegistry = createConsumerRegistry()
   if (pool) {
     await pool.query('DELETE FROM inbox_notes WHERE organization_id = $1', [ORG])
     await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [ORG])

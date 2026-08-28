@@ -9,8 +9,7 @@
 // deterministic reply+cycle job id closes that ambiguity: redelivery between
 // add and receipt converges on the same BullMQ job.
 
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
-import type { OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { organizationId, replyId, userId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -122,8 +121,10 @@ export async function handleReplyPublicationRequested(
 
 /** Worker-start registration; no consumer runtime is pulled into web builds. */
 export function registerReplyPublicationConsumers(
+  registry: ConsumerRegistry,
   deps: ReplyPublicationConsumerDeps,
 ): void {
+  const { registerConsumer } = registry
   // Consumer identity literals are governance-scanned; keep them inline.
   registerConsumer({
     eventType: 'review.reply.publication_requested',

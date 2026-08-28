@@ -1,9 +1,5 @@
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import {
-  registerConsumer,
-  type ConsumerEvent,
-  type ConsumerResult,
-} from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, ConsumerResult } from '#/shared/outbox'
 import {
   organizationId,
   propertyId,
@@ -795,8 +791,10 @@ export const handleOperationalActionHistoryFact = async (
 }
 
 export const registerActivityOutboxConsumers = (
+  registry: ConsumerRegistry,
   deps: ActivityOutboxConsumerDeps,
 ): void => {
+  const { registerConsumer } = registry
   for (const eventType of DURABLE_RECENT_ACTIVITY_EVENT_TYPES) {
     registerConsumer({
       eventType,

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
 import {
-  clearConsumers,
-  listRegisteredConsumers,
+  createConsumerRegistry,
+  type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -15,6 +15,9 @@ import {
   ON_GOAL_MONTHLY_RESULT_REVISED_CONSUMER,
   registerGoalNotificationConsumer,
 } from './goal-outbox-consumers'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const IDS = {
   event: '91000000-0000-4000-8000-000000000001',
@@ -124,19 +127,19 @@ const makeDeps = () => {
 
 describe('canonical Goal monthly-result notification consumer', () => {
   beforeEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
     registerAllEventSchemas()
   })
 
   afterEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
   })
 
   it('registers closed and revised results, never reconciled or legacy goal.completed', () => {
-    registerGoalNotificationConsumer(makeDeps())
-    expect(listRegisteredConsumers()).toEqual(
+    registerGoalNotificationConsumer(consumerRegistry, makeDeps())
+    expect(consumerRegistry.list()).toEqual(
       expect.arrayContaining([
         {
           eventType: 'goal.monthly_result.revised',
@@ -144,11 +147,11 @@ describe('canonical Goal monthly-result notification consumer', () => {
         },
       ]),
     )
-    expect(listRegisteredConsumers()).toContainEqual({
+    expect(consumerRegistry.list()).toContainEqual({
       eventType: 'goal.monthly_result.closed',
       consumerName: ON_GOAL_MONTHLY_RESULT_CLOSED_CONSUMER,
     })
-    expect(listRegisteredConsumers()).toHaveLength(2)
+    expect(consumerRegistry.list()).toHaveLength(2)
   })
 
   it('uses the exact achieved result lookup and enqueues privacy-safe stable jobs before receipt', async () => {

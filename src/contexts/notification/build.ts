@@ -42,7 +42,7 @@ import {
   DEFAULT_RECONCILE_LOOKBACK_MS,
   NOTIFICATION_GAP_SCAN_LIMIT,
 } from './infrastructure/jobs/reconcile-missing-notifications.job'
-import { listRegisteredConsumers, type OutboxRepository } from '#/shared/outbox'
+import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { insertNotification } from './application/use-cases/insert-notification'
 import { muteNotificationCategory } from './application/use-cases/mute-notification-category'
 import { URGENT_EMAIL_JOB_NAME } from './infrastructure/jobs/urgent-email.job'
@@ -419,66 +419,66 @@ export const buildNotificationContext = (input: BuildInput) => {
    * worker queue, so web composition can expose the capability without
    * exposing Notification repositories or use cases.
    */
-  const registerOutboxConsumers = () => {
+  const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
     if (!fanoutDeps) return
-    registerIdentityAccountNotificationConsumers({
+    registerIdentityAccountNotificationConsumers(consumerRegistry, {
       queue: fanoutDeps.queue,
       receipts: input.outboxRepo,
     })
-    registerNotificationConsumers({
+    registerNotificationConsumers(consumerRegistry, {
       ...fanoutDeps,
       receipts: input.outboxRepo,
     })
-    registerWorkflowNotificationConsumers({
+    registerWorkflowNotificationConsumers(consumerRegistry, {
       ...fanoutDeps,
       receipts: input.outboxRepo,
     })
-    registerBulkAssignmentNotificationConsumer({
+    registerBulkAssignmentNotificationConsumer(consumerRegistry, {
       queue: fanoutDeps.queue,
       userLookup,
       receipts: input.outboxRepo,
     })
-    registerEscalationResolutionNotificationConsumer({
+    registerEscalationResolutionNotificationConsumer(consumerRegistry, {
       queue: fanoutDeps.queue,
       escalationResolutions,
       responsibleManagers: input.responsibleManagers,
       receipts: input.outboxRepo,
     })
-    registerHandlingCycleNotificationConsumers({
+    registerHandlingCycleNotificationConsumers(consumerRegistry, {
       ...fanoutDeps,
       receipts: input.outboxRepo,
     })
-    registerResponseTargetNotificationConsumer({
+    registerResponseTargetNotificationConsumer(consumerRegistry, {
       ...fanoutDeps,
       receipts: input.outboxRepo,
     })
-    registerGoalNotificationConsumer({
+    registerGoalNotificationConsumer(consumerRegistry, {
       queue: fanoutDeps.queue,
       monthlyResultFacts: input.monthlyResultFacts,
       responsibleManagers: input.responsibleManagers,
       userLookup,
       receipts: input.outboxRepo,
     })
-    registerPortalNotificationConsumers({
+    registerPortalNotificationConsumers(consumerRegistry, {
       queue: fanoutDeps.queue,
       userLookup,
       logger: input.logger,
       receipts: input.outboxRepo,
     })
-    registerPortalHealthNotificationConsumer({
+    registerPortalHealthNotificationConsumer(consumerRegistry, {
       queue: fanoutDeps.queue,
       responsibleManagers: input.responsibleManagers,
       userLookup,
       logger: input.logger,
       receipts: input.outboxRepo,
     })
-    registerPropertyNotificationConsumers({
+    registerPropertyNotificationConsumers(consumerRegistry, {
       queue: fanoutDeps.queue,
       userLookup,
       logger: input.logger,
       receipts: input.outboxRepo,
     })
-    registerIntegrationNotificationConsumers({
+    registerIntegrationNotificationConsumers(consumerRegistry, {
       queue: fanoutDeps.queue,
       userLookup,
       googleConnectionProperties: input.googleConnectionProperties,
@@ -487,7 +487,10 @@ export const buildNotificationContext = (input: BuildInput) => {
     })
     // Executable readiness contract: compare the beta trigger/recipient
     // matrix with the consumers that are actually present in this worker.
-    assertBetaNotificationTriggerMatrix(listRegisteredConsumers())
+    // ARC-03-T7: read the registry this container just registered into — a
+    // process-global read would let one container's matrix pass on another
+    // container's consumers.
+    assertBetaNotificationTriggerMatrix(consumerRegistry.list())
   }
 
   return {

@@ -44,11 +44,19 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'backgroundQueue',
   'betaFeedbackTriageRepo',
   'cache',
+  // ARC-03-T8: the policy trio is container-owned. Building a container no
+  // longer installs it process-wide; one entry point binds one container.
+  'capabilityPolicyStore',
   'clock',
+  // ARC-03-T7: the durable outbox consumer registry is container-owned, so two
+  // containers in one process can each register the same consumers.
+  'consumerRegistry',
   'dashboardPublicApi',
   'dataCellExecutionFence',
   'db',
+  'delayedExecutionPolicy',
   'eventBus',
+  'executionPolicy',
   'goalPublicApi',
   'goalWorkerRuntime',
   'guestContactRequestRetentionSweep',
@@ -98,6 +106,10 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'registerReviewWorkerJobs',
   'reviewMaintenanceRuntime',
   'reviewPublicApi',
+  // ARC-03-T6: the container's owned release seam — building a container
+  // starts the identity policy poller, so stopping it must be reachable from
+  // the container itself rather than from a dropped return value.
+  'shutdown',
   'staffPublicApi',
 ]
 
@@ -251,6 +263,12 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     ])
     expect(Object.isFrozen(container.inboxLifecycleRuntime)).toBe(true)
     expect(Object.isFrozen(container.inboxMaintenanceRuntime)).toBe(true)
+  })
+
+  it('owns a frozen policy trio without installing it process-wide', () => {
+    expect(Object.isFrozen(container.capabilityPolicyStore)).toBe(true)
+    expect(Object.isFrozen(container.executionPolicy)).toBe(true)
+    expect(Object.isFrozen(container.delayedExecutionPolicy)).toBe(true)
   })
 
   it('exposes readiness/runtime contributions as functions', () => {

@@ -1,5 +1,5 @@
 import { z } from 'zod/v4'
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import type { PortalHealthReconciliationStore } from '../application/ports/portal-health-reconciliation.port'
 
@@ -101,7 +101,11 @@ export async function handlePortalHealthDependencyChanged(
   return { status: result.status }
 }
 
-export function registerPortalHealthConsumers(deps: Deps): void {
+export function registerPortalHealthConsumers(
+  registry: ConsumerRegistry,
+  deps: Deps,
+): void {
+  const { registerConsumer } = registry
   // Keep registrations literal so the governance catalogue can prove exact
   // producer/consumer coverage without executing application composition.
   registerConsumer({

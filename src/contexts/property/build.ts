@@ -3,6 +3,7 @@
 // Per ADR-0001: the composition root calls this and passes publicApi to consumers.
 
 import type { Database } from '#/shared/db'
+import type { ConsumerRegistry } from '#/shared/outbox'
 
 import type { PropertyRepository } from './application/ports/property.repository'
 import type {
@@ -343,7 +344,8 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
   return {
     publicApi,
     worker: Object.freeze({
-      registerOutboxConsumers: () => registerPropertyRetentionConsumer(publicApi),
+      registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) =>
+        registerPropertyRetentionConsumer(consumerRegistry, publicApi),
     }),
     internal: {
       repos: { responsibleManagerRepo } as const,

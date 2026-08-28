@@ -21,7 +21,7 @@ import {
   scanEventId,
 } from '#/shared/domain/ids'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import { onFeedbackSubmittedDurably } from './event-handlers/on-feedback-submitted'
 import { onRatingSubmittedDurably } from './event-handlers/on-rating-submitted'
 import { onReviewLinkClickedDurably } from './event-handlers/on-review-link-clicked'
@@ -217,8 +217,10 @@ function guestMetricDomainEvent(
 }
 
 export function registerGuestMetricConsumers(
+  registry: ConsumerRegistry,
   deps: RecordPortalMetricDeps & RetractPortalMetricDeps,
 ): void {
+  const { registerConsumer } = registry
   const scanHandler = onScanRecordedDurably(deps)
   const qualifiedScanHandler = onQualifiedScanRecordedDurably(deps)
   const qualifiedScanRetractionHandler = onQualifiedScanRetractedDurably(deps)

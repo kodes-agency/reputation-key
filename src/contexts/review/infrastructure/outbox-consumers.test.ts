@@ -9,8 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
-  clearConsumers,
-  listRegisteredConsumers,
+  createConsumerRegistry,
+  type ConsumerRegistry,
   type ConsumerEvent,
 } from '#/shared/outbox/consumer-registry'
 import type { Reply } from '../domain/types'
@@ -20,6 +20,9 @@ import {
   registerReplyPublicationConsumers,
   type ReviewOutboxLogger,
 } from './outbox-consumers'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const NOW = new Date('2026-08-26T12:00:00.000Z')
 const EVENT_ID = '97000000-0000-0000-0000-000000000001'
@@ -97,20 +100,20 @@ function deps(current: Reply | null = reply()) {
 beforeEach(() => {
   clearEventSchemas()
   registerAllEventSchemas()
-  clearConsumers()
+  consumerRegistry = createConsumerRegistry()
 })
 
 afterEach(() => {
-  clearConsumers()
+  consumerRegistry = createConsumerRegistry()
   clearEventSchemas()
 })
 
 describe('reply publication requested durable consumer', () => {
   it('registers the governed worker consumer under its exact identity', () => {
     const subject = deps()
-    registerReplyPublicationConsumers(subject as never)
+    registerReplyPublicationConsumers(consumerRegistry, subject as never)
 
-    expect(listRegisteredConsumers()).toContainEqual({
+    expect(consumerRegistry.list()).toContainEqual({
       eventType: 'review.reply.publication_requested',
       consumerName: ON_REPLY_PUBLICATION_REQUESTED_CONSUMER,
     })

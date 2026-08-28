@@ -14,11 +14,7 @@
 // review.reply.published is receipt-only, while review.reply.observed is the
 // durable exact-head authority for automatic Review close/reopen effects.
 
-import {
-  registerConsumer,
-  type ConsumerEvent,
-  type ConsumerResult,
-} from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, ConsumerResult } from '#/shared/outbox'
 import type { ReviewLookupPort } from '../application/ports/review-lookup.port'
 import type { ReviewSourceLookupPort } from '../application/ports/review-source-lookup.port'
 import type { InboxRepository } from '../application/ports/inbox.repository'
@@ -452,7 +448,11 @@ export async function handleInboxReplyObserved(
  * Register inbox consumers with the outbox dispatcher.
  * Called during worker startup (after bootstrap).
  */
-export function registerInboxConsumers(deps: InboxConsumerDeps): void {
+export function registerInboxConsumers(
+  registry: ConsumerRegistry,
+  deps: InboxConsumerDeps,
+): void {
+  const { registerConsumer } = registry
   // Consumer names MUST stay string literals here — the event-job catalogue
   // guard discovers durable consumers by scanning registerConsumer calls.
   registerConsumer({

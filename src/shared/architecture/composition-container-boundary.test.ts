@@ -454,6 +454,54 @@ describe('composition container boundary evidence', () => {
     expect(metricPublicApi).not.toContain('portalLifetime: PortalLifetimeAggregatePort')
   })
 
+  // ARC-03-T6: a container that starts background work must be stoppable from
+  // every process that builds one. The identity policy poller was previously
+  // reachable only from scripts/ops/operator-command.ts.
+  it('reaches the container shutdown seam from both the web and worker paths', () => {
+    const gracefulShutdown = readFileSync(
+      resolve('server/plugins/graceful-shutdown.ts'),
+      'utf8',
+    )
+    const worker = readFileSync(resolve('src/worker/index.ts'), 'utf8')
+    const composition = readFileSync(resolve('src/composition.ts'), 'utf8')
+
+    expect(gracefulShutdown).toContain("name: 'container-shutdown'")
+    expect(worker).toContain('shutdown: container.shutdown')
+    expect(worker).toContain('drainWorkerResources({')
+    expect(composition).toContain('shutdown: containerShutdown')
+    expect(composition).toContain('await container.shutdown?.run()')
+  })
+
+  // ARC-03-T8: the policy trio must not be installed as an import-time side
+  // effect of loading the composition module — one entry point binds one
+  // container, by name.
+  it('installs the process policy trio from named entry points only', () => {
+    const composition = readFileSync(resolve('src/composition.ts'), 'utf8')
+    const policyStoreInit = readFileSync(
+      resolve('src/contexts/identity/infrastructure/policy-store-init.ts'),
+      'utf8',
+    )
+    const worker = readFileSync(resolve('src/worker/index.ts'), 'utf8')
+    const operatorHarness = readFileSync(
+      resolve('scripts/ops/operator-command.ts'),
+      'utf8',
+    )
+
+    expect(composition).not.toContain('registerExecutionPolicyInit(')
+    expect(composition).not.toContain('registerDelayedExecutionPolicyInit(')
+    expect(composition).toContain('export function bindProcessPoliciesFromSingleton')
+    expect(composition).toContain(
+      'registerProcessPolicyColdBoot(bindProcessPoliciesFromSingleton)',
+    )
+    // Building a container installs nothing: the identity policy boot returns
+    // the trio, it never writes the process singletons.
+    expect(policyStoreInit).not.toContain('initExecutionPolicy(')
+    expect(policyStoreInit).not.toContain('initDelayedExecutionPolicy(')
+    expect(policyStoreInit).not.toContain('initCapabilityPolicyStore(')
+    expect(worker).toContain('bindProcessPolicies(container)')
+    expect(operatorHarness).toContain('bindProcessPolicies(handle)')
+  })
+
   it('routes Identity requests and recovery through owned capabilities', () => {
     const identityServers = sourceFiles(resolve('src/contexts/identity/server')).map(
       (path) => readFileSync(path, 'utf8'),

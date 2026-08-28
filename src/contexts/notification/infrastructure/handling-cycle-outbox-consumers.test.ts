@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
 import {
-  clearConsumers,
-  listRegisteredConsumers,
+  createConsumerRegistry,
+  type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
@@ -17,6 +17,9 @@ import type {
   HandlingCycleNotificationFacts,
   InboxItemFacts,
 } from '../application/ports/inbox-item-lookup.port'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const EVENT_ID = '93000000-0000-4000-8000-000000000001'
 const ITEM = inboxItemId('93000000-0000-4000-8000-000000000002')
@@ -129,20 +132,20 @@ const makeDeps = () => {
 
 describe('Handling Cycle notification durable consumers', () => {
   beforeEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
     registerAllEventSchemas()
   })
 
   afterEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
   })
 
   it('registers opened and reopened facts under stable durable identities', () => {
-    registerHandlingCycleNotificationConsumers(makeDeps())
+    registerHandlingCycleNotificationConsumers(consumerRegistry, makeDeps())
 
-    expect(listRegisteredConsumers()).toEqual([
+    expect(consumerRegistry.list()).toEqual([
       {
         eventType: 'inbox.handling_cycle.opened',
         consumerName: ON_INBOX_HANDLING_CYCLE_OPENED_CONSUMER,

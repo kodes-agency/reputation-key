@@ -28,7 +28,7 @@ import type { Job } from 'bullmq'
 import { UnrecoverableError } from 'bullmq'
 import type { OutboxRepository } from './infrastructure/outbox-repository'
 import { parseConsumerEvent, type ConsumerEvent } from './envelope'
-import { registeredConsumersFor, type ConsumerRegistration } from './consumer-registry'
+import type { ConsumerRegistration, ConsumerRegistry } from './consumer-registry'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
@@ -156,7 +156,15 @@ async function invokeConsumer(
  */
 export function createDispatcherHandler(
   repo: OutboxRepository,
-  options: Readonly<{ localCell?: DataCellId }> = {},
+  options: Readonly<{
+    /**
+     * ARC-03-T7: the container-owned consumer registry. Required — an ambient
+     * default would let a dispatcher silently run against another container's
+     * consumers, which is precisely the process-global coupling this replaced.
+     */
+    consumers: ConsumerRegistry
+    localCell?: DataCellId
+  }>,
 ) {
   const logger = getLogger()
 
@@ -233,7 +241,7 @@ export function createDispatcherHandler(
       }
 
       // Resolve consumers for this event type
-      const consumers = registeredConsumersFor(eventType)
+      const consumers = options.consumers.listFor(eventType)
 
       if (consumers.length === 0) {
         // BQC-3.6: the catalogue decides whether this is a misconfigured

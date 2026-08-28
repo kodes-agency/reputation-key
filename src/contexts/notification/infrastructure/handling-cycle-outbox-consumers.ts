@@ -6,8 +6,7 @@
 // current Property/Portal Responsible Managers. Event and job payloads contain
 // identifiers and workflow revisions only.
 
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
-import type { OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
   inboxItemId,
@@ -195,8 +194,10 @@ export async function handleNotificationHandlingCycle(
 }
 
 export function registerHandlingCycleNotificationConsumers(
+  registry: ConsumerRegistry,
   deps: HandlingCycleNotificationConsumerDeps,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'inbox.handling_cycle.opened',
     consumerName: 'notification.on-inbox-handling-cycle-opened',

@@ -59,7 +59,7 @@ import {
   registerProviderAuthorizationInvalidationConsumer,
 } from './infrastructure/outbox-consumers'
 import { registerGoogleReviewPushDispatchConsumer } from './infrastructure/google-review-push-outbox-consumers'
-import type { OutboxRepository } from '#/shared/outbox'
+import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { GOOGLE_PROPERTY_IMPORT_ITEM_JOB } from './application/google-import-v2-contract'
 import { createCredentialLifecycleRepository } from './infrastructure/repositories/credential-lifecycle.repository'
 import { createGoogleOAuthExchangeRecoveryRepository } from './infrastructure/repositories/google-oauth-exchange-recovery.repository'
@@ -340,7 +340,7 @@ export type IntegrationContextApi = Readonly<{
   webhook: Readonly<{ handleNotification: HandleGbpNotification }>
   /** Context-owned worker registration; exposes no repositories or use cases. */
   worker: Readonly<{
-    registerOutboxConsumers: () => void
+    registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) => void
     processImportItem: GoogleImportV2Processor['process'] | null
     sweepImportLifecycle: ReturnType<typeof createGoogleImportV2Lifecycle>['sweep'] | null
   }>
@@ -584,21 +584,21 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         })
       : null
 
-  const registerOutboxConsumers = () => {
-    registerGoogleImportDispatchConsumer({
+  const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
+    registerGoogleImportDispatchConsumer(consumerRegistry, {
       store: googleImportV2Store,
       queue: googleImportV2Queue,
       receipts: deps.outboxRepo,
     })
     if (providerAuthorizationInvalidation) {
-      registerProviderAuthorizationInvalidationConsumer({
+      registerProviderAuthorizationInvalidationConsumer(consumerRegistry, {
         fanout: providerAuthorizationInvalidation,
         receipts: deps.outboxRepo,
         nowMs: () => deps.clock().getTime(),
       })
     }
     if (targetedGoogleReviewQueue) {
-      registerGoogleReviewPushDispatchConsumer({
+      registerGoogleReviewPushDispatchConsumer(consumerRegistry, {
         queue: targetedGoogleReviewQueue,
         receipts: deps.outboxRepo,
       })

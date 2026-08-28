@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ConsumerRegistry } from '#/shared/outbox'
 import type { Database } from '#/shared/db'
 
 const mocks = vi.hoisted(() => ({
@@ -8,12 +9,15 @@ const mocks = vi.hoisted(() => ({
   ),
 }))
 
-vi.mock('#/shared/outbox', () => ({
-  registerConsumer: mocks.registerConsumer,
-}))
 vi.mock('#/shared/events/schema-registry', () => ({
   validateEventPayload: mocks.validateEventPayload,
 }))
+
+// ARC-03-T7: the consumers register on the registry they are handed, so the
+// spy is a stand-in registry rather than a mocked module export.
+const consumerRegistry = {
+  registerConsumer: mocks.registerConsumer,
+} as unknown as ConsumerRegistry
 
 import { registerMetricCorrectionConsumer } from './correction-outbox-consumers'
 
@@ -33,7 +37,7 @@ function registrationWithDatabase() {
   const onConflictDoUpdate = vi.fn(async () => undefined)
   const values = vi.fn(() => ({ onConflictDoUpdate }))
   const insert = vi.fn(() => ({ values }))
-  registerMetricCorrectionConsumer({ insert } as unknown as Database)
+  registerMetricCorrectionConsumer(consumerRegistry, { insert } as unknown as Database)
   const registration = mocks.registerConsumer.mock.calls[0]?.[0] as {
     eventType: string
     consumerName: string

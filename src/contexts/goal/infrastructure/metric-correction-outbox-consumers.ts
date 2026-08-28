@@ -1,5 +1,5 @@
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import type { ReconcileMetricCorrection } from '../application/use-cases/reconcile-metric-correction'
 
 export const GOAL_METRIC_CORRECTION_CONSUMER =
@@ -32,8 +32,10 @@ function parseMetricCorrection(event: ConsumerEvent): MetricCorrectedPayload {
 }
 
 export function registerGoalMetricCorrectionConsumer(
+  registry: ConsumerRegistry,
   reconcile: ReconcileMetricCorrection,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'metric.corrected',
     consumerName: 'goal.metric-correction-reconciliation',

@@ -15,15 +15,21 @@
 // outside tsconfig/eslint, so this file is wiring only.
 //
 // Commands needing use cases (projection rebuild, policy admin, …) call
-// getContainer() inside their action; the container re-installs the same
-// policy singletons (identical deps) — the process exits after the command.
+// getContainer() inside their action. ARC-03-T8: building that container no
+// longer re-installs the policy singletons, so the boot-time runtime below
+// stays authoritative for the whole command instead of being silently
+// replaced mid-run.
 
 import { getDb } from '../../src/shared/db'
 import { closePool } from '../../src/shared/db/pool'
 import { getEnv } from '../../src/shared/config/env'
 import { getLogger } from '../../src/shared/observability/logger'
 import { initPersistedCapabilityPolicyStore } from '../../src/contexts/identity/infrastructure/policy-store-init'
-import { getExecutionPolicy } from '../../src/shared/auth/execution-policy'
+import type { ExecutionPolicy } from '../../src/shared/auth/execution-policy'
+import {
+  bindProcessPolicies,
+  releaseProcessPolicies,
+} from '../../src/shared/auth/process-policy-binding'
 import { createPropertyRoutingLoader } from '../../src/contexts/property/infrastructure/property-routing.adapter'
 import { createDataCellExecutionFence } from '../../src/shared/routing/data-cell-execution-fence'
 import {
@@ -37,6 +43,8 @@ import {
 
 type OperatorBoot = Readonly<{
   runtime: OperatorRuntime
+  /** The instance the runtime closure decides on — flushed before exit. */
+  decidingPolicy: ExecutionPolicy
   cleanup: () => void
 }>
 
@@ -55,12 +63,22 @@ async function bootOperatorRuntime(): Promise<OperatorBoot> {
     logger: getLogger(),
     admitPropertyExecution: dataCellExecutionFence.decideProperty,
   })
+  // ARC-03-T8: this is the ops process's ONE policy installation. The
+  // ExecutionPolicy consults the process capability store, so the composite
+  // store must be bound before any decision — returning the handle without
+  // binding would silently evaluate operator commands against the env-only
+  // fallback store.
+  bindProcessPolicies(handle)
   // Strong read: operator decisions see persisted tenant state (suspensions,
   // allowlists), not just the env seed the bootstrap window runs on.
   await handle.refresh()
   return {
-    runtime: { decide: (request) => getExecutionPolicy().decide(request) },
-    cleanup: () => handle.stopPolling(),
+    runtime: { decide: (request) => handle.executionPolicy.decide(request) },
+    decidingPolicy: handle.executionPolicy,
+    cleanup: () => {
+      handle.stopPolling()
+      releaseProcessPolicies(handle)
+    },
   }
 }
 
@@ -74,12 +92,14 @@ async function bootOperatorRuntime(): Promise<OperatorBoot> {
  * decision — without the flush, process.exit would race the INSERT and the
  * command's compliance record could be lost.
  *
- * The flush targets the BOOT-TIME instance (captured before runCore): an
- * action that calls getContainer() re-installs the ExecutionPolicy
- * singleton (identity build), so getExecutionPolicy() in the finally would
- * return the NEW instance (empty pending set) and the invocation's audit
- * write on the boot instance would race exit — observed as a missing
- * compliance row on fast-refusing commands (BQC-7.8 drill).
+ * The flush targets the boot instance the runtime actually decided on, held
+ * on the boot handle rather than re-read from the process singleton. Before
+ * ARC-03-T8 an action that called getContainer() re-installed the
+ * ExecutionPolicy, so a getExecutionPolicy() read in this finally returned the
+ * NEW instance (empty pending set) while the invocation's audit write on the
+ * boot instance raced exit — observed as a missing compliance row on
+ * fast-refusing commands (BQC-7.8 drill). A second container can no longer
+ * re-install, and this no longer depends on that being true.
  */
 export async function runOperatorCommand(
   spec: OperatorCommandSpec,
@@ -88,9 +108,7 @@ export async function runOperatorCommand(
   io?: OperatorIO,
 ): Promise<OperatorCommandResult> {
   const boot = await bootOperatorRuntime()
-  // The instance the runtime closure decides on (no re-install happens
-  // between boot and the decision).
-  const decidingPolicy = getExecutionPolicy()
+  const decidingPolicy = boot.decidingPolicy
   try {
     return await runCore(spec, action, boot.runtime, argv, io)
   } finally {

@@ -1,9 +1,9 @@
 import { z } from 'zod/v4'
-import {
-  registerConsumer,
-  type ConsumerEvent,
-  type ConsumerResult,
-  type OutboxRepository,
+import type {
+  ConsumerEvent,
+  ConsumerRegistry,
+  ConsumerResult,
+  OutboxRepository,
 } from '#/shared/outbox'
 import type { ProcessIssuedPortalImageInput } from './jobs/process-image.job'
 
@@ -49,8 +49,10 @@ export async function handlePortalHeroImageProcessingRequested(
 }
 
 export function registerPortalConsumers(
+  registry: ConsumerRegistry,
   dependencies: RegisterPortalConsumersInput,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'portal.hero_image.processing_requested',
     consumerName: 'portal.process-issued-hero-image',

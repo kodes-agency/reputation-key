@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import {
-  clearConsumers,
-  listRegisteredConsumers,
+  createConsumerRegistry,
+  type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -13,6 +13,9 @@ import {
   registerPropertyNotificationConsumers,
 } from './property-outbox-consumers'
 import { unbrand } from '#/shared/domain/ids'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const EVENT_ID = '30000000-0000-4000-8000-000000000003'
 
@@ -46,18 +49,18 @@ const makeDeps = () => {
 
 describe('Property notification durable consumer', () => {
   beforeEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
     registerAllEventSchemas()
   })
   afterEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
   })
 
   it('registers under its Property-gated consumer identity', () => {
-    registerPropertyNotificationConsumers(makeDeps())
-    expect(listRegisteredConsumers()).toContainEqual({
+    registerPropertyNotificationConsumers(consumerRegistry, makeDeps())
+    expect(consumerRegistry.list()).toContainEqual({
       eventType: 'property.responsibility_became_needed',
       consumerName: ON_PROPERTY_RESPONSIBILITY_NEEDED_CONSUMER,
     })

@@ -22,7 +22,7 @@ import {
   EVENT_FAMILY_ROWS,
   JOB_FAMILY_ROWS,
 } from '#/shared/governance/event-job-catalogue'
-import { listRegisteredConsumers } from '#/shared/outbox'
+import type { ConsumerListing } from '#/shared/outbox'
 import {
   listActiveCutoverFamilies,
   type ActiveCutoverFamily,
@@ -33,10 +33,13 @@ import { validateOperationalCatalogueCoverage } from './operational-catalogue'
 export type JobReadinessOptions = Readonly<{
   /** Validate durable consumer registration (only when the dispatcher runs). */
   dispatcherEnabled?: boolean
-  /** Consumer listing seam — defaults to the dispatcher registry. */
-  listConsumers?: () => ReadonlyArray<
-    Readonly<{ eventType: string; consumerName: string }>
-  >
+  /**
+   * ARC-03-T7: the container's consumer listing. REQUIRED — the old default
+   * read a process-global registry, so readiness could pass against consumers
+   * some other container registered. The caller must name the registry whose
+   * worker is about to start.
+   */
+  listConsumers: () => ReadonlyArray<ConsumerListing>
   /**
    * BQC-3.9: families past record-only — defaults to the env resolution.
    * Any active family (shadow/switch) requires the durable dispatcher.
@@ -75,7 +78,7 @@ function assertHandlersRegistered(registry: JobRegistry): void {
 }
 
 function assertDurableConsumersRegistered(
-  listConsumers: NonNullable<JobReadinessOptions['listConsumers']>,
+  listConsumers: JobReadinessOptions['listConsumers'],
 ): void {
   const registered = new Set(
     listConsumers().map((c) => `${c.eventType}::${c.consumerName}`),
@@ -120,7 +123,7 @@ function assertCutoverDispatcher(
 export function assertJobReadiness(
   registry: JobRegistry,
   logger: ReadinessLogger,
-  options: JobReadinessOptions = {},
+  options: JobReadinessOptions,
 ): void {
   validateOperationalCatalogueCoverage()
   assertCutoverDispatcher(
@@ -130,7 +133,7 @@ export function assertJobReadiness(
   assertHandlersRegistered(registry)
 
   if (options.dispatcherEnabled) {
-    assertDurableConsumersRegistered(options.listConsumers ?? listRegisteredConsumers)
+    assertDurableConsumersRegistered(options.listConsumers)
     logger.info(
       { handlers: registry.getAll().size, dispatcherEnabled: true },
       'job readiness OK — handlers and durable consumers match the catalogue',

@@ -1,14 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox'
 import {
-  clearConsumers,
-  listRegisteredConsumers,
+  createConsumerRegistry,
+  type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
 import {
   handlePortalHeroImageProcessingRequested,
   PORTAL_HERO_IMAGE_PROCESSING_CONSUMER,
   registerPortalConsumers,
 } from './outbox-consumers'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const EVENT_ID = '70000000-0000-4000-8000-000000000009'
 const ORGANIZATION_ID = 'org-portal-upload'
@@ -42,12 +45,16 @@ const makeDeps = (outcome: 'processed' | 'stale' = 'processed') => ({
 })
 
 describe('Portal hero image durable consumer', () => {
-  beforeEach(clearConsumers)
-  afterEach(clearConsumers)
+  beforeEach(() => {
+    consumerRegistry = createConsumerRegistry()
+  })
+  afterEach(() => {
+    consumerRegistry = createConsumerRegistry()
+  })
 
   it('registers exactly once under the Portal upload capability module', () => {
-    registerPortalConsumers(makeDeps())
-    expect(listRegisteredConsumers()).toContainEqual({
+    registerPortalConsumers(consumerRegistry, makeDeps())
+    expect(consumerRegistry.list()).toContainEqual({
       eventType: 'portal.hero_image.processing_requested',
       consumerName: PORTAL_HERO_IMAGE_PROCESSING_CONSUMER,
     })

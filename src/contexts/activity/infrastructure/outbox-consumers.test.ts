@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  clearConsumers,
-  listRegisteredConsumers,
+  createConsumerRegistry,
+  type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
 import { recentActivityEntryId } from '#/shared/domain/ids'
 import { operationalActionHistoryRecordId } from '../domain/operational-action-history'
@@ -15,6 +15,9 @@ import {
   handleRecentActivityFact,
   registerActivityOutboxConsumers,
 } from './outbox-consumers'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const logger = {
   info: vi.fn(),
@@ -81,7 +84,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
-  clearConsumers()
+  consumerRegistry = createConsumerRegistry()
   clearEventSchemas()
   vi.clearAllMocks()
 })
@@ -762,11 +765,11 @@ describe('Activity durable Recent Activity consumer', () => {
 
   it('registers the exact retained durable source-fact matrix', () => {
     const { deps } = dependencies()
-    registerActivityOutboxConsumers(deps)
+    registerActivityOutboxConsumers(consumerRegistry, deps)
 
-    const registrations = listRegisteredConsumers().filter(
-      ({ consumerName }) => consumerName === ACTIVITY_RECENT_ACTIVITY_CONSUMER,
-    )
+    const registrations = consumerRegistry
+      .list()
+      .filter(({ consumerName }) => consumerName === ACTIVITY_RECENT_ACTIVITY_CONSUMER)
     expect(registrations.map(({ eventType }) => eventType).sort()).toEqual(
       [
         'identity.invitation.accepted',
@@ -808,9 +811,12 @@ describe('Activity durable Recent Activity consumer', () => {
       ].sort(),
     )
 
-    const operationalHistoryRegistrations = listRegisteredConsumers().filter(
-      ({ consumerName }) => consumerName === ACTIVITY_OPERATIONAL_ACTION_HISTORY_CONSUMER,
-    )
+    const operationalHistoryRegistrations = consumerRegistry
+      .list()
+      .filter(
+        ({ consumerName }) =>
+          consumerName === ACTIVITY_OPERATIONAL_ACTION_HISTORY_CONSUMER,
+      )
     expect(
       operationalHistoryRegistrations.map(({ eventType }) => eventType).sort(),
     ).toEqual(

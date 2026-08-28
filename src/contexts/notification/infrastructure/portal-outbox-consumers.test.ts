@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ZodError } from 'zod/v4'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import {
-  clearConsumers,
-  listRegisteredConsumers,
+  createConsumerRegistry,
+  type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -14,6 +14,9 @@ import {
   registerPortalNotificationConsumers,
 } from './portal-outbox-consumers'
 import { unbrand } from '#/shared/domain/ids'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 const EVENT_ID = '30000000-0000-4000-8000-000000000002'
 
@@ -49,19 +52,19 @@ const makeDeps = () => {
 
 describe('portal notification durable consumer', () => {
   beforeEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
     registerAllEventSchemas()
   })
 
   afterEach(() => {
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
     clearEventSchemas()
   })
 
   it('registers under its portal-gated consumer identity', () => {
-    registerPortalNotificationConsumers(makeDeps())
-    expect(listRegisteredConsumers()).toContainEqual({
+    registerPortalNotificationConsumers(consumerRegistry, makeDeps())
+    expect(consumerRegistry.list()).toContainEqual({
       eventType: 'portal.responsibility_became_needed',
       consumerName: 'notification.on-portal-responsibility-needed',
     })

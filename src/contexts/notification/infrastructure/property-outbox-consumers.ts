@@ -1,5 +1,4 @@
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
-import type { OutboxRepository } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import {
@@ -57,8 +56,10 @@ export async function handleNotificationPropertyResponsibilityNeeded(
 }
 
 export function registerPropertyNotificationConsumers(
+  registry: ConsumerRegistry,
   deps: PropertyNotificationConsumerDeps,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'property.responsibility_became_needed',
     consumerName: 'notification.on-property-responsibility-needed',

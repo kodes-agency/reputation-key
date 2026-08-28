@@ -747,6 +747,15 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       // persisted policy_version for the OperationsSnapshot (null when only
       // the env seed is present — no DB round-trip).
       policyStoreVersion: policyStore.currentVersion,
+      // ARC-03-T6: the poller this build started is released through the
+      // container's shutdown seam. Identity must surface the stop function —
+      // dropping it is what leaked a live interval per container built.
+      stopPolicyPolling: policyStore.stopPolling,
+      // ARC-03-T8: container-owned policy objects. Building identity no longer
+      // installs them process-wide; an entry point binds exactly one set.
+      capabilityPolicyStore: policyStore.capabilityPolicyStore,
+      executionPolicy: policyStore.executionPolicy,
+      delayedExecutionPolicy: policyStore.delayedExecutionPolicy,
       // BQC-4.5: operator audit sink for the property region-move workflow.
       writeOperatorAudit,
       // Identity owns the grant table; callers supply their authorization

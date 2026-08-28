@@ -34,6 +34,18 @@ export interface DrainLogger {
   error: (obj: Record<string, unknown>, msg: string) => void
 }
 
+/**
+ * The container's own release seam (ARC-03-T6). The worker owns the container
+ * it built, so the drain — not the process exit — is what stops the
+ * container's background work.
+ */
+export interface ContainerRelease {
+  readonly run: () => Promise<void>
+}
+
+/** Budget/reporting label for the container release step. */
+const CONTAINER_LABEL = 'container'
+
 export interface DrainResult {
   /** True when the budget fired before every resource finished closing. */
   readonly timedOut: boolean
@@ -49,17 +61,28 @@ export interface DrainResult {
  * `budgetMs`; on expiry the still-open labels are reported. The loop itself
  * is not cancellable — a hung close keeps its promise pending in the
  * background until the process exits.
+ *
+ * ARC-03-T6: `shutdown` (the container's release seam) runs between the two
+ * phases — after the workers stop taking jobs, before the queue connections
+ * go away — because the container's background work (the identity policy
+ * poller) reads the database and must not be left ticking against a closing
+ * process. It shares the same budget as everything else.
  */
 export async function drainWorkerResources(options: {
   readonly workers: ReadonlyArray<NamedCloseable | undefined>
   readonly queues: ReadonlyArray<NamedCloseable | undefined>
+  readonly shutdown?: ContainerRelease
   readonly budgetMs: number
   readonly logger: DrainLogger
 }): Promise<DrainResult> {
-  const { budgetMs, logger } = options
+  const { budgetMs, logger, shutdown } = options
   const workers = options.workers.filter((w): w is NamedCloseable => w !== undefined)
   const queues = options.queues.filter((q): q is NamedCloseable => q !== undefined)
-  const remaining = [...workers, ...queues].map((r) => r.label)
+  const remaining = [
+    ...workers.map((r) => r.label),
+    ...(shutdown ? [CONTAINER_LABEL] : []),
+    ...queues.map((r) => r.label),
+  ]
 
   const loop = (async () => {
     for (const w of workers) {
@@ -70,6 +93,19 @@ export async function drainWorkerResources(options: {
         logger.error({ err, queue: w.label }, 'Error draining worker')
       } finally {
         remaining.splice(remaining.indexOf(w.label), 1)
+      }
+    }
+    if (shutdown) {
+      try {
+        await shutdown.run()
+        logger.info({ queue: CONTAINER_LABEL }, 'Container resources released')
+      } catch (err) {
+        logger.error(
+          { err, queue: CONTAINER_LABEL },
+          'Error releasing container resources',
+        )
+      } finally {
+        remaining.splice(remaining.indexOf(CONTAINER_LABEL), 1)
       }
     }
     for (const q of queues) {

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ConsumerRegistry } from '#/shared/outbox'
 
 const mocks = vi.hoisted(() => ({
   registerConsumer: vi.fn(),
@@ -7,10 +8,15 @@ const mocks = vi.hoisted(() => ({
   ),
 }))
 
-vi.mock('#/shared/outbox', () => ({ registerConsumer: mocks.registerConsumer }))
 vi.mock('#/shared/events/schema-registry', () => ({
   validateEventPayload: mocks.validateEventPayload,
 }))
+
+// ARC-03-T7: the consumers register on the registry they are handed, so the
+// spy is a stand-in registry rather than a mocked module export.
+const consumerRegistry = {
+  registerConsumer: mocks.registerConsumer,
+} as unknown as ConsumerRegistry
 
 import type { CurrentGoogleReputationSnapshotStore } from '../application/ports/current-google-reputation-snapshot.port'
 import {
@@ -55,7 +61,7 @@ describe('Current on Google durable consumer', () => {
 
   it('registers the distinct verified-snapshot event and projects its exact fact', async () => {
     const snapshots = store()
-    registerCurrentGoogleReputationConsumer(snapshots)
+    registerCurrentGoogleReputationConsumer(consumerRegistry, snapshots)
     const registration = mocks.registerConsumer.mock.calls[0]?.[0]
 
     expect(registration).toMatchObject({

@@ -1,11 +1,7 @@
 import { createGoogleImportDispatchHandler } from '../application/google-import-dispatch'
 import type { GoogleImportV2QueuePort } from '../application/ports/gbp-queue.port'
 import type { GoogleImportV2Store } from '../application/ports/google-import-v2-store.port'
-import {
-  registerConsumer,
-  type ConsumerEvent,
-  type OutboxRepository,
-} from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import type { ProviderAuthorizationInvalidationFanout } from '#/shared/provider-ephemeral/authorization-invalidation'
 
@@ -13,12 +9,14 @@ export const PROVIDER_AUTHORIZATION_INVALIDATION_CONSUMER =
   'integration.provider-authorization-invalidation' as const
 
 export function registerGoogleImportDispatchConsumer(
+  registry: ConsumerRegistry,
   deps: Readonly<{
     store: GoogleImportV2Store
     queue: GoogleImportV2QueuePort
     receipts: Pick<OutboxRepository, 'insertReceipt'>
   }>,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'integration.property_import.requested',
     consumerName: 'integration.property-import-dispatch',
@@ -82,12 +80,14 @@ export async function handlePropertyBindingAuthorizationInvalidation(
 }
 
 export function registerProviderAuthorizationInvalidationConsumer(
+  registry: ConsumerRegistry,
   deps: Readonly<{
     fanout: ProviderAuthorizationInvalidationFanout
     receipts: Pick<OutboxRepository, 'insertReceipt'>
     nowMs: () => number
   }>,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'property.google_binding.changed',
     consumerName: 'integration.provider-authorization-invalidation',

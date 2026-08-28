@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  clearConsumers,
-  listRegisteredConsumers,
+  createConsumerRegistry,
+  type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
 import { assertBetaNotificationTriggerMatrix } from '../application/beta-notification-trigger-matrix'
 import { createEventHandlerDeps } from './event-handlers/test-fixtures'
@@ -18,24 +18,34 @@ import { registerResponseTargetNotificationConsumer } from './response-target-ou
 import { registerPortalHealthNotificationConsumer } from './portal-health-outbox-consumers'
 import { registerIdentityAccountNotificationConsumers } from './identity-account-outbox-consumers'
 
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
+
 describe('registered durable notification matrix', () => {
-  beforeEach(clearConsumers)
-  afterEach(clearConsumers)
+  beforeEach(() => {
+    consumerRegistry = createConsumerRegistry()
+  })
+  afterEach(() => {
+    consumerRegistry = createConsumerRegistry()
+  })
 
   it('matches the consumers actually registered by the worker composition', () => {
     const fakes = createEventHandlerDeps()
     const receipts = { insertReceipt: vi.fn(async () => {}) }
 
-    registerIdentityAccountNotificationConsumers({ queue: fakes.queue, receipts })
+    registerIdentityAccountNotificationConsumers(consumerRegistry, {
+      queue: fakes.queue,
+      receipts,
+    })
 
-    registerNotificationConsumers({ ...fakes, receipts })
-    registerWorkflowNotificationConsumers({ ...fakes, receipts })
-    registerBulkAssignmentNotificationConsumer({
+    registerNotificationConsumers(consumerRegistry, { ...fakes, receipts })
+    registerWorkflowNotificationConsumers(consumerRegistry, { ...fakes, receipts })
+    registerBulkAssignmentNotificationConsumer(consumerRegistry, {
       queue: fakes.queue,
       userLookup: fakes.userLookup,
       receipts,
     })
-    registerEscalationResolutionNotificationConsumer({
+    registerEscalationResolutionNotificationConsumer(consumerRegistry, {
       queue: fakes.queue,
       escalationResolutions: {
         findEscalationResolutionFacts: vi.fn(async () => null),
@@ -43,9 +53,9 @@ describe('registered durable notification matrix', () => {
       responsibleManagers: fakes.responsibleManagers,
       receipts,
     })
-    registerHandlingCycleNotificationConsumers({ ...fakes, receipts })
-    registerResponseTargetNotificationConsumer({ ...fakes, receipts })
-    registerGoalNotificationConsumer({
+    registerHandlingCycleNotificationConsumers(consumerRegistry, { ...fakes, receipts })
+    registerResponseTargetNotificationConsumer(consumerRegistry, { ...fakes, receipts })
+    registerGoalNotificationConsumer(consumerRegistry, {
       queue: fakes.queue,
       monthlyResultFacts: {
         findMonthlyResultNotificationFacts: vi.fn(async () => null),
@@ -55,26 +65,26 @@ describe('registered durable notification matrix', () => {
       userLookup: fakes.userLookup,
       receipts,
     })
-    registerPortalNotificationConsumers({
+    registerPortalNotificationConsumers(consumerRegistry, {
       queue: fakes.queue,
       userLookup: fakes.userLookup,
       logger: fakes.logger,
       receipts,
     })
-    registerPortalHealthNotificationConsumer({
+    registerPortalHealthNotificationConsumer(consumerRegistry, {
       queue: fakes.queue,
       responsibleManagers: fakes.responsibleManagers,
       userLookup: fakes.userLookup,
       logger: fakes.logger,
       receipts,
     })
-    registerPropertyNotificationConsumers({
+    registerPropertyNotificationConsumers(consumerRegistry, {
       queue: fakes.queue,
       userLookup: fakes.userLookup,
       logger: fakes.logger,
       receipts,
     })
-    registerIntegrationNotificationConsumers({
+    registerIntegrationNotificationConsumers(consumerRegistry, {
       queue: fakes.queue,
       userLookup: fakes.userLookup,
       googleConnectionProperties: {
@@ -85,7 +95,7 @@ describe('registered durable notification matrix', () => {
     })
 
     expect(() =>
-      assertBetaNotificationTriggerMatrix(listRegisteredConsumers()),
+      assertBetaNotificationTriggerMatrix(consumerRegistry.list()),
     ).not.toThrow()
   })
 })

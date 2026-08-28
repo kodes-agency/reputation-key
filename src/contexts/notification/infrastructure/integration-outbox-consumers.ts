@@ -1,11 +1,7 @@
 import type { IntegrationGoogleAccountReauthorizationRequired } from '#/contexts/integration/application/public-api'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import {
-  registerConsumer,
-  type ConsumerEvent,
-  type OutboxRepository,
-} from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import {
   onGoogleReauthorizationRequired,
   type GoogleReauthorizationNotificationDeps,
@@ -58,8 +54,10 @@ export async function handleNotificationGoogleReauthorizationRequired(
 }
 
 export function registerIntegrationNotificationConsumers(
+  registry: ConsumerRegistry,
   deps: IntegrationNotificationConsumerDeps,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'integration.google_account.reauthorization_required',
     consumerName: 'notification.on-google-reauthorization-required',

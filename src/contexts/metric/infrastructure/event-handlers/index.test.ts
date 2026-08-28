@@ -1,23 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
-  clearConsumers,
-  listRegisteredConsumers,
-  registeredConsumersFor,
+  createConsumerRegistry,
+  type ConsumerRegistry,
 } from '#/shared/outbox/consumer-registry'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
 import { registerPortalWorkflowMetricConsumers } from '../outbox-consumers'
 
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
+
 beforeEach(() => {
-  clearConsumers()
+  consumerRegistry = createConsumerRegistry()
   clearEventSchemas()
   registerAllEventSchemas()
 })
 
 describe('Portal metric durable registration', () => {
   it('registers a durable production consumer for every beta-safe Portal fact', () => {
-    registerPortalWorkflowMetricConsumers({
+    registerPortalWorkflowMetricConsumers(consumerRegistry, {
       recordMetric: vi.fn(async (input: RecordMetricInput) => ({
         status: 'duplicate' as const,
         existingReadingId: input.sourceEventId,
@@ -26,7 +28,8 @@ describe('Portal metric durable registration', () => {
     })
 
     expect(
-      listRegisteredConsumers()
+      consumerRegistry
+        .list()
         .filter((registration) => registration.consumerName === 'metric.portal-workflow')
         .map((registration) => registration.eventType)
         .sort(),
@@ -45,11 +48,11 @@ describe('Portal metric durable registration', () => {
       status: 'duplicate' as const,
       existingReadingId: input.sourceEventId,
     }))
-    registerPortalWorkflowMetricConsumers({
+    registerPortalWorkflowMetricConsumers(consumerRegistry, {
       recordMetric,
       resolveAttribution: async () => null,
     })
-    const [registration] = registeredConsumersFor('portal.content_review.completed')
+    const [registration] = consumerRegistry.listFor('portal.content_review.completed')
     const occurredAt = '2026-08-09T12:00:00.000Z'
     const payload = {
       reviewId: 'review-1',

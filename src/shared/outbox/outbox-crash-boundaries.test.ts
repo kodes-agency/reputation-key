@@ -19,10 +19,17 @@ import {
   clearEventSchemas,
   validateEventPayload,
 } from '#/shared/events/schema-registry'
-import { registerConsumer, clearConsumers, type ConsumerEvent } from './consumer-registry'
+import {
+  createConsumerRegistry,
+  type ConsumerRegistry,
+  type ConsumerEvent,
+} from './consumer-registry'
 import { buildConsumerEvent, parseConsumerEvent } from './envelope'
 import { z, ZodError } from 'zod/v4'
 import type { UnpublishedEvent } from './infrastructure/outbox-repository'
+
+// ARC-03-T7: a fresh container-scoped registry per test.
+let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
 
 // ── Test setup ──────────────────────────────────────────────────────
 
@@ -62,7 +69,7 @@ function makeTestEvent(overrides: Partial<ConsumerEvent> = {}): ConsumerEvent {
 describe('outbox crash boundaries', () => {
   beforeEach(() => {
     setupSchemaRegistry()
-    clearConsumers()
+    consumerRegistry = createConsumerRegistry()
   })
 
   describe('schema registry validation', () => {
@@ -101,7 +108,7 @@ describe('outbox crash boundaries', () => {
     it('registers a consumer for an event type', () => {
       const handler = async (): Promise<{ status: 'applied' }> => ({ status: 'applied' })
       expect(() =>
-        registerConsumer({
+        consumerRegistry.registerConsumer({
           eventType: TEST_EVENT_TYPE,
           consumerName: 'test-consumer',
           module: 'inbox.outbox-consumers',
@@ -112,14 +119,14 @@ describe('outbox crash boundaries', () => {
 
     it('rejects duplicate consumer name for same event type', () => {
       const handler = async (): Promise<{ status: 'applied' }> => ({ status: 'applied' })
-      registerConsumer({
+      consumerRegistry.registerConsumer({
         eventType: TEST_EVENT_TYPE,
         consumerName: 'dup',
         module: 'inbox.outbox-consumers',
         handler,
       })
       expect(() =>
-        registerConsumer({
+        consumerRegistry.registerConsumer({
           eventType: TEST_EVENT_TYPE,
           consumerName: 'dup',
           module: 'inbox.outbox-consumers',
@@ -135,14 +142,14 @@ describe('outbox crash boundaries', () => {
         version: 1,
         schema: z.object({}),
       })
-      registerConsumer({
+      consumerRegistry.registerConsumer({
         eventType: TEST_EVENT_TYPE,
         consumerName: 'shared',
         module: 'inbox.outbox-consumers',
         handler,
       })
       expect(() =>
-        registerConsumer({
+        consumerRegistry.registerConsumer({
           eventType: 'other.event',
           consumerName: 'shared',
           module: 'inbox.outbox-consumers',
@@ -201,7 +208,7 @@ describe('outbox crash boundaries', () => {
     })
 
     it('consumer handler can return obsolete when source no longer exists', async () => {
-      registerConsumer({
+      consumerRegistry.registerConsumer({
         eventType: TEST_EVENT_TYPE,
         consumerName: 'obsolete-check',
         module: 'inbox.outbox-consumers',

@@ -2,6 +2,7 @@
 // Wires portal repos, storage, and all portal use cases.
 // Per ADR-0001: the composition root calls this and passes publicApis from upstream contexts.
 
+import type { ConsumerRegistry } from '#/shared/outbox'
 import type {
   PropertyGoogleReviewDestinationPublicApi,
   PropertyLifecyclePublicApi,
@@ -569,15 +570,15 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     },
   }
 
-  const registerOutboxConsumers = () => {
+  const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
     if (!deps.outboxRepo) {
       throw new Error('Portal upload outbox repository is unavailable')
     }
-    registerPortalConsumers({
+    registerPortalConsumers(consumerRegistry, {
       processIssuedPortalImage,
       receipts: deps.outboxRepo,
     })
-    registerPortalHealthConsumers(portalHealthReconciliationStore)
+    registerPortalHealthConsumers(consumerRegistry, portalHealthReconciliationStore)
   }
 
   return {

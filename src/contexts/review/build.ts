@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto'
 import { reviewError } from './domain/errors'
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { OutboxRepository } from '#/shared/outbox'
+import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import type { Queue } from 'bullmq'
 import type { Pool } from 'pg'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -198,7 +198,9 @@ export type ReviewContextApi = Readonly<{
     recovery: ReviewLifecycleRecoveryAuthorityFactory
   }>
   /** Context-owned worker registration; exposes no repositories or use cases. */
-  worker: Readonly<{ registerOutboxConsumers: () => void }>
+  worker: Readonly<{
+    registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) => void
+  }>
   internal: Readonly<{
     repos: Readonly<{
       reviewRepo: ReviewRepository
@@ -527,8 +529,8 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     assertCurrentForAi: reviewRepo.assertCurrentForAi,
     readReplyStateRevision: reviewRepo.readReplyStateRevision,
   })
-  const registerOutboxConsumers = () =>
-    registerReplyPublicationConsumers({
+  const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) =>
+    registerReplyPublicationConsumers(consumerRegistry, {
       replyRepo,
       queue: replyQueue,
       receipts: input.outboxRepo,

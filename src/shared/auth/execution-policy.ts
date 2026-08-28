@@ -643,7 +643,14 @@ function isPermissionAction(action: string): action is Permission {
 
 let _policy: ExecutionPolicy | undefined
 
-/** Install the policy — called once from composition. */
+/**
+ * Install the policy.
+ *
+ * ARC-03-T8: production code calls this through ONE owner —
+ * shared/auth/process-policy-binding.bindProcessPolicies — so a second
+ * container in the same process cannot silently re-point the singleton at its
+ * own audit sink. Tests still install directly.
+ */
 export function initExecutionPolicy(policy: ExecutionPolicy): void {
   _policy = policy
 }
@@ -669,7 +676,13 @@ export function resetExecutionPolicy(): void {
  */
 let _ensurePolicy: (() => void) | undefined
 
-/** Register the lazy initializer — called once from composition module load. */
+/**
+ * Register the lazy initializer.
+ *
+ * ARC-03-T8: no longer a composition module-load side effect. The web entry
+ * (src/start.ts) registers it explicitly through
+ * shared/auth/process-policy-binding.registerProcessPolicyColdBoot.
+ */
 export function registerExecutionPolicyInit(ensure: () => void): void {
   _ensurePolicy = ensure
 }

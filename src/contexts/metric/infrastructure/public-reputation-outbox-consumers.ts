@@ -1,7 +1,7 @@
 import type { ReviewCreated } from '#/contexts/review/application/public-api'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
+import type { ConsumerEvent, ConsumerRegistry } from '#/shared/outbox'
 import type { RecordMetric } from '../application/use-cases/record-metric'
 import type { ReviewRatingLookupPort } from '../application/ports/review-rating-lookup.port'
 import { projectReviewCreatedMetric } from './event-handlers/on-review-created'
@@ -62,8 +62,10 @@ export type PublicReputationMetricConsumerDeps = Readonly<{
 }>
 
 export function registerPublicReputationMetricConsumers(
+  registry: ConsumerRegistry,
   deps: PublicReputationMetricConsumerDeps,
 ): void {
+  const { registerConsumer } = registry
   registerConsumer({
     eventType: 'review.created',
     consumerName: 'metric.public-reputation',

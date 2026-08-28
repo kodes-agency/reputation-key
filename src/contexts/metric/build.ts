@@ -3,6 +3,7 @@
 // Returns the public API surface of the metric context.
 
 import type { Database } from '#/shared/db'
+import type { ConsumerRegistry } from '#/shared/outbox'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { OrganizationId, PortalId, PortalGroupId } from '#/shared/domain/ids'
 import type {
@@ -64,7 +65,9 @@ export type MetricContextApi = Readonly<{
     ) => Promise<RepairPortalLifetimeResult>
   }>
   /** Context-owned worker registration; exposes no repositories or use cases. */
-  worker: Readonly<{ registerOutboxConsumers: () => void }>
+  worker: Readonly<{
+    registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) => void
+  }>
   internal: Readonly<{
     repos: Record<string, never>
     useCases: Readonly<{
@@ -154,24 +157,24 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
     logger: input.logger,
   })
 
-  const registerOutboxConsumers = () => {
+  const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
     const portalWorkflowDeps = {
       recordMetric: record,
       resolveAttribution: resolvePortalWorkflowAttribution,
     }
-    registerPortalWorkflowMetricConsumers(portalWorkflowDeps)
-    registerGuestMetricConsumers({
+    registerPortalWorkflowMetricConsumers(consumerRegistry, portalWorkflowDeps)
+    registerGuestMetricConsumers(consumerRegistry, {
       recordMetric: record,
       retractMetric: retractMetric(commandStore),
       findGroupForPortal,
       logger: input.logger,
     })
-    registerPublicReputationMetricConsumers({
+    registerPublicReputationMetricConsumers(consumerRegistry, {
       recordMetric: record,
       reviewRatingLookup: input.reviewRatingLookup,
     })
-    registerCurrentGoogleReputationConsumer(currentGoogleReputation)
-    registerMetricCorrectionConsumer(input.db)
+    registerCurrentGoogleReputationConsumer(consumerRegistry, currentGoogleReputation)
+    registerMetricCorrectionConsumer(consumerRegistry, input.db)
   }
 
   const publicApi: MetricPublicApi = {
