@@ -17,6 +17,8 @@ export interface GuestSession {
   readonly issuedAt: Date
   readonly expiresAt: Date
   readonly campaignMediumHint: string | null
+  /** Human-reviewed public copy selected for this signed Portal session. */
+  readonly guestLocale: 'en' | 'bg' | null
 }
 
 export interface SessionCookieAttributes {
@@ -40,6 +42,7 @@ export function createSession(params: {
   propertyId: string
   tokenVersion: number
   campaignMediumHint?: string
+  guestLocale?: 'en' | 'bg' | null
   durationMs?: number
   now: Date
 }): GuestSession {
@@ -55,6 +58,7 @@ export function createSession(params: {
     issuedAt: now,
     expiresAt: new Date(now.getTime() + duration),
     campaignMediumHint: params.campaignMediumHint ?? null,
+    guestLocale: params.guestLocale ?? null,
   }
 }
 

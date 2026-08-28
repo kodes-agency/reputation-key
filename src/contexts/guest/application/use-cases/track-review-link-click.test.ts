@@ -1,6 +1,5 @@
 import { trackReviewLinkClick } from './track-review-link-click'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
-import { createMockLogger } from '#/shared/testing/mock-logger'
 import { organizationId, portalId, propertyId, portalLinkId } from '#/shared/domain/ids'
 import type { GuestObservationStore } from '../ports/guest-observation-store.port'
 
@@ -10,6 +9,8 @@ describe('trackReviewLinkClick', () => {
   it('commits the durable observation before its fast-path event', async () => {
     const events = createCapturingEventBus()
     const store: GuestObservationStore = {
+      commitQualifiedScan: async () => 'applied',
+      retractQualifiedScan: async () => 'applied',
       commitScan: async () => 'applied',
       commitReviewLinkClick: async (_action, fact) => {
         await events.emit(fact)
@@ -19,7 +20,7 @@ describe('trackReviewLinkClick', () => {
     const useCase = trackReviewLinkClick({
       observationStore: store,
       clock: () => new Date('2026-05-01T12:00:00Z'),
-      logger: createMockLogger(),
+      reportObservationLoss: vi.fn(async () => 'recorded' as const),
     })
 
     await useCase({
@@ -39,6 +40,8 @@ describe('trackReviewLinkClick', () => {
   it('preserves Google selections as a distinct durable destination fact', async () => {
     const events = createCapturingEventBus()
     const store: GuestObservationStore = {
+      commitQualifiedScan: async () => 'applied',
+      retractQualifiedScan: async () => 'applied',
       commitScan: async () => 'applied',
       commitReviewLinkClick: async (_action, fact) => {
         await events.emit(fact)
@@ -48,7 +51,7 @@ describe('trackReviewLinkClick', () => {
     const useCase = trackReviewLinkClick({
       observationStore: store,
       clock: () => new Date('2026-05-01T12:00:00Z'),
-      logger: createMockLogger(),
+      reportObservationLoss: vi.fn(async () => 'recorded' as const),
     })
 
     await useCase({
@@ -68,15 +71,18 @@ describe('trackReviewLinkClick', () => {
 
   it('keeps approved navigation available when observation persistence fails', async () => {
     const store: GuestObservationStore = {
+      commitQualifiedScan: async () => 'applied',
+      retractQualifiedScan: async () => 'applied',
       commitScan: async () => 'applied',
       commitReviewLinkClick: async () => {
         throw new Error('observation unavailable')
       },
     }
+    const reportObservationLoss = vi.fn(async () => 'recorded' as const)
     const useCase = trackReviewLinkClick({
       observationStore: store,
       clock: () => new Date('2026-05-01T12:00:00Z'),
-      logger: createMockLogger(),
+      reportObservationLoss,
     })
 
     await expect(
@@ -89,5 +95,7 @@ describe('trackReviewLinkClick', () => {
         propertyId: propertyId('prop-1'),
       }),
     ).resolves.toBeUndefined()
+    expect(reportObservationLoss).toHaveBeenCalledOnce()
+    expect(reportObservationLoss).toHaveBeenCalledWith('review_link')
   })
 })

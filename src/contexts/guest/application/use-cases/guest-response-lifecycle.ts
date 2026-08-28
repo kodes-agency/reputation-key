@@ -54,6 +54,7 @@ import {
   propertyId,
   ratingId,
 } from '#/shared/domain/ids'
+import type { PrimaryStaffAttributionResolver } from '../ports/primary-staff-attribution.port'
 
 export type GuestResponseInput = Readonly<{
   rating?: number | null
@@ -211,6 +212,7 @@ export function guestResponseLifecycle(
     clock: () => Date
     idGen: () => string
     commandStore: GuestResponseCommandStore
+    resolvePrimaryStaffAttribution: PrimaryStaffAttributionResolver
   }>,
 ) {
   const getState = async (scope: GuestResponseScope, sessionId: string) => {
@@ -307,6 +309,7 @@ export function guestResponseLifecycle(
           ...scopeIds,
           value: response.rating!,
           occurredAt,
+          staffAttribution: response.staffAttribution,
         }),
       )
     }
@@ -316,7 +319,9 @@ export function guestResponseLifecycle(
           feedbackId: feedbackId(response.id),
           ...scopeIds,
           ratingId: response.rating !== null ? ratingId(response.id) : null,
+          responseRevision: response.feedbackSubmissionRevision!,
           occurredAt,
+          staffAttribution: response.staffAttribution,
         }),
       )
     }
@@ -346,6 +351,7 @@ export function guestResponseLifecycle(
           value: corrected.rating!,
           supersedesSourceEventId: previous.ratingSourceEventId,
           occurredAt,
+          staffAttribution: corrected.staffAttribution,
         }),
       )
     } else if (!nextRatingShared && previous.ratingSourceEventId) {
@@ -355,6 +361,7 @@ export function guestResponseLifecycle(
           ...scopeIds,
           supersedesSourceEventId: previous.ratingSourceEventId,
           occurredAt,
+          staffAttribution: corrected.staffAttribution,
         }),
       )
     }
@@ -366,7 +373,9 @@ export function guestResponseLifecycle(
           feedbackId: feedbackId(corrected.id),
           ...scopeIds,
           ratingId: corrected.rating !== null ? ratingId(corrected.id) : null,
+          responseRevision: corrected.feedbackSubmissionRevision!,
           occurredAt,
+          staffAttribution: corrected.staffAttribution,
         }),
       )
     } else if (!nextFeedbackShared && previous.feedbackSourceEventId) {
@@ -375,7 +384,9 @@ export function guestResponseLifecycle(
           feedbackId: feedbackId(corrected.id),
           ...scopeIds,
           supersedesSourceEventId: previous.feedbackSourceEventId,
+          responseRevision: previous.feedbackSubmissionRevision!,
           occurredAt,
+          staffAttribution: corrected.staffAttribution,
         }),
       )
     }
@@ -397,6 +408,7 @@ export function guestResponseLifecycle(
           ...scopeIds,
           supersedesSourceEventId: response.ratingSourceEventId,
           occurredAt,
+          staffAttribution: response.staffAttribution,
         }),
       )
     }
@@ -406,7 +418,9 @@ export function guestResponseLifecycle(
           feedbackId: feedbackId(response.id),
           ...scopeIds,
           supersedesSourceEventId: response.feedbackSourceEventId,
+          responseRevision: response.feedbackSubmissionRevision!,
           occurredAt,
+          staffAttribution: response.staffAttribution,
         }),
       )
     }
@@ -435,6 +449,7 @@ export function guestResponseLifecycle(
           ...scopeIds,
           supersedesSourceEventId: previous.ratingSourceEventId,
           occurredAt: changed.integrityAssessedAt,
+          staffAttribution: changed.staffAttribution,
         }),
       ]
     }
@@ -445,6 +460,7 @@ export function guestResponseLifecycle(
         value: changed.rating!,
         supersedesSourceEventId: previous.ratingSourceEventId,
         occurredAt: ratingMetricOccurredAt(changed),
+        staffAttribution: changed.staffAttribution,
       }),
     ]
   }
@@ -453,7 +469,9 @@ export function guestResponseLifecycle(
     if (
       (isRatingMetricEligible(response) && !response.ratingSourceEventId) ||
       (response.integrityOutcome !== 'accepted' && response.ratingSourceEventId) ||
-      (response.text !== null && response.textConsent && !response.feedbackSourceEventId)
+      (response.text !== null &&
+        response.textConsent &&
+        (!response.feedbackSourceEventId || !response.feedbackSubmissionRevision))
     ) {
       // Never turn an unresolved historical fact into an additive correction or
       // erase its source row while leaving a stale managerial projection.
@@ -490,6 +508,12 @@ export function guestResponseLifecycle(
         throw new GuestResponseLifecycleError('feedback_must_follow_rating')
       }
       const experienceSnapshot = captureExperience(experience, now)
+      const staffAttribution = await deps.resolvePrimaryStaffAttribution({
+        organizationId: organizationId(scope.organizationId),
+        propertyId: propertyId(scope.propertyId),
+        portalId: portalId(scope.portalId),
+        observedAt: now,
+      })
       const submitted = unwrap(
         submitResponse(
           createResponse({
@@ -499,6 +523,7 @@ export function guestResponseLifecycle(
             sessionExpiresAt: bindingExpiresAt,
             retentionDeadline: factRetentionDeadline(now),
             experienceSnapshot,
+            staffAttribution,
             integrityAssessment: initialIntegrityAssessment,
           }),
           input,
@@ -548,7 +573,9 @@ export function guestResponseLifecycle(
         portalId: portalId(renewed.portalId),
         propertyId: propertyId(renewed.propertyId),
         ratingId: renewed.rating === null ? null : ratingId(renewed.id),
+        responseRevision: renewed.feedbackSubmissionRevision!,
         occurredAt: renewed.feedbackSubmittedAt ?? now,
+        staffAttribution: renewed.staffAttribution,
       })
       if ((await deps.commandStore.commitFeedbackAdded(renewed, fact)) !== 'applied') {
         throw new GuestResponseLifecycleError('feedback_already_submitted')
@@ -574,7 +601,9 @@ export function guestResponseLifecycle(
         portalId: portalId(withdrawn.portalId),
         propertyId: propertyId(withdrawn.propertyId),
         supersedesSourceEventId: current.feedbackSourceEventId!,
+        responseRevision: current.feedbackSubmissionRevision!,
         occurredAt: withdrawn.feedbackWithdrawnAt ?? now,
+        staffAttribution: withdrawn.staffAttribution,
       })
       if (
         (await deps.commandStore.commitFeedbackWithdrawn(current, withdrawn, fact)) !==

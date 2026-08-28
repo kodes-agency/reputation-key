@@ -11,6 +11,7 @@ const PROPERTY_A = 'b7200000-0000-4000-8000-000000000010'
 const PORTAL_A = portalId('b7200000-0000-4000-8000-000000000020')
 const RESPONSE = feedbackId('b7200000-0000-4000-8000-000000000030')
 const LEGACY_FEEDBACK = feedbackId('b7200000-0000-4000-8000-000000000031')
+const OBSERVED_AT = new Date('2026-08-25T12:00:00.000Z')
 
 const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
@@ -39,7 +40,10 @@ async function seedPropertyAndPortal(): Promise<void> {
 }
 
 const lookup = () =>
-  createFeedbackPortalAttributionLookup(drizzle(getPool()) as unknown as Database)
+  createFeedbackPortalAttributionLookup(
+    drizzle(getPool()) as unknown as Database,
+    () => OBSERVED_AT,
+  )
 
 describe('Guest feedback Portal attribution', () => {
   it('resolves a canonical, non-deleted response inside its Organization', async () => {
@@ -54,11 +58,12 @@ describe('Guest feedback Portal attribution', () => {
     )
     await getPool().query(
       `INSERT INTO guest_response_private_feedback
-         (response_id, organization_id, property_id, portal_id, body,
+       (response_id, organization_id, property_id, portal_id, body,
           submitted_at, expires_at)
-       VALUES ($1, $2, $3, $4, 'content is not returned', NOW(),
-               NOW() + INTERVAL '90 days')`,
-      [RESPONSE, ORG_A, PROPERTY_A, PORTAL_A],
+       VALUES ($1, $2, $3, $4, 'content is not returned',
+               $5::timestamptz - INTERVAL '1 hour',
+               $5::timestamptz + INTERVAL '90 days')`,
+      [RESPONSE, ORG_A, PROPERTY_A, PORTAL_A, OBSERVED_AT],
     )
 
     await expect(lookup()(ORG_A, RESPONSE)).resolves.toBe(PORTAL_A)
@@ -76,11 +81,12 @@ describe('Guest feedback Portal attribution', () => {
     )
     await getPool().query(
       `INSERT INTO guest_response_private_feedback
-         (response_id, organization_id, property_id, portal_id, body,
+       (response_id, organization_id, property_id, portal_id, body,
           submitted_at, expires_at)
-       VALUES ($1, $2, $3, $4, 'content is not returned', NOW(),
-               NOW() + INTERVAL '90 days')`,
-      [RESPONSE, ORG_A, PROPERTY_A, PORTAL_A],
+       VALUES ($1, $2, $3, $4, 'content is not returned',
+               $5::timestamptz - INTERVAL '1 hour',
+               $5::timestamptz + INTERVAL '90 days')`,
+      [RESPONSE, ORG_A, PROPERTY_A, PORTAL_A, OBSERVED_AT],
     )
 
     await expect(lookup()(ORG_B, RESPONSE)).resolves.toBeNull()
@@ -98,11 +104,13 @@ describe('Guest feedback Portal attribution', () => {
     )
     await getPool().query(
       `INSERT INTO guest_response_private_feedback
-         (response_id, organization_id, property_id, portal_id, body,
+       (response_id, organization_id, property_id, portal_id, body,
           submitted_at, expires_at, created_at)
-       VALUES ($1, $2, $3, $4, 'expired content', NOW() - INTERVAL '91 days',
-               NOW() - INTERVAL '1 day', NOW() - INTERVAL '91 days')`,
-      [RESPONSE, ORG_A, PROPERTY_A, PORTAL_A],
+       VALUES ($1, $2, $3, $4, 'expired content',
+               $5::timestamptz - INTERVAL '91 days',
+               $5::timestamptz - INTERVAL '1 day',
+               $5::timestamptz - INTERVAL '91 days')`,
+      [RESPONSE, ORG_A, PROPERTY_A, PORTAL_A, OBSERVED_AT],
     )
 
     await expect(lookup()(ORG_A, RESPONSE)).resolves.toBeNull()

@@ -38,11 +38,26 @@ describe('signed guest session', () => {
 
   it('verifies scope and rejects tampering without enumeration', () => {
     const codec = manager()
-    const issued = codec.issue(scope)
+    const issued = codec.issue(scope, 'bg')
     const cookieHeader = issued.cookies[0].split(';')[0]
     expect(codec.verify(cookieHeader, scope)?.sessionId).toBe(issued.session.sessionId)
+    expect(codec.verify(cookieHeader, scope)?.guestLocale).toBe('bg')
     expect(codec.verify(cookieHeader, { ...scope, organizationId: 'org-2' })).toBeNull()
     expect(codec.verify(`${cookieHeader}x`, scope)).toBeNull()
+  })
+
+  it('re-signs the same scoped identity when the guest explicitly selects a locale', () => {
+    const codec = manager()
+    const issued = codec.issue(scope, 'en')
+    const selected = codec.selectLocale(issued.session, 'bg')
+
+    expect(selected.session).toMatchObject({
+      sessionId: issued.session.sessionId,
+      csrfNonce: issued.session.csrfNonce,
+      guestLocale: 'bg',
+      expiresAt: issued.session.expiresAt,
+    })
+    expect(codec.verify(selected.cookies[0].split(';')[0], scope)?.guestLocale).toBe('bg')
   })
 
   it('does not authenticate an expired cookie', () => {
@@ -116,6 +131,7 @@ describe('guestRateLimitKey', () => {
       allowed: true,
       remaining: 1,
       resetAt: new Date('2026-08-09T13:00:00Z'),
+      backendStatus: 'available' as const,
     }
     const denied = { ...allowed, allowed: false, remaining: 0 }
     const check = vi.fn().mockResolvedValueOnce(allowed).mockResolvedValueOnce(denied)

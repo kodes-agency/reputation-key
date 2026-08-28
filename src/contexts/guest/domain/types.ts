@@ -6,7 +6,11 @@ import type {
   RatingId,
   FeedbackId,
   PortalLinkId,
+  PortalAccessArtifactId,
+  PortalGroupId,
+  QualifiedScanId,
 } from '#/shared/domain/ids'
+import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 
 export type ScanSource = 'qr' | 'nfc' | 'direct'
 
@@ -19,6 +23,18 @@ export type ScanEvent = Readonly<{
   sessionId: string | null
   ipHash: string | null
   createdAt: Date
+}>
+
+export type QualifiedScan = Readonly<{
+  id: QualifiedScanId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
+  portalGroupId: PortalGroupId | null
+  accessArtifactId: PortalAccessArtifactId
+  sourceEventId: string
+  occurredAt: Date
+  staffAttribution: PrimaryStaffAttributionSnapshot | null
 }>
 
 /**

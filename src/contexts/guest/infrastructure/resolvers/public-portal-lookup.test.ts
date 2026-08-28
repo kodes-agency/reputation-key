@@ -8,8 +8,11 @@ function createPortalApiStub(
   return {
     resolvePortalContext: async () => null,
     getPortalInfo: async () => null,
+    listCurrentPortalIds: async () => [],
     getResponsibleManagerUserIds: async () => [],
+    findPortalHealthNotificationFacts: async () => null,
     findPublicPortalByToken,
+    resolvePublishedAccessArtifact: async () => null,
   }
 }
 
@@ -41,6 +44,12 @@ describe('createPublicPortalLookup', () => {
           status: 'available' as const,
           uri: 'https://search.google.com/local/writereview?placeid=p1',
         },
+      },
+      localization: {
+        selectedLocale: 'en' as const,
+        primaryLocale: 'en' as const,
+        availableLocales: ['en'] as const,
+        languagePackVersion: 'guest-ui-en-v1' as const,
       },
       responseConfiguration: {
         publicationState: 'published' as const,

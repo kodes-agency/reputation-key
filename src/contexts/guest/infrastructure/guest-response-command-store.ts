@@ -23,6 +23,8 @@ import {
   isRatingMetricEligible,
   ratingMetricOccurredAt,
 } from '../domain/guest-response-integrity'
+import { primaryStaffAttributionEquals } from '#/shared/domain/primary-staff-attribution'
+import type { Clock } from '#/shared/domain/clock'
 
 class GuestCommandConflict extends Error {}
 
@@ -123,10 +125,19 @@ function initialIntegrityFactsMatch(
 }
 
 /** Atomic canonical response + rating/feedback fact writer. */
-export function createAtomicGuestResponseCommandStore(
+export const createAtomicGuestResponseCommandStore = (
   db: Database,
   events: EventBus,
-): GuestResponseCommandStore {
+  clock: Clock,
+): GuestResponseCommandStore => {
+  const factsMatchStaffAttribution = (
+    response: Parameters<GuestResponseCommandStore['commitSubmitted']>[0],
+    facts: ReadonlyArray<GuestMutationFact>,
+  ) =>
+    facts.every((fact) =>
+      primaryStaffAttributionEquals(response.staffAttribution, fact.staffAttribution),
+    )
+
   const lineage = (
     response: Parameters<GuestResponseCommandStore['commitSubmitted']>[0],
     facts: ReadonlyArray<GuestMutationFact>,
@@ -164,7 +175,17 @@ export function createAtomicGuestResponseCommandStore(
     ) =>
       trace('guest.commandStore.commitSubmitted', async () => {
         const binding = requireSessionBinding(response)
-        if (!binding || !response.submittedAt || !response.experienceSnapshot) {
+        if (
+          !binding ||
+          !response.submittedAt ||
+          !response.experienceSnapshot ||
+          !factsMatchStaffAttribution(response, facts) ||
+          facts.some(
+            (fact) =>
+              fact._tag === 'guest.feedback.submitted' &&
+              fact.responseRevision !== response.feedbackSubmissionRevision,
+          )
+        ) {
           throw new Error('Guest response submission snapshot is required')
         }
         if (
@@ -197,7 +218,10 @@ export function createAtomicGuestResponseCommandStore(
             const sourceLineage = lineage(response, facts)
             const inserted = await tx
               .insert(guestResponses)
-              .values({ ...guestResponseToInsertRow(response), ...sourceLineage })
+              .values({
+                ...guestResponseToInsertRow(response, submittedAt),
+                ...sourceLineage,
+              })
               .onConflictDoNothing()
               .returning({ id: guestResponses.id })
             if (inserted.length === 0) throw new GuestCommandConflict()
@@ -272,6 +296,22 @@ export function createAtomicGuestResponseCommandStore(
 
     commitCorrected: (previous, response, facts) =>
       trace('guest.commandStore.commitCorrected', async () => {
+        if (
+          !primaryStaffAttributionEquals(
+            previous.staffAttribution,
+            response.staffAttribution,
+          ) ||
+          !factsMatchStaffAttribution(response, facts) ||
+          facts.some(
+            (fact) =>
+              (fact._tag === 'guest.feedback.submitted' ||
+                fact._tag === 'guest.feedback.retracted') &&
+              fact.responseRevision !== response.feedbackSubmissionRevision,
+          )
+        ) {
+          throw new Error('Guest response correction changed Staff attribution')
+        }
+        const correctedAt = response.correctedAt ?? clock()
         const sourceLineage = lineage(response, facts)
         const outcome = await db.transaction(async (tx) => {
           const updated = await tx
@@ -287,7 +327,7 @@ export function createAtomicGuestResponseCommandStore(
               correctedAt: response.correctedAt,
               ratingSourceEventId: sourceLineage.ratingSourceEventId,
               feedbackSourceEventId: sourceLineage.feedbackSourceEventId,
-              updatedAt: response.correctedAt ?? new Date(),
+              updatedAt: correctedAt,
             })
             .where(
               and(
@@ -338,6 +378,11 @@ export function createAtomicGuestResponseCommandStore(
           response.propertyId !== previous.propertyId ||
           response.portalId !== previous.portalId ||
           response.id !== previous.id ||
+          !primaryStaffAttributionEquals(
+            previous.staffAttribution,
+            response.staffAttribution,
+          ) ||
+          !factsMatchStaffAttribution(response, facts) ||
           !integrityFactsMatch(previous, response, facts)
         ) {
           throw new Error('Guest response integrity decision does not match aggregate')
@@ -395,7 +440,14 @@ export function createAtomicGuestResponseCommandStore(
 
     commitFeedbackAdded: (response, fact) =>
       trace('guest.commandStore.commitFeedbackAdded', async () => {
-        if (!response.text || !response.feedbackSubmittedAt) return 'conflict' as const
+        if (
+          !response.text ||
+          !response.feedbackSubmittedAt ||
+          response.feedbackSubmissionRevision !== fact.responseRevision ||
+          !primaryStaffAttributionEquals(response.staffAttribution, fact.staffAttribution)
+        ) {
+          return 'conflict' as const
+        }
         const binding = requireSessionBinding(response)
         if (!binding) return 'conflict' as const
         const feedbackText = response.text
@@ -429,6 +481,7 @@ export function createAtomicGuestResponseCommandStore(
                 textConsent: response.textConsent,
                 feedbackSourceEventId: fact.eventId,
                 feedbackSubmittedAt,
+                feedbackSubmissionRevision: response.feedbackSubmissionRevision,
                 updatedAt: feedbackSubmittedAt,
               })
               .where(
@@ -489,7 +542,19 @@ export function createAtomicGuestResponseCommandStore(
 
     commitFeedbackWithdrawn: (previous, response, fact) =>
       trace('guest.commandStore.commitFeedbackWithdrawn', async () => {
-        if (!response.feedbackWithdrawnAt || !previous.text) return 'conflict' as const
+        if (
+          !response.feedbackWithdrawnAt ||
+          !previous.text ||
+          previous.feedbackSubmissionRevision !== fact.responseRevision ||
+          !primaryStaffAttributionEquals(
+            previous.staffAttribution,
+            response.staffAttribution,
+          ) ||
+          !primaryStaffAttributionEquals(response.staffAttribution, fact.staffAttribution)
+        ) {
+          return 'conflict' as const
+        }
+        const feedbackWithdrawnAt = response.feedbackWithdrawnAt ?? clock()
         const outcome = await db
           .transaction(async (tx) => {
             const updated = await tx
@@ -498,7 +563,7 @@ export function createAtomicGuestResponseCommandStore(
                 textConsent: false,
                 feedbackSourceEventId: null,
                 feedbackWithdrawnAt: response.feedbackWithdrawnAt,
-                updatedAt: response.feedbackWithdrawnAt ?? new Date(),
+                updatedAt: feedbackWithdrawnAt,
               })
               .where(
                 and(
@@ -551,6 +616,10 @@ export function createAtomicGuestResponseCommandStore(
 
     commitWithdrawn: (response, facts) =>
       trace('guest.commandStore.commitWithdrawn', async () => {
+        if (!factsMatchStaffAttribution(response, facts)) {
+          throw new Error('Guest response withdrawal changed Staff attribution')
+        }
+        const deletedAt = response.deletedAt ?? clock()
         const committed = await db.transaction(async (tx) => {
           const deleted = await tx
             .update(guestResponses)
@@ -564,7 +633,7 @@ export function createAtomicGuestResponseCommandStore(
               ratingSourceEventId: null,
               feedbackSourceEventId: null,
               deletedAt: response.deletedAt,
-              updatedAt: response.deletedAt ?? new Date(),
+              updatedAt: deletedAt,
             })
             .where(
               and(
@@ -606,7 +675,7 @@ export function createAtomicGuestResponseCommandStore(
               publicUrl: null,
               readyAt: null,
               deletedAt: response.deletedAt,
-              updatedAt: response.deletedAt ?? new Date(),
+              updatedAt: deletedAt,
             })
             .where(
               and(

@@ -1,7 +1,7 @@
 // Guest context — guest mapper tests
 // Tests the scanEventToRow, ratingToRow, and feedbackToRow mappers.
 // These are simple field-to-field mappers with branded ID → string casts.
-// Verifies all fields are preserved correctly.
+// Verifies durable compatibility writes cannot recreate retired network hashes.
 
 import { describe, it, expect } from 'vitest'
 import {
@@ -70,7 +70,7 @@ function buildTestFeedback(overrides?: Partial<Feedback>): Feedback {
 // ── scanEventToRow ────────────────────────────────────────────────
 
 describe('scanEventToRow', () => {
-  it('preserves all fields', () => {
+  it('keeps the retired abuse-pseudonym slot null', () => {
     const scan = buildTestScanEvent()
     const row = scanEventToRow(scan)
 
@@ -80,7 +80,7 @@ describe('scanEventToRow', () => {
     expect(row.propertyId).toBe('30000000-0000-0000-0000-000000000001')
     expect(row.source).toBe('qr')
     expect(row.sessionId).toBe('session-abc')
-    expect(row.ipHash).toBe('hash123')
+    expect(row.ipHash).toBeNull()
     expect(row.createdAt).toEqual(new Date('2026-05-01T12:00:00Z'))
   })
 
@@ -144,19 +144,19 @@ describe('scanEventFromRow', () => {
 // ── scanEvent round-trip ─────────────────────────────────────────
 
 describe('scanEvent round-trip (scanEventToRow → scanEventFromRow)', () => {
-  it('preserves all fields through toRow then fromRow', () => {
+  it('preserves the diagnostic fact while dropping the retired network hash', () => {
     const original = buildTestScanEvent()
 
     const row = scanEventToRow(original)
     const restored = scanEventFromRow(row)
-    expect(restored).toEqual(original)
+    expect(restored).toEqual({ ...original, ipHash: null })
   })
 })
 
 // ── ratingToRow ───────────────────────────────────────────────────
 
 describe('ratingToRow', () => {
-  it('preserves all fields including value', () => {
+  it('preserves the rating while keeping the retired network hash null', () => {
     const rating = buildTestRating()
     const row = ratingToRow(rating)
 
@@ -167,7 +167,7 @@ describe('ratingToRow', () => {
     expect(row.sessionId).toBe('session-abc')
     expect(row.value).toBe(5)
     expect(row.source).toBe('qr')
-    expect(row.ipHash).toBe('hash456')
+    expect(row.ipHash).toBeNull()
     expect(row.createdAt).toEqual(new Date('2026-05-01T12:00:00Z'))
   })
 
@@ -187,7 +187,7 @@ describe('ratingToRow', () => {
 // ── feedbackToRow ─────────────────────────────────────────────────
 
 describe('feedbackToRow', () => {
-  it('preserves all fields with null ratingId', () => {
+  it('preserves feedback with null ratingId and no retired network hash', () => {
     const fb = buildTestFeedback()
     const row = feedbackToRow(fb)
 
@@ -199,7 +199,7 @@ describe('feedbackToRow', () => {
     expect(row.ratingId).toBeNull()
     expect(row.comment).toBe('Great service!')
     expect(row.source).toBe('nfc')
-    expect(row.ipHash).toBe('hash789')
+    expect(row.ipHash).toBeNull()
     expect(row.createdAt).toEqual(new Date('2026-05-01T12:00:00Z'))
   })
 

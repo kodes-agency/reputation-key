@@ -2,7 +2,13 @@
 // Other contexts (metric, inbox) and shared infrastructure consume
 // event types from this barrel. Per ADR-0001.
 
-export type { ScanEvent, Rating, Feedback, ScanSource } from '../domain/types'
+export type {
+  ScanEvent,
+  QualifiedScan,
+  Rating,
+  Feedback,
+  ScanSource,
+} from '../domain/types'
 
 import type { FeedbackId, OrganizationId, PortalId } from '#/shared/domain/ids'
 import type { GetPortalResponseIntegritySummary } from './use-cases/get-portal-response-integrity-summary'
@@ -21,6 +27,8 @@ export type GuestResponseIntegrityPublicApi = Readonly<{
 }>
 
 export {
+  guestQualifiedScanRecorded,
+  guestQualifiedScanRetracted,
   guestScanRecorded,
   guestRatingSubmitted,
   guestRatingRetracted,
@@ -29,6 +37,8 @@ export {
   guestReviewLinkClicked,
 } from '../domain/events'
 export type {
+  GuestQualifiedScanRecorded,
+  GuestQualifiedScanRetracted,
   GuestScanRecorded,
   GuestRatingSubmitted,
   GuestRatingRetracted,

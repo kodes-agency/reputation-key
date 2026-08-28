@@ -25,6 +25,7 @@ describe('GuestResponse', () => {
     sessionId: 'session-1',
     sessionExpiresAt: new Date('2026-01-16T12:00:00Z'),
     retentionDeadline: new Date('2026-04-15T12:00:00Z'),
+    staffAttribution: null,
     experienceSnapshot: {
       portalPublicationState: 'published' as const,
       portalPublicationSnapshotId: null,
@@ -183,6 +184,59 @@ describe('GuestResponse', () => {
         ),
       ).toEqual({ code: 'feedback_already_submitted' })
     })
+
+    it('rejects feedback before rating submission and after response deletion', () => {
+      const pending = createResponse(baseParams)
+      const deleted = deleteResponse(pending, NOW) as GuestResponse
+
+      expect(
+        submitPrivateFeedback(pending, { text: 'Too early.', textConsent: true }, NOW),
+      ).toEqual({ code: 'already_submitted' })
+      expect(
+        submitPrivateFeedback(deleted, { text: 'Too late.', textConsent: true }, NOW),
+      ).toEqual({ code: 'already_deleted' })
+    })
+
+    it('accepts eligible feedback after the one permitted rating correction', () => {
+      const submitted = submitResponse(
+        createResponse(baseParams),
+        { rating: 3 },
+        NOW,
+      ) as GuestResponse
+      const corrected = correctResponse(submitted, { rating: 2 }, NOW) as GuestResponse
+
+      expect(
+        submitPrivateFeedback(
+          corrected,
+          { text: 'The corrected visit rating needs follow-up.', textConsent: true },
+          NOW,
+        ),
+      ).toMatchObject({
+        status: 'corrected',
+        rating: 2,
+        text: 'The corrected visit rating needs follow-up.',
+        feedbackSubmissionRevision: 2,
+      })
+    })
+
+    it('requires meaningful text and explicit consent', () => {
+      const response = submitResponse(
+        createResponse(baseParams),
+        { rating: 2 },
+        NOW,
+      ) as GuestResponse
+
+      expect(
+        submitPrivateFeedback(response, { text: '  \r\n ', textConsent: true }, NOW),
+      ).toEqual({ code: 'no_content' })
+      expect(
+        submitPrivateFeedback(
+          response,
+          { text: 'Please contact me.', textConsent: false },
+          NOW,
+        ),
+      ).toEqual({ code: 'no_content' })
+    })
   })
 
   describe('submitResponse', () => {
@@ -264,6 +318,23 @@ describe('GuestResponse', () => {
         code: 'already_submitted',
       })
     })
+
+    it('requires consent for each submitted rating and feedback body', () => {
+      expect(
+        submitResponse(
+          createResponse(baseParams),
+          { rating: 4, responseConsent: false },
+          NOW,
+        ),
+      ).toEqual({ code: 'no_content' })
+      expect(
+        submitResponse(
+          createResponse(baseParams),
+          { text: 'A private note', textConsent: false },
+          NOW,
+        ),
+      ).toEqual({ code: 'no_content' })
+    })
   })
 
   describe('correctResponse', () => {
@@ -309,6 +380,89 @@ describe('GuestResponse', () => {
       const corrected = correctResponse(submitted, { rating: 4 }, NOW) as GuestResponse
       expect(correctResponse(corrected, { rating: 3 }, NOW)).toEqual({
         code: 'already_submitted',
+      })
+    })
+
+    it.each([MIN_RATING - 1, MAX_RATING + 1])(
+      'rejects an out-of-range corrected rating of %i',
+      (rating) => {
+        const submitted = submitResponse(
+          createResponse(baseParams),
+          { rating: 3 },
+          NOW,
+        ) as GuestResponse
+
+        expect(correctResponse(submitted, { rating }, NOW)).toEqual({
+          code: 'rating_out_of_range',
+          rating,
+        })
+      },
+    )
+
+    it('rejects corrected private feedback above the Unicode character limit', () => {
+      const submitted = submitResponse(
+        createResponse(baseParams),
+        { rating: 3 },
+        NOW,
+      ) as GuestResponse
+
+      expect(
+        correctResponse(submitted, { text: '😀'.repeat(MAX_TEXT_LENGTH + 1) }, NOW),
+      ).toEqual({
+        code: 'text_too_long',
+        length: MAX_TEXT_LENGTH + 1,
+        max: MAX_TEXT_LENGTH,
+      })
+    })
+
+    it('rejects a correction that removes every substantive response field', () => {
+      const submitted = submitResponse(
+        createResponse(baseParams),
+        { rating: 3 },
+        NOW,
+      ) as GuestResponse
+
+      expect(correctResponse(submitted, { rating: null, text: null }, NOW)).toEqual({
+        code: 'no_content',
+      })
+    })
+
+    it('preserves the rating while adding first-time feedback as revision two', () => {
+      const submitted = submitResponse(
+        createResponse(baseParams),
+        { rating: 2, category: 'room' },
+        NOW,
+      ) as GuestResponse
+      const result = correctResponse(
+        { ...submitted, submittedAt: null },
+        { text: 'A newly added private note.' },
+        NOW,
+      )
+
+      expect(result).toMatchObject({
+        status: 'corrected',
+        rating: 2,
+        category: 'room',
+        text: 'A newly added private note.',
+        feedbackSubmissionRevision: 2,
+      })
+    })
+
+    it('can clear feedback while explicitly changing its category', () => {
+      const submitted = submitResponse(
+        createResponse(baseParams),
+        { rating: 2, category: 'room', text: 'Initial private note.' },
+        NOW,
+      ) as GuestResponse
+
+      expect(
+        correctResponse(submitted, { category: 'service', text: null }, NOW),
+      ).toMatchObject({
+        status: 'corrected',
+        rating: 2,
+        category: 'service',
+        text: null,
+        feedbackSubmissionRevision: 1,
       })
     })
   })
@@ -383,6 +537,34 @@ describe('GuestResponse', () => {
 
       expect(withdrawResponse(submitted, new Date('2026-01-16T12:00:00.001Z'))).toEqual({
         code: 'response_withdrawal_expired',
+      })
+    })
+
+    it('requires an initial submission and refuses an already deleted response', () => {
+      const pending = createResponse(baseParams)
+      const deleted = deleteResponse(pending, NOW) as GuestResponse
+
+      expect(withdrawResponse(pending, NOW)).toEqual({
+        code: 'response_not_submitted',
+      })
+      expect(withdrawResponse(deleted, NOW)).toEqual({ code: 'already_deleted' })
+    })
+  })
+
+  describe('withdrawPrivateFeedback guards', () => {
+    it('requires persisted feedback and refuses an already deleted response', () => {
+      const submitted = submitResponse(
+        createResponse(baseParams),
+        { rating: 2 },
+        NOW,
+      ) as GuestResponse
+      const deleted = deleteResponse(submitted, NOW) as GuestResponse
+
+      expect(withdrawPrivateFeedback(submitted, NOW)).toEqual({
+        code: 'feedback_not_found',
+      })
+      expect(withdrawPrivateFeedback(deleted, NOW)).toEqual({
+        code: 'already_deleted',
       })
     })
   })

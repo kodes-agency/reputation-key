@@ -1,7 +1,16 @@
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Database } from '#/shared/db'
-import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
+import type {
+  PortalContactRequestManagerAuthorityPublicApi,
+  PortalPublicApi,
+} from '#/contexts/portal/application/public-api'
+import type {
+  IdentityAccountAdminAuthorityPublicApi,
+  IdentityManagerFactsPublicApi,
+} from '#/contexts/identity/application/public-api'
+import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import type { Clock } from '#/shared/domain/clock'
 import { createGuestInteractionRepository } from './infrastructure/repositories/guest-interaction.repository'
 import { createGuestResponseRepository } from './infrastructure/repositories/guest-response.repository'
 import { createAtomicGuestResponseCommandStore } from './infrastructure/guest-response-command-store'
@@ -16,81 +25,120 @@ import { getPublicPortal } from './application/use-cases/get-public-portal'
 import { guestResponseLifecycle } from './application/use-cases/guest-response-lifecycle'
 import { createGuestSessionManager } from './server/guest-session'
 import type { StoragePort } from '#/contexts/portal/application/public-api'
-import { scanEventId } from '#/shared/domain/ids'
-import { randomUUID } from 'crypto'
+import { qualifiedScanId, scanEventId } from '#/shared/domain/ids'
 import { createFeedbackPortalAttributionLookup } from './infrastructure/feedback-portal-attribution'
 import type { GuestFeedbackAttributionPublicApi } from './application/public-api'
 import type { GuestResponseIntegrityPublicApi } from './application/public-api'
 import { getPortalResponseIntegritySummary } from './application/use-cases/get-portal-response-integrity-summary'
+import type { PrimaryStaffAttributionResolver } from './application/ports/primary-staff-attribution.port'
+import { createGuestNetworkPressureStore } from './infrastructure/guest-network-pressure.store'
+import { consumeGuestNetworkPressure } from './application/use-cases/consume-guest-network-pressure'
+import {
+  createGuestObservationLossMonitor,
+  type GuestObservationLossRedisPort,
+} from './infrastructure/guest-observation-loss-monitor'
+import { reportGuestObservationLoss } from './application/use-cases/report-observation-loss'
+import { createGuestNetworkPseudonymHasher } from './server/hash-ip.server'
+import { createContactRequestResponseAuthorityAdapter } from './infrastructure/adapters/contact-request-response-authority.adapter'
+import { createContactRequestManagerAuthorityAdapter } from './infrastructure/adapters/contact-request-manager-authority.adapter'
+import { createContactRequestRetentionRepository } from './infrastructure/repositories/contact-request.repository'
+import { contactRequestRetentionSweep } from './application/use-cases/contact-request-retention'
 
 type GuestContextDeps = Readonly<{
   db: Database
   events: EventBus
-  clock: () => Date
-  portalApi: PortalPublicApi
+  clock: Clock
+  idGen: () => string
+  monotonicNow: () => number
+  portalApi: PortalPublicApi & PortalContactRequestManagerAuthorityPublicApi
+  identityManagerFacts: IdentityManagerFactsPublicApi
+  identityAccountAdminAuthority: IdentityAccountAdminAuthorityPublicApi
+  staffApi: Pick<StaffPublicApi, 'getAccessiblePropertyIds'>
   logger: LoggerPort
   storage: StoragePort
-  sessionSecret?: string
-  secureCookies?: boolean
+  sessionSecret: string
+  publicOrigin: string
+  secureCookies: boolean
+  resolvePrimaryStaffAttribution: PrimaryStaffAttributionResolver
+  observationLossRedis?: GuestObservationLossRedisPort
 }>
 
 export const buildGuestContext = (deps: GuestContextDeps) => {
-  const guestRepo = createGuestInteractionRepository(deps.db)
+  const guestRepo = createGuestInteractionRepository(deps.db, {
+    logger: deps.logger,
+    monotonicNow: deps.monotonicNow,
+  })
   const guestResponseRepo = createGuestResponseRepository(deps.db, deps.clock)
   const guestResponseCommandStore = createAtomicGuestResponseCommandStore(
     deps.db,
     deps.events,
+    deps.clock,
   )
   const guestObservationStore = createAtomicGuestObservationStore(deps.db, deps.events)
+  const guestNetworkPressureStore = createGuestNetworkPressureStore(deps.db, deps.idGen)
+  const guestObservationLossMonitor = createGuestObservationLossMonitor(
+    deps.observationLossRedis,
+  )
+  const reportObservationLoss = reportGuestObservationLoss({
+    monitor: guestObservationLossMonitor,
+    clock: deps.clock,
+    logger: deps.logger,
+  })
   const findPortalIdForFeedback = createFeedbackPortalAttributionLookup(
     deps.db,
     deps.clock,
   )
-  const sessionSecret =
-    deps.sessionSecret ??
-    (process.env.NODE_ENV === 'production' ? null : 'dev-test-guest-session-secret')
-  if (!sessionSecret) {
-    throw new Error('Guest session secret is required in production')
-  }
   const guestSessions = createGuestSessionManager({
-    secret: sessionSecret,
-    secureCookies: deps.secureCookies ?? process.env.NODE_ENV === 'production',
+    secret: deps.sessionSecret,
+    secureCookies: deps.secureCookies,
+    clock: deps.clock,
+    randomId: deps.idGen,
+  })
+  const contactRequestResponseAuthority = createContactRequestResponseAuthorityAdapter({
+    sessions: guestSessions,
+    responses: guestResponseRepo,
+  })
+  const contactRequestManagerAuthority = createContactRequestManagerAuthorityAdapter({
+    portal: deps.portalApi,
+    managerFacts: deps.identityManagerFacts,
+    accountAdminAuthority: deps.identityAccountAdminAuthority,
+    staff: deps.staffApi,
+  })
+  const contactRequestRetention = contactRequestRetentionSweep({
+    repo: createContactRequestRetentionRepository(deps.db),
     clock: deps.clock,
   })
   const responseLifecycle = guestResponseLifecycle({
     repo: guestResponseRepo,
     storage: deps.storage,
     clock: deps.clock,
-    idGen: randomUUID,
+    idGen: deps.idGen,
     commandStore: guestResponseCommandStore,
+    resolvePrimaryStaffAttribution: deps.resolvePrimaryStaffAttribution,
   })
   const portalContextResolver = createPortalContextResolver(deps.portalApi)
   const publicPortalLookup = createPublicPortalLookup(deps.portalApi)
+  const trackClick = trackReviewLinkClick({
+    observationStore: guestObservationStore,
+    clock: deps.clock,
+    reportObservationLoss,
+  })
 
   const useCases = {
     recordScan: recordScan({
       observationStore: guestObservationStore,
-      idGen: () => scanEventId(randomUUID()),
+      accessArtifacts: deps.portalApi,
+      idGen: () => scanEventId(deps.idGen()),
+      qualifiedScanIdGen: () => qualifiedScanId(deps.idGen()),
       clock: deps.clock,
-      logger: deps.logger,
+      resolvePrimaryStaffAttribution: deps.resolvePrimaryStaffAttribution,
+      reportObservationLoss,
     }),
-    trackReviewLinkClick: trackReviewLinkClick({
-      observationStore: guestObservationStore,
-      clock: deps.clock,
-      logger: deps.logger,
-    }),
+    trackReviewLinkClick: trackClick,
     resolveLinkAndTrack: resolveLinkAndTrack({
       publicPortalLookup,
-      trackClick: trackReviewLinkClick({
-        observationStore: guestObservationStore,
-        clock: deps.clock,
-        logger: deps.logger,
-      }),
-      reportObservationFailure: (error) =>
-        deps.logger.warn(
-          { err: error },
-          'Review link click qualification failed — analytics suppressed',
-        ),
+      trackClick,
+      reportObservationLoss,
     }),
     resolvePortalContext: resolvePortalContext({
       portalContextResolver,
@@ -98,6 +146,15 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     getPublicPortal: getPublicPortal({ publicPortalLookup }),
     responseLifecycle,
     guestSessions,
+    consumeGuestNetworkPressure: consumeGuestNetworkPressure({
+      store: guestNetworkPressureStore,
+      clock: deps.clock,
+    }),
+    reportObservationLoss,
+    guestPublicRuntime: {
+      expectedOrigin: deps.publicOrigin,
+      hashNetworkPseudonym: createGuestNetworkPseudonymHasher(deps.sessionSecret),
+    },
   } as const
   const attributionPublicApi: GuestFeedbackAttributionPublicApi = {
     findPortalIdForFeedback,
@@ -107,6 +164,9 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
       getPortalResponseIntegritySummary(guestResponseRepo),
   }
   const publicApi = {
+    /** Public-edge request capabilities, including the session and abuse
+     * controls that must stay composed with Guest-owned persistence. */
+    requests: Object.freeze(useCases),
     getPublicPortal: useCases.getPublicPortal,
     resolvePortalContext: useCases.resolvePortalContext,
     ...attributionPublicApi,
@@ -121,9 +181,16 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
         guestResponseRepo,
         guestResponseCommandStore,
         guestObservationStore,
+        guestNetworkPressureStore,
+        guestObservationLossMonitor,
         portalContextResolver,
       },
       useCases,
+      contactRequestReadiness: Object.freeze({
+        responseAuthority: contactRequestResponseAuthority,
+        managerAuthority: contactRequestManagerAuthority,
+        retentionSweep: contactRequestRetention,
+      }),
     },
   } as const
 }

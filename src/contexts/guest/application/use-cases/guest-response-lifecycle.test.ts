@@ -11,6 +11,15 @@ import {
   guestResponseLifecycle,
 } from './guest-response-lifecycle'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
+
+const STAFF_ATTRIBUTION = {
+  staffParticipantId: '10000000-0000-4000-8000-000000000001',
+  staffParticipationId: '10000000-0000-4000-8000-000000000002',
+  portalResponsibilityId: '10000000-0000-4000-8000-000000000003',
+  effectiveFrom: new Date('2026-08-01T00:00:00.000Z'),
+  effectiveTo: null,
+} as const
 
 const scope: GuestResponseScope = {
   organizationId: 'org-1',
@@ -178,6 +187,8 @@ function harness(clock: () => Date = () => new Date('2026-08-09T12:00:00Z')) {
     putObject: async () => {},
   }
   const events = createCapturingEventBus()
+  let resolvedStaffAttribution: PrimaryStaffAttributionSnapshot | null = STAFF_ATTRIBUTION
+  let staffAttributionResolutionCount = 0
   const commandStore = {
     commitSubmitted: async (
       response: GuestResponse,
@@ -363,6 +374,10 @@ function harness(clock: () => Date = () => new Date('2026-08-09T12:00:00Z')) {
     clock,
     idGen: () => `00000000-0000-4000-8000-${String(sequence++).padStart(12, '0')}`,
     commandStore,
+    resolvePrimaryStaffAttribution: async () => {
+      staffAttributionResolutionCount += 1
+      return resolvedStaffAttribution
+    },
   })
   // Most lifecycle tests focus on behavior after submission. This adapter keeps
   // their threshold-oriented call shape compact while production callers must
@@ -389,6 +404,10 @@ function harness(clock: () => Date = () => new Date('2026-08-09T12:00:00Z')) {
     events,
     lifecycle,
     rawLifecycle,
+    setStaffAttribution: (value: PrimaryStaffAttributionSnapshot | null) => {
+      resolvedStaffAttribution = value
+    },
+    staffAttributionResolutionCount: () => staffAttributionResolutionCount,
     setConfirm: (value: () => Promise<string>) => (confirm = value),
     setInspect: (
       value: () => Promise<{ contentType: string | null; sizeBytes: number | null }>,
@@ -397,6 +416,32 @@ function harness(clock: () => Date = () => new Date('2026-08-09T12:00:00Z')) {
 }
 
 describe('guest response lifecycle', () => {
+  it('copies initial Staff attribution through later correction facts without re-resolving', async () => {
+    const test = harness()
+    const sessionId = '00000000-0000-4000-8000-000000000099'
+
+    await test.lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true }, 3)
+    test.setStaffAttribution({
+      staffParticipantId: '20000000-0000-4000-8000-000000000001',
+      staffParticipationId: '20000000-0000-4000-8000-000000000002',
+      portalResponsibilityId: '20000000-0000-4000-8000-000000000003',
+      effectiveFrom: new Date('2026-08-09T12:00:00.001Z'),
+      effectiveTo: null,
+    })
+
+    await test.lifecycle.correct(scope, sessionId, {
+      rating: 4,
+      responseConsent: true,
+    })
+
+    expect(test.staffAttributionResolutionCount()).toBe(1)
+    expect(test.repo.responses[0]?.staffAttribution).toEqual(STAFF_ATTRIBUTION)
+    expect(test.events.capturedByTag('guest.rating.submitted')).toMatchObject([
+      { staffAttribution: STAFF_ATTRIBUTION },
+      { staffAttribution: STAFF_ATTRIBUTION },
+    ])
+  })
+
   it('pins exact session expiry separately from the 24-month fact deadline', async () => {
     const { lifecycle, repo } = harness()
     const sessionId = '00000000-0000-4000-8000-000000000003'
@@ -776,7 +821,7 @@ describe('guest response lifecycle — submitted facts', () => {
       },
     ])
     expect(events.capturedByTag('guest.feedback.submitted')).toMatchObject([
-      { feedbackId: responseId, ratingId: responseId },
+      { feedbackId: responseId, ratingId: responseId, responseRevision: 1 },
     ])
     expect(withFeedback).toMatchObject({
       hasPrivateFeedback: true,
@@ -1042,7 +1087,7 @@ describe('guest response lifecycle — submitted facts', () => {
   )
 
   it('unlocks feedback after a high-to-low correction without spending another correction', async () => {
-    const { lifecycle, repo } = harness()
+    const { lifecycle, repo, events } = harness()
     await lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true }, 3)
     const corrected = await lifecycle.correct(scope, sessionId, { rating: 2 })
     expect(corrected.privateFeedbackEligible).toBe(true)
@@ -1055,6 +1100,10 @@ describe('guest response lifecycle — submitted facts', () => {
       correctionCount: 1,
       rating: 2,
       text: 'Now eligible after correction.',
+      feedbackSubmissionRevision: 2,
     })
+    expect(events.capturedByTag('guest.feedback.submitted')).toMatchObject([
+      { responseRevision: 2 },
+    ])
   })
 })

@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
+import { createCipheriv, createDecipheriv } from 'node:crypto'
 import { z } from 'zod/v4'
 import {
   contactRequestEmailSchema,
@@ -39,12 +39,13 @@ function additionalData(context: ContactRequestEncryptionContext): Buffer {
   )
 }
 
-export function createContactRequestEncryptionAdapter(
+export const createContactRequestEncryptionAdapter = (
   input: Readonly<{
     activeKeyId: string
     keys: Readonly<Record<string, string>>
+    generateIv: () => Buffer
   }>,
-): ContactRequestEncryptionPort {
+): ContactRequestEncryptionPort => {
   const keys = new Map<string, Buffer>()
   for (const [keyId, material] of Object.entries(input.keys)) {
     if (!KEY_ID_PATTERN.test(keyId) || !KEY_PATTERN.test(material)) {
@@ -64,7 +65,8 @@ export function createContactRequestEncryptionAdapter(
       const parsed = SEALED_CONTACT_SCHEMA.parse({ version: 1, ...contact })
       const key = keys.get(input.activeKeyId)
       if (!key) throw new ContactRequestEncryptionError()
-      const iv = randomBytes(12)
+      const iv = input.generateIv()
+      if (iv.length !== 12) throw new ContactRequestEncryptionError()
       const cipher = createCipheriv('aes-256-gcm', key, iv)
       cipher.setAAD(additionalData(context))
       const encrypted = Buffer.concat([

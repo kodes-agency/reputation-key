@@ -4,9 +4,9 @@ import { trace } from '#/shared/observability/trace'
 export const createPublicPortalLookup = (
   portalApi: PortalPublicApi,
 ): PublicPortalLookup => ({
-  findByToken: async (rawToken) =>
+  findByToken: async (rawToken, preference) =>
     trace('publicPortal.findByToken', async () => {
-      const outcome = await portalApi.findPublicPortalByToken(rawToken)
+      const outcome = await portalApi.findPublicPortalByToken(rawToken, preference)
       return outcome.status === 'found' ? outcome.result : null
     }),
 })

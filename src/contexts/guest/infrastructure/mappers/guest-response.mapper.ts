@@ -51,12 +51,26 @@ export function guestResponseFromRow(
           capturedAt: experience.capturedAt,
         }
       : null,
+    staffAttribution:
+      row.attributedStaffParticipantId &&
+      row.attributedStaffParticipationId &&
+      row.attributionResponsibilityId &&
+      row.staffAttributionEffectiveFrom
+        ? {
+            staffParticipantId: row.attributedStaffParticipantId,
+            staffParticipationId: row.attributedStaffParticipationId,
+            portalResponsibilityId: row.attributionResponsibilityId,
+            effectiveFrom: row.staffAttributionEffectiveFrom,
+            effectiveTo: row.staffAttributionEffectiveTo,
+          }
+        : null,
     ratingSourceEventId: row.ratingSourceEventId,
     feedbackSourceEventId: row.feedbackSourceEventId,
     correctionCount: row.correctionCount === 1 ? 1 : 0,
     submittedAt: row.submittedAt,
     correctedAt: row.correctedAt,
     feedbackSubmittedAt: row.feedbackSubmittedAt,
+    feedbackSubmissionRevision: row.feedbackSubmissionRevision,
     feedbackWithdrawnAt: row.feedbackWithdrawnAt,
     moderatedAt: row.moderatedAt,
     deletedAt: row.deletedAt,
@@ -65,7 +79,10 @@ export function guestResponseFromRow(
   }
 }
 
-export function guestResponseToInsertRow(response: GuestResponse): ResponseInsert {
+export function guestResponseToInsertRow(
+  response: GuestResponse,
+  updatedAt: Date,
+): ResponseInsert {
   return {
     id: response.id,
     organizationId: response.organizationId,
@@ -84,14 +101,22 @@ export function guestResponseToInsertRow(response: GuestResponse): ResponseInser
     privateFeedbackThreshold: response.privateFeedbackThreshold,
     ratingSourceEventId: response.ratingSourceEventId,
     feedbackSourceEventId: response.feedbackSourceEventId,
+    attributedStaffParticipantId: response.staffAttribution?.staffParticipantId ?? null,
+    attributedStaffParticipationId:
+      response.staffAttribution?.staffParticipationId ?? null,
+    attributionResponsibilityId:
+      response.staffAttribution?.portalResponsibilityId ?? null,
+    staffAttributionEffectiveFrom: response.staffAttribution?.effectiveFrom ?? null,
+    staffAttributionEffectiveTo: response.staffAttribution?.effectiveTo ?? null,
     correctionCount: response.correctionCount,
     submittedAt: response.submittedAt,
     correctedAt: response.correctedAt,
     feedbackSubmittedAt: response.feedbackSubmittedAt,
+    feedbackSubmissionRevision: response.feedbackSubmissionRevision,
     feedbackWithdrawnAt: response.feedbackWithdrawnAt,
     moderatedAt: response.moderatedAt,
     retentionDeadline: response.retentionDeadline,
     deletedAt: response.deletedAt,
-    updatedAt: response.submittedAt ?? new Date(),
+    updatedAt,
   }
 }

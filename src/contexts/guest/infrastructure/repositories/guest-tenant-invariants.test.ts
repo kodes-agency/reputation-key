@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 
 const db = getDb()
 const orgId = 'org-guest-tenant-invariant'
@@ -37,7 +38,7 @@ afterAll(async () => {
   await db.execute(sql`DELETE FROM guest_responses WHERE organization_id = ${orgId}`)
   await db.execute(sql`DELETE FROM portals WHERE organization_id = ${orgId}`)
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${orgId}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${orgId}`)
+  await deleteTestOrganizations(db, [orgId])
 })
 
 describe('guest tenant/property database invariants', () => {

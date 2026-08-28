@@ -5,13 +5,13 @@ import type {
   PropertyId,
   PortalLinkId,
 } from '#/shared/domain/ids'
-import type { LoggerPort } from '#/shared/domain/logger.port'
 import { guestReviewLinkClicked } from '../../domain/events'
+import type { GuestObservationLossReporter } from '../ports/guest-observation-loss-monitor.port'
 
 export type TrackReviewLinkClickDeps = Readonly<{
   observationStore: GuestObservationStore
   clock: () => Date
-  logger: LoggerPort
+  reportObservationLoss: GuestObservationLossReporter
 }>
 
 export type TrackReviewLinkClickInput = Readonly<{
@@ -51,12 +51,14 @@ export const trackReviewLinkClick =
         },
         fact,
       )
-    } catch (e) {
-      // Silent failure — click tracking is analytics
-      deps.logger.warn(
-        { err: e, linkId: input.linkId },
-        'Review link click tracking failed — suppressed',
-      )
+    } catch {
+      // The approved URL remains available; only the content-free loss class
+      // is retained, never the destination/session/tenant scope.
+      try {
+        await deps.reportObservationLoss('review_link')
+      } catch {
+        // Monitoring degradation must not widen the navigation failure.
+      }
     }
   }
 

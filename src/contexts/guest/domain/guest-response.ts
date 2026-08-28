@@ -18,6 +18,7 @@ import {
   normalizePrivateFeedbackText,
 } from './private-feedback-text'
 import { unicodeCodePointLength } from '#/shared/domain/unicode'
+import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 
 export type GuestResponseStatus =
   'pending' | 'submitted' | 'corrected' | 'moderated' | 'deleted' | 'expired'
@@ -64,6 +65,8 @@ export interface GuestResponse {
   readonly privateFeedbackThreshold: number | null
   /** Null only for pre-snapshot historical responses. New submissions require it. */
   readonly experienceSnapshot: GuestResponseExperienceSnapshot | null
+  /** Immutable Primary Staff interval observed at the initial rating. */
+  readonly staffAttribution: PrimaryStaffAttributionSnapshot | null
   /** Durable lineage of the currently effective numeric rating fact. */
   readonly ratingSourceEventId: string | null
   /** Durable lineage of the currently effective private-feedback count fact. */
@@ -72,6 +75,8 @@ export interface GuestResponse {
   readonly submittedAt: Date | null
   readonly correctedAt: Date | null
   readonly feedbackSubmittedAt: Date | null
+  /** Guest Response Revision that was current when private feedback was submitted. */
+  readonly feedbackSubmissionRevision?: number | null
   /** Content-free tombstone that prevents a withdrawn feedback body being resubmitted. */
   readonly feedbackWithdrawnAt: Date | null
   readonly moderatedAt: Date | null
@@ -112,6 +117,7 @@ export function createResponse(params: {
   sessionExpiresAt: Date
   retentionDeadline: Date
   experienceSnapshot: GuestResponseExperienceSnapshot
+  staffAttribution: PrimaryStaffAttributionSnapshot | null
   integrityAssessment?: GuestResponseInitialIntegrityAssessment
 }): GuestResponse {
   const integrityAssessment =
@@ -136,12 +142,14 @@ export function createResponse(params: {
     mediaConsent: false,
     privateFeedbackThreshold: params.experienceSnapshot.privateFeedbackThreshold,
     experienceSnapshot: params.experienceSnapshot,
+    staffAttribution: params.staffAttribution,
     ratingSourceEventId: null,
     feedbackSourceEventId: null,
     correctionCount: 0,
     submittedAt: null,
     correctedAt: null,
     feedbackSubmittedAt: null,
+    feedbackSubmissionRevision: null,
     feedbackWithdrawnAt: null,
     moderatedAt: null,
     deletedAt: null,
@@ -192,6 +200,7 @@ export function submitPrivateFeedback(
     text,
     textConsent: true,
     feedbackSubmittedAt: now,
+    feedbackSubmissionRevision: response.correctionCount + 1,
   }
 }
 
@@ -306,6 +315,7 @@ export function submitResponse(
     mediaConsent: params.mediaConsent ?? false,
     submittedAt: now,
     feedbackSubmittedAt: text ? now : null,
+    feedbackSubmissionRevision: text ? 1 : null,
   }
 }
 
@@ -373,6 +383,8 @@ export function correctResponse(
     mediaConsent: params.mediaConsent ?? response.mediaConsent,
     correctionCount: 1,
     correctedAt: now,
+    feedbackSubmissionRevision:
+      response.feedbackSubmissionRevision ?? (nextText !== null ? 2 : null),
   }
 }
 

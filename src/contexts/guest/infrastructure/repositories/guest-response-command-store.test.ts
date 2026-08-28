@@ -4,6 +4,7 @@ import { getDb } from '#/shared/db'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   feedbackId,
   organizationId,
@@ -24,8 +25,8 @@ import {
   type GuestResponseInitialIntegrityAssessment,
 } from '../../domain/guest-response-integrity'
 import type { GuestSubmissionFact } from '../../application/ports/guest-response-command-store.port'
-import { createAtomicGuestResponseCommandStore } from '../guest-response-command-store'
-import { createGuestResponseRepository } from './guest-response.repository'
+import { createAtomicGuestResponseCommandStore as createAtomicGuestResponseCommandStoreFactory } from '../guest-response-command-store'
+import { createGuestResponseRepository as createGuestResponseRepositoryFactory } from './guest-response.repository'
 import { executeRetentionRule } from '#/shared/db/retention/execute-retention-rule'
 import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 
@@ -35,7 +36,32 @@ const PROPERTY = propertyId('51000000-0000-4000-8000-000000000001')
 const PORTAL = portalId('51000000-0000-4000-8000-000000000002')
 const RESPONSE = '51000000-0000-4000-8000-000000000003'
 const SESSION = '51000000-0000-4000-8000-000000000004'
+const STAFF_PARTICIPANT = '51000000-0000-4000-8000-000000000005'
+const STAFF_PARTICIPANT_REPLACEMENT = '51000000-0000-4000-8000-000000000006'
+const STAFF_PARTICIPATION = '51000000-0000-4000-8000-000000000007'
+const STAFF_PARTICIPATION_REPLACEMENT = '51000000-0000-4000-8000-000000000008'
+const PORTAL_RESPONSIBILITY = '51000000-0000-4000-8000-000000000009'
+const PORTAL_RESPONSIBILITY_REPLACEMENT = '51000000-0000-4000-8000-000000000010'
 const NOW = new Date('2026-08-25T12:00:00.000Z')
+const STAFF_EFFECTIVE_FROM = new Date('2026-08-01T00:00:00.000Z')
+
+const createAtomicGuestResponseCommandStore = (
+  database: Parameters<typeof createAtomicGuestResponseCommandStoreFactory>[0],
+  events: Parameters<typeof createAtomicGuestResponseCommandStoreFactory>[1],
+) => createAtomicGuestResponseCommandStoreFactory(database, events, () => NOW)
+
+const createGuestResponseRepository = (
+  database: Parameters<typeof createGuestResponseRepositoryFactory>[0],
+  clock: () => Date = () => NOW,
+) => createGuestResponseRepositoryFactory(database, clock)
+
+const STAFF_ATTRIBUTION = {
+  staffParticipantId: STAFF_PARTICIPANT,
+  staffParticipationId: STAFF_PARTICIPATION,
+  portalResponsibilityId: PORTAL_RESPONSIBILITY,
+  effectiveFrom: STAFF_EFFECTIVE_FROM,
+  effectiveTo: null,
+} as const
 
 function response(): GuestResponse {
   return {
@@ -43,6 +69,7 @@ function response(): GuestResponse {
     organizationId: ORG,
     propertyId: PROPERTY,
     portalId: PORTAL,
+    staffAttribution: null,
     sessionId: SESSION,
     sessionExpiresAt: new Date('2026-08-26T12:00:00.000Z'),
     status: 'submitted',
@@ -74,6 +101,7 @@ function response(): GuestResponse {
     submittedAt: NOW,
     correctedAt: null,
     feedbackSubmittedAt: NOW,
+    feedbackSubmissionRevision: 1,
     feedbackWithdrawnAt: null,
     moderatedAt: null,
     deletedAt: null,
@@ -101,6 +129,7 @@ function facts(): readonly [
       organizationId: ORG,
       propertyId: PROPERTY,
       portalId: PORTAL,
+      responseRevision: 1,
       occurredAt: NOW,
     }),
   ]
@@ -128,23 +157,185 @@ beforeAll(async () => {
       'Guest Command Portal', 'guest-command-portal', 'published'
     ) ON CONFLICT (id) DO NOTHING
   `)
+  await db.execute(sql`
+    INSERT INTO staff_participants (
+      id, organization_id, display_name, status, revision, created_by,
+      created_at, updated_at
+    ) VALUES
+      (${STAFF_PARTICIPANT}::uuid, ${ORG}, 'Original Primary', 'active', 1,
+       'test', ${STAFF_EFFECTIVE_FROM}, ${STAFF_EFFECTIVE_FROM}),
+      (${STAFF_PARTICIPANT_REPLACEMENT}::uuid, ${ORG}, 'Replacement Primary',
+       'active', 1, 'test', ${STAFF_EFFECTIVE_FROM}, ${STAFF_EFFECTIVE_FROM})
+  `)
+  await db.execute(sql`
+    INSERT INTO staff_participations (
+      id, organization_id, property_id, staff_participant_id, display_name,
+      status, started_at, revision, created_by, created_at, updated_at
+    ) VALUES
+      (${STAFF_PARTICIPATION}::uuid, ${ORG}, ${PROPERTY},
+       ${STAFF_PARTICIPANT}::uuid, 'Original Primary', 'active',
+       ${STAFF_EFFECTIVE_FROM}, 1, 'test', ${STAFF_EFFECTIVE_FROM}, ${STAFF_EFFECTIVE_FROM}),
+      (${STAFF_PARTICIPATION_REPLACEMENT}::uuid, ${ORG}, ${PROPERTY},
+       ${STAFF_PARTICIPANT_REPLACEMENT}::uuid, 'Replacement Primary', 'active',
+       ${STAFF_EFFECTIVE_FROM}, 1, 'test', ${STAFF_EFFECTIVE_FROM}, ${STAFF_EFFECTIVE_FROM})
+  `)
+  await db.execute(sql`
+    INSERT INTO portal_responsibilities (
+      id, organization_id, property_id, portal_id, staff_participation_id,
+      kind, effective_from, created_by
+    ) VALUES (
+      ${PORTAL_RESPONSIBILITY}::uuid, ${ORG}, ${PROPERTY}, ${PORTAL},
+      ${STAFF_PARTICIPATION}::uuid, 'primary', ${STAFF_EFFECTIVE_FROM}, 'test'
+    )
+  `)
 })
 
 beforeEach(async () => {
   await db.execute(sql`DELETE FROM guest_responses WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`)
+  await db.execute(sql`
+    DELETE FROM portal_responsibilities
+    WHERE id = ${PORTAL_RESPONSIBILITY_REPLACEMENT}::uuid
+  `)
+  await db.execute(sql`
+    UPDATE portal_responsibilities
+    SET effective_to = NULL, end_reason = NULL
+    WHERE id = ${PORTAL_RESPONSIBILITY}::uuid
+  `)
 })
 
 afterAll(async () => {
   await db.execute(sql`DELETE FROM guest_responses WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`)
+  await db.execute(
+    sql`DELETE FROM portal_responsibilities WHERE organization_id = ${ORG}`,
+  )
+  await db.execute(sql`DELETE FROM staff_participations WHERE organization_id = ${ORG}`)
+  await db.execute(sql`DELETE FROM staff_participants WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM portals WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
   clearEventSchemas()
 })
 
 describe.sequential('atomic Guest response submission', () => {
+  it('keeps the original Primary Staff snapshot through reassignment and correction', async () => {
+    const store = createAtomicGuestResponseCommandStore(db, createCapturingEventBus())
+    const attributed = { ...response(), staffAttribution: STAFF_ATTRIBUTION }
+    const originalRating = guestRatingSubmitted({
+      ratingId: ratingId(RESPONSE),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      value: 2,
+      occurredAt: NOW,
+      staffAttribution: STAFF_ATTRIBUTION,
+    })
+    const originalFeedback = guestFeedbackSubmitted({
+      feedbackId: feedbackId(RESPONSE),
+      ratingId: ratingId(RESPONSE),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      responseRevision: 1,
+      occurredAt: NOW,
+      staffAttribution: STAFF_ATTRIBUTION,
+    })
+    await expect(
+      store.commitSubmitted(attributed, [originalRating, originalFeedback]),
+    ).resolves.toBe('applied')
+
+    const reassignedAt = new Date('2026-08-26T00:00:00.000Z')
+    await db.execute(sql`
+      UPDATE portal_responsibilities
+      SET effective_to = ${reassignedAt}, end_reason = 'reassigned'
+      WHERE id = ${PORTAL_RESPONSIBILITY}::uuid
+    `)
+    await db.execute(sql`
+      INSERT INTO portal_responsibilities (
+        id, organization_id, property_id, portal_id, staff_participation_id,
+        kind, effective_from, created_by
+      ) VALUES (
+        ${PORTAL_RESPONSIBILITY_REPLACEMENT}::uuid, ${ORG}, ${PROPERTY}, ${PORTAL},
+        ${STAFF_PARTICIPATION_REPLACEMENT}::uuid, 'primary', ${reassignedAt}, 'test'
+      )
+    `)
+
+    const correctedAt = new Date('2026-08-26T11:00:00.000Z')
+    const correction = guestRatingSubmitted({
+      ratingId: ratingId(RESPONSE),
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      portalId: PORTAL,
+      value: 4,
+      supersedesSourceEventId: originalRating.eventId,
+      occurredAt: correctedAt,
+      staffAttribution: STAFF_ATTRIBUTION,
+    })
+    const persisted = {
+      ...attributed,
+      ratingSourceEventId: originalRating.eventId,
+      feedbackSourceEventId: originalFeedback.eventId,
+    }
+    await expect(
+      store.commitCorrected(
+        persisted,
+        {
+          ...persisted,
+          status: 'corrected',
+          rating: 4,
+          correctionCount: 1,
+          correctedAt,
+        },
+        [correction],
+      ),
+    ).resolves.toBe('applied')
+
+    const state = await db.execute(sql`
+      SELECT attributed_staff_participant_id, attributed_staff_participation_id,
+             attribution_responsibility_id, staff_attribution_effective_from,
+             staff_attribution_effective_to
+      FROM guest_responses WHERE id = ${RESPONSE}
+    `)
+    expect(state.rows).toHaveLength(1)
+    expect(state.rows[0]).toMatchObject({
+      attributed_staff_participant_id: STAFF_PARTICIPANT,
+      attributed_staff_participation_id: STAFF_PARTICIPATION,
+      attribution_responsibility_id: PORTAL_RESPONSIBILITY,
+      staff_attribution_effective_to: null,
+    })
+    expect(new Date(String(state.rows[0]!.staff_attribution_effective_from))).toEqual(
+      STAFF_EFFECTIVE_FROM,
+    )
+    const durableFacts = await db.execute(sql`
+      SELECT event_type, event_version, payload -> 'staffAttribution' AS attribution
+      FROM outbox_events
+      WHERE organization_id = ${ORG}
+      ORDER BY created_at, event_type
+    `)
+    expect(durableFacts.rows).toHaveLength(3)
+    for (const fact of durableFacts.rows) {
+      expect(fact).toMatchObject({
+        event_version: fact.event_type === 'guest.feedback.submitted' ? 3 : 2,
+        attribution: {
+          staffParticipantId: STAFF_PARTICIPANT,
+          staffParticipationId: STAFF_PARTICIPATION,
+          portalResponsibilityId: PORTAL_RESPONSIBILITY,
+          effectiveFrom: STAFF_EFFECTIVE_FROM.toISOString(),
+          effectiveTo: null,
+        },
+      })
+    }
+
+    await expect(
+      db.execute(sql`
+        UPDATE guest_responses
+        SET attributed_staff_participant_id = ${STAFF_PARTICIPANT_REPLACEMENT}::uuid
+        WHERE id = ${RESPONSE}
+      `),
+    ).rejects.toMatchObject({ cause: { code: '23514' } })
+  })
+
   it('commits the response and both content-free facts together', async () => {
     const events = createCapturingEventBus()
     const store = createAtomicGuestResponseCommandStore(db, events)
@@ -260,6 +451,7 @@ describe.sequential('atomic Guest response submission', () => {
       text: null,
       textConsent: false,
       feedbackSubmittedAt: null,
+      feedbackSubmissionRevision: null,
       integrityOutcome: assessment.outcome,
       integrityReasonCode: assessment.reasonCode,
     }
@@ -591,6 +783,7 @@ describe.sequential('atomic Guest response submission', () => {
       textConsent: false,
       feedbackSourceEventId: null,
       feedbackSubmittedAt: null,
+      feedbackSubmissionRevision: null,
       feedbackWithdrawnAt: null,
     }
     await store.commitSubmitted(ratingOnly, [ratingFact])
@@ -601,6 +794,7 @@ describe.sequential('atomic Guest response submission', () => {
       organizationId: ORG,
       propertyId: PROPERTY,
       portalId: PORTAL,
+      responseRevision: 1,
       occurredAt: NOW,
     })
     const withFeedback: GuestResponse = {
@@ -609,6 +803,7 @@ describe.sequential('atomic Guest response submission', () => {
       text: 'Please contact the front desk.',
       textConsent: true,
       feedbackSubmittedAt: NOW,
+      feedbackSubmissionRevision: 1,
       feedbackWithdrawnAt: null,
     }
 
@@ -644,6 +839,7 @@ describe.sequential('atomic Guest response submission', () => {
       textConsent: false,
       feedbackSourceEventId: null,
       feedbackSubmittedAt: null,
+      feedbackSubmissionRevision: null,
     }
     await store.commitSubmitted(ratingOnly, [ratingFact])
     const feedbackAt = new Date('2026-08-26T11:00:00.000Z')
@@ -654,6 +850,7 @@ describe.sequential('atomic Guest response submission', () => {
       organizationId: ORG,
       propertyId: PROPERTY,
       portalId: PORTAL,
+      responseRevision: 1,
       occurredAt: feedbackAt,
     })
 
@@ -665,6 +862,7 @@ describe.sequential('atomic Guest response submission', () => {
           text: 'Late private note.',
           textConsent: true,
           feedbackSubmittedAt: feedbackAt,
+          feedbackSubmissionRevision: 1,
           sessionExpiresAt: renewedUntil,
         },
         fact,
@@ -697,6 +895,7 @@ describe.sequential('atomic Guest response submission', () => {
       propertyId: PROPERTY,
       portalId: PORTAL,
       supersedesSourceEventId: feedbackFact.eventId,
+      responseRevision: 1,
       occurredAt: withdrawnAt,
     })
     const withdrawn: GuestResponse = {
@@ -750,6 +949,7 @@ describe.sequential('atomic Guest response submission', () => {
       textConsent: false,
       feedbackSourceEventId: null,
       feedbackSubmittedAt: null,
+      feedbackSubmissionRevision: null,
       feedbackWithdrawnAt: null,
     }
     await store.commitSubmitted(ratingOnly, [ratingFact])
@@ -764,6 +964,7 @@ describe.sequential('atomic Guest response submission', () => {
       organizationId: ORG,
       propertyId: PROPERTY,
       portalId: PORTAL,
+      responseRevision: 1,
       occurredAt: NOW,
     })
     await store.commitFeedbackAdded(
@@ -772,6 +973,7 @@ describe.sequential('atomic Guest response submission', () => {
         text: 'A concurrently committed private note.',
         textConsent: true,
         feedbackSubmittedAt: NOW,
+        feedbackSubmissionRevision: 1,
         feedbackWithdrawnAt: null,
       },
       feedbackFact,
@@ -982,6 +1184,7 @@ describe.sequential('atomic Guest response submission', () => {
       propertyId: PROPERTY,
       portalId: PORTAL,
       supersedesSourceEventId: originalFeedback.eventId,
+      responseRevision: 1,
       occurredAt: deletedAt,
     })
     const withdrawn: GuestResponse = {

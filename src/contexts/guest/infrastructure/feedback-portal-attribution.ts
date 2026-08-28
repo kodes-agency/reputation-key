@@ -12,6 +12,7 @@ import {
   type OrganizationId,
   type PortalId,
 } from '#/shared/domain/ids'
+import type { Clock } from '#/shared/domain/clock'
 
 export type FeedbackPortalAttributionLookup = (
   organizationId: OrganizationId,
@@ -23,7 +24,7 @@ export type FeedbackPortalAttributionLookup = (
  * Canonical responses win; legacy feedback remains readable during cutover.
  */
 export const createFeedbackPortalAttributionLookup =
-  (db: Database, clock: () => Date = () => new Date()): FeedbackPortalAttributionLookup =>
+  (db: Database, clock: Clock): FeedbackPortalAttributionLookup =>
   async (organizationId, sourceId) => {
     const canonical = await db
       .select({ portalId: guestResponses.portalId })

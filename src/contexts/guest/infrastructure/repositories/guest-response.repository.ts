@@ -26,6 +26,7 @@ import type {
   GuestMediaStatus,
 } from '../../domain/guest-media'
 import { guestResponseFromRow } from '../mappers/guest-response.mapper'
+import type { Clock } from '#/shared/domain/clock'
 
 type MediaRow = typeof guestResponseMedia.$inferSelect
 
@@ -51,10 +52,10 @@ function mediaFromRow(row: MediaRow): GuestMedia {
   }
 }
 
-export function createGuestResponseRepository(
+export const createGuestResponseRepository = (
   db: Database,
-  clock: () => Date = () => new Date(),
-): GuestResponseRepository {
+  clock: Clock,
+): GuestResponseRepository => {
   return {
     findForSession: async (scope, sessionId, asOf) => {
       const [result] = await db
@@ -168,6 +169,7 @@ export function createGuestResponseRepository(
         .select({
           comment: guestResponsePrivateFeedback.body,
           ratingValue: guestResponses.rating,
+          feedbackSubmissionRevision: guestResponses.feedbackSubmissionRevision,
           textConsent: guestResponses.textConsent,
           responseConsent: guestResponses.responseConsent,
           status: guestResponses.status,
@@ -198,6 +200,7 @@ export function createGuestResponseRepository(
       return {
         comment: row.textConsent && row.status !== 'moderated' ? row.comment : null,
         ratingValue: row.responseConsent ? row.ratingValue : null,
+        feedbackSubmissionRevision: row.feedbackSubmissionRevision,
       }
     },
 
@@ -208,6 +211,7 @@ export function createGuestResponseRepository(
           id: guestResponses.id,
           comment: guestResponsePrivateFeedback.body,
           ratingValue: guestResponses.rating,
+          feedbackSubmissionRevision: guestResponses.feedbackSubmissionRevision,
           textConsent: guestResponses.textConsent,
           responseConsent: guestResponses.responseConsent,
           status: guestResponses.status,
@@ -235,6 +239,7 @@ export function createGuestResponseRepository(
         id: row.id,
         comment: row.textConsent && row.status !== 'moderated' ? row.comment : null,
         ratingValue: row.responseConsent ? row.ratingValue : null,
+        feedbackSubmissionRevision: row.feedbackSubmissionRevision,
       }))
     },
 
@@ -333,12 +338,13 @@ export function createGuestResponseRepository(
 
     saveModeration: async (response) =>
       db.transaction(async (tx) => {
+        const updatedAt = response.moderatedAt ?? clock()
         const updated = await tx
           .update(guestResponses)
           .set({
             status: response.status,
             moderatedAt: response.moderatedAt,
-            updatedAt: response.moderatedAt ?? new Date(),
+            updatedAt,
           })
           .where(
             and(
@@ -359,7 +365,7 @@ export function createGuestResponseRepository(
             processingLease: null,
             publicUrl: null,
             readyAt: null,
-            updatedAt: response.moderatedAt ?? new Date(),
+            updatedAt,
           })
           .where(
             and(

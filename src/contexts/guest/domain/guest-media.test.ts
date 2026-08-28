@@ -20,6 +20,7 @@ const response = submitResponse(
     sessionId: '00000000-0000-4000-8000-000000000003',
     sessionExpiresAt: new Date('2026-08-10T12:00:00Z'),
     retentionDeadline: new Date('2026-11-07T12:00:00Z'),
+    staffAttribution: null,
     experienceSnapshot: {
       portalPublicationState: 'published',
       portalPublicationSnapshotId: null,

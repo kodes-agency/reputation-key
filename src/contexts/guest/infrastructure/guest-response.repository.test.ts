@@ -4,6 +4,10 @@ import { PgDialect } from 'drizzle-orm/pg-core'
 import type { Database } from '#/shared/db'
 import { createGuestResponseRepository } from './repositories/guest-response.repository'
 
+const REPOSITORY_NOW = new Date('2026-08-16T12:00:00.000Z')
+const repository = (db: Database) =>
+  createGuestResponseRepository(db, () => REPOSITORY_NOW)
+
 const scope = {
   organizationId: 'org-1',
   propertyId: 'property-1',
@@ -54,10 +58,16 @@ describe('createGuestResponseRepository', () => {
           privateFeedbackThreshold: 3,
           ratingSourceEventId: 'rating-event-1',
           feedbackSourceEventId: 'feedback-event-1',
+          attributedStaffParticipantId: null,
+          attributedStaffParticipationId: null,
+          attributionResponsibilityId: null,
+          staffAttributionEffectiveFrom: null,
+          staffAttributionEffectiveTo: null,
           correctionCount: 9,
           submittedAt,
           correctedAt: submittedAt,
           feedbackSubmittedAt: submittedAt,
+          feedbackSubmissionRevision: null,
           feedbackWithdrawnAt: null,
           moderatedAt: null,
           deletedAt: null,
@@ -80,7 +90,7 @@ describe('createGuestResponseRepository', () => {
     ])
 
     await expect(
-      createGuestResponseRepository(db).findForSession(scope, 'session-1', submittedAt),
+      repository(db).findForSession(scope, 'session-1', submittedAt),
     ).resolves.toEqual({
       id: 'response-1',
       ...scope,
@@ -109,12 +119,14 @@ describe('createGuestResponseRepository', () => {
         privateFeedbackThreshold: 3,
         capturedAt: submittedAt,
       },
+      staffAttribution: null,
       ratingSourceEventId: 'rating-event-1',
       feedbackSourceEventId: 'feedback-event-1',
       correctionCount: 0,
       submittedAt,
       correctedAt: submittedAt,
       feedbackSubmittedAt: submittedAt,
+      feedbackSubmissionRevision: null,
       feedbackWithdrawnAt: null,
       moderatedAt: null,
       deletedAt: null,
@@ -127,7 +139,7 @@ describe('createGuestResponseRepository', () => {
 
   it('returns null when the scoped response is absent', async () => {
     await expect(
-      createGuestResponseRepository(selectDatabase([]).db).findById(scope, 'missing'),
+      repository(selectDatabase([]).db).findById(scope, 'missing'),
     ).resolves.toBeNull()
   })
 
@@ -150,10 +162,7 @@ describe('createGuestResponseRepository', () => {
     ])
 
     await expect(
-      createGuestResponseRepository(db).findSnippetsForOrg('org-1', [
-        'response-1',
-        'response-2',
-      ]),
+      repository(db).findSnippetsForOrg('org-1', ['response-1', 'response-2']),
     ).resolves.toEqual([
       { id: 'response-1', comment: null, ratingValue: 5 },
       { id: 'response-2', comment: 'Shared comment', ratingValue: null },
@@ -174,7 +183,7 @@ describe('createGuestResponseRepository', () => {
     const { db, chain, getWhereCondition } = selectDatabase(rows)
 
     await expect(
-      createGuestResponseRepository(db).findEligibleSnippetIdsForOrg('org-1', {
+      repository(db).findEligibleSnippetIdsForOrg('org-1', {
         ratingMin: 4,
         textQuery: 'breakfast',
       }),
@@ -196,7 +205,7 @@ describe('createGuestResponseRepository', () => {
     const endAt = new Date('2026-09-01T00:00:00.000Z')
 
     await expect(
-      createGuestResponseRepository(db).summarizePortalIntegrity(scope, startAt, endAt),
+      repository(db).summarizePortalIntegrity(scope, startAt, endAt),
     ).resolves.toEqual({
       accepted: 7,
       filteredAutomatically: 1,

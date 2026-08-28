@@ -4,6 +4,7 @@ import { getDb } from '#/shared/db'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createCapturingEventBus } from '#/shared/testing/capturing-event-bus'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   organizationId,
   portalId,
@@ -35,7 +36,7 @@ function scan(index: number): ScanEvent {
     portalId: PORTAL,
     source: 'qr',
     sessionId: SESSION,
-    ipHash: 'rotating-abuse-pseudonym',
+    ipHash: null,
     createdAt: NOW,
   }
 }
@@ -46,7 +47,7 @@ function scanFact(value: ScanEvent): GuestScanRecorded {
     organizationId: ORG,
     propertyId: PROPERTY,
     portalId: PORTAL,
-    source: value.source,
+    scanSource: value.source,
     occurredAt: NOW,
   })
 }
@@ -91,18 +92,29 @@ afterAll(async () => {
   await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM portals WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
   clearEventSchemas()
 })
 
 describe.sequential('atomic Guest observations', () => {
-  it('refuses to insert an observation whose short-lived pseudonyms were scrubbed', async () => {
+  it('requires the signed-session pseudonym but keeps the diagnostic fact free of a network copy', async () => {
     const store = createAtomicGuestObservationStore(db, createCapturingEventBus())
     const candidate = { ...scan(99), sessionId: null, ipHash: null }
 
     await expect(store.commitScan(candidate, scanFact(candidate))).rejects.toThrow(
-      'new guest observations require live pseudonyms',
+      'new guest observations require a live session pseudonym',
     )
+
+    const contentFree = scan(98)
+    await expect(store.commitScan(contentFree, scanFact(contentFree))).resolves.toBe(
+      'applied',
+    )
+    await expect(
+      db.execute(sql`
+        SELECT ip_hash FROM scan_events
+        WHERE organization_id = ${ORG} AND id = ${contentFree.id}
+      `),
+    ).resolves.toMatchObject({ rows: [{ ip_hash: null }] })
   })
 
   it('serializes concurrent scans to one source row and one fact', async () => {
@@ -130,10 +142,17 @@ describe.sequential('atomic Guest observations', () => {
 
   it('independently scrubs session and network pseudonyms without deleting the visit fact', async () => {
     const store = createAtomicGuestObservationStore(db, createCapturingEventBus())
-    const candidate = scan(10)
+    const candidate = { ...scan(10), ipHash: 'rotating-abuse-pseudonym' }
     await expect(store.commitScan(candidate, scanFact(candidate))).resolves.toBe(
       'applied',
     )
+    // Canonical writes force this compatibility column null. Recreate a stale
+    // pre-0142/restore value solely to prove the defensive legacy sweep.
+    await db.execute(sql`
+      UPDATE scan_events
+      SET ip_hash = 'rotating-abuse-pseudonym'
+      WHERE organization_id = ${ORG}
+    `)
 
     const sessionRule = RETENTION_RULES.find(
       (rule) => rule.subject === 'scan_events.guest_session_pseudonym',

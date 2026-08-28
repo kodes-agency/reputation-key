@@ -32,6 +32,12 @@ const portal = {
       uri: 'https://search.google.com/local/writereview?placeid=property-p1',
     },
   },
+  localization: {
+    selectedLocale: 'en',
+    primaryLocale: 'en',
+    availableLocales: ['en'],
+    languagePackVersion: 'guest-ui-en-v1',
+  },
   responseConfiguration: {
     publicationState: 'published',
     publicationSnapshotId: 'snapshot-1',
@@ -152,14 +158,14 @@ describe('resolveLinkAndTrack (token-bound public redirect)', () => {
 
   it('keeps navigation available when the metric qualifier is unavailable', async () => {
     let effects = 0
-    const reportObservationFailure = vi.fn()
+    const reportObservationLoss = vi.fn(async () => 'recorded' as const)
     const failure = new Error('rate limit store unavailable')
     const useCase = resolveLinkAndTrack({
       publicPortalLookup: { findByToken: async () => portal },
       trackClick: async () => {
         effects += 1
       },
-      reportObservationFailure,
+      reportObservationLoss,
     })
 
     await expect(
@@ -169,17 +175,17 @@ describe('resolveLinkAndTrack (token-bound public redirect)', () => {
         qualifyObservation: async () => Promise.reject(failure),
       }),
     ).resolves.toEqual({ url: 'https://example.com' })
-    expect(reportObservationFailure).toHaveBeenCalledWith(failure)
+    expect(reportObservationLoss).toHaveBeenCalledWith('review_link')
     expect(effects).toBe(0)
   })
 
   it('keeps navigation available when qualified observation persistence fails', async () => {
-    const reportObservationFailure = vi.fn()
+    const reportObservationLoss = vi.fn(async () => 'recorded' as const)
     const failure = new Error('observation transaction unavailable')
     const useCase = resolveLinkAndTrack({
       publicPortalLookup: { findByToken: async () => portal },
       trackClick: async () => Promise.reject(failure),
-      reportObservationFailure,
+      reportObservationLoss,
     })
 
     await expect(
@@ -192,6 +198,6 @@ describe('resolveLinkAndTrack (token-bound public redirect)', () => {
         }),
       }),
     ).resolves.toEqual({ url: 'https://example.com' })
-    expect(reportObservationFailure).toHaveBeenCalledWith(failure)
+    expect(reportObservationLoss).toHaveBeenCalledWith('review_link')
   })
 })

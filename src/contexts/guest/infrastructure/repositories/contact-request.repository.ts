@@ -14,6 +14,101 @@ import type { ContactRequestRepository } from '../../application/ports/contact-r
 
 const PURGE_AUTHORITY = 'guest-contact-30d-v1'
 
+const purgeExpiredContactRequests = (
+  db: Database,
+  input: Parameters<ContactRequestRepository['purgeExpired']>[0],
+) =>
+  db.transaction(async (tx) => {
+    await tx
+      .insert(guestContactRequestPurgeCheckpoints)
+      .values({ authority: PURGE_AUTHORITY })
+      .onConflictDoNothing()
+    const [checkpoint] = await tx
+      .select()
+      .from(guestContactRequestPurgeCheckpoints)
+      .where(eq(guestContactRequestPurgeCheckpoints.authority, PURGE_AUTHORITY))
+      .for('update')
+      .limit(1)
+    if (!checkpoint) throw new Error('Contact Request purge authority unavailable')
+
+    const expired = await tx
+      .select({
+        id: guestContactRequests.id,
+        expiresAt: guestContactRequests.expiresAt,
+      })
+      .from(guestContactRequests)
+      .where(
+        and(
+          eq(guestContactRequests.status, 'active'),
+          lte(guestContactRequests.expiresAt, input.through),
+        ),
+      )
+      .orderBy(asc(guestContactRequests.expiresAt), asc(guestContactRequests.id))
+      .limit(input.batchSize)
+      .for('update')
+
+    if (expired.length > 0) {
+      await tx
+        .update(guestContactRequests)
+        .set({
+          status: 'expired',
+          consentGranted: false,
+          encryptedContact: null,
+          withdrawnAt: null,
+          purgedAt: input.through,
+          updatedAt: input.through,
+        })
+        .where(
+          and(
+            inArray(
+              guestContactRequests.id,
+              expired.map((row) => row.id),
+            ),
+            eq(guestContactRequests.status, 'active'),
+          ),
+        )
+      const last = expired.at(-1)!
+      await tx
+        .update(guestContactRequestPurgeCheckpoints)
+        .set({
+          cursorExpiresAt: last.expiresAt,
+          cursorId: last.id,
+          processedCount: sql`${guestContactRequestPurgeCheckpoints.processedCount} + ${expired.length}`,
+          updatedAt: input.through,
+        })
+        .where(eq(guestContactRequestPurgeCheckpoints.authority, PURGE_AUTHORITY))
+      return {
+        processed: expired.length,
+        checkpoint: { expiresAt: last.expiresAt, id: last.id },
+        completedThrough: checkpoint.completedThrough,
+      }
+    }
+
+    const completedThrough =
+      checkpoint.completedThrough && checkpoint.completedThrough > input.through
+        ? checkpoint.completedThrough
+        : input.through
+    await tx
+      .update(guestContactRequestPurgeCheckpoints)
+      .set({ completedThrough, updatedAt: input.through })
+      .where(eq(guestContactRequestPurgeCheckpoints.authority, PURGE_AUTHORITY))
+    return {
+      processed: 0,
+      checkpoint:
+        checkpoint.cursorExpiresAt && checkpoint.cursorId
+          ? { expiresAt: checkpoint.cursorExpiresAt, id: checkpoint.cursorId }
+          : null,
+      completedThrough,
+    }
+  })
+
+/** Retention-only factory: cleanup never requires loading plaintext key material. */
+export const createContactRequestRetentionRepository = (
+  db: Database,
+): Pick<ContactRequestRepository, 'purgeExpired'> => ({
+  purgeExpired: (input) => purgeExpiredContactRequests(db, input),
+})
+
 export const createContactRequestRepository = (
   db: Database,
   encryption: ContactRequestEncryptionPort,
@@ -325,88 +420,5 @@ export const createContactRequestRepository = (
       }
     }),
 
-  purgeExpired: async (input) =>
-    db.transaction(async (tx) => {
-      await tx
-        .insert(guestContactRequestPurgeCheckpoints)
-        .values({ authority: PURGE_AUTHORITY })
-        .onConflictDoNothing()
-      const [checkpoint] = await tx
-        .select()
-        .from(guestContactRequestPurgeCheckpoints)
-        .where(eq(guestContactRequestPurgeCheckpoints.authority, PURGE_AUTHORITY))
-        .for('update')
-        .limit(1)
-      if (!checkpoint) throw new Error('Contact Request purge authority unavailable')
-
-      const expired = await tx
-        .select({
-          id: guestContactRequests.id,
-          expiresAt: guestContactRequests.expiresAt,
-        })
-        .from(guestContactRequests)
-        .where(
-          and(
-            eq(guestContactRequests.status, 'active'),
-            lte(guestContactRequests.expiresAt, input.through),
-          ),
-        )
-        .orderBy(asc(guestContactRequests.expiresAt), asc(guestContactRequests.id))
-        .limit(input.batchSize)
-        .for('update')
-
-      if (expired.length > 0) {
-        await tx
-          .update(guestContactRequests)
-          .set({
-            status: 'expired',
-            consentGranted: false,
-            encryptedContact: null,
-            withdrawnAt: null,
-            purgedAt: input.through,
-            updatedAt: input.through,
-          })
-          .where(
-            and(
-              inArray(
-                guestContactRequests.id,
-                expired.map((row) => row.id),
-              ),
-              eq(guestContactRequests.status, 'active'),
-            ),
-          )
-        const last = expired.at(-1)!
-        await tx
-          .update(guestContactRequestPurgeCheckpoints)
-          .set({
-            cursorExpiresAt: last.expiresAt,
-            cursorId: last.id,
-            processedCount: sql`${guestContactRequestPurgeCheckpoints.processedCount} + ${expired.length}`,
-            updatedAt: input.through,
-          })
-          .where(eq(guestContactRequestPurgeCheckpoints.authority, PURGE_AUTHORITY))
-        return {
-          processed: expired.length,
-          checkpoint: { expiresAt: last.expiresAt, id: last.id },
-          completedThrough: checkpoint.completedThrough,
-        }
-      }
-
-      const completedThrough =
-        checkpoint.completedThrough && checkpoint.completedThrough > input.through
-          ? checkpoint.completedThrough
-          : input.through
-      await tx
-        .update(guestContactRequestPurgeCheckpoints)
-        .set({ completedThrough, updatedAt: input.through })
-        .where(eq(guestContactRequestPurgeCheckpoints.authority, PURGE_AUTHORITY))
-      return {
-        processed: 0,
-        checkpoint:
-          checkpoint.cursorExpiresAt && checkpoint.cursorId
-            ? { expiresAt: checkpoint.cursorExpiresAt, id: checkpoint.cursorId }
-            : null,
-        completedThrough,
-      }
-    }),
+  purgeExpired: (input) => purgeExpiredContactRequests(db, input),
 })

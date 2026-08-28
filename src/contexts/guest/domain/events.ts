@@ -10,9 +10,17 @@ import type {
   PortalId,
   PropertyId,
   PortalLinkId,
+  PortalAccessArtifactId,
+  PortalGroupId,
+  QualifiedScanId,
 } from '#/shared/domain/ids'
 import { assert } from '#/shared/domain/assert'
 import type { ScanSource } from './types'
+import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
+
+type GuestEventInput<T> = Omit<T, '_tag' | 'eventId' | 'correlationId'> & {
+  correlationId?: string | null
+}
 
 export type GuestScanRecorded = Readonly<{
   _tag: 'guest.scan.recorded'
@@ -21,21 +29,82 @@ export type GuestScanRecorded = Readonly<{
   organizationId: OrganizationId
   portalId: PortalId
   propertyId: PropertyId
-  source: ScanSource
+  scanSource: ScanSource
   occurredAt: Date
   correlationId: string | null
 }>
 
 export const guestScanRecorded = (
-  args: Omit<GuestScanRecorded, '_tag' | 'eventId' | 'correlationId'>,
+  args: GuestEventInput<GuestScanRecorded>,
 ): GuestScanRecorded => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(args.scanId !== '', 'scanId required')
   return {
     _tag: 'guest.scan.recorded',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    correlationId: args.correlationId ?? null,
+  }
+}
+
+export type GuestQualifiedScanRecorded = Readonly<{
+  _tag: 'guest.qualified_scan.recorded'
+  eventId: string
+  qualifiedScanId: QualifiedScanId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
+  portalGroupId: PortalGroupId | null
+  accessArtifactId: PortalAccessArtifactId
+  /** Omitted only by historical v1 replay fixtures. New constructors materialize null. */
+  staffAttribution?: PrimaryStaffAttributionSnapshot | null
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const guestQualifiedScanRecorded = (
+  args: GuestEventInput<GuestQualifiedScanRecorded>,
+): GuestQualifiedScanRecorded => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.qualifiedScanId !== '', 'qualifiedScanId required')
+  assert(args.accessArtifactId !== '', 'accessArtifactId required')
+  return {
+    _tag: 'guest.qualified_scan.recorded',
+    eventId: newEventId(),
+    ...args,
+    staffAttribution: args.staffAttribution ?? null,
+    correlationId: args.correlationId ?? null,
+  }
+}
+
+export type GuestQualifiedScanRetracted = Readonly<{
+  _tag: 'guest.qualified_scan.retracted'
+  eventId: string
+  qualifiedScanId: QualifiedScanId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
+  portalGroupId: PortalGroupId | null
+  accessArtifactId: PortalAccessArtifactId
+  supersedesSourceEventId: string
+  staffAttribution?: PrimaryStaffAttributionSnapshot | null
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const guestQualifiedScanRetracted = (
+  args: GuestEventInput<GuestQualifiedScanRetracted>,
+): GuestQualifiedScanRetracted => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.qualifiedScanId !== '', 'qualifiedScanId required')
+  assert(args.accessArtifactId !== '', 'accessArtifactId required')
+  assert(args.supersedesSourceEventId.trim().length > 0, 'source event id required')
+  return {
+    _tag: 'guest.qualified_scan.retracted',
+    eventId: newEventId(),
+    ...args,
+    staffAttribution: args.staffAttribution ?? null,
+    correlationId: args.correlationId ?? null,
   }
 }
 
@@ -49,12 +118,13 @@ export type GuestRatingSubmitted = Readonly<{
   value: number
   /** Present on the single bounded correction; Metric replaces this source fact. */
   supersedesSourceEventId?: string | null
+  staffAttribution?: PrimaryStaffAttributionSnapshot | null
   occurredAt: Date
   correlationId: string | null
 }>
 
 export const guestRatingSubmitted = (
-  args: Omit<GuestRatingSubmitted, '_tag' | 'eventId' | 'correlationId'>,
+  args: GuestEventInput<GuestRatingSubmitted>,
 ): GuestRatingSubmitted => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(args.ratingId !== '', 'ratingId required')
@@ -67,8 +137,9 @@ export const guestRatingSubmitted = (
   return {
     _tag: 'guest.rating.submitted',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    staffAttribution: args.staffAttribution ?? null,
+    correlationId: args.correlationId ?? null,
   }
 }
 
@@ -80,12 +151,13 @@ export type GuestRatingRetracted = Readonly<{
   portalId: PortalId
   propertyId: PropertyId
   supersedesSourceEventId: string
+  staffAttribution?: PrimaryStaffAttributionSnapshot | null
   occurredAt: Date
   correlationId: string | null
 }>
 
 export const guestRatingRetracted = (
-  args: Omit<GuestRatingRetracted, '_tag' | 'eventId' | 'correlationId'>,
+  args: GuestEventInput<GuestRatingRetracted>,
 ): GuestRatingRetracted => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(args.ratingId !== '', 'ratingId required')
@@ -93,8 +165,9 @@ export const guestRatingRetracted = (
   return {
     _tag: 'guest.rating.retracted',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    staffAttribution: args.staffAttribution ?? null,
+    correlationId: args.correlationId ?? null,
   }
 }
 
@@ -106,6 +179,9 @@ export type GuestFeedbackSubmitted = Readonly<{
   portalId: PortalId
   propertyId: PropertyId
   ratingId: RatingId | null
+  /** Exact Guest Response Revision at private-feedback submission time. */
+  responseRevision?: number
+  staffAttribution?: PrimaryStaffAttributionSnapshot | null
   occurredAt: Date
   correlationId: string | null
 }>
@@ -118,34 +194,47 @@ export type GuestFeedbackRetracted = Readonly<{
   portalId: PortalId
   propertyId: PropertyId
   supersedesSourceEventId: string
+  /** Preserved submission revision; withdrawal never manufactures a new one. */
+  responseRevision?: number
+  staffAttribution?: PrimaryStaffAttributionSnapshot | null
   occurredAt: Date
   correlationId: string | null
 }>
 
 export const guestFeedbackRetracted = (
-  args: Omit<GuestFeedbackRetracted, '_tag' | 'eventId' | 'correlationId'>,
+  args: GuestEventInput<GuestFeedbackRetracted>,
 ): GuestFeedbackRetracted => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(args.feedbackId !== '', 'feedbackId required')
   assert(args.supersedesSourceEventId.trim().length > 0, 'source event id required')
+  const responseRevision = args.responseRevision ?? 1
+  assert(Number.isSafeInteger(responseRevision), 'responseRevision must be safe')
+  assert(responseRevision > 0, 'responseRevision must be positive')
   return {
     _tag: 'guest.feedback.retracted',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    responseRevision,
+    staffAttribution: args.staffAttribution ?? null,
+    correlationId: args.correlationId ?? null,
   }
 }
 
 export const guestFeedbackSubmitted = (
-  args: Omit<GuestFeedbackSubmitted, '_tag' | 'eventId' | 'correlationId'>,
+  args: GuestEventInput<GuestFeedbackSubmitted>,
 ): GuestFeedbackSubmitted => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(args.feedbackId !== '', 'feedbackId required')
+  const responseRevision = args.responseRevision ?? 1
+  assert(Number.isSafeInteger(responseRevision), 'responseRevision must be safe')
+  assert(responseRevision > 0, 'responseRevision must be positive')
   return {
     _tag: 'guest.feedback.submitted',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    responseRevision,
+    staffAttribution: args.staffAttribution ?? null,
+    correlationId: args.correlationId ?? null,
   }
 }
 
@@ -162,20 +251,22 @@ export type GuestReviewLinkClicked = Readonly<{
 }>
 
 export const guestReviewLinkClicked = (
-  args: Omit<GuestReviewLinkClicked, '_tag' | 'eventId' | 'correlationId'>,
+  args: GuestEventInput<GuestReviewLinkClicked>,
 ): GuestReviewLinkClicked => {
   assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
   assert(args.linkId !== '', 'linkId required')
   return {
     _tag: 'guest.review_link.clicked',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    correlationId: args.correlationId ?? null,
   }
 }
 
 export type GuestEvent =
   | GuestScanRecorded
+  | GuestQualifiedScanRecorded
+  | GuestQualifiedScanRetracted
   | GuestRatingSubmitted
   | GuestRatingRetracted
   | GuestFeedbackSubmitted

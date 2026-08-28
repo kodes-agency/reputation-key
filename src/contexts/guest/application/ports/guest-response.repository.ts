@@ -11,6 +11,7 @@ export type GuestResponseSnippet = Readonly<{
   id: string
   comment: string | null
   ratingValue: number | null
+  feedbackSubmissionRevision?: number | null
 }>
 
 export type GuestResponseContentFilter = Readonly<{
@@ -47,7 +48,11 @@ export type GuestResponseRepository = Readonly<{
   findSnippetForOrg(
     organizationId: string,
     responseId: string,
-  ): Promise<Readonly<{ comment: string | null; ratingValue: number | null }> | null>
+  ): Promise<Readonly<{
+    comment: string | null
+    ratingValue: number | null
+    feedbackSubmissionRevision?: number | null
+  }> | null>
   /** Batched equivalent used by inbox list enrichment. */
   findSnippetsForOrg(
     organizationId: string,

@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
   ContactRequestEncryptionError,
@@ -20,6 +21,7 @@ describe('Contact Request encryption adapter', () => {
         v1: '11'.repeat(32),
         v2: '22'.repeat(32),
       },
+      generateIv: () => randomBytes(12),
     })
 
   it('seals the same contact differently and opens either with its exact scope', () => {
@@ -65,7 +67,15 @@ describe('Contact Request encryption adapter', () => {
       createContactRequestEncryptionAdapter({
         activeKeyId: 'v1',
         keys: { v1: 'too-short' },
+        generateIv: () => randomBytes(12),
       }),
+    ).toThrowError(ContactRequestEncryptionError)
+    expect(() =>
+      createContactRequestEncryptionAdapter({
+        activeKeyId: 'v1',
+        keys: { v1: '11'.repeat(32) },
+        generateIv: () => Buffer.alloc(11),
+      }).seal({ email: 'guest@example.com' }, CONTEXT),
     ).toThrowError(ContactRequestEncryptionError)
 
     const sealed = adapter().seal({ email: 'guest@example.com' }, CONTEXT)

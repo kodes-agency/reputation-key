@@ -11,14 +11,28 @@ const portal: PublicPortalData = {
     theme: null,
     organizationName: 'Hotel One',
   },
-  categories: [],
-  links: [],
+  categories: [{ id: 'category-1', title: 'More', sortKey: 'secret-sort-category' }],
+  links: [
+    {
+      id: 'link-1',
+      label: 'Visit us',
+      url: 'https://secondary-destination.example/private-path',
+      categoryId: 'category-1',
+      sortKey: 'secret-sort-link',
+    },
+  ],
   reviewGateway: {
     privateFeedbackThreshold: 3,
     googleReview: {
       status: 'available',
       uri: 'https://search.google.com/local/writereview?placeid=portal-1',
     },
+  },
+  localization: {
+    selectedLocale: 'en',
+    primaryLocale: 'en',
+    availableLocales: ['en'],
+    languagePackVersion: 'guest-ui-en-v1',
   },
   responseConfiguration: {
     publicationState: 'published',
@@ -46,8 +60,17 @@ describe('public Portal loader projection', () => {
     expect(projected).not.toHaveProperty('propertyId')
     expect(projected).not.toHaveProperty('responseConfiguration')
     expect(JSON.stringify(projected)).not.toContain('secret-id')
-    expect(projected.portal.id).toBe('portal-1')
+    expect(projected.portal).not.toHaveProperty('id')
     expect(projected.reviewGateway.privateFeedbackThreshold).toBe(3)
+    expect(projected.portal).not.toHaveProperty('slug')
+    expect(projected.categories).toEqual([{ id: 'category-1', title: 'More' }])
+    expect(projected.links).toEqual([
+      { id: 'link-1', label: 'Visit us', categoryId: 'category-1' },
+    ])
+    expect(projected.reviewGateway.googleReview).toEqual({ status: 'available' })
+    expect(JSON.stringify(projected)).not.toContain('secondary-destination.example')
+    expect(JSON.stringify(projected)).not.toContain('search.google.com')
+    expect(JSON.stringify(projected)).not.toContain('secret-sort')
   })
 
   it('cannot serialize a last-known Google URI in degraded state', () => {

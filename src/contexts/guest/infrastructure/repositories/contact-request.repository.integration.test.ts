@@ -1,12 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import type { Database } from '#/shared/db'
 import { organizationId } from '#/shared/domain/ids'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { createContactRequestEncryptionAdapter } from '../adapters/contact-request-encryption.adapter'
-import { createContactRequestRepository } from './contact-request.repository'
+import {
+  createContactRequestRepository,
+  createContactRequestRetentionRepository,
+} from './contact-request.repository'
 import type { ContactRequestManagerAuthorityBasis } from '../../application/ports/contact-request-manager-authority.port'
+import { contactRequestRetentionSweep } from '../../application/use-cases/contact-request-retention'
+import {
+  createRetentionSweepHandler,
+  GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
+} from '#/shared/jobs/retention-sweep.job'
 
 const ORG_A = organizationId('ca000000-0000-4000-8000-000000000001')
 const ORG_B = organizationId('ca000000-0000-4000-8000-000000000002')
@@ -41,6 +49,9 @@ const { getPool } = setupIntegrationDb({
 
 beforeEach(async () => {
   await getPool().query('DELETE FROM guest_contact_request_purge_checkpoints')
+  await getPool().query('DELETE FROM retention_runs WHERE subject = $1', [
+    GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
+  ])
   await getPool().query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone)
      VALUES ($1, $2, 'Contact Property', $3, 'UTC')`,
@@ -132,12 +143,16 @@ afterEach(async () => {
   await getPool().query(`DELETE FROM portals WHERE organization_id = $1`, [ORG_A])
   await getPool().query(`DELETE FROM properties WHERE organization_id = $1`, [ORG_A])
   await getPool().query('DELETE FROM guest_contact_request_purge_checkpoints')
+  await getPool().query('DELETE FROM retention_runs WHERE subject = $1', [
+    GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
+  ])
 })
 
 const encryption = () =>
   createContactRequestEncryptionAdapter({
     activeKeyId: 'v1',
     keys: { v1: '44'.repeat(32) },
+    generateIv: () => randomBytes(12),
   })
 
 const repository = () =>
@@ -654,5 +669,58 @@ describe('Contact Request repository', () => {
       lateRequest,
     ])
     expect(late.rows[0]).toEqual({ status: 'expired', encrypted_contact: null })
+  })
+
+  it('runs the inactive capability cleanup through the scheduled retention evidence seam', async () => {
+    const submittedAt = new Date('2026-07-01T09:00:00.000Z')
+    await getPool().query(`UPDATE guest_responses SET submitted_at = $1 WHERE id = $2`, [
+      submittedAt,
+      RESPONSE_A,
+    ])
+    await repository().create({
+      ...createInput(),
+      submittedAt,
+      expiresAt: new Date('2026-07-31T09:00:00.000Z'),
+    })
+    const db = drizzle(getPool()) as unknown as Database
+    const guestContactRequestRetentionSweep = contactRequestRetentionSweep({
+      repo: createContactRequestRetentionRepository(db),
+      clock: () => NOW,
+    })
+    const handler = createRetentionSweepHandler({
+      db,
+      clock: () => NOW,
+      rules: [],
+      batchSize: 10,
+      guestContactRequestRetentionSweep,
+    })
+
+    await handler({} as never)
+
+    const request = await getPool().query<{
+      status: string
+      encrypted_contact: string | null
+    }>(`SELECT status, encrypted_contact FROM guest_contact_requests WHERE id = $1`, [
+      REQUEST_A,
+    ])
+    expect(request.rows[0]).toEqual({ status: 'expired', encrypted_contact: null })
+    const evidence = await getPool().query<{
+      outcome: string
+      batches: number
+      rows_deleted: number
+      rows_redacted: number
+      batch_size: number
+    }>(
+      `SELECT outcome, batches, rows_deleted, rows_redacted, batch_size
+       FROM retention_runs WHERE subject = $1 ORDER BY started_at DESC LIMIT 1`,
+      [GUEST_CONTACT_REQUEST_RETENTION_SUBJECT],
+    )
+    expect(evidence.rows[0]).toEqual({
+      outcome: 'completed',
+      batches: 1,
+      rows_deleted: 0,
+      rows_redacted: 1,
+      batch_size: 10,
+    })
   })
 })

@@ -26,10 +26,23 @@ export type PublicPortalLoaderState = {
   }
 }
 
-export type PublicPortalLoaderData = Pick<
-  PublicPortalData,
-  'portal' | 'categories' | 'links' | 'reviewGateway'
-> &
+export type PublicPortalLoaderData = Readonly<{
+  portal: Pick<
+    PublicPortalData['portal'],
+    'name' | 'description' | 'heroImageUrl' | 'theme' | 'logoUrl' | 'organizationName'
+  >
+  categories: ReadonlyArray<Pick<PublicPortalData['categories'][number], 'id' | 'title'>>
+  links: ReadonlyArray<
+    Pick<PublicPortalData['links'][number], 'id' | 'label' | 'categoryId'>
+  >
+  reviewGateway: Readonly<{
+    privateFeedbackThreshold: number
+    googleReview: Readonly<{
+      status: PublicPortalData['reviewGateway']['googleReview']['status']
+    }>
+  }>
+  localization: PublicPortalData['localization']
+}> &
   PublicPortalLoaderState
 
 /** Explicit public allowlist: internal Organization/Property IDs stay server-side. */
@@ -38,10 +51,30 @@ export function toPublicPortalLoaderData(
   state: PublicPortalLoaderState,
 ): PublicPortalLoaderData {
   return {
-    portal: portal.portal,
-    categories: portal.categories,
-    links: portal.links,
-    reviewGateway: portal.reviewGateway,
+    portal: {
+      name: portal.portal.name,
+      description: portal.portal.description,
+      heroImageUrl: portal.portal.heroImageUrl,
+      theme: portal.portal.theme,
+      logoUrl: portal.portal.logoUrl,
+      organizationName: portal.portal.organizationName,
+    },
+    categories: portal.categories.map(({ id, title }) => ({ id, title })),
+    links: portal.links.map(({ id, label, categoryId }) => ({
+      id,
+      label,
+      categoryId,
+    })),
+    reviewGateway: {
+      privateFeedbackThreshold: portal.reviewGateway.privateFeedbackThreshold,
+      googleReview: { status: portal.reviewGateway.googleReview.status },
+    },
+    localization: {
+      selectedLocale: portal.localization.selectedLocale,
+      primaryLocale: portal.localization.primaryLocale,
+      availableLocales: portal.localization.availableLocales,
+      languagePackVersion: portal.localization.languagePackVersion,
+    },
     ...state,
   }
 }

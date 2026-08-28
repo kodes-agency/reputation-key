@@ -2,7 +2,7 @@
 // Per architecture: integration tests against real Postgres.
 
 import { describe, it, expect, beforeAll } from 'vitest'
-import { createGuestInteractionRepository } from './guest-interaction.repository'
+import { createGuestInteractionRepository as createGuestInteractionRepositoryFactory } from './guest-interaction.repository'
 import { getDb } from '#/shared/db'
 import {
   buildTestScanEvent,
@@ -19,6 +19,15 @@ import {
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
+import { createMockLogger } from '#/shared/testing/mock-logger'
+
+const createGuestInteractionRepository = (
+  db: Parameters<typeof createGuestInteractionRepositoryFactory>[0],
+) =>
+  createGuestInteractionRepositoryFactory(db, {
+    logger: createMockLogger(),
+    monotonicNow: () => 0,
+  })
 
 const ORG_A = organizationId('org-guest-aaaaaa')
 const ORG_B = organizationId('org-guest-bbbbbbb')
@@ -269,66 +278,10 @@ describe('guestInteractionRepository (integration)', () => {
     })
   })
 
-  describe('hasRatedByIpWithin', () => {
-    it('returns true when the same ipHash rated this portal within the window', async () => {
-      const db = getDb()
-      const repo = createGuestInteractionRepository(db)
-      const ipHash = 'ip-dedup-' + crypto.randomUUID()
-      await repo.insertRating(
-        buildTestRating({
-          id: crypto.randomUUID() as never,
-          organizationId: ORG_A,
-          portalId: PORTAL_A,
-          propertyId: PROP_A,
-          sessionId: crypto.randomUUID(),
-          value: 5,
-          ipHash,
-          createdAt: new Date(),
-        }),
-      )
-
-      expect(await repo.hasRatedByIpWithin(ORG_A, ipHash, PORTAL_A, 3600)).toBe(true)
-    })
-
-    it('returns false when the only matching rating is older than the window', async () => {
-      const db = getDb()
-      const repo = createGuestInteractionRepository(db)
-      const ipHash = 'ip-dedup-old-' + crypto.randomUUID()
-      // Backdate to 2h ago — outside a 1h window.
-      await repo.insertRating(
-        buildTestRating({
-          id: crypto.randomUUID() as never,
-          organizationId: ORG_A,
-          portalId: PORTAL_A,
-          propertyId: PROP_A,
-          sessionId: crypto.randomUUID(),
-          value: 5,
-          ipHash,
-          createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-        }),
-      )
-
-      expect(await repo.hasRatedByIpWithin(ORG_A, ipHash, PORTAL_A, 3600)).toBe(false)
-    })
-
-    it('returns false for a different org (tenant isolation)', async () => {
-      const db = getDb()
-      const repo = createGuestInteractionRepository(db)
-      const ipHash = 'ip-dedup-org-' + crypto.randomUUID()
-      await repo.insertRating(
-        buildTestRating({
-          id: crypto.randomUUID() as never,
-          organizationId: ORG_A,
-          portalId: PORTAL_A,
-          propertyId: PROP_A,
-          sessionId: crypto.randomUUID(),
-          value: 5,
-          ipHash,
-          createdAt: new Date(),
-        }),
-      )
-
-      expect(await repo.hasRatedByIpWithin(ORG_B, ipHash, PORTAL_A, 3600)).toBe(false)
+  describe('legacy network-hash compatibility boundary', () => {
+    it('does not expose the retired per-rating IP-hash admission query', () => {
+      const repo = createGuestInteractionRepository(getDb())
+      expect(repo).not.toHaveProperty('hasRatedByIpWithin')
     })
   })
 })
