@@ -1,5 +1,11 @@
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
+import { validateEventPayload } from '#/shared/events/schema-registry'
 import { organizationId, unbrand } from '#/shared/domain/ids'
+import {
+  onOrganizationPurgePending,
+  type OrganizationPurgePendingFact,
+  type OrganizationPurgePendingNotificationDeps,
+} from './event-handlers/on-organization-purge-pending'
 import type { NotificationType } from '../domain/types'
 import type { OrganizationAccountNotificationEventType } from '../application/ports/organization-account-notification-authority.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
@@ -27,6 +33,14 @@ export const IDENTITY_ACCOUNT_NOTIFICATION_CONSUMERS = [
   consumerName: string
   notificationType: NotificationType
 }>
+
+/**
+ * LIF-01 program bullet 5. The final notice rides on the SAME lifecycle fact
+ * the closure already records, so no new event family is introduced; the
+ * consumer simply ignores every state except `purge_pending`.
+ */
+export const ORGANIZATION_PURGE_PENDING_CONSUMER =
+  'notification.on-identity-organization-purge-pending' as const
 
 export type IdentityAccountNotificationConsumerDeps = Readonly<{
   queue: NotificationJobEnqueuePort
@@ -77,6 +91,73 @@ export async function handleIdentityAccountNotificationEvent(
   )
   await deps.receipts.insertReceipt(event.eventId, route.consumerName, 'applied')
   return { status: 'applied' }
+}
+
+type LifecyclePayload = Readonly<{
+  organizationId: string
+  closureLineageId: string
+  state: string
+  revision: number
+}>
+
+/**
+ * The Purge Pending final notice.
+ *
+ * `obsolete` is a real, recorded outcome: the lifecycle fact is emitted on
+ * EVERY transition, and treating "not purge_pending" as a failure would retry
+ * forever on a fact that must never produce a notice.
+ */
+export async function handleOrganizationPurgePendingNotice(
+  deps: IdentityAccountNotificationConsumerDeps &
+    Readonly<{ notify: (fact: OrganizationPurgePendingFact) => Promise<void> }>,
+  event: ConsumerEvent,
+): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
+  if (event.propertyId !== null || event.sourceContext !== 'identity') {
+    throw new Error('Organization lifecycle envelope attribution mismatch')
+  }
+  const payload = validateEventPayload(
+    'identity.organization_lifecycle.changed',
+    event.eventVersion,
+    event.payload,
+  ) as LifecyclePayload | undefined
+  if (!payload || payload.organizationId !== event.organizationId) {
+    throw new Error('Organization lifecycle envelope attribution mismatch')
+  }
+  if (payload.state !== 'purge_pending') {
+    await deps.receipts.insertReceipt(
+      event.eventId,
+      ORGANIZATION_PURGE_PENDING_CONSUMER,
+      'obsolete',
+    )
+    return { status: 'obsolete' }
+  }
+  await deps.notify({
+    eventId: event.eventId,
+    organizationId: organizationId(event.organizationId),
+    closureLineageId: payload.closureLineageId,
+    revision: payload.revision,
+    correlationId: event.correlationId ?? null,
+  })
+  await deps.receipts.insertReceipt(
+    event.eventId,
+    ORGANIZATION_PURGE_PENDING_CONSUMER,
+    'applied',
+  )
+  return { status: 'applied' }
+}
+
+export function registerOrganizationPurgePendingNoticeConsumer(
+  registry: ConsumerRegistry,
+  deps: IdentityAccountNotificationConsumerDeps &
+    OrganizationPurgePendingNotificationDeps,
+): void {
+  const notify = onOrganizationPurgePending(deps)
+  registry.registerConsumer({
+    eventType: 'identity.organization_lifecycle.changed',
+    consumerName: ORGANIZATION_PURGE_PENDING_CONSUMER,
+    module: 'notification.identity-account-outbox-consumers',
+    handler: (event) => handleOrganizationPurgePendingNotice({ ...deps, notify }, event),
+  })
 }
 
 export function registerIdentityAccountNotificationConsumers(

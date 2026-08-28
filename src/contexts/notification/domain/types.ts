@@ -23,6 +23,10 @@ export const NOTIFICATION_TYPES = [
   'account.organization_access_granted',
   'account.organization_role_changed',
   'account.organization_access_removed',
+  // LIF-01 program bullet 5: the MANDATORY final notice at Purge Pending.
+  // Closing suppresses ordinary product mail; this one is carved out, because
+  // it is the last chance anybody has to stop an irreversible erasure.
+  'account.organization_purge_pending',
   // Review events
   'review.created',
   'review.updated',

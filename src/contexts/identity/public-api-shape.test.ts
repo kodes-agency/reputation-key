@@ -22,6 +22,8 @@ const EXPECTED_REQUEST_KEYS = [
   'createCustomRole',
   'deleteCustomRole',
   'inviteMember',
+  // LIF-01-T21: leaving is its own operation, not a variant of removeMember.
+  'leaveOrganization',
   'listInvitations',
   'merchantAiAuthorization',
   'registerInvitedUser',
@@ -58,10 +60,12 @@ describe('Identity public API', () => {
     expect(Object.keys(api).sort()).toEqual([
       'accountAdminAuthority',
       'managerFacts',
+      'offboardingFacts',
       'requests',
     ])
     expect(Object.keys(api.managerFacts)).toEqual(['listActiveManagers'])
     expect(Object.keys(api.accountAdminAuthority)).toEqual(['isCurrentAccountAdmin'])
+    expect(Object.keys(api.offboardingFacts)).toEqual(['listOutstanding'])
     expect(Object.keys(api.requests).sort()).toEqual(EXPECTED_REQUEST_KEYS)
     expect(Object.keys(api.requests.merchantAiAuthorization).sort()).toEqual([
       'change',
@@ -73,6 +77,7 @@ describe('Identity public API', () => {
     expect(Object.isFrozen(api)).toBe(true)
     expect(Object.isFrozen(api.managerFacts)).toBe(true)
     expect(Object.isFrozen(api.accountAdminAuthority)).toBe(true)
+    expect(Object.isFrozen(api.offboardingFacts)).toBe(true)
     expect(Object.isFrozen(api.requests)).toBe(true)
     expect(Object.isFrozen(api.requests.merchantAiAuthorization)).toBe(true)
   })

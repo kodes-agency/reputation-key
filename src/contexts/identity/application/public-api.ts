@@ -16,6 +16,8 @@ import type { CreateCustomRole } from './use-cases/create-custom-role'
 import type { UpdateCustomRole } from './use-cases/update-custom-role'
 import type { DeleteCustomRole } from './use-cases/delete-custom-role'
 import type { MerchantAiAuthorization } from './use-cases/merchant-ai-authorization'
+import type { LeaveOrganization } from './use-cases/leave-organization'
+import type { OutstandingResponsibility } from './ports/member-offboarding.port'
 
 export {
   identityOrganizationCreated,
@@ -92,6 +94,12 @@ export type IdentityRequestApi = Readonly<{
   inviteMember: InviteMember
   updateMemberRole: UpdateMemberRole
   removeMember: RemoveMember
+  /**
+   * LIF-01-T21. Voluntary departure is deliberately a SEPARATE operation from
+   * `removeMember`: removal releases what the member held, leaving requires
+   * every responsibility to be handed over first.
+   */
+  leaveOrganization: LeaveOrganization
   listInvitations: ListInvitations
   resendInvitation: ResendInvitation
   acceptInvitation: AcceptInvitation
@@ -105,9 +113,21 @@ export type IdentityRequestApi = Readonly<{
   merchantAiAuthorization: MerchantAiAuthorization
 }>
 
+/**
+ * The transfer worklist a departing member must clear (LIF-01-T21). Read-only
+ * and identifier-only; it grants no authority to release anything.
+ */
+export type IdentityOffboardingFactsPublicApi = Readonly<{
+  listOutstanding: (
+    organizationId: string,
+    userId: string,
+  ) => Promise<readonly OutstandingResponsibility[]>
+}>
+
 /** Complete delivery-boundary facade used by Identity request handlers. */
 export type IdentityPublicApi = Readonly<{
   managerFacts: IdentityManagerFactsPublicApi
   accountAdminAuthority: IdentityAccountAdminAuthorityPublicApi
+  offboardingFacts: IdentityOffboardingFactsPublicApi
   requests: IdentityRequestApi
 }>

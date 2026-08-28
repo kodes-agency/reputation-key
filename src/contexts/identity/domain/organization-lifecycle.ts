@@ -94,6 +94,116 @@ export function canCancelOrganizationClosure(
   )
 }
 
+/**
+ * The single machine reason for LIF-01-T18 reactivation.
+ *
+ * Reactivation is NOT a lifecycle state transition: cancelling a closure
+ * already returned the Organization to `active`. What remains is the explicit
+ * clearing of `reactivation_required` and the Organization suspension it
+ * fences, so it carries its own reason code rather than borrowing a cancel
+ * reason from the `closing -> active` edge.
+ */
+export const ORGANIZATION_REACTIVATION_REASON_CODE = 'explicit_reactivation'
+
+/**
+ * Every readiness question that must be answered before an Organization may
+ * leave the post-closure fence. The list is closed and ordered so a partial
+ * evaluation is a missing answer, never an implicit pass.
+ *
+ * Each id maps to one program-bullet-4 requirement:
+ *   * `data_cell_health`             — the assigned Data Cell accepts work
+ *   * `responsible_manager`          — every Property has an eligible current
+ *                                      Responsible Manager (the same question
+ *                                      `restoreProperty` asks per Property)
+ *   * `google_authorization`         — a FRESH authorization exists; a stored
+ *                                      credential from before the closure is
+ *                                      not evidence of current consent
+ *   * `portal_reactivation`          — at least one Portal was deliberately
+ *                                      re-pointed at its retained snapshot
+ *   * `schedule_quarantine_cleared`  — lifecycle/import/sync/notification
+ *                                      schedules are out of quarantine
+ */
+export const ORGANIZATION_REACTIVATION_CHECKS = [
+  'data_cell_health',
+  'responsible_manager',
+  'google_authorization',
+  'portal_reactivation',
+  'schedule_quarantine_cleared',
+] as const
+
+export type OrganizationReactivationCheckId =
+  (typeof ORGANIZATION_REACTIVATION_CHECKS)[number]
+
+export type OrganizationReactivationCheck = Readonly<{
+  id: OrganizationReactivationCheckId
+  satisfied: boolean
+  /** Content-free machine code; never prose and never tenant content. */
+  detailCode: string
+}>
+
+/**
+ * The deliberate actions a human must have taken BEFORE reactivation runs.
+ *
+ * They are asserted, never performed: reactivation must not republish a
+ * Portal, re-enable an AI capability or restore a Google credential as a side
+ * effect of clearing the fence.
+ */
+export const ORGANIZATION_REACTIVATION_ACKNOWLEDGEMENTS = [
+  'portal_republished',
+  'ai_capability_reviewed',
+  'google_reauthorized',
+] as const
+
+export type OrganizationReactivationAcknowledgementId =
+  (typeof ORGANIZATION_REACTIVATION_ACKNOWLEDGEMENTS)[number]
+
+export type OrganizationReactivationAcknowledgement = Readonly<{
+  id: OrganizationReactivationAcknowledgementId
+  /** The human who performed the separate action, never 'system:*'. */
+  actorUserId: string
+  /** Content-free reason code recorded alongside the actor. */
+  reasonCode: string
+}>
+
+export function canReactivateOrganization(
+  status: Readonly<{
+    state: OrganizationLifecycleState
+    reactivationRequired: boolean
+  }>,
+): boolean {
+  return status.state === 'active' && status.reactivationRequired
+}
+
+/** The checks that are missing or unsatisfied, in declaration order. */
+export function unsatisfiedReactivationChecks(
+  checks: readonly OrganizationReactivationCheck[],
+): readonly OrganizationReactivationCheckId[] {
+  const byId = new Map(checks.map((check) => [check.id, check]))
+  if (byId.size !== checks.length) {
+    throw new Error('Organization reactivation checks contain a duplicate')
+  }
+  return ORGANIZATION_REACTIVATION_CHECKS.filter((id) => byId.get(id)?.satisfied !== true)
+}
+
+/** The deliberate actions that were not recorded, in declaration order. */
+export function missingReactivationAcknowledgements(
+  acknowledgements: readonly OrganizationReactivationAcknowledgement[],
+): readonly OrganizationReactivationAcknowledgementId[] {
+  const byId = new Map(acknowledgements.map((entry) => [entry.id, entry]))
+  if (byId.size !== acknowledgements.length) {
+    throw new Error('Organization reactivation acknowledgements contain a duplicate')
+  }
+  return ORGANIZATION_REACTIVATION_ACKNOWLEDGEMENTS.filter((id) => {
+    const entry = byId.get(id)
+    return (
+      entry === undefined ||
+      entry.actorUserId.length === 0 ||
+      entry.actorUserId.startsWith('system:') ||
+      !/^[a-z][a-z0-9_]{0,63}$/u.test(entry.reasonCode)
+    )
+  })
+}
+
 const ORGANIZATION_LIFECYCLE_TRANSITIONS: Readonly<
   Record<OrganizationLifecycleState, readonly OrganizationLifecycleState[]>
 > = {

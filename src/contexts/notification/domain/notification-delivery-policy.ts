@@ -25,6 +25,7 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'account.organization_access_granted': 'mandatory',
   'account.organization_role_changed': 'mandatory',
   'account.organization_access_removed': 'mandatory',
+  'account.organization_purge_pending': 'mandatory',
   'review.created': 'workflow_collaboration',
   'review.updated': 'urgent_operational',
   // Private feedback asks a manager to review and handle a guest concern. It

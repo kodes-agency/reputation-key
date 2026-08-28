@@ -8,7 +8,9 @@ import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import {
   handleIdentityAccountNotificationEvent,
+  handleOrganizationPurgePendingNotice,
   IDENTITY_ACCOUNT_NOTIFICATION_CONSUMERS,
+  ORGANIZATION_PURGE_PENDING_CONSUMER,
   registerIdentityAccountNotificationConsumers,
 } from './identity-account-outbox-consumers'
 
@@ -137,5 +139,90 @@ describe('Identity account mandatory notification consumers', () => {
     ).rejects.toThrow('attribution mismatch')
     expect(deps.queue.add).not.toHaveBeenCalled()
     expect(deps.receipts.insertReceipt).not.toHaveBeenCalled()
+  })
+})
+
+// LIF-01 program bullet 5 — the mandatory final notice at Purge Pending.
+describe('Purge Pending final-notice consumer', () => {
+  beforeEach(() => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+  })
+  afterEach(() => {
+    clearEventSchemas()
+  })
+
+  const lifecycleEvent = (state: string): ConsumerEvent => ({
+    eventId: EVENT_ID,
+    eventType: 'identity.organization_lifecycle.changed',
+    eventVersion: 1,
+    payload: {
+      organizationId: ORG,
+      closureLineageId: '11111111-1111-4111-8111-111111111111',
+      state,
+      revision: 4,
+      reactivationRequired: true,
+      recoverableUntil: '2026-09-27T09:30:00.000Z',
+      occurredAt: '2026-09-27T09:30:00.000Z',
+    },
+    organizationId: ORG,
+    propertyId: null,
+    sourceContext: 'identity',
+    sourceAggregateId: ORG,
+    recordedAt: '2026-09-27T09:30:00.000Z',
+  })
+
+  it('sends the notice at purge_pending', async () => {
+    const deps = { ...makeDeps(), notify: vi.fn(async () => {}) }
+
+    const result = await handleOrganizationPurgePendingNotice(
+      deps,
+      lifecycleEvent('purge_pending'),
+    )
+
+    expect(result).toEqual({ status: 'applied' })
+    expect(deps.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: EVENT_ID,
+        closureLineageId: '11111111-1111-4111-8111-111111111111',
+      }),
+    )
+    expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
+      EVENT_ID,
+      ORGANIZATION_PURGE_PENDING_CONSUMER,
+      'applied',
+    )
+  })
+
+  it.each(['closure_requested', 'closing', 'purging', 'closed', 'active'])(
+    'records an obsolete receipt and sends nothing for %s',
+    async (state) => {
+      const deps = { ...makeDeps(), notify: vi.fn(async () => {}) }
+
+      const result = await handleOrganizationPurgePendingNotice(
+        deps,
+        lifecycleEvent(state),
+      )
+
+      expect(result).toEqual({ status: 'obsolete' })
+      expect(deps.notify).not.toHaveBeenCalled()
+      expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
+        EVENT_ID,
+        ORGANIZATION_PURGE_PENDING_CONSUMER,
+        'obsolete',
+      )
+    },
+  )
+
+  it('refuses a mis-attributed envelope rather than notifying the wrong tenant', async () => {
+    const deps = { ...makeDeps(), notify: vi.fn(async () => {}) }
+
+    await expect(
+      handleOrganizationPurgePendingNotice(deps, {
+        ...lifecycleEvent('purge_pending'),
+        organizationId: 'org-other',
+      }),
+    ).rejects.toThrow('attribution mismatch')
+    expect(deps.notify).not.toHaveBeenCalled()
   })
 })

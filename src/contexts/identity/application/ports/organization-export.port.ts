@@ -58,6 +58,18 @@ export type OrganizationExportRepository = Readonly<{
     objectExpiresAt: Date
   }): Promise<OrganizationExportStatus>
   /**
+   * LIF-01-T17: the one export the Closure Center may show.
+   *
+   * `organization_exports_one_open_per_org_idx` already guarantees at most one
+   * OPEN request per Organization, so "current" is unambiguous; when none is
+   * open the most recently created terminal row is returned so a tenant can
+   * still see that their last export failed or expired. Authorization is the
+   * caller's obligation — this is a read.
+   */
+  findCurrentForOrganization(
+    organizationId: string,
+  ): Promise<OrganizationExportStatus | null>
+  /**
    * Claims a `requested` export, or re-claims a `generating` / `egress_pending`
    * export whose lease expired. An `egress_pending` claim renews the lease in
    * place — it never returns to `generating`, which would license a rebuild.

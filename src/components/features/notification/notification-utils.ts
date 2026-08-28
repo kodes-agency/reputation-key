@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   UserCog,
   UserMinus,
+  Trash2,
   Clock,
   type LucideIcon,
 } from 'lucide-react'
@@ -117,6 +118,9 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
   'account.organization_access_granted': ShieldCheck,
   'account.organization_role_changed': UserCog,
   'account.organization_access_removed': UserMinus,
+  // The one irreversible account fact in the beta set — it deliberately does
+  // not share the neutral shield/user icons of the other account notices.
+  'account.organization_purge_pending': Trash2,
   'review.created': MessageSquare,
   'review.updated': MessageSquare,
   'feedback.created': MessageSquare,

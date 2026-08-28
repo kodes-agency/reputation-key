@@ -68,6 +68,9 @@ function store(candidates: readonly OrganizationLifecycleStatus[]) {
       requestClosure: vi.fn(),
       getStatus: vi.fn(),
       cancelClosure: vi.fn(),
+      // The coordinator is the scheduled/operator path; reactivation is an
+      // AccountAdmin command and must never be reachable from it.
+      reactivate: vi.fn(),
       getAuthority: vi.fn(async () => current),
       listCandidates: vi.fn(async () => candidates),
       transition,

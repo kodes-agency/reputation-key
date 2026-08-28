@@ -37,6 +37,7 @@ import { trace } from '#/shared/observability/trace'
 import { isOwnerToken } from '#/shared/domain/roles'
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
 import { identityError } from '../domain/errors'
+import { revokeAllPropertyAccessForUser } from './repositories/property-access-grant.repository'
 import type {
   AcceptInvitationCommand,
   CancelInvitationCommand,
@@ -554,6 +555,15 @@ export const createAtomicIdentityCommandStore = (
                 eq(userOrganizationBindings.state, 'active'),
               ),
             )
+          // LIF-01-T21: Identity owns `property_access_grant`, so revoking it
+          // belongs in this transaction rather than in a preceding one. A
+          // grant that survived a committed membership deletion would be
+          // live access with no membership behind it.
+          await revokeAllPropertyAccessForUser(tx, {
+            organizationId: command.organizationId as string,
+            userId: target.userId,
+            reason: 'member_offboarded',
+          })
           await tx
             .delete(member)
             .where(

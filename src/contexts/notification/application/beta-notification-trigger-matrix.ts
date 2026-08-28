@@ -60,6 +60,17 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['account.organization_access_removed'],
     ['affected_organization_user'],
   ),
+  {
+    ...route(
+      'identity.organization_lifecycle.changed',
+      'notification.on-identity-organization-purge-pending',
+      ['account.organization_purge_pending'],
+      ['account_admin'],
+    ),
+    // LIF-01 program bullet 5. The lifecycle fact is emitted on every
+    // transition; only Purge Pending produces the mandatory final notice.
+    eventCondition: 'state === purge_pending',
+  },
   route(
     'inbox.inbox_item.created',
     'notification.on-inbox-item-created',

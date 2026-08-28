@@ -244,7 +244,14 @@ export const identityOrganizationLifecycleChanged = (
     Number.isSafeInteger(args.revision) && args.revision > 0,
     'revision must be a positive safe integer',
   )
-  assert(args.reactivationRequired, 'lifecycle transition must require reactivation')
+  // Every closure-direction transition raises the fence. LIF-01-T18
+  // reactivation is the ONE fact that lowers it, and it can only be reported
+  // from `active` — a fence cleared from any other state would mean a closing
+  // or purging Organization silently resumed.
+  assert(
+    args.reactivationRequired || args.state === 'active',
+    'lifecycle transition must require reactivation',
+  )
   return {
     _tag: 'identity.organization_lifecycle.changed',
     eventId: newEventId(),

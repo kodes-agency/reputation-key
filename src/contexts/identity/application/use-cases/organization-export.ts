@@ -81,6 +81,19 @@ export const createOrganizationExportService = (
   }
 
   /**
+   * LIF-01-T17: the Closure Center's read of its own export.
+   *
+   * Read-only, and still AccountAdmin-gated: an export's very existence, its
+   * `asOf` instant and its checksums are facts about the tenant.
+   */
+  const current = async (
+    input: CreateOrganizationExportServiceInput,
+  ): Promise<OrganizationExportStatus | null> => {
+    await requireAccountAdmin(input.organizationId, input.actorUserId)
+    return deps.repository.findCurrentForOrganization(input.organizationId)
+  }
+
+  /**
    * Resume an export whose pre-egress evidence is durable but whose upload
    * outcome is unknown — the exact ambiguity a crash between `putEncrypted`
    * resolving and `completeGeneration` committing leaves behind.
@@ -282,6 +295,7 @@ export const createOrganizationExportService = (
 
   return Object.freeze({
     request,
+    current,
     generateNext,
     issueRetrieval,
     retrieve,

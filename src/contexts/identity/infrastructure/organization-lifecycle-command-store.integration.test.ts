@@ -382,6 +382,112 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
     })
   })
 
+  it('refuses reactivation from a state other than active-awaiting-reactivation', async () => {
+    const fixture = await seedFixture()
+    const store = createOrganizationLifecycleCommandStore(db, events())
+    const requested = await store.requestClosure(request(fixture))
+
+    await expect(
+      store.reactivate({
+        operationId: randomUUID(),
+        ...fixture,
+        expectedRevision: requested.revision,
+        closureLineageId: requested.closureLineageId!,
+        supportEvidenceRef: `lifecycle:reactivation:${'a'.repeat(64)}`,
+        now: new Date('2026-09-01T09:30:00.000Z'),
+      }),
+    ).rejects.toMatchObject({ _tag: 'IdentityError', code: 'forbidden' })
+
+    expect(await state(fixture.organizationId)).toMatchObject({
+      state: 'closure_requested',
+      revision: 1,
+      reactivation_required: true,
+    })
+  })
+
+  it('compare-and-sets reactivation on the revision its readiness evidence describes', async () => {
+    const fixture = await seedFixture()
+    const store = createOrganizationLifecycleCommandStore(db, events())
+    const requested = await store.requestClosure(request(fixture))
+    const cancelled = await store.cancelClosure({
+      operationId: randomUUID(),
+      ...fixture,
+      reasonCode: 'closure_cancelled',
+      supportEvidenceRef: 'support:cas-cancel',
+      now: new Date('2026-09-01T09:30:00.000Z'),
+    })
+
+    await expect(
+      store.reactivate({
+        operationId: randomUUID(),
+        ...fixture,
+        // Stale: readiness was evaluated one revision earlier.
+        expectedRevision: cancelled.revision - 1,
+        closureLineageId: requested.closureLineageId!,
+        supportEvidenceRef: `lifecycle:reactivation:${'b'.repeat(64)}`,
+        now: new Date('2026-09-01T10:00:00.000Z'),
+      }),
+    ).rejects.toMatchObject({ code: 'organization_conflict' })
+
+    expect(await state(fixture.organizationId)).toMatchObject({
+      reactivation_required: true,
+    })
+  })
+
+  /**
+   * Migration reservation: the reactivation edge is NOT in this repository yet.
+   *
+   * Migration 0159 predates LIF-01-T18 and fences the write twice — the
+   * revision guard allows no `active -> active` edge, and the receipt table
+   * allows only the 'request' and 'cancel' operations. Both belong to the
+   * migration integrator, and only that owner may add them.
+   *
+   * This test therefore pins the CURRENT, verified behaviour: reactivation
+   * fails closed at the database rather than half-lifting the fence. When the
+   * migration lands, this expectation flips to a successful lift and the
+   * `reactivation_required = false` / suspension-cleared assertions replace it.
+   */
+  it('fails closed at the database until the reactivation migration lands', async () => {
+    const fixture = await seedFixture()
+    const store = createOrganizationLifecycleCommandStore(db, events())
+    const requested = await store.requestClosure(request(fixture))
+    const cancelled = await store.cancelClosure({
+      operationId: randomUUID(),
+      ...fixture,
+      reasonCode: 'closure_cancelled',
+      supportEvidenceRef: 'support:reactivate-cancel',
+      now: new Date('2026-09-01T09:30:00.000Z'),
+    })
+
+    const failure = await store
+      .reactivate({
+        operationId: randomUUID(),
+        ...fixture,
+        expectedRevision: cancelled.revision,
+        closureLineageId: requested.closureLineageId!,
+        supportEvidenceRef: `lifecycle:reactivation:${'c'.repeat(64)}`,
+        now: new Date('2026-09-01T10:00:00.000Z'),
+      })
+      .catch((error: unknown) => error)
+
+    // Drizzle wraps the driver error; the trigger message is the cause.
+    expect(String((failure as { cause?: { message?: string } }).cause?.message)).toMatch(
+      /invalid organization lifecycle state transition: active -> active/u,
+    )
+
+    // The fence is intact: nothing was partially lifted.
+    expect(await state(fixture.organizationId)).toMatchObject({
+      state: 'active',
+      revision: cancelled.revision,
+      reactivation_required: true,
+    })
+    const policy = await lease.pool.query(
+      'SELECT suspended_at FROM organization_policy WHERE organization_id = $1',
+      [fixture.organizationId],
+    )
+    expect(policy.rows[0]?.suspended_at).not.toBeNull()
+  })
+
   it('advances through a recoverable Purge Pending state before the irreversible boundary', async () => {
     const fixture = await seedFixture()
     const store = createOrganizationLifecycleCommandStore(db, events())

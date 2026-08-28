@@ -102,8 +102,14 @@ export async function revokePropertyAccess(
 }
 
 /** Offboarding fence: revoke every active grant for one Organization member. */
+/**
+ * LIF-01-T21: the executor is the narrow `execute` seam rather than a
+ * `Database`, so offboarding can run this revocation INSIDE the same
+ * transaction that deletes the membership. A grant that outlived a committed
+ * removal is exactly the inconsistency the repair command exists to find.
+ */
 export async function revokeAllPropertyAccessForUser(
-  db: Database,
+  db: PolicySqlExecutor,
   input: Readonly<{
     organizationId: string
     userId: string

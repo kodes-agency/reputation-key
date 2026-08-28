@@ -62,6 +62,7 @@ function repository() {
   let current = status('requested', 1)
   let consumed = false
   const value: OrganizationExportRepository = {
+    findCurrentForOrganization: vi.fn(async () => current),
     request: vi.fn(async (input) => {
       current = status('requested', 1, {
         id: input.id,

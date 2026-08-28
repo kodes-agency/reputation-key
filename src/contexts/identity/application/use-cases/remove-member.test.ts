@@ -171,6 +171,53 @@ describe('removeMember', () => {
     expect(commandStore.memberById(STAFF_MEMBER.id)).toBeNull()
   })
 
+  /**
+   * LIF-01-T21. The cross-context fences must be complete BEFORE the Identity
+   * transaction opens, because only that ordering leaves a repairable state
+   * behind a crash. This pins the order rather than merely the calls.
+   */
+  it('completes every cross-context fence before the membership transaction', async () => {
+    const identity = createInMemoryIdentityPort()
+    const events = createCapturingEventBus()
+    const commandStore = createSequentialIdentityCommandStore({ events })
+    for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
+      seedMemberBoth(identity, commandStore, member)
+    }
+    const order: string[] = []
+    const useCase = removeMember({
+      identity,
+      commandStore: {
+        ...commandStore,
+        removeMember: async (command) => {
+          order.push('identity-transaction')
+          return commandStore.removeMember(command)
+        },
+      },
+      clock: () => FIXED_TIME,
+      prepareGoogleConnectorDeparture: async () => {
+        order.push('google-connector')
+      },
+      cancelGoogleImportsForUser: async () => {
+        order.push('google-imports')
+      },
+      releaseMemberAuthorities: async () => {
+        order.push('release-authorities')
+      },
+    })
+
+    await useCase(
+      { memberId: STAFF_MEMBER.id },
+      buildTestAuthContext({ role: 'AccountAdmin' }),
+    )
+
+    expect(order).toEqual([
+      'google-connector',
+      'google-imports',
+      'release-authorities',
+      'identity-transaction',
+    ])
+  })
+
   it('preserves membership when import fencing fails', async () => {
     const identity = createInMemoryIdentityPort()
     const events = createCapturingEventBus()

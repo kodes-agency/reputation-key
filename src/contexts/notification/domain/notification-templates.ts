@@ -120,6 +120,19 @@ const renderOrganizationAccessRemoved = (): RenderedNotification => ({
   summary: 'organization access removed',
 })
 
+/**
+ * LIF-01 program bullet 5. Deliberately states the consequence and the fact
+ * that action is still possible, without naming a deadline the template cannot
+ * verify — the Closure Center shows the authoritative date in the
+ * Organization's timezone.
+ */
+const renderOrganizationPurgePending = (): RenderedNotification => ({
+  title: 'Final notice: this organization is scheduled for permanent deletion',
+  body: 'The recovery window has ended. Data will be permanently erased and cannot be restored. Open the Closure Center to download your export or contact support while the deletion is still pending.',
+  actionLabel: 'Open Closure Center',
+  summary: 'organization purge pending',
+})
+
 const renderReviewCreated = (p: NotificationPayload): RenderedNotification => ({
   title: `New ${reviewNoun()}${atProperty(p)}`,
   body: 'Open it to read the review and reply.',
@@ -352,6 +365,7 @@ const RENDERERS: Record<
   'account.organization_access_granted': renderOrganizationAccessGranted,
   'account.organization_role_changed': renderOrganizationRoleChanged,
   'account.organization_access_removed': renderOrganizationAccessRemoved,
+  'account.organization_purge_pending': renderOrganizationPurgePending,
   'review.created': renderReviewCreated,
   'review.updated': renderReviewUpdated,
   'feedback.created': renderFeedbackCreated,

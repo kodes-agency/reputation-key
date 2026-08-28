@@ -30,6 +30,9 @@ function fakeStore(): OrganizationLifecycleCommandStore {
   return {
     requestClosure: vi.fn(async () => status()),
     getStatus: vi.fn(async () => status()),
+    reactivate: vi.fn(async () =>
+      status({ state: 'active', revision: 3, reactivationRequired: false }),
+    ),
     getAuthority: vi.fn(async () => status()),
     listCandidates: vi.fn(async () => []),
     transition: vi.fn(async () => status({ state: 'closing', revision: 2 })),

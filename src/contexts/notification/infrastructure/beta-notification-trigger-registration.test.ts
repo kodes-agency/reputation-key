@@ -16,7 +16,10 @@ import { registerGoalNotificationConsumer } from './goal-outbox-consumers'
 import { registerHandlingCycleNotificationConsumers } from './handling-cycle-outbox-consumers'
 import { registerResponseTargetNotificationConsumer } from './response-target-outbox-consumers'
 import { registerPortalHealthNotificationConsumer } from './portal-health-outbox-consumers'
-import { registerIdentityAccountNotificationConsumers } from './identity-account-outbox-consumers'
+import {
+  registerIdentityAccountNotificationConsumers,
+  registerOrganizationPurgePendingNoticeConsumer,
+} from './identity-account-outbox-consumers'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -35,6 +38,13 @@ describe('registered durable notification matrix', () => {
 
     registerIdentityAccountNotificationConsumers(consumerRegistry, {
       queue: fakes.queue,
+      receipts,
+    })
+    // LIF-01 bullet 5 — the mandatory Purge Pending final notice.
+    registerOrganizationPurgePendingNoticeConsumer(consumerRegistry, {
+      queue: fakes.queue,
+      userLookup: fakes.userLookup,
+      logger: fakes.logger,
       receipts,
     })
 

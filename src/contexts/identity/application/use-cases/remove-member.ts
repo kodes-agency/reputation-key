@@ -78,6 +78,14 @@ export const removeMember =
       }
     }
 
+    // LIF-01-T21 ordering, and it is deliberate. These two fences belong to
+    // Integration and cannot join the Identity transaction, so they run FIRST:
+    // a fenced connector with a surviving membership is a repairable state
+    // (`repairPartialOffboarding` converges it), while a deleted membership
+    // with a live provider grant is not. `property_access_grant` revocation
+    // moved OUT of `releaseMemberAuthorities` and INTO the command-store
+    // transaction for the same reason — Identity owns that table, so there is
+    // no excuse for revoking it in a separate commit.
     await deps.prepareGoogleConnectorDeparture?.(
       ctx.organizationId,
       targetMember.userId,

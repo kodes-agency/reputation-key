@@ -25,6 +25,9 @@ import { updateCustomRole } from './application/use-cases/update-custom-role'
 import { deleteCustomRole } from './application/use-cases/delete-custom-role'
 import { updateMemberRole } from './application/use-cases/update-member-role'
 import { removeMember } from './application/use-cases/remove-member'
+import { leaveOrganization } from './application/use-cases/leave-organization'
+import type { MemberOffboardingPort } from './application/ports/member-offboarding.port'
+import { identityError } from './domain/errors'
 import { listInvitations } from './application/use-cases/list-invitations'
 import { resendInvitation } from './application/use-cases/resend-invitation'
 import { acceptInvitation } from './application/use-cases/accept-invitation'
@@ -77,6 +80,14 @@ import { createPropertyGrantHolderLookup } from './infrastructure/adapters/grant
 import { writePolicyDecision } from './infrastructure/repositories/policy-decision-audit.repository'
 import { createPostgresPolicyAdminCommandStore } from './infrastructure/policy-admin-command-store'
 import { createOrganizationLifecycle } from './application/use-cases/organization-lifecycle'
+import {
+  reactivateOrganization,
+  type ReactivateOrganizationInput,
+} from './application/use-cases/reactivate-organization'
+import {
+  createDefaultOrganizationReactivationReadiness,
+  type OrganizationReactivationReadinessDeps,
+} from './infrastructure/organization-reactivation-readiness'
 import { createOrganizationLifecycleCommandStore } from './infrastructure/organization-lifecycle-command-store'
 import {
   createOrganizationLifecycleCoordinator,
@@ -130,6 +141,9 @@ export type OnMemberJoined = (ctx: {
   displayName?: string
 }) => Promise<void>
 
+/** Exactly the reactivation probes composition must supply, or none at all. */
+export type OrganizationReactivationProbeBindings = OrganizationReactivationReadinessDeps
+
 /**
  * Reviewed cross-context bindings for the Organization lifecycle control
  * plane. Partial contributor sets are accepted only as an explicit
@@ -150,6 +164,15 @@ export type IdentityOrganizationLifecycleComposition = Readonly<{
    * `organizationExport` bundle below, which stays all-or-nothing.
    */
   exportContributors?: readonly OrganizationExportContributor[]
+  /**
+   * LIF-01-T18: the three cross-context readiness probes reactivation needs.
+   *
+   * Absent means no reactivation command exists on the runtime at all — the
+   * same all-or-nothing posture the lifecycle coordinator uses. Composing them
+   * activates nothing on its own either: every probe is a read, and the
+   * command still refuses while any check or deliberate action is missing.
+   */
+  reactivationProbes?: OrganizationReactivationProbeBindings
   organizationExport?: Readonly<{
     archiveWriter: OrganizationExportArchiveWriter
     storage: OrganizationExportStorage
@@ -233,6 +256,15 @@ type IdentityContextDeps = Readonly<{
     userId: string,
     actorId: string,
   ) => Promise<void>
+  /**
+   * LIF-01-T21. Transfer-first leave needs the Portal, Property and Inbox
+   * facts that name what a departing member still holds, so it is composed
+   * rather than inferred. ABSENT IS FAIL-CLOSED: with no adapter the leave
+   * command refuses, because a leave that cannot see the worklist would
+   * silently strand every responsibility on it. AccountAdmin-initiated
+   * `removeMember` is unaffected — it releases rather than transfers.
+   */
+  memberOffboarding?: MemberOffboardingPort
   organizationLifecycle?: IdentityOrganizationLifecycleComposition
 }>
 
@@ -346,6 +378,26 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   )
   // BQC-3.5: every identity state mutation + fact commits atomically here.
   const commandStore = createAtomicIdentityCommandStore(deps.db, deps.events, deps.idGen)
+  /**
+   * LIF-01-T21 fail-closed default. Refusing to answer is the only safe
+   * answer: reporting an empty worklist would let a member walk out leaving
+   * Portals and Properties with no Responsible Manager.
+   */
+  const memberOffboarding: MemberOffboardingPort = deps.memberOffboarding ?? {
+    listOutstanding: async () => {
+      throw identityError(
+        'forbidden',
+        'Transfer-first leave is unavailable until responsibility facts are composed',
+      )
+    },
+    isEligibleRecipient: async () => false,
+    transfer: async () => {
+      throw identityError(
+        'forbidden',
+        'Transfer-first leave is unavailable until responsibility facts are composed',
+      )
+    },
+  }
   const invitedRegistrationStore = createInvitedRegistrationStore(deps.db)
 
   // BQC-2.2: install the composite capability policy store — env global
@@ -446,8 +498,37 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
           clock: deps.clock,
         })
       : null
+  // LIF-01-T18. Reactivation is an AccountAdmin command, but its readiness
+  // spans four other contexts, so it exists only when every probe is bound.
+  // An unbound reactivation is not a degraded reactivation — it would be a
+  // reactivation that cannot see what it is resuming.
+  const reactivationProbes = deps.organizationLifecycle?.reactivationProbes
+  const reactivate = reactivationProbes
+    ? reactivateOrganization({
+        store: organizationLifecycleStore,
+        readiness: createDefaultOrganizationReactivationReadiness(reactivationProbes),
+        clock: deps.clock,
+        refreshPolicy: async () => {
+          const result = await policyStore.refreshRequired()
+          if ('unavailable' in result) {
+            // The suspension is already lifted durably. Do not claim this
+            // process observes it; the caller must retry the same operation id.
+            throw new Error('Organization reactivated; policy refresh unavailable')
+          }
+        },
+      })
+    : null
+
   const organizationLifecycleRuntime = Object.freeze({
-    control: organizationLifecycle,
+    control: Object.freeze({
+      ...organizationLifecycle,
+      reactivation: Object.freeze({
+        configured: reactivate !== null,
+        reactivate: reactivate
+          ? (input: ReactivateOrganizationInput) => reactivate(input)
+          : undefined,
+      }),
+    }),
     operator: Object.freeze({
       readStatus: (orgId: string) => organizationLifecycleStore.getAuthority(orgId),
     }),
@@ -666,6 +747,14 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       prepareGoogleConnectorDeparture: deps.prepareGoogleConnectorDeparture,
       releaseMemberAuthorities: deps.releaseMemberAuthorities,
     }),
+    leaveOrganization: leaveOrganization({
+      identity: deps.identityPort,
+      commandStore,
+      offboarding: memberOffboarding,
+      clock: deps.clock,
+      cancelGoogleImportsForUser: deps.cancelGoogleImportsForUser,
+      prepareGoogleConnectorDeparture: deps.prepareGoogleConnectorDeparture,
+    }),
     listInvitations: listInvitations({ identity: deps.identityPort }),
     resendInvitation: resendInvitation({
       identity: deps.identityPort,
@@ -730,6 +819,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     inviteMember: useCases.inviteMember,
     updateMemberRole: useCases.updateMemberRole,
     removeMember: useCases.removeMember,
+    leaveOrganization: useCases.leaveOrganization,
     listInvitations: useCases.listInvitations,
     resendInvitation: useCases.resendInvitation,
     acceptInvitation: useCases.acceptInvitation,
@@ -748,9 +838,13 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   const accountAdminAuthority: IdentityAccountAdminAuthorityPublicApi = Object.freeze({
     isCurrentAccountAdmin: managerMembershipRepo.isCurrentAccountAdmin,
   })
+  const offboardingFacts = Object.freeze({
+    listOutstanding: memberOffboarding.listOutstanding,
+  })
   const publicApi: IdentityPublicApi = Object.freeze({
     managerFacts,
     accountAdminAuthority,
+    offboardingFacts,
     requests: requestApi,
   })
 

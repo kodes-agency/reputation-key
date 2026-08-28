@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, lte, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { auditLogs } from '#/shared/db/schema/audit'
 import {
@@ -97,6 +97,21 @@ function requireRevision(
 export const createOrganizationExportRepository = (
   db: Database,
 ): OrganizationExportRepository => ({
+  async findCurrentForOrganization(
+    organizationId: string,
+  ): Promise<OrganizationExportStatus | null> {
+    // The partial unique index allows at most one OPEN row, so ordering by
+    // creation time puts the open request first when one exists and otherwise
+    // returns the most recent terminal row.
+    const rows = await db
+      .select()
+      .from(organizationExports)
+      .where(eq(organizationExports.organizationId, organizationId))
+      .orderBy(desc(organizationExports.createdAt))
+      .limit(1)
+    return rows[0] ? status(rows[0]) : null
+  },
+
   async request(input: {
     id: string
     organizationId: string

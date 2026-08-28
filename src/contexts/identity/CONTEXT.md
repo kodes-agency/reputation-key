@@ -177,7 +177,7 @@ interface and does not expose the grant repository.
 ## Public API
 
 - `src/contexts/identity/application/public-api.ts`
-  - Defines the exact `IdentityPublicApi` runtime contract as three frozen facades: `managerFacts` (`IdentityManagerFactsPublicApi`, exposing `listActiveManagers` over `ManagerMembership`), `accountAdminAuthority` (`IdentityAccountAdminAuthorityPublicApi`, exposing `isCurrentAccountAdmin`), and request-facing `requests` (`IdentityRequestApi`).
+  - Defines the exact `IdentityPublicApi` runtime contract as four frozen facades: `managerFacts` (`IdentityManagerFactsPublicApi`, exposing `listActiveManagers` over `ManagerMembership`), `accountAdminAuthority` (`IdentityAccountAdminAuthorityPublicApi`, exposing `isCurrentAccountAdmin`), an offboarding-facts facade (`IdentityOffboardingFactsPublicApi`, the read-only transfer worklist a departing member must clear — LIF-01-T21), and request-facing `requests` (`IdentityRequestApi`).
   - Property and Portal receive only `managerFacts`; Guest receives the two authority facades separately; the complete facade remains available only to Identity delivery handlers.
   - Re-exports event types: `IdentityOrganizationCreated`, `IdentityMemberInvited`, `IdentityInvitationAccepted`, `IdentityInvitationCanceled`, `IdentityMemberRemoved`, `IdentityMemberRoleChanged`, `IdentityMerchantAiChanged`, `IdentityOrganizationLifecycleChanged`, `IdentityEvent`
   - Re-exports event constructors: `identityOrganizationCreated`, `identityMemberInvited`, `identityInvitationAccepted`, `identityInvitationCanceled`, `identityMemberRemoved`, `identityMemberRoleChanged`, `identityMerchantAiChanged`, `identityOrganizationLifecycleChanged`
@@ -226,6 +226,35 @@ interface and does not expose the grant repository.
 | `getOrgResponseSla`     | GET    | `dashboard.read`         | Get organization response SLA                                                                |
 | `updateOrgResponseSla`  | POST   | `organization.update`    | Update organization response SLA                                                             |
 | `submitBetaFeedbackFn`  | POST   | `feedback.respond`       | Native Bug/Suggestion intake; content-free local receipt before restricted provider delivery |
+
+### Closure Center (LIF-01-T17/T18)
+
+| Name                                 | Method | Authority                         | Description                                                        |
+| ------------------------------------ | ------ | --------------------------------- | ------------------------------------------------------------------ |
+| `getClosureCenterFn`                 | GET    | current AccountAdmin (under lock) | Lifecycle status, deadline, export view, reactivation checklist    |
+| `requestOrganizationClosureFn`       | POST   | current AccountAdmin (under lock) | Typed-confirmation closure request                                 |
+| `cancelOrganizationClosureFn`        | POST   | current AccountAdmin (under lock) | Cancel inside the recovery window; resumes nothing                 |
+| `reactivateOrganizationFn`           | POST   | current AccountAdmin (under lock) | Explicit reactivation; refuses until every check and action passes |
+| `requestOrganizationExportFn`        | POST   | current AccountAdmin (under lock) | Request an Organization Export                                     |
+| `issueOrganizationExportRetrievalFn` | POST   | current AccountAdmin (under lock) | Single-use, 24-hour retrieval token                                |
+| `downloadOrganizationExportFn`       | POST   | current AccountAdmin (under lock) | Consume the token and return the archive                           |
+
+These seven are the ONLY server functions that deliberately skip
+`requireExecutionAllowed`. A closure suspends the Organization, which denies
+every capability; routing them through the capability gate would make the
+closure uncancellable and the export unretrievable exactly when the tenant
+needs both. Their authority is the locked "current AccountAdmin with an active
+Organization binding" check inside each command-store transaction, plus an
+explicit AccountAdmin role gate that denies Staff User principals. No
+fresh-password, MFA or step-up factor is introduced on this path
+(program bullet 8); `BLOCKED_CAPABILITIES` is untouched.
+
+### Leaving an Organization (LIF-01-T21)
+
+| Name                                | Method | Permission           | Description                                        |
+| ----------------------------------- | ------ | -------------------- | -------------------------------------------------- |
+| `listOutstandingResponsibilitiesFn` | GET    | `identity.leave_org` | The transfer worklist the caller must clear        |
+| `leaveOrganizationFn`               | POST   | `identity.leave_org` | Transfer-first leave; sole AccountAdmin is refused |
 
 The internal `ops:triage-beta-feedback` command is report-first and ticketed. It lists only content-free queue fields and applies one revision/transition-ID-bound change; it never reads report text, downloads attachments, or creates an engineering issue automatically.
 

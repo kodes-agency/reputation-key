@@ -16,13 +16,16 @@ import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commi
 import type {
   CancelOrganizationClosureCommand,
   OrganizationLifecycleCommandStore,
+  ReactivateOrganizationCommand,
   RequestOrganizationClosureCommand,
   TransitionOrganizationLifecycleCommand,
 } from '../application/ports/organization-lifecycle-command-store.port'
 import {
+  ORGANIZATION_REACTIVATION_REASON_CODE,
   assertOrganizationLifecycleTransition,
   assertOrganizationLifecycleTransitionReason,
   canCancelOrganizationClosure,
+  canReactivateOrganization,
   validateLifecycleEvidenceRef,
   type OrganizationLifecycleStatus,
 } from '../domain/organization-lifecycle'
@@ -31,7 +34,7 @@ import { organizationId as toOrganizationId } from '#/shared/domain/ids'
 import { identityError } from '../domain/errors'
 import { setOrganizationPolicy } from './repositories/policy-state.repository'
 
-type ReceiptOperation = 'request' | 'cancel'
+type ReceiptOperation = 'request' | 'cancel' | 'reactivate'
 type Operation = ReceiptOperation | 'transition'
 type FaultStage = 'after_state_and_fence' | 'after_fact'
 
@@ -321,6 +324,118 @@ export const createOrganizationLifecycleCommandStore = (
     return result
   }
 
+  /**
+   * LIF-01-T18 — clear the post-closure fence.
+   *
+   * This is the mirror image of `requestClosure`: one transaction commits the
+   * cleared lifecycle evidence, the LIFTED Organization suspension and its new
+   * policy generation, the durable fact and the replay receipt. Readiness is
+   * the caller's obligation (see `reactivateOrganization`); the only decisions
+   * here are authority, the state precondition and the compare-and-set.
+   *
+   * Migration reservation note: migration 0159 shipped BEFORE this command
+   * existed, and two of its constructs still fence it —
+   *   1. `guard_organization_lifecycle_revision_v1` allows no `active ->
+   *      active` edge, and
+   *   2. `organization_lifecycle_receipt_operation_valid` allows only
+   *      'request' and 'cancel'.
+   * Both belong to the migration integrator (see the wiring note in the task
+   * report). Until that migration lands this method fails closed at the
+   * database rather than silently half-lifting the fence, which is the safe
+   * direction: an Organization that cannot prove reactivation stays fenced.
+   */
+  async function reactivate(
+    command: ReactivateOrganizationCommand,
+  ): Promise<OrganizationLifecycleStatus> {
+    let event: ReturnType<typeof identityOrganizationLifecycleChanged> | null = null
+    const result = await db.transaction(async (tx) => {
+      await lockOrganizationLifecycle(tx, command.organizationId)
+      await requireCurrentAccountAdmin(tx, command)
+      const replay = await replayReceipt(tx, {
+        ...command,
+        operation: 'reactivate',
+        reasonCode: ORGANIZATION_REACTIVATION_REASON_CODE,
+      })
+      if (replay) return replay
+
+      const current = await readAuthorityForUpdate(tx, command.organizationId)
+      const currentStatus = authorityStatus(current)
+      if (!canReactivateOrganization(currentStatus)) {
+        throw identityError(
+          'forbidden',
+          'Only an active Organization awaiting explicit reactivation can be reactivated',
+        )
+      }
+      // The readiness evidence describes ONE revision of this Organization. A
+      // concurrent closure request or operator transition invalidates it.
+      if (
+        currentStatus.revision !== command.expectedRevision ||
+        currentStatus.closureLineageId !== command.closureLineageId
+      ) {
+        throw identityError(
+          'organization_conflict',
+          'Organization lifecycle authority changed',
+        )
+      }
+      const supportEvidenceRef = validateLifecycleEvidenceRef(command.supportEvidenceRef)
+      const rows = await tx
+        .update(organizationLifecycleAuthority)
+        .set({
+          state: 'active',
+          revision: current.revision + 1,
+          // The `organization_lifecycle_state_shape` check requires an active
+          // row with `reactivation_required = false` to carry NO closure
+          // evidence, so the whole lineage clears together. The durable trail
+          // survives in the command receipts and the emitted facts.
+          closureLineageId: null,
+          closureRequestedAt: null,
+          recoverableUntil: null,
+          irreversibleAt: null,
+          closedAt: null,
+          reactivationRequired: false,
+          requestedBy: null,
+          requestReasonCode: null,
+          requestSupportEvidenceRef: null,
+          lastTransitionAt: command.now,
+          lastActorId: command.actorUserId,
+          lastReasonCode: ORGANIZATION_REACTIVATION_REASON_CODE,
+          lastSupportEvidenceRef: supportEvidenceRef,
+        })
+        .where(eq(organizationLifecycleAuthority.organizationId, command.organizationId))
+        .returning()
+      const status = authorityStatus(rows[0]!)
+
+      // Same transaction, same generation bump as the request that raised it.
+      // The 0159 policy fence permits this clear only because the authority
+      // row above already left the fenced shape.
+      await setOrganizationPolicy(tx, {
+        organizationId: command.organizationId,
+        suspendedAt: null,
+        suspendedReason: null,
+      })
+      await options.interrupt?.('after_state_and_fence', 'reactivate')
+
+      // The lineage and its recovery window describe the closure this
+      // reactivation closes out; the fact that distinguishes it from a cancel
+      // is `reactivationRequired: false`.
+      event = identityOrganizationLifecycleChanged({
+        organizationId: toOrganizationId(command.organizationId),
+        closureLineageId: command.closureLineageId,
+        state: status.state,
+        revision: status.revision,
+        reactivationRequired: status.reactivationRequired,
+        recoverableUntil: currentStatus.recoverableUntil!,
+        occurredAt: command.now,
+      })
+      await insertOutboxRow(tx, event, { recordedAt: command.now })
+      await writeReceipt(tx, command.operationId, 'reactivate', status)
+      await options.interrupt?.('after_fact', 'reactivate')
+      return status
+    })
+    if (event) await emitAfterCommit(events, event)
+    return result
+  }
+
   async function transition(
     command: TransitionOrganizationLifecycleCommand,
   ): Promise<OrganizationLifecycleStatus> {
@@ -399,6 +514,7 @@ export const createOrganizationLifecycleCommandStore = (
   return {
     requestClosure,
     cancelClosure,
+    reactivate,
     transition,
     getAuthority: async (organizationId) =>
       db.transaction(async (tx) => {

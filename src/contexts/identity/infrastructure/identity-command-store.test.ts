@@ -115,6 +115,9 @@ function createMockDb(opts: {
       }
       order.push('tx.state')
       opts.executedRows?.push(flat)
+      // Raw statements that RETURN rows (the LIF-01-T21 grant revocation)
+      // read `.rows`; the mock answers with an empty result set.
+      return { rows: [] }
     }),
     select: vi.fn(() => {
       order.push('tx.read')
@@ -635,7 +638,7 @@ describe('createAtomicIdentityCommandStore', () => {
       }),
     })
 
-    it('atomically releases the binding, revokes sessions, deletes the member, and records the fact', async () => {
+    it('atomically releases the binding, revokes sessions and grants, deletes the member, and records the fact', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const updateSets: Array<Record<string, unknown>> = []
@@ -661,10 +664,14 @@ describe('createAtomicIdentityCommandStore', () => {
 
       expect(outboxRows).toHaveLength(1)
       expect(outboxRows[0]!.eventType).toBe('identity.member.removed')
+      // sessions delete, binding release, LIF-01-T21 grant revocation and the
+      // member delete are four state writes in the ONE transaction that also
+      // records the fact.
       expect(order).toEqual([
         'tx.start',
         'tx.lock',
         'tx.read',
+        'tx.state',
         'tx.state',
         'tx.state',
         'tx.state',
