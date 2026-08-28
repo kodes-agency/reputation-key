@@ -28,7 +28,7 @@ describe('databaseIdentity', () => {
   })
 
   it('decodes a percent-encoded database name', () => {
-    expect(databaseIdentity('postgresql://u:p@localhost/rep%20key').database).toBe(
+    expect(databaseIdentity('postgresql://u:p@localhost/rep%20key')?.database).toBe(
       'rep key',
     )
   })
