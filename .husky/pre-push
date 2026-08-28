@@ -14,3 +14,15 @@ case "$changed" in
     pnpm check:google-provider-fixtures
   ;;
 esac
+
+# LEG-01: the legal registry gate binds counsel approval to document bytes, so
+# editing a legal draft without refreshing its digest — or moving a row to
+# `approved` without a named external counsel — must fail here rather than
+# reach CI. Same conditional shape as above: a push that touches neither the
+# documents nor the approval authority pays nothing for it.
+case "$changed" in
+*docs/legal/* | *src/shared/governance/legal-*)
+  echo "pre-push: legal documents or approval authority touched — running the legal registry gate"
+  pnpm check:legal-registry
+  ;;
+esac

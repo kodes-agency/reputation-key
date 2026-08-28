@@ -18,6 +18,11 @@ import {
   parseRecoveryRehearsalEvidence,
   recoveryRehearsalDependencyDigests,
 } from './recovery-rehearsal-evidence'
+import {
+  DEFAULT_LEGAL_REVISION_SET_CONTEXT,
+  parseLegalRevisionSetEvidence,
+  type LegalRevisionSetContext,
+} from './legal-revision-set-evidence'
 
 export const GATE_F_EVIDENCE_VERSION = 'repkey-gate-f-evidence-1' as const
 
@@ -358,6 +363,7 @@ function validateTypedPromotionArtifact(input: {
   referencedAt: string
   candidate: ReleaseCandidateBinding
   retainedDigests: ReadonlySet<string>
+  legalRevisionSet: LegalRevisionSetContext
 }): readonly string[] {
   let evidence:
     | Readonly<{
@@ -368,7 +374,21 @@ function validateTypedPromotionArtifact(input: {
     | undefined
   let dependencyDigests: readonly string[] = []
   let parseErrors: readonly string[] = []
-  if (input.label === 'gates.promotion.deployed_critical_journeys.evidence.0') {
+  /**
+   * `release.legalRevisionSet` is a RELEASE-level artifact: it has no owning
+   * gate, so there is no retained-digest set to check its dependencies
+   * against. Until LEG-01 it also had no type at all — Gate F accepted any
+   * bytes under this label, which made "no external beta before counsel
+   * approval" unenforceable. It is typed here, and only the dependency-
+   * retention step is skipped.
+   */
+  let skipDependencyRetention = false
+  if (input.label === 'release.legalRevisionSet') {
+    skipDependencyRetention = true
+    const parsed = parseLegalRevisionSetEvidence(input.content, input.legalRevisionSet)
+    if (parsed.ok) evidence = parsed.evidence
+    else parseErrors = parsed.errors
+  } else if (input.label === 'gates.promotion.deployed_critical_journeys.evidence.0') {
     const parsed = parseDeployedCriticalJourneyEvidence(input.content)
     if (parsed.ok) {
       evidence = parsed.evidence
@@ -393,9 +413,11 @@ function validateTypedPromotionArtifact(input: {
   const errors = candidateBindingErrors(evidence.candidate, input.candidate).map(
     (error) => `${input.label}: ${error}`,
   )
-  for (const digest of new Set(dependencyDigests)) {
-    if (!input.retainedDigests.has(digest)) {
-      errors.push(`${input.label}: dependency ${digest} is not retained by this gate`)
+  if (!skipDependencyRetention) {
+    for (const digest of new Set(dependencyDigests)) {
+      if (!input.retainedDigests.has(digest)) {
+        errors.push(`${input.label}: dependency ${digest} is not retained by this gate`)
+      }
     }
   }
   if (evidence.outcome !== 'passed') {
@@ -411,10 +433,18 @@ function validateTypedPromotionArtifact(input: {
  * Validate the canonical index plus every byte-bound evidence reference.
  * `readEvidence` owns root containment; the repository CLI supplies a
  * path-contained implementation.
+ *
+ * `legalRevisionSet` defaults to the SHIPPED legal document registry, which
+ * is the honest default: while every counsel-owned row is a draft, no Gate F
+ * bundle can validate. It is injectable for the same reason
+ * `legal-approval-authority.ts` injects its reader — the rules have to be
+ * exercisable against a hypothetically-approved registry — and the CLI never
+ * passes it.
  */
 export function validateGateFEvidenceBundle(
   content: string,
   readEvidence: (path: string) => Uint8Array,
+  legalRevisionSet: LegalRevisionSetContext = DEFAULT_LEGAL_REVISION_SET_CONTEXT,
 ): GateFEvidenceValidationResult {
   const parsed = parseGateFEvidence(content)
   if (!parsed.ok) return parsed
@@ -465,6 +495,7 @@ export function validateGateFEvidenceBundle(
         referencedAt: reference.capturedAt,
         candidate: expectedCandidate,
         retainedDigests: retainedGateDigests.get(label) ?? new Set<string>(),
+        legalRevisionSet,
       }),
     )
     if (label === 'release.manifest') {

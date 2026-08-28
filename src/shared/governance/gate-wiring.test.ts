@@ -115,6 +115,41 @@ describe('coverage and changed-code gates', () => {
   })
 })
 
+describe('legal approval gate', () => {
+  // LEG-01: `check:legal-registry` binds counsel approval to document bytes.
+  // A validator nothing runs is not a gate, so the wiring is pinned in three
+  // places — the script itself, the CI lint chain, and the pre-push hook —
+  // and the producer script is pinned so it cannot be silently deleted.
+  it('keeps the registry checker addressable under its exact command', () => {
+    expect(packageJson.scripts['check:legal-registry']).toBe(
+      'tsx scripts/review/legal-document-registry.ts',
+    )
+    expect(packageJson.scripts['release:create-legal-revision-set']).toBe(
+      'tsx scripts/release/create-legal-revision-set.ts',
+    )
+  })
+
+  it('runs the legal registry gate in the CI lint chain', () => {
+    expect(packageJson.scripts['lint:ci']).toContain('check:legal-registry')
+    // Still a strict superset of the fast local lint, so nothing added to
+    // `lint` can escape CI and nothing added here can escape `lint:ci`.
+    expect(packageJson.scripts['lint:ci']).toMatch(/^pnpm lint\s+&&\s+\S/)
+  })
+
+  it('runs the legal registry gate on pre-push when legal inputs change', () => {
+    // Same conditional-artifact-gate pattern as the AI/Google attestations: a
+    // normal push pays nothing, a push that edits a legal document or the
+    // approval authority fails in seconds instead of later in CI.
+    expect(prePush).toContain('*docs/legal/*')
+    expect(prePush).toContain('*src/shared/governance/legal-*')
+    expect(prePush).toContain('pnpm check:legal-registry')
+  })
+
+  it('reaches CI through the existing lint:ci step rather than a new workflow step', () => {
+    expect(ciWorkflow).toContain('run: pnpm lint:ci')
+  })
+})
+
 describe('local hooks', () => {
   it('typechecks on pre-push, including the release scripts project', () => {
     expect(prePush).toContain('pnpm typecheck')
