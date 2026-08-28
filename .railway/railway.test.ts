@@ -14,6 +14,10 @@ import { AI_ADMISSION_REQUIRED_ENVIRONMENT_NAMES } from '../services/ai-executio
 import { GOOGLE_ADMISSION_REQUIRED_ENVIRONMENT_NAMES } from '../services/google-execution-admission/environment'
 import { GOOGLE_GATEWAY_REQUIRED_ENVIRONMENT_NAMES } from '../services/google-egress-gateway/environment'
 import {
+  PRODUCTION_RAILWAY_PROJECT_NAME,
+  REHEARSAL_RAILWAY_PROJECT_NAME,
+} from '../src/shared/release/railway-deployment-profile'
+import {
   CELL_TOPOLOGIES,
   RAILWAY_CELL_ENVIRONMENTS,
   resolveCellTopology,
@@ -23,6 +27,16 @@ import {
   reconcileLegacyConfigOwnership,
 } from './legacy-config-ownership'
 import { buildRailwayProject } from './railway'
+import {
+  CANONICAL_RAILWAY_FOUNDATION_SOURCE_INPUT,
+  canonicalRailwayServiceSourceInput,
+  parseRailwayServiceSourceInput,
+  RAILWAY_FOUNDATION_SOURCE_INPUT,
+  RAILWAY_SERVICE_SOURCE_MAP_ENV,
+  RAILWAY_SERVICE_SOURCE_MAP_VERSION,
+  RAILWAY_SOURCE_MANAGED_SERVICES,
+  type RailwayServiceSourceInput,
+} from './service-source-map'
 
 const REPOSITORY_ROOT = fileURLToPath(new URL('..', import.meta.url))
 
@@ -40,7 +54,7 @@ describe('Railway CLI module evaluation', () => {
     expect(result.status, result.stderr).toBe(0)
   })
 
-  it('evaluates an explicitly selected Data Cell when the CLI supplies an empty context', () => {
+  it('renders from the reviewed policy name when ID-pinned CLI context omits names', () => {
     const result = spawnSync(
       process.execPath,
       [
@@ -58,12 +72,194 @@ describe('Railway CLI module evaluation', () => {
         env: {
           ...process.env,
           REPKEY_RAILWAY_CELL_ENVIRONMENT: 'cell-us',
+          REPKEY_RAILWAY_DEPLOYMENT_PROFILE: 'production',
+          REPKEY_RAILWAY_PROJECT_NAME: PRODUCTION_RAILWAY_PROJECT_NAME,
+          [RAILWAY_SERVICE_SOURCE_MAP_ENV]: CANONICAL_RAILWAY_FOUNDATION_SOURCE_INPUT,
         },
       },
     )
 
     expect(result.status, result.stderr).toBe(0)
-    expect(JSON.parse(result.stdout)).toMatchObject({ name: 'repkey-data-cells' })
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      name: PRODUCTION_RAILWAY_PROJECT_NAME,
+    })
+  })
+
+  it('refuses disagreement between a CLI-provided and reviewed project name', () => {
+    expect(() =>
+      buildRailwayProject(
+        createRailwayContext({
+          projectName: PRODUCTION_RAILWAY_PROJECT_NAME,
+          environmentName: 'cell-us',
+        }),
+        'cell-us',
+        'production',
+        RAILWAY_FOUNDATION_SOURCE_INPUT,
+        REHEARSAL_RAILWAY_PROJECT_NAME,
+      ),
+    ).toThrow('Railway project identity mismatch')
+  })
+
+  it('refuses to render a valid target without an explicit source stage', () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        [
+          "const module = await import('./.railway/railway.ts')",
+          `const graph = await module.default({ projectName: ${JSON.stringify(PRODUCTION_RAILWAY_PROJECT_NAME)}, environmentName: 'cell-us' })`,
+          'process.stdout.write(JSON.stringify(graph))',
+        ].join(';'),
+      ],
+      {
+        cwd: REPOSITORY_ROOT,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          REPKEY_RAILWAY_CELL_ENVIRONMENT: 'cell-us',
+          REPKEY_RAILWAY_DEPLOYMENT_PROFILE: 'production',
+          [RAILWAY_SERVICE_SOURCE_MAP_ENV]: undefined,
+        },
+      },
+    )
+
+    expect(result.status).not.toBe(0)
+    expect(result.stderr).toContain(`${RAILWAY_SERVICE_SOURCE_MAP_ENV} is required`)
+  })
+
+  it('renders an explicit target with the canonical foundation input', () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        [
+          "const module = await import('./.railway/railway.ts')",
+          `const graph = await module.default({ projectName: ${JSON.stringify(PRODUCTION_RAILWAY_PROJECT_NAME)}, environmentName: 'cell-us' })`,
+          'process.stdout.write(JSON.stringify(graph))',
+        ].join(';'),
+      ],
+      {
+        cwd: REPOSITORY_ROOT,
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          REPKEY_RAILWAY_CELL_ENVIRONMENT: 'cell-us',
+          REPKEY_RAILWAY_DEPLOYMENT_PROFILE: 'production',
+          [RAILWAY_SERVICE_SOURCE_MAP_ENV]: CANONICAL_RAILWAY_FOUNDATION_SOURCE_INPUT,
+        },
+      },
+    )
+
+    expect(result.status, result.stderr).toBe(0)
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      name: PRODUCTION_RAILWAY_PROJECT_NAME,
+    })
+  })
+})
+
+const promotedSources = Object.freeze(
+  Object.fromEntries(
+    RAILWAY_SOURCE_MANAGED_SERVICES.map((serviceName, index) => [
+      serviceName,
+      `ghcr.io/reputation-key/${serviceName}@sha256:${String(index + 1).repeat(64)}`,
+    ]),
+  ),
+) as Readonly<Record<(typeof RAILWAY_SOURCE_MANAGED_SERVICES)[number], string>>
+
+const PROMOTION_SOURCE_INPUT = Object.freeze({
+  version: RAILWAY_SERVICE_SOURCE_MAP_VERSION,
+  stage: 'promotion',
+  sources: promotedSources,
+} as const satisfies RailwayServiceSourceInput)
+
+describe('Railway staged service-source contract', () => {
+  it('accepts only an explicit canonical foundation or digest-pinned promotion map', () => {
+    expect(
+      parseRailwayServiceSourceInput(CANONICAL_RAILWAY_FOUNDATION_SOURCE_INPUT),
+    ).toEqual(RAILWAY_FOUNDATION_SOURCE_INPUT)
+
+    const canonicalPromotion = canonicalRailwayServiceSourceInput(PROMOTION_SOURCE_INPUT)
+    expect(parseRailwayServiceSourceInput(canonicalPromotion)).toEqual(
+      PROMOTION_SOURCE_INPUT,
+    )
+  })
+
+  it('supports a canonical partial map for one-service-at-a-time promotion', () => {
+    const partial = {
+      version: RAILWAY_SERVICE_SOURCE_MAP_VERSION,
+      stage: 'promotion',
+      sources: { 'schema-migrator': promotedSources['schema-migrator'] },
+    } as const satisfies RailwayServiceSourceInput
+
+    expect(
+      parseRailwayServiceSourceInput(canonicalRailwayServiceSourceInput(partial)),
+    ).toEqual(partial)
+  })
+
+  it.each([
+    { input: undefined, expected: /is required/ },
+    { input: '', expected: /is required/ },
+    { input: '{}', expected: /has non-canonical fields or order/ },
+    {
+      input: JSON.stringify({
+        version: RAILWAY_SERVICE_SOURCE_MAP_VERSION,
+        stage: 'foundation',
+        sources: { web: promotedSources.web },
+      }),
+      expected: /must not contain service sources/,
+    },
+    {
+      input: JSON.stringify({
+        version: RAILWAY_SERVICE_SOURCE_MAP_VERSION,
+        stage: 'promotion',
+        sources: {},
+      }),
+      expected: /must contain at least one service source/,
+    },
+    {
+      input: JSON.stringify({
+        version: RAILWAY_SERVICE_SOURCE_MAP_VERSION,
+        stage: 'promotion',
+        sources: { web: 'ghcr.io/reputation-key/web:mutable' },
+      }),
+      expected: /must be an approved registry image pinned by lowercase sha256 digest/,
+    },
+    {
+      input: JSON.stringify({
+        version: RAILWAY_SERVICE_SOURCE_MAP_VERSION,
+        stage: 'promotion',
+        sources: { web: promotedSources.web },
+      }),
+      expected: /must be a canonical prefix of the staged deployment order/,
+    },
+    {
+      input: JSON.stringify({
+        version: RAILWAY_SERVICE_SOURCE_MAP_VERSION,
+        stage: 'promotion',
+        sources: { unexpected: promotedSources.web },
+      }),
+      expected: /contains an unsupported service/,
+    },
+  ])('rejects missing, noncanonical, or unsafe input %#', ({ input, expected }) => {
+    expect(() => parseRailwayServiceSourceInput(input)).toThrow(expected)
+  })
+
+  it('rejects semantically valid JSON whose byte encoding is not canonical', () => {
+    const canonical = canonicalRailwayServiceSourceInput(PROMOTION_SOURCE_INPUT)
+    expect(() => parseRailwayServiceSourceInput(`${canonical}\n`)).toThrow(
+      'must use canonical encoding',
+    )
+    expect(() =>
+      parseRailwayServiceSourceInput(
+        JSON.stringify({
+          sources: promotedSources,
+          stage: 'promotion',
+          version: RAILWAY_SERVICE_SOURCE_MAP_VERSION,
+        }),
+      ),
+    ).toThrow('non-canonical fields or order')
   })
 })
 
@@ -83,12 +279,22 @@ function resource<T extends ResourceNode['type']>(
   return found as Extract<ResourceNode, { type: T }>
 }
 
-function build(environment: string): ProjectDefinition {
+function build(
+  environment: string,
+  deploymentProfile: 'production' | 'rehearsal' = 'production',
+  sourceInput: RailwayServiceSourceInput = RAILWAY_FOUNDATION_SOURCE_INPUT,
+): ProjectDefinition {
   return buildRailwayProject(
     createRailwayContext({
-      projectName: 'repkey-test',
+      projectName:
+        deploymentProfile === 'production'
+          ? PRODUCTION_RAILWAY_PROJECT_NAME
+          : REHEARSAL_RAILWAY_PROJECT_NAME,
       environmentName: environment,
     }),
+    undefined,
+    deploymentProfile,
+    sourceInput,
   )
 }
 
@@ -97,28 +303,32 @@ function variableNames(service: ServiceNode): string[] {
 }
 
 describe('Railway Data Cell catalogue', () => {
-  it('has one explicit physical placement and domain per logical cell', () => {
-    expect(RAILWAY_CELL_ENVIRONMENTS).toEqual(['cell-us', 'cell-europe', 'cell-global'])
-    expect(CELL_TOPOLOGIES).toMatchObject({
+  it('renders only the single US West beta deployment', () => {
+    expect(RAILWAY_CELL_ENVIRONMENTS).toEqual(['cell-us'])
+    expect(CELL_TOPOLOGIES).toEqual({
       'cell-us': {
+        cellId: 'us',
+        environment: 'cell-us',
         serviceRegion: 'us-west2',
         bucketRegion: 'sjc',
         publicDomain: 'us.reputationkey.app',
-      },
-      'cell-europe': {
-        serviceRegion: 'europe-west4-drams3a',
-        bucketRegion: 'ams',
-        publicDomain: 'eu.reputationkey.app',
-      },
-      'cell-global': {
-        serviceRegion: 'asia-southeast1-eqsg3a',
-        bucketRegion: 'sin',
-        publicDomain: 'global.reputationkey.app',
+        providerProfile: 'gbp-production-fixed',
       },
     })
   })
 
-  it.each([undefined, '', 'production', 'staging', 'cell-eu'])(
+  it.each([
+    undefined,
+    '',
+    'production',
+    'staging',
+    'cell-eu',
+    'cell-europe',
+    'cell-global',
+    'constructor',
+    'toString',
+    '__proto__',
+  ])(
     'refuses unsupported or implicit environment %s instead of falling back',
     (environment) => {
       expect(() => resolveCellTopology(environment)).toThrow(
@@ -126,6 +336,67 @@ describe('Railway Data Cell catalogue', () => {
       )
     },
   )
+
+  it('requires an explicit deployment profile', () => {
+    expect(() =>
+      buildRailwayProject(
+        createRailwayContext({
+          projectName: 'repkey-test',
+          environmentName: 'cell-us',
+        }),
+      ),
+    ).toThrow('Railway deployment profile must be one of production, rehearsal')
+  })
+
+  it('refuses production and rehearsal profiles in the wrong Railway project', () => {
+    expect(() =>
+      buildRailwayProject(
+        createRailwayContext({
+          projectName: REHEARSAL_RAILWAY_PROJECT_NAME,
+          environmentName: 'cell-us',
+        }),
+        undefined,
+        'production',
+      ),
+    ).toThrow('Railway project mismatch for production')
+    expect(() =>
+      buildRailwayProject(
+        createRailwayContext({
+          projectName: PRODUCTION_RAILWAY_PROJECT_NAME,
+          environmentName: 'cell-us',
+        }),
+        undefined,
+        'rehearsal',
+      ),
+    ).toThrow('Railway project mismatch for rehearsal')
+  })
+
+  it('adds the production hostname only after the source-less foundation', () => {
+    const foundationWeb = resource(
+      build('cell-us', 'production'),
+      'service',
+      'web',
+    ) as ServiceNode
+    const productionWeb = resource(
+      build('cell-us', 'production', PROMOTION_SOURCE_INPUT),
+      'service',
+      'web',
+    ) as ServiceNode
+    const rehearsal = build('cell-us', 'rehearsal')
+    const rehearsalWeb = resource(rehearsal, 'service', 'web') as ServiceNode
+    const rehearsalWorker = resource(rehearsal, 'service', 'worker') as ServiceNode
+
+    expect(foundationWeb.networking?.customDomains).toBeUndefined()
+    expect(productionWeb.networking?.customDomains).toHaveProperty('us.reputationkey.app')
+    expect(rehearsalWeb.networking?.customDomains).toBeUndefined()
+    expect(rehearsalWeb.variables?.BETTER_AUTH_URL).toMatchObject({
+      type: 'sharedReference',
+      name: 'REHEARSAL_APP_URL',
+    })
+    expect(rehearsalWorker.variables?.BETTER_AUTH_URL).toEqual(
+      rehearsalWeb.variables?.BETTER_AUTH_URL,
+    )
+  })
 })
 
 describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
@@ -134,6 +405,7 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
 
   it('co-locates every service and stateful resource', () => {
     const expectedServices = [
+      'schema-migrator',
       'web',
       'worker',
       'google-provider-redis',
@@ -145,8 +417,8 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
     for (const name of expectedServices) {
       const node = resource(definition, 'service', name) as ServiceNode
       expect(node.deploy?.region).toBe(topology.serviceRegion)
-      // IaC owns topology/settings; REG-03's signed release manifest owns the
-      // immutable image digest, so the graph must not reintroduce Git builds.
+      // The explicit foundation stage provisions topology without runnable
+      // bytes. A later source-map stage attaches exact immutable digests.
       expect(node.source).toBeUndefined()
     }
     for (const name of ['Postgres', 'Cache Redis', 'Queue Redis']) {
@@ -175,10 +447,10 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
     ])
   })
 
-  it('pins the cell identity, domain, database, Redis split, and bucket references', () => {
+  it('pins the cell identity, database, Redis split, and bucket references', () => {
     const web = resource(definition, 'service', 'web') as ServiceNode
     const worker = resource(definition, 'service', 'worker') as ServiceNode
-    expect(web.networking?.customDomains).toHaveProperty(topology.publicDomain)
+    expect(web.networking?.customDomains).toBeUndefined()
     expect(web.variables?.BETTER_AUTH_URL).toMatchObject({
       type: 'literal',
       value: `https://${topology.publicDomain}`,
@@ -235,6 +507,54 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
     )
   })
 
+  it('keeps the signed schema bootstrap one-shot and least-privileged', () => {
+    const migrator = resource(definition, 'service', 'schema-migrator') as ServiceNode
+
+    expect(migrator.source).toBeUndefined()
+    expect(migrator.build).toBeUndefined()
+    expect(migrator.networking).toBeUndefined()
+    expect(migrator.volumeAttachments).toBeUndefined()
+    expect(migrator.deploy).toEqual({
+      numReplicas: 1,
+      restartPolicyType: 'NEVER',
+      region: topology.serviceRegion,
+      startCommand: 'node dist-worker/migrate-deploy.js',
+    })
+    expect(variableNames(migrator)).toEqual(
+      [
+        'BETTER_AUTH_SECRET',
+        'DATABASE_URL',
+        'NODE_ENV',
+        'PROCESSING_CELL',
+        'REPKEY_RAILWAY_DEPLOYMENT_PROFILE',
+        'REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS',
+      ].sort(),
+    )
+    expect(migrator.variables?.DATABASE_URL).toMatchObject({
+      type: 'reference',
+      resource: 'database.Postgres',
+      output: 'DATABASE_URL',
+    })
+    for (const forbidden of [
+      'REDIS_URL',
+      'QUEUE_REDIS_URL',
+      'PROVIDER_EPHEMERAL_REDIS_URL',
+      'AWS_S3_ACCESS_KEY',
+      'AWS_S3_SECRET_ACCESS_KEY',
+      'AWS_S3_BUCKET_NAME',
+      'GOOGLE_CLIENT_SECRET',
+      'OPENAI_API_KEY',
+    ]) {
+      expect(migrator.variables).not.toHaveProperty(forbidden)
+    }
+    expect(
+      (resource(definition, 'service', 'web') as ServiceNode).variables,
+    ).not.toHaveProperty('REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS')
+    expect(
+      (resource(definition, 'service', 'worker') as ServiceNode).variables,
+    ).not.toHaveProperty('REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS')
+  })
+
   it('matches the exact admission and AI gateway process allowlists', () => {
     const googleAdmission = resource(
       definition,
@@ -274,6 +594,8 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
         ),
         'PROVIDER_REDIS_TLS_CA_PEM',
         'RELEASE_MANIFEST_SHA256',
+        'SENTRY_DSN',
+        'SENTRY_TRACES_SAMPLE_RATE',
       ].sort(),
     )
     expect(variableNames(googleGateway)).toEqual(
@@ -282,20 +604,70 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
           (name) => name !== 'IMAGE_SOURCE_REVISION',
         ),
         'RELEASE_MANIFEST_SHA256',
+        'SENTRY_DSN',
+        'SENTRY_TRACES_SAMPLE_RATE',
       ].sort(),
     )
     expect(variableNames(aiAdmission)).toEqual(
-      [...AI_ADMISSION_REQUIRED_ENVIRONMENT_NAMES, 'RELEASE_MANIFEST_SHA256'].sort(),
+      [
+        ...AI_ADMISSION_REQUIRED_ENVIRONMENT_NAMES,
+        'RELEASE_MANIFEST_SHA256',
+        'SENTRY_DSN',
+        'SENTRY_TRACES_SAMPLE_RATE',
+      ].sort(),
     )
     expect(variableNames(aiGateway)).toEqual(
-      [...AI_GATEWAY_REQUIRED_ENVIRONMENT_NAMES, 'RELEASE_MANIFEST_SHA256'].sort(),
+      [
+        ...AI_GATEWAY_REQUIRED_ENVIRONMENT_NAMES,
+        'RELEASE_MANIFEST_SHA256',
+        'SENTRY_DSN',
+        'SENTRY_TRACES_SAMPLE_RATE',
+      ].sort(),
     )
   })
 
-  it('owns deploy configuration while signed promotion exclusively owns image source', () => {
+  it('exposes one ordinary health port while retaining protected sidecar mTLS', () => {
+    for (const name of [
+      'google-execution-admission',
+      'google-egress-gateway',
+      'ai-execution-admission',
+      'ai-egress-gateway',
+    ]) {
+      const sidecar = resource(definition, 'service', name) as ServiceNode
+      expect(sidecar.deploy, name).toMatchObject({
+        healthcheckPath: '/health/ready',
+        healthcheckTimeout: 30,
+        numReplicas: 1,
+        region: topology.serviceRegion,
+      })
+      expect(sidecar.variables?.PORT, name).toMatchObject({
+        type: 'literal',
+        value: '8080',
+      })
+      expect(sidecar.variables?.INTERNAL_MTLS_PORT, name).toMatchObject({
+        type: 'literal',
+        value: '8443',
+      })
+      expect(sidecar.variables?.PROCESSING_CELL, name).toMatchObject({
+        type: 'literal',
+        value: 'us',
+      })
+      expect(sidecar.variables?.SENTRY_DSN, name).toMatchObject({
+        type: 'sharedReference',
+        name: 'SENTRY_DSN',
+      })
+      expect(sidecar.variables?.SENTRY_TRACES_SAMPLE_RATE, name).toMatchObject({
+        type: 'sharedReference',
+        name: 'SENTRY_TRACES_SAMPLE_RATE',
+      })
+    }
+  })
+
+  it('renders the explicit foundation with no service source or build', () => {
     const web = resource(definition, 'service', 'web') as ServiceNode
     const worker = resource(definition, 'service', 'worker') as ServiceNode
     for (const name of [
+      'schema-migrator',
       'web',
       'worker',
       'google-provider-redis',
@@ -325,13 +697,74 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
       drainingSeconds: 30,
     })
   })
+
+  it('owns every populated service source as an exact immutable image', () => {
+    const promoted = build(environment, 'production', PROMOTION_SOURCE_INPUT)
+    const promotedWeb = resource(promoted, 'service', 'web') as ServiceNode
+
+    expect(promotedWeb.networking?.customDomains).toHaveProperty(topology.publicDomain)
+
+    for (const name of RAILWAY_SOURCE_MANAGED_SERVICES) {
+      const node = resource(promoted, 'service', name) as ServiceNode
+      expect(node.kind, name).toBe('docker-image')
+      expect(node.source, name).toEqual({
+        type: 'image',
+        image: promotedSources[name],
+      })
+      expect(node.build, name).toBeUndefined()
+    }
+  })
+
+  it('keeps omitted services source-less during a staged promotion', () => {
+    const schemaOnly = build(environment, 'production', {
+      version: RAILWAY_SERVICE_SOURCE_MAP_VERSION,
+      stage: 'promotion',
+      sources: { 'schema-migrator': promotedSources['schema-migrator'] },
+    })
+
+    for (const name of RAILWAY_SOURCE_MANAGED_SERVICES) {
+      const node = resource(schemaOnly, 'service', name) as ServiceNode
+      if (name === 'schema-migrator') {
+        expect(node.source).toEqual({
+          type: 'image',
+          image: promotedSources[name],
+        })
+      } else {
+        expect(node.source, name).toBeUndefined()
+      }
+    }
+  })
+
+  it('preserves release-controller identity on every serving service', () => {
+    const servingServices = [
+      'web',
+      'worker',
+      'google-provider-redis',
+      'google-execution-admission',
+      'google-egress-gateway',
+      'ai-execution-admission',
+      'ai-egress-gateway',
+    ]
+
+    for (const name of servingServices) {
+      const node = resource(definition, 'service', name) as ServiceNode
+      expect(node.variables?.RELEASE_SHA, name).toEqual({ type: 'preserve' })
+      expect(node.variables?.RELEASE_MANIFEST_SHA256, name).toEqual({
+        type: 'preserve',
+      })
+    }
+
+    const migrator = resource(definition, 'service', 'schema-migrator') as ServiceNode
+    expect(migrator.variables).not.toHaveProperty('RELEASE_SHA')
+    expect(migrator.variables).not.toHaveProperty('RELEASE_MANIFEST_SHA256')
+  })
 })
 
 describe('legacy Config-as-Code ownership', () => {
   // REG-02: the cutover removes root railway*.json only once Railway stops
   // reporting a Config File owner, so until then the two ownership sets have to
   // be reconciled against the rendered graph rather than a hand-kept list.
-  const graphServices = resources(build('cell-europe'))
+  const graphServices = resources(build('cell-us'))
     .filter((node) => node.type === 'service')
     .map((node) => node.name)
 

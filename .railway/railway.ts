@@ -3,7 +3,9 @@ import {
   createRailwayContext,
   defineRailway,
   group,
+  image,
   postgres,
+  preserve,
   project,
   redis,
   ref,
@@ -13,6 +15,17 @@ import {
   type VariableValue,
 } from 'railway/iac'
 import { resolveCellTopology } from './cell-topology.ts'
+import {
+  assertRailwayProjectNameForProfile,
+  REPKEY_RAILWAY_PROJECT_NAME_ENV,
+  requireRailwayDeploymentProfile,
+} from '../src/shared/release/railway-deployment-profile.ts'
+import {
+  parseRailwayServiceSourceInput,
+  RAILWAY_SERVICE_SOURCE_MAP_ENV,
+  type RailwayServiceSourceInput,
+  type RailwaySourceManagedService,
+} from './service-source-map.ts'
 
 const APPLICATION_SHARED_VARIABLES = [
   'BETTER_AUTH_SECRET',
@@ -21,8 +34,6 @@ const APPLICATION_SHARED_VARIABLES = [
   'NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS',
   'EMAIL_FROM',
   'OPS_METRICS_TOKEN',
-  'RELEASE_SHA',
-  'RELEASE_MANIFEST_SHA256',
   'ALERT_WEBHOOK_URL',
   'OPS_OPERATOR_IDENTITIES',
   'LOG_LEVEL',
@@ -85,8 +96,6 @@ const AI_GATEWAY_SHARED_VARIABLES = [
   'AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST',
   'AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST',
   'AI_GATEWAY_BUILD_ATTESTATION_DIGEST',
-  'RELEASE_SHA',
-  'RELEASE_MANIFEST_SHA256',
 ] as const
 
 const AI_ADMISSION_SHARED_VARIABLES = [
@@ -100,8 +109,6 @@ const AI_ADMISSION_SHARED_VARIABLES = [
   'AI_PROVIDER_DEPLOYMENT_PROFILE_VERSION',
   'AI_PROVIDER_DEPLOYMENT_PROFILE_DIGEST',
   'AI_RUNTIME_CAPABILITY_CATALOGUE_DIGEST',
-  'RELEASE_SHA',
-  'RELEASE_MANIFEST_SHA256',
 ] as const
 
 function sharedVariables(
@@ -109,6 +116,18 @@ function sharedVariables(
   names: readonly string[],
 ): Record<string, VariableValue> {
   return Object.fromEntries(names.map((name) => [name, ctx.shared[name]]))
+}
+
+// The signed release controller writes these values per service immediately
+// before the saved IaC plan advances the immutable image digest. IaC declares
+// their existence, but must preserve the live controller-owned values so a
+// later config plan/apply neither reports drift nor replaces release identity
+// with an environment-level shared reference.
+function releaseControlledVariables(): Record<string, VariableValue> {
+  return {
+    RELEASE_SHA: preserve(),
+    RELEASE_MANIFEST_SHA256: preserve(),
+  }
 }
 
 function appTlsVariables(ctx: RailwayContext, process: 'WEB' | 'WORKER') {
@@ -134,16 +153,49 @@ const servingDeploy = (region: string, drainingSeconds: number) => ({
   region,
 })
 
-// REG-03 deliberately leaves application source/build ownership out of this
-// infrastructure graph. `release:beta` connects a signed registry digest after
-// the graph provisions each empty service and owns its deploy, networking,
-// variables, and resource references. A Dockerfile build here would let a later
-// `config apply` silently replace promoted bytes.
+const sidecarDeploy = (region: string, drainingSeconds: number) => ({
+  ...servingDeploy(region, drainingSeconds),
+  healthcheckPath: '/health/ready',
+  healthcheckTimeout: 30,
+})
+
+function sidecarOperationalVariables(
+  ctx: RailwayContext,
+  cellId: string,
+  host: '0.0.0.0' | '::',
+): Record<string, string | VariableValue> {
+  return {
+    HOST: host,
+    // Railway probes the ordinary HTTP listener selected by PORT. Protected
+    // application/admission traffic stays on the distinct private mTLS port.
+    PORT: '8080',
+    INTERNAL_MTLS_PORT: '8443',
+    PROCESSING_CELL: cellId,
+    SENTRY_DSN: ctx.shared.SENTRY_DSN,
+    SENTRY_TRACES_SAMPLE_RATE: ctx.shared.SENTRY_TRACES_SAMPLE_RATE,
+  }
+}
+
+function railwayServiceSource(
+  sourceInput: RailwayServiceSourceInput,
+  serviceName: RailwaySourceManagedService,
+) {
+  const reference = sourceInput.sources[serviceName]
+  return reference === undefined ? undefined : image(reference)
+}
+
+// REG-03 gives this environment graph sole source ownership. Foundation
+// provisioning is explicitly source-less; every populated promotion entry is
+// an immutable registry digest. GitHub/local/mutable-tag sources remain
+// impossible through this contract.
 
 /** Exported for offline topology/allowlist tests; the CLI consumes the default. */
 export function buildRailwayProject(
   ctx: RailwayContext,
   requestedEnvironment?: string,
+  requestedDeploymentProfile?: string,
+  requestedSourceInput?: RailwayServiceSourceInput,
+  requestedProjectName?: string,
 ): ProjectDefinition {
   const contextEnvironment = ctx.environmentName ?? ctx.environment
   if (
@@ -156,6 +208,28 @@ export function buildRailwayProject(
     )
   }
   const cell = resolveCellTopology(contextEnvironment ?? requestedEnvironment)
+  const deploymentProfile = requireRailwayDeploymentProfile(requestedDeploymentProfile)
+  const projectName = requestedProjectName ?? ctx.projectName
+  if (!projectName) {
+    throw new Error('Railway project identity is required to render a Data Cell')
+  }
+  if (
+    ctx.projectName &&
+    requestedProjectName &&
+    ctx.projectName !== requestedProjectName
+  ) {
+    throw new Error(
+      `Railway project identity mismatch: context=${ctx.projectName}, requested=${requestedProjectName}`,
+    )
+  }
+  assertRailwayProjectNameForProfile(deploymentProfile, projectName)
+  const sourceInput =
+    requestedSourceInput ??
+    parseRailwayServiceSourceInput(process.env[RAILWAY_SERVICE_SOURCE_MAP_ENV])
+  const applicationUrl: VariableValue =
+    deploymentProfile === 'production'
+      ? `https://${cell.publicDomain}`
+      : ctx.shared.REHEARSAL_APP_URL
   const database = postgres('Postgres', { region: cell.serviceRegion })
   const cacheRedis = redis('Cache Redis', { region: cell.serviceRegion })
   const queueRedis = redis('Queue Redis', { region: cell.serviceRegion })
@@ -164,14 +238,14 @@ export function buildRailwayProject(
   // public TCP proxy and boots TLS/non-default-ACL/non-persistent Redis from
   // the same signed candidate as the application services.
   const providerRedis = service('google-provider-redis', {
+    source: railwayServiceSource(sourceInput, 'google-provider-redis'),
     deploy: servingDeploy(cell.serviceRegion, 30),
     env: {
       PROVIDER_EPHEMERAL_REDIS_URL: ctx.shared.PROVIDER_EPHEMERAL_REDIS_URL,
       PROVIDER_REDIS_TLS_CA_PEM: ctx.shared.PROVIDER_REDIS_TLS_CA_PEM,
       PROVIDER_REDIS_TLS_CERT_PEM: ctx.shared.PROVIDER_REDIS_TLS_CERT_PEM,
       PROVIDER_REDIS_TLS_KEY_PEM: ctx.shared.PROVIDER_REDIS_TLS_KEY_PEM,
-      RELEASE_SHA: ctx.shared.RELEASE_SHA,
-      RELEASE_MANIFEST_SHA256: ctx.shared.RELEASE_MANIFEST_SHA256,
+      ...releaseControlledVariables(),
     },
   })
   const objectStore = bucket('object-store', { region: cell.bucketRegion })
@@ -197,7 +271,31 @@ export function buildRailwayProject(
     S3_FORCE_PATH_STYLE: 'false',
   }
 
+  // First-rollout bootstrap and every later schema-only release use the exact
+  // signed web image selected for this service in the staged source map. The
+  // process exits after convergence and Railway retains a successful one-shot
+  // deployment as SUCCESS.
+  const schemaMigrator = service('schema-migrator', {
+    source: railwayServiceSource(sourceInput, 'schema-migrator'),
+    deploy: {
+      numReplicas: 1,
+      restartPolicyType: 'NEVER',
+      region: cell.serviceRegion,
+      startCommand: 'node dist-worker/migrate-deploy.js',
+    },
+    env: {
+      NODE_ENV: 'production',
+      DATABASE_URL: database.env.DATABASE_URL,
+      PROCESSING_CELL: cell.cellId,
+      REPKEY_RAILWAY_DEPLOYMENT_PROFILE: deploymentProfile,
+      BETTER_AUTH_SECRET: ctx.shared.BETTER_AUTH_SECRET,
+      REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS:
+        ctx.shared.REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS,
+    },
+  })
+
   const web = service('web', {
+    source: railwayServiceSource(sourceInput, 'web'),
     deploy: {
       ...servingDeploy(cell.serviceRegion, 30),
       preDeployCommand: ['node dist-worker/migrate-deploy.js'],
@@ -206,31 +304,42 @@ export function buildRailwayProject(
       healthcheckPath: '/api/health/ready',
       healthcheckTimeout: 30,
     },
-    domains: [cell.publicDomain],
+    // Railway configuration can retain an existing custom domain, but the CLI
+    // deliberately refuses to register one while creating a new service. The
+    // one-time source-less foundation therefore omits the hostname. Operations
+    // registers it through the exact-target domain ceremony before any
+    // promotion; every promotion graph then declares and retains it here.
+    ...(deploymentProfile === 'production' && sourceInput.stage === 'promotion'
+      ? { domains: [cell.publicDomain] }
+      : {}),
     env: {
       ...sharedVariables(ctx, APPLICATION_SHARED_VARIABLES),
       ...applicationInfrastructure,
       ...appTlsVariables(ctx, 'WEB'),
-      BETTER_AUTH_URL: `https://${cell.publicDomain}`,
+      ...releaseControlledVariables(),
+      REPKEY_RAILWAY_DEPLOYMENT_PROFILE: deploymentProfile,
+      BETTER_AUTH_URL: applicationUrl,
     },
   })
 
   const worker = service('worker', {
+    source: railwayServiceSource(sourceInput, 'worker'),
     deploy: servingDeploy(cell.serviceRegion, 30),
     env: {
       ...sharedVariables(ctx, APPLICATION_SHARED_VARIABLES),
       ...sharedVariables(ctx, WORKER_ONLY_VARIABLES),
       ...applicationInfrastructure,
       ...appTlsVariables(ctx, 'WORKER'),
-      BETTER_AUTH_URL: `https://${cell.publicDomain}`,
+      ...releaseControlledVariables(),
+      BETTER_AUTH_URL: applicationUrl,
     },
   })
 
   const googleAdmission = service('google-execution-admission', {
-    deploy: servingDeploy(cell.serviceRegion, 30),
+    source: railwayServiceSource(sourceInput, 'google-execution-admission'),
+    deploy: sidecarDeploy(cell.serviceRegion, 30),
     env: {
-      HOST: '0.0.0.0',
-      PORT: '8443',
+      ...sidecarOperationalVariables(ctx, cell.cellId, '0.0.0.0'),
       DATABASE_URL: ctx.shared.GOOGLE_ADMISSION_DATABASE_URL,
       GOOGLE_ADMISSION_DATABASE_CA_B64: ctx.shared.GOOGLE_ADMISSION_DATABASE_CA_B64,
       REDIS_URL: ctx.shared.PROVIDER_EPHEMERAL_REDIS_URL,
@@ -240,19 +349,18 @@ export function buildRailwayProject(
       GOOGLE_INTERNAL_MTLS_CA_B64: ctx.shared.GOOGLE_INTERNAL_MTLS_CA_B64,
       GOOGLE_INTERNAL_MTLS_CERT_B64: ctx.shared.GOOGLE_ADMISSION_MTLS_CERT_B64,
       GOOGLE_INTERNAL_MTLS_KEY_B64: ctx.shared.GOOGLE_ADMISSION_MTLS_KEY_B64,
-      RELEASE_SHA: ctx.shared.RELEASE_SHA,
-      RELEASE_MANIFEST_SHA256: ctx.shared.RELEASE_MANIFEST_SHA256,
+      ...releaseControlledVariables(),
     },
   })
 
   const googleGateway = service('google-egress-gateway', {
+    source: railwayServiceSource(sourceInput, 'google-egress-gateway'),
     deploy: {
-      ...servingDeploy(cell.serviceRegion, 30),
+      ...sidecarDeploy(cell.serviceRegion, 30),
       startCommand: 'node dist-google-egress-gateway/index.js',
     },
     env: {
-      HOST: '0.0.0.0',
-      PORT: '8443',
+      ...sidecarOperationalVariables(ctx, cell.cellId, '0.0.0.0'),
       GOOGLE_EXECUTION_ADMISSION_ORIGIN:
         'https://google-execution-admission.railway.internal:8443',
       GOOGLE_EXECUTION_ADMISSION_SERVER_NAME: 'google-execution-admission',
@@ -265,45 +373,46 @@ export function buildRailwayProject(
       GOOGLE_INTERNAL_MTLS_CA_B64: ctx.shared.GOOGLE_INTERNAL_MTLS_CA_B64,
       GOOGLE_INTERNAL_MTLS_CERT_B64: ctx.shared.GOOGLE_GATEWAY_MTLS_CERT_B64,
       GOOGLE_INTERNAL_MTLS_KEY_B64: ctx.shared.GOOGLE_GATEWAY_MTLS_KEY_B64,
-      RELEASE_SHA: ctx.shared.RELEASE_SHA,
-      RELEASE_MANIFEST_SHA256: ctx.shared.RELEASE_MANIFEST_SHA256,
+      ...releaseControlledVariables(),
     },
   })
 
   const aiAdmission = service('ai-execution-admission', {
-    deploy: servingDeploy(cell.serviceRegion, 130),
+    source: railwayServiceSource(sourceInput, 'ai-execution-admission'),
+    deploy: sidecarDeploy(cell.serviceRegion, 130),
     env: {
       ...sharedVariables(ctx, AI_ADMISSION_SHARED_VARIABLES),
-      HOST: '::',
-      PORT: '8443',
+      ...sidecarOperationalVariables(ctx, cell.cellId, '::'),
       AI_KEY_INVENTORY_PROFILE: ctx.shared.AI_KEY_INVENTORY_PROFILE,
       AI_INTERNAL_MTLS_CA_B64: ctx.shared.AI_INTERNAL_MTLS_CA_B64,
       AI_INTERNAL_MTLS_CERT_B64: ctx.shared.AI_ADMISSION_MTLS_CERT_B64,
       AI_INTERNAL_MTLS_KEY_B64: ctx.shared.AI_ADMISSION_MTLS_KEY_B64,
+      ...releaseControlledVariables(),
     },
   })
 
   const aiGateway = service('ai-egress-gateway', {
+    source: railwayServiceSource(sourceInput, 'ai-egress-gateway'),
     deploy: {
-      ...servingDeploy(cell.serviceRegion, 130),
+      ...sidecarDeploy(cell.serviceRegion, 130),
       startCommand: 'node dist-ai-egress-gateway/index.js',
     },
     env: {
       ...sharedVariables(ctx, AI_GATEWAY_SHARED_VARIABLES),
-      HOST: '::',
-      PORT: '8443',
+      ...sidecarOperationalVariables(ctx, cell.cellId, '::'),
       AI_KEY_INVENTORY_PROFILE: ctx.shared.AI_KEY_INVENTORY_PROFILE,
       AI_EXECUTION_ADMISSION_ORIGIN:
         'https://ai-execution-admission.railway.internal:8443',
       AI_INTERNAL_MTLS_CA_B64: ctx.shared.AI_INTERNAL_MTLS_CA_B64,
       AI_INTERNAL_MTLS_CERT_B64: ctx.shared.AI_GATEWAY_MTLS_CERT_B64,
       AI_INTERNAL_MTLS_KEY_B64: ctx.shared.AI_GATEWAY_MTLS_KEY_B64,
+      ...releaseControlledVariables(),
     },
   })
 
-  return project(ctx.projectName ?? 'repkey-data-cells', {
+  return project(projectName, {
     resources: [
-      ...group('Application', [web, worker], { color: '#2563EB' }),
+      ...group('Application', [schemaMigrator, web, worker], { color: '#2563EB' }),
       ...group('Regional data', [database, cacheRedis, queueRedis, objectStore], {
         color: '#059669',
       }),
@@ -319,5 +428,8 @@ export default defineRailway((ctx) =>
   buildRailwayProject(
     createRailwayContext(ctx),
     process.env.REPKEY_RAILWAY_CELL_ENVIRONMENT,
+    process.env.REPKEY_RAILWAY_DEPLOYMENT_PROFILE,
+    undefined,
+    process.env[REPKEY_RAILWAY_PROJECT_NAME_ENV],
   ),
 )

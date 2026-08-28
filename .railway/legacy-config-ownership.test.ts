@@ -12,6 +12,7 @@ const GRAPH_SERVICES = [
   'web',
   'worker',
   'google-provider-redis',
+  'schema-migrator',
   'google-execution-admission',
   'google-egress-gateway',
   'ai-execution-admission',

@@ -14,7 +14,7 @@ import { readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 /** `railway.json` owns the default (web) service; `railway.<service>.json` names its own. */
-export const LEGACY_CONFIG_FILE_PATTERN = /^railway(?:\.([a-z0-9-]+))?\.json$/u
+const LEGACY_CONFIG_FILE_PATTERN = /^railway(?:\.([a-z0-9-]+))?\.json$/u
 
 const DEFAULT_SERVICE = 'web'
 
@@ -92,6 +92,7 @@ export const LEGACY_CONFIG_DECLARATIONS: readonly LegacyConfigDeclaration[] =
  */
 export const IAC_ONLY_SERVICES: readonly string[] = Object.freeze([
   'google-provider-redis',
+  'schema-migrator',
 ])
 
 /** Derive the service a legacy config file claims from its filename alone. */
