@@ -260,7 +260,16 @@ describe('AI execution binding and operation identity', () => {
     } as const
 
     const accepted = parseAiExecutionBinding(analysis)
-    expect(accepted.isOk() && accepted.value).toEqual(analysis)
+    expect(accepted.isOk() && accepted.value).toEqual({
+      ...analysis,
+      replyBrandProfileVersion: null,
+      replyBrandDisplayNameDigest: null,
+    })
+    const partiallyGrounded = parseAiExecutionBinding({
+      ...analysis,
+      replyBrandProfileVersion: 1,
+    })
+    expect(partiallyGrounded.isErr()).toBe(true)
     const rejected = parseAiExecutionBinding({
       ...analysis,
       replyTemplateCatalogueVersion: 'gbp-reply-template-catalogue-v1',

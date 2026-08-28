@@ -30,8 +30,10 @@
 // is left `executing`.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { randomUUID } from 'node:crypto'
 import { and, asc, eq, inArray, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import {
   aiExecutionControlHeads,
@@ -41,6 +43,7 @@ import {
   aiReviewAnalyses,
   aiReviewAnalysisOutcomes,
   merchantAiConsentEvidence,
+  materialReviewRevisions,
   merchantAiEnablement,
   outboxEvents,
   properties,
@@ -139,8 +142,12 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
   const now = () => Date.now()
 
   const backfill = createBackfillReviewAnalysis({
-    backfillStore: createReviewAnalysisBackfillAdapter(db),
-    propertyAuthority: createMemberPropertyAuthorityLookup(db, 'ai.manage'),
+    backfillStore: createReviewAnalysisBackfillAdapter(db, randomUUID),
+    propertyAuthority: createMemberPropertyAuthorityLookup(
+      db,
+      'ai.manage',
+      () => new Date(),
+    ),
   })
 
   /**
@@ -332,8 +339,8 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
       sql`DELETE FROM google_connections WHERE organization_id = ${ORGANIZATION_ID}`,
       sql`DELETE FROM member WHERE "organizationId" = ${ORGANIZATION_ID}`,
       sql`DELETE FROM "user" WHERE id = ${ACTOR_USER_ID}`,
-      sql`DELETE FROM organization WHERE id = ${ORGANIZATION_ID}`,
     ])
+    await deleteTestOrganizations(db, [ORGANIZATION_ID])
   }
 
   const seed = async () => {
@@ -413,6 +420,19 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
         analysisSequence: 0,
         aiSourceByteLength: provenance.byteLength,
         aiSourceDigest: provenance.digest,
+      })
+      await db.insert(materialReviewRevisions).values({
+        reviewId: id,
+        revision: index + 1,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        sourceEpoch: SOURCE_EPOCH,
+        normalizationVersion: 'legacy-unverified-v0',
+        sourceDigest: null,
+        normalizedDigest: null,
+        rating: 5,
+        normalizedText: reviewText(index),
+        contentState: 'active',
       })
     }
     await db.insert(aiPropertyProcessingProfiles).values({
@@ -544,17 +564,18 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
   })
 
   const createAnalysis = () => {
-    const reviewRepository = createReviewRepository(db)
+    const reviewRepository = createReviewRepository(db, () => new Date())
     return createAnalyzeReviewEvent({
       authorization: createAiAuthorizationAdapter(db),
       control: createAiControlAdapter(db),
       inference,
-      operations: createAiOperationStoreAdapter(db),
+      operations: createAiOperationStoreAdapter(db, randomUUID),
       outputs: createAiOutputStoreAdapter(db),
       aggregates: createAiPropertyAggregateStoreAdapter(db),
       quota,
       reviewEvents: createAiReviewEventStoreAdapter(db),
       reviewSources: createAiReviewSource({
+        findById: reviewRepository.findById,
         readForAi: reviewRepository.readForAi,
         readTrendPopulation: reviewRepository.readTrendPopulation,
         assertCurrentForAi: reviewRepository.assertCurrentForAi,
@@ -563,6 +584,7 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
       processingProfiles: createPropertyProcessingProfileAdapter(
         db,
         createAiRuntimeCatalogueAdapter(db),
+        () => new Date(now()),
       ),
       subjectHmac,
       nowEpochMillis: now,
@@ -575,12 +597,13 @@ describe('multi-review backfill delivery (real PostgreSQL)', () => {
    */
   const createAdvance = (clock: () => number = now) =>
     createAdvanceReviewAnalysisBackfill({
-      backfillStore: createReviewAnalysisBackfillAdapter(db),
+      backfillStore: createReviewAnalysisBackfillAdapter(db, randomUUID),
       reviewEvents: createAiReviewEventStoreAdapter(db),
       aggregates: createAiPropertyAggregateStoreAdapter(db),
       processingProfiles: createPropertyProcessingProfileAdapter(
         db,
         createAiRuntimeCatalogueAdapter(db),
+        () => new Date(now()),
       ),
       nowEpochMillis: clock,
     })

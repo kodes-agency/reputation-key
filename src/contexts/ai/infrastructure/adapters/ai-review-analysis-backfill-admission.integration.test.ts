@@ -33,8 +33,10 @@
 // given, so it must never be the source of the accountable actor.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { randomUUID } from 'node:crypto'
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { getPool } from '#/shared/db/pool'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
 import {
@@ -111,10 +113,14 @@ type Fence = Readonly<{ controlId: string; generation: number }>
 
 describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
   const db = getDb()
-  const store = createAiOperationStoreAdapter(db)
+  const store = createAiOperationStoreAdapter(db, randomUUID)
   const backfill = createBackfillReviewAnalysis({
-    backfillStore: createReviewAnalysisBackfillAdapter(db),
-    propertyAuthority: createMemberPropertyAuthorityLookup(db, 'ai.manage'),
+    backfillStore: createReviewAnalysisBackfillAdapter(db, randomUUID),
+    propertyAuthority: createMemberPropertyAuthorityLookup(
+      db,
+      'ai.manage',
+      () => new Date(),
+    ),
   })
   let fences: Readonly<{ global: Fence; provider: Fence; capability: Fence }>
 
@@ -137,8 +143,8 @@ describe('backfilled review analysis is admitted (real PostgreSQL)', () => {
       // suspends it the same way the other AI store tests do.
       sql`DELETE FROM member WHERE "organizationId" = ${ORGANIZATION_ID}`,
       sql`DELETE FROM "user" WHERE id = ${CONSENT_ACTOR_ID}`,
-      sql`DELETE FROM organization WHERE id = ${ORGANIZATION_ID}`,
     ])
+    await deleteTestOrganizations(db, [ORGANIZATION_ID])
   }
 
   /**

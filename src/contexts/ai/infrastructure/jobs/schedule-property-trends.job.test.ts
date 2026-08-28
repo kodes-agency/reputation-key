@@ -50,11 +50,18 @@ const EMPTY_SCHEDULED: SchedulePropertyTrendsResult = {
 }
 
 function createHarness(result: SchedulePropertyTrendsResult = EMPTY_SCHEDULED) {
+  const leaseOwners = [
+    '31000000-0000-4000-8000-000000000001',
+    '31000000-0000-4000-8000-000000000002',
+  ]
+  let leaseOwnerIndex = 0
+  const idGen = vi.fn(() => leaseOwners[leaseOwnerIndex++]!)
   const schedulePropertyTrends = vi.fn<
     SchedulePropertyTrendsJobDependencies['schedulePropertyTrends']
   >(async () => result)
   return {
-    handler: createSchedulePropertyTrendsJobHandler({ schedulePropertyTrends }),
+    handler: createSchedulePropertyTrendsJobHandler({ idGen, schedulePropertyTrends }),
+    idGen,
     schedulePropertyTrends,
   }
 }
@@ -140,7 +147,10 @@ describe('schedule property AI trends job', () => {
     >(async () => {
       throw failure
     })
-    const handler = createSchedulePropertyTrendsJobHandler({ schedulePropertyTrends })
+    const handler = createSchedulePropertyTrendsJobHandler({
+      idGen: () => '31000000-0000-4000-8000-000000000001',
+      schedulePropertyTrends,
+    })
 
     await expect(handler(tick())).rejects.toBe(failure)
   })

@@ -18,9 +18,9 @@ export type GeneratePropertyTrendJobDependencies = Readonly<{
   ): Promise<GeneratePropertyTrendResult>
 }>
 
-export function createGeneratePropertyTrendJobHandler(
+export const createGeneratePropertyTrendJobHandler = (
   dependencies: GeneratePropertyTrendJobDependencies,
-): (job: Job) => Promise<void> {
+): ((job: Job) => Promise<void>) => {
   return async (job) => {
     const data = propertyTrendJobData.parse(job.data)
     const result = await dependencies.generatePropertyTrend({

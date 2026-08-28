@@ -38,8 +38,12 @@ export const generateReplySuggestionFn = createServerFn({ method: 'POST' })
         try {
           disableAiContentCaching()
           const id = reviewId(data.reviewId)
-          const review = await container.reviewRepo.findById(id, ctx.organizationId)
-          if (!review) {
+          const current =
+            await container.reviewPublicApi.aiReviewSource.readCurrentSource({
+              organizationId: ctx.organizationId,
+              reviewId: id,
+            })
+          if (current.status === 'not_found') {
             throwContextError(
               'AiError',
               { code: 'not_found', message: 'Review not found' },
@@ -49,20 +53,23 @@ export const generateReplySuggestionFn = createServerFn({ method: 'POST' })
           await requireExecutionAllowed({
             actor: ctx,
             action: 'ai.reply.generate',
-            propertyId: review.propertyId,
+            propertyId: current.source.propertyId,
           })
           const baseReplyStateRevision =
-            await container.reviewRepo.readReplyStateRevision(ctx.organizationId, id)
-          return await container.useCases.generateReplySuggestion({
+            await container.reviewPublicApi.aiReviewSource.readReplyStateRevision({
+              organizationId: ctx.organizationId,
+              reviewId: id,
+            })
+          return await container.aiPublicApi.generateReplySuggestion({
             organizationId: ctx.organizationId,
-            propertyId: review.propertyId,
+            propertyId: current.source.propertyId,
             reviewId: id,
             actorUserId: ctx.userId,
             tone: data.tone,
             targetLanguage: data.targetLanguage,
             idempotencyKey: data.idempotencyKey,
-            expectedSourceEpoch: review.sourceEpoch,
-            expectedSourceRevision: review.sourceRevision,
+            expectedSourceEpoch: current.source.sourceEpoch,
+            expectedSourceRevision: current.source.sourceRevision,
             expectedBaseReplyStateRevision: baseReplyStateRevision,
           })
         } catch (error) {

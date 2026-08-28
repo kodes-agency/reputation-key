@@ -1,4 +1,5 @@
 import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/domain/ids'
+import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
 import type {
   AiOperationId,
   AiReadDeliveryLease,
@@ -170,7 +171,9 @@ export type AiOutputStorePort = Readonly<{
 
   /**
    * Commits provider accounting for a browser-ephemeral reply suggestion.
-   * The suggestion text and template choice are deliberately not persisted.
+   * Draft content and provider grounding are deliberately not persisted here.
+   * The distinct output profile is checked without changing the stable
+   * operation wrapper used by existing rows.
    */
   settleEphemeralReply(
     input: Readonly<{
@@ -186,7 +189,12 @@ export type AiOutputStorePort = Readonly<{
       authorizationLineageId: string
       replyDraftingEpoch: number
       propertyProfileVersion: number
-      replyProfileVersion: string
+      /** Missing only for pre-grounding operations retained during rollout. */
+      replyBrandProfileVersion?: number
+      /** Missing only for pre-grounding operations retained during rollout. */
+      replyBrandDisplayNameDigest?: string
+      operationProfileVersion: 'reply-suggestion-v1'
+      replyProfileVersion: typeof AI_PERSONALIZED_REPLY_PROFILE_VERSION
     }>,
   ): Promise<boolean>
   findCurrentReviewIdsByAttention(

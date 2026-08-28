@@ -3,7 +3,7 @@ import type { AiSubjectHmacPort } from '../../application/ports/ai-subject-hmac.
 
 const SUBJECT_AUDIENCE = 'repkey-ai-review-subject-v1'
 
-export function createAiSubjectHmacAdapter(rawKeyring: string): AiSubjectHmacPort {
+export const createAiSubjectHmacAdapter = (rawKeyring: string): AiSubjectHmacPort => {
   const keyring = createVersionedHmacKeyring(rawKeyring)
   return Object.freeze({
     sign(subject) {

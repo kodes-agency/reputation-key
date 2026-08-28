@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto'
+import { createHash } from 'node:crypto'
 import { and, eq, gt, isNull, lte, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiExecutionPermits, aiOperationAttempts, aiOperations } from '#/shared/db/schema'
@@ -238,6 +238,8 @@ function parseBinding(row: OperationRow): AiOperationBinding {
       row.propertyProfileVersion,
       'propertyProfileVersion',
     ),
+    replyBrandProfileVersion: row.replyBrandProfileVersion,
+    replyBrandDisplayNameDigest: row.replyBrandDisplayNameDigest,
     routingPolicyVersion: requireValue(row.routingPolicyVersion, 'routingPolicyVersion'),
     sourcePolicyId: requireValue(row.sourcePolicyId, 'sourcePolicyId'),
     sourceCanonicalizerDigest: requireValue(
@@ -379,7 +381,10 @@ function scopeDigest(identity: AiOperationIdentity): string {
   return createHash('sha256').update(scope.join('\0'), 'utf8').digest('hex')
 }
 
-function insertionValues(input: Parameters<AiOperationStorePort['claim']>[0]) {
+function insertionValues(
+  input: Parameters<AiOperationStorePort['claim']>[0],
+  idGen: () => string,
+) {
   assertAligned(input.identity, input.binding)
   assertSourceProvenance(input.identity, input.sourceProvenance)
   const identity = input.identity
@@ -395,7 +400,7 @@ function insertionValues(input: Parameters<AiOperationStorePort['claim']>[0]) {
   const stopFence = input.binding.stopFence
 
   return {
-    id: randomUUID(),
+    id: idGen(),
     idempotencyScope: scopeDigest(identity),
     idempotencyKey: input.idempotencyKey,
     requestFingerprint: input.requestFingerprint,
@@ -439,6 +444,8 @@ function insertionValues(input: Parameters<AiOperationStorePort['claim']>[0]) {
       propertyBinding?.languageScriptConsistencyDigest ?? null,
     zhOrthographyVerifierDigest: propertyBinding?.zhOrthographyVerifierDigest ?? null,
     propertyProfileVersion: propertyBinding?.propertyProfileVersion ?? null,
+    replyBrandProfileVersion: propertyBinding?.replyBrandProfileVersion ?? null,
+    replyBrandDisplayNameDigest: propertyBinding?.replyBrandDisplayNameDigest ?? null,
     routingPolicyVersion: propertyBinding?.routingPolicyVersion ?? null,
     sourcePolicyId: propertyBinding?.sourcePolicyId ?? null,
     sourceCanonicalizerDigest: propertyBinding?.sourceCanonicalizerDigest ?? null,
@@ -472,11 +479,14 @@ function insertionValues(input: Parameters<AiOperationStorePort['claim']>[0]) {
   } as const
 }
 
-export function createAiOperationStoreAdapter(db: Database): AiOperationStorePort {
+export const createAiOperationStoreAdapter = (
+  db: Database,
+  idGen: () => string,
+): AiOperationStorePort => {
   return {
     async claim(input) {
       return db.transaction(async (tx) => {
-        const values = insertionValues(input)
+        const values = insertionValues(input, idGen)
         const [inserted] = await tx
           .insert(aiOperations)
           .values(values)
@@ -578,7 +588,7 @@ export function createAiOperationStoreAdapter(db: Database): AiOperationStorePor
           startedAt: now,
           settledAt: null,
         })
-        const permitId = randomUUID()
+        const permitId = idGen()
         const stopFence = parseBinding(claimed).stopFence
         await tx.insert(aiExecutionPermits).values({
           id: permitId,

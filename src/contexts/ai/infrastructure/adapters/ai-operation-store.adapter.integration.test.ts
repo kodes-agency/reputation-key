@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { resolve } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
@@ -6,6 +6,7 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { getPool } from '#/shared/db/pool'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   aiExecutionControlHeads,
   aiCanaryAuthorizationHeads,
@@ -22,11 +23,13 @@ import {
   aiOperationProfiles,
   aiPropertyTrendOutcomes,
   aiPropertyTrendSchedules,
+  aiReviewAnalysisEnrollments,
   aiReviewEventCursors,
   outboxEvents,
   aiPropertyProcessingProfiles,
   merchantAiConsentEvidence,
   merchantAiEnablement,
+  materialReviewRevisions,
   reviewAiAnalysisHeads,
   reviews,
   replies,
@@ -34,7 +37,9 @@ import {
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { properties } from '#/shared/db/schema/property.schema'
+import { propertyPortalBrandProfiles } from '#/shared/db/schema/portal.schema'
 import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
+import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
 import {
   AI_PROPERTY_TREND_DEFINITION_DIGEST,
   AI_PROPERTY_TREND_DEFINITION_VERSION,
@@ -63,6 +68,7 @@ import {
 import { createAiReviewEventStoreAdapter } from './ai-review-event-store.adapter'
 import { createAiOperationExecutionReaper } from '../../application/ai-operation-execution-reaper'
 import { addDays } from '../../application/local-date'
+import { EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST } from '../../application/ports/ai-review-analysis-enrollment.port'
 
 const NOW = Date.parse('2026-08-16T12:00:00.000Z')
 const CONTENT_EXPIRES_AT = Date.now() + 86_400_000
@@ -74,6 +80,11 @@ const REVIEW_ID = '71000000-0000-4000-8000-000000000002'
 const ORIGIN_EVENT_ID = '71000000-0000-4000-8000-000000000003'
 const LINEAGE_ID = '71000000-0000-4000-8000-000000000004'
 const DIGEST = 'a'.repeat(64)
+const REPLY_BRAND_DISPLAY_NAME = 'AI operation test property'
+const REPLY_BRAND_VERSION = 1
+const REPLY_BRAND_DISPLAY_NAME_DIGEST = digestAiReplyBrandDisplayName(
+  REPLY_BRAND_DISPLAY_NAME,
+)
 
 function trendEvidence(dataThroughLocalDate: string) {
   const dueLocalDate = addDays(dataThroughLocalDate, 1)
@@ -323,6 +334,7 @@ function replyBinding(
     provider: Fence
     reply: Fence
   }>,
+  brand?: Readonly<{ version: number; displayNameDigest: string }>,
 ): AiExecutionBinding {
   return {
     authorizationLineageId: LINEAGE_ID,
@@ -343,6 +355,8 @@ function replyBinding(
     sourceRevision: 5,
     reviewedAtEpochMillis: NOW - 1_000,
     propertyProfileVersion: 3,
+    replyBrandProfileVersion: brand?.version ?? null,
+    replyBrandDisplayNameDigest: brand?.displayNameDigest ?? null,
     routingPolicyVersion: 1,
     sourcePolicyId: 'google-business-profile-source-policy-v1',
     sourceCanonicalizerDigest: DIGEST,
@@ -417,7 +431,7 @@ function trendBinding(
 
 describe('AI operation store (real PostgreSQL)', () => {
   const db = getDb()
-  const store = createAiOperationStoreAdapter(db)
+  const store = createAiOperationStoreAdapter(db, randomUUID)
   let fences: Readonly<{
     global: Fence
     provider: Fence
@@ -425,6 +439,37 @@ describe('AI operation store (real PostgreSQL)', () => {
     trend: Fence
     reply: Fence
   }>
+
+  const seedCaughtUpReviewAnalysisEnrollment = async () => {
+    await db
+      .insert(aiReviewAnalysisEnrollments)
+      .values({
+        id: '71000000-0000-4000-8000-000000000031',
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        authorizationLineageId: LINEAGE_ID,
+        authorizationStateVersion: 1,
+        sourceEpoch: 2,
+        reviewAnalysisEpoch: 1,
+        analysisStartSequence: 1,
+        providerDeploymentProfileVersion: 'private-beta-global-v1',
+        triggerEventEnvelopeId: '71000000-0000-4000-8000-000000000032',
+        state: 'caught_up',
+        snapshotRevisionCount: 0,
+        snapshotRevisionSetDigest: EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST,
+        snapshotCapturedAt: new Date(NOW),
+        enrolledRevisionCount: 0,
+        caughtUpEligibleRevisionCount: 0,
+        caughtUpAnalysisSequence: 1,
+        caughtUpRevisionSetDigest: EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST,
+        caughtUpAt: new Date(NOW + 1),
+        terminalReason: 'eligible_revision_set_caught_up',
+        terminalAt: new Date(NOW + 1),
+        createdAt: new Date(NOW),
+        updatedAt: new Date(NOW + 1),
+      })
+      .onConflictDoNothing()
+  }
 
   const clear = async () => {
     await executeWithLastOwnerGuardDisabled(db, [
@@ -448,11 +493,12 @@ describe('AI operation store (real PostgreSQL)', () => {
       sql`ALTER TABLE ai_read_barrier_heads DISABLE TRIGGER USER`,
       sql`DELETE FROM ai_read_barrier_heads WHERE scope_id IN (${ORGANIZATION_ID}, ${PROPERTY_ID}, 'ai-operation-test-read-barrier-actor')`,
       sql`ALTER TABLE ai_read_barrier_heads ENABLE TRIGGER USER`,
+      sql`DELETE FROM property_portal_brand_profiles WHERE property_id = ${PROPERTY_ID}::uuid`,
       sql`DELETE FROM properties WHERE id = ${PROPERTY_ID}::uuid`,
       sql`DELETE FROM member WHERE "organizationId" = ${ORGANIZATION_ID}`,
       sql`DELETE FROM "user" WHERE id = 'ai-operation-test-actor'`,
-      sql`DELETE FROM organization WHERE id = ${ORGANIZATION_ID}`,
     ])
+    await deleteTestOrganizations(db, [ORGANIZATION_ID])
   }
 
   beforeAll(async () => {
@@ -496,6 +542,19 @@ describe('AI operation store (real PostgreSQL)', () => {
       processingRegion: 'global',
       sourceEpoch: 2,
     })
+    await db.insert(propertyPortalBrandProfiles).values({
+      id: '71000000-0000-4000-8000-000000000007',
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      displayName: REPLY_BRAND_DISPLAY_NAME,
+      primaryColor: '#000000',
+      backgroundColor: '#ffffff',
+      textColor: '#111111',
+      version: REPLY_BRAND_VERSION,
+      updatedBy: 'ai-operation-test-actor',
+      createdAt: new Date(NOW),
+      updatedAt: new Date(NOW),
+    })
     await db.insert(reviews).values({
       id: REVIEW_ID,
       organizationId: ORGANIZATION_ID,
@@ -514,6 +573,21 @@ describe('AI operation store (real PostgreSQL)', () => {
       analysisSequence: 7,
       aiSourceByteLength: 17,
       aiSourceDigest: DIGEST,
+    })
+    await db.insert(materialReviewRevisions).values({
+      reviewId: REVIEW_ID,
+      revision: 5,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      sourceEpoch: 2,
+      normalizationVersion: 'legacy-unverified-v0',
+      sourceDigest: null,
+      normalizedDigest: null,
+      rating: 5,
+      normalizedText: 'Excellent service',
+      contentState: 'active',
+      createdAt: new Date(NOW),
+      updatedAt: new Date(NOW),
     })
     // `organization_capability` is keyed by PURPOSE, which is what
     // provisionPropertyCapabilities writes in production — not by capability.
@@ -776,7 +850,11 @@ describe('AI operation store (real PostgreSQL)', () => {
           ? concurrent.operation
           : null
     expect(operation).not.toBeNull()
-    expect(operation?.binding).toEqual(request.binding)
+    expect(operation?.binding).toEqual({
+      ...request.binding,
+      replyBrandProfileVersion: null,
+      replyBrandDisplayNameDigest: null,
+    })
 
     await expect(
       store.claim({ ...request, requestFingerprint: 'd'.repeat(64) }),
@@ -1104,7 +1182,10 @@ describe('AI operation store (real PostgreSQL)', () => {
 
   it('admits a reply grant whose token expiry precedes its draft expiry', async () => {
     const liveNow = Date.now()
-    const liveReplyBinding = replyBinding(fences)
+    const liveReplyBinding = replyBinding(fences, {
+      version: REPLY_BRAND_VERSION,
+      displayNameDigest: REPLY_BRAND_DISPLAY_NAME_DIGEST,
+    })
     const claimed = await store.claim({
       identity: replyIdentity(),
       binding: liveReplyBinding,
@@ -1171,6 +1252,20 @@ describe('AI operation store (real PostgreSQL)', () => {
       pool: getPool(),
       signingKid: 'grant-v1',
     })
+    await db
+      .update(propertyPortalBrandProfiles)
+      .set({ version: REPLY_BRAND_VERSION + 1 })
+      .where(eq(propertyPortalBrandProfiles.propertyId, PROPERTY_ID))
+    await expect(
+      authority.authorizeProperty(descriptor, {
+        keyId: 'binding-v1',
+        hmac: 'B'.repeat(43),
+      }),
+    ).resolves.toMatchObject({ status: 'denied', code: 'source_mismatch' })
+    await db
+      .update(propertyPortalBrandProfiles)
+      .set({ version: REPLY_BRAND_VERSION })
+      .where(eq(propertyPortalBrandProfiles.propertyId, PROPERTY_ID))
     const admitted = await authority.authorizeProperty(descriptor, {
       keyId: 'binding-v1',
       hmac: 'B'.repeat(43),
@@ -1843,7 +1938,16 @@ describe('AI operation store (real PostgreSQL)', () => {
     })
 
     try {
-      const scheduler = createAiPropertyTrendScheduleStore(db)
+      const scheduler = createAiPropertyTrendScheduleStore(db, randomUUID)
+      await expect(
+        scheduler.scheduleDueBatch({
+          leaseOwner: '71000000-0000-4000-8000-000000000030',
+        }),
+      ).resolves.toMatchObject({
+        status: 'scheduled',
+        scheduledCount: 0,
+      })
+      await seedCaughtUpReviewAnalysisEnrollment()
       await expect(
         scheduler.scheduleDueBatch({
           leaseOwner: '71000000-0000-4000-8000-000000000030',
@@ -1963,6 +2067,7 @@ describe('AI operation store (real PostgreSQL)', () => {
   })
 
   it('stores immutable deterministic trends and keeps the latest complete report while updating', async () => {
+    await seedCaughtUpReviewAnalysisEnrollment()
     await db
       .update(reviewAiAnalysisHeads)
       .set({ headSequence: 7, updatedAt: new Date(NOW) })
@@ -2117,7 +2222,7 @@ describe('AI operation store (real PostgreSQL)', () => {
       schedulerGeneration: 1,
       scheduledAt: new Date(NOW),
     })
-    const scheduleStore = createAiPropertyTrendScheduleStore(db)
+    const scheduleStore = createAiPropertyTrendScheduleStore(db, randomUUID)
     await expect(
       scheduleStore.recordProviderFreeOutcome({
         scheduleId: noDataScheduleId,
@@ -2219,6 +2324,44 @@ describe('AI operation store (real PostgreSQL)', () => {
       providerSelectionRecordedAt: null,
       expiresAt: expect.any(Date),
     })
+    const [caughtUpEnrollment] = await db
+      .select({
+        state: aiReviewAnalysisEnrollments.state,
+        authorizationLineageId: aiReviewAnalysisEnrollments.authorizationLineageId,
+        authorizationStateVersion: aiReviewAnalysisEnrollments.authorizationStateVersion,
+        sourceEpoch: aiReviewAnalysisEnrollments.sourceEpoch,
+        reviewAnalysisEpoch: aiReviewAnalysisEnrollments.reviewAnalysisEpoch,
+        analysisStartSequence: aiReviewAnalysisEnrollments.analysisStartSequence,
+      })
+      .from(aiReviewAnalysisEnrollments)
+      .where(eq(aiReviewAnalysisEnrollments.propertyId, PROPERTY_ID))
+      .limit(1)
+    expect(caughtUpEnrollment).toEqual({
+      state: 'caught_up',
+      authorizationLineageId: LINEAGE_ID,
+      authorizationStateVersion: 1,
+      sourceEpoch: 2,
+      reviewAnalysisEpoch: 1,
+      analysisStartSequence: 1,
+    })
+    const [currentEnrollmentFence] = await db
+      .select({
+        authorizationLineageId: merchantAiEnablement.authorizationLineageId,
+        authorizationStateVersion: merchantAiEnablement.stateVersion,
+        sourceEpoch: merchantAiEnablement.authorizedSourceEpoch,
+        reviewAnalysisEpoch: merchantAiEnablement.reviewAnalysisEpoch,
+        analysisStartSequence: merchantAiEnablement.analysisStartSequence,
+      })
+      .from(merchantAiEnablement)
+      .where(eq(merchantAiEnablement.propertyId, PROPERTY_ID))
+      .limit(1)
+    expect(currentEnrollmentFence).toEqual({
+      authorizationLineageId: LINEAGE_ID,
+      authorizationStateVersion: 1,
+      sourceEpoch: 2,
+      reviewAnalysisEpoch: 1,
+      analysisStartSequence: 1,
+    })
     await expect(
       outputStore.readTrendReportForDelivery(
         {
@@ -2243,6 +2386,34 @@ describe('AI operation store (real PostgreSQL)', () => {
       evidence: trendEvidence('2026-08-16'),
       updating: false,
     })
+    await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT set_config('repkey.ai_review_enrollment_eraser', 'lifecycle-v1', true)`,
+      )
+      await tx
+        .delete(aiReviewAnalysisEnrollments)
+        .where(eq(aiReviewAnalysisEnrollments.propertyId, PROPERTY_ID))
+    })
+    try {
+      await expect(
+        outputStore.readTrendReportForDelivery(
+          {
+            organizationId: report.organizationId,
+            actorUserId: userId('ai-operation-test-deterministic-trend-reader'),
+            propertyId: report.propertyId,
+            sourceEpoch: report.sourceEpoch,
+            reviewAnalysisEpoch: report.reviewAnalysisEpoch,
+            propertyTrendsEpoch: report.propertyTrendsEpoch,
+            propertyProfileVersion: report.propertyProfileVersion,
+            reportProfileVersion: report.reportProfileVersion,
+            nowEpochMillis: NOW + 2,
+          },
+          async (_lease, result) => result,
+        ),
+      ).resolves.toMatchObject({ status: 'preparing' })
+    } finally {
+      await seedCaughtUpReviewAnalysisEnrollment()
+    }
     await db
       .delete(aiPropertyTrendOutcomes)
       .where(eq(aiPropertyTrendOutcomes.scheduleId, deterministicScheduleId))
@@ -2353,9 +2524,10 @@ describe('AI operation store (real PostgreSQL)', () => {
   })
 
   it('settles an ephemeral reply without persisting generated text', async () => {
+    const brand = { version: 7, displayNameDigest: DIGEST } as const
     const claimed = await store.claim({
       identity: replyIdentity(),
-      binding: replyBinding(fences),
+      binding: replyBinding(fences, brand),
       idempotencyKey: 'reply-ephemeral-output-key',
       requestFingerprint: '8'.repeat(64),
       sourceProvenance: SOURCE_PROVENANCE,
@@ -2364,7 +2536,14 @@ describe('AI operation store (real PostgreSQL)', () => {
     })
     if (claimed.status === 'conflict') throw new Error('unexpected conflict')
     const operationId = claimed.operation.id
-    const outputStore = createAiOutputStoreAdapter(db)
+    let brandProfileCurrent = false
+    const brandAuthorityInputs: Array<Readonly<Record<string, unknown>>> = []
+    const outputStore = createAiOutputStoreAdapter(db, {
+      isCurrentAiReplyBrandProfile: async (_tx, input) => {
+        brandAuthorityInputs.push(input)
+        return brandProfileCurrent
+      },
+    })
     const settlement = {
       operationId,
       providerCompletion: {
@@ -2384,13 +2563,24 @@ describe('AI operation store (real PostgreSQL)', () => {
       authorizationLineageId: LINEAGE_ID,
       replyDraftingEpoch: 1,
       propertyProfileVersion: 3,
-      replyProfileVersion: 'reply-suggestion-v1',
+      replyBrandProfileVersion: brand.version,
+      replyBrandDisplayNameDigest: brand.displayNameDigest,
+      operationProfileVersion: 'reply-suggestion-v1',
+      replyProfileVersion: 'reply-draft-v2',
     } as const
 
     await expect(outputStore.settleEphemeralReply(settlement)).resolves.toBe(false)
     await expect(
       store.claimExecution({ operationId, expectedAttempt: 1, nowEpochMillis: NOW }),
     ).resolves.toMatchObject({ state: 'executing', executionAttempt: 1 })
+    await expect(outputStore.settleEphemeralReply(settlement)).resolves.toBe(false)
+    expect(brandAuthorityInputs.at(-1)).toEqual({
+      organizationId: organizationId(ORGANIZATION_ID),
+      propertyId: propertyId(PROPERTY_ID),
+      version: brand.version,
+      displayNameDigest: brand.displayNameDigest,
+    })
+    brandProfileCurrent = true
     await expect(outputStore.settleEphemeralReply(settlement)).resolves.toBe(true)
     await expect(outputStore.settleEphemeralReply(settlement)).resolves.toBe(false)
 
@@ -2540,6 +2730,21 @@ describe('AI operation store (real PostgreSQL)', () => {
       analysisSequence: 8,
       aiSourceByteLength: 27,
       aiSourceDigest: DIGEST,
+    })
+    await db.insert(materialReviewRevisions).values({
+      reviewId: UNAVAILABLE_REVIEW_ID,
+      revision: 6,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      sourceEpoch: 2,
+      normalizationVersion: 'legacy-unverified-v0',
+      sourceDigest: null,
+      normalizedDigest: null,
+      rating: 3,
+      normalizedText: '言語は対象外です',
+      contentState: 'active',
+      createdAt: new Date(NOW),
+      updatedAt: new Date(NOW),
     })
     const unavailableClaim = await store.claim({
       identity: identity({

@@ -60,8 +60,10 @@ describe('createAiDataLifecycle', () => {
   it('builds one immutable lifecycle from the supplied database and quota Redis', () => {
     const db = { kind: 'database' } as unknown as Database
     const redis = { kind: 'redis' } as unknown as Redis
+    const idGen = vi.fn(() => '31000000-0000-4000-8000-000000000001')
+    const clock = vi.fn(() => new Date('2026-08-28T00:00:00.000Z'))
 
-    const lifecycle = createAiDataLifecycle(db, redis)
+    const lifecycle = createAiDataLifecycle(db, redis, idGen, clock)
 
     expect(lifecycle).toEqual({
       authorization: { name: 'authorization' },
@@ -82,7 +84,6 @@ describe('createAiDataLifecycle', () => {
       mocks.authorization,
       mocks.canaryAuthorization,
       mocks.control,
-      mocks.operations,
       mocks.outputs,
       mocks.calendar,
       mocks.aggregates,
@@ -91,7 +92,12 @@ describe('createAiDataLifecycle', () => {
     ]) {
       expect(factory).toHaveBeenCalledWith(db)
     }
-    expect(mocks.quota).toHaveBeenCalledWith(redis)
-    expect(mocks.propertyProfiles).toHaveBeenCalledWith(db, lifecycle.runtimeCatalogue)
+    expect(mocks.operations).toHaveBeenCalledWith(db, idGen)
+    expect(mocks.quota).toHaveBeenCalledWith(redis, idGen)
+    expect(mocks.propertyProfiles).toHaveBeenCalledWith(
+      db,
+      lifecycle.runtimeCatalogue,
+      clock,
+    )
   })
 })

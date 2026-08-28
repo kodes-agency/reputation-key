@@ -311,11 +311,11 @@ export function createAdvanceReviewAnalysisBackfill(
       }
 
       const occurredAt = new Date(dependencies.nowEpochMillis())
-      const nextReviewId = await session.readRunMember({
+      const nextMember = await session.readRunMember({
         runId: run.id,
         ordinal: nextIndex,
       })
-      if (nextReviewId === null) {
+      if (nextMember === null) {
         // Membership is immutable and requestedReviewCount was committed with
         // it. A missing ordinal is storage corruption, never permission to
         // rebuild from today's eligible Reviews (which could silently change
@@ -328,11 +328,16 @@ export function createAdvanceReviewAnalysisBackfill(
         })
         return { outcome: 'stalled' as const }
       }
-      const candidate = await session.readEligibleCandidate(nextReviewId)
-      if (candidate === null) {
-        // Expired, repointed or deleted since the run pinned it. Spending a
-        // sequence on it would only produce a terminal settle with no analysis,
-        // so the run steps past it and reports the skip.
+      const candidate = await session.readEligibleCandidate(nextMember.reviewId)
+      if (
+        candidate === null ||
+        (nextMember.sourceRevision !== null &&
+          candidate.sourceRevision !== nextMember.sourceRevision)
+      ) {
+        // Expired, repointed, deleted, or advanced to another Material Review
+        // Revision since the run pinned it. First-enablement membership is an
+        // exact revision authority: a newer revision travels through its live
+        // event and is never silently substituted into the enrollment replay.
         await session.skipRunCandidate({ runId: run.id, occurredAt })
         return { outcome: 'skipped' as const }
       }

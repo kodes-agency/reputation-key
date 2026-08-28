@@ -73,7 +73,7 @@ vi.mock('#/shared/observability/logger', async (importOriginal) => {
 
 vi.mock('#/composition', () => ({
   getContainer: () => ({
-    useCases: { readPropertyAiAggregates: mocks.readPropertyAiAggregates },
+    aiPublicApi: { readPropertyAggregates: mocks.readPropertyAiAggregates },
   }),
 }))
 vi.mock('#/shared/auth/headers', () => ({

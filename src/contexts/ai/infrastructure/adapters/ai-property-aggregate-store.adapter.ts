@@ -235,9 +235,9 @@ function mapAnalyzedReview(
   })
 }
 
-export function createAiPropertyAggregateStoreAdapter(
+export const createAiPropertyAggregateStoreAdapter = (
   db: Database,
-): AiPropertyAggregateStorePort {
+): AiPropertyAggregateStorePort => {
   return {
     async applyReviewAnalysis(input) {
       return db.transaction(async (tx) => {

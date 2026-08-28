@@ -21,6 +21,12 @@ export type {
   ReviewAnalysisReadV1,
 } from '../domain/types'
 export type { AiTrendReportRead } from './ports/ai-output-store.port'
+export type { ReviewAnalysisEnrollmentReadiness } from './use-cases/read-review-analysis-enrollment-readiness'
+export type { ReviewAnalysisEnrollmentFence } from './ports/ai-review-analysis-enrollment.port'
+export {
+  EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST,
+  isReviewAnalysisRevisionSetEvidence,
+} from './ports/ai-review-analysis-enrollment.port'
 
 export type {
   AiEvent,

@@ -124,6 +124,17 @@ export type ReviewAnalysisBackfillCandidate = Readonly<{
   storedAnalysisSequence: number
 }>
 
+export type ReviewAnalysisBackfillRunMember = Readonly<{
+  reviewId: ReviewId
+  /**
+   * Exact Material Review Revision captured by first-enablement enrollment.
+   * Null is the temporary expand-compatibility shape for operator runs created
+   * before the revision-pinning migration; null may never be written by a new
+   * first-enablement enrollment.
+   */
+  sourceRevision: number | null
+}>
+
 export type ReviewAnalysisWatermarkReposition = Readonly<{
   sourceEpoch: number
   analysisStartSequence: number
@@ -238,12 +249,14 @@ export type ReviewAnalysisBackfillSession = Readonly<{
     }>,
   ) => Promise<string>
   /**
-   * Canonical run membership at one zero-based ordinal. Returns null only when
-   * the durable set is corrupt; callers must stop rather than recompute it.
+   * Canonical run membership at one zero-based ordinal. First-enablement rows
+   * include the exact Material Review Revision and the driver must skip, never
+   * substitute, when the current revision differs. Returns null only when the
+   * durable set is corrupt; callers must stop rather than recompute it.
    */
   readRunMember: (
     input: Readonly<{ runId: string; ordinal: number }>,
-  ) => Promise<ReviewId | null>
+  ) => Promise<ReviewAnalysisBackfillRunMember | null>
   /**
    * One pinned candidate re-read at the moment its turn comes, under the
    * property lock, or null when it is no longer eligible. Eligibility is

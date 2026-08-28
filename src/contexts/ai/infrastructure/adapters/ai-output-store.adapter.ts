@@ -1,5 +1,6 @@
 import { and, desc, eq, gt, inArray, isNotNull, isNull, sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
 import type { ReviewId } from '#/shared/domain/ids'
 import {
   AI_PROPERTY_TREND_DEFINITION_DIGEST,
@@ -18,11 +19,13 @@ import {
   aiPropertyTrendOutcomes,
   aiPropertyTrendSchedules,
   aiReviewAnalyses,
+  aiReviewAnalysisEnrollments,
   aiReviewEventCursors,
   merchantAiEnablement,
   reviews,
   reviewAiAnalysisHeads,
 } from '#/shared/db/schema'
+import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from '#/shared/ai-personalized-reply-profile'
 import type {
   AiOutputStorePort,
   AiTrendEvidence,
@@ -485,7 +488,13 @@ function findCurrentAnalysisReviewIds(
     .then((rows) => rows.map((row) => row.reviewId as ReviewId))
 }
 
-export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
+export const createAiOutputStoreAdapter = (
+  db: Database,
+  replyBrandProfiles?: Pick<
+    PortalAiReplyBrandProfilePublicApi,
+    'isCurrentAiReplyBrandProfile'
+  >,
+): AiOutputStorePort => {
   return {
     async storeAnalysis(input) {
       return db.transaction(async (tx) => {
@@ -712,6 +721,8 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
             noticeVersion: aiOperations.noticeVersion,
             noticeDigest: aiOperations.noticeDigest,
             propertyProfileVersion: aiOperations.propertyProfileVersion,
+            replyBrandProfileVersion: aiOperations.replyBrandProfileVersion,
+            replyBrandDisplayNameDigest: aiOperations.replyBrandDisplayNameDigest,
             routingPolicyVersion: aiOperations.routingPolicyVersion,
             sourcePolicyId: aiOperations.sourcePolicyId,
             redactionProfileVersion: aiOperations.redactionProfileVersion,
@@ -746,10 +757,28 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
           operation.baseReplyStateRevision !== input.baseReplyStateRevision ||
           operation.authorizationLineageId !== input.authorizationLineageId ||
           operation.propertyProfileVersion !== input.propertyProfileVersion ||
-          operation.operationProfileVersion !== input.replyProfileVersion ||
+          operation.replyBrandProfileVersion !==
+            (input.replyBrandProfileVersion ?? null) ||
+          operation.replyBrandDisplayNameDigest !==
+            (input.replyBrandDisplayNameDigest ?? null) ||
+          operation.operationProfileVersion !== input.operationProfileVersion ||
+          input.replyProfileVersion !== AI_PERSONALIZED_REPLY_PROFILE_VERSION ||
           operation.capabilityRuntimeProfileVersion !== 'reply-drafting-runtime-v1' ||
           fence?.capability !== 'reply_drafting' ||
           fence.replyDraftingEpoch !== input.replyDraftingEpoch
+        ) {
+          return false
+        }
+        if (
+          operation.replyBrandProfileVersion !== null &&
+          operation.replyBrandDisplayNameDigest !== null &&
+          (!replyBrandProfiles ||
+            !(await replyBrandProfiles.isCurrentAiReplyBrandProfile(tx, {
+              organizationId: input.organizationId,
+              propertyId: input.propertyId,
+              version: operation.replyBrandProfileVersion,
+              displayNameDigest: operation.replyBrandDisplayNameDigest,
+            })))
         ) {
           return false
         }
@@ -1366,6 +1395,8 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
           .select({
             state: merchantAiEnablement.state,
             authorizationLineageId: merchantAiEnablement.authorizationLineageId,
+            authorizationStateVersion: merchantAiEnablement.stateVersion,
+            analysisStartSequence: merchantAiEnablement.analysisStartSequence,
             capabilities: merchantAiEnablement.capabilities,
             reviewAnalysisEpoch: merchantAiEnablement.reviewAnalysisEpoch,
             propertyTrendsEpoch: merchantAiEnablement.propertyTrendsEpoch,
@@ -1391,12 +1422,45 @@ export function createAiOutputStoreAdapter(db: Database): AiOutputStorePort {
           .for('share')
         if (
           authorization?.state !== 'enabled' ||
+          authorization.authorizationLineageId === null ||
           !authorization.capabilities.includes('property_trends') ||
           authorization.reviewAnalysisEpoch !== input.reviewAnalysisEpoch ||
           authorization.propertyTrendsEpoch !== input.propertyTrendsEpoch ||
           authorization.sourceEpoch !== input.sourceEpoch
         ) {
           return deliverCurrent({ status: 'disabled' })
+        }
+
+        const [enrollment] = await tx
+          .select({ state: aiReviewAnalysisEnrollments.state })
+          .from(aiReviewAnalysisEnrollments)
+          .where(
+            and(
+              eq(aiReviewAnalysisEnrollments.organizationId, input.organizationId),
+              eq(aiReviewAnalysisEnrollments.propertyId, input.propertyId),
+              eq(
+                aiReviewAnalysisEnrollments.authorizationLineageId,
+                authorization.authorizationLineageId,
+              ),
+              eq(
+                aiReviewAnalysisEnrollments.authorizationStateVersion,
+                authorization.authorizationStateVersion,
+              ),
+              eq(aiReviewAnalysisEnrollments.sourceEpoch, input.sourceEpoch),
+              eq(
+                aiReviewAnalysisEnrollments.reviewAnalysisEpoch,
+                input.reviewAnalysisEpoch,
+              ),
+              eq(
+                aiReviewAnalysisEnrollments.analysisStartSequence,
+                authorization.analysisStartSequence,
+              ),
+            ),
+          )
+          .limit(1)
+          .for('share')
+        if (enrollment?.state !== 'caught_up') {
+          return deliverCurrent(preparing())
         }
 
         const [profile] = await tx

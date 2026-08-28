@@ -133,7 +133,10 @@ function harness(
       openedReviewIds = orderedReviewIds
       return RUN_ID
     },
-    readRunMember: async ({ ordinal }) => openedReviewIds[ordinal] ?? null,
+    readRunMember: async ({ ordinal }) => {
+      const pinned = openedReviewIds[ordinal]
+      return pinned ? { reviewId: pinned, sourceRevision: null } : null
+    },
     readEligibleCandidate: async (reviewId) =>
       pool.find((candidate) => candidate.reviewId === reviewId) ?? null,
     readOutcomeState: async () => null,

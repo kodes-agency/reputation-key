@@ -29,10 +29,11 @@ function compareExpected(
   return result
 }
 
-export function createPropertyProcessingProfileAdapter(
+export const createPropertyProcessingProfileAdapter = (
   db: Database,
   runtimeCatalogue: AiRuntimeCataloguePort,
-): PropertyProcessingProfilePort {
+  clock: () => Date,
+): PropertyProcessingProfilePort => {
   const readForAi: PropertyProcessingProfilePort['readForAi'] = async (input) => {
     if (!(await runtimeCatalogue.assertComplete()))
       return { status: 'policy_unavailable' }
@@ -207,7 +208,7 @@ export function createPropertyProcessingProfileAdapter(
       const profileVersion = unchanged
         ? existing.profileVersion
         : (existing?.profileVersion ?? 0) + 1
-      const updatedAt = new Date()
+      const updatedAt = clock()
 
       if (!unchanged) {
         await tx

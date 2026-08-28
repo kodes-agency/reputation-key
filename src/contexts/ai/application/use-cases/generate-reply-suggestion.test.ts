@@ -30,6 +30,8 @@ const OPERATION_ID = '72000000-0000-4000-8000-000000000104' as AiOperationId
 const PERMIT_ID = '72000000-0000-4000-8000-000000000105'
 const LINEAGE_ID = '72000000-0000-4000-8000-000000000106'
 const SHA = 'a'.repeat(64)
+const BRAND_DISPLAY_NAME_DIGEST =
+  '030c644bf71ad1d7570dc9ab6131f5209ac02fa65e930e2910778e024fc643bf'
 
 const INPUT = Object.freeze({
   organizationId: ORGANIZATION_ID,
@@ -55,9 +57,58 @@ function createHarness(
       reason?: string
     }>
     propertyReplyLanguage?: string | null
+    brandProfile?: Readonly<{
+      displayName: string
+      version: number
+      displayNameDigest: string
+    }> | null
+    brandProfileAfterProvider?: Readonly<{
+      displayName: string
+      version: number
+      displayNameDigest: string
+    }> | null
+    brandProfileAfterSettlement?: Readonly<{
+      displayName: string
+      version: number
+      displayNameDigest: string
+    }> | null
+    settleEphemeralReplyResult?: boolean
+    assertCurrentStatus?: 'current' | 'stale'
+    gatewayErrorCode?:
+      | 'provider_unavailable'
+      | 'provider_rate_limited'
+      | 'provider_refused'
+      | 'output_invalid'
+      | 'output_truncated'
   }> = {},
 ) {
   const currentReplyStateRevision = options.currentReplyStateRevision ?? 3
+  const initialBrandProfile =
+    options.brandProfile === undefined
+      ? {
+          displayName: 'Example Hotel',
+          version: 7,
+          displayNameDigest: BRAND_DISPLAY_NAME_DIGEST,
+        }
+      : options.brandProfile
+  const brandProfileAfterProvider =
+    options.brandProfileAfterProvider === undefined
+      ? initialBrandProfile
+      : options.brandProfileAfterProvider
+  const brandProfileAfterSettlement =
+    options.brandProfileAfterSettlement === undefined
+      ? brandProfileAfterProvider
+      : options.brandProfileAfterSettlement
+  let brandProfileReadCount = 0
+  let settlementAttempted = false
+  const readCurrentAiReplyBrandProfile = vi.fn(async () => {
+    brandProfileReadCount += 1
+    return brandProfileReadCount === 1
+      ? initialBrandProfile
+      : settlementAttempted
+        ? brandProfileAfterSettlement
+        : brandProfileAfterProvider
+  })
   const claim = vi.fn(
     async (request: {
       identity: unknown
@@ -98,38 +149,54 @@ function createHarness(
       executionPermitId: PERMIT_ID,
     }
   })
-  const generateReply = vi.fn(async () => ({
-    route: 'reply-suggestion' as const,
-    status: 'success' as const,
-    result: {
-      replyText: 'Thank you for your thoughtful review.',
-      provenanceToken: 'signed-provenance-token',
-      expiresAtEpochMillis: NOW + 5 * 60_000,
-    },
-    settlementReceipt: {
-      version: 'ai-settlement-receipt-v1' as const,
-      receiptKid: 'receipt-v1',
-      grantKid: 'grant-v1',
-      operationId: OPERATION_ID,
-      permitId: PERMIT_ID,
-      attemptNumber: 1,
-      nonce: 'AQIDBA',
-      requestBindingHmac: 'A'.repeat(43),
-      disposition: 'success' as const,
-      reportedDisposition: 'success' as const,
-      providerRetryable: false,
-      usageKnown: true,
-      inputTokens: 10,
-      cachedInputTokens: 0,
-      outputTokens: 5,
-      reasoningTokens: 0,
-      costMicros: 42,
-      settledAtEpochMillis: NOW + 1_000,
-      settlementState: 'settled' as const,
-      receiptSignature: 'A'.repeat(86),
-    },
-  }))
-  const settleEphemeralReply = vi.fn(async () => true)
+  const generateReply = vi.fn(async () =>
+    options.gatewayErrorCode
+      ? ({
+          route: 'reply-suggestion' as const,
+          status: 'error' as const,
+          code: options.gatewayErrorCode,
+          retryAfterEpochMillis: null,
+        } as const)
+      : ({
+          route: 'reply-suggestion' as const,
+          status: 'success' as const,
+          result: {
+            profileVersion: 'reply-draft-v2' as const,
+            replyText: 'Thank you for your thoughtful review.',
+            provenanceToken: 'signed-provenance-token',
+            expiresAtEpochMillis: NOW + 5 * 60_000,
+            baseReplyStateRevision: 3,
+            concreteLanguageTag: 'en-Latn',
+            templateGroup: 'en-Latn' as const,
+          },
+          settlementReceipt: {
+            version: 'ai-settlement-receipt-v1' as const,
+            receiptKid: 'receipt-v1',
+            grantKid: 'grant-v1',
+            operationId: OPERATION_ID,
+            permitId: PERMIT_ID,
+            attemptNumber: 1,
+            nonce: 'AQIDBA',
+            requestBindingHmac: 'A'.repeat(43),
+            disposition: 'success' as const,
+            reportedDisposition: 'success' as const,
+            providerRetryable: false,
+            usageKnown: true,
+            inputTokens: 10,
+            cachedInputTokens: 0,
+            outputTokens: 5,
+            reasoningTokens: 0,
+            costMicros: 42,
+            settledAtEpochMillis: NOW + 1_000,
+            settlementState: 'settled' as const,
+            receiptSignature: 'A'.repeat(86),
+          },
+        } as const),
+  )
+  const settleEphemeralReply = vi.fn(async () => {
+    settlementAttempted = true
+    return options.settleEphemeralReplyResult ?? true
+  })
   const markDelivered = vi.fn(async () => true)
   const release = vi.fn(async () => {})
   const readReplyStateRevision = vi.fn(async () => currentReplyStateRevision)
@@ -242,7 +309,9 @@ function createHarness(
         },
       })),
       readReplyStateRevision,
-      assertCurrent: vi.fn(async () => ({ status: 'current' as const })),
+      assertCurrent: vi.fn(async () => ({
+        status: options.assertCurrentStatus ?? ('current' as const),
+      })),
     },
     processingProfiles: {
       readForAi: vi.fn(async () => ({
@@ -264,6 +333,7 @@ function createHarness(
     propertyReplyLanguages: {
       readDefaultReplyLanguage: vi.fn(async () => options.propertyReplyLanguage ?? null),
     },
+    replyBrandProfiles: { readCurrentAiReplyBrandProfile },
     resolveReplyLanguage: vi.fn(
       async () =>
         options.replyLanguage ?? {
@@ -286,6 +356,7 @@ function createHarness(
       readDefaultReplyLanguage:
         dependencies.propertyReplyLanguages.readDefaultReplyLanguage,
       resolveReplyLanguage: dependencies.resolveReplyLanguage,
+      readCurrentAiReplyBrandProfile,
     },
   }
 }
@@ -309,6 +380,18 @@ describe('generate reply suggestion', () => {
     await expect(harness.generate(INPUT)).resolves.toEqual({
       status: 'unavailable',
       code: 'no_review_text',
+      retryAfterEpochMillis: null,
+    })
+    expect(harness.mocks.claim).not.toHaveBeenCalled()
+    expect(harness.mocks.generateReply).not.toHaveBeenCalled()
+  })
+
+  it('fails closed before admission when the Property Brand Profile is unavailable', async () => {
+    const harness = createHarness({ brandProfile: null })
+
+    await expect(harness.generate(INPUT)).resolves.toEqual({
+      status: 'unavailable',
+      code: 'brand_profile_unavailable',
       retryAfterEpochMillis: null,
     })
     expect(harness.mocks.claim).not.toHaveBeenCalled()
@@ -349,6 +432,7 @@ describe('generate reply suggestion', () => {
 
     await expect(harness.generate(INPUT)).resolves.toEqual({
       status: 'ready',
+      profileVersion: 'reply-draft-v2',
       replyText: 'Thank you for your thoughtful review.',
       provenanceToken: 'signed-provenance-token',
       expiresAtEpochMillis: NOW + 5 * 60_000,
@@ -361,6 +445,8 @@ describe('generate reply suggestion', () => {
         reviewId: REVIEW_ID,
         baseReplyStateRevision: 3,
         replyDraftingEpoch: 7,
+        operationProfileVersion: 'reply-suggestion-v1',
+        replyProfileVersion: 'reply-draft-v2',
       }),
     )
     expect(harness.mocks.markDelivered).toHaveBeenCalledWith({
@@ -369,6 +455,92 @@ describe('generate reply suggestion', () => {
       deliveredAtEpochMillis: NOW,
     })
     expect(harness.mocks.release).toHaveBeenCalledWith({ quotaId: 'quota-1' })
+    expect(harness.mocks.generateReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        replyProfileVersion: 'reply-draft-v2',
+        brandProfile: { displayName: 'Example Hotel' },
+        binding: expect.objectContaining({
+          replyBrandProfileVersion: 7,
+          replyBrandDisplayNameDigest: BRAND_DISPLAY_NAME_DIGEST,
+        }),
+      }),
+      expect.any(AbortSignal),
+    )
+    expect(harness.mocks.readCurrentAiReplyBrandProfile).toHaveBeenCalledTimes(2)
+  })
+
+  it('withholds a provider result when the public Brand Profile changes in flight', async () => {
+    const harness = createHarness({
+      brandProfileAfterProvider: {
+        displayName: 'Example Hotel Sofia',
+        version: 8,
+        displayNameDigest: 'b'.repeat(64),
+      },
+    })
+
+    await expect(harness.generate(INPUT)).resolves.toEqual({
+      status: 'unavailable',
+      code: 'brand_profile_changed',
+      retryAfterEpochMillis: null,
+    })
+    expect(harness.mocks.settleEphemeralReply).not.toHaveBeenCalled()
+    expect(harness.mocks.markDelivered).not.toHaveBeenCalled()
+  })
+
+  it('reports a Brand change that races the atomic settlement fence', async () => {
+    const harness = createHarness({
+      settleEphemeralReplyResult: false,
+      brandProfileAfterSettlement: {
+        displayName: 'Example Hotel Sofia',
+        version: 8,
+        displayNameDigest: 'b'.repeat(64),
+      },
+    })
+
+    await expect(harness.generate(INPUT)).resolves.toEqual({
+      status: 'unavailable',
+      code: 'brand_profile_changed',
+      retryAfterEpochMillis: null,
+    })
+    expect(harness.mocks.settleEphemeralReply).toHaveBeenCalledTimes(1)
+    expect(harness.mocks.markDelivered).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'provider_unavailable',
+    'provider_rate_limited',
+    'provider_refused',
+    'output_invalid',
+    'output_truncated',
+  ] as const)('offers a labelled local fallback for %s', async (gatewayErrorCode) => {
+    const harness = createHarness({ gatewayErrorCode })
+
+    await expect(harness.generate(INPUT)).resolves.toEqual({
+      status: 'fallback',
+      kind: 'local_safe_template',
+      reason: 'provider_or_output_unavailable',
+      replyText:
+        'Thank you for sharing this positive review. We are pleased that your experience was enjoyable.',
+      concreteLanguageTag: 'en-Latn',
+    })
+    expect(harness.mocks.settleEphemeralReply).not.toHaveBeenCalled()
+    expect(harness.mocks.markDelivered).not.toHaveBeenCalled()
+    expect(harness.mocks.release).toHaveBeenCalledWith({ quotaId: 'quota-1' })
+  })
+
+  it('withholds the local fallback when the Review changes during provider work', async () => {
+    const harness = createHarness({
+      gatewayErrorCode: 'output_invalid',
+      assertCurrentStatus: 'stale',
+    })
+
+    await expect(harness.generate(INPUT)).resolves.toEqual({
+      status: 'unavailable',
+      code: 'source_changed',
+      retryAfterEpochMillis: null,
+    })
+    expect(harness.mocks.settleEphemeralReply).not.toHaveBeenCalled()
+    expect(harness.mocks.markDelivered).not.toHaveBeenCalled()
   })
 
   it('resolves a property-default target from tenant-scoped server data', async () => {
@@ -448,7 +620,7 @@ describe('generate reply suggestion', () => {
     )
   })
 
-  it('governs missing provider metadata through review-text detection', async () => {
+  it('keeps an otherwise resolved language dark until its personalized profile is approved', async () => {
     const text =
       'Bulgaristan’da nadir görülen konforlu bir mekan ve konaklamada sabah kahvaltısı dahil.'
     const harness = createHarness({
@@ -460,24 +632,16 @@ describe('generate reply suggestion', () => {
       },
     })
 
-    await expect(harness.generate(INPUT)).resolves.toMatchObject({
-      status: 'ready',
-      concreteLanguageTag: 'tr-Latn',
+    await expect(harness.generate(INPUT)).resolves.toEqual({
+      status: 'unavailable',
+      code: 'language_not_supported',
+      retryAfterEpochMillis: null,
     })
     expect(harness.mocks.resolveReplyLanguage).toHaveBeenCalledWith({
       text,
       evaluatedLanguage: { tag: 'und', group: 'und' },
     })
-    expect(harness.mocks.claim).toHaveBeenCalledWith(
-      expect.objectContaining({
-        binding: expect.objectContaining({
-          evaluatedLanguage: 'und',
-          concreteReplyLanguage: {
-            tag: 'tr-Latn',
-            templateGroup: 'tr-Latn',
-          },
-        }),
-      }),
-    )
+    expect(harness.mocks.claim).not.toHaveBeenCalled()
+    expect(harness.mocks.generateReply).not.toHaveBeenCalled()
   })
 })

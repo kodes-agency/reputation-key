@@ -289,6 +289,8 @@ const BINDING_KEYS = [
   'sourceRevision',
   'reviewedAtEpochMillis',
   'propertyProfileVersion',
+  'replyBrandProfileVersion',
+  'replyBrandDisplayNameDigest',
   'routingPolicyVersion',
   'sourcePolicyId',
   'sourceCanonicalizerDigest',
@@ -340,6 +342,14 @@ function commonBindingValid(value: Readonly<Record<string, unknown>>): boolean {
     // genuinely 1-based.
     isNonnegativeSafeInteger(value.sourceEpoch) &&
     isPositiveSafeInteger(value.propertyProfileVersion) &&
+    (value.replyBrandProfileVersion === null ||
+      isPositiveSafeInteger(value.replyBrandProfileVersion)) &&
+    validDigestOrNull(value.replyBrandDisplayNameDigest) &&
+    ((value.replyBrandProfileVersion === null &&
+      value.replyBrandDisplayNameDigest === null) ||
+      (isPositiveSafeInteger(value.replyBrandProfileVersion) &&
+        typeof value.replyBrandDisplayNameDigest === 'string' &&
+        SHA256.test(value.replyBrandDisplayNameDigest))) &&
     isPositiveSafeInteger(value.routingPolicyVersion) &&
     nonEmptyString(value.sourcePolicyId, 150) &&
     typeof value.sourceCanonicalizerDigest === 'string' &&
@@ -368,6 +378,20 @@ function allNull(
 export function parseAiExecutionBinding(
   value: unknown,
 ): Result<AiExecutionBinding, AiError> {
+  // Rows and signed descriptors created before Brand-grounded Reply Drafting
+  // have neither field. Decode that exact legacy pair as null while rejecting
+  // a partially present or otherwise unknown shape.
+  if (
+    isRecord(value) &&
+    !Object.hasOwn(value, 'replyBrandProfileVersion') &&
+    !Object.hasOwn(value, 'replyBrandDisplayNameDigest')
+  ) {
+    value = {
+      ...value,
+      replyBrandProfileVersion: null,
+      replyBrandDisplayNameDigest: null,
+    }
+  }
   if (!isRecord(value) || !exactKeys(value, BINDING_KEYS) || !commonBindingValid(value)) {
     return invalid('AI execution binding has unknown, missing, or invalid common fields')
   }
@@ -393,6 +417,8 @@ export function parseAiExecutionBinding(
         'outputLeakageProfileDigest',
         'replyTemplateCatalogueVersion',
         'replyTemplateCatalogueDigest',
+        'replyBrandProfileVersion',
+        'replyBrandDisplayNameDigest',
       ])
     ) {
       return invalid('analysis binding is cross-wired or incomplete')
@@ -454,6 +480,8 @@ export function parseAiExecutionBinding(
         'outputLeakageProfileDigest',
         'replyTemplateCatalogueVersion',
         'replyTemplateCatalogueDigest',
+        'replyBrandProfileVersion',
+        'replyBrandDisplayNameDigest',
         'aiSubjectHmacKeyVersion',
       ])
     ) {

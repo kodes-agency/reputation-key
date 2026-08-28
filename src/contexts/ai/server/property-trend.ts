@@ -24,7 +24,7 @@ export const getPropertyAiTrendFn = createServerFn({ method: 'GET' })
           propertyId: id,
         })
         try {
-          return await getContainer().useCases.readPropertyAiTrend({
+          return await getContainer().aiPublicApi.readPropertyTrend({
             organizationId: ctx.organizationId,
             propertyId: id,
             actorUserId: ctx.userId,

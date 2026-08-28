@@ -22,8 +22,8 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { REPLY_TONES } from '#/shared/ai-reply-template-catalogue'
-import { propertyId } from '#/shared/domain/ids'
-import type { Review } from '#/contexts/review/domain/types'
+import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import type { AiReviewCurrentSource } from '#/contexts/review/application/public-api'
 import type { GenerateReplySuggestionResult } from '#/contexts/ai/application/use-cases/generate-reply-suggestion'
 import type * as ExecutionPolicyModule from '#/shared/auth/execution-policy'
 import type { PolicyDenyReason } from '#/shared/auth/execution-policy'
@@ -44,7 +44,7 @@ type StandardValidator = Readonly<{
 
 const mocks = vi.hoisted(() => ({
   generateReplySuggestion: vi.fn(),
-  findById: vi.fn(),
+  readCurrentSource: vi.fn(),
   readReplyStateRevision: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
@@ -97,10 +97,12 @@ vi.mock('#/shared/observability/logger', async (importOriginal) => {
 
 vi.mock('#/composition', () => ({
   getContainer: () => ({
-    useCases: { generateReplySuggestion: mocks.generateReplySuggestion },
-    reviewRepo: {
-      findById: mocks.findById,
-      readReplyStateRevision: mocks.readReplyStateRevision,
+    aiPublicApi: { generateReplySuggestion: mocks.generateReplySuggestion },
+    reviewPublicApi: {
+      aiReviewSource: {
+        readCurrentSource: mocks.readCurrentSource,
+        readReplyStateRevision: mocks.readReplyStateRevision,
+      },
     },
   }),
 }))
@@ -146,18 +148,21 @@ const ACTOR = {
  * `sourceEpoch` sits at its floor of 0, while `sourceRevision` starts at 1 for
  * a first observation (see reviewFromSource in review/domain/types).
  */
-const NEVER_EDITED_REVIEW: Pick<Review, 'propertyId' | 'sourceEpoch' | 'sourceRevision'> =
-  {
-    propertyId: propertyId(PROPERTY_ID),
-    sourceEpoch: 0,
-    sourceRevision: 1,
-  }
+const NEVER_EDITED_REVIEW_SOURCE: AiReviewCurrentSource = {
+  organizationId: organizationId(ORGANIZATION_ID),
+  propertyId: propertyId(PROPERTY_ID),
+  reviewId: reviewId(REVIEW_ID),
+  sourceEpoch: 0,
+  sourceRevision: 1,
+  analysisSequence: 1,
+}
 
 /** No reply has ever been drafted for this review. */
 const NEVER_REPLIED_STATE_REVISION = 0
 
 const READY: GenerateReplySuggestionResult = {
   status: 'ready',
+  profileVersion: 'reply-draft-v2',
   replyText: 'Thank you for the detailed feedback.',
   provenanceToken: 'provenance-token-1',
   expiresAtEpochMillis: 0,
@@ -174,6 +179,8 @@ const RETRY_AT = 1_700_000_000_000
 const UNAVAILABLE_RETRY_AFTER: Readonly<Record<UnavailableCode, number | null>> = {
   not_authorized: null,
   source_changed: null,
+  brand_profile_unavailable: null,
+  brand_profile_changed: null,
   // Terminal: no amount of waiting gives a textless review text, and no
   // amount of waiting lengthens a review below the detector's floor.
   no_review_text: null,
@@ -193,6 +200,8 @@ const HOOK_DISTINGUISHED_CODES: ReadonlyArray<UnavailableCode> = [
   'not_authorized',
   'no_review_text',
   'source_changed',
+  'brand_profile_unavailable',
+  'brand_profile_changed',
 ]
 
 const NO_STORE_HEADERS: ReadonlyArray<readonly [string, string]> = [
@@ -234,7 +243,10 @@ beforeEach(() => {
   mocks.headersFromContext.mockResolvedValue(new Headers())
   mocks.resolveTenantContext.mockResolvedValue(ACTOR)
   mocks.requireExecutionAllowed.mockResolvedValue(undefined)
-  mocks.findById.mockResolvedValue(NEVER_EDITED_REVIEW)
+  mocks.readCurrentSource.mockResolvedValue({
+    status: 'available',
+    source: NEVER_EDITED_REVIEW_SOURCE,
+  })
   mocks.readReplyStateRevision.mockResolvedValue(NEVER_REPLIED_STATE_REVISION)
   mocks.generateReplySuggestion.mockResolvedValue(READY)
 })
@@ -262,18 +274,22 @@ describe('generateReplySuggestionFn — request shaping', () => {
       targetLanguage: REVIEW_LANGUAGE_TARGET,
       idempotencyKey: IDEMPOTENCY_KEY,
       expectedSourceEpoch: 0,
-      expectedSourceRevision: NEVER_EDITED_REVIEW.sourceRevision,
+      expectedSourceRevision: NEVER_EDITED_REVIEW_SOURCE.sourceRevision,
       expectedBaseReplyStateRevision: NEVER_REPLIED_STATE_REVISION,
     })
   })
 
-  it('scopes both repository reads to the resolved tenant in the argument order each port declares', async () => {
+  it('scopes both Review public-port reads to the resolved tenant', async () => {
     await call()
 
-    // findById takes (reviewId, organizationId); readReplyStateRevision takes
-    // (organizationId, reviewId). Swapping either pair is a cross-tenant read.
-    expect(mocks.findById).toHaveBeenCalledWith(REVIEW_ID, ORGANIZATION_ID)
-    expect(mocks.readReplyStateRevision).toHaveBeenCalledWith(ORGANIZATION_ID, REVIEW_ID)
+    expect(mocks.readCurrentSource).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      reviewId: REVIEW_ID,
+    })
+    expect(mocks.readReplyStateRevision).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      reviewId: REVIEW_ID,
+    })
   })
 
   it('gates on ai.reply.generate scoped to the property the review belongs to', async () => {
@@ -333,7 +349,7 @@ describe('generateReplySuggestionFn — AI content is never cached', () => {
   })
 
   it('still suppresses caching when the review is missing', async () => {
-    mocks.findById.mockResolvedValue(null)
+    mocks.readCurrentSource.mockResolvedValue({ status: 'not_found' })
 
     await rejection(call())
 
@@ -391,7 +407,7 @@ describe('generateReplySuggestionFn — resolved outcomes reach the hook intact'
 
 describe('generateReplySuggestionFn — failure surfaces', () => {
   it('returns a tagged 404 and never authorizes or generates when the review is missing', async () => {
-    mocks.findById.mockResolvedValue(null)
+    mocks.readCurrentSource.mockResolvedValue({ status: 'not_found' })
 
     const error = await rejection(call())
 
@@ -426,8 +442,8 @@ describe('generateReplySuggestionFn — failure surfaces', () => {
     expect(mocks.generateReplySuggestion).not.toHaveBeenCalled()
   })
 
-  it('masks an untagged repository failure as a generic 500 and leaks no detail', async () => {
-    mocks.findById.mockRejectedValue(
+  it('masks an untagged Review-port failure as a generic 500 and leaks no detail', async () => {
+    mocks.readCurrentSource.mockRejectedValue(
       new Error('select * from reviews where id = $1 failed: connection terminated'),
     )
 
@@ -540,14 +556,14 @@ describe('generateReplySuggestionFn — input validation fences the tenant path'
       /"path":\["targetLanguage"\]/,
     ],
   ])(
-    'rejects %s before any tenant, repository or policy work',
+    'rejects %s before any tenant, Review-port or policy work',
     async (_name, data, path) => {
       // Per-case path pattern: a validator that rejected for the wrong reason,
       // or stopped checking one field, would still fail here.
       await expect(callUnchecked(data)).rejects.toThrow(path)
 
       expect(mocks.resolveTenantContext).not.toHaveBeenCalled()
-      expect(mocks.findById).not.toHaveBeenCalled()
+      expect(mocks.readCurrentSource).not.toHaveBeenCalled()
       expect(mocks.requireExecutionAllowed).not.toHaveBeenCalled()
       expect(mocks.generateReplySuggestion).not.toHaveBeenCalled()
       // Nothing was emitted, so there is no response to suppress caching on.
@@ -556,12 +572,12 @@ describe('generateReplySuggestionFn — input validation fences the tenant path'
   )
 
   it('rejects an unparsable reviewId even when the review would exist', async () => {
-    // The DTO, not the repository, is what stops a malformed identifier: without
+    // The DTO, not the Review port, is what stops a malformed identifier: without
     // it a raw string would be branded and handed to the tenant-scoped query.
     await expect(call({ reviewId: `${REVIEW_ID} OR 1=1` })).rejects.toThrow(
       /"path":\["reviewId"\]/,
     )
 
-    expect(mocks.findById).not.toHaveBeenCalled()
+    expect(mocks.readCurrentSource).not.toHaveBeenCalled()
   })
 })

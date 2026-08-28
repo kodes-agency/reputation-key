@@ -332,7 +332,12 @@ export function createBackfillReviewAnalysis(
         occurredAt: input.occurredAt,
       })
       const firstMember = await session.readRunMember({ runId, ordinal: 0 })
-      if (firstMember !== candidates[0]!.reviewId) {
+      if (
+        firstMember === null ||
+        firstMember.reviewId !== candidates[0]!.reviewId ||
+        (firstMember.sourceRevision !== null &&
+          firstMember.sourceRevision !== candidates[0]!.sourceRevision)
+      ) {
         throw new Error(
           `Review analysis backfill membership changed while opening run ${runId}`,
         )
@@ -345,9 +350,9 @@ export function createBackfillReviewAnalysis(
       // the next item once this one has settled, inside the epoch just opened.
       const firstAnalysisSequence = await emitRunItem(session, {
         runId,
-        reviewId: firstMember,
+        reviewId: firstMember.reviewId,
         sourceEpoch: context.propertySourceEpoch,
-        sourceRevision: candidates[0]!.sourceRevision,
+        sourceRevision: firstMember.sourceRevision ?? candidates[0]!.sourceRevision,
         correlationId: input.correlationId,
         occurredAt: input.occurredAt,
       })

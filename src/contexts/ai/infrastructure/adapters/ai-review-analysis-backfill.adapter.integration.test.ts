@@ -8,10 +8,12 @@
 // review pointers moved and one outbox row each.
 
 import { readFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { and, asc, eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   merchantAiConsentEvidence,
   merchantAiEnablement,
@@ -83,10 +85,14 @@ const REVIEW_IDS = STORED_SEQUENCES.map((_, index) =>
 describe('review analysis backfill adapter (real PostgreSQL)', () => {
   const db = getDb()
   const backfill = createBackfillReviewAnalysis({
-    backfillStore: createReviewAnalysisBackfillAdapter(db),
+    backfillStore: createReviewAnalysisBackfillAdapter(db, randomUUID),
     // The real identity-owned adapter: this is the sanctioned route to the
     // grant table, and wiring the real one keeps the seam honest here.
-    propertyAuthority: createMemberPropertyAuthorityLookup(db, 'ai.manage'),
+    propertyAuthority: createMemberPropertyAuthorityLookup(
+      db,
+      'ai.manage',
+      () => new Date(),
+    ),
   })
 
   const clear = async () => {
@@ -103,7 +109,7 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
       sql`DELETE FROM member WHERE "organizationId" = ${ORGANIZATION_ID}`,
     ])
     await db.execute(sql`DELETE FROM "user" WHERE id = ${ACTOR_USER_ID}`)
-    await db.execute(sql`DELETE FROM organization WHERE id = ${ORGANIZATION_ID}`)
+    await deleteTestOrganizations(db, [ORGANIZATION_ID])
   }
 
   const seed = async (
@@ -513,7 +519,7 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
         createdAt: NOW,
         updatedAt: NOW,
       }),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ cause: { code: '23505' } })
     const [rolledBack] = await db
       .select({ id: aiReviewAnalysisBackfillRuns.id })
       .from(aiReviewAnalysisBackfillRuns)
@@ -552,7 +558,7 @@ describe('review analysis backfill adapter (real PostgreSQL)', () => {
       FROM generate_series(0, 10000) AS generated(ordinal)
     `)
 
-    const read = await createReviewAnalysisBackfillAdapter(db).runExclusive(
+    const read = await createReviewAnalysisBackfillAdapter(db, randomUUID).runExclusive(
       { organizationId: ORGANIZATION_ID, propertyId: PROPERTY_ID },
       async (session) => {
         await session.readContext()

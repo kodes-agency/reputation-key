@@ -112,6 +112,7 @@ function verifyResponseBinding(
     if (
       language === null ||
       fence.capability !== 'reply_drafting' ||
+      response.result.profileVersion !== request.replyProfileVersion ||
       response.result.concreteLanguageTag !== language.tag ||
       response.result.templateGroup !== language.templateGroup ||
       response.result.baseReplyStateRevision !== fence.baseReplyStateRevision
@@ -127,9 +128,9 @@ function verifyResponseBinding(
   }
 }
 
-export function createAiGatewayAdapter(
+export const createAiGatewayAdapter = (
   input: CreateAiGatewayAdapterInput,
-): AiInferencePort {
+): AiInferencePort => {
   if (
     input.admissionSettlementPublicKeys.size === 0 ||
     [...input.admissionSettlementPublicKeys.values()].some((key) => key.type !== 'public')

@@ -1,6 +1,7 @@
 import type { Database } from '#/shared/db'
 import type { Redis } from 'ioredis'
 import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
+import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
 import {
   createCld3ReplyLanguageDetector,
   resolveConcreteReplyLanguage,
@@ -11,6 +12,9 @@ import type { AiSubjectHmacPort } from './application/ports/ai-subject-hmac.port
 import type { PropertyReplyLanguagePort } from './application/ports/property-reply-language.port'
 import { createAnalyzeReviewEvent } from './application/use-cases/analyze-review-event'
 import { createAdvanceReviewAnalysisBackfill } from './application/use-cases/advance-review-analysis-backfill'
+import { createAdvanceReviewAnalysisEnrollments } from './application/use-cases/advance-review-analysis-enrollments'
+import { createApplyAiAuthorizationLifecycle } from './application/use-cases/apply-ai-authorization-lifecycle'
+import { createApproveReviewAnalysisEnrollment } from './application/use-cases/approve-review-analysis-enrollment'
 import type { AiOutputStorePort } from './application/ports/ai-output-store.port'
 import { createGenerateReplySuggestion } from './application/use-cases/generate-reply-suggestion'
 import type { GenerateReplySuggestionDependencies } from './application/use-cases/generate-reply-suggestion'
@@ -32,6 +36,7 @@ import { createAiReviewEventStoreAdapter } from './infrastructure/adapters/ai-re
 import { createAiRuntimeCatalogueAdapter } from './infrastructure/adapters/ai-runtime-catalogue.adapter'
 import { createPropertyProcessingProfileAdapter } from './infrastructure/adapters/property-processing-profile.adapter'
 import { createReviewAnalysisBackfillAdapter } from './infrastructure/adapters/ai-review-analysis-backfill.adapter'
+import { createReviewAnalysisEnrollmentAdapter } from './infrastructure/adapters/ai-review-analysis-enrollment.adapter'
 import { createRedisAiQuotaAdapter } from './infrastructure/adapters/ai-quota.adapter'
 import { createAiDataLifecycle } from './infrastructure/ai-data-lifecycle'
 import type { OutboxRepository } from '#/shared/outbox'
@@ -39,6 +44,7 @@ import {
   registerAiConsumers,
   type RegisterAiConsumersInput,
 } from './infrastructure/outbox-consumers'
+import { createReadReviewAnalysisEnrollmentReadiness } from './application/use-cases/read-review-analysis-enrollment-readiness'
 
 const unavailableInference: AiInferencePort = Object.freeze({
   analyzeReview: async () => ({
@@ -81,35 +87,40 @@ export type AiContextBuildInput = Readonly<{
   redis: Redis | undefined
   reviewSources: AiReviewSourcePort
   propertyReplyLanguages: PropertyReplyLanguagePort
+  replyBrandProfiles: PortalAiReplyBrandProfilePublicApi
   inference?: AiInferencePort
   quota?: AiQuotaPort
   subjectHmac?: AiSubjectHmacPort
   resolveReplyLanguage?: GenerateReplySuggestionDependencies['resolveReplyLanguage']
   enqueuePropertyTrend?: RegisterAiConsumersInput['enqueuePropertyTrend']
-  nowEpochMillis?: () => number
+  idGen: () => string
+  nowEpochMillis: () => number
 }>
 
-export function buildAiContext(input: AiContextBuildInput) {
+export const buildAiContext = (input: AiContextBuildInput) => {
+  const nowEpochMillis = input.nowEpochMillis
+  const clock = () => new Date(nowEpochMillis())
   const dataLifecycle = input.redis
-    ? createAiDataLifecycle(input.db, input.redis)
+    ? createAiDataLifecycle(input.db, input.redis, input.idGen, clock)
     : undefined
   const authorization = createAiAuthorizationAdapter(input.db)
   const control = createAiControlAdapter(input.db)
-  const operations = createAiOperationStoreAdapter(input.db)
-  const outputs = createAiOutputStoreAdapter(input.db)
+  const operations = createAiOperationStoreAdapter(input.db, input.idGen)
+  const outputs = createAiOutputStoreAdapter(input.db, input.replyBrandProfiles)
   const aggregates = createAiPropertyAggregateStoreAdapter(input.db)
-  const schedules = createAiPropertyTrendScheduleStore(input.db)
+  const schedules = createAiPropertyTrendScheduleStore(input.db, input.idGen)
   const calendar = createAiPropertyCalendarAdapter(input.db)
   const reviewEvents = createAiReviewEventStoreAdapter(input.db)
+  const enrollments = createReviewAnalysisEnrollmentAdapter(input.db, input.idGen)
   const processingProfiles = createPropertyProcessingProfileAdapter(
     input.db,
     createAiRuntimeCatalogueAdapter(input.db),
+    clock,
   )
   const inference = input.inference ?? unavailableInference
   const quota =
     input.quota ??
-    (input.redis ? createRedisAiQuotaAdapter(input.redis) : unavailableQuota)
-  const nowEpochMillis = input.nowEpochMillis ?? Date.now
+    (input.redis ? createRedisAiQuotaAdapter(input.redis, input.idGen) : unavailableQuota)
   const analyzeReviewEvent = createAnalyzeReviewEvent({
     authorization,
     control,
@@ -125,12 +136,39 @@ export function buildAiContext(input: AiContextBuildInput) {
     nowEpochMillis,
   })
   const advanceReviewAnalysisBackfill = createAdvanceReviewAnalysisBackfill({
-    backfillStore: createReviewAnalysisBackfillAdapter(input.db),
+    backfillStore: createReviewAnalysisBackfillAdapter(input.db, input.idGen),
     reviewEvents,
     aggregates,
     processingProfiles,
     nowEpochMillis,
   })
+  const advanceReviewAnalysisEnrollments = createAdvanceReviewAnalysisEnrollments({
+    authorization,
+    control,
+    enrollments,
+    nowEpochMillis,
+  })
+  const applyAiAuthorizationLifecycle = createApplyAiAuthorizationLifecycle({
+    enrollments,
+  })
+  const approveReviewAnalysisEnrollment = createApproveReviewAnalysisEnrollment({
+    enrollments,
+  })
+  const readReviewAnalysisEnrollmentReadiness =
+    createReadReviewAnalysisEnrollmentReadiness({
+      authorization,
+      control,
+      enrollments,
+    })
+  const generatePropertyTrend = createGeneratePropertyTrend({
+    authorization,
+    aggregates,
+    schedules,
+    processingProfiles,
+    reviewSources: input.reviewSources,
+    nowEpochMillis,
+  })
+  const schedulePropertyTrends = createSchedulePropertyTrends({ schedules })
   const readDependencies = {
     authorization,
     outputs,
@@ -151,6 +189,19 @@ export function buildAiContext(input: AiContextBuildInput) {
       })
     })
 
+  const registerOutboxConsumers = () => {
+    if (!input.enqueuePropertyTrend) {
+      throw new Error('AI property trend queue is unavailable')
+    }
+    registerAiConsumers({
+      enqueuePropertyTrend: input.enqueuePropertyTrend,
+      analyzeReviewEvent,
+      advanceReviewAnalysisBackfill: advanceReviewAnalysisBackfill.advanceProperty,
+      applyAiAuthorizationLifecycle,
+      receipts: input.outboxRepo,
+    })
+  }
+
   return Object.freeze({
     publicApi: Object.freeze({
       generateReplySuggestion: createGenerateReplySuggestion({
@@ -163,6 +214,7 @@ export function buildAiContext(input: AiContextBuildInput) {
         reviewSources: input.reviewSources,
         processingProfiles,
         propertyReplyLanguages: input.propertyReplyLanguages,
+        replyBrandProfiles: input.replyBrandProfiles,
         resolveReplyLanguage,
         nowEpochMillis,
       }),
@@ -194,29 +246,24 @@ export function buildAiContext(input: AiContextBuildInput) {
         calendar,
       }),
     }),
-    internal: Object.freeze({
-      analyzeReviewEvent,
+    worker: Object.freeze({
+      registerOutboxConsumers,
+      generatePropertyTrend,
+      schedulePropertyTrends,
       advanceReviewAnalysisBackfill,
-      registerOutboxConsumers: () => {
-        if (!input.enqueuePropertyTrend) {
-          throw new Error('AI property trend queue is unavailable')
-        }
-        registerAiConsumers({
-          enqueuePropertyTrend: input.enqueuePropertyTrend,
-          analyzeReviewEvent,
-          advanceReviewAnalysisBackfill: advanceReviewAnalysisBackfill.advanceProperty,
-          receipts: input.outboxRepo,
-        })
-      },
-      generatePropertyTrend: createGeneratePropertyTrend({
-        authorization,
-        aggregates,
-        schedules,
-        processingProfiles,
-        reviewSources: input.reviewSources,
-        nowEpochMillis,
+      advanceReviewAnalysisEnrollments,
+    }),
+    internal: Object.freeze({
+      repos: Object.freeze({}),
+      useCases: Object.freeze({
+        analyzeReviewEvent,
+        advanceReviewAnalysisBackfill,
+        advanceReviewAnalysisEnrollments,
+        approveReviewAnalysisEnrollment,
+        readReviewAnalysisEnrollmentReadiness,
+        generatePropertyTrend,
+        schedulePropertyTrends,
       }),
-      schedulePropertyTrends: createSchedulePropertyTrends({ schedules }),
       dataLifecycle,
     }),
   })

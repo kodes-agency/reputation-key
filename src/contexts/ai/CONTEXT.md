@@ -33,9 +33,11 @@ Analysis. A capability being present in code or schema is not activation.
 ## Invariants
 
 1. AI processes only currently eligible Google Review content loaded through the
-   Review public source port. Private Portal ratings, feedback, contact details,
-   Inbox notes, manager-internal text, and Guest media never enter AI admission,
-   prompts, outputs, logs, or derived tables.
+   Review public source port plus the exact public Property display name loaded
+   through Portal's narrow Brand authority. Brand image URLs, colors, localized
+   content, Private Portal ratings, feedback, contact details, Inbox notes,
+   manager-internal text, and Guest media never enter AI admission, prompts,
+   outputs, logs, or derived tables.
 2. Every operation is fenced by Organization, Property, Data Cell/source epoch,
    source revision, authorization epoch, capability epoch, policy/profile
    versions, model/deployment, idempotency key, and lifecycle generation.
@@ -50,8 +52,10 @@ Analysis. A capability being present in code or schema is not activation.
    escalation, publish a Reply, change Portal behavior, alter a Goal/Metric/
    Recognition result, or trigger workforce decisions.
 6. Reply Drafting is never cached as a generic suggestion detached from the
-   Review revision. A manager must explicitly request it, may edit it, and must
-   separately Confirm & Publish through the Reply workflow.
+   Review revision or Brand Profile version. Its operation pins the display-name
+   digest; admission and settlement transactionally revalidate Portal's boolean
+   currentness authority. A manager must explicitly request it, may edit it, and
+   must separately adopt, then Confirm & Publish through the Reply workflow.
 7. Review Analysis enrollment is exhaustive for the authorized eligible source
    population; internal batching controls work size but never becomes a product
    cap or silently drops older Reviews.
@@ -86,6 +90,34 @@ context and composition root.
 
 ## Durable facts and jobs
 
+- `identity.merchant_ai.changed` is the identifier-only authorization lifecycle
+  trigger. Its durable AI consumer compares the complete authorization/source
+  fence and commits, in one transaction, the current local-derivative visibility,
+  any prior generation's content-free erasure obligation, Review Analysis
+  enrollment/supersession, and the consumer receipt. Enable, capability change,
+  disable, revoke, stale delivery, and exact replay all use this one command.
+- A Property with no Reviews has an explicit analysis head at sequence `0`.
+  That row is a serialized source frontier, not synthetic analysis work. Empty
+  enrollment and caught-up populations use the canonical SHA-256 empty-set
+  digest; any other zero-count digest fails closed.
+- Enrollment retains separate snapshot and caught-up evidence. Both digests are
+  content-free and cover the deterministic `(Review id, Material Review
+Revision, analysis sequence)` set. Replay recovery skips a membership whose
+  material revision changed; the newer revision remains live-event work and is
+  never substituted into the immutable snapshot.
+- The enrollment safety ceiling is a pause, not a population limit. A snapshot
+  above 10,000 eligible revisions retains every immutable membership in
+  `awaiting_assisted_approval`; no replay becomes actionable until the governed
+  operator command records exact-fence, ticket-digest, operator, and correlation
+  evidence. That command cannot change consent, select a subset, start work, or
+  activate provider execution.
+- `ai-review-analysis-enrollment-sweep` is the unconditional recovery seam for
+  durable first-enablement intents. Every five-minute tick visits at most 50
+  enrollment heads. A full batch waits for the next recurrence instead of
+  enqueueing a continuation, so backlog cannot fan out queue work. The owning
+  use case rechecks each exact authorization lineage, source epoch, capability
+  epoch, and current global/provider/capability control triple before opening a
+  replay; a dark runtime leaves the intent queued and logs content-free counts.
 - `ai.review_analysis.backfill_requested` is an identifier-only request for one
   freshly sequenced analysis admission. It is not a replayed Review event.
 - `ai.property_trend.generation_requested` asks the deterministic trend worker to
@@ -121,17 +153,34 @@ confidence or statistical significance.
 Readers keep showing the latest compatible complete result while a later head
 is pending, paired with `Data through …` and `Updating`. They hide it when
 authorization, source epoch, Property access/lifecycle, profile, or delivery
-lease is no longer current. Scheduling is bounded and idempotent over the exact
-terminal analysis sequence and aggregate revision, so a correction creates a
-new schedule without overwriting the prior complete result.
+lease is no longer current. Schedule selection, final outcome commit, and read
+delivery additionally require the exact current authorization generation's
+Review Analysis enrollment to be `caught_up`; aligned live heads alone cannot
+turn a partial first-enablement population into a complete trend. Scheduling is
+bounded and idempotent over the exact terminal analysis sequence and aggregate
+revision, so a correction creates a new schedule without overwriting the prior
+complete result.
 
 ## Data and retention
 
 - Source Review content remains owned and retained by Review; AI receives only an
   admitted, current snapshot for one operation.
-- AI operations retain content-minimal execution/governance facts. Derivative
-  Review Analysis, Reply Draft, aggregate, and trend outputs follow authorization
-  and source-content lifecycle fences and can be erased independently.
+- AI operations retain content-minimal execution/governance facts. Persisted
+  Review Analysis, Property aggregate, and Property Trend generations follow
+  authorization and source-content lifecycle fences and can be erased
+  independently. Reply Draft provider output remains session-ephemeral; only an
+  explicit, atomically revalidated adoption creates Review-owned draft content.
+- A retired local derivative generation is hidden immediately by the current
+  Identity authorization read fence. The AI lifecycle record starts a separate,
+  exact 24-hour physical-erasure objective; serving never waits for that worker.
+  The unconditional erasure worker claims one exact retired fence under a
+  PostgreSQL lease, rechecks current Identity authority, deletes Review
+  Analysis, Property aggregate, and Property Trend rows transactionally, and
+  records class-separated counts. Eight persisted attempts, expired-lease
+  recovery, a five-minute cadence, and the `ai.authorization_derivatives`
+  retention evidence subject bound recovery and surface failures through the
+  existing `retention.failure` alert. A fence that could match a currently
+  served generation terminal-fails without deleting anything.
 - New deterministic Property Trend outcomes expire after 24 calendar months;
   retention never overrides the immediate read-time authorization and lifecycle
   hiding rules.
@@ -144,11 +193,33 @@ new schedule without overwriting the prior complete result.
 The context contains substantial control, admission, lifecycle, analysis,
 drafting, aggregate, and schedule infrastructure. That does not mean every beta
 capability is release-ready. The comprehensive program status ledger is the
-completion authority; live provider/cell drills, exhaustive enrollment,
-material-revision integration, and full lifecycle/recovery evidence remain
-required until their packages are evidence-complete.
+completion authority; live provider/cell drills, full product-facing enrollment
+progress, and deployed lifecycle/recovery evidence remain required until their
+packages are evidence-complete.
 
 `ops:ai-reanalyze --batch-size` is a ticketed operator pilot/repair control, not
-the activation path for first-enablement completeness. First enablement still
-needs a separate exhaustive eligible-source enrollment trigger and durable
-caught-up evidence; completing a capped operator run proves neither condition.
+the activation path for first-enablement completeness. The separate exhaustive
+enrollment trigger, zero-review contract, revision-pinned recovery contract,
+and fail-closed readiness read are implemented. Migration 0137 adds the durable
+enrollment, immutable Material Review Revision membership, replay lineage,
+revision-pinned backfill compatibility column, database guards, and upgrade
+trigger replay. The upgrade migration also seeds the exact durable enrollment
+snapshot under the same Property serialization lock, so rolling deployment does
+not depend on a new consumer winning the event before an older worker. The
+unconditional recurring enrollment sweep is registered, catalogued, and
+scheduled through the shared operational authority; deployed scheduler/runtime
+observation remains release evidence rather than a local-code claim. Migration
+0156 makes the exact Material Review Revision a database-enforced analysis fact.
+Migration 0157 adds the fixed whole-snapshot safety pause, assisted-approval
+evidence, readiness counts, and `ops:ai-approve-enrollment`; a broader manager-
+facing analyzed/candidate/excluded/failed and Verified Through surface remains a
+product gap. Migration 0145 adds the single
+AI-owned authorization lifecycle record and upgrade replay: local Review
+Analysis, Property aggregate, and Property Trend generations are classified,
+hidden by the current authorization fence, and given a content-free 24-hour
+erasure deadline when retired. The physical erasure worker, deadline recovery/
+alerting evidence, and class-separated aggregate/trend purge proof are now
+implemented and fresh-PostgreSQL tested. Deployed scheduler/runtime
+observations remain release evidence, not a local-code claim. Reply Draft
+cross-context deletion proof, provider-side deletion evidence where applicable,
+and deployed recovery evidence remain release gates.

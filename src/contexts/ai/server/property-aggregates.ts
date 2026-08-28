@@ -42,7 +42,7 @@ export const getPropertyAiAggregatesFn = createServerFn({ method: 'GET' })
           propertyId: id,
         })
         try {
-          return await getContainer().useCases.readPropertyAiAggregates({
+          return await getContainer().aiPublicApi.readPropertyAggregates({
             organizationId: ctx.organizationId,
             propertyId: id,
             actorUserId: ctx.userId,

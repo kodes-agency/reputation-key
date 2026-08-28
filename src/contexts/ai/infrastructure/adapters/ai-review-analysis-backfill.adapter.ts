@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
@@ -62,6 +61,7 @@ function createSession(
   tx: Tx,
   organizationId: OrganizationId,
   propertyId: PropertyId,
+  idGen: () => string,
 ): ReviewAnalysisBackfillSession {
   // Set by readContext under the property lock; every later statement in the
   // session is fenced to it.
@@ -388,7 +388,7 @@ function createSession(
     },
 
     async openRun(input) {
-      const runId = randomUUID()
+      const runId = idGen()
       const orderedReviewIds = input.orderedReviewIds.map(String)
       if (orderedReviewIds.length === 0) {
         throw new Error('Review analysis backfill cannot open an empty run')
@@ -452,15 +452,25 @@ function createSession(
         throw new Error('Review analysis backfill membership ordinal is invalid')
       }
       const result = await tx.execute(sql`
-        SELECT review_id
-        FROM ai_review_analysis_backfill_run_memberships
-        WHERE run_id = ${input.runId}::uuid
-          AND organization_id = ${organizationId}
-          AND property_id = ${propertyId}::uuid
-          AND ordinal = ${input.ordinal}
+        SELECT membership.review_id,
+               to_jsonb(membership)->>'source_revision' AS source_revision
+        FROM ai_review_analysis_backfill_run_memberships AS membership
+        WHERE membership.run_id = ${input.runId}::uuid
+          AND membership.organization_id = ${organizationId}
+          AND membership.property_id = ${propertyId}::uuid
+          AND membership.ordinal = ${input.ordinal}
       `)
       const row = result.rows[0] as Readonly<Record<string, unknown>> | undefined
-      return row ? toReviewId(String(row.review_id)) : null
+      if (!row) return null
+      return {
+        reviewId: toReviewId(String(row.review_id)),
+        // `to_jsonb` keeps the expand binary compatible with 0119: before
+        // 0137 the key is absent and legacy operator runs remain unpinned.
+        sourceRevision:
+          row.source_revision === null || row.source_revision === undefined
+            ? null
+            : safeInteger(row.source_revision, 'membership source_revision'),
+      }
     },
 
     async readEligibleCandidate(reviewId) {
@@ -548,13 +558,14 @@ function createSession(
   }
 }
 
-export function createReviewAnalysisBackfillAdapter(
+export const createReviewAnalysisBackfillAdapter = (
   db: Database,
-): ReviewAnalysisBackfillStorePort {
+  idGen: () => string,
+): ReviewAnalysisBackfillStorePort => {
   return {
     runExclusive: (input, run) =>
       db.transaction((tx) =>
-        run(createSession(tx, input.organizationId, input.propertyId)),
+        run(createSession(tx, input.organizationId, input.propertyId, idGen)),
       ),
     // Lock-free on purpose: every property this returns is re-read inside its
     // own exclusive session before anything is written, so a stale row costs a

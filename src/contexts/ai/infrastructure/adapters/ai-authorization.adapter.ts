@@ -38,7 +38,7 @@ function parseRuntimeProfiles(
   return result
 }
 
-export function createAiAuthorizationAdapter(db: Database): AiAuthorizationPort {
+export const createAiAuthorizationAdapter = (db: Database): AiAuthorizationPort => {
   return {
     async readMerchantAuthorization(
       input,

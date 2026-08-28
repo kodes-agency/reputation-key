@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto'
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
@@ -61,9 +60,10 @@ function dateFromDatabase(value: Date | string): Date {
   return value instanceof Date ? value : new Date(value)
 }
 
-export function createAiPropertyTrendScheduleStore(
+export const createAiPropertyTrendScheduleStore = (
   db: Database,
-): AiPropertyTrendScheduleStorePort {
+  idGen: () => string,
+): AiPropertyTrendScheduleStorePort => {
   return {
     scheduleDueBatch: async ({ leaseOwner }) =>
       db.transaction(async (tx) => {
@@ -137,6 +137,15 @@ export function createAiPropertyTrendScheduleStore(
           INNER JOIN "ai_property_processing_profiles" AS profile
             ON profile."organization_id" = property."organization_id"
            AND profile."property_id" = property."id"
+          INNER JOIN "ai_review_analysis_enrollments" AS enrollment
+            ON enrollment."organization_id" = property."organization_id"
+           AND enrollment."property_id" = property."id"
+           AND enrollment."authorization_lineage_id" = auth."authorization_lineage_id"
+           AND enrollment."authorization_state_version" = auth."state_version"
+           AND enrollment."source_epoch" = auth."authorized_source_epoch"
+           AND enrollment."review_analysis_epoch" = auth."review_analysis_epoch"
+           AND enrollment."analysis_start_sequence" = auth."analysis_start_sequence"
+           AND enrollment."state" = 'caught_up'
           INNER JOIN "review_ai_analysis_heads" AS review_head
             ON review_head."organization_id" = property."organization_id"
            AND review_head."property_id" = property."id"
@@ -185,12 +194,12 @@ export function createAiPropertyTrendScheduleStore(
             )
           ORDER BY property."organization_id", property."id"
           LIMIT ${BATCH_SIZE}
-          FOR SHARE OF property, auth, profile, review_head, cursor, aggregate
+          FOR SHARE OF property, auth, profile, enrollment, review_head, cursor, aggregate
         `)
 
         let scheduledCount = 0
         for (const candidate of candidates.rows) {
-          const scheduleId = randomUUID()
+          const scheduleId = idGen()
           const event = aiPropertyTrendGenerationRequested({
             scheduleId,
             organizationId: organizationId(candidate.organizationId),
@@ -356,6 +365,15 @@ export function createAiPropertyTrendScheduleStore(
           INNER JOIN "ai_property_processing_profiles" AS profile
             ON profile."organization_id" = schedule."organization_id"
            AND profile."property_id" = schedule."property_id"
+          INNER JOIN "ai_review_analysis_enrollments" AS enrollment
+            ON enrollment."organization_id" = schedule."organization_id"
+           AND enrollment."property_id" = schedule."property_id"
+           AND enrollment."authorization_lineage_id" = auth."authorization_lineage_id"
+           AND enrollment."authorization_state_version" = auth."state_version"
+           AND enrollment."source_epoch" = schedule."source_epoch"
+           AND enrollment."review_analysis_epoch" = schedule."review_analysis_epoch"
+           AND enrollment."analysis_start_sequence" = auth."analysis_start_sequence"
+           AND enrollment."state" = 'caught_up'
           INNER JOIN "review_ai_analysis_heads" AS review_head
             ON review_head."organization_id" = schedule."organization_id"
            AND review_head."property_id" = schedule."property_id"
@@ -390,7 +408,7 @@ export function createAiPropertyTrendScheduleStore(
             AND cursor."aggregate_revision" = schedule."aggregate_revision"
             AND aggregate."terminal_analysis_sequence" = schedule."terminal_analysis_sequence"
             AND aggregate."aggregate_revision" = schedule."aggregate_revision"
-          FOR SHARE OF property, auth, profile, review_head, cursor, aggregate
+          FOR SHARE OF property, auth, profile, enrollment, review_head, cursor, aggregate
         `)
         const binding = current.rows[0]
         if (binding === undefined) return 'stale'
@@ -493,6 +511,15 @@ export function createAiPropertyTrendScheduleStore(
           INNER JOIN "ai_property_processing_profiles" AS profile
             ON profile."organization_id" = schedule."organization_id"
            AND profile."property_id" = schedule."property_id"
+          INNER JOIN "ai_review_analysis_enrollments" AS enrollment
+            ON enrollment."organization_id" = schedule."organization_id"
+           AND enrollment."property_id" = schedule."property_id"
+           AND enrollment."authorization_lineage_id" = auth."authorization_lineage_id"
+           AND enrollment."authorization_state_version" = auth."state_version"
+           AND enrollment."source_epoch" = schedule."source_epoch"
+           AND enrollment."review_analysis_epoch" = schedule."review_analysis_epoch"
+           AND enrollment."analysis_start_sequence" = auth."analysis_start_sequence"
+           AND enrollment."state" = 'caught_up'
           INNER JOIN "review_ai_analysis_heads" AS review_head
             ON review_head."organization_id" = schedule."organization_id"
            AND review_head."property_id" = schedule."property_id"
@@ -527,7 +554,7 @@ export function createAiPropertyTrendScheduleStore(
             AND cursor."aggregate_revision" = schedule."aggregate_revision"
             AND aggregate."terminal_analysis_sequence" = schedule."terminal_analysis_sequence"
             AND aggregate."aggregate_revision" = schedule."aggregate_revision"
-          FOR SHARE OF property, auth, profile, review_head, cursor, aggregate
+          FOR SHARE OF property, auth, profile, enrollment, review_head, cursor, aggregate
         `)
         const binding = current.rows[0]
         if (binding === undefined) return 'stale'

@@ -2,13 +2,16 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import type { OutboxRepository } from '#/shared/outbox'
 import { DISPATCH_JOB_OPTIONS } from '#/shared/outbox/relay'
+import { organizationId, propertyId } from '#/shared/domain/ids'
 import {
   AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
   type AnalyzeReviewEventResult,
 } from '../application/use-cases/analyze-review-event'
 import {
   AI_PROPERTY_TREND_GENERATION_CONSUMER,
+  AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER,
   AI_REVIEW_ANALYSIS_CONSUMER,
+  handleAiAuthorizationLifecycleChanged,
   handleAiPropertyTrendGenerationRequested,
   handleAiReviewEvent,
   type RegisterAiConsumersInput,
@@ -29,8 +32,8 @@ function event(
     eventType,
     eventVersion: 1,
     payload: {
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
+      organizationId: organizationId(ORGANIZATION_ID),
+      propertyId: propertyId(PROPERTY_ID),
       reviewId: REVIEW_ID,
       sourceEpoch: 2,
       sourceRevision: 5,
@@ -50,10 +53,43 @@ function harness(result: AnalyzeReviewEventResult) {
   const enqueuePropertyTrend = vi.fn(async () => {})
   const insertReceipt = vi.fn(async () => {})
   const advanceReviewAnalysisBackfill = vi.fn(async () => 'idle' as const)
+  const applyAiAuthorizationLifecycle = vi.fn<
+    NonNullable<RegisterAiConsumersInput['applyAiAuthorizationLifecycle']>
+  >(async () => ({
+    status: 'applied' as const,
+    lifecycle: {
+      id: '71000000-0000-4000-8000-000000000207',
+      eventEnvelopeId: EVENT_ID,
+      organizationId: organizationId(ORGANIZATION_ID),
+      propertyId: propertyId(PROPERTY_ID),
+      authorizationState: 'enabled' as const,
+      transitionKind: 'change' as const,
+      fence: {
+        authorizationLineageId: '71000000-0000-4000-8000-000000000206',
+        authorizationStateVersion: 4,
+        sourceEpoch: 2,
+        reviewAnalysisEpoch: 3,
+        replyDraftingEpoch: 2,
+        propertyTrendsEpoch: 2,
+        analysisStartSequence: 19,
+      },
+      authorizedCapabilities: ['review_analysis'] as const,
+      visibleDataClasses: ['review_analysis', 'property_aggregate'] as const,
+      retiredDataClasses: [] as const,
+      erasureStatus: 'not_required' as const,
+      erasureDeadlineEpochMillis: null,
+      appliedAtEpochMillis: Date.parse(RECORDED_AT),
+    },
+    enrollment: {
+      status: 'queued' as const,
+      enrollmentId: '71000000-0000-4000-8000-000000000205',
+    },
+  }))
   const dependencies = {
     analyzeReviewEvent,
     enqueuePropertyTrend,
     advanceReviewAnalysisBackfill,
+    applyAiAuthorizationLifecycle,
     receipts: { insertReceipt } as unknown as OutboxRepository,
   } satisfies RegisterAiConsumersInput
   return {
@@ -61,7 +97,35 @@ function harness(result: AnalyzeReviewEventResult) {
     analyzeReviewEvent,
     enqueuePropertyTrend,
     advanceReviewAnalysisBackfill,
+    applyAiAuthorizationLifecycle,
     insertReceipt,
+  }
+}
+
+function merchantAiChangedEvent(): ConsumerEvent {
+  return {
+    eventId: EVENT_ID,
+    eventType: 'identity.merchant_ai.changed',
+    eventVersion: 1,
+    payload: {
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      authorizationLineageId: '71000000-0000-4000-8000-000000000206',
+      state: 'enabled',
+      reviewAnalysisEpoch: 3,
+      replyDraftingEpoch: 2,
+      propertyTrendsEpoch: 2,
+      authorizedSourceEpoch: 2,
+      analysisStartSequence: 19,
+      stateVersion: 4,
+      occurredAt: RECORDED_AT,
+      correlationId: null,
+    },
+    organizationId: ORGANIZATION_ID,
+    propertyId: PROPERTY_ID,
+    sourceContext: 'identity',
+    sourceAggregateId: PROPERTY_ID,
+    recordedAt: RECORDED_AT,
   }
 }
 
@@ -247,5 +311,88 @@ describe('AI review outbox consumer', () => {
     expect(minimumElapsedBeforePenultimateAttempt).toBeGreaterThan(
       AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
     )
+  })
+})
+
+describe('AI authorization lifecycle consumer', () => {
+  it('applies the complete authorization generation before enrollment', async () => {
+    const test = harness({ status: 'completed' })
+
+    await expect(
+      handleAiAuthorizationLifecycleChanged(test.dependencies, merchantAiChangedEvent()),
+    ).resolves.toEqual({ status: 'applied' })
+
+    expect(test.applyAiAuthorizationLifecycle).toHaveBeenCalledWith({
+      eventEnvelopeId: EVENT_ID,
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      authorizationState: 'enabled',
+      fence: {
+        authorizationLineageId: '71000000-0000-4000-8000-000000000206',
+        authorizationStateVersion: 4,
+        sourceEpoch: 2,
+        reviewAnalysisEpoch: 3,
+        replyDraftingEpoch: 2,
+        propertyTrendsEpoch: 2,
+        analysisStartSequence: 19,
+      },
+      correlationId: null,
+      occurredAt: new Date(RECORDED_AT),
+    })
+    // The enrollment command store owns state + receipt atomically. A second
+    // standalone receipt here would recreate the crash window this trigger is
+    // meant to close.
+    expect(test.insertReceipt).not.toHaveBeenCalledWith(
+      EVENT_ID,
+      AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER,
+      expect.anything(),
+    )
+  })
+
+  it('receipts a delayed authorization generation as obsolete', async () => {
+    const test = harness({ status: 'completed' })
+    test.applyAiAuthorizationLifecycle.mockResolvedValueOnce({
+      status: 'obsolete',
+      reason: 'authorization_state_version_changed',
+    })
+
+    await expect(
+      handleAiAuthorizationLifecycleChanged(test.dependencies, merchantAiChangedEvent()),
+    ).resolves.toEqual({ status: 'obsolete' })
+  })
+
+  it.each(['enabled', 'disabled', 'revoked'] as const)(
+    'accepts the identifier-only %s lifecycle state',
+    async (authorizationState) => {
+      const test = harness({ status: 'completed' })
+      const changed = merchantAiChangedEvent()
+
+      await expect(
+        handleAiAuthorizationLifecycleChanged(test.dependencies, {
+          ...changed,
+          payload: {
+            ...(changed.payload as Readonly<Record<string, unknown>>),
+            state: authorizationState,
+          },
+        }),
+      ).resolves.toEqual({ status: 'applied' })
+
+      expect(test.applyAiAuthorizationLifecycle).toHaveBeenCalledWith(
+        expect.objectContaining({ authorizationState }),
+      )
+    },
+  )
+
+  it('maps a replayed lifecycle command to a duplicate consumer result', async () => {
+    const test = harness({ status: 'completed' })
+    test.applyAiAuthorizationLifecycle.mockResolvedValueOnce({
+      status: 'duplicate',
+      lifecycleId: '71000000-0000-4000-8000-000000000207',
+      enrollmentId: '71000000-0000-4000-8000-000000000205',
+    })
+
+    await expect(
+      handleAiAuthorizationLifecycleChanged(test.dependencies, merchantAiChangedEvent()),
+    ).resolves.toEqual({ status: 'duplicate' })
   })
 })
