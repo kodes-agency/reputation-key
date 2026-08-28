@@ -5,6 +5,11 @@ date: 2026-08-26
 
 # 0054 — Data Cell catalogue and routing
 
+> The stable catalogue, isolation, and fail-closed routing model remains
+> active. [ADR 0057](0057-single-us-beta-data-cell.md) supersedes this ADR's
+> three-deployment beta topology and country partition: beta operates only
+> `cell-us`, and every supported country allocates there.
+
 ## Context
 
 ADR 0048 treated `us` as the only approved beta processing region and treated

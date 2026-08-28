@@ -23,7 +23,7 @@ The public portal is a **review-link touchpoint first**. Private rating/feedback
 4. Ordinary reads are masked. Plaintext is available only through an audited just-in-time command that rechecks the Portal creator, current Portal responsible-manager assignments, or current AccountAdmin membership. A PropertyManager also needs current access to the exact Property; being an unrelated Property Manager is insufficient.
 5. Withdrawal and whole-response termination clear the encrypted material atomically. Purge uses serialized checkpoint evidence but never trusts the checkpoint to exclude otherwise eligible rows.
 6. Contact values never enter facts/events, logs, notifications, analytics, Inbox/search fields, AI inputs, or activity payloads.
-7. No route, server function, component, worker, schedule, or public API activates Contact Request. `portal.guest_contact` is blocked until named approval evidence covers the guest notice, retention wording, manager handling, and delivery channel.
+7. No route, server function, component, worker, schedule, or public API activates Contact Request. The established daily retention schedule may unconditionally purge expired encrypted material and record content-free evidence; cleanup is not activation and is never capability-gated. `portal.guest_contact` is blocked until named approval evidence covers the guest notice, retention wording, manager handling, and delivery channel.
 
 ### Token and session
 

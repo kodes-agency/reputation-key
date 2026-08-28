@@ -308,6 +308,22 @@ inception. A migration that cannot do so must carry a narrow, expiring exception
 never broaden the exception to an entire context when an exact file or symbol can
 be named.
 
+### 7.1 Executable conformance and accepted exceptions
+
+`src/shared/governance/context-standards-matrix.ts` is the current 17-context ×
+11-rule disposition authority. A cell is `evidenced` only when an exhaustive
+current-tree checker proves the stated rule. A known variance is never marked
+conformant: it is `accepted_exception` and must resolve to exactly one entry in
+`docs/governance/standards-exceptions.json` with its context, dimension, exact
+scope, rationale, owner, compensating check, review/expiry dates, and measurable
+sunset trigger.
+
+The application/file/repository checker pins the exact legacy issue inventory by
+path or symbol and digest. Adding a variance, silently removing evidence, or
+leaving an exception without a matrix cell fails the focused gate. `unresolved`
+remains a fail-visible classification for a newly discovered rule gap; it is not
+accepted release evidence.
+
 ---
 
 ## 8. File Naming Standards (Maintainability)
@@ -320,7 +336,7 @@ be named.
 | Application ports             | kebab + `.port.ts` suffix                         | `review.repository.ts`, `attention-signals.port.ts`                 |
 | Application use-cases         | kebab-case (mirrors use case name)                | `get-dashboard-data.ts`, `submit-reply.ts`                          |
 | Application public API        | always `public-api.ts`                            | `public-api.ts`                                                     |
-| Infrastructure repos          | kebab + `.repository.ts`                          | `badge.repository.ts`                                               |
+| Infrastructure repos          | kebab + `.repository.ts`                          | `review.repository.ts`                                              |
 | Infrastructure adapters       | kebab + `.adapter.ts`                             | `attention-signals.adapter.ts`, `db-user-lookup.adapter.ts`         |
 | Infrastructure mappers        | kebab + `.mapper.ts`                              | `goal.mapper.ts`                                                    |
 | Infrastructure jobs           | kebab + `.job.ts`                                 | `purge-expired-reviews.job.ts`                                      |
@@ -364,7 +380,12 @@ export function createReviewRepository(db: Database): ReviewRepository {
 }
 ```
 
-**Exception:** Domain constructors (`createBadgeDefinition`, `createActivityLog`, etc.) MAY use `export function` — they create domain entities, not infrastructure wiring.
+**Exception:** Domain constructors (for example `createInitialHandlingCycle`) MAY use `export function` — they create domain entities, not infrastructure wiring.
+
+The exact grandfathered infrastructure inventory is enforced by
+`src/shared/governance/infrastructure-factory-style-authority.ts`. The
+allowlist may shrink when a legacy declaration is migrated; new entries are
+not permitted.
 
 ## 9. Code Quality Tooling (Invariant gates plus Maintainability migration)
 

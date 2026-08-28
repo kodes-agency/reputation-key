@@ -25,6 +25,10 @@ statistical significance.
 - An analyzed candidate must match the Review ID, current source revision, and
   current analysis sequence and must have a successful completed analysis.
 - Any unresolved sequence/head/cursor/aggregate gap prevents completion.
+- The exact current authorization generation must also have one durable Review
+  Analysis enrollment in `caught_up`. This is checked when selecting a schedule,
+  again in the atomic outcome commit, and at read delivery; head alignment alone
+  does not prove that the first-enablement snapshot was exhaustive.
 
 ## Readiness and selection
 

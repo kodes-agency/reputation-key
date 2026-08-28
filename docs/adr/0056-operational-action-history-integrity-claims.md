@@ -56,6 +56,22 @@ domain facts, Activity, and restricted audit/action records remains valid.
 - A later cryptographic design must migrate and classify legacy records; it
   cannot retroactively claim integrity for mutable historical rows.
 
+## Implemented beta boundary (2026-08-28)
+
+Migration 0149 and the Activity context implement a separate identifier-only
+Operational Action History authority with an explicit action/resource
+vocabulary, exact source provenance, tenant-local sequence coverage, bounded
+restricted reads/export, legal holds, and one-way identifier redaction. Core
+record updates/deletes/truncation are rejected by database triggers; legal-hold
+evidence permits only its explicit one-time release transition.
+
+These are ordinary defense-in-depth controls. Sequence readiness reports gaps,
+and the export SHA-256 fingerprints one canonical export for reproducibility;
+neither is cryptographic record integrity or tamper evidence. The legacy
+`audit_logs` table is not migrated or inferred into this authority. The proposed
+365-day lifecycle is assessment-only pending counsel, and no destructive apply
+path exists.
+
 ## Rejected alternatives
 
 - **Keep the word “immutable” as an aspiration** — users and operators read it as

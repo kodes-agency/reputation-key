@@ -9,11 +9,11 @@ The notification context has schema/docs mismatches: docs describe one unread re
 
 ## Decision
 
-Notifications have explicit **category × channel × property** preferences with versioned defaults, user timezone, quiet hours, and coalescing semantics.
+Configurable Property notifications have explicit **category × channel × property** preferences with versioned defaults, user timezone, quiet hours, and coalescing semantics. Genuinely mandatory service/security/account notices are Organization-scoped policy and do not create preference rows.
 
 ### Categories
 
-`mandatory` (account/security/legal), `urgent_operational`, `workflow_collaboration`, `digest_summary`, `recognition`.
+`mandatory` (account/security/legal), `urgent_operational`, `workflow_collaboration`, `digest_summary`, `recognition` (with the implementation correction below retiring `digest_summary` as a category).
 
 ### Default policy
 
@@ -63,12 +63,19 @@ was dropped at insert and never persisted at all — the category silently
 deleted its own contents. `goal.completed` is now `recognition`, which is what
 it always was.
 
-`mandatory` is retained even though no type maps to it yet (rule 1 reserves it
-for account/security/legal mail). It stays visible and disabled on the settings
-page, which is honest: it tells the user the class exists and cannot be muted.
-Filters render from `GOVERNING_NOTIFICATION_CATEGORIES`, derived from the
-type→category map, so a category that governs nothing can never appear as a
-filter that returns nothing.
+As of the 2026-08-28 readiness slice, `mandatory` maps only three exact durable
+Identity facts: invitation accepted, member role changed, and member removed.
+The affected user is derived from the schema-validated fact, and the resulting
+notification is Organization-scoped (`property_id = null`) with in-app and
+immediate email required. It is absent from Property settings and preference
+APIs because a disabled switch would incorrectly present Organization policy
+as a Property preference. Persistence rejects mandatory preference rows and
+daily mandatory email. Filters still include the class because it now governs
+real notification history.
+
+This is repository-local activation readiness, not provider activation. The
+existing execution/capability admission still controls outbound delivery; no
+provider, allowlist, route, schedule, or deployment default is opened here.
 
 ### Rule 7 keys on mail class, not on category
 

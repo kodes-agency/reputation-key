@@ -54,9 +54,11 @@ never issued; numbers are not reused.
 | [0051](0051-release-identity-and-canary-ergonomics.md)                    | Release identity/canary ergonomics     | Active                                                  |
 | [0052](0052-beta-people-access-attribution-and-manager-responsibility.md) | Beta people/access/responsibility      | Active                                                  |
 | [0053](0053-production-redis-workload-isolation.md)                       | Production Redis isolation             | Active                                                  |
-| [0054](0054-data-cell-catalogue-and-routing.md)                           | Data Cell catalogue/routing            | Active; supersedes 0048                                 |
+| [0054](0054-data-cell-catalogue-and-routing.md)                           | Data Cell catalogue/routing            | Active foundation; beta topology amended by 0057        |
 | [0055](0055-stable-review-and-inbox-handling-cycles.md)                   | Stable Review and Handling Cycles      | Active; supersedes parts of 0003/0004                   |
 | [0056](0056-operational-action-history-integrity-claims.md)               | Honest action-history integrity claims | Active; supersedes part of 0045                         |
+| [0057](0057-single-us-beta-data-cell.md)                                  | Single US beta Data Cell               | Active topology; release model amended by 0058          |
+| [0058](0058-dedicated-railway-projects-and-iac-source-promotion.md)       | Dedicated Railway projects/source      | Active; supersedes 0057's project/release procedure     |
 
 When an ADR is added, removed, or renamed, update this table in the same change.
 Supersession must name the exact retained and replaced decisions; do not delete

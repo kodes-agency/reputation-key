@@ -87,8 +87,9 @@ and upgraded consistently without hand-wiring services.
 
 ## Required evidence
 
-- All three offline Railway cell graphs contain `Cache Redis` and `Queue Redis`
-  in the cell region and wire exact, distinct references into web and worker.
+- The active `cell-us` beta graph contains `Cache Redis` and `Queue Redis` in
+  US West and wires exact, distinct references into web and worker. Any future
+  cell must independently pass the same evidence before activation.
 - Production topology and runtime guards reject absent, shared, unsupported, or
   eviction-enabled queue configurations before client construction.
 - Real-Redis integration proves runtime inspection and bounded queue health.

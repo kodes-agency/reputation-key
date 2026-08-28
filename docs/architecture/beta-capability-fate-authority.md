@@ -67,6 +67,12 @@ active, erasable, quarantined, compatibility, archive, and contraction
 decisions. This is classification authority, not proof that a required purge,
 reconciliation, export, restore, or contraction has already run.
 
+The REC-01/CNV-01 read-only inventory mirrors the exact 13 Badge/Leaderboard
+physical tables classified here as Staff-owned bounded contraction. Its domain
+guard resolves the named schema exports to physical table names and rejects any
+coverage or lifecycle-classification drift; the inventory is evidence, not a
+second lifecycle authority.
+
 A capability being blocked is containment, not proof that its legacy rows or
 code have been safely contracted. The package ledger remains the authority for
 that implementation and release evidence.

@@ -1,7 +1,12 @@
 # ADR 0014 — Badges and Leaderboards as Separate Recognition Contexts
 
-**Status:** Accepted  
+**Status:** Historical — activation superseded by the current beta contract
 **Date:** 2026-06-13
+
+> This record explains the origin of the retained schemas. It is not current
+> activation authority: Badge and Leaderboard product behavior is beta-dark,
+> their builds are inert, and any future Healthy Guest Gateway implementation
+> requires a separate accepted design.
 
 ## Context
 

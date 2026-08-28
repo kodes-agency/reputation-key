@@ -78,5 +78,8 @@ Enable `dynamicAccessControl: { enabled: true }` in the organization plugin. Bet
 - Double-mapping bug fixed — `beforeLoad` no longer calls `toDomainRole()` on already-mapped roles
 - All `canEdit`/`canCreate`/`canDelete` prop drilling replaced with `usePermissions()` or `can()`
 - Phase 4 (Admin UI for custom role management) deferred to future session
-- Phase 15C added `goal.read`, `goal.create`, `goal.update`, `goal.cancel` permissions for the Goal bounded context. `goal.read` and `goal.create` granted to all three roles (AccountAdmin, PropertyManager, Staff); `goal.update` and `goal.cancel` granted to AccountAdmin and PropertyManager only.
+- Phase 15C originally added `goal.read`, `goal.create`, `goal.update`, and
+  `goal.cancel` for the Goal bounded context. The beta Goal Program contract now
+  keeps all four manager-facing: AccountAdmin and PropertyManager receive them,
+  while Staff receives none until a separately approved Staff dashboard exists.
 - `invitation.list` added to the `invitation` resource actions for listing invitations (previously only `create`, `cancel`, `resend` were defined).
