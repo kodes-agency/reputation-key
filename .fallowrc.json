@@ -218,7 +218,7 @@
   "usedClassMembers": [
     {
       "implements": "OrganizationExportStorage",
-      "members": ["putEncrypted", "readEncrypted", "delete"]
+      "members": ["putEncrypted", "readEncrypted", "delete", "verifyStored"]
     },
     {
       "extends": "Error",

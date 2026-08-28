@@ -192,13 +192,34 @@ Do not change a family to `enabled` merely because its handler exists. Lifecycle
 advancement requires all 17 unique context contributors plus independently
 reviewed support authorization. Export generation requires all 17 unique export
 contributors, encrypted private storage, a dedicated retrieval-secret binding,
-and durable recovery of a post-upload/pre-completion crash. That recovery
-protocol is not implemented: readiness reports
-`generationRecoveryConfigured=false`, and production composition refuses to
-construct the export service even if every other binding is supplied. Export
+and durable recovery of a post-upload/pre-completion crash. Export
 deletion additionally requires a live absence-verification drill. A partial set
 is reported as missing contexts and remains non-executable; it is never
 converted to `no_data` by composition.
+
+### Post-upload crash recovery
+
+Migration `0170_organization_export_pre_egress_evidence.sql` makes the ambiguous
+window recoverable, so `generationRecoveryConfigured` is now derived from the
+supplied storage rather than hard-coded false. A storage adapter that cannot
+answer `verifyStored` still cannot recover, and composition still refuses.
+
+The protocol is:
+
+1. `generating` — the bundle is built.
+2. `recordPreEgressEvidence` commits the coverage, manifest and archive digests
+   plus the deterministic object key, and moves the row to `egress_pending`.
+   `encryption_evidence_ref` is still null: the bytes have not left yet.
+3. `storage.putEncrypted` uploads.
+4. `completeGeneration` confirms the persisted digests and moves to `ready`.
+
+A crash anywhere after step 2 is no longer ambiguous, because step 2 recorded
+what the bytes must be before they existed. A reclaimed `egress_pending` lease
+renews **in place** — never back to `generating` — calls `storage.verifyStored`,
+and either completes with the **original** digests or fails closed with
+`egress_evidence_mismatch`, retaining them for inspection. `buildBundle` is
+never invoked on the recovery path, so a reclaimed lease can never produce a
+second archive of a different as-of moment.
 
 ## Organization Export
 

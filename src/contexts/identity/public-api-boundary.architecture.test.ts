@@ -7,6 +7,10 @@ const source = (path: string) => readFileSync(resolve(path), 'utf8')
 describe('Identity public API composition boundary', () => {
   it('injects only the Identity facade each consuming context needs', () => {
     const composition = source('src/composition.ts')
+    // ARC-03-T10: the leaf context builds (Activity among them) moved into the
+    // root's read/notify module. The injection rule is unchanged; only the file
+    // that performs it moved.
+    const leafContexts = source('src/composition/read-and-notify-contexts.ts')
     const propertyBuild = source('src/contexts/property/build.ts')
     const portalBuild = source('src/contexts/portal/build.ts')
     const guestBuild = source('src/contexts/guest/build.ts')
@@ -24,8 +28,8 @@ describe('Identity public API composition boundary', () => {
     expect(composition).toContain(
       'identityAccountAdminAuthority: identity.publicApi.accountAdminAuthority',
     )
-    expect(composition).toContain(
-      'operationalHistoryAccessAuthority: identity.publicApi.accountAdminAuthority',
+    expect(leafContexts).toContain(
+      'operationalHistoryAccessAuthority: input.identity.publicApi.accountAdminAuthority',
     )
   })
 

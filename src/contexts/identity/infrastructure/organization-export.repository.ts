@@ -59,6 +59,8 @@ function status(row: ExportRow): OrganizationExportStatus {
     retrievedAt: row.retrievedAt,
     deletedAt: row.deletedAt,
     lastErrorCode: row.lastErrorCode,
+    preEgressRecordedAt: row.preEgressRecordedAt,
+    egressRecoveryAttempts: row.egressRecoveryAttempts,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -158,7 +160,7 @@ export const createOrganizationExportRepository = (
           or(
             eq(organizationExports.state, 'requested'),
             and(
-              eq(organizationExports.state, 'generating'),
+              inArray(organizationExports.state, ['generating', 'egress_pending']),
               lte(organizationExports.generationLeaseExpiresAt, input.now),
             ),
           ),
@@ -168,15 +170,64 @@ export const createOrganizationExportRepository = (
         .for('update', { skipLocked: true })
       const row = rows[0]
       if (!row) return null
+      // An `egress_pending` claim renews its lease IN PLACE. Returning it to
+      // `generating` would license a rebuild of a historical request, which is
+      // exactly the outcome the pre-egress evidence exists to prevent.
+      const resumingEgress = row.state === 'egress_pending'
       const updated = await tx
         .update(organizationExports)
         .set({
-          state: 'generating',
+          state: resumingEgress ? 'egress_pending' : 'generating',
           revision: row.revision + 1,
           generationLeaseExpiresAt: input.leaseExpiresAt,
+          egressRecoveryAttempts: row.egressRecoveryAttempts + (resumingEgress ? 1 : 0),
           updatedAt: input.now,
         })
         .where(eq(organizationExports.id, row.id))
+        .returning()
+      return status(updated[0]!)
+    })
+  },
+
+  async recordPreEgressEvidence(input: {
+    id: string
+    expectedRevision: number
+    coverageSha256: string
+    manifestSha256: string
+    archiveSha256: string
+    objectKey: string
+    now: Date
+  }): Promise<OrganizationExportStatus> {
+    return db.transaction(async (tx) => {
+      const row = await readForUpdate(tx, input.id)
+      if (row.state === 'egress_pending' && row.revision === input.expectedRevision + 1) {
+        // Exact replay of the same commit is a no-op; a DIFFERENT archive
+        // claiming the same revision means a second bundle was built for one
+        // historical request, which must never be silently accepted.
+        if (
+          row.coverageSha256 !== input.coverageSha256 ||
+          row.manifestSha256 !== input.manifestSha256 ||
+          row.archiveSha256 !== input.archiveSha256 ||
+          row.objectKey !== input.objectKey
+        ) {
+          throw new Error('Organization Export pre-egress evidence is already bound')
+        }
+        return status(row)
+      }
+      requireRevision(row, input.expectedRevision, 'generating')
+      const updated = await tx
+        .update(organizationExports)
+        .set({
+          state: 'egress_pending',
+          revision: row.revision + 1,
+          coverageSha256: input.coverageSha256,
+          manifestSha256: input.manifestSha256,
+          archiveSha256: input.archiveSha256,
+          objectKey: input.objectKey,
+          preEgressRecordedAt: input.now,
+          updatedAt: input.now,
+        })
+        .where(eq(organizationExports.id, input.id))
         .returning()
       return status(updated[0]!)
     })
@@ -194,17 +245,24 @@ export const createOrganizationExportRepository = (
   }): Promise<OrganizationExportStatus> {
     return db.transaction(async (tx) => {
       const row = await readForUpdate(tx, input.id)
-      requireRevision(row, input.expectedRevision, 'generating')
+      requireRevision(row, input.expectedRevision, 'egress_pending')
+      // The persisted digests are the authority. Publishing may only CONFIRM
+      // them; substituting a different archive here would be the rebuild the
+      // pre-egress protocol exists to make impossible.
+      if (
+        row.coverageSha256 !== input.coverageSha256 ||
+        row.manifestSha256 !== input.manifestSha256 ||
+        row.archiveSha256 !== input.archiveSha256 ||
+        row.objectKey !== input.objectKey
+      ) {
+        throw new Error('Organization Export pre-egress evidence does not match')
+      }
       const updated = await tx
         .update(organizationExports)
         .set({
           state: 'ready',
           revision: row.revision + 1,
           generationLeaseExpiresAt: null,
-          coverageSha256: input.coverageSha256,
-          manifestSha256: input.manifestSha256,
-          archiveSha256: input.archiveSha256,
-          objectKey: input.objectKey,
           encryptionEvidenceRef: input.encryptionEvidenceRef,
           updatedAt: input.now,
         })
@@ -232,7 +290,14 @@ export const createOrganizationExportRepository = (
   }): Promise<void> {
     await db.transaction(async (tx) => {
       const row = await readForUpdate(tx, input.id)
-      requireRevision(row, input.expectedRevision, 'generating')
+      // A failure after pre-egress evidence was committed keeps that evidence:
+      // the digests record what this request produced and are never cleared.
+      if (
+        row.revision !== input.expectedRevision ||
+        (row.state !== 'generating' && row.state !== 'egress_pending')
+      ) {
+        throw new Error('Organization Export authority changed')
+      }
       await tx
         .update(organizationExports)
         .set({

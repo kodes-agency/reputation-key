@@ -7,6 +7,14 @@ import type {
 export type OrganizationExportState =
   | 'requested'
   | 'generating'
+  /**
+   * Durable pre-egress evidence is committed: the coverage/manifest/archive
+   * digests and the deterministic object key are persisted, but the upload is
+   * not yet confirmed. This is the only state from which `ready` is reachable,
+   * so a published archive can never have digests that were unknown before
+   * egress.
+   */
+  | 'egress_pending'
   | 'ready'
   | 'retrieval_issued'
   | 'retrieved'
@@ -34,6 +42,8 @@ export type OrganizationExportStatus = Readonly<{
   retrievedAt: Date | null
   deletedAt: Date | null
   lastErrorCode: string | null
+  preEgressRecordedAt: Date | null
+  egressRecoveryAttempts: number
   createdAt: Date
   updatedAt: Date
 }>
@@ -47,10 +57,36 @@ export type OrganizationExportRepository = Readonly<{
     asOf: Date
     objectExpiresAt: Date
   }): Promise<OrganizationExportStatus>
+  /**
+   * Claims a `requested` export, or re-claims a `generating` / `egress_pending`
+   * export whose lease expired. An `egress_pending` claim renews the lease in
+   * place — it never returns to `generating`, which would license a rebuild.
+   */
   claimNextGeneration(input: {
     now: Date
     leaseExpiresAt: Date
   }): Promise<OrganizationExportStatus | null>
+  /**
+   * Commits the digests and object key BEFORE the archive leaves the process.
+   *
+   * Compare-and-set on `expectedRevision`. An exact replay is idempotent; the
+   * same revision carrying a different digest or key is rejected, because that
+   * would mean a second archive was built for one historical request.
+   */
+  recordPreEgressEvidence(input: {
+    id: string
+    expectedRevision: number
+    coverageSha256: string
+    manifestSha256: string
+    archiveSha256: string
+    objectKey: string
+    now: Date
+  }): Promise<OrganizationExportStatus>
+  /**
+   * Publishes an export that already carries durable pre-egress evidence. The
+   * supplied digests must equal the persisted ones — they are checked, never
+   * written over.
+   */
   completeGeneration(input: {
     id: string
     expectedRevision: number
@@ -110,6 +146,23 @@ export type OrganizationExportStorage = Readonly<{
     outcome: 'stored' | 'already_present_exact'
     encryptionEvidenceRef: string
   }>
+  /**
+   * Answers, without transferring the object, whether the exact archive named
+   * by the persisted pre-egress evidence is stored under that key.
+   *
+   * This is what makes a post-upload/pre-completion crash recoverable: it
+   * distinguishes "uploaded but not completed" (`present_exact`) from "never
+   * uploaded" (`absent`) and from "some other bytes are there" (`mismatch`),
+   * so recovery never has to rebuild a later live snapshot to find out.
+   */
+  verifyStored(input: {
+    objectKey: string
+    archiveSha256: string
+  }): Promise<
+    | Readonly<{ outcome: 'present_exact'; encryptionEvidenceRef: string }>
+    | Readonly<{ outcome: 'absent' }>
+    | Readonly<{ outcome: 'mismatch' }>
+  >
   readEncrypted(objectKey: string): Promise<Uint8Array>
   delete(objectKey: string): Promise<{ deletionEvidenceRef: string }>
 }>
@@ -135,5 +188,12 @@ export type OrganizationExportServiceDeps = Readonly<{
 
 export type GeneratedOrganizationExport = Readonly<{
   request: OrganizationExportStatus
-  bundle: OrganizationExportBundle
+  /**
+   * `null` on the recovery path. A resumed generation completes from the
+   * persisted pre-egress digests and the verified stored object; it must NOT
+   * rebuild a bundle, because a later live snapshot is not historical proof
+   * of what was exported.
+   */
+  bundle: OrganizationExportBundle | null
+  recovered: boolean
 }>

@@ -28,6 +28,9 @@ const adapterDeps = {
     warn: vi.fn(),
   },
   onAcceptInvitation: mockOnAcceptInvitation,
+  // ARC-03-T13: the adapter takes the ambient request context as a port; it no
+  // longer dynamically imports the web framework.
+  requestContext: { currentRequestHeaders: async () => new Headers() },
 }
 
 vi.mock('#/shared/auth/auth', () => ({

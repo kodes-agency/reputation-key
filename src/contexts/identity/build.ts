@@ -34,6 +34,7 @@ import { registerUser } from './application/use-cases/register-user'
 import { registerInvitedUser } from './application/use-cases/register-invited-user'
 import { recoverInvitedRegistrations } from './application/use-cases/recover-invited-registrations'
 import { updateOrganization } from './application/use-cases/update-organization'
+import type { AuthSessionPort } from './application/ports/auth-session.port'
 import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
 import { createInvitedRegistrationStore } from './infrastructure/invited-registration-store'
 import type { DataCellExecutionDecision } from '#/shared/routing/data-cell-execution-fence'
@@ -158,10 +159,13 @@ type IdentityContextDeps = Readonly<{
   idGen: () => string
   /** Sign up a new user. Returns user ID. */
   signUp: (name: string, email: string, password: string) => Promise<string>
-  /** Set the active organization for the current session. */
-  setActiveOrg: (orgId: string) => Promise<void>
-  /** Update organization fields via auth provider. */
-  updateOrg: (data: Record<string, unknown>) => Promise<void>
+  /**
+   * ARC-03-T13: the authenticated session, injected as a port. The four
+   * operations the root used to perform inline against the better-auth process
+   * singleton (set active org, update org, read org name, verify password) are
+   * now one Identity-owned contract.
+   */
+  authSession: AuthSessionPort
   /** Send an invitation email. */
   sendEmail: (params: {
     email: string
@@ -169,8 +173,6 @@ type IdentityContextDeps = Readonly<{
     organizationName: string
     inviteLink: string
   }) => Promise<void>
-  /** Resolve the current organization name from auth context. */
-  getOrganizationName: (ctx: AuthContext) => Promise<string>
   /** Base URL for building invitation links. */
   baseUrl: string
   /** Invitation lifetime in ms (INVITATION_EXPIRY_SECONDS in shared/auth/auth). */
@@ -222,10 +224,6 @@ type IdentityContextDeps = Readonly<{
     userId: string,
     actorId: string,
   ) => Promise<void>
-  verifyMerchantAiStepUp?: (input: {
-    headers: Headers
-    password: string
-  }) => Promise<boolean>
   organizationLifecycle?: IdentityOrganizationLifecycleComposition
 }>
 
@@ -310,6 +308,20 @@ function contributorReadiness(
 }
 
 export const buildIdentityContext = (deps: IdentityContextDeps) => {
+  // ARC-03-T13: Identity derives its session-shaped callbacks from the injected
+  // port. Setting the active organization is non-fatal by contract — during
+  // registration the session cookie does not exist yet, and the user picks it
+  // up on first login — so the failure is observed, not propagated.
+  const setActiveOrganization = async (orgId: string): Promise<void> => {
+    try {
+      await deps.authSession.setActiveOrganization(orgId)
+    } catch (error) {
+      deps.logger.warn({ err: error }, 'Failed to set active organization during setup')
+    }
+  }
+  const resolveOrganizationName = async (_ctx: AuthContext): Promise<string> =>
+    (await deps.authSession.currentOrganizationName()) ?? 'Unknown Organization'
+
   const managerMembershipRepo = createManagerMembershipRepository(
     deps.db,
     async ({ organizationId: orgId, userId: memberUserId, memberRole }) => {
@@ -380,12 +392,18 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   const exportStorageConfigured =
     deps.organizationLifecycle?.organizationExport !== undefined
   // A reclaimed lease must recover an object written before an ambiguous
-  // post-upload crash without rebuilding a historical snapshot. That durable
-  // pre-egress/recovery protocol is not implemented yet, so production
-  // composition remains non-executable even if all contributors and storage
-  // are supplied. The application service stays directly testable while this
-  // activation fence prevents future wiring from silently weakening safety.
-  const exportGenerationRecoveryConfigured = false
+  // post-upload crash without rebuilding a historical snapshot. Migration 0170
+  // added the durable pre-egress evidence that makes that possible: the row
+  // records its coverage/manifest/archive digests and object key BEFORE the
+  // upload, so a reclaimed lease can ask storage whether those exact bytes
+  // landed and then complete with the original digests or fail closed.
+  //
+  // The fence is therefore derived from the supplied storage rather than
+  // hard-coded: a storage adapter that cannot answer verifyStored still cannot
+  // recover, and production composition still refuses.
+  const exportGenerationRecoveryConfigured =
+    typeof deps.organizationLifecycle?.organizationExport?.storage.verifyStored ===
+    'function'
   const exportCompositionConfigured =
     exportContributorReadiness.contributorsConfigured &&
     exportStorageConfigured &&
@@ -492,11 +510,10 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     },
     verifyStepUp: async (input) =>
       input.requestHeaders !== undefined &&
-      deps.verifyMerchantAiStepUp !== undefined &&
-      deps.verifyMerchantAiStepUp({
+      (await deps.authSession.verifyPassword({
         headers: input.requestHeaders,
         password: input.proof,
-      }),
+      })),
     clock: deps.clock,
     noticeVersion: MERCHANT_AI_NOTICE_VERSION,
     noticeDigest: MERCHANT_AI_NOTICE_DIGEST,
@@ -623,7 +640,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       idGen: () => invitationId(deps.idGen()),
       invitationExpiresInMs: deps.invitationExpiresInMs,
       sendEmail: deps.sendEmail,
-      getOrganizationName: deps.getOrganizationName,
+      getOrganizationName: resolveOrganizationName,
       baseUrl: deps.baseUrl,
     }),
     updateMemberRole: updateMemberRole({
@@ -645,7 +662,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     resendInvitation: resendInvitation({
       identity: deps.identityPort,
       sendEmail: deps.sendEmail,
-      getOrganizationName: deps.getOrganizationName,
+      getOrganizationName: resolveOrganizationName,
       baseUrl: deps.baseUrl,
     }),
     acceptInvitation: acceptInvitation({
@@ -659,7 +676,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     }),
     registerUserAndOrg: registerUserAndOrg({
       signUp: deps.signUp,
-      setActiveOrg: deps.setActiveOrg,
+      setActiveOrg: setActiveOrganization,
       clock: deps.clock,
       idGen: () => organizationId(deps.idGen()),
       commandStore,
@@ -685,7 +702,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       logger: deps.logger,
     }),
     updateOrganization: updateOrganization({
-      updateOrg: deps.updateOrg,
+      updateOrg: deps.authSession.updateOrganization,
     }),
     createCustomRole: createCustomRole({ identity: deps.identityPort }),
     updateCustomRole: updateCustomRole({ identity: deps.identityPort }),
@@ -734,28 +751,34 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     worker: Object.freeze({
       recoverInvitedRegistrations: useCases.recoverInvitedRegistrations,
     }),
-    internal: {
-      repos: {} as const,
-      useCases,
+    // ARC-03-T11/T12: named capability groups replace the former `internal`
+    // grab-bag. The composition root was its only consumer, so the root now
+    // names WHAT it takes from Identity instead of reaching through a
+    // context-private hatch.
+    /** Capability-policy control plane owned by Identity. */
+    policy: Object.freeze({
       // BQC-2.7: least-privilege policy administration operations.
-      policyAdmin,
+      admin: policyAdmin,
       // BQC-2.2: version-gated strong read of persisted policy state
       // (readiness contribution — the worker awaits it before starting).
-      refreshPolicyStore: policyStore.refresh,
-      refreshPolicyStoreRequired: policyStore.refreshRequired,
+      refresh: policyStore.refresh,
+      refreshRequired: policyStore.refreshRequired,
       // BQC-7.3 (versions.policy_store): cheap in-memory read of the current
       // persisted policy_version for the OperationsSnapshot (null when only
       // the env seed is present — no DB round-trip).
-      policyStoreVersion: policyStore.currentVersion,
+      currentVersion: policyStore.currentVersion,
       // ARC-03-T6: the poller this build started is released through the
       // container's shutdown seam. Identity must surface the stop function —
       // dropping it is what leaked a live interval per container built.
-      stopPolicyPolling: policyStore.stopPolling,
+      stopPolling: policyStore.stopPolling,
       // ARC-03-T8: container-owned policy objects. Building identity no longer
       // installs them process-wide; an entry point binds exactly one set.
       capabilityPolicyStore: policyStore.capabilityPolicyStore,
       executionPolicy: policyStore.executionPolicy,
       delayedExecutionPolicy: policyStore.delayedExecutionPolicy,
+    }),
+    /** Authority decisions and grant facts other contexts must ask Identity for. */
+    authority: Object.freeze({
       // BQC-4.5: operator audit sink for the property region-move workflow.
       writeOperatorAudit,
       // Identity owns the grant table; callers supply their authorization
@@ -764,10 +787,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       decideManagerPropertyAuthority,
       decideManagerPropertyAuthorities,
       decidePublicationActorAuthority,
-      // Named lifecycle/export control plane. It exposes AccountAdmin
-      // commands, content-free operator diagnostics, and only fully bound
-      // maintenance services; partial contributor sets remain non-executable.
-      organizationLifecycleRuntime,
       // Property-scoped recipient resolution for other contexts (notification
       // fan-out). Identity owns the grant table, so the read lives here.
       propertyAccessHolders: createPropertyGrantHolderLookup(deps.db, deps.clock),
@@ -777,6 +796,10 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
           userId,
           reason: 'member_offboarded',
         }),
-    },
+    }),
+    // Named lifecycle/export control plane. It exposes AccountAdmin
+    // commands, content-free operator diagnostics, and only fully bound
+    // maintenance services; partial contributor sets remain non-executable.
+    lifecycle: organizationLifecycleRuntime,
   } as const
 }

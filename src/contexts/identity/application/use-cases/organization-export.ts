@@ -12,6 +12,8 @@ import type {
 import { validateLifecycleEvidenceRef } from '../../domain/organization-lifecycle'
 
 const GENERATION_LEASE_MS = 15 * 60 * 1000
+/** The object store cannot confirm the archive the pre-egress evidence names. */
+export const EGRESS_EVIDENCE_MISMATCH = 'egress_evidence_mismatch'
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 const SHA256 = /^[a-f0-9]{64}$/u
 
@@ -78,6 +80,60 @@ export const createOrganizationExportService = (
     })
   }
 
+  /**
+   * Resume an export whose pre-egress evidence is durable but whose upload
+   * outcome is unknown — the exact ambiguity a crash between `putEncrypted`
+   * resolving and `completeGeneration` committing leaves behind.
+   *
+   * `buildBundle` is deliberately unreachable from here. Rebuilding would
+   * produce a LATER live snapshot and pass it off as proof of what the tenant
+   * was given, so the only honest answers are "the stored object is exactly
+   * the archive we recorded" or "fail closed".
+   */
+  const recoverEgress = async (
+    request: OrganizationExportStatus,
+  ): Promise<GeneratedOrganizationExport> => {
+    if (
+      !request.objectKey ||
+      !request.coverageSha256 ||
+      !request.manifestSha256 ||
+      !request.archiveSha256
+    ) {
+      throw new Error('Organization Export pre-egress evidence is incomplete')
+    }
+    const verified = await deps.storage.verifyStored({
+      objectKey: request.objectKey,
+      archiveSha256: request.archiveSha256,
+    })
+    if (verified.outcome !== 'present_exact') {
+      // Absent means the upload never landed; mismatch means the key holds
+      // something else. Either way the recorded digests stay untouched as
+      // evidence of what this request produced, and no second archive is made.
+      await deps.repository
+        .failGeneration({
+          id: request.id,
+          expectedRevision: request.revision,
+          errorCode: EGRESS_EVIDENCE_MISMATCH,
+          now: deps.clock(),
+        })
+        .catch(() => {})
+      throw new Error(
+        `Organization Export egress evidence could not be verified: ${verified.outcome}`,
+      )
+    }
+    const completed = await deps.repository.completeGeneration({
+      id: request.id,
+      expectedRevision: request.revision,
+      coverageSha256: request.coverageSha256,
+      manifestSha256: request.manifestSha256,
+      archiveSha256: request.archiveSha256,
+      objectKey: request.objectKey,
+      encryptionEvidenceRef: validateLifecycleEvidenceRef(verified.encryptionEvidenceRef),
+      now: deps.clock(),
+    })
+    return { request: completed, bundle: null, recovered: true }
+  }
+
   /** One bounded background claim; storage is private and encryption-required. */
   const generateNext = async (): Promise<GeneratedOrganizationExport | null> => {
     const now = deps.clock()
@@ -86,6 +142,7 @@ export const createOrganizationExportService = (
       leaseExpiresAt: new Date(now.getTime() + GENERATION_LEASE_MS),
     })
     if (!request) return null
+    if (request.state === 'egress_pending') return recoverEgress(request)
 
     let storageStarted = false
     try {
@@ -99,6 +156,17 @@ export const createOrganizationExportService = (
       assertZip(archive)
       const archiveSha256 = archiveDigest(archive)
       const objectKey = `private/organization-exports/${request.id}.zip`
+      // Durable BEFORE egress: from here on a crash is recoverable, because
+      // the digests and key that identify the archive already survived it.
+      const pending = await deps.repository.recordPreEgressEvidence({
+        id: request.id,
+        expectedRevision: request.revision,
+        coverageSha256: bundle.coverageSha256,
+        manifestSha256: bundle.manifestSha256,
+        archiveSha256,
+        objectKey,
+        now: deps.clock(),
+      })
       storageStarted = true
       const stored = await deps.storage.putEncrypted({
         objectKey,
@@ -109,7 +177,7 @@ export const createOrganizationExportService = (
       })
       const completed = await deps.repository.completeGeneration({
         id: request.id,
-        expectedRevision: request.revision,
+        expectedRevision: pending.revision,
         coverageSha256: bundle.coverageSha256,
         manifestSha256: bundle.manifestSha256,
         archiveSha256,
@@ -117,16 +185,16 @@ export const createOrganizationExportService = (
         encryptionEvidenceRef: validateLifecycleEvidenceRef(stored.encryptionEvidenceRef),
         now: deps.clock(),
       })
-      return { request: completed, bundle }
+      return { request: completed, bundle, recovered: false }
     } catch (error) {
       const errorCode =
         error instanceof Error && /ZIP archive/u.test(error.message)
           ? 'invalid_archive'
           : 'generation_failed'
       // Before storage egress the request may end as a safe content-free
-      // failure. After egress starts it remains leased/generating so recovery
-      // replays the exact deterministic key+checksum; it must not strand an
-      // untracked object behind a terminal database state.
+      // failure. After egress starts it stays leased in `egress_pending` so
+      // the next claim resumes from the persisted digests; it must not strand
+      // an untracked object behind a terminal database state.
       if (!storageStarted) {
         await deps.repository
           .failGeneration({

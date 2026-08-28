@@ -44,7 +44,11 @@ describe('Identity runtime dependency injection', () => {
     expect(composition).toMatch(
       /createBetterAuthIdentityAdapter\(db, \{[\s\S]*?clock,[\s\S]*?idGen: randomUUID,[\s\S]*?logger,[\s\S]*?\}\)/u,
     )
-    expect(composition).toContain('setActiveOrg: createSetActiveOrg(logger)')
+    // ARC-03-T13: the session is injected as an Identity-owned port. The root
+    // selects the better-auth implementation; it no longer performs one.
+    expect(composition).toContain('createBetterAuthSessionPort({ requestContext })')
+    expect(composition).toContain('authSession,')
+    expect(composition).not.toContain('getAuth(')
     expect(composition).toContain('identityRequestSecurity: Object.freeze({')
     expect(bootstrap).toMatch(
       /createRecoverInvitedRegistrationsHandler\(\{[\s\S]*?logger: container\.logger/u,

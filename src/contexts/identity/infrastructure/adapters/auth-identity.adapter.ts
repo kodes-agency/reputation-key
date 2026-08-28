@@ -41,28 +41,7 @@ import {
 import { extractResponseSlaHours } from '#/shared/domain/response-sla'
 import { runWithRegistrationAuthIds } from '#/shared/auth/registration-user-id'
 import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
-
-/** Build request headers that carry the better-auth session cookie.
- * Uses dynamic import to avoid @tanstack/react-start/server being part of
- * the static module graph, which triggers client-side import protection. */
-async function headersFromRequest(logger: Pick<LoggerPort, 'debug'>): Promise<Headers> {
-  const headers = new Headers()
-  try {
-    const { getRequest } = await import('@tanstack/react-start/server')
-    const req = getRequest()
-    if (req) {
-      req.headers.forEach((value: string, key: string) => {
-        headers.set(key, value)
-      })
-    }
-  } catch (e) {
-    logger.debug(
-      { err: e },
-      'headersFromRequest: no server context available, returning empty headers',
-    )
-  }
-  return headers
-}
+import type { RequestContextPort } from '../../application/ports/request-context.port'
 
 /** Map a raw better-auth member object to our MemberRecord. */
 function toMemberRecord(m: {
@@ -120,6 +99,9 @@ type BetterAuthIdentityAdapterDeps = Readonly<{
   clock: Clock
   idGen: () => string
   logger: Pick<LoggerPort, 'debug' | 'warn'>
+  /** ARC-03-T13: the ambient request context, injected. Infrastructure no
+   * longer reaches the web framework itself. */
+  requestContext: RequestContextPort
   onAcceptInvitation: (ctx: {
     userId: string
     organizationId: string
@@ -136,7 +118,7 @@ export const createBetterAuthIdentityAdapter = (
   // Calling a closure-captured function (not `this.getMember`) keeps these methods
   // safe to destructure / pass as callbacks, per the functional-style rule.
   const getMemberImpl = async (memberId: string): Promise<MemberRecord | null> => {
-    const headers = await headersFromRequest(deps.logger)
+    const headers = await deps.requestContext.currentRequestHeaders()
     const result = await auth.api.listMembers({ headers })
     const data = parseBetterAuthResponse(
       listMembersResponseSchema,
@@ -183,7 +165,7 @@ export const createBetterAuthIdentityAdapter = (
     // to the session cookie. Members returned are scoped to that organization.
     // If better-auth adds orgId to member records, verify it matches ctx.organizationId.
     async listMembers(_ctx: AuthContext): Promise<ReadonlyArray<MemberRecord>> {
-      const headers = await headersFromRequest(deps.logger)
+      const headers = await deps.requestContext.currentRequestHeaders()
       const result = await auth.api.listMembers({ headers })
 
       const data = parseBetterAuthResponse(
@@ -203,7 +185,7 @@ export const createBetterAuthIdentityAdapter = (
     },
 
     async listInvitations(_ctx: AuthContext): Promise<ReadonlyArray<InvitationRecord>> {
-      const headers = await headersFromRequest(deps.logger)
+      const headers = await deps.requestContext.currentRequestHeaders()
       const result = await auth.api.listInvitations({ headers })
 
       const invitations = parseBetterAuthResponse(

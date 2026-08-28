@@ -16,6 +16,11 @@ const NOW = new Date('2026-08-28T12:00:00.000Z')
 const REQUEST_ID = '18deca2e-91a7-46e4-b92b-73163568ed84'
 const ARCHIVE = Uint8Array.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4])
 const ARCHIVE_SHA = createHash('sha256').update(ARCHIVE).digest('hex')
+/** States that exist before any pre-egress evidence has been committed. */
+const PRE_EGRESS_STATES = new Set<OrganizationExportStatus['state']>([
+  'requested',
+  'generating',
+])
 
 function status(
   state: OrganizationExportStatus['state'],
@@ -31,18 +36,22 @@ function status(
     asOf: NOW,
     objectExpiresAt: new Date(NOW.getTime() + ORGANIZATION_EXPORT_OBJECT_TTL_MS),
     generationLeaseExpiresAt: null,
-    coverageSha256: state === 'requested' ? null : 'b'.repeat(64),
-    manifestSha256: state === 'requested' ? null : 'c'.repeat(64),
-    archiveSha256: state === 'requested' ? null : ARCHIVE_SHA,
-    objectKey:
-      state === 'requested' ? null : `private/organization-exports/${REQUEST_ID}.zip`,
-    encryptionEvidenceRef: state === 'requested' ? null : 's3:kms:key-v1',
+    coverageSha256: PRE_EGRESS_STATES.has(state) ? null : 'b'.repeat(64),
+    manifestSha256: PRE_EGRESS_STATES.has(state) ? null : 'c'.repeat(64),
+    archiveSha256: PRE_EGRESS_STATES.has(state) ? null : ARCHIVE_SHA,
+    objectKey: PRE_EGRESS_STATES.has(state)
+      ? null
+      : `private/organization-exports/${REQUEST_ID}.zip`,
+    encryptionEvidenceRef:
+      PRE_EGRESS_STATES.has(state) || state === 'egress_pending' ? null : 's3:kms:key-v1',
     retrievalOperationId: null,
     retrievalTokenDigest: null,
     retrievalExpiresAt: null,
     retrievedAt: null,
     deletedAt: null,
     lastErrorCode: null,
+    preEgressRecordedAt: PRE_EGRESS_STATES.has(state) ? null : NOW,
+    egressRecoveryAttempts: 0,
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -67,8 +76,19 @@ function repository() {
       current = status('generating', 2, { generationLeaseExpiresAt: leaseExpiresAt })
       return current
     }),
+    recordPreEgressEvidence: vi.fn(async (input) => {
+      current = status('egress_pending', 3, {
+        generationLeaseExpiresAt: current.generationLeaseExpiresAt,
+        coverageSha256: input.coverageSha256,
+        manifestSha256: input.manifestSha256,
+        archiveSha256: input.archiveSha256,
+        objectKey: input.objectKey,
+        preEgressRecordedAt: input.now,
+      })
+      return current
+    }),
     completeGeneration: vi.fn(async () => {
-      current = status('ready', 3)
+      current = status('ready', 4)
       return current
     }),
     failGeneration: vi.fn(async () => {}),
@@ -127,6 +147,10 @@ function harness(input: { authorized?: boolean; archive?: Uint8Array } = {}) {
   const storage = {
     putEncrypted: vi.fn(async () => ({
       outcome: 'stored' as const,
+      encryptionEvidenceRef: 's3:kms:key-v1',
+    })),
+    verifyStored: vi.fn(async () => ({
+      outcome: 'present_exact' as const,
       encryptionEvidenceRef: 's3:kms:key-v1',
     })),
     readEncrypted: vi.fn(async () => input.archive ?? ARCHIVE),
@@ -199,6 +223,59 @@ describe('Organization Export service', () => {
         encryptionEvidenceRef: 's3:kms:key-v1',
       }),
     )
+  })
+
+  it('commits pre-egress evidence before the archive leaves the process', async () => {
+    const flow = harness()
+    const calls: string[] = []
+    // The ports are Readonly, so order is observed by wrapping rather than by
+    // assigning onto the frozen harness objects.
+    const recordPreEgressEvidence = vi.fn<typeof flow.repo.recordPreEgressEvidence>(
+      async (input) => {
+        calls.push('recordPreEgressEvidence')
+        return status('egress_pending', 3, {
+          generationLeaseExpiresAt: new Date(NOW.getTime() + 900_000),
+          objectKey: input.objectKey,
+          preEgressRecordedAt: input.now,
+        })
+      },
+    )
+    const repository = { ...flow.repo, recordPreEgressEvidence }
+    const put = flow.storage.putEncrypted
+    const storage = {
+      ...flow.storage,
+      putEncrypted: vi.fn(async (...args: Parameters<typeof put>) => {
+        calls.push('putEncrypted')
+        return put(...args)
+      }) as typeof put,
+    }
+
+    const generated = await createOrganizationExportService({
+      repository,
+      contributors: [],
+      archiveWriter: { writeZip: vi.fn(async () => ARCHIVE) },
+      storage,
+      authority: { isCurrentAccountAdmin: vi.fn(async () => true) },
+      deriveRetrievalSecret: () =>
+        Uint8Array.from({ length: 32 }, (_, index) => index + 1),
+      clock: () => NOW,
+      buildBundle: vi.fn(async () => bundle),
+    }).generateNext()
+
+    // Order is the whole point: the digests must be durable BEFORE egress, or
+    // a crash right after the upload leaves untracked bytes in the bucket.
+    expect(calls).toEqual(['recordPreEgressEvidence', 'putEncrypted'])
+    expect(recordPreEgressEvidence).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedRevision: 2,
+        archiveSha256: ARCHIVE_SHA,
+        coverageSha256: 'b'.repeat(64),
+        manifestSha256: 'c'.repeat(64),
+        objectKey: `private/organization-exports/${REQUEST_ID}.zip`,
+      }),
+    )
+    expect(generated?.recovered).toBe(false)
+    expect(generated?.bundle).toBe(bundle)
   })
 
   it('rejects a writer that does not return ZIP bytes and records a content-free failure', async () => {

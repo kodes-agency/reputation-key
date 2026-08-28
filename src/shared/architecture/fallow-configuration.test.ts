@@ -88,14 +88,14 @@ describe('Fallow configuration', () => {
   // a discriminator read on a serialized error, so without them these members
   // are misreported as dead code and a later deletion slice would remove live
   // behaviour.
-  it('usedClassMembers contains a scoped rule for implements OrganizationExportStorage covering putEncrypted/readEncrypted/delete', () => {
+  it('usedClassMembers contains a scoped rule for implements OrganizationExportStorage covering putEncrypted/readEncrypted/delete/verifyStored', () => {
     const rule = scopedUsedClassMembers.find(
       (candidate) => candidate.implements === 'OrganizationExportStorage',
     )
 
     expect(rule).toBeDefined()
     expect(rule?.members).toEqual(
-      expect.arrayContaining(['putEncrypted', 'readEncrypted', 'delete']),
+      expect.arrayContaining(['putEncrypted', 'readEncrypted', 'delete', 'verifyStored']),
     )
   })
 

@@ -160,6 +160,47 @@ export class S3OrganizationExportStorage implements OrganizationExportStorage {
     }
   }
 
+  /**
+   * HEAD-only egress-evidence probe used by generation recovery.
+   *
+   * It never downloads the archive and never rebuilds one: it only answers
+   * whether the exact bytes recorded before egress are present under the
+   * deterministic key, so an ambiguous post-upload crash can converge.
+   */
+  async verifyStored(input: {
+    objectKey: string
+    archiveSha256: string
+  }): Promise<
+    | Readonly<{ outcome: 'present_exact'; encryptionEvidenceRef: string }>
+    | Readonly<{ outcome: 'absent' }>
+    | Readonly<{ outcome: 'mismatch' }>
+  > {
+    if (!SHA256.test(input.archiveSha256)) {
+      throw new Error('Organization Export archive checksum is invalid')
+    }
+    const key = assertObjectKey(input.objectKey)
+    let existing
+    try {
+      existing = await this.client.send(
+        new HeadObjectCommand({ Bucket: this.bucketName, Key: key }),
+      )
+    } catch (error) {
+      if (isNotFound(error)) return { outcome: 'absent' }
+      throw error
+    }
+    if (
+      existing.ServerSideEncryption !== 'AES256' ||
+      existing.ContentType !== 'application/zip' ||
+      existing.Metadata?.['archive-sha256'] !== input.archiveSha256
+    ) {
+      return { outcome: 'mismatch' }
+    }
+    return {
+      outcome: 'present_exact',
+      encryptionEvidenceRef: `s3:aes256:${input.archiveSha256}`,
+    }
+  }
+
   async readEncrypted(objectKey: string): Promise<Uint8Array> {
     const result = await this.client.send(
       new GetObjectCommand({

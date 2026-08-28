@@ -62,4 +62,99 @@ describe('Organization Export private S3 contract', () => {
       }),
     ).toThrow(/accessKey is required/)
   })
+
+  describe('verifyStored egress-evidence probe', () => {
+    const KEY = `private/organization-exports/${ID}.zip`
+    const SHA = 'a'.repeat(64)
+
+    function storage(send: (command: unknown) => Promise<unknown>) {
+      const value = S3OrganizationExportStorage.create({
+        accessKey: 'access',
+        secretKey: 'secret',
+        bucketName: 'private-cell-us',
+        region: 'us-east-1',
+      })
+      // The client is private by construction; the probe's contract is what a
+      // HEAD response means, so the transport is replaced rather than mocked
+      // at the network level.
+      ;(value as unknown as { client: { send: typeof send } }).client = { send }
+      return value
+    }
+
+    it('reports present_exact only for the recorded checksum under private encryption', async () => {
+      const sent: unknown[] = []
+      const value = storage(async (command) => {
+        sent.push(command)
+        return {
+          ServerSideEncryption: 'AES256',
+          ContentType: 'application/zip',
+          Metadata: { 'archive-sha256': SHA },
+        }
+      })
+
+      await expect(
+        value.verifyStored({ objectKey: KEY, archiveSha256: SHA }),
+      ).resolves.toEqual({
+        outcome: 'present_exact',
+        encryptionEvidenceRef: `s3:aes256:${SHA}`,
+      })
+      // HEAD only: recovery must never pull the archive back through the app.
+      expect(sent).toHaveLength(1)
+      expect((sent[0] as { constructor: { name: string } }).constructor.name).toBe(
+        'HeadObjectCommand',
+      )
+    })
+
+    it('reports absent when the object was never uploaded', async () => {
+      const value = storage(async () => {
+        throw Object.assign(new Error('missing'), { name: 'NotFound' })
+      })
+
+      await expect(
+        value.verifyStored({ objectKey: KEY, archiveSha256: SHA }),
+      ).resolves.toEqual({ outcome: 'absent' })
+    })
+
+    it('reports mismatch when the key holds different or unencrypted bytes', async () => {
+      const wrongDigest = storage(async () => ({
+        ServerSideEncryption: 'AES256',
+        ContentType: 'application/zip',
+        Metadata: { 'archive-sha256': 'b'.repeat(64) },
+      }))
+      const unencrypted = storage(async () => ({
+        ContentType: 'application/zip',
+        Metadata: { 'archive-sha256': SHA },
+      }))
+
+      await expect(
+        wrongDigest.verifyStored({ objectKey: KEY, archiveSha256: SHA }),
+      ).resolves.toEqual({ outcome: 'mismatch' })
+      await expect(
+        unencrypted.verifyStored({ objectKey: KEY, archiveSha256: SHA }),
+      ).resolves.toEqual({ outcome: 'mismatch' })
+    })
+
+    it('refuses a key outside the private namespace or a malformed checksum', async () => {
+      const value = storage(async () => ({}))
+
+      await expect(
+        value.verifyStored({ objectKey: `public/${ID}.zip`, archiveSha256: SHA }),
+      ).rejects.toThrow(/outside the private namespace/u)
+      await expect(
+        value.verifyStored({ objectKey: KEY, archiveSha256: 'nope' }),
+      ).rejects.toThrow(/checksum is invalid/u)
+    })
+
+    it('propagates a transport failure instead of reporting absent', async () => {
+      const value = storage(async () => {
+        throw Object.assign(new Error('service unavailable'), {
+          $metadata: { httpStatusCode: 503 },
+        })
+      })
+
+      await expect(
+        value.verifyStored({ objectKey: KEY, archiveSha256: SHA }),
+      ).rejects.toThrow(/service unavailable/u)
+    })
+  })
 })

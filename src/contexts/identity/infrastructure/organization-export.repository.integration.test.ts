@@ -84,6 +84,44 @@ async function requestInput() {
   }
 }
 
+const COVERAGE_SHA = 'a'.repeat(64)
+const MANIFEST_SHA = 'b'.repeat(64)
+const ARCHIVE_SHA = 'c'.repeat(64)
+
+const objectKeyFor = (id: string) => `private/organization-exports/${id}.zip`
+
+/**
+ * Publish an export the way production does: durable pre-egress evidence
+ * FIRST, then the upload confirmation. `ready` is no longer reachable from
+ * `generating`, so every fixture must pass through `egress_pending`.
+ */
+async function publishReady(
+  id: string,
+  claimedRevision: number,
+  at: Date = NOW,
+): Promise<number> {
+  const pending = await repository.recordPreEgressEvidence({
+    id,
+    expectedRevision: claimedRevision,
+    coverageSha256: COVERAGE_SHA,
+    manifestSha256: MANIFEST_SHA,
+    archiveSha256: ARCHIVE_SHA,
+    objectKey: objectKeyFor(id),
+    now: at,
+  })
+  const ready = await repository.completeGeneration({
+    id,
+    expectedRevision: pending.revision,
+    coverageSha256: COVERAGE_SHA,
+    manifestSha256: MANIFEST_SHA,
+    archiveSha256: ARCHIVE_SHA,
+    objectKey: objectKeyFor(id),
+    encryptionEvidenceRef: `s3:aes256:${ARCHIVE_SHA}`,
+    now: at,
+  })
+  return ready.revision
+}
+
 async function auditActions(organizationId: string): Promise<string[]> {
   const rows = await lease.pool.query(
     `SELECT action FROM audit_logs
@@ -168,17 +206,13 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
       state: 'generating',
       revision: 2,
     })
-    const ready = await repository.completeGeneration({
-      id: input.id,
-      expectedRevision: claimed!.revision,
-      coverageSha256: 'a'.repeat(64),
-      manifestSha256: 'b'.repeat(64),
-      archiveSha256: 'c'.repeat(64),
-      objectKey: `private/organization-exports/${input.id}.zip`,
-      encryptionEvidenceRef: `s3:aes256:${'c'.repeat(64)}`,
-      now: new Date(NOW.getTime() + 1000),
-    })
-    expect(ready).toMatchObject({ state: 'ready', revision: 3 })
+    // generating (2) -> egress_pending (3) -> ready (4)
+    const readyRevision = await publishReady(
+      input.id,
+      claimed!.revision,
+      new Date(NOW.getTime() + 1000),
+    )
+    expect(readyRevision).toBe(4)
 
     const operationId = randomUUID()
     const retrievalExpiresAt = new Date(NOW.getTime() + 24 * 60 * 60 * 1000)
@@ -211,7 +245,7 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
     })
     expect(retrieved).toMatchObject({
       state: 'retrieved',
-      revision: 5,
+      revision: 6,
       retrievalTokenDigest: null,
     })
     await expect(
@@ -257,17 +291,224 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
     expect(first).toMatchObject({ id: input.id, revision: 2 })
     expect(reclaimed).toMatchObject({ id: input.id, revision: 3 })
     await expect(
-      repository.completeGeneration({
+      repository.recordPreEgressEvidence({
         id: input.id,
         expectedRevision: first!.revision,
-        coverageSha256: 'a'.repeat(64),
-        manifestSha256: 'b'.repeat(64),
-        archiveSha256: 'c'.repeat(64),
-        objectKey: `private/organization-exports/${input.id}.zip`,
-        encryptionEvidenceRef: `s3:aes256:${'c'.repeat(64)}`,
+        coverageSha256: COVERAGE_SHA,
+        manifestSha256: MANIFEST_SHA,
+        archiveSha256: ARCHIVE_SHA,
+        objectKey: objectKeyFor(input.id),
         now: new Date(NOW.getTime() + 2000),
       }),
     ).rejects.toThrow(/authority changed/)
+    await expect(
+      repository.completeGeneration({
+        id: input.id,
+        expectedRevision: first!.revision,
+        coverageSha256: COVERAGE_SHA,
+        manifestSha256: MANIFEST_SHA,
+        archiveSha256: ARCHIVE_SHA,
+        objectKey: objectKeyFor(input.id),
+        encryptionEvidenceRef: `s3:aes256:${ARCHIVE_SHA}`,
+        now: new Date(NOW.getTime() + 2000),
+      }),
+    ).rejects.toThrow(/authority changed/)
+  })
+
+  it('records pre-egress evidence as a compare-and-set that is idempotent on exact replay', async () => {
+    const input = await requestInput()
+    await repository.request(input)
+    const claimed = await repository.claimNextGeneration({
+      now: NOW,
+      leaseExpiresAt: new Date(NOW.getTime() + 15 * 60 * 1000),
+    })
+
+    const evidence = {
+      id: input.id,
+      expectedRevision: claimed!.revision,
+      coverageSha256: COVERAGE_SHA,
+      manifestSha256: MANIFEST_SHA,
+      archiveSha256: ARCHIVE_SHA,
+      objectKey: objectKeyFor(input.id),
+      now: NOW,
+    }
+    const pending = await repository.recordPreEgressEvidence(evidence)
+    expect(pending).toMatchObject({
+      state: 'egress_pending',
+      revision: 3,
+      coverageSha256: COVERAGE_SHA,
+      manifestSha256: MANIFEST_SHA,
+      archiveSha256: ARCHIVE_SHA,
+      objectKey: objectKeyFor(input.id),
+      encryptionEvidenceRef: null,
+    })
+    expect(pending.preEgressRecordedAt).toEqual(NOW)
+
+    // Exact retry after an ambiguous outcome is a no-op, so a caller that
+    // does not know whether its write landed can simply repeat it.
+    const replay = await repository.recordPreEgressEvidence({
+      ...evidence,
+      now: new Date(NOW.getTime() + 1000),
+    })
+    expect(replay).toEqual(pending)
+
+    // A DIFFERENT archive claiming the same revision means a second bundle
+    // was built for one historical request.
+    await expect(
+      repository.recordPreEgressEvidence({ ...evidence, archiveSha256: 'd'.repeat(64) }),
+    ).rejects.toThrow(/already bound/)
+    await expect(
+      repository.recordPreEgressEvidence({
+        ...evidence,
+        objectKey: objectKeyFor(randomUUID()),
+      }),
+    ).rejects.toThrow(/already bound/)
+
+    // Completion may only confirm the persisted digests, never replace them.
+    await expect(
+      repository.completeGeneration({
+        id: input.id,
+        expectedRevision: pending.revision,
+        coverageSha256: 'e'.repeat(64),
+        manifestSha256: MANIFEST_SHA,
+        archiveSha256: ARCHIVE_SHA,
+        objectKey: objectKeyFor(input.id),
+        encryptionEvidenceRef: `s3:aes256:${ARCHIVE_SHA}`,
+        now: NOW,
+      }),
+    ).rejects.toThrow(/does not match/)
+
+    const stored = await lease.pool.query(
+      `SELECT state, coverage_sha256, archive_sha256, encryption_evidence_ref
+       FROM organization_exports WHERE id = $1`,
+      [input.id],
+    )
+    expect(stored.rows[0]).toEqual({
+      state: 'egress_pending',
+      coverage_sha256: COVERAGE_SHA,
+      archive_sha256: ARCHIVE_SHA,
+      encryption_evidence_ref: null,
+    })
+  })
+
+  it('re-claims an expired egress_pending lease in place so recovery never rebuilds', async () => {
+    const input = await requestInput()
+    await repository.request(input)
+    const claimed = await repository.claimNextGeneration({
+      now: NOW,
+      leaseExpiresAt: new Date(NOW.getTime() + 1000),
+    })
+    await repository.recordPreEgressEvidence({
+      id: input.id,
+      expectedRevision: claimed!.revision,
+      coverageSha256: COVERAGE_SHA,
+      manifestSha256: MANIFEST_SHA,
+      archiveSha256: ARCHIVE_SHA,
+      objectKey: objectKeyFor(input.id),
+      now: NOW,
+    })
+
+    // The process is killed here — the upload outcome is unknown.
+    const resumed = await repository.claimNextGeneration({
+      now: new Date(NOW.getTime() + 2000),
+      leaseExpiresAt: new Date(NOW.getTime() + 3000),
+    })
+
+    expect(resumed).toMatchObject({
+      id: input.id,
+      // Never back to 'generating': that would license rebuilding a later
+      // live snapshot and presenting it as the original archive.
+      state: 'egress_pending',
+      revision: 4,
+      coverageSha256: COVERAGE_SHA,
+      manifestSha256: MANIFEST_SHA,
+      archiveSha256: ARCHIVE_SHA,
+      objectKey: objectKeyFor(input.id),
+      egressRecoveryAttempts: 1,
+    })
+
+    const ready = await repository.completeGeneration({
+      id: input.id,
+      expectedRevision: resumed!.revision,
+      coverageSha256: COVERAGE_SHA,
+      manifestSha256: MANIFEST_SHA,
+      archiveSha256: ARCHIVE_SHA,
+      objectKey: objectKeyFor(input.id),
+      encryptionEvidenceRef: `s3:aes256:${ARCHIVE_SHA}`,
+      now: new Date(NOW.getTime() + 3000),
+    })
+    expect(ready).toMatchObject({ state: 'ready', revision: 5 })
+  })
+
+  it('retains pre-egress digests when generation fails after evidence was committed', async () => {
+    const input = await requestInput()
+    await repository.request(input)
+    const claimed = await repository.claimNextGeneration({
+      now: NOW,
+      leaseExpiresAt: new Date(NOW.getTime() + 1000),
+    })
+    const pending = await repository.recordPreEgressEvidence({
+      id: input.id,
+      expectedRevision: claimed!.revision,
+      coverageSha256: COVERAGE_SHA,
+      manifestSha256: MANIFEST_SHA,
+      archiveSha256: ARCHIVE_SHA,
+      objectKey: objectKeyFor(input.id),
+      now: NOW,
+    })
+
+    await repository.failGeneration({
+      id: input.id,
+      expectedRevision: pending.revision,
+      errorCode: 'egress_evidence_mismatch',
+      now: new Date(NOW.getTime() + 1000),
+    })
+
+    const rows = await lease.pool.query(
+      `SELECT state, last_error_code, coverage_sha256, manifest_sha256,
+              archive_sha256, object_key, encryption_evidence_ref
+       FROM organization_exports WHERE id = $1`,
+      [input.id],
+    )
+    // The digests are the evidence of what this request produced; a failure
+    // must not erase them.
+    expect(rows.rows[0]).toEqual({
+      state: 'failed',
+      last_error_code: 'egress_evidence_mismatch',
+      coverage_sha256: COVERAGE_SHA,
+      manifest_sha256: MANIFEST_SHA,
+      archive_sha256: ARCHIVE_SHA,
+      object_key: objectKeyFor(input.id),
+      encryption_evidence_ref: null,
+    })
+  })
+
+  it('refuses a direct-SQL jump from generating straight to ready', async () => {
+    const input = await requestInput()
+    await repository.request(input)
+    await repository.claimNextGeneration({
+      now: NOW,
+      leaseExpiresAt: new Date(NOW.getTime() + 1000),
+    })
+
+    await expect(
+      lease.pool.query(
+        `UPDATE organization_exports
+         SET state = 'ready', revision = revision + 1,
+             generation_lease_expires_at = NULL,
+             coverage_sha256 = $2, manifest_sha256 = $3, archive_sha256 = $4,
+             object_key = $5, encryption_evidence_ref = $6, updated_at = now()
+         WHERE id = $1`,
+        [
+          input.id,
+          COVERAGE_SHA,
+          MANIFEST_SHA,
+          ARCHIVE_SHA,
+          objectKeyFor(input.id),
+          `s3:aes256:${ARCHIVE_SHA}`,
+        ],
+      ),
+    ).rejects.toThrow(/invalid organization export state transition/)
   })
 
   it('replaces an expired retrieval authority while the encrypted object remains valid', async () => {
@@ -277,22 +518,13 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
       now: NOW,
       leaseExpiresAt: new Date(NOW.getTime() + 1000),
     })
-    await repository.completeGeneration({
-      id: input.id,
-      expectedRevision: claimed!.revision,
-      coverageSha256: 'a'.repeat(64),
-      manifestSha256: 'b'.repeat(64),
-      archiveSha256: 'c'.repeat(64),
-      objectKey: `private/organization-exports/${input.id}.zip`,
-      encryptionEvidenceRef: `s3:aes256:${'c'.repeat(64)}`,
-      now: NOW,
-    })
+    await publishReady(input.id, claimed!.revision)
     await expect(
       lease.pool.query(
         `INSERT INTO organization_export_retrieval_issuances (
            export_id, organization_id, export_revision, operation_id,
            token_digest, issued_at, expires_at, created_at
-         ) VALUES ($1, $2, 4, $3, $4, $5, $6, $5)`,
+         ) VALUES ($1, $2, 5, $3, $4, $5, $6, $5)`,
         [
           input.id,
           input.organizationId,
@@ -313,7 +545,7 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
       expiresAt: new Date(NOW.getTime() + 1000),
       now: NOW,
     })
-    expect(first).toMatchObject({ state: 'retrieval_issued', revision: 4 })
+    expect(first).toMatchObject({ state: 'retrieval_issued', revision: 5 })
 
     const reissuedAt = new Date(NOW.getTime() + 1000)
     await expect(
@@ -340,7 +572,7 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
     })
     expect(second).toMatchObject({
       state: 'retrieval_issued',
-      revision: 5,
+      revision: 6,
       retrievalOperationId: secondOperationId,
       retrievalTokenDigest: 'e'.repeat(64),
     })
@@ -397,7 +629,7 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
     })
     expect(third).toMatchObject({
       state: 'retrieval_issued',
-      revision: 6,
+      revision: 7,
       retrievalOperationId: thirdOperationId,
       retrievalTokenDigest: 'f'.repeat(64),
     })
@@ -409,7 +641,7 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
         tokenDigest: 'f'.repeat(64),
         now: new Date(secondExpiresAt.getTime() + 1),
       }),
-    ).resolves.toMatchObject({ state: 'retrieved', revision: 7 })
+    ).resolves.toMatchObject({ state: 'retrieved', revision: 8 })
 
     const history = await lease.pool.query(
       `SELECT operation_id, token_digest
@@ -450,20 +682,11 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
       now: NOW,
       leaseExpiresAt: new Date(NOW.getTime() + 1000),
     })
-    await repository.completeGeneration({
-      id: input.id,
-      expectedRevision: claimed!.revision,
-      coverageSha256: 'a'.repeat(64),
-      manifestSha256: 'b'.repeat(64),
-      archiveSha256: 'c'.repeat(64),
-      objectKey: `private/organization-exports/${input.id}.zip`,
-      encryptionEvidenceRef: `s3:aes256:${'c'.repeat(64)}`,
-      now: new Date(NOW.getTime() + 1000),
-    })
+    await publishReady(input.id, claimed!.revision, new Date(NOW.getTime() + 1000))
     const pending = await repository.claimNextExpiredDeletion({
       now: input.objectExpiresAt,
     })
-    expect(pending).toMatchObject({ state: 'delete_pending', revision: 4 })
+    expect(pending).toMatchObject({ state: 'delete_pending', revision: 5 })
     await repository.completeDeletion({
       id: input.id,
       expectedRevision: pending!.revision,
@@ -474,7 +697,7 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
       'SELECT state, revision, deleted_at FROM organization_exports WHERE id = $1',
       [input.id],
     )
-    expect(rows.rows[0]).toMatchObject({ state: 'deleted', revision: 5 })
+    expect(rows.rows[0]).toMatchObject({ state: 'deleted', revision: 6 })
     expect(rows.rows[0]!.deleted_at).toEqual(input.objectExpiresAt)
   })
 
@@ -493,16 +716,7 @@ describe.sequential('PostgreSQL Organization Export authority', () => {
       now: NOW,
       leaseExpiresAt: new Date(NOW.getTime() + 1000),
     })
-    await repository.completeGeneration({
-      id: input.id,
-      expectedRevision: claimed!.revision,
-      coverageSha256: 'a'.repeat(64),
-      manifestSha256: 'b'.repeat(64),
-      archiveSha256: 'c'.repeat(64),
-      objectKey: `private/organization-exports/${input.id}.zip`,
-      encryptionEvidenceRef: `s3:aes256:${'c'.repeat(64)}`,
-      now: new Date(NOW.getTime() + 1000),
-    })
+    await publishReady(input.id, claimed!.revision, new Date(NOW.getTime() + 1000))
     const operationId = randomUUID()
     await repository.issueRetrieval({
       id: input.id,
