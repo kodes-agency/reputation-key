@@ -18,12 +18,13 @@ pnpm install
 cp .env.example .env.local
 # Edit .env.local with your DATABASE_URL and BETTER_AUTH_SECRET
 
-# 3. Set up the database
-pnpm db:bootstrap-auth
-pnpm auth:migrate
-pnpm db:migrate
-pnpm db:google-property-binding-index
-psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f scripts/migrations/2026-07-06-permission-version-triggers.sql
+# 3. Set up the database through the production-equivalent authority
+# (pinned Better Auth schema, staged Drizzle journal, registered sidecars,
+# and provider-subject initialization). DEPLOY_MIGRATE=1 is the explicit
+# local/CI authority; Railway deployments use platform identity instead.
+# On an empty database, also set one sealed
+# REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS entry in .env.local.
+DEPLOY_MIGRATE=1 pnpm db:migrate-deploy
 
 # 4. Generate auth secret (if not set)
 node --input-type=module -e "import { randomBytes } from 'node:crypto'; console.log(randomBytes(32).toString('base64url'))"
@@ -42,20 +43,22 @@ pnpm dev
 
 ## Scripts
 
-| Command             | Description                                                                                                                       |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`          | Start dev server on :3000                                                                                                         |
-| `pnpm build`        | Build web app                                                                                                                     |
-| `pnpm build:worker` | Build worker                                                                                                                      |
-| `pnpm start`        | Run built web server                                                                                                              |
-| `pnpm start:worker` | Run built worker                                                                                                                  |
-| `pnpm test`         | Run unit tests                                                                                                                    |
-| `pnpm test:e2e`     | Run Playwright E2E tests                                                                                                          |
-| `pnpm typecheck`    | TypeScript check (src/services/e2e + the release scripts project)                                                                 |
-| `pnpm lint`         | ESLint + filename/component-boundary checks                                                                                       |
-| `pnpm lint:ci`      | `lint` + test-quality + Google/AI artifact gates                                                                                  |
-| `pnpm format`       | Prettier format                                                                                                                   |
-| `pnpm release:beta` | Legacy readiness/deploy harness; production promotion remains prohibited until the signed-image/cell release contract is complete |
+| Command                        | Description                                                                                                                                                           |
+| ------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                     | Start dev server on :3000                                                                                                                                             |
+| `pnpm build`                   | Build web app                                                                                                                                                         |
+| `pnpm build:worker`            | Build worker                                                                                                                                                          |
+| `pnpm start`                   | Run built web server                                                                                                                                                  |
+| `pnpm start:worker`            | Run built worker                                                                                                                                                      |
+| `pnpm test`                    | Run unit tests                                                                                                                                                        |
+| `pnpm test:e2e`                | Run Playwright E2E tests                                                                                                                                              |
+| `pnpm typecheck`               | TypeScript check (src/services/e2e + the release scripts project)                                                                                                     |
+| `pnpm lint`                    | ESLint + filename/component-boundary checks                                                                                                                           |
+| `pnpm lint:ci`                 | `lint` + test-quality + Google/AI artifact gates                                                                                                                      |
+| `pnpm format`                  | Prettier format                                                                                                                                                       |
+| `pnpm infra:railway:plan-cell` | Retain the manifest-bound full-candidate plan for the dedicated `cell-us` project; requires Railway CLI 5.45.2+                                                       |
+| `pnpm release:migrate-cell`    | Audited, saved-plan schema migration for every signed single-US candidate; the first run also enables the bounded Data Cell cutover                                   |
+| `pnpm release:beta`            | Staged saved-plan promotion/read-back for the one `cell-us`; live promotion remains blocked until retained cutover, plan, provider, and recovery evidence is complete |
 
 ### Git hooks
 
