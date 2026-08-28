@@ -17,6 +17,11 @@ import {
   type SimulationContainer,
 } from '#/composition'
 import { bootstrap, createBootstrapRuntimeConfig } from '#/bootstrap'
+import {
+  bindProcessPolicies,
+  releaseProcessPolicies,
+  type ProcessPolicyBundle,
+} from '#/shared/auth/process-policy-binding'
 import { createInMemoryQueue, type InMemoryQueue } from './in-memory-queue'
 import type { Clock } from '#/shared/domain/clock'
 import type { Database } from '#/shared/db'
@@ -54,6 +59,35 @@ export type SimulationHandle = Readonly<{
   advanceClock: (ms: number) => void
 }>
 
+/**
+ * ARC-03-T8: the simulation's ONE explicit policy installation.
+ *
+ * Building a container no longer installs the policy trio, and a simulation is
+ * a process like any other — so it has to name its installation point the way
+ * the worker (src/worker/index.ts) and the operator harness do. Without this
+ * the first policy-gated read inside an event handler fell through to the WEB
+ * cold-boot fallback, which builds a SECOND container from ambient env:
+ *
+ *   - in a process with a full `.env` that quietly succeeded, and every gated
+ *     handler decision was then answered by a different container's audit sink
+ *     and consent reader than the one the simulation was exercising;
+ *   - in a process without one (CI, which sets only the eight vars the job
+ *     declares) the ambient build threw, so EVERY event handler threw and the
+ *     projections they own — Inbox items above all — were simply never made.
+ *
+ * A test process builds many simulation containers in sequence, so a previous
+ * simulation-owned binding is released first. The release is conditional on
+ * the bundle, so a competing worker/web/operator installation still fails
+ * loudly at the bind below — which is the whole point of the guard.
+ */
+let simulationPolicies: ProcessPolicyBundle | undefined
+
+function bindSimulationProcessPolicies(policies: ProcessPolicyBundle): void {
+  if (simulationPolicies) releaseProcessPolicies(simulationPolicies)
+  simulationPolicies = policies
+  bindProcessPolicies(policies)
+}
+
 export async function createSimulationContainer(
   options?: SimulationContainerOptions,
 ): Promise<SimulationHandle> {
@@ -83,13 +117,17 @@ export async function createSimulationContainer(
   }
   const simulationContainer = container as SimulationContainer
 
-  // 3. Register all event handlers + job handlers
+  // 3. Make THIS container the process policy answer, before bootstrap runs
+  //    anything gated and before the first event dispatch.
+  bindSimulationProcessPolicies(simulationContainer)
+
+  // 4. Register all event handlers + job handlers
   await bootstrap(simulationContainer, {
     runtime: createBootstrapRuntimeConfig(env),
     allowUnavailableGoogleImportV2Processor: true,
   })
 
-  // 4. Connect the queue to the registry so jobs process inline
+  // 5. Connect the queue to the registry so jobs process inline
   queue.connectRegistry(simulationContainer.jobRegistry)
 
   return {

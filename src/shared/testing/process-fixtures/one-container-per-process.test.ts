@@ -19,6 +19,7 @@ const FIXTURES = {
   web: 'src/shared/testing/process-fixtures/web-process.fixture.ts',
   worker: 'src/shared/testing/process-fixtures/worker-process.fixture.ts',
   sidecar: 'src/shared/testing/process-fixtures/sidecar-process.fixture.ts',
+  simulation: 'src/shared/testing/process-fixtures/simulation-process.fixture.ts',
 } as const
 
 type FixtureRun = Readonly<{ status: number | null; stdout: string; stderr: string }>
@@ -116,6 +117,27 @@ describe('one Application Container per process', () => {
       expect(report.openHandleNames).not.toContain('background-queue')
       expect(report.jobNames).toHaveLength(0)
       expect(report.consumerNames).toHaveLength(0)
+    },
+    SPAWN_TIMEOUT_MS,
+  )
+
+  it(
+    'boots exactly one container in a simulation process, and owns its policies',
+    () => {
+      const report = bootReport(FIXTURES.simulation)
+
+      expect(report.deployable).toBe('simulation')
+      // Two boots would mean a policy read fell through to the web cold-boot
+      // fallback and built a container from ambient env behind the
+      // simulation's back — the ARC-03-T8 gap that made every event handler
+      // in the CI simulation throw.
+      expect(report.containerBoots).toBe(1)
+      expect(report.policyBindings).toEqual([
+        'capabilityPolicyStore',
+        'delayedExecutionPolicy',
+        'executionPolicy',
+      ])
+      expect(report.openHandleNames).not.toContain('foreign-policy')
     },
     SPAWN_TIMEOUT_MS,
   )
