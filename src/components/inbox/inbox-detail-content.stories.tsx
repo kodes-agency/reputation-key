@@ -4,7 +4,7 @@
 // not (gate OFF). The component also renders the status actions, activity
 // timeline, and notes thread, so stories supply mock detailFns for all three.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { InboxDetailContent } from './inbox-detail-content'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
@@ -252,6 +252,11 @@ export const ReplyToolbarDetectsMissingReviewLanguage: Story = {
 
     await expect(aiButton).toBeEnabled()
     await userEvent.click(aiButton)
+    // Generating only previews the suggestion — adopting it is a deliberate
+    // second step, so the detected review language reaches the composer (and
+    // the language select) once "Use draft" is pressed.
+    await expect(canvas.findByText('Personalized AI suggestion')).resolves.toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: /use draft/i }))
     await expect(canvas.findByText(/AI draft/i)).resolves.toBeVisible()
     await expect(
       canvas.getByRole('combobox', { name: 'Reply language' }),
@@ -288,10 +293,16 @@ export const FeedbackDetail: Story = {
     await expect(canvas.getByText('Feedback handling')).toBeVisible()
     await userEvent.click(canvas.getByRole('button', { name: 'Mark as handled' }))
     const dialog = within(document.body)
-    await expect(
-      dialog.getByRole('heading', { name: 'Mark feedback as handled' }),
-    ).toBeVisible()
-    await expect(dialog.getByText(/never shown to the guest/i)).toBeVisible()
+    // The dialog fades/zooms in, so it is mounted (and named) a frame before it
+    // is painted — retry the visibility assertions instead of sampling once.
+    await waitFor(() =>
+      expect(
+        dialog.getByRole('heading', { name: 'Mark feedback as handled' }),
+      ).toBeVisible(),
+    )
+    await waitFor(() =>
+      expect(dialog.getByText(/never shown to the guest/i)).toBeVisible(),
+    )
   },
 }
 

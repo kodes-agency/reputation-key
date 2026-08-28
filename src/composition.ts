@@ -859,6 +859,7 @@ export function createContainer(options?: CreateContainerOptions) {
     }),
     handleResendEvent: notification.delivery.handleResendEvent,
     notificationAudienceAuthorizer: notification.delivery.authorizeAudience,
+    notificationDeliverySettlement: notification.delivery.deliverySettlement,
     // The notification-gap healing sweep (registered by bootstrap on the
     // worker path). Undefined when no job queue exists.
     reconcileMissingNotificationsHandler:

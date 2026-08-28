@@ -429,6 +429,32 @@ export const Loading: Story = {
   ),
 }
 
+// `parameters.viewport` only resizes the preview iframe from the Storybook
+// manager, so the authoritative runner — which drives iframe.html directly at a
+// fixed 1280×720 page — never sees a narrow window. Pin the one media query the
+// layout branches on (`useIsMobile`) so the mobile composition renders in every
+// runner; other queries (reduced motion, color scheme) stay real.
+const MOBILE_BREAKPOINT_QUERY = '(max-width: 767px)'
+
+function pinMobileBreakpoint(): () => void {
+  const realMatchMedia = window.matchMedia.bind(window)
+  const alwaysMatches = (query: string): MediaQueryList => ({
+    matches: true,
+    media: query,
+    onchange: null,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    dispatchEvent: () => false,
+  })
+  window.matchMedia = (query: string) =>
+    query === MOBILE_BREAKPOINT_QUERY ? alwaysMatches(query) : realMatchMedia(query)
+  return () => {
+    window.matchMedia = realMatchMedia
+  }
+}
+
 // Mobile viewport (390×844 → matches the app's `max-width: 767px` breakpoint):
 // the three-panel desktop layout collapses to list + drawer sidebar + detail sheet.
 export const MobileViewport: Story = {
@@ -442,6 +468,7 @@ export const MobileViewport: Story = {
   parameters: {
     viewport: { defaultViewport: 'mobileStaff' },
   },
+  beforeEach: () => pinMobileBreakpoint(),
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(await canvas.findByRole('button', { name: 'Open folders' }))

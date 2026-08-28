@@ -260,6 +260,9 @@ export const buildNotificationContext = (input: BuildInput) => {
     }),
   } as const
 
+  // Surfaced on the container as `notificationDeliverySettlement`. It was
+  // defined here but never exposed, so bootstrap built the insert-notification
+  // handler without it and every outbox-delivered notification threw.
   const deliverySettlement = createNotificationDeliverySettlement({
     db: input.db,
     clock: input.clock,

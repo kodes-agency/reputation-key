@@ -764,6 +764,7 @@ export async function bootstrap(
     emailIdGen: () => notificationEmailId(crypto.randomUUID()),
     logger: container.logger,
     authorizeAudience: container.notificationAudienceAuthorizer,
+    deliverySettlement: container.notificationDeliverySettlement,
     enqueueImmediateEmail: container.jobQueue
       ? async (data) => {
           await container.jobQueue!.add(

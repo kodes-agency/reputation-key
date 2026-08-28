@@ -87,6 +87,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'metricMaintenanceRuntime',
   'metricPublicApi',
   'notificationAudienceAuthorizer',
+  'notificationDeliverySettlement',
   'notificationPublicApi',
   'notificationWorkerRuntime',
   'operationsSnapshot',
