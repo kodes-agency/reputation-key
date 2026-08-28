@@ -164,7 +164,32 @@ In-memory port fakes for unit testing use cases without a database:
 - `fixtures.ts` — test data builders
 - `integration-helpers.ts` — integration test utilities
 
-**Test-only code.** Never imported from production modules.
+**Test-only code.** Never imported from production modules. The ESLint
+`boundaries` element types are the enforcing fence: `shared/testing/**` is the
+`test-helpers` element and no production element lists it as an allowed target.
+
+## Fallow analysis zones
+
+`.fallowrc.json` analyses the test trees instead of ignoring them, because an
+ignored tree silently drops import edges and a reachability report that misses
+edges cannot justify a deletion. Excluding `shared/testing/**` hid the
+`integration-helpers.ts` → `db/testing/test-organization-cleanup.ts` edge, so a
+helper every integration test depends on read as an unused file.
+
+Two explicit test zones carry that tree: `test-support`
+(`shared/testing/**` plus `shared/db/testing/**`) and `architecture-fixtures`
+(`shared/architecture/**`). Both must stay declared **before** the broad
+`src/shared/**` zone — zone matching is first-match-wins, so the shared pattern
+would otherwise swallow them and report their deliberate cross-context fixtures
+as production boundary violations. Production zones may target `test-support`
+only because their `.test.ts` files build fakes; the production-versus-test
+fence above is what actually holds, not the analyser configuration.
+
+`usedClassMembers` pins two structural contracts Fallow cannot resolve
+syntactically: the Organization export storage-port methods, which are invoked
+through the structural port rather than the concrete S3 class, and the
+`_tag`/`code` fields on `Error` subclasses, which are read across serialization
+boundaries. They are live behaviour, not dead code.
 
 ## Rules
 

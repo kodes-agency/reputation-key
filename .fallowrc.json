@@ -30,6 +30,7 @@
     "scripts/verify-ai-runtime-image.mjs",
     "vite.config.ts",
     "drizzle.config.ts",
+    ".railway/railway.ts",
     "services/ai-egress-gateway/canary-entry.ts",
     "services/ai-egress-gateway/index.ts",
     "services/ai-egress-gateway/local-provider-entry.ts",
@@ -54,8 +55,7 @@
     ".output/**",
     "e2e/**",
     "docs/**",
-    ".claude/**",
-    "src/shared/testing/**"
+    ".claude/**"
   ],
   "ignoreDependencies": [
     "@rolldown/binding-darwin-arm64",
@@ -215,6 +215,16 @@
       ]
     }
   ],
+  "usedClassMembers": [
+    {
+      "implements": "OrganizationExportStorage",
+      "members": ["putEncrypted", "readEncrypted", "delete"]
+    },
+    {
+      "extends": "Error",
+      "members": ["_tag", "code"]
+    }
+  ],
   "production": false,
   "rules": {
     "unresolved-imports": "error",
@@ -314,6 +324,14 @@
         "patterns": ["src/shared/events/**"]
       },
       {
+        "name": "architecture-fixtures",
+        "patterns": ["src/shared/architecture/**"]
+      },
+      {
+        "name": "test-support",
+        "patterns": ["src/shared/testing/**", "src/shared/db/testing/**"]
+      },
+      {
         "name": "shared",
         "patterns": ["src/shared/**"]
       },
@@ -329,19 +347,19 @@
     "rules": [
       {
         "from": "domain",
-        "allow": ["shared", "shared-events"]
+        "allow": ["shared", "shared-events", "test-support"]
       },
       {
         "from": "application",
-        "allow": ["domain", "shared", "shared-events"]
+        "allow": ["domain", "shared", "shared-events", "test-support"]
       },
       {
         "from": "infrastructure",
-        "allow": ["domain", "application", "shared", "shared-events"]
+        "allow": ["domain", "application", "shared", "shared-events", "test-support"]
       },
       {
         "from": "server",
-        "allow": ["application", "domain", "shared", "shared-events"]
+        "allow": ["application", "domain", "shared", "shared-events", "test-support"]
       },
       {
         "from": "shared-events",
@@ -349,7 +367,31 @@
       },
       {
         "from": "shared",
-        "allow": ["shared-events"]
+        "allow": ["shared-events", "test-support"]
+      },
+      {
+        "from": "test-support",
+        "allow": ["domain", "application", "shared", "shared-events"]
+      },
+      {
+        "from": "architecture-fixtures",
+        "allow": [
+          "domain",
+          "application",
+          "infrastructure",
+          "server",
+          "shared",
+          "shared-events",
+          "test-support"
+        ]
+      },
+      {
+        "from": "routes",
+        "allow": ["components", "server", "application", "shared"]
+      },
+      {
+        "from": "components",
+        "allow": ["application", "server", "shared"]
       }
     ]
   },
