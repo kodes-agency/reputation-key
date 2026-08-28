@@ -31,6 +31,7 @@ import {
   RETENTION_RULES,
 } from './retention-sweep.job'
 import type { RetentionRule } from '#/shared/db/retention/execute-retention-rule'
+import { RETENTION_REGISTRY } from '#/shared/db/retention/retention-registry'
 
 const NOW = new Date('2026-07-17T12:00:00Z')
 
@@ -474,15 +475,24 @@ describe('retention rule registry (BQC-3.7)', () => {
     expect(outboxRule!.olderThanMs).toBe(30 * 24 * 60 * 60 * 1000)
   })
 
-  it('removes expired legacy GBP cache rows at their per-entry deadline', () => {
-    expect(
-      RETENTION_RULES.find((rule) => rule.subject === 'gbp_cache.expired'),
-    ).toMatchObject({
-      table: 'gbp_cache',
-      keyColumns: ['id'],
-      tsColumn: 'expires_at',
-      olderThanMs: 0,
-    })
+  it('no longer drains the legacy GBP cache compatibility mirror (LIF-01-T16)', () => {
+    // `gbp_cache` is a compatibility_read mirror gated on one verified release
+    // plus a restore proof. Deleting its expired rows contracted it early and
+    // hollowed out the inventory that decision depends on. The class is now
+    // carried report-only in the counsel retention registry.
+    expect(RETENTION_RULES.find((rule) => rule.subject === 'gbp_cache.expired')).toBe(
+      undefined,
+    )
+    expect(RETENTION_RULES.some((rule) => rule.table === 'gbp_cache')).toBe(false)
+  })
+
+  it('touches a compatibility mirror only through row-preserving redaction', () => {
+    const mirrors = new Set(['scan_events', 'ratings', 'feedback'])
+    const mirrorRules = RETENTION_RULES.filter((rule) => mirrors.has(rule.table))
+    expect(mirrorRules).toHaveLength(6)
+    for (const rule of mirrorRules) {
+      expect(rule.operation, rule.subject).toBe('redact')
+    }
   })
 
   it('removes expired durable Google discovery state at its exact deadline', () => {
@@ -566,5 +576,41 @@ describe('retention rule registry (BQC-3.7)', () => {
     // deleting them would erase the proof of erasure. Indefinite-by-design;
     // documented in docs/operations/backup-and-lifecycle.md.
     expect(RETENTION_RULES.some((r) => r.table === 'retention_runs')).toBe(false)
+  })
+
+  it('refuses a pending-counsel registry rule before opening any evidence row (LIF-01-T16)', async () => {
+    vi.clearAllMocks()
+    const handler = createRetentionSweepHandler({
+      db: {} as never,
+      clock: () => NOW,
+      rules: [RULE_A],
+      registryApplyRules: RETENTION_REGISTRY,
+    })
+
+    await expect(handler({} as never)).rejects.toThrow(/pending_counsel/)
+    // The refusal happens first: no evidence row exists and nothing executed,
+    // so a refused sweep cannot leave a half-finished run behind.
+    expect(openRetentionRun).not.toHaveBeenCalled()
+    expect(closeRetentionRun).not.toHaveBeenCalled()
+    expect(executeRetentionRule).not.toHaveBeenCalled()
+  })
+
+  it('runs the separately authorized sweep rules when no registry rule is handed in', async () => {
+    vi.clearAllMocks()
+    vi.mocked(executeRetentionRule).mockResolvedValue({
+      batches: 1,
+      rowsDeleted: 1,
+      rowsRedacted: 0,
+      capped: false,
+    })
+    const handler = createRetentionSweepHandler({
+      db: {} as never,
+      clock: () => NOW,
+      rules: [RULE_A],
+    })
+
+    await handler({} as never)
+
+    expect(executeRetentionRule).toHaveBeenCalledTimes(1)
   })
 })
