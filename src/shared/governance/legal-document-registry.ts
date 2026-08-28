@@ -305,7 +305,7 @@ export const LEGAL_DOCUMENT_REGISTRY: LegalDocumentRegistry = Object.freeze(
         path: 'docs/legal/implementation-facts-2026-08-26.md',
         version: '2026-08-28',
         status: 'draft',
-        sha256: 'fbd664d846bd79bb43ed534d686ea4978e7bb066c1ba0c854f41ba979ddf6bec',
+        sha256: 'bff0a58b6d7e380ccf4e6cd2f3ced5eca12d1b526684e440471d57b69a30fb76',
         ...UNAPPROVED,
       },
       {

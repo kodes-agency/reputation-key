@@ -183,8 +183,14 @@ describe('17-context by 11-rule standards matrix', () => {
       const buildSource = readFileSync(join(contextRoot, 'build.ts'), 'utf8')
       if (row.standards.build.resolution === 'evidenced') {
         expect(buildSource, row.directory).toMatch(/\bpublicApi\b/u)
-        expect(buildSource, row.directory).toMatch(/\binternal\s*:/u)
-        expect(buildSource, row.directory).toMatch(/\brepos\s*:/u)
+        // ARC-03-T11/T12/T17: a build returns `publicApi` plus NAMED capability
+        // groups. `internal` is no longer the mandated second key — it is the
+        // context's own private wiring seam, kept only where the context's own
+        // build test still reads it. Requiring it here is what forced every
+        // build to publish a repository bag to the composition root.
+        expect(buildSource, row.directory).toMatch(
+          /\b(?:internal|worker|maintenance|lifecycle|webhook|authority|responsibility|assignments|delivery|policy|snippets|uploads|lookups|reviewSync|runtime)\s*:/u,
+        )
         if (row.directory === 'goal') {
           expect(buildSource).toMatch(/\bworker\s*:/u)
           expect(buildSource).toContain('registerOutboxConsumers')

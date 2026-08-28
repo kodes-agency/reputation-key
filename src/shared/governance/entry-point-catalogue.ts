@@ -5747,6 +5747,42 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/release/freeze-release-candidate.ts',
+    'scripts/release/freeze-release-candidate.ts',
+    'none',
+    {
+      notes:
+        'release:freeze-candidate — REL-01 immutable candidate freeze: emits one freeze artifact and refuses a dirty worktree, a SHA that is not merged, generated-artifact drift, or an existing freeze file, so no proof can be produced against a moving tree',
+    },
+  ),
+  ops(
+    'scripts/release/capture-promotion-readback.ts',
+    'scripts/release/capture-promotion-readback.ts',
+    'none',
+    {
+      notes:
+        'release:capture-readback — REL-01 promotion read-back: writes the four typed promotion artifacts, including when a check failed, and exits non-zero if any artifact failed or is schema-invalid, so a failed promotion cannot be silently omitted',
+    },
+  ),
+  ops(
+    'scripts/release/import-live-evidence.ts',
+    'scripts/release/import-live-evidence.ts',
+    'none',
+    {
+      notes:
+        'release:import-live-evidence — REL-01 live-evidence importer: canonicalizes an operator capture against the producer schema for that gate, never synthesizes a field, and exits non-zero naming any missing required field',
+    },
+  ),
+  ops(
+    'scripts/release/prepare-gate-f-approval.ts',
+    'scripts/release/prepare-gate-f-approval.ts',
+    'none',
+    {
+      notes:
+        'release:prepare-approval — REL-01 approval envelope preparation: prints the canonical payload an approver signs offline and holds no key material, so engineering can never sign an approval that belongs to another role',
+    },
+  ),
+  ops(
     'scripts/release/observe-canary-window.ts',
     'scripts/release/observe-canary-window.ts',
     'none',

@@ -651,18 +651,28 @@ export function validateRuntimeContractSources(
     'recurring work must use the BullMQ Job Scheduler API',
     violations,
   )
+  // ARC-03-T15 named the per-deployable construction seam, so the worker now
+  // calls createWorkerContainer() instead of createContainer({enableJobs:true}).
+  // The guarantee is unchanged: Redis compatibility is proven before anything
+  // opens a queue connection.
   const workerAssertion = sources.workerBoot.indexOf(
     'await assertConfiguredJobRedisRuntime',
   )
-  const workerConstruction = sources.workerBoot.indexOf(
-    'createContainer({ enableJobs: true })',
-  )
+  const workerConstruction = sources.workerBoot.indexOf('createWorkerContainer(')
   if (
     workerAssertion < 0 ||
     workerConstruction < 0 ||
     workerAssertion >= workerConstruction
   ) {
     violations.push('worker must assert Redis compatibility before queue construction')
+  }
+  // The worker must go through the deployable seam, or it could build a second
+  // complete container in the same process and reopen the duplicate-registry
+  // failure the seam exists to prevent.
+  if (/\bcreateContainer\s*\(/u.test(sources.workerBoot)) {
+    violations.push(
+      'worker must construct through createWorkerContainer, not createContainer',
+    )
   }
   requireSnippet(
     sources.webBoot,

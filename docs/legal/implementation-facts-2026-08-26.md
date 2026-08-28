@@ -268,3 +268,25 @@ Before external beta or production, retain a dated record for each item:
 Until those records exist, Engineering can make the behavior internally
 consistent and keep unavailable capabilities contained, but `LEG-01` cannot be
 marked complete.
+
+## How the release now enforces this
+
+The list above used to live only in prose. Two release artifacts make it
+executable, and Gate F requires both:
+
+- `repkey-legal-revision-set-1` (`release.legalRevisionSet`) binds the exact
+  bytes counsel approved to this release candidate; and
+- `repkey-legal-approval-checklist-1` (`release.legalApprovalChecklist`)
+  requires each fact above to be DECIDED, with a decider and a decision date,
+  and re-hashes each `docs/legal` document so an edit after approval
+  invalidates the approval.
+
+The required fact keys and their mapping onto the categories in
+`docs/legal/counsel-decision-checklist.json` are documented in
+`docs/legal/revision-set.schema.md` and enumerated in
+`LEG_01_REQUIRED_FACT_KEYS` (`src/shared/release/legal-approval-checklist.ts`).
+A checklist with any missing or `decided: false` key, an approval outside its
+`[effectiveAt, expiresAt]` window, or an `expiresAt` earlier than Gate F's
+`completedAt` is rejected. Counsel's approval must also carry a verified
+signature over the Gate F decision digest; an engineering identity cannot
+satisfy the counsel role.

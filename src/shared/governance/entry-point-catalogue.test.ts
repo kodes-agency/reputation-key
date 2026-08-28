@@ -280,13 +280,19 @@ function resolveContextOwnedJobName(
     )
   if (!resolvesToRuntimePath) return undefined
 
+  // ARC-03-T10 moved the leaf-context builds out of the root, so the chain is
+  // followed through the root's delegation rather than assumed to sit inline.
   const compositionFile = 'src/composition.ts'
+  const leafContextsFile = 'src/composition/read-and-notify-contexts.ts'
   const goalBuildFile = 'src/contexts/goal/build.ts'
   const composition = read(join(ROOT, compositionFile))
-  const goalBuildTarget = importMap(compositionFile).get('buildGoalContext')
+  const leafContexts = read(join(ROOT, leafContextsFile))
+  const goalBuildTarget = importMap(leafContextsFile).get('buildGoalContext')
   if (
     goalBuildTarget?.sourceFile !== goalBuildFile ||
-    !/\bconst goal = buildGoalContext\(/u.test(composition) ||
+    importMap(compositionFile).get('buildReadAndNotifyContexts')?.sourceFile !==
+      leafContextsFile ||
+    !/\bconst goal = buildGoalContext\(/u.test(leafContexts) ||
     !/\bgoalWorkerRuntime:\s*goal\.worker\b/u.test(composition)
   ) {
     return undefined
@@ -428,6 +434,9 @@ function registrationCallSites(
 
 const PRODUCTION_COMPOSITION_ROOTS = new Set([
   'src/bootstrap.ts',
+  // ARC-03-T10: the Metric/Goal/Dashboard/Activity/Notification builds moved
+  // out of the root into this module, so it is a composition root too.
+  'src/composition/read-and-notify-contexts.ts',
   'src/composition.ts',
   'src/worker/index.ts',
 ])
@@ -665,7 +674,7 @@ describe('BQC-2.1 entry-point catalogue', () => {
         .update(rows.map((entry) => `${entry.id}|${entry.file}`).join('\n'))
         .digest('hex')
     expect(orderedDigest(catalogue)).toBe(
-      '6c28cb332789be37c3c54460115dcb50bb06460ef4eb444fb4bcea63bc75f6ef',
+      '9c5dcd07464feeacfc008e74ae0c5eb502f9b37ced4174e3e5ed005abde442df',
     )
     expect(
       orderedDigest(
@@ -673,7 +682,7 @@ describe('BQC-2.1 entry-point catalogue', () => {
           ({ id }) => id !== 'consumer:notification.workflow-outbox-consumers',
         ),
       ),
-    ).toBe('3812442e3f094ff59bc2d30d56643324a0afb0db9b90eb8803bce24db7d35a71')
+    ).toBe('0272d20b830104ca98f2614b9bf81e7b78df120feeed546a4f3dd8956e8dc990')
 
     const invalid = {
       ...catalogue[0],

@@ -77,6 +77,10 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'integrationPublicApi',
   'integrationWebhookRuntime',
   'integrationWorkerRuntime',
+  // ARC-03-T15: worker-owned dispatch handles (quarantine barrier queue,
+  // domain-events publication handle, the ONE processing router). The worker
+  // entry point used to build these itself, outside any container.
+  'jobDispatchWorkerRuntime',
   'jobQueue',
   'jobRegistry',
   'logger',

@@ -137,9 +137,15 @@ function resolveJobName(
 /**
  * Resolve the one context-owned job-name facade currently composed into the
  * production container. Every link must remain visible in source: bootstrap's
- * local alias, composition's Goal worker binding, Goal's build function, and
- * the imported literal job-name constant. An arbitrary `.jobName` property is
- * deliberately not treated as a production registration authority.
+ * local alias, the composition module that builds Goal, the root's Goal worker
+ * binding, Goal's build function, and the imported literal job-name constant.
+ * An arbitrary `.jobName` property is deliberately not treated as a production
+ * registration authority.
+ *
+ * ARC-03-T10: the leaf context builds moved out of the composition root into
+ * src/composition/read-and-notify-contexts.ts. The chain still has to be
+ * traceable end to end, so the resolver follows the root's delegation rather
+ * than assuming the build call sits in the root file.
  */
 function resolveContextOwnedJobName(
   registrationSource: string,
@@ -155,12 +161,18 @@ function resolveContextOwnedJobName(
   if (!resolvesToRuntimePath) return undefined
 
   const compositionFile = 'src/composition.ts'
+  const leafContextsFile = 'src/composition/read-and-notify-contexts.ts'
   const goalBuildFile = 'src/contexts/goal/build.ts'
   const composition = readRel(compositionFile)
-  const goalBuildTarget = importMap(compositionFile).get('buildGoalContext')
+  const leafContexts = readRel(leafContextsFile)
+  const goalBuildTarget = importMap(leafContextsFile).get('buildGoalContext')
   if (
     goalBuildTarget?.sourceFile !== goalBuildFile ||
-    !/\bconst goal = buildGoalContext\(/u.test(composition) ||
+    // The root delegates the leaf-context builds and still binds Goal's worker.
+    importMap(compositionFile).get('buildReadAndNotifyContexts')?.sourceFile !==
+      leafContextsFile ||
+    !/\bconst goal = buildGoalContext\(/u.test(leafContexts) ||
+    !/\bgoal,\n/u.test(leafContexts) ||
     !/\bgoalWorkerRuntime:\s*goal\.worker\b/u.test(composition)
   ) {
     return undefined
