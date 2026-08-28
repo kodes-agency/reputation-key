@@ -1,6 +1,6 @@
 // BQC-4.3 — providerConfigFor: the composition root's single mapping from a
 // logical provider reference (ProcessingTarget.provider, from the router's
-// CELL_TARGETS) to provider endpoint construction config.
+// accepting Data Cell catalogue target) to provider endpoint construction config.
 //
 // Fail closed (ADR 0048/0031): an unknown, denied, or missing provider ref
 // throws — there is no default endpoint to fall back to. The logical ref is
@@ -95,6 +95,18 @@ describe('applyProviderEndpointOverrides (BQC-6.5 operator sandbox seam)', () =>
         }),
       ),
     ).toThrow(/local-sandbox profile/)
+  })
+
+  it('hard-denies the local-sandbox provider profile in production', () => {
+    expect(() =>
+      applyProviderEndpointOverrides(
+        approved,
+        envWith({
+          NODE_ENV: 'production',
+          GOOGLE_PROVIDER_ENDPOINT_PROFILE: 'local-sandbox',
+        }),
+      ),
+    ).toThrow('production local-sandbox profile is unavailable')
   })
 })
 

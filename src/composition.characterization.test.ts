@@ -1,7 +1,7 @@
 // BQC-5.2 — composition characterization tests.
 //
-// Pins the CURRENT external shape of the container (top-level keys, useCases
-// keys, readiness/runtime contributions) so the composition-cleanup refactor
+// Pins the CURRENT external shape of the container (top-level keys, named
+// capability keys, readiness/runtime contributions) so the composition-cleanup refactor
 // can prove behavior parity: these tests must pass unchanged before and after
 // each per-context cluster move.
 //
@@ -36,41 +36,55 @@ const dbStub = new Proxy(
 
 const EXPECTED_TOP_LEVEL_KEYS = [
   'activityPublicApi',
-  'activityRepo',
-  'ai',
+  'activityWorkerRuntime',
+  'aiPublicApi',
+  'aiWorkerRuntime',
   'alertDispatcher',
+  'assetStorage',
   'backgroundQueue',
-  'badgePublicApi',
+  'betaFeedbackTriageRepo',
   'cache',
   'clock',
+  'dashboardPublicApi',
   'dataCellExecutionFence',
   'db',
   'eventBus',
-  'goalRepo',
-  'googleReviewApi',
+  'goalPublicApi',
+  'goalWorkerRuntime',
+  'guestContactRequestRetentionSweep',
+  'guestPublicApi',
   'handleResendEvent',
+  'idGen',
+  'identityLifecycleRuntime',
   'identityPort',
-  'inboxNoteRepo',
-  'inboxRepo',
+  'identityPublicApi',
+  'identityRequestSecurity',
+  'identityWorkerRuntime',
+  'inboxLifecycleRuntime',
+  'inboxMaintenanceRuntime',
+  'inboxPublicApi',
+  'inboxRuntime',
+  'integrationLifecycleRuntime',
+  'integrationMaintenanceRuntime',
+  'integrationPublicApi',
+  'integrationWebhookRuntime',
+  'integrationWorkerRuntime',
   'jobQueue',
   'jobRegistry',
-  'leaderboardPublicApi',
   'logger',
+  'metricMaintenanceRuntime',
   'metricPublicApi',
   'notificationAudienceAuthorizer',
-  'notificationEmailRepo',
-  'notificationPrefRepo',
   'notificationPublicApi',
-  'notificationRepo',
+  'notificationWorkerRuntime',
   'operationsSnapshot',
   'opsQueues',
   'outboxRepo',
   'policyAdmin',
-  'portalLinkRepo',
+  'pool',
   'portalPublicApi',
-  'portalRepo',
-  'portalUploadStore',
-  'propertyProcessingScopeApi',
+  'portalWorkerRuntime',
+  'propertyPublicApi',
   'providerEphemeralReadiness',
   'providerEphemeralRedis',
   'rateLimiter',
@@ -81,184 +95,33 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'refreshPolicyStore',
   'refreshReviewProviderSubjectKeys',
   'registerOutboxConsumers',
-  'replyCommandStore',
-  'replyQueue',
-  'replyRepo',
-  'reviewQueue',
-  'reviewRepo',
+  'registerReviewWorkerJobs',
+  'reviewMaintenanceRuntime',
+  'reviewPublicApi',
   'staffPublicApi',
-  'storage',
-  'useCases',
 ]
 
-const EXPECTED_USE_CASE_KEYS = [
-  'acceptInvitation',
+const EXPECTED_INBOX_PUBLIC_API_KEYS = [
   'addInboxNote',
-  'addPortalToGroup',
-  'addTeamMember',
-  'admitGoogleOAuthCallbackPreState',
-  'admitGoogleOAuthCallbackTenant',
-  'advanceRegionMove',
-  'advanceReviewAnalysisBackfill',
-  'approveReply',
-  'archiveStaffParticipation',
   'assignInboxItem',
+  'bulkAssignInboxItems',
   'bulkUpdateInboxStatus',
-  'cancelGoal',
-  'cancelGoogleImportV2ForConnection',
-  'cancelGoogleImportV2ForOrganization',
-  'cancelGoogleImportV2ForUser',
-  'cancelGoogleImportV2Request',
-  'cancelInvitation',
-  'clearTeamLead',
-  'completeContentReview',
-  'connectGoogleAccount',
-  'createCustomRole',
-  'createGoal',
-  'createGoalProgramService',
-  'createGovernedGoalService',
-  'createInboxItem',
-  'createLink',
-  'createLinkCategory',
-  'createPortal',
-  'createPortalGroup',
-  'createProperty',
-  'createStaffParticipation',
-  'createTeam',
-  'deleteCustomRole',
-  'deleteLink',
-  'deleteLinkCategory',
-  'deleteReply',
-  'disconnectGoogleAccount',
-  'draftReply',
-  'editPublishedReply',
+  'correctFeedbackHandlingOutcome',
   'escalateInboxItem',
-  'evaluateBadgeForTarget',
-  'finalizeGoogleImportV2PropertyDeletion',
-  'finalizeUpload',
-  // Backfills GBP Pub/Sub subscriptions for connections that predate the
-  // subscribe-on-import wiring; driven by scripts/ops/gbp-subscribe.ts.
-  'gbpSubscribeBackfill',
-  'generatePropertyTrend',
-  'generateReplySuggestion',
-  'getAttentionSignals',
-  'getDashboardData',
-  'getFleetOverview',
-  'getGoal',
-  'getGoogleAuthUrl',
+  'getGoogleReviewTargetAnalytics',
   'getInboxFolderCounts',
   'getInboxItemDetail',
   'getInboxItems',
   'getInboxNotes',
   'getLastVisitCount',
-  'getPortal',
-  'getPortalAnalytics',
-  'getPortalGroup',
-  'getPortalPublicationHistory',
-  'getProperty',
-  'getPropertyGooglePerformance',
-  'getPropertyOverview',
-  'getPublicPortal',
-  'getReply',
-  'getStaffDashboardData',
-  'getStaffRecentActivity',
-  'googleImportDiscovery',
-  'googleImportTransaction',
-  'guestSessions',
-  'handleGbpNotification',
-  'inspectGoogleImportV2Lifecycle',
-  'inspectGoogleImportV2LifecycleScope',
-  'inspectGoogleImportV2Request',
-  'inviteMember',
-  'issuePortalToken',
-  'listActiveTeamScopesByUser',
-  'listGoals',
-  'listGoogleConnections',
-  'listInvitations',
-  'listMyTeam',
-  'listPortalGroups',
-  'listPortalLinks',
-  'listPortalManagementPropertyIds',
-  'listPortalResponsibleManagers',
-  'listPortals',
-  'listProperties',
-  'listPropertyResponsibleManagers',
-  'listRecognitionScopes',
-  'listStaffGoals',
-  'listStaffParticipations',
-  'listStaffPortals',
-  'listTeamMemberships',
-  'listTeams',
-  'merchantAiAuthorization',
-  'prepareGoogleImportV2PropertyDeletion',
-  'processGoogleImportV2Item',
-  'readPropertyAiAggregates',
-  'readPropertyAiTrend',
-  'rebuildInboxProjection',
-  'reconcileAllRecognition',
-  'reconcileBadgeDefinitions',
-  'reconcileRecognition',
-  'reconcileReplyPublication',
-  'recordScan',
-  'redeemGoogleOAuthState',
-  'refreshGoogleToken',
-  'registerInvitedUser',
-  'registerUser',
-  'registerUserAndOrg',
-  'rejectReply',
-  'removeMember',
-  'removePortalFromGroup',
-  'removeTeamMember',
-  'renewGooglePerformanceLease',
-  'reorderCategories',
-  'reorderLinks',
-  'requestRegionMove',
-  'requestUploadUrl',
-  'resendInvitation',
+  'getPrivateFeedbackTargetAnalytics',
+  'getResponseTargetPolicySettings',
+  'markFeedbackHandled',
   'resolveEscalation',
-  'resolveLinkAndTrack',
-  'resolvePortalCategoryManagementScope',
-  'resolvePortalContext',
-  'resolvePortalGroupManagementScope',
-  'resolvePortalLinkManagementScope',
-  'resolvePortalManagementScope',
-  'resolveStaffParticipationContext',
-  'resolveTeamContext',
-  'responseLifecycle',
-  'retryPublish',
-  'revokePortalTokens',
-  'rollbackPortalPublication',
-  'rotatePortalToken',
-  'runReviewProviderSnapshot',
-  'schedulePropertyTrends',
-  'seedBadgeDefinitions',
-  'setOrganizationBadgeEnablement',
-  'setTeamLead',
-  'softDeletePortal',
-  'softDeletePortalGroup',
-  'softDeleteProperty',
-  'softDeleteTeam',
+  'setResponseTargetPolicy',
   'stampLastInboxView',
-  'startReviewHandlingCycle',
-  'submitReply',
-  'sweepGoogleImportV2Lifecycle',
-  'trackReviewLinkClick',
-  'updateConnectionVisibility',
-  'updateCustomRole',
-  'updateGoal',
   'updateInboxStatus',
-  'updateLink',
-  'updateLinkCategory',
-  'updateMemberRole',
-  'updateOrganization',
-  'updatePortal',
-  'updatePortalGroup',
-  'updatePortalResponsibilities',
-  'updatePortalResponsibleManagers',
-  'updateProperty',
-  'updatePropertyResponsibleManagers',
-  'updateTeam',
-]
+] as const
 
 const EXPECTED_POLICY_ADMIN_OPS = [
   'explainPolicyDecision',
@@ -301,14 +164,129 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     expect(Object.keys(container).sort()).toEqual(EXPECTED_TOP_LEVEL_KEYS)
   })
 
-  it('exposes the exact container.useCases key set', () => {
-    expect(Object.keys(container.useCases).sort()).toEqual(EXPECTED_USE_CASE_KEYS)
+  it('exposes the exact frozen Inbox request capability set', () => {
+    expect(Object.keys(container.inboxPublicApi).sort()).toEqual(
+      EXPECTED_INBOX_PUBLIC_API_KEYS,
+    )
+    expect(Object.isFrozen(container.inboxPublicApi)).toBe(true)
+  })
+
+  it('does not expose a catch-all use-case service locator', () => {
+    expect(container).not.toHaveProperty('useCases')
+  })
+
+  it('does not expose simulation mutation authority on an application container', () => {
+    expect(container).not.toHaveProperty('simulationRuntime')
+  })
+
+  it('keeps Metric lifetime mutations outside the public API', () => {
+    expect(Object.keys(container.metricPublicApi.portalLifetime)).toEqual(['get'])
+    expect(Object.isFrozen(container.metricPublicApi.portalLifetime)).toBe(true)
+    expect(Object.keys(container.metricMaintenanceRuntime)).toEqual([
+      'repairPortalLifetime',
+    ])
+  })
+
+  it('exposes exact frozen Integration capabilities by workflow', () => {
+    expect(Object.keys(container.integrationPublicApi).sort()).toEqual([
+      'connections',
+      'imports',
+      'oauth',
+      'performance',
+    ])
+    expect(Object.keys(container.integrationPublicApi.connections).sort()).toEqual([
+      'connect',
+      'disconnect',
+      'list',
+      'resume',
+      'updateVisibility',
+    ])
+    expect(Object.keys(container.integrationPublicApi.oauth).sort()).toEqual([
+      'admitPreState',
+      'admitResolvedTenant',
+      'getAuthorizationUrl',
+      'redeemState',
+    ])
+    expect(Object.keys(container.integrationMaintenanceRuntime).sort()).toEqual([
+      'imports',
+      'subscribeNotifications',
+    ])
+    expect(Object.keys(container.integrationLifecycleRuntime).sort()).toEqual([
+      'cancelImportsForConnection',
+      'cancelImportsForOrganization',
+      'cancelImportsForUser',
+      'finalizePropertyDeletion',
+      'prepareConnectorDeparture',
+      'preparePropertyDeletion',
+    ])
+    expect(Object.keys(container.integrationWebhookRuntime)).toEqual([
+      'handleNotification',
+    ])
+    expect(Object.keys(container.integrationWorkerRuntime).sort()).toEqual([
+      'processImportItem',
+      'registerOutboxConsumers',
+      'sweepImportLifecycle',
+    ])
+
+    expect(Object.isFrozen(container.integrationPublicApi)).toBe(true)
+    expect(Object.isFrozen(container.integrationPublicApi.connections)).toBe(true)
+    expect(Object.isFrozen(container.integrationPublicApi.oauth)).toBe(true)
+    expect(Object.isFrozen(container.integrationPublicApi.imports)).toBe(true)
+    expect(Object.isFrozen(container.integrationPublicApi.performance)).toBe(true)
+    expect(Object.isFrozen(container.integrationMaintenanceRuntime)).toBe(true)
+    expect(Object.isFrozen(container.integrationMaintenanceRuntime.imports)).toBe(true)
+    expect(Object.isFrozen(container.integrationLifecycleRuntime)).toBe(true)
+    expect(Object.isFrozen(container.integrationWebhookRuntime)).toBe(true)
+    expect(Object.isFrozen(container.integrationWorkerRuntime)).toBe(true)
+  })
+
+  it('exposes exact frozen Inbox lifecycle and maintenance capabilities', () => {
+    expect(Object.keys(container.inboxLifecycleRuntime).sort()).toEqual([
+      'createInboxItem',
+      'getInboxResponseTarget',
+      'startReviewHandlingCycle',
+    ])
+    expect(Object.keys(container.inboxMaintenanceRuntime)).toEqual([
+      'rebuildInboxProjection',
+    ])
+    expect(Object.isFrozen(container.inboxLifecycleRuntime)).toBe(true)
+    expect(Object.isFrozen(container.inboxMaintenanceRuntime)).toBe(true)
   })
 
   it('exposes readiness/runtime contributions as functions', () => {
     expect(typeof container.refreshPolicyStore).toBe('function')
     expect(typeof container.refreshReviewProviderSubjectKeys).toBe('function')
     expect(typeof container.registerOutboxConsumers).toBe('function')
+    expect(typeof container.registerReviewWorkerJobs).toBe('function')
+  })
+
+  it('keeps the named Organization lifecycle runtime non-executable without reviewed bindings', () => {
+    expect(container.identityLifecycleRuntime.maintenance.readiness).toMatchObject({
+      configured: false,
+      contributorsConfigured: false,
+      supportAuthorizationConfigured: false,
+    })
+    expect(
+      container.identityLifecycleRuntime.maintenance.readiness.missingContexts,
+    ).toHaveLength(17)
+    expect(
+      container.identityLifecycleRuntime.maintenance.runScheduledPass,
+    ).toBeUndefined()
+    expect(container.identityLifecycleRuntime.support).toBeUndefined()
+    expect(container.identityLifecycleRuntime.organizationExport.readiness).toMatchObject(
+      {
+        configured: false,
+        contributorsConfigured: false,
+        storageConfigured: false,
+      },
+    )
+    expect(
+      container.identityLifecycleRuntime.organizationExport.readiness.missingContexts,
+    ).toHaveLength(16)
+    expect(
+      container.identityLifecycleRuntime.organizationExport.readiness.missingContexts,
+    ).not.toContain('identity')
+    expect(container.identityLifecycleRuntime.organizationExport.service).toBeUndefined()
   })
 
   it('wires the injected queues and defines cache/rateLimiter/jobRegistry', () => {
@@ -317,6 +295,7 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     expect(container.cache).toBeDefined()
     expect(container.rateLimiter).toBeDefined()
     expect(container.jobRegistry).toBeDefined()
+    expect(container.redis).toBeUndefined()
   })
 
   it('exposes policyAdmin with its operation keys', () => {
@@ -369,6 +348,7 @@ describe('provider DI slots (BQC-6.1)', () => {
       return { objectKey, publicUrl: `memory://${objectKey}` }
     },
     deleteIssuedPortalUpload: async () => {},
+    deletePortalUploadDerivative: async () => {},
     createPresignedUploadUrl: async (key) => ({ uploadUrl: 'memory://upload', key }),
     confirmUpload: async (key) => `memory://${key}`,
     deleteObject: async () => {},
@@ -380,9 +360,8 @@ describe('provider DI slots (BQC-6.1)', () => {
     // Built WITHOUT providers: same pinned shape; the default env-driven
     // adapters are present.
     const defaults = buildWithProviders({})
-    expect(defaults.storage).toBeDefined()
-    expect(defaults.googleReviewApi).toBeDefined()
-    expect(defaults.storage.createPresignedUploadUrl).toBeDefined()
+    expect(defaults.assetStorage).toBeDefined()
+    expect(defaults.assetStorage.createPresignedUploadUrl).toBeDefined()
   })
 
   it('honors injected provider overrides without changing the container shape', () => {
@@ -392,17 +371,16 @@ describe('provider DI slots (BQC-6.1)', () => {
       storage: fakeStorage,
     })
     // Storage is observable at the container boundary — the injected fake wins.
-    expect(withProviders.storage).toBe(fakeStorage)
+    expect(withProviders.assetStorage).toBe(fakeStorage)
     // googleOAuth/gbpApi thread into the integration build (proven at the
     // build seam in src/contexts/integration/build.test.ts); the external
     // container shape is byte-identical either way.
     expect(Object.keys(withProviders).sort()).toEqual(EXPECTED_TOP_LEVEL_KEYS)
-    expect(Object.keys(withProviders.useCases).sort()).toEqual(EXPECTED_USE_CASE_KEYS)
   })
 
-  it('defaults and overrides produce the same top-level and useCases keys', () => {
+  it('defaults and overrides produce the same top-level keys', () => {
     const withProviders = buildWithProviders({})
-    expect(withProviders.storage).not.toBe(fakeStorage)
+    expect(withProviders.assetStorage).not.toBe(fakeStorage)
     expect(Object.keys(withProviders).sort()).toEqual(EXPECTED_TOP_LEVEL_KEYS)
   })
 })
