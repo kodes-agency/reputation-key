@@ -56,6 +56,7 @@ import type { GetLastVisitCount } from './application/use-cases/get-last-visit-c
 import type { StampLastInboxView } from './application/use-cases/stamp-last-inbox-view'
 import type { GetInboxItemDetail } from './application/use-cases/get-inbox-item-detail'
 import type { GetInboxNotes } from './application/use-cases/get-inbox-notes'
+import type { GetInboxItemHistory } from './application/use-cases/get-inbox-item-history'
 import type { GetInboxFolderCounts } from './application/use-cases/get-folder-counts'
 import type { RebuildInboxProjection } from './application/use-cases/rebuild-inbox-projection'
 import type { StartReviewHandlingCycle } from './application/use-cases/start-review-handling-cycle'
@@ -71,6 +72,7 @@ import type { SetResponseTargetPolicy } from './application/use-cases/set-respon
 import type { ReleaseDueResponseTargetReminders } from './application/use-cases/release-response-target-reminders'
 import { createInboxRepository } from './infrastructure/repositories/inbox.repository'
 import { createInboxNoteRepository } from './infrastructure/repositories/inbox-note.repository'
+import { createInboxHistoryRepository } from './infrastructure/repositories/inbox-history.repository'
 import { createInboxViewRepository } from './infrastructure/repositories/inbox-view.repository'
 import {
   createAtomicInboxCommandStore,
@@ -91,6 +93,8 @@ import { createReplyObservationAuthorityAdapter } from './infrastructure/adapter
 import { createSourceTransitionAuthorityAdapter } from './infrastructure/adapters/source-transition-authority.adapter'
 import { createReviewResponseTargetAuthorityAdapter } from './infrastructure/adapters/review-response-target-authority.adapter'
 import type { ReviewResponseTargetAuthority } from '#/contexts/review/application/public-api'
+import { createInboxActorDirectoryAdapter } from './infrastructure/adapters/inbox-actor-directory.adapter'
+import { createInboxOrganizationExportContributor } from './infrastructure/adapters/inbox-organization-export.adapter'
 import { wireUseCases } from './build-use-cases'
 
 export type InboxContextBuildInput = Readonly<{
@@ -137,6 +141,7 @@ type InboxUseCases = Readonly<{
   stampLastInboxView: StampLastInboxView
   getInboxItemDetail: GetInboxItemDetail
   getInboxNotes: GetInboxNotes
+  getInboxItemHistory: GetInboxItemHistory
   getInboxFolderCounts: GetInboxFolderCounts
   rebuildInboxProjection: RebuildInboxProjection
   startReviewHandlingCycle: StartReviewHandlingCycle
@@ -158,6 +163,15 @@ export type InboxContextApi = Readonly<{
     createInboxItem: CreateInboxItem
     getInboxResponseTarget: GetInboxResponseTarget
     startReviewHandlingCycle: StartReviewHandlingCycle
+  }>
+  /**
+   * LIF-01: Inbox's own Organization Export contribution. Deliberately NOT part
+   * of `publicApi` — no request path may call it, so adding it reaches no new
+   * capability. The composition root hands it to Identity's
+   * `organizationExport.contributors`, which is the only caller.
+   */
+  organizationExport: Readonly<{
+    contributor: ReturnType<typeof createInboxOrganizationExportContributor>
   }>
   /** Bounded operator repair capabilities owned by Inbox. */
   maintenance: Readonly<{
@@ -249,6 +263,11 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     },
   )
   const inboxNoteRepo = createInboxNoteRepository(input.db)
+  const inboxHistoryRepo = createInboxHistoryRepository(input.db)
+  // IBX-01-T6: bounded actor display-name resolution. Inbox owns the read
+  // because the alternative — rendering an eight-character id fragment — is not
+  // usable manager history.
+  const actorDirectory = createInboxActorDirectoryAdapter(input.db)
   const inboxViewRepo = createInboxViewRepository(input.db, input.clock)
 
   // BQC-3.4: atomic inbox state + outbox writes for every fact-emitting
@@ -275,7 +294,9 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   const useCases = wireUseCases({
     inboxRepo,
     inboxNoteRepo,
+    inboxHistoryRepo,
     inboxViewRepo,
+    actorDirectory,
     commandStore,
     handlingCycleStore,
     feedbackHandlingStore,
@@ -304,6 +325,7 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     stampLastInboxView: useCases.stampLastInboxView,
     getInboxItemDetail: useCases.getInboxItemDetail,
     getInboxNotes: useCases.getInboxNotes,
+    getInboxItemHistory: useCases.getInboxItemHistory,
     getInboxFolderCounts: useCases.getInboxFolderCounts,
     markFeedbackHandled: useCases.markFeedbackHandled,
     correctFeedbackHandlingOutcome: useCases.correctFeedbackHandlingOutcome,
@@ -361,6 +383,9 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
   return {
     publicApi,
     lifecycle,
+    organizationExport: Object.freeze({
+      contributor: createInboxOrganizationExportContributor(input.db),
+    }),
     maintenance,
     worker: Object.freeze({ registerOutboxConsumers }),
     assignments: createInboxAssignmentRuntime(commandStore),

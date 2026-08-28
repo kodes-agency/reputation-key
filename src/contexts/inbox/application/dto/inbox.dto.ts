@@ -265,6 +265,12 @@ export const getInboxNotesDto = z.object({
   inboxItemId: z.uuid(),
 })
 
+// GET inbox item Handling History (IBX-01-T5). Validated at the boundary so a
+// non-UUID id is rejected before the use case, and therefore before any store.
+export const getInboxItemHistoryDto = z.object({
+  inboxItemId: z.uuid(),
+})
+
 // GET folder counts — for the email-style sidebar (open, escalated, closed).
 // propertyId scopes the counts to one property (permission-checked); omitted
 // means every accessible property (org-wide for org-wide roles).

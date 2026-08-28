@@ -26,6 +26,7 @@ import type { GetFleetOverview } from './application/use-cases/get-fleet-overvie
 import type { PortalResponseIntegrityPort } from './application/ports/portal-response-integrity.port'
 import type { PortalMetricsPort } from './application/ports/portal-metrics.port'
 import type { PortalLifetimeMetricsPort } from './application/ports/portal-lifetime-metrics.port'
+import { createDashboardOrganizationExportAdapter } from './infrastructure/adapters/dashboard-organization-export.adapter'
 import { createSetupChecklistRepository } from './infrastructure/repositories/setup-checklist.repository'
 import { getSetupChecklist } from './application/use-cases/get-setup-checklist'
 import type { GetSetupChecklist } from './application/use-cases/get-setup-checklist'
@@ -57,6 +58,12 @@ export type DashboardContextApi = Readonly<{
     getFleetOverview: GetFleetOverview
     getSetupChecklist: GetSetupChecklist
   }>
+  /**
+   * LIF-01 Organization Export contributor. Deliberately outside `publicApi`:
+   * only Identity's bundle builder consumes it, and no tenant-reachable
+   * surface gains a key from wiring it here.
+   */
+  organizationExport: ReturnType<typeof createDashboardOrganizationExportAdapter>
   internal: Readonly<{
     repos: Readonly<{
       dashboardRepo: ReturnType<typeof createDashboardRepository>
@@ -134,6 +141,7 @@ export const buildDashboardContext = (
       getFleetOverview: getFleet,
       getSetupChecklist: getSetup,
     },
+    organizationExport: createDashboardOrganizationExportAdapter(input.db),
     internal: {
       repos: { dashboardRepo, setupChecklistRepo },
       useCases: {

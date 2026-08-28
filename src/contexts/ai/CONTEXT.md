@@ -188,6 +188,41 @@ complete result.
   errors are prohibited from database, Redis, job payload, log, and evidence
   artifacts.
 
+## Organization Export contribution
+
+`infrastructure/adapters/ai-organization-export.adapter.ts` implements the
+Identity-owned `OrganizationExportContributor` port and is exposed on
+`lifecycle.organizationExportContributor` — never on `publicApi`, so contributing
+an export does not make any dark capability reachable. The contract permits this
+context exactly one disclosure class, `retained_ai_derivative`.
+
+It reads, from one bounded read-only repeatable-read snapshot, three derivative
+classes — `ai_review_analyses`, `ai_property_daily_aggregates` and
+`ai_property_trend_outcomes` (joined to `ai_property_trend_schedules` for its
+fence) — and emits one CSV plus one lossless JSON per class. Selection is fenced
+by exactly the predicates the serving read uses: `merchant_ai_enablement` must be
+`enabled` and still carry the capability; lineage, capability epoch, source epoch
+and start sequence must match; `ai_property_processing_profiles` must still be
+`active` at the same profile and source epoch; `reviews` must agree on source
+epoch, revision and analysis sequence with unexpired content; and the
+derivative's own retention must not have lapsed. A retired generation is
+therefore absent from the archive immediately, not after the 24-hour physical
+erasure worker runs. `merchant_ai_enablement`, `ai_property_processing_profiles`
+and `reviews` are read as fences only; no column of theirs is exported.
+
+It deliberately withholds `ai_operations` and `ai_operation_attempts` (including
+the `operation_id` foreign key on the exported rows), execution permits,
+settlements, cost reservations, quota/rate/cost windows, provider deployment and
+routing profiles, circuit states, runtime capability profiles, governance
+policies, execution controls, canary authorizations, Review Analysis enrollment
+and backfill authorities, `ai_authorization_lifecycle_records`, aggregate
+contribution ledgers and cursors, session-ephemeral Reply Draft provider output,
+and all Google Review source content. Every exclusion is enumerated in the
+emitted `excludedRecordClasses`.
+
+An Organization that never authorized AI — or whose authorization is disabled or
+revoked — contributes `no_data`, never an invented empty CSV.
+
 ## Current implementation state
 
 The context contains substantial control, admission, lifecycle, analysis,

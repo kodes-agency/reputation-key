@@ -40,6 +40,7 @@ import {
 import type { RecentActivityVocabularyApplyAuthority } from './ports/recent-activity-vocabulary-reconciliation.port'
 import { createRecentActivityVocabularyReconciliationStore } from './infrastructure/recent-activity-vocabulary-reconciliation.store'
 import { createActivityProjectionRuntime } from './application/activity-projection-runtime'
+import { createActivityOrganizationExportContributor } from './infrastructure/adapters/activity-organization-export.adapter'
 
 type BuildInput = Readonly<{
   db: Database
@@ -131,6 +132,11 @@ export const buildActivityContext = (input: BuildInput) => {
   // function is for the web process (query + handler registration only).
   return {
     publicApi,
+    // LIF-01-T8: Activity's Organization Export contribution. It is published
+    // as its own named seam rather than through publicApi because the export is
+    // an Identity-orchestrated lifecycle capability, not a manager-facing read —
+    // a dark capability must not become reachable by being wired here.
+    organizationExportContributor: createActivityOrganizationExportContributor(input.db),
     // ARC-03-T12: Activity owns its projection end to end. The container used
     // to hand bootstrap the recent-activity REPOSITORY so the worker could
     // assemble this itself.

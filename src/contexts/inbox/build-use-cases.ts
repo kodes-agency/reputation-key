@@ -31,6 +31,7 @@ import { stampLastInboxView } from './application/use-cases/stamp-last-inbox-vie
 import { getInboxItemDetail } from './application/use-cases/get-inbox-item-detail'
 import { getInboxFolderCounts } from './application/use-cases/get-folder-counts'
 import { getInboxNotes } from './application/use-cases/get-inbox-notes'
+import { getInboxItemHistory } from './application/use-cases/get-inbox-item-history'
 import { rebuildInboxProjection } from './application/use-cases/rebuild-inbox-projection'
 import { startReviewHandlingCycle } from './application/use-cases/start-review-handling-cycle'
 import { markFeedbackHandled } from './application/use-cases/mark-feedback-handled'
@@ -43,11 +44,14 @@ import {
 } from './application/use-cases/get-response-targets'
 import { setResponseTargetPolicy } from './application/use-cases/set-response-target-policy'
 import { releaseDueResponseTargetReminders } from './application/use-cases/release-response-target-reminders'
+import type { InboxActorDirectory } from './application/ports/inbox-actor-directory.port'
+import type { InboxHistoryRepository } from './application/ports/inbox-history.repository'
 import { inboxItemId, inboxNoteId } from '#/shared/domain/ids'
 
 type WireInput = Readonly<{
   inboxRepo: InboxRepository
   inboxNoteRepo: InboxNoteRepository
+  inboxHistoryRepo: InboxHistoryRepository
   inboxViewRepo: InboxViewRepository
   commandStore: InboxCommandStore
   handlingCycleStore: ReviewHandlingCycleStore
@@ -60,6 +64,7 @@ type WireInput = Readonly<{
   aiInsights?: AiReviewInsightsPort
   propertyLookup?: PropertyLookupPort
   staffPublicApi: StaffPublicApi
+  actorDirectory: InboxActorDirectory
   logger: LoggerPort
   clock: () => Date
   idGen: () => string
@@ -152,6 +157,13 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
       noteRepo: input.inboxNoteRepo,
       repo: input.inboxRepo,
       staffPublicApi: input.staffPublicApi,
+      actorDirectory: input.actorDirectory,
+    }),
+    getInboxItemHistory: getInboxItemHistory({
+      historyRepo: input.inboxHistoryRepo,
+      repo: input.inboxRepo,
+      staffPublicApi: input.staffPublicApi,
+      actorDirectory: input.actorDirectory,
     }),
     getInboxFolderCounts: getInboxFolderCounts({
       repo: input.inboxRepo,

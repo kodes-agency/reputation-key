@@ -160,6 +160,43 @@ Exported from `application/public-api.ts`:
 
 - **`reply.ts`** — Server functions for reply CRUD operations (draft, submit, approve, reject, delete, retry). All require PM+ role.
 
+## Organization Export (LIF-01-T6)
+
+`build.ts` exposes `organizationExport.contributor`, Review's implementation of
+Identity's `organization-export-contributor.port`. It sits outside `publicApi`
+on purpose — no request path may call it — and the composition root hands it to
+Identity's `organizationExport.contributors`.
+
+Review is the sharpest exclusion boundary in the export. LIF-01 bullet 6 asks
+for "manager-authored replies with AI provenance"; bullet 7 forbids raw
+Google-controlled review content and identifiers copied merely for export. The
+disclosure map permits Review exactly one class, `manager_authored`, and every
+emitted entry carries it.
+
+Reads exactly three tables:
+
+- `replies`, filtered to `source = 'internal'` — the manager's own reply text,
+  its workflow state, and its AI provenance (authorship, adopted operation id,
+  drafting epoch, profile version, template pin, language group).
+- `reply_publication_authorizations` — who authorized which publication cycle.
+- `reply_publication_attempts` — attempt outcomes and confirmation.
+
+Deliberately never read, not even to resolve a property name:
+
+- `reviews`, `review_source_contents`, `review_source_observations` and
+  `material_review_revisions` — Google-controlled review text and identity.
+- `google_reply_observations` — carries the provider's own reply text.
+- `review_provider_subjects`, `review_provider_snapshot_members` and the
+  reputation snapshot facts — provider identifier and live performance material.
+- `replies` rows with `source = 'google_sync'` — a mirror of a reply RepKey did
+  not author. Exporting it would ship provider text under a manager-authored
+  label.
+- `provider_operation_key`, `provider_correlation_id` and reply digests —
+  idempotency/fencing control plane.
+
+An Organization with no manager-authored reply work answers `no_data`; an empty
+replies CSV is never fabricated.
+
 ## Permissions
 
 - `review.read` — View reviews and review details.

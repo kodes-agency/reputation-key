@@ -25,6 +25,7 @@ import {
   createGoalProgramMaintenanceHandler,
   GOAL_PROGRAM_MAINTENANCE_JOB_NAME,
 } from './infrastructure/jobs/goal-program-maintenance.job'
+import { createGoalOrganizationExportAdapter } from './infrastructure/adapters/goal-organization-export.adapter'
 import type { GoalProgramRequestApi } from './application/public-api'
 
 export type GoalContextBuildInput = Readonly<{
@@ -58,6 +59,12 @@ export type GoalContextApi = Readonly<{
       ) => ReturnType<typeof createGoalProgramMaintenanceHandler>
     }>
   }>
+  /**
+   * LIF-01 Organization Export contributor. Deliberately outside `publicApi`:
+   * only Identity's bundle builder consumes it, and no tenant-reachable
+   * surface gains a key from wiring it here.
+   */
+  organizationExport: ReturnType<typeof createGoalOrganizationExportAdapter>
   internal: Readonly<{
     repos: Readonly<{
       goalProgramRepo: GoalProgramRepository
@@ -128,6 +135,7 @@ export const buildGoalContext = (input: GoalContextBuildInput): GoalContextApi =
           createGoalProgramMaintenanceHandler(buildGoalPrograms(policy)),
       }),
     }),
+    organizationExport: createGoalOrganizationExportAdapter(input.db),
     internal: {
       repos: { goalProgramRepo },
     },

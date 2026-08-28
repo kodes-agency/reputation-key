@@ -41,8 +41,11 @@ and no Leaderboard server operation exists.
   weak-performer language, or Staff/Team comparison;
 - no refresh on Metric events and no reconciliation schedule;
 - no successful server-function behavior or data reachability, navigation, API,
-  export, Dashboard, Staff-home, Portal, or notification surface; server
-  declarations are absent;
+  Leaderboard-owned export surface, Dashboard, Staff-home, Portal, or
+  notification surface; server declarations are absent. The Identity-owned
+  Organization Export contribution below is not a Leaderboard surface: it is a
+  read-only contributor invoked by Identity's bundle builder and exposes nothing
+  to a tenant except the ZIP;
 - no authorization or management decision derived from retained snapshots;
 - no migration of Team memberships into Portal Groups.
 
@@ -56,6 +59,36 @@ server or consumer declaration. A removal-only scheduler tombstone remains so
 an older deployed BullMQ schedule is deleted rather than orphaned. Ranking and
 activation mechanics are absent, and an executable exact-source allowlist fails
 if they return.
+
+## Organization Export contribution
+
+`LIF-01` requires a contribution from all seventeen contexts, so
+`infrastructure/adapters/leaderboard-organization-export.adapter.ts` answers for
+Leaderboard. The blocked capability suppresses new ranking behaviour; it does not
+delete the tenant's record of what was already computed for it. The activation
+row in particular is the consent record — who acknowledged Recognition for a
+Property, under which jurisdiction, notice, and consultation status — and is
+exactly what an Organization needs when auditing why a board existed. Rows are
+exported as `tenant_visible`; the contributor returns `complete` when they exist
+and the affirmative `no_data` when they do not, and never `omitted`.
+
+It reads `recognition_activations`, `recognition_activation_groups`,
+`recognition_board_snapshots`, `recognition_board_entries`,
+`recognition_reconciliation_events`, `leaderboard_entries`, and
+`leaderboard_snapshots` inside one read-only repeatable-read snapshot bounded to
+fifteen minutes after the request. `leaderboard_snapshots` predates
+tenant-scoped columns and carries only a `property_id`; because a dark context
+may not read the Property table (BQC-5.10 row 2 WATCH register), it is scoped
+through its own Organization-scoped entries. A legacy snapshot with no such
+entry cannot be attributed to the Organization and is declared as an excluded
+record class rather than guessed into the archive.
+
+This is not a Leaderboard surface. The adapter constructs no repository,
+registers no consumer, job, or schedule, exposes no route or server function,
+and is not reachable from `buildLeaderboardContext`, which stays an empty
+inventory boundary. `leaderboard.use` remains `legacy_blocked` and its fate
+record is unchanged. Ranks and scores travel in the archive as historical facts
+and never as a current comparison of people, Portals, Properties, or Teams.
 
 ## Future recognition boundary
 

@@ -16,7 +16,11 @@ export {
   assignInboxItemFn,
   bulkAssignInboxItemsFn,
 } from './inbox-item-actions'
-export { getInboxItemDetailFn, getInboxNotesFn } from './inbox-item-queries'
+export {
+  getInboxItemDetailFn,
+  getInboxItemHistoryFn,
+  getInboxNotesFn,
+} from './inbox-item-queries'
 export {
   markFeedbackHandledFn,
   correctFeedbackHandlingOutcomeFn,

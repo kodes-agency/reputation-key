@@ -77,6 +77,7 @@ import type { PortalHealthLookupPort } from './application/ports/portal-health-l
 import { registerPortalHealthNotificationConsumer } from './infrastructure/portal-health-outbox-consumers'
 import { createOrganizationAccountNotificationAuthority } from './infrastructure/adapters/organization-account-notification-authority.adapter'
 import { registerIdentityAccountNotificationConsumers } from './infrastructure/identity-account-outbox-consumers'
+import { createNotificationOrganizationExportContributor } from './infrastructure/adapters/notification-organization-export.adapter'
 
 export const NOTIFICATION_DELIVERY_LAG_GRACE_MS = 60_000
 export const NOTIFICATION_DELIVERY_LAG_LOOKBACK_MS = 24 * 60 * 60 * 1000
@@ -496,6 +497,13 @@ export const buildNotificationContext = (input: BuildInput) => {
 
   return {
     publicApi,
+    // LIF-01-T8: Notification's Organization Export contribution. It is
+    // published as its own named seam rather than through publicApi because the
+    // export is an Identity-orchestrated lifecycle capability, not a
+    // manager-facing read.
+    organizationExportContributor: createNotificationOrganizationExportContributor(
+      input.db,
+    ),
     worker: Object.freeze({ registerOutboxConsumers }),
     // ARC-03-T12: one named delivery capability replaces the root's reach into
     // Notification's private repository trio and loose handlers.

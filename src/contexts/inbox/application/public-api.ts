@@ -76,6 +76,24 @@ export {
 // Application-layer detail result (includes the review reply) — used by the
 // client detail state. See get-inbox-item-detail use case.
 export type { InboxItemDetailResult } from './use-cases/get-inbox-item-detail'
+export type { InboxNoteView } from './use-cases/get-inbox-notes'
+export type { GetInboxItemHistoryResult } from './use-cases/get-inbox-item-history'
+
+// IBX-01-T5: the manager Handling History record. Components render these
+// types, so they are published here rather than imported from domain/.
+export type {
+  InboxAssignmentReason,
+  InboxHistoryAssignmentDetail,
+  InboxHistoryCycleOpenedDetail,
+  InboxHistoryCycleTransitionDetail,
+  InboxHistoryDetail,
+  InboxHistoryEntry,
+  InboxHistoryEscalationDetail,
+  InboxHistoryKind,
+  InboxHistoryOutcomeDetail,
+} from '../domain/handling-history'
+export { INBOX_HISTORY_KINDS } from '../domain/handling-history'
+export type { InboxHistoryPage } from './ports/inbox-history.repository'
 export type { InboxError, InboxErrorCode } from '../domain/errors'
 export { isInboxError } from '../domain/errors'
 export { INBOX_BULK_LIMIT } from './dto/inbox.dto'
@@ -100,6 +118,7 @@ export type InboxPublicApi = Readonly<{
   stampLastInboxView: import('./use-cases/stamp-last-inbox-view').StampLastInboxView
   getInboxItemDetail: import('./use-cases/get-inbox-item-detail').GetInboxItemDetail
   getInboxNotes: import('./use-cases/get-inbox-notes').GetInboxNotes
+  getInboxItemHistory: import('./use-cases/get-inbox-item-history').GetInboxItemHistory
   getInboxFolderCounts: import('./use-cases/get-folder-counts').GetInboxFolderCounts
   markFeedbackHandled: import('./use-cases/mark-feedback-handled').MarkFeedbackHandled
   correctFeedbackHandlingOutcome: import('./use-cases/correct-feedback-handling-outcome').CorrectFeedbackHandlingOutcome

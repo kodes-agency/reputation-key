@@ -191,7 +191,8 @@ portal/
                        portal-responsible-manager.repository.ts,
                        portal-beta-readiness-reconciliation.repository.ts,
                        link-resolver.repository.ts (Drizzle)
-    adapters/          s3-storage.adapter.ts
+    adapters/          s3-storage.adapter.ts,
+                       portal-organization-export.adapter.ts
     mappers/           portal.mapper.ts, portal-group.mapper.ts, portal-link.mapper.ts
     jobs/              process-image.job.ts, cleanup-upload-sources.job.ts,
                        revalidate-approved-destinations.job.ts
@@ -271,3 +272,30 @@ Exported from `application/public-api.ts`:
 - **process-image** — Reloads the scoped issuance, privately reads only its source, resource-bounds decode/re-encode, writes server-derived WebP variants, and atomically publishes only if the issuance is still current.
 - **portal-upload-source-cleanup** — Runs hourly even while `portal.upload` is dark. It expires a bounded oldest-first batch, deletes only issuance-derived private sources and non-published derivative keys, and records separate durable cleanup markers. Object deletes are idempotent, so a crash between deletion and the marker safely converges on retry; finalized public variants are never selected as orphans.
 - **portal-approved-destination-revalidation** — Revalidates a bounded batch every 15 minutes. Registration, schedule authority, and each discovered Property scope carry `portal.write`; a denied Property is skipped before network validation or mutation.
+
+## Organization Export contribution (LIF-01)
+
+`infrastructure/adapters/portal-organization-export.adapter.ts` implements
+`identity/application/ports/organization-export-contributor.port.ts` and is
+returned from `build.ts` as `organizationExportContributor` — deliberately
+outside `publicApi`, because an export slice is lifecycle composition input,
+not a Portal product capability.
+
+It emits `portal/portals.csv` and `portal/portals.json` at classification
+`tenant_visible`, deterministic for a fixed `(organizationId, asOf)` and
+ordered by UTF-8 byte order. Covered tables: `portals`, `portal_groups`,
+`portal_group_members`, `portal_link_categories`, `portal_links`,
+`portal_approved_destinations`, `portal_localized_overrides`,
+`property_portal_brand_profiles`, `property_portal_brand_contents`,
+`portal_publication_snapshots`, `portal_publication_activations`,
+`portal_pending_content_changes`, `portal_responsible_managers`,
+`portal_access_artifacts` (metadata only) and `portal_health_intervals`. An
+Organization with no Portal rows answers `no_data`.
+
+Not exported, and not queried: `portal_tokens` (address-token hash and
+encrypted raw token), `portal_upload_issuances` and their object keys
+(`portal.upload` is safety-blocked, so Portal upload stays dark), and
+`portal_access_artifacts.portal_token_id`, which is the join key into the
+token secret. Goals are exported by the Goal contributor and Guest Responses
+by the Guest contributor, so neither is duplicated here. Each reason is
+recorded in the payload's `excludedRecordClasses`.

@@ -88,7 +88,8 @@ property/
   infrastructure/
     property-lifecycle-command-store.ts (atomic state + durable fact)
     repositories/      property.repository.ts, region-move.repository.ts (Drizzle)
-    adapters/          region-move-request-command-store.adapter.ts (atomic move + audit)
+    adapters/          region-move-request-command-store.adapter.ts (atomic move + audit),
+                       property-organization-export.adapter.ts
     mappers/           property.mapper.ts
   server/              properties.ts, property-read.ts, property-lifecycle.ts
   build.ts             composition root
@@ -135,3 +136,25 @@ Exported from `application/public-api.ts`:
 - `property.archive` — AccountAdmin-only recoverable Archive; maps to core Property management, never `property.erase`.
 - `property.restore` — AccountAdmin-only explicit recovery during the original deadline.
 - `property.disconnect` — AccountAdmin-only Property binding disconnect after Archive; does not disconnect the Organization account.
+
+## Organization Export contribution (LIF-01)
+
+`infrastructure/adapters/property-organization-export.adapter.ts` implements
+`identity/application/ports/organization-export-contributor.port.ts` and is
+returned from `build.ts` as `organizationExportContributor` — deliberately
+outside `publicApi`, because an export slice is lifecycle composition input,
+not a Property product capability.
+
+It emits `property/properties.csv` and `property/properties.json` at
+classification `tenant_visible`, deterministic for a fixed
+`(organizationId, asOf)` and ordered by UTF-8 byte order. Covered tables:
+`properties` (including archived and soft-deleted rows) and
+`property_responsible_managers`. An Organization with no Property rows answers
+`no_data`.
+
+Not exported: `property_operation_receipts` (content-free control plane),
+`region_moves` (restricted operational history), the Google
+account/location/review-destination identifiers (provider-controlled
+identifiers — only the content-free binding and destination _state_ ships),
+and Property policy/capability/access-grant rows, which Identity already
+exports. Each reason is recorded in the payload's `excludedRecordClasses`.

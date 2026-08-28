@@ -38,6 +38,7 @@ import { createPropertyProcessingProfileAdapter } from './infrastructure/adapter
 import { createReviewAnalysisBackfillAdapter } from './infrastructure/adapters/ai-review-analysis-backfill.adapter'
 import { createReviewAnalysisEnrollmentAdapter } from './infrastructure/adapters/ai-review-analysis-enrollment.adapter'
 import { createRedisAiQuotaAdapter } from './infrastructure/adapters/ai-quota.adapter'
+import { createAiOrganizationExportContributor } from './infrastructure/adapters/ai-organization-export.adapter'
 import { createAiDataLifecycle } from './infrastructure/ai-data-lifecycle'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import {
@@ -245,6 +246,13 @@ export const buildAiContext = (input: AiContextBuildInput) => {
         aggregates,
         calendar,
       }),
+    }),
+    // LIF-01: the Organization Export contribution the Identity bundle builder
+    // demands from this context. It is exposed here and never on `publicApi`:
+    // the three AI capabilities stay dark, and contributing an export must not
+    // make any of them reachable from a request surface.
+    lifecycle: Object.freeze({
+      organizationExportContributor: createAiOrganizationExportContributor(input.db),
     }),
     worker: Object.freeze({
       registerOutboxConsumers,

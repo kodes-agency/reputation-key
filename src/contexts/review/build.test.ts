@@ -138,6 +138,15 @@ describe('sync enqueue routing stamp (BQC-4.2)', () => {
     })
   })
 
+  it('exposes the Organization Export contribution outside the request public API', () => {
+    const { api } = setup()
+
+    expect(api.organizationExport.contributor.context).toBe('review')
+    expect(Object.isFrozen(api.organizationExport)).toBe(true)
+    // LIF-01: adding the contributor must not widen the request surface.
+    expect(Object.keys(api.publicApi)).not.toContain('organizationExport')
+  })
+
   it('stamps the content-free routing envelope on a target decision', async () => {
     const resolve = vi.fn(async (): Promise<RoutingDecision> => US_TARGET)
     const { api, jobQueue } = setup({ router: { resolve } })

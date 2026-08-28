@@ -123,6 +123,36 @@ integration/
 - provider-content view lifecycle policy and its stale-completion contract;
 - identifier-only import event contracts.
 
+## Organization Export contribution
+
+`infrastructure/adapters/integration-organization-export.adapter.ts` implements the
+Identity-owned `OrganizationExportContributor` port and is exposed on
+`lifecycle.organizationExportContributor` — never on `publicApi`. The contract
+permits this context exactly one disclosure class, `content_free_lifecycle`, so
+the contribution answers _what state is this Organization's Google integration
+in_, never _what did Google tell us_.
+
+It reads, from one bounded read-only repeatable-read snapshot:
+`google_connections` (status, visibility, credential-use state, version and
+credential-home fences, sync/status timestamps), `google_organization_credential_homes`
+(generation, cell, policy version, transition reason, interval),
+`gbp_import_sagas`, `gbp_import_requests` (status and counts),
+`gbp_import_request_items` **aggregated to counts by state/action/outcome**, and
+`google_disconnect_revoke_attempts` (state, outcome, timings).
+
+It deliberately withholds encrypted access/refresh tokens, token expiry, the
+encryption key id, the Google OIDC subject, granted scopes, provider account and
+location suffixes, the Google review URI, import replay digests, the disconnect
+credential binding and cleanup permit, `google_oauth_exchange_attempts`,
+`credential_revoke_permits`, `authorization_execution_permits`,
+`google_credential_broker_replay`, the signed routing directory,
+`google_import_discovery_records`, `gbp_cache`, credential-home operator identity
+and change ticket, and live Business Profile Performance payloads. Every
+exclusion is enumerated in the emitted `excludedRecordClasses`.
+
+An Organization that never connected Google contributes `no_data`, never an
+invented empty CSV.
+
 ## Permissions
 
 - `integration.manage` — manage Google connections and authorized discovery.

@@ -22,7 +22,16 @@ describe('buildActivityContext', () => {
       operationalHistoryHoldIdGen: () => '00000000-0000-4000-8000-000000000997',
     })
 
-    expect(Object.keys(context).sort()).toEqual(['internal', 'publicApi', 'worker'])
+    expect(Object.keys(context).sort()).toEqual([
+      'internal',
+      'organizationExportContributor',
+      'publicApi',
+      'worker',
+    ])
+    // LIF-01-T8: the export contributor is a named lifecycle seam, never a
+    // publicApi key — wiring it must not widen the manager-facing surface.
+    expect(context.organizationExportContributor.context).toBe('activity')
+    expect(context.publicApi).not.toHaveProperty('organizationExportContributor')
     // ARC-03-T12: Activity owns the Recent Activity projection; the container
     // no longer publishes its repository for the worker to assemble one.
     expect(Object.keys(context.worker).sort()).toEqual([

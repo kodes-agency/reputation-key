@@ -139,9 +139,18 @@ export type OnMemberJoined = (ctx: {
 export type IdentityOrganizationLifecycleComposition = Readonly<{
   lifecycleContributors?: readonly OrganizationLifecycleContributor[]
   supportAuthorization?: import('./application/ports/organization-lifecycle-contributor.port').OrganizationLifecycleSupportAuthorization
+  /**
+   * Cross-context export contributors; Identity supplies its own reviewed
+   * owner and rejects a supplied `identity` entry.
+   *
+   * LIF-01-T11: this is deliberately a sibling of `organizationExport` rather
+   * than a field inside it. A contributor set reads nothing and writes nothing
+   * on its own, so composing all sixteen is not an activation — it only lets
+   * readiness report the truth about coverage. Egress still requires the
+   * `organizationExport` bundle below, which stays all-or-nothing.
+   */
+  exportContributors?: readonly OrganizationExportContributor[]
   organizationExport?: Readonly<{
-    /** Cross-context contributors only; Identity supplies its own reviewed owner. */
-    contributors: readonly OrganizationExportContributor[]
     archiveWriter: OrganizationExportArchiveWriter
     storage: OrganizationExportStorage
     deriveRetrievalSecret: (input: {
@@ -370,8 +379,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   const lifecycleContributorReadiness = contributorReadiness(
     deps.organizationLifecycle?.lifecycleContributors,
   )
-  const suppliedExportContributors =
-    deps.organizationLifecycle?.organizationExport?.contributors ?? []
+  const suppliedExportContributors = deps.organizationLifecycle?.exportContributors ?? []
   if (suppliedExportContributors.some(({ context }) => context === 'identity')) {
     throw new Error(
       'Organization Export composition must not override the Identity-owned contributor',

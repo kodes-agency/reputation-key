@@ -120,7 +120,8 @@ guest/
                       guest-network-pressure.store.ts (serialized seven-day pressure authority)
     repositories/      guest-interaction.repository.ts
                        contact-request.repository.ts
-    adapters/           contact-request-encryption.adapter.ts
+    adapters/           contact-request-encryption.adapter.ts,
+                        guest-organization-export.adapter.ts
     feedback-portal-attribution.ts  tenant-scoped, content-free source lookup
     mappers/           guest.mapper.ts
     resolvers/         portal-context-resolver.ts, public-portal-lookup.ts
@@ -173,3 +174,32 @@ Guest context is entirely public — no authentication is required for any endpo
 ## Contact Request activation
 
 `portal.guest_contact` is safety-blocked for beta. The backend foundation and tests do not create an activation path. Tenant allowlists, E2E overrides, routes, UI, workers, and public APIs cannot enable it. The only composed job path is fail-closed cleanup of encrypted material already present in migration-compatible storage. Activation still requires named approval evidence for the guest notice, 30-day retention wording, manager handling, and delivery channel, plus an accepted disposition for the documented authority-revocation interval and production key lifecycle; phone remains excluded.
+
+## Organization Export contribution (LIF-01)
+
+`infrastructure/adapters/guest-organization-export.adapter.ts` implements
+`identity/application/ports/organization-export-contributor.port.ts` and is
+returned from `build.ts` as `organizationExportContributor` — deliberately
+outside `publicApi`, because an export slice is lifecycle composition input,
+not a Guest product capability.
+
+Emitted, always for a fixed `(organizationId, asOf)` and in UTF-8 byte order:
+
+| Entry                                  | Classification            | Source                                                                                                                  |
+| -------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `guest/responses.csv` / `.json`        | `tenant_visible`          | `guest_responses`, `guest_qualified_scans`, `guest_response_integrity_decisions`, `guest_response_experience_snapshots` |
+| `guest/legacy-responses.csv` / `.json` | `tenant_visible`          | `ratings`, `feedback`, `scan_events` — only rows with no canonical successor, so nothing is double-counted              |
+| `guest/private-feedback.csv` / `.json` | `permitted_guest_content` | `guest_response_private_feedback` still inside its 90-day window, plus unmapped legacy `feedback.comment`               |
+
+A family with no rows is not emitted; an Organization with no Guest rows
+answers `no_data`. Expired private text renders as
+`private_feedback_state: "expired"` beside a response that still records that
+feedback was received — never as empty text.
+
+Not exported, and not queried: `guest_contact_requests` and its reveal audits
+(`portal.guest_contact` is safety-blocked, so exporting them would be an
+activation by the back door), `guest_response_session_bindings`,
+`guest_qualified_scan_receipts`, `guest_destination_action_receipts`,
+`guest_network_pressure_records`, `guest_response_media`, legacy
+`session_id`/`ip_hash` columns, and the rating/feedback source event ids. Each
+reason is recorded in the payload's `excludedRecordClasses`.

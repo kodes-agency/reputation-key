@@ -15,6 +15,7 @@ import {
   markFeedbackHandledDto,
   correctFeedbackHandlingOutcomeDto,
   stampLastInboxViewDto,
+  getInboxItemHistoryDto,
 } from '../application/dto/inbox.dto'
 import { inboxError, isInboxError } from '../domain/errors'
 
@@ -371,6 +372,27 @@ describe('private-feedback handling DTOs', () => {
 })
 
 // ── Error → HTTP status mapping ─────────────────────────────────────
+
+describe('getInboxItemHistoryDto (IBX-01-T5)', () => {
+  // getInboxItemHistoryFn validates with this DTO, so a non-UUID id is rejected
+  // at the request boundary — before the use case, and therefore before any
+  // store call or permission lookup.
+  it('parses a UUID inboxItemId', () => {
+    expect(
+      getInboxItemHistoryDto.safeParse({
+        inboxItemId: '550e8400-e29b-41d4-a716-446655440000',
+      }).success,
+    ).toBe(true)
+  })
+
+  it('rejects a non-UUID inboxItemId', () => {
+    expect(getInboxItemHistoryDto.safeParse({ inboxItemId: 'abc' }).success).toBe(false)
+  })
+
+  it('rejects a missing inboxItemId', () => {
+    expect(getInboxItemHistoryDto.safeParse({}).success).toBe(false)
+  })
+})
 
 describe('inboxErrorStatus', () => {
   it('maps invalid_transition to 400', () => {

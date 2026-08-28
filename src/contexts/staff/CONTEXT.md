@@ -117,6 +117,27 @@ never update retained Team Membership rows. Schema removal waits for:
 2. replacement write/read parity and denial of legacy mutations;
 3. one verified release plus retention/export and restore evidence.
 
+## Organization Export contribution
+
+`infrastructure/adapters/staff-organization-export.adapter.ts` is Staff's
+`LIF-01` contributor for the "people / access / responsibility" content of the
+Organization Export. It reads `staff_participants`, `staff_user_links`,
+`staff_participations`, `staff_assignments`, `portal_responsibilities`, and
+`portal_group_memberships` inside one read-only repeatable-read snapshot bounded
+to fifteen minutes after the request, and emits four `tenant_visible` CSV/JSON
+pairs: `staff/participants`, `staff/participations`,
+`staff/portal-responsibilities`, and `staff/portal-group-memberships`. An
+Organization with no people rows gets the affirmative `no_data`; nothing is ever
+omitted, because everything Staff owns is tenant-visible.
+
+Two exclusions are deliberate and recorded in the payload. Property access
+authority belongs to Identity's contributor, which owns both the canonical and
+the compatibility grant tables; duplicating them here would breach the
+sole-reader boundary and put two divergent copies of an authorization record in
+one archive. Staff User login material — credentials, sessions, tokens — is
+excluded by `LIF-01` work item 7 and is never queried; participation is a people
+fact, sign-in is not.
+
 ## Architecture layers
 
 ```
@@ -127,6 +148,7 @@ staff/
     use-cases/         canonical participation/responsibility plus inactive legacy source
     public-api.ts      cross-context Staff read surface
   infrastructure/
+    adapters/          Organization Export contributor (read-only)
     repositories/      effective-dated participation/responsibility and legacy assignment
   server/              manager participation/responsibility endpoints only
   build.ts             constructs canonical participation/attribution seams only

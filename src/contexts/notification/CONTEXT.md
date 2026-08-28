@@ -45,6 +45,7 @@ Produces user-facing in-app and email notifications about domain events. Subscri
 - Email state machine: a queue entry moves `pending → sent` (success) or `pending/failed → failed` (retry); enforced at DB level by repo WHERE clauses.
 - Urgent priority is derived from type, never set by callers.
 - Preferences are sparse and resolve through the versioned category/channel default policy; they never imply “both on” globally. Mandatory Organization notices always materialize in-app plus immediate email and cannot enter preference, quiet-hours, daily-digest, or unsubscribe paths.
+- Organization Export (`infrastructure/adapters/notification-organization-export.adapter.ts`) contributes `tenant_visible` data from `notifications`, `notification_preferences` and `notification_user_settings` only. LIF-01 bullet 7 excludes queues, outbox, receipts and rate limits, so `notification_email_queue` (provider message id/state, acceptance, delivery, bounce, suppression, retry counters, idempotency key and the immediate-acceptance health index), `notification_digest_batches`, `notification_digest_batch_members`, both governance quarantine tables, and the `notifications.event_id` delivery-correlation key are excluded and named in the export's `excludedRecordClasses`. An Organization with no notification row and no delivery setting contributes the affirmative `no_data`, never an invented empty CSV.
 
 ## Events produced
 

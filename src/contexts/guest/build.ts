@@ -43,6 +43,7 @@ import { createGuestNetworkPseudonymHasher } from './server/hash-ip.server'
 import { createContactRequestResponseAuthorityAdapter } from './infrastructure/adapters/contact-request-response-authority.adapter'
 import { createContactRequestManagerAuthorityAdapter } from './infrastructure/adapters/contact-request-manager-authority.adapter'
 import { createContactRequestRetentionRepository } from './infrastructure/repositories/contact-request.repository'
+import { createGuestOrganizationExportContributor } from './infrastructure/adapters/guest-organization-export.adapter'
 import { contactRequestRetentionSweep } from './application/use-cases/contact-request-retention'
 
 type GuestContextDeps = Readonly<{
@@ -202,5 +203,11 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
       managerAuthority: contactRequestManagerAuthority,
       retentionSweep: contactRequestRetention,
     }),
+    /** LIF-01: the Guest-owned Organization Export contributor. It stays out
+     * of `publicApi` on purpose — Guest is a dark context, and an export slice
+     * is lifecycle composition input, not a product capability any
+     * request-facing surface may reach. The contributor does not read Contact
+     * Request, so wiring it here activates nothing. */
+    organizationExportContributor: createGuestOrganizationExportContributor(deps.db),
   } as const
 }

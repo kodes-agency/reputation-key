@@ -32,6 +32,10 @@ import { inboxError } from '../domain/errors'
 import { inboxHandlingCycleClosed, inboxItemStatusChanged } from '../domain/events'
 import type { HandlingCycleHead, InboxItem } from '../domain/types'
 import type { InboxCommandAuthority } from './inbox-command-store'
+import {
+  selectCycleCloseReason,
+  type TransitionReader,
+} from './handling-cycle-transitions.read'
 import { inboxItemFromRow } from './mappers/inbox.mapper'
 import { transitionInsert } from './review-handling-cycle.store'
 import { completePrivateFeedbackTarget } from './response-target.store'
@@ -95,24 +99,18 @@ const toState = (
   history,
 })
 
+/**
+ * IBX-01-T5: the transitions log has exactly one reader
+ * (`handling-cycle-transitions.read.ts`), shared with the Handling History read
+ * model, so both agree on `state_revision` as the ordering key.
+ */
 async function closeReasonFor(
-  tx: Pick<Database, 'select'> | Tx,
+  tx: TransitionReader,
   inboxItemIdValue: string,
   cycleNumber: number,
 ): Promise<FeedbackHandlingState['closeReason']> {
-  const [row] = await tx
-    .select({ reason: inboxHandlingCycleTransitions.transitionReason })
-    .from(inboxHandlingCycleTransitions)
-    .where(
-      and(
-        eq(inboxHandlingCycleTransitions.inboxItemId, inboxItemIdValue),
-        eq(inboxHandlingCycleTransitions.cycleNumber, cycleNumber),
-        eq(inboxHandlingCycleTransitions.kind, 'closed'),
-      ),
-    )
-    .orderBy(desc(inboxHandlingCycleTransitions.stateRevision))
-    .limit(1)
-  return (row?.reason as FeedbackHandlingState['closeReason']) ?? null
+  const reason = await selectCycleCloseReason(tx, inboxItemIdValue, cycleNumber)
+  return (reason as FeedbackHandlingState['closeReason']) ?? null
 }
 
 const matchesExpected = (

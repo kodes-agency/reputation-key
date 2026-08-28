@@ -31,6 +31,7 @@ import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { PropertyProcessingScopePublicApi } from '#/contexts/property/application/public-api'
 import type { AiReplyProvenancePublicKeyring } from './application/ports/ai-suggested-draft-store.port'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
+import { createReviewOrganizationExportContributor } from './infrastructure/adapters/review-organization-export.adapter'
 import { createReviewRepository } from './infrastructure/repositories/review.repository'
 import { createReviewObservationRepository } from './infrastructure/repositories/review-observation.repository'
 import { createReplyRepository } from './infrastructure/repositories/reply.repository'
@@ -187,6 +188,15 @@ export type ReviewContextApi = Readonly<{
       /** Property-scoped Review activity query presented to Review HTTP adapters. */
       getStaffRecentActivity: ReturnType<typeof getStaffRecentActivity>
     }>
+  /**
+   * LIF-01: Review's own Organization Export contribution. It is deliberately
+   * NOT part of `publicApi` — nothing in a request path may call it, and adding
+   * it here reaches no new capability. The composition root hands it to
+   * Identity's `organizationExport.contributors`, which is the only caller.
+   */
+  organizationExport: Readonly<{
+    contributor: ReturnType<typeof createReviewOrganizationExportContributor>
+  }>
   /** Bounded operator maintenance. These capabilities preserve Review's
    * invariants without exposing its repositories or request workflows. */
   maintenance: Readonly<{
@@ -605,6 +615,9 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       }),
       getStaffRecentActivity: useCases.getStaffRecentActivity,
     },
+    organizationExport: Object.freeze({
+      contributor: createReviewOrganizationExportContributor(input.db),
+    }),
     maintenance: Object.freeze({
       publicationReconciliation: Object.freeze({
         findCandidates: publicationCandidates.findAmbiguousCandidates,

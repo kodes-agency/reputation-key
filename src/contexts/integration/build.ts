@@ -132,6 +132,7 @@ import type { DataCellExecutionDecision } from '#/shared/routing/data-cell-execu
 import { createDirectGoogleCredentialUseGate } from './application/google-credential-execution-gate'
 import { createGoogleCredentialHomeCapture } from './application/google-credential-home'
 import { createOrganizationGoogleCredentialHomeAuthority } from './infrastructure/organization-google-credential-home-authority'
+import { createIntegrationOrganizationExportContributor } from './infrastructure/adapters/integration-organization-export.adapter'
 
 /**
  * ADR 0050 §10: the live Google Performance path may not depend on a write
@@ -1471,6 +1472,13 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       }),
     }),
     lifecycle: Object.freeze({
+      // LIF-01: the Organization Export contribution the Identity bundle builder
+      // demands from this context. It is exposed here, beside the other
+      // Organization-lifecycle capabilities, and never on `publicApi` — nothing
+      // about exporting is reachable from a request surface.
+      organizationExportContributor: createIntegrationOrganizationExportContributor(
+        deps.db,
+      ),
       prepareConnectorDeparture: useCases.prepareGoogleConnectorDeparture,
       cancelImportsForConnection: useCases.cancelGoogleImportV2ForConnection,
       cancelImportsForUser: useCases.cancelGoogleImportV2ForUser,

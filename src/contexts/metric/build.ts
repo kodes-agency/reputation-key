@@ -38,6 +38,7 @@ import type { PortalLifetimeScope } from './application/ports/portal-lifetime-ag
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createCurrentGoogleReputationSnapshotRepository } from './infrastructure/repositories/current-google-reputation-snapshot.repository'
 import { registerCurrentGoogleReputationConsumer } from './infrastructure/current-google-reputation-outbox-consumers'
+import { createMetricOrganizationExportAdapter } from './infrastructure/adapters/metric-organization-export.adapter'
 
 export type MetricContextBuildInput = Readonly<{
   db: Database
@@ -68,6 +69,12 @@ export type MetricContextApi = Readonly<{
   worker: Readonly<{
     registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) => void
   }>
+  /**
+   * LIF-01 Organization Export contributor. Deliberately outside `publicApi`:
+   * only Identity's bundle builder consumes it, and no tenant-reachable
+   * surface gains a key from wiring it here.
+   */
+  organizationExport: ReturnType<typeof createMetricOrganizationExportAdapter>
   internal: Readonly<{
     repos: Record<string, never>
     useCases: Readonly<{
@@ -206,6 +213,7 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
         repairPortalLifetime({ lifetime: portalLifetime }, repairInput),
     }),
     worker: Object.freeze({ registerOutboxConsumers }),
+    organizationExport: createMetricOrganizationExportAdapter(input.db),
     internal: {
       repos: {} as const,
       useCases: {

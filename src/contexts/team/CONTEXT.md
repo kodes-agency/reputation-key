@@ -81,6 +81,33 @@ The former `server/` network surface has been removed. Reconciliation remains
 reachable only through the separately catalogued operator/release commands, which
 use the retained repository directly and do not expose tenant-facing Team actions.
 
+## Organization Export contribution
+
+`LIF-01` requires a contribution from all seventeen contexts, so
+`infrastructure/adapters/team-organization-export.adapter.ts` answers for Team.
+Quarantine decides what an Organization may **do**; it does not delete what the
+Organization already **owns**. Team rows, half-open membership intervals, and
+Portal-Group scopes were authored by the tenant and stay Organization- and
+Property-scoped, so they are exported as `tenant_visible` rather than withheld
+behind an omission code that would hide real rows behind a product decision. The
+contributor returns `complete` when rows exist and the affirmative `no_data` when
+they do not — the common beta case, because `team.use` has been blocked
+throughout. It never returns `omitted`.
+
+It reads `teams`, `team_memberships`, and `team_portal_group_scopes` inside one
+read-only repeatable-read snapshot bounded to fifteen minutes after the request.
+Soft-deleted Teams stay in the archive with their `deleted_at` fact so the
+memberships that still point at them remain explicable. Staff Participant and
+participation detail belongs to Staff's contributor, and Portal Group
+definitions to Portal's; a Team row is never presented as a Portal Group.
+
+This is not a Team surface. The adapter constructs no repository, exposes no use
+case, writes nothing, and is deliberately NOT reachable from `buildTeamContext`,
+because the quarantine pin requires `build.ts` to import nothing from
+`application/` or `infrastructure/`. The composition root constructs the adapter
+directly, the way Identity's own contributor is constructed. `team.use` remains
+unconditionally blocked and its fate record is unchanged.
+
 ## Contraction gate
 
 Delete this context only after the ADR 0052 replacement model has full read/write

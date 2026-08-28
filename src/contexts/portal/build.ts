@@ -36,6 +36,7 @@ import { createPortalHealthRepository } from './infrastructure/repositories/port
 import { createPortalAiReplyBrandProfileAuthority } from './infrastructure/ai-reply-brand-profile-authority'
 import type { PortalStoragePort } from './application/ports/storage.port'
 import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-codec'
+import { createPortalOrganizationExportContributor } from './infrastructure/adapters/portal-organization-export.adapter'
 import { createPortal } from './application/use-cases/create-portal'
 import { updatePortal } from './application/use-cases/update-portal'
 import { rollbackPortalPublication } from './application/use-cases/rollback-portal-publication'
@@ -605,5 +606,10 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       storage,
       uploadStore: portalUploadStore,
     }),
+    /** LIF-01: the Portal-owned Organization Export contributor. It stays out
+     * of `publicApi` on purpose — Portal is a dark context, and an export
+     * slice is lifecycle composition input, not a product capability any
+     * request-facing surface may reach. */
+    organizationExportContributor: createPortalOrganizationExportContributor(deps.db),
   } as const
 }

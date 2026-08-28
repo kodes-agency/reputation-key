@@ -183,6 +183,8 @@ Exported from `application/public-api.ts`:
 - Constants: `INBOX_BULK_LIMIT` (100 item IDs per bulk status command), `PRIVATE_FEEDBACK_HANDLING_OUTCOMES`
 - Feedback handling types: outcome, deadline result, immutable outcome fact, expectations, state, and command result
 - Event types: `InboxItemCreated`, `InboxItemStatusChanged`, `InboxItemAssigned`, `InboxItemUnassigned`, `InboxItemEscalated`, `InboxNoteAdded`, `InboxItemBulkStatusChanged`, `InboxEvent`
+- Handling History (IBX-01-T5): `InboxHistoryEntry`, `InboxHistoryKind`, `INBOX_HISTORY_KINDS`, `InboxHistoryDetail`, `InboxHistoryCycleOpenedDetail`, `InboxHistoryCycleTransitionDetail`, `InboxHistoryAssignmentDetail`, `InboxHistoryEscalationDetail`, `InboxHistoryOutcomeDetail`, `InboxAssignmentReason`, `InboxHistoryPage`, `GetInboxItemHistoryResult`
+- Read-model view type (IBX-01-T6): `InboxNoteView`
 
 ## Server functions
 
@@ -195,9 +197,79 @@ Exported from `application/public-api.ts`:
 | `addInboxNoteFn`                   | POST   | `inbox.write`                   | Add internal note                                           |
 | `getLastVisitCountFn`              | GET    | `inbox.read` plus source read   | Open items since the caller's previous visit                |
 | `getInboxNotesFn`                  | GET    | `inbox.read` plus source read   | Notes for an item                                           |
+| `getInboxItemHistoryFn`            | GET    | `inbox.read` plus source read   | Ordered Handling History; internal note needs handle rights |
 | `getInboxFolderCountsFn`           | GET    | `inbox.read` plus source read   | Open, escalated, and closed counts                          |
 | `markFeedbackHandledFn`            | POST   | `inbox.write ∧ feedback.handle` | Close one open feedback cycle with one controlled outcome   |
 | `correctFeedbackHandlingOutcomeFn` | POST   | `inbox.write ∧ feedback.handle` | Append one superseding outcome correction without reopening |
+
+## Handling History (IBX-01-T5)
+
+`getInboxItemHistory` is Inbox's own read of how an Item was handled. Recent
+Activity is **never** evidence that an Inbox command committed, so history is
+merged from Inbox's five append-only tables — `inbox_handling_cycles`,
+`inbox_handling_cycle_transitions`, `inbox_assignment_history`,
+`inbox_escalation_history` and `inbox_feedback_handling_outcomes` — and never
+from the activity feed.
+
+- **One reader for the transitions log.** `infrastructure/handling-cycle-transitions.read.ts`
+  is the only module that queries `inbox_handling_cycle_transitions`. The
+  private-feedback store's close-reason read and the history read model both go
+  through it, so they cannot drift apart on ordering. `state_revision` is the
+  ordering key; `transitioned_at` is a wall clock and is not.
+- **One total order.** Entries sort by `(occurredAt, cycleNumber, stateRevision)`
+  with a stable kind discriminator and then the entry id as the final tie-break.
+  An entry with no state revision is a fact recorded alongside the cycle rather
+  than a step in its state machine, so it sorts before the transitions of the
+  same cycle — a cycle's opening row precedes the `opened` transition it caused.
+- **Bounded.** Every source query carries an explicit LIMIT
+  (`INBOX_HISTORY_SOURCE_LIMIT`, 200). `truncated` says the story shown is
+  incomplete rather than pretending it is whole.
+- **Authorization.** Reading requires `inbox.read` AND the source's own read
+  permission in the item's Property scope, checked before the history store is
+  touched. The manager-internal note on a private-feedback outcome is returned
+  only to a caller who currently holds `inbox.write ∧ feedback.handle` in that
+  Property; otherwise the field is **absent**, not null, so an unauthorized
+  reader cannot infer that a note exists.
+- **Legacy rows.** A cycle or transition whose reason is `legacy_backfill` is
+  labelled `legacy` and carries no actor, no outcome and no deadline result.
+  Nothing is inferred for it.
+
+## Actor display names (IBX-01-T6)
+
+`InboxActorDirectory` resolves a bounded batch of user ids to display names
+inside one Organization (`member` INNER JOIN `user`; the join is the tenant
+fence). It returns names only — never email, avatar, role or membership state.
+Exactly one batched lookup runs per request for notes and for history, so entry
+count never becomes query count. Ids outside the Organization, and users with a
+blank profile name, are absent from the result; callers render "Unknown user".
+
+## Organization Export (LIF-01-T6)
+
+`build.ts` exposes `organizationExport.contributor`, Inbox's implementation of
+Identity's `organization-export-contributor.port`. It is deliberately outside
+`publicApi`: no request path may call it, and the composition root hands it to
+Identity's `organizationExport.contributors`.
+
+Reads: `inbox_items`, `inbox_handling_cycle_heads`, `inbox_handling_cycles`,
+`inbox_handling_cycle_transitions`, `inbox_handling_cycle_response_targets`,
+`inbox_assignment_history`, `inbox_escalation_history`,
+`inbox_feedback_handling_outcomes`, `inbox_response_target_organization_policies`,
+`inbox_private_feedback_target_property_overrides`, `inbox_notes`.
+
+Deliberately excluded:
+
+- `inbox_user_views` — personal read state, never tenant-visible evidence.
+- `inbox_response_target_reminders` — control-plane scheduling, in the same
+  family as queues/outbox/receipts that LIF-01 bullet 7 excludes.
+- The denormalized source-content copies on `inbox_items` (`rating`, `snippet`,
+  `reviewer_name`) — Google review content is provider-controlled and excluded
+  outright; guest private-feedback text belongs to the Guest contributor, which
+  owns its consent and its 90-day retention deadline.
+
+Manager free text is carved into `inbox/notes.*` and `inbox/handling-notes.*` at
+`manager_authored`; every other file is content-free workflow record at
+`tenant_visible`. An Organization with no Inbox work answers `no_data` — an
+empty CSV is never fabricated.
 
 ## Permissions
 

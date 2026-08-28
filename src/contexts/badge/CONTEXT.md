@@ -61,13 +61,39 @@ server operation exists.
 ## Retained implementation
 
 Only the inert build, historical event envelope, content-free Recognition
-inventory/report, and database schema remain. Production composition does not
+inventory/report, the read-only Organization Export contributor described below,
+and database schema remain. Production composition does not
 call `buildBadgeContext`; startup and demo seed tooling cannot seed, enable,
 evaluate, or reconcile Badge data. The entry/event catalogues contain no Badge
 server or consumer declaration. Notification retains only the
 persistence vocabulary and neutral renderer needed to display existing rows; it
 has no `badge.awarded` subscription, lookup adapter, replay path, or
 materialization handler.
+
+## Organization Export contribution
+
+`LIF-01` requires a contribution from all seventeen contexts, so
+`infrastructure/adapters/badge-organization-export.adapter.ts` answers for Badge.
+A dark capability decides what an Organization may **do**; it does not delete
+what the Organization already **owns**. Enablements and awards were recorded
+against that tenant's own Properties and Portal Groups, so they are exported as
+`tenant_visible` rows rather than withheld behind an omission code. The
+contributor returns `complete` when such rows exist and the affirmative
+`no_data` when they do not; it never returns `omitted`.
+
+It reads `organization_badge_enablements`, `badge_awards`, `recognition_awards`,
+and `recognition_award_status_facts` inside one read-only repeatable-read
+snapshot bounded to fifteen minutes after the request. The global
+`badge_definitions` and `badge_definition_versions` catalogue is deliberately
+NOT exported: it has no organization column, it is RepKey-owned product
+configuration, and copying it into a tenant archive would misrepresent its
+author. The governed award carries its own definition snapshot, so the archive
+stays readable without it.
+
+This is not a Badge surface. The adapter constructs no repository, registers no
+consumer, job, or schedule, exposes no route or server function, and is not
+reachable from `buildBadgeContext`, which stays an empty inventory boundary.
+`badge.use` remains `legacy_blocked` and its fate record is unchanged.
 
 ## Exit criteria
 
