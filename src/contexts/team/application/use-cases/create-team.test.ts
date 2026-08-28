@@ -35,6 +35,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     findBySlug: async () => null,
     getProcessingRegion: async () => 'us',
     findIdsByGoogleConnection: async () => [],
+    findGoogleNotificationAnchor: async () => null,
     clearGoogleConnectionRef: async () => {},
   }
 
@@ -42,7 +43,6 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const staffApi: StaffPublicApi = {
     getAccessiblePropertyIds: async () => accessible,
     getAssignedPortals: async () => [],
-    countAssignmentsByTeam: async () => 0,
   }
 
   const deps = {

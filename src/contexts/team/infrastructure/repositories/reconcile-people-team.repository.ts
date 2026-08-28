@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { Clock } from '#/shared/domain/clock'
 import type {
   PeopleCutoverCounts,
   PeopleCutoverEvidence,
@@ -13,13 +14,8 @@ export type PeopleReconcileAnomalyKind =
   | 'property_missing_or_inactive'
   | 'property_tenant_mismatch'
   | 'user_missing'
-  | 'team_missing_or_inactive'
-  | 'team_property_mismatch'
-  | 'multiple_active_teams'
   | 'portal_missing_or_inactive'
   | 'portal_property_mismatch'
-  | 'lead_without_participation'
-  | 'lead_team_conflict'
   | 'group_parent_mismatch'
 
 export type PeopleReconcileAnomaly = Readonly<{
@@ -35,7 +31,6 @@ export type PeopleReconcileOrganization = Readonly<{
   organizationId: string
   activeAssignments: number
   participationCandidates: number
-  membershipCandidates: number
   responsibilityCandidates: number
   groupMembershipCandidates: number
   anomalies: number
@@ -49,8 +44,6 @@ export type PeopleReconcileReport = Readonly<{
 
 export type PeopleReconcileApplyResult = Readonly<{
   participationsCreated: number
-  membershipsCreated: number
-  leadsPromoted: number
   responsibilitiesCreated: number
   groupMembershipsCreated: number
 }>
@@ -58,7 +51,6 @@ export type PeopleReconcileApplyResult = Readonly<{
 export type PeopleReconcileParityIssueKind =
   | PeopleReconcileAnomalyKind
   | 'missing_participation'
-  | 'missing_team_membership'
   | 'missing_portal_responsibility'
   | 'missing_portal_group_membership'
 
@@ -98,21 +90,9 @@ type LegacyAssignment = Readonly<{
   property_deleted_at: Date | string | null
   user_exists: string | null
   user_name: string | null
-  team_org: string | null
-  team_property: string | null
-  team_deleted_at: Date | string | null
   portal_org: string | null
   portal_property: string | null
   portal_deleted_at: Date | string | null
-}>
-
-type LegacyLead = Readonly<{
-  team_id: string
-  organization_id: string
-  property_id: string
-  team_lead_id: string
-  team_created_at: Date | string
-  user_exists: string | null
 }>
 
 type LegacyGroupMembership = Readonly<{
@@ -137,13 +117,6 @@ type ParticipationPlan = Readonly<{
   effectiveFrom: Date
 }>
 
-type MembershipPlan = Readonly<{
-  participation: ParticipationPlan
-  teamId: string
-  role: 'member' | 'lead'
-  effectiveFrom: Date
-}>
-
 type ResponsibilityPlan = Readonly<{
   participation: ParticipationPlan
   portalId: string
@@ -164,14 +137,6 @@ type CurrentParticipation = Readonly<{
   user_id: string
 }>
 
-type CurrentMembership = Readonly<{
-  organization_id: string
-  property_id: string
-  user_id: string
-  team_id: string
-  role: 'member' | 'lead'
-}>
-
 type CurrentResponsibility = Readonly<{
   organization_id: string
   property_id: string
@@ -190,7 +155,6 @@ type CurrentGroupMembership = Readonly<{
 type Analysis = Readonly<{
   assignments: readonly LegacyAssignment[]
   participations: readonly ParticipationPlan[]
-  memberships: readonly MembershipPlan[]
   responsibilities: readonly ResponsibilityPlan[]
   groupMemberships: readonly GroupMembershipPlan[]
   anomalies: readonly PeopleReconcileAnomaly[]
@@ -217,37 +181,17 @@ async function loadAssignments(
            sa.team_id, sa.portal_id, sa.created_at,
            p.organization_id AS property_org, p.deleted_at AS property_deleted_at,
            u.id AS user_exists, u.name AS user_name,
-           t.organization_id AS team_org, t.property_id AS team_property,
-           t.deleted_at AS team_deleted_at,
            po.organization_id AS portal_org, po.property_id AS portal_property,
            po.deleted_at AS portal_deleted_at
     FROM staff_assignments sa
     LEFT JOIN properties p ON p.id = sa.property_id
     LEFT JOIN "user" u ON u.id = sa.user_id
-    LEFT JOIN teams t ON t.id = sa.team_id
     LEFT JOIN portals po ON po.id = sa.portal_id
     WHERE sa.deleted_at IS NULL
     ${scopeFilter(scope, 'sa')}
     ORDER BY sa.organization_id, sa.property_id, sa.user_id, sa.created_at, sa.id
   `)
   return rows.rows as unknown as readonly LegacyAssignment[]
-}
-
-async function loadLeads(
-  db: Database,
-  scope?: PeopleReconcileScope,
-): Promise<readonly LegacyLead[]> {
-  const rows = await db.execute(sql`
-    SELECT t.id AS team_id, t.organization_id, t.property_id,
-           t.team_lead_id, t.created_at AS team_created_at,
-           u.id AS user_exists
-    FROM teams t
-    LEFT JOIN "user" u ON u.id = t.team_lead_id
-    WHERE t.deleted_at IS NULL AND t.team_lead_id IS NOT NULL
-    ${scopeFilter(scope, 't')}
-    ORDER BY t.organization_id, t.property_id, t.id
-  `)
-  return rows.rows as unknown as readonly LegacyLead[]
 }
 
 async function loadGroupMemberships(
@@ -274,14 +218,6 @@ async function loadGroupMemberships(
 const personKey = (organizationId: string, propertyId: string, userId: string) =>
   `${organizationId}\u0000${propertyId}\u0000${userId}`
 
-const membershipKey = (
-  organizationId: string,
-  propertyId: string,
-  userId: string,
-  teamId: string,
-  role: string,
-) => `${personKey(organizationId, propertyId, userId)}\u0000${teamId}\u0000${role}`
-
 const responsibilityKey = (
   organizationId: string,
   propertyId: string,
@@ -298,9 +234,8 @@ const groupMembershipKey = (
 ) => `${organizationId}\u0000${propertyId}\u0000${portalId}\u0000${portalGroupId}`
 
 async function analyze(db: Database, scope?: PeopleReconcileScope): Promise<Analysis> {
-  const [assignments, leads, legacyGroups] = await Promise.all([
+  const [assignments, legacyGroups] = await Promise.all([
     loadAssignments(db, scope),
-    loadLeads(db, scope),
     loadGroupMemberships(db, scope),
   ])
   const anomalies: PeopleReconcileAnomaly[] = []
@@ -370,104 +305,6 @@ async function analyze(db: Database, scope?: PeopleReconcileScope): Promise<Anal
       participation,
     ]),
   )
-
-  const membershipByPerson = new Map<string, MembershipPlan>()
-  for (const [key, rows] of byPerson) {
-    const teamRows = rows.filter((row) => row.team_id !== null)
-    const valid = teamRows.filter((row) => {
-      const base = {
-        organizationId: row.organization_id,
-        propertyId: row.property_id,
-        userId: row.user_id,
-        sourceId: row.id,
-      }
-      if (row.team_org === null || row.team_deleted_at !== null) {
-        addAnomaly({
-          ...base,
-          kind: 'team_missing_or_inactive',
-          detail: 'assignment team is missing or archived',
-        })
-        return false
-      }
-      if (row.team_org !== row.organization_id || row.team_property !== row.property_id) {
-        addAnomaly({
-          ...base,
-          kind: 'team_property_mismatch',
-          detail: 'assignment team is outside the organization/property',
-        })
-        return false
-      }
-      return true
-    })
-    const teamIds = [...new Set(valid.map((row) => row.team_id as string))]
-    if (teamIds.length > 1) {
-      const first = rows[0]
-      addAnomaly({
-        kind: 'multiple_active_teams',
-        organizationId: first.organization_id,
-        propertyId: first.property_id,
-        userId: first.user_id,
-        sourceId: key,
-        detail: `active assignments name multiple teams: ${teamIds.join(', ')}`,
-      })
-      continue
-    }
-    if (teamIds.length === 1) {
-      const participation = participationByKey.get(key)!
-      membershipByPerson.set(key, {
-        participation,
-        teamId: teamIds[0],
-        role: 'member',
-        effectiveFrom: new Date(
-          Math.min(
-            ...valid
-              .filter((row) => row.team_id === teamIds[0])
-              .map((row) => asDate(row.created_at).getTime()),
-          ),
-        ),
-      })
-    }
-  }
-
-  for (const lead of leads) {
-    const key = personKey(lead.organization_id, lead.property_id, lead.team_lead_id)
-    const participation = participationByKey.get(key)
-    if (!participation || lead.user_exists === null) {
-      addAnomaly({
-        kind: 'lead_without_participation',
-        organizationId: lead.organization_id,
-        propertyId: lead.property_id,
-        userId: lead.team_lead_id,
-        sourceId: lead.team_id,
-        detail: 'legacy lead has no clean active property participation',
-      })
-      continue
-    }
-    const existing = membershipByPerson.get(key)
-    if (existing && existing.teamId !== lead.team_id) {
-      addAnomaly({
-        kind: 'lead_team_conflict',
-        organizationId: lead.organization_id,
-        propertyId: lead.property_id,
-        userId: lead.team_lead_id,
-        sourceId: lead.team_id,
-        detail: `lead assignment points to team ${existing.teamId}`,
-      })
-      membershipByPerson.delete(key)
-      continue
-    }
-    membershipByPerson.set(key, {
-      participation,
-      teamId: lead.team_id,
-      role: 'lead',
-      effectiveFrom: new Date(
-        Math.max(
-          participation.effectiveFrom.getTime(),
-          asDate(lead.team_created_at).getTime(),
-        ),
-      ),
-    })
-  }
 
   const responsibilities: ResponsibilityPlan[] = []
   const responsibilityKeys = new Set<string>()
@@ -547,7 +384,6 @@ async function analyze(db: Database, scope?: PeopleReconcileScope): Promise<Anal
   return {
     assignments,
     participations,
-    memberships: [...membershipByPerson.values()],
     responsibilities,
     groupMemberships,
     anomalies,
@@ -556,6 +392,7 @@ async function analyze(db: Database, scope?: PeopleReconcileScope): Promise<Anal
 
 export async function buildPeopleReconcileReport(
   db: Database,
+  clock: Clock,
   scope?: PeopleReconcileScope,
 ): Promise<PeopleReconcileReport> {
   const analysis = await analyze(db, scope)
@@ -573,9 +410,6 @@ export async function buildPeopleReconcileReport(
       participationCandidates: analysis.participations.filter(
         (row) => row.organizationId === organizationId,
       ).length,
-      membershipCandidates: analysis.memberships.filter(
-        (row) => row.participation.organizationId === organizationId,
-      ).length,
       responsibilityCandidates: analysis.responsibilities.filter(
         (row) => row.participation.organizationId === organizationId,
       ).length,
@@ -586,7 +420,7 @@ export async function buildPeopleReconcileReport(
         .length,
     }))
     .sort((a, b) => a.organizationId.localeCompare(b.organizationId))
-  return { generatedAt: new Date(), organizations, anomalyRows: analysis.anomalies }
+  return { generatedAt: clock(), organizations, anomalyRows: analysis.anomalies }
 }
 
 function normalizedScope(scope?: PeopleReconcileScope): PeopleCutoverScope {
@@ -602,14 +436,12 @@ async function loadCurrentPeopleMappings(
 ): Promise<
   Readonly<{
     participations: readonly CurrentParticipation[]
-    memberships: readonly CurrentMembership[]
     responsibilities: readonly CurrentResponsibility[]
     groupMemberships: readonly CurrentGroupMembership[]
   }>
 > {
-  const [participations, memberships, responsibilities, groupMemberships] =
-    await Promise.all([
-      db.execute(sql`
+  const [participations, responsibilities, groupMemberships] = await Promise.all([
+    db.execute(sql`
         SELECT sp.organization_id, sp.property_id, sul.user_id
         FROM staff_participations sp
         JOIN staff_user_links sul
@@ -619,21 +451,7 @@ async function loadCurrentPeopleMappings(
         WHERE sp.status = 'active'
         ${scopeFilter(scope, 'sp')}
       `),
-      db.execute(sql`
-        SELECT tm.organization_id, tm.property_id, sul.user_id, tm.team_id, tm.role
-        FROM team_memberships tm
-        JOIN staff_participations sp
-          ON sp.organization_id = tm.organization_id
-         AND sp.property_id = tm.property_id
-         AND sp.id = tm.staff_participation_id
-        JOIN staff_user_links sul
-          ON sul.organization_id = sp.organization_id
-         AND sul.staff_participant_id = sp.staff_participant_id
-         AND sul.effective_to IS NULL
-        WHERE tm.effective_to IS NULL AND sp.status = 'active'
-        ${scopeFilter(scope, 'tm')}
-      `),
-      db.execute(sql`
+    db.execute(sql`
         SELECT pr.organization_id, pr.property_id, sul.user_id, pr.portal_id, pr.kind
         FROM portal_responsibilities pr
         JOIN staff_participations sp
@@ -647,18 +465,17 @@ async function loadCurrentPeopleMappings(
         WHERE pr.effective_to IS NULL AND sp.status = 'active'
         ${scopeFilter(scope, 'pr')}
       `),
-      db.execute(sql`
+    db.execute(sql`
         SELECT pgm.organization_id, pgm.property_id, pgm.portal_id,
                pgm.portal_group_id
         FROM portal_group_memberships pgm
         WHERE pgm.effective_to IS NULL
         ${scopeFilter(scope, 'pgm')}
       `),
-    ])
+  ])
 
   return {
     participations: participations.rows as unknown as readonly CurrentParticipation[],
-    memberships: memberships.rows as unknown as readonly CurrentMembership[],
     responsibilities:
       responsibilities.rows as unknown as readonly CurrentResponsibility[],
     groupMemberships:
@@ -673,7 +490,7 @@ function parityFingerprint(analysis: Analysis, scope: PeopleCutoverScope): strin
     return leftJson < rightJson ? -1 : leftJson > rightJson ? 1 : 0
   }
   const stable = {
-    version: 'repkey-people-parity-1',
+    version: 'repkey-people-parity-2',
     scope,
     legacyAssignments: analysis.assignments
       .map((row) => [
@@ -687,17 +504,6 @@ function parityFingerprint(analysis: Analysis, scope: PeopleCutoverScope): strin
       .sort(compareJson),
     participations: analysis.participations
       .map((row) => personKey(row.organizationId, row.propertyId, row.userId))
-      .sort(),
-    memberships: analysis.memberships
-      .map((row) =>
-        membershipKey(
-          row.participation.organizationId,
-          row.participation.propertyId,
-          row.participation.userId,
-          row.teamId,
-          row.role,
-        ),
-      )
       .sort(),
     responsibilities: analysis.responsibilities
       .map((row) =>
@@ -728,13 +534,14 @@ function parityFingerprint(analysis: Analysis, scope: PeopleCutoverScope): strin
 }
 
 /**
- * Compare every clean legacy relationship with the canonical effective-dated
- * model. Extra canonical rows are allowed: after cutover, the new model is the
- * authority and can contain relationships that never existed in the retired
- * table. Missing expected rows and every legacy anomaly fail the gate.
+ * Compare every approved legacy relationship with the canonical effective-dated
+ * model. Retained Team relationships are deliberately excluded: ADR 0052 makes
+ * them quarantine evidence, not a mapping target. Extra canonical rows are
+ * allowed; missing approved mappings and every legacy anomaly fail the gate.
  */
 export async function verifyPeopleReconciliationParity(
   db: Database,
+  clock: Clock,
   scope?: PeopleReconcileScope,
 ): Promise<PeopleReconcileParity> {
   const [analysis, current] = await Promise.all([
@@ -745,17 +552,6 @@ export async function verifyPeopleReconciliationParity(
   const participationKeys = new Set(
     current.participations.map((row) =>
       personKey(row.organization_id, row.property_id, row.user_id),
-    ),
-  )
-  const membershipKeys = new Set(
-    current.memberships.map((row) =>
-      membershipKey(
-        row.organization_id,
-        row.property_id,
-        row.user_id,
-        row.team_id,
-        row.role,
-      ),
     ),
   )
   const responsibilityKeys = new Set(
@@ -794,29 +590,6 @@ export async function verifyPeopleReconciliationParity(
       userId: expected.userId,
       sourceId: key,
       detail: 'clean legacy person has no active Staff participation',
-    })
-  }
-
-  let matchedMemberships = 0
-  for (const expected of analysis.memberships) {
-    const key = membershipKey(
-      expected.participation.organizationId,
-      expected.participation.propertyId,
-      expected.participation.userId,
-      expected.teamId,
-      expected.role,
-    )
-    if (membershipKeys.has(key)) {
-      matchedMemberships += 1
-      continue
-    }
-    issueRows.push({
-      kind: 'missing_team_membership',
-      organizationId: expected.participation.organizationId,
-      propertyId: expected.participation.propertyId,
-      userId: expected.participation.userId,
-      sourceId: key,
-      detail: `clean legacy Team relationship has no active ${expected.role} membership`,
     })
   }
 
@@ -870,8 +643,6 @@ export async function verifyPeopleReconciliationParity(
     legacyAssignments: analysis.assignments.length,
     expectedParticipations: analysis.participations.length,
     matchedParticipations,
-    expectedMemberships: analysis.memberships.length,
-    matchedMemberships,
     expectedResponsibilities: analysis.responsibilities.length,
     matchedResponsibilities,
     expectedGroupMemberships: analysis.groupMemberships.length,
@@ -881,7 +652,7 @@ export async function verifyPeopleReconciliationParity(
   }
   const parityScope = normalizedScope(scope)
   return {
-    checkedAt: new Date(),
+    checkedAt: clock(),
     scope: parityScope,
     exact: issueRows.length === 0,
     fingerprintSha256: parityFingerprint(analysis, parityScope),
@@ -897,10 +668,11 @@ export async function verifyPeopleReconciliationParity(
  */
 export async function verifyPeopleCutoverPromotionReadiness(
   db: Database,
+  clock: Clock,
   evidence: PeopleCutoverEvidence,
   scope?: PeopleReconcileScope,
 ): Promise<PeopleCutoverPromotionReadiness> {
-  const parity = await verifyPeopleReconciliationParity(db, scope)
+  const parity = await verifyPeopleReconciliationParity(db, clock, scope)
   const failures: string[] = []
   if (!parity.exact) {
     failures.push(
@@ -957,8 +729,6 @@ export async function applyPeopleReconciliation(
   return db.transaction(async (tx) => {
     const result = {
       participationsCreated: 0,
-      membershipsCreated: 0,
-      leadsPromoted: 0,
       responsibilitiesCreated: 0,
       groupMembershipsCreated: 0,
     }
@@ -1031,61 +801,6 @@ export async function applyPeopleReconciliation(
           personKey(plan.organizationId, plan.propertyId, plan.userId),
           id,
         )
-      }
-    }
-
-    for (const plan of analysis.memberships) {
-      const key = personKey(
-        plan.participation.organizationId,
-        plan.participation.propertyId,
-        plan.participation.userId,
-      )
-      const participationId = participationIds.get(key)
-      if (!participationId) continue
-      const active = await tx.execute(sql`
-        SELECT id, team_id, role FROM team_memberships
-        WHERE organization_id = ${plan.participation.organizationId}
-          AND property_id = ${plan.participation.propertyId}
-          AND staff_participation_id = ${participationId}
-          AND effective_to IS NULL
-        LIMIT 1
-      `)
-      const current = active.rows[0] as
-        { id: string; team_id: string; role: 'member' | 'lead' } | undefined
-      if (!current) {
-        const inserted = await tx.execute(sql`
-          INSERT INTO team_memberships
-            (organization_id, property_id, team_id, staff_participation_id,
-             role, effective_from, created_by)
-          VALUES (
-            ${plan.participation.organizationId}, ${plan.participation.propertyId},
-            ${plan.teamId}, ${participationId}, ${plan.role},
-            ${plan.effectiveFrom}, ${options.createdBy}
-          )
-          ON CONFLICT DO NOTHING
-          RETURNING id
-        `)
-        result.membershipsCreated += inserted.rows.length
-        if (plan.role === 'lead') result.leadsPromoted += inserted.rows.length
-      } else if (
-        current.team_id === plan.teamId &&
-        current.role === 'member' &&
-        plan.role === 'lead'
-      ) {
-        const promoted = await tx.execute(sql`
-          UPDATE team_memberships tm
-          SET role = 'lead', created_by = ${options.createdBy}
-          WHERE tm.id = ${current.id}
-            AND NOT EXISTS (
-              SELECT 1 FROM team_memberships lead
-              WHERE lead.organization_id = ${plan.participation.organizationId}
-                AND lead.team_id = ${plan.teamId}
-                AND lead.role = 'lead'
-                AND lead.effective_to IS NULL
-            )
-          RETURNING id
-        `)
-        result.leadsPromoted += promoted.rows.length
       }
     }
 

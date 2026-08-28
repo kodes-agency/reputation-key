@@ -29,6 +29,6 @@ export const teamError = createErrorFactory<TeamError['_tag'], TeamError['code']
   'TeamError',
 )
 
-/** Type guard — lets server functions detect TeamError at catch time. */
+/** Type guard retained for reconciliation tooling and historical unit contracts. */
 export const isTeamError = (e: unknown): e is TeamError =>
   typeof e === 'object' && e !== null && (e as { _tag?: string })._tag === 'TeamError'

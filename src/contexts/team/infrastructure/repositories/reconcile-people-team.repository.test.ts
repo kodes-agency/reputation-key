@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { createPeopleCutoverEvidence } from '#/shared/release/people-cutover-evidence'
 import { createStaffParticipationRepository } from '#/contexts/staff/infrastructure/repositories/staff-participation.repository'
@@ -20,6 +21,8 @@ const USER = 'user-people-reconcile'
 const ASSIGNMENT = 'de000000-0000-4000-8000-000000000021'
 const BAD_ASSIGNMENT = 'de000000-0000-4000-8000-000000000022'
 const START = new Date('2026-08-01T10:00:00.000Z')
+const CHECKED_AT = new Date('2026-08-28T12:00:00.000Z')
+const clock = () => CHECKED_AT
 
 let pool: Pool
 
@@ -68,7 +71,7 @@ afterAll(async () => {
   await pool.query('DELETE FROM portals WHERE id = $1', [PORTAL])
   await pool.query('DELETE FROM properties WHERE id = $1', [PROPERTY])
   await pool.query('DELETE FROM "user" WHERE id = $1', [USER])
-  await pool.query('DELETE FROM organization WHERE id = $1', [ORG])
+  await deleteTestOrganizations(pool, [ORG])
   await pool.end()
 })
 
@@ -101,14 +104,15 @@ describe('people/team reconciliation', () => {
     )
 
     const scope = { organizationIds: [ORG] }
-    const report = await buildPeopleReconcileReport(getDb(), scope)
+    const report = await buildPeopleReconcileReport(getDb(), clock, scope)
+
+    expect(report.generatedAt).toBe(CHECKED_AT)
 
     expect(report.organizations).toEqual([
       expect.objectContaining({
         organizationId: ORG,
         activeAssignments: 2,
         participationCandidates: 1,
-        membershipCandidates: 1,
         anomalies: 1,
       }),
     ])
@@ -122,13 +126,13 @@ describe('people/team reconciliation', () => {
     })
     expect(first).toMatchObject({
       participationsCreated: 1,
-      membershipsCreated: 1,
-      leadsPromoted: 1,
     })
+    expect(first).not.toHaveProperty('membershipsCreated')
+    expect(first).not.toHaveProperty('leadsPromoted')
 
     const rows = await pool.query(
       `SELECT sp.user_id, sul.user_id AS linked_user_id,
-              participant.display_name, tm.team_id, tm.role
+              participant.display_name
        FROM staff_participations sp
        JOIN staff_participants participant
          ON participant.organization_id = sp.organization_id
@@ -137,9 +141,8 @@ describe('people/team reconciliation', () => {
          ON sul.organization_id = participant.organization_id
         AND sul.staff_participant_id = participant.id
         AND sul.effective_to IS NULL
-       JOIN team_memberships tm ON tm.staff_participation_id = sp.id
        WHERE sp.organization_id = $1 AND sp.status = 'active'
-         AND tm.effective_to IS NULL`,
+      `,
       [ORG],
     )
     expect(rows.rows).toEqual([
@@ -147,10 +150,15 @@ describe('people/team reconciliation', () => {
         user_id: null,
         linked_user_id: USER,
         display_name: 'Reconcile User',
-        team_id: TEAM,
-        role: 'lead',
       },
     ])
+    const retainedMembershipRows = await pool.query(
+      `SELECT count(*)::integer AS count
+       FROM team_memberships
+       WHERE organization_id = $1`,
+      [ORG],
+    )
+    expect(retainedMembershipRows.rows).toEqual([{ count: 0 }])
 
     const second = await applyPeopleReconciliation(getDb(), report, {
       createdBy: 'ops:test',
@@ -158,13 +166,11 @@ describe('people/team reconciliation', () => {
     })
     expect(second).toEqual({
       participationsCreated: 0,
-      membershipsCreated: 0,
-      leadsPromoted: 0,
       responsibilitiesCreated: 0,
       groupMembershipsCreated: 0,
     })
 
-    const parity = await verifyPeopleReconciliationParity(getDb(), scope)
+    const parity = await verifyPeopleReconciliationParity(getDb(), clock, scope)
     expect(parity.exact).toBe(false)
     expect(parity.issueRows).toEqual([
       expect.objectContaining({ kind: 'user_missing', sourceId: BAD_ASSIGNMENT }),
@@ -182,26 +188,24 @@ describe('people/team reconciliation', () => {
     const db = getDb()
     const scope = { organizationIds: [ORG] }
 
-    const before = await verifyPeopleReconciliationParity(db, scope)
+    const before = await verifyPeopleReconciliationParity(db, clock, scope)
     expect(before.exact).toBe(false)
     expect(before.issueRows.map((row) => row.kind)).toEqual([
       'missing_participation',
-      'missing_team_membership',
       'missing_portal_responsibility',
     ])
 
-    const report = await buildPeopleReconcileReport(db, scope)
+    const report = await buildPeopleReconcileReport(db, clock, scope)
     await applyPeopleReconciliation(db, report, { createdBy: 'ops:test', scope })
 
-    const after = await verifyPeopleReconciliationParity(db, scope)
+    const after = await verifyPeopleReconciliationParity(db, clock, scope)
     expect(after).toMatchObject({
+      checkedAt: CHECKED_AT,
       exact: true,
       counts: {
         legacyAssignments: 1,
         expectedParticipations: 1,
         matchedParticipations: 1,
-        expectedMemberships: 1,
-        matchedMemberships: 1,
         expectedResponsibilities: 1,
         matchedResponsibilities: 1,
         anomalies: 0,
@@ -209,6 +213,13 @@ describe('people/team reconciliation', () => {
       },
       issueRows: [],
     })
+    const retainedMembershipRows = await pool.query(
+      `SELECT count(*)::integer AS count
+       FROM team_memberships
+       WHERE organization_id = $1`,
+      [ORG],
+    )
+    expect(retainedMembershipRows.rows).toEqual([{ count: 0 }])
 
     const reader = createStaffParticipationRepository(db)
     const participation = await reader.findActiveByUser(
@@ -232,7 +243,12 @@ describe('people/team reconciliation', () => {
       counts: after.counts,
       operator: { id: 'ops:test', correlationId: 'corr-people-test' },
     })
-    const withoutAudit = await verifyPeopleCutoverPromotionReadiness(db, evidence, scope)
+    const withoutAudit = await verifyPeopleCutoverPromotionReadiness(
+      db,
+      clock,
+      evidence,
+      scope,
+    )
     expect(withoutAudit).toMatchObject({
       ready: false,
       failures: [expect.stringMatching(/audited operator decision/i)],
@@ -246,13 +262,18 @@ describe('people/team reconciliation', () => {
                'people cutover', 'test', 'corr-people-test', $1)`,
       [new Date(after.checkedAt.getTime() - 1_000)],
     )
-    const ready = await verifyPeopleCutoverPromotionReadiness(db, evidence, scope)
+    const ready = await verifyPeopleCutoverPromotionReadiness(db, clock, evidence, scope)
     expect(ready).toMatchObject({ ready: true, failures: [] })
 
     await pool.query('DELETE FROM portal_responsibilities WHERE organization_id = $1', [
       ORG,
     ])
-    const drifted = await verifyPeopleCutoverPromotionReadiness(db, evidence, scope)
+    const drifted = await verifyPeopleCutoverPromotionReadiness(
+      db,
+      clock,
+      evidence,
+      scope,
+    )
     expect(drifted.ready).toBe(false)
     expect(drifted.failures.join('\n')).toMatch(/missing_portal_responsibility/i)
 

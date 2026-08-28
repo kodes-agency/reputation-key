@@ -23,7 +23,6 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const staffApi: StaffPublicApi = {
     getAccessiblePropertyIds: async () => accessible,
     getAssignedPortals: async () => [],
-    countAssignmentsByTeam: async () => 0,
   }
   const deps = {
     teamRepo,

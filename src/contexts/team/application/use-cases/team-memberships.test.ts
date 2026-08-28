@@ -96,7 +96,6 @@ function setup(actorRole: 'member' | 'lead' | null) {
     staffApi: {
       getAccessiblePropertyIds: async () => [PROPERTY],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     },
     clock: () => NOW,
   }

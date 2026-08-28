@@ -22,7 +22,6 @@ const teamDeleteContext = () =>
 const createStaffApi = (accessibleIds: PropertyId[] | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessibleIds,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const setup = () => {
