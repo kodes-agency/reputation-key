@@ -142,6 +142,7 @@ const setup = (
     create: async (item) => item,
     updateStatus: async () => storedDetail!.item,
     bulkUpdateStatus: async () => ({ updated: 0, results: [] }),
+    stampReplyMilestones: async () => storedDetail!.item,
     updateAssignment: async () => storedDetail!.item,
     countByStatus: async () => 0,
     findByIds: async () => [],

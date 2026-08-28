@@ -34,8 +34,10 @@ import type { HandlingCycleHead, InboxItem } from '../domain/types'
 import type { InboxCommandAuthority } from './inbox-command-store'
 import {
   selectCycleCloseReason,
+  selectSourceUnavailableCloseReasons,
   type TransitionReader,
 } from './handling-cycle-transitions.read'
+import { assertManagerHandlingPermitted } from '../domain/handling-outcome-authority'
 import { inboxItemFromRow } from './mappers/inbox.mapper'
 import { transitionInsert } from './review-handling-cycle.store'
 import { completePrivateFeedbackTarget } from './response-target.store'
@@ -172,6 +174,26 @@ async function lockCurrent(
   return { item: currentItem, head }
 }
 
+/**
+ * Retention, redaction and source-unavailable is NEVER manager handling. The
+ * check runs inside the same locked transaction as the outcome write so a
+ * withdrawal committing concurrently cannot slip past it, and it reads the
+ * whole item history because a reopen after a withdrawal must stay unhandleable.
+ */
+async function assertManagerHandlingStillHonest(
+  tx: Tx,
+  head: HandlingCycleHead,
+): Promise<void> {
+  const decision = assertManagerHandlingPermitted({
+    current: head,
+    recordedCloseReasons: await selectSourceUnavailableCloseReasons(tx, {
+      inboxItemId: head.inboxItemId,
+      organizationId: head.organizationId,
+    }),
+  })
+  if (decision.isErr()) throw decision.error
+}
+
 async function assertCurrentAuthority(
   tx: Tx,
   authorize: InboxCommandAuthority,
@@ -290,6 +312,7 @@ export const createFeedbackHandlingStore = (
             recordedAt: command.recordedAt,
           })
           const current = headFromRow(locked.head)
+          await assertManagerHandlingStillHonest(tx, current)
           const deadlineResult = await completePrivateFeedbackTarget(
             tx,
             current,
@@ -438,6 +461,7 @@ export const createFeedbackHandlingStore = (
             actorUserId: command.actorUserId,
             recordedAt: command.recordedAt,
           })
+          await assertManagerHandlingStillHonest(tx, headFromRow(locked.head))
           const corrected = correctFeedbackHandlingOutcome({
             id: command.outcomeId,
             current: headFromRow(locked.head),

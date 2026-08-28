@@ -18,7 +18,7 @@ import {
   cleanupE2eData,
   seedProperty,
   seedReview,
-  seedInboxItemForReview,
+  seedReviewInboxItemWithCycle,
   seedApprovedReply,
   getReviewById,
   getReplyById,
@@ -62,12 +62,18 @@ test.describe('Critical workflow: review expiry + purge', () => {
       reviewerName: 'Expired Retention Reviewer',
       contentExpiresAt: new Date(Date.now() - 60 * 60 * 1000),
     })
-    await seedInboxItemForReview({
+    // IBX-01-T9: both items need their Handling Cycle. The expired one is read
+    // through `/inbox?itemId=` below, and its terminal close is decided by the
+    // cycle head — the source-transition command refuses to close an item whose
+    // cycle is missing, so a bare `inbox_items` row could never reach 'closed'.
+    // The fresh one is the control for that assertion and carries the same
+    // shape so "still open" means the same thing on both.
+    await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId,
       reviewId: freshId,
     })
-    const { inboxItemId: expiredItemId } = await seedInboxItemForReview({
+    const { inboxItemId: expiredItemId } = await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId,
       reviewId: expiredId,

@@ -25,7 +25,7 @@ import {
   seedGoogleConnection,
   seedProperty,
   seedReview,
-  seedInboxItemForReview,
+  seedReviewInboxItemWithCycle,
   seedAmbiguousReply,
   getUserByEmail,
   getReplyForReview,
@@ -109,7 +109,12 @@ test.describe('Critical workflow: reply lifecycle', () => {
       googleConnectionId: connectionId,
       externalLocationId: locationName,
     })
-    const { inboxItemId } = await seedInboxItemForReview({
+    // IBX-01-T9: the Handling Cycle variant. Scenario (a) drives the reply UX
+    // from `/inbox?itemId=`, and every serving read resolves status from the
+    // cycle head — a bare `inbox_items` row would render an empty detail panel.
+    // (b)-(d) drive the same scenario through RPC, so they take the same
+    // realistic projection rather than a shape production never produces.
+    const { inboxItemId } = await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId,
       reviewId,

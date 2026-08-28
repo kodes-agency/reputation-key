@@ -21,6 +21,12 @@
 // Registered as unsupported-by-design (no code, see slice report):
 //   high-contrast (no forced-colors support), RTL, 44px touch-target
 //   convention (design-system decision — button heights are 36/32px).
+//
+// IBX-01-T9 — every Inbox item seeded here is scanned THROUGH the product (the
+// list rows, the detail panel, the keyboard journey), so all of them use
+// `seedReviewInboxItemWithCycle`. Serving reads resolve status from the
+// Handling Cycle head, so a bare `inbox_items` row renders nothing and the axe
+// scans would pass against an empty list rather than the intended surface.
 
 import { test, expect } from '../helpers/error-detection'
 import { signIn } from '../helpers/auth'
@@ -32,7 +38,7 @@ import {
   cleanupE2eData,
   seedProperty,
   seedReview,
-  seedInboxItemForReview,
+  seedReviewInboxItemWithCycle,
 } from '../helpers/fixtures'
 
 const PREFIX = 'e2e-a11y-'
@@ -103,7 +109,7 @@ test.describe('Critical a11y: axe page scans', () => {
       text: 'List scan review body.',
       reviewerName: 'Scan Reviewer',
     })
-    await seedInboxItemForReview({
+    await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       reviewId,
@@ -123,7 +129,7 @@ test.describe('Critical a11y: axe page scans', () => {
       text: 'Detail scan review body — the room was noisy overnight.',
       reviewerName: 'Detail Reviewer',
     })
-    const { inboxItemId } = await seedInboxItemForReview({
+    const { inboxItemId } = await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       reviewId,
@@ -189,7 +195,7 @@ test.describe('Critical a11y: keyboard', () => {
       text: 'Keyboard review A.',
       reviewerName: 'Kb Alpha',
     })
-    await seedInboxItemForReview({
+    await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       reviewId: reviewA,
@@ -203,7 +209,7 @@ test.describe('Critical a11y: keyboard', () => {
       text: 'Keyboard review B.',
       reviewerName: 'Kb Beta',
     })
-    await seedInboxItemForReview({
+    await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       reviewId: reviewB,
@@ -454,7 +460,7 @@ test.describe('Critical a11y: zoom reflow', () => {
       text: 'Zoom reflow review.',
       reviewerName: 'Zoom Reviewer',
     })
-    await seedInboxItemForReview({
+    await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       reviewId,
@@ -549,7 +555,7 @@ test.describe('Critical a11y: mobile viewport (390×844)', () => {
       text: 'Mobile viewport review.',
       reviewerName: 'Mobile Reviewer',
     })
-    await seedInboxItemForReview({
+    await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       reviewId,

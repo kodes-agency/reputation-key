@@ -522,6 +522,30 @@ export const createInboxRepository = (
       })
     },
 
+    stampReplyMilestones: async (
+      id: InboxItemId,
+      orgId: OrganizationId,
+      milestones: Readonly<{
+        firstReplySubmittedAt?: Date
+        firstReplyPublishedAt?: Date
+      }>,
+      now?: Date,
+    ) => {
+      return trace('inbox.stampReplyMilestones', async () => {
+        // No `status` key is constructible here — that is the whole point.
+        const result = await db
+          .update(inboxItems)
+          .set({
+            ...milestones,
+            commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
+            updatedAt: now ?? runtime.clock(),
+          })
+          .where(and(eq(inboxItems.id, id), eq(inboxItems.organizationId, orgId)))
+          .returning()
+        return result[0] ? withDefaults(result[0]) : null
+      })
+    },
+
     updateAssignment: async (
       id: InboxItemId,
       orgId: OrganizationId,

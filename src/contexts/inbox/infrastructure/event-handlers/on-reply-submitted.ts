@@ -32,10 +32,12 @@ export const onReplySubmitted =
           return
         }
 
-        await deps.repo.updateStatus(
+        // Milestone only. This handler used to pass the item's own status back
+        // through the status seam, which made it an unfenced writer of the
+        // `inbox_items.status` compatibility mirror for no benefit.
+        await deps.repo.stampReplyMilestones(
           inboxItem.id,
           inboxItem.organizationId,
-          inboxItem.status,
           { firstReplySubmittedAt: event.occurredAt },
           event.occurredAt,
         )

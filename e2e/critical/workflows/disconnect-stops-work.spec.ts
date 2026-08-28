@@ -25,7 +25,7 @@ import {
   seedGoogleConnection,
   seedProperty,
   seedReview,
-  seedInboxItemForReview,
+  seedReviewInboxItemWithCycle,
   seedApprovedReply,
   getUserByEmail,
   getConnectionById,
@@ -101,7 +101,13 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
       googleConnectionId: connectionId,
       externalLocationId: LOCATION,
     })
-    await seedInboxItemForReview({
+    // IBX-01-T9: this item is never read through the Inbox UI here — it is the
+    // projection the disconnect cascade runs against. It still takes the
+    // Handling Cycle variant: a review observed in production ALWAYS carries
+    // its cycle rows, and the cascade's source-content lifecycle touches the
+    // review revision those rows are anchored to. A headless projection would
+    // let the cascade pass against a shape production never produces.
+    await seedReviewInboxItemWithCycle({
       organizationId: seed.organizationId,
       propertyId,
       reviewId,

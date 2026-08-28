@@ -77,6 +77,13 @@ export type InboxRepository = Readonly<{
     limit?: number,
   ): Promise<PaginatedResult>
   create(item: InboxItem, orgId: OrganizationId): Promise<InboxItem>
+  /**
+   * RETAINED for the receipt-coordinated command store only. Nothing in the
+   * Inbox context may call this directly: a status write that is not
+   * co-committed with `inbox_handling_cycle_heads` desynchronises the
+   * compatibility mirror from the workflow authority.
+   * `infrastructure/inbox-status-mirror.guard.test.ts` enforces that.
+   */
   updateStatus(
     id: InboxItemId,
     orgId: OrganizationId,
@@ -91,6 +98,26 @@ export type InboxRepository = Readonly<{
     timestampFields: Partial<Record<string, Date | null>>,
     now?: Date,
   ): Promise<{ updated: number }>
+  /**
+   * Stamp the first reply-submitted / reply-published milestones and NOTHING
+   * else.
+   *
+   * `inbox_items.status` is a write-side compatibility projection of the
+   * Handling Cycle head; every serving read already resolves status from the
+   * head. Milestone stamping used to borrow `updateStatus` and pass the item's
+   * own status back in, which made two unfenced writers of the mirror for no
+   * reason. This seam cannot express a status at all, so the mirror stays
+   * writable only where it co-commits with the head.
+   */
+  stampReplyMilestones(
+    id: InboxItemId,
+    orgId: OrganizationId,
+    milestones: Readonly<{
+      firstReplySubmittedAt?: Date
+      firstReplyPublishedAt?: Date
+    }>,
+    now?: Date,
+  ): Promise<InboxItem | null>
   updateAssignment(
     id: InboxItemId,
     orgId: OrganizationId,

@@ -112,15 +112,21 @@ async function applyItemRepair(
   if (!repair.stampSubmittedAt && !repair.stampPublishedAt) return
   if (repair.stampSubmittedAt ?? repair.stampPublishedAt) counters.milestones += 1
   if (dryRun) return
-  const timestampFields: Partial<Record<string, Date>> = {}
-  if (repair.stampSubmittedAt)
-    timestampFields.firstReplySubmittedAt = repair.stampSubmittedAt
-  if (repair.stampPublishedAt)
-    timestampFields.firstReplyPublishedAt = repair.stampPublishedAt
-  await deps.commandStore.updateStatus(
-    item,
-    { status: item.status, timestampFields },
-    null,
+  // Rebuild repairs MILESTONES, never workflow status. Routing this through
+  // the status seam (passing `item.status` straight back) made the rebuild an
+  // unfenced writer of the `inbox_items.status` compatibility mirror, which is
+  // exactly the desynchronisation a rebuild is supposed to detect.
+  await deps.repo.stampReplyMilestones(
+    item.id,
+    item.organizationId,
+    {
+      ...(repair.stampSubmittedAt
+        ? { firstReplySubmittedAt: repair.stampSubmittedAt }
+        : {}),
+      ...(repair.stampPublishedAt
+        ? { firstReplyPublishedAt: repair.stampPublishedAt }
+        : {}),
+    },
     now,
   )
 }
