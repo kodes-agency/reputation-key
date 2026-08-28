@@ -118,14 +118,26 @@ because the answer changes whether anything must be preserved first:
 1. Confirm no unexported local fixture data is wanted from `repkey_dev`.
 2. Confirm no other developer or long-running local process is bound to it.
 
-### Guardrail follow-up
+### Guardrail — implemented
 
-The root cause of the incident was a test invocation broad enough to reach
-migration setup against the configured default database. The durable fix is a
-fence in the integration-test harness that refuses to run migration setup
-against any database that is not explicitly marked disposable, rather than
-relying on invocation discipline. Tracked as part of the verification harness
-work, not as a schema repair.
+The root cause was a test invocation broad enough to reach migration setup
+against the configured default database. Invocation discipline is not a
+control, so the fix is structural and has landed with this diagnosis:
+`src/shared/testing/configured-database-fence.ts` refuses any target whose
+host/port/database matches a connection string in this checkout's own env
+files, before a connection is opened. It is wired into
+`validateTestDatabaseTarget`, so both `ensureTestDatabase` and
+`acquireTestLease` are covered.
+
+Verified: with `.env` pointing at `repkey_dev`, running
+
+```bash
+TEST_DATABASE_URL=postgresql://test:test@127.0.0.1:5432/repkey_dev pnpm tsx scripts/test-db-setup.ts
+```
+
+now fails with code `configured_development_database` and touches nothing. The
+canonical disposable scratch database stays exempt, and the fence has no
+environment-variable override.
 
 ## What was deliberately not done
 
