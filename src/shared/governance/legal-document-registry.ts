@@ -319,6 +319,16 @@ export const LEGAL_DOCUMENT_REGISTRY: LegalDocumentRegistry = Object.freeze(
         ...UNAPPROVED,
       },
       {
+        id: 'legal-revision-set-schema',
+        kind: 'engineering_fact_map',
+        title: 'Release legal artifacts — schema reference',
+        path: 'docs/legal/revision-set.schema.md',
+        version: '2026-08-28',
+        status: 'draft',
+        sha256: 'a2d6ee3509d6e72f8d3ef637468ca5535aabaebc4b260e70a1e9d915d7b39bb0',
+        ...UNAPPROVED,
+      },
+      {
         id: 'privacy-notice',
         kind: 'counsel_approved',
         title: 'Privacy Notice — Reputation Key Closed Beta',

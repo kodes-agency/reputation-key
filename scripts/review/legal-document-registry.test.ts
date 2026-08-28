@@ -43,8 +43,8 @@ describe('legal document registry CLI', () => {
     expect(result.stderr).toBe('')
     expect(result.code).toBe(0)
     expect(JSON.parse(result.stdout)).toEqual({
-      documents: 4,
-      draft: 4,
+      documents: 5,
+      draft: 5,
       approved: 0,
       blockers: ['privacy-notice', 'internal-beta-agreement', 'google-access-disclosure'],
     })
