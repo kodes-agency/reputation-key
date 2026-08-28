@@ -17,22 +17,94 @@ import type {
   QuarantineMetricCommand,
   RecordMetricCommand,
 } from '../application/ports/metric-command-store.port'
+import {
+  primaryStaffAttributionEquals,
+  type PrimaryStaffAttributionSnapshot,
+} from '#/shared/domain/primary-staff-attribution'
+import {
+  portalLifetimeFactForMetric,
+  type PortalLifetimeFact,
+} from '../domain/portal-lifetime-aggregate'
+import {
+  applyPortalLifetimeChanges,
+  type PortalLifetimeChange,
+} from './portal-lifetime-aggregate-store'
 
-export function createAtomicMetricCommandStore(
+type StaffAttributionColumns = Readonly<{
+  attributedStaffParticipantId: string | null
+  attributedStaffParticipationId: string | null
+  attributionResponsibilityId: string | null
+  staffAttributionEffectiveFrom: Date | null
+  staffAttributionEffectiveTo: Date | null
+}>
+
+const staffAttributionFromColumns = (
+  row: Partial<StaffAttributionColumns>,
+): PrimaryStaffAttributionSnapshot | null =>
+  row.attributedStaffParticipantId &&
+  row.attributedStaffParticipationId &&
+  row.attributionResponsibilityId &&
+  row.staffAttributionEffectiveFrom
+    ? {
+        staffParticipantId: row.attributedStaffParticipantId,
+        staffParticipationId: row.attributedStaffParticipationId,
+        portalResponsibilityId: row.attributionResponsibilityId,
+        effectiveFrom: row.staffAttributionEffectiveFrom,
+        effectiveTo: row.staffAttributionEffectiveTo ?? null,
+      }
+    : null
+
+const staffAttributionColumns = (
+  attribution: PrimaryStaffAttributionSnapshot | null,
+): StaffAttributionColumns => ({
+  attributedStaffParticipantId: attribution?.staffParticipantId ?? null,
+  attributedStaffParticipationId: attribution?.staffParticipationId ?? null,
+  attributionResponsibilityId: attribution?.portalResponsibilityId ?? null,
+  staffAttributionEffectiveFrom: attribution?.effectiveFrom ?? null,
+  staffAttributionEffectiveTo: attribution?.effectiveTo ?? null,
+})
+
+const portalLifetimeFactsEqual = (
+  left: PortalLifetimeFact | null | undefined,
+  right: PortalLifetimeFact | null,
+): boolean => JSON.stringify(left ?? null) === JSON.stringify(right)
+
+export const createAtomicMetricCommandStore = (
   db: Database,
   events: EventBus,
-): MetricCommandStore {
+  idGen: () => string,
+): MetricCommandStore => {
   return {
     recordMetric: async (command: RecordMetricCommand): Promise<ReadingResult> =>
       trace('metric.commandStore.recordMetric', async () => {
+        if (
+          !primaryStaffAttributionEquals(
+            command.reading.staffAttribution,
+            command.event.staffAttribution,
+          )
+        ) {
+          throw new Error('Metric fact Staff attribution does not match its reading')
+        }
         const committed = await db.transaction(async (tx) => {
           let correctedReadingId: string | null = null
+          let correctedPortalLifetimeChange: PortalLifetimeChange | null = null
           if (command.supersedesSourceEventId) {
             const prior = await tx
               .select({
                 id: metricReadings.id,
                 organizationId: metricReadings.organizationId,
                 propertyId: metricReadings.propertyId,
+                metricKey: metricReadings.metricKey,
+                exactValue: metricReadings.exactValue,
+                portalDestinationKind: metricReadings.portalDestinationKind,
+                propertyLocalDate: metricReadings.propertyLocalDate,
+                attributedStaffParticipantId: metricReadings.attributedStaffParticipantId,
+                attributedStaffParticipationId:
+                  metricReadings.attributedStaffParticipationId,
+                attributionResponsibilityId: metricReadings.attributionResponsibilityId,
+                staffAttributionEffectiveFrom:
+                  metricReadings.staffAttributionEffectiveFrom,
+                staffAttributionEffectiveTo: metricReadings.staffAttributionEffectiveTo,
               })
               .from(metricReadings)
               .where(
@@ -57,6 +129,32 @@ export function createAtomicMetricCommandStore(
               )
               .limit(1)
             correctedReadingId = prior[0]?.id ?? null
+            const correctedStaffAttribution = prior[0]
+              ? staffAttributionFromColumns(prior[0])
+              : null
+            if (prior[0]?.exactValue !== null && prior[0]?.exactValue !== undefined) {
+              const priorFact = portalLifetimeFactForMetric({
+                metricKey: prior[0].metricKey,
+                value: Number(prior[0].exactValue),
+                destinationKind:
+                  prior[0].portalDestinationKind === 'google_review' ||
+                  prior[0].portalDestinationKind === 'secondary_link'
+                    ? prior[0].portalDestinationKind
+                    : null,
+              })
+              if (priorFact) {
+                if (!prior[0].propertyLocalDate) {
+                  throw new Error(
+                    'Portal lifetime source reading has no Property-local date',
+                  )
+                }
+                correctedPortalLifetimeChange = {
+                  fact: priorFact,
+                  multiplier: -1,
+                  propertyLocalDate: prior[0].propertyLocalDate,
+                }
+              }
+            }
             if (!correctedReadingId) {
               const payloadHash = createHash('sha256')
                 .update(
@@ -91,6 +189,33 @@ export function createAtomicMetricCommandStore(
                 correctionEvent: null,
               }
             }
+            if (
+              !primaryStaffAttributionEquals(
+                correctedStaffAttribution,
+                command.reading.staffAttribution,
+              )
+            ) {
+              throw new Error(
+                'Replacement metric Staff attribution does not match its source reading',
+              )
+            }
+          }
+
+          const expectedPortalLifetimeFact = portalLifetimeFactForMetric({
+            metricKey: command.reading.metricKey,
+            value: command.reading.value,
+            destinationKind: command.portalLifetimeFact?.destinationKind ?? null,
+          })
+          if (
+            !portalLifetimeFactsEqual(
+              command.portalLifetimeFact,
+              expectedPortalLifetimeFact,
+            )
+          ) {
+            throw new Error('Portal lifetime contribution does not match its reading')
+          }
+          if (expectedPortalLifetimeFact && command.reading.portalId === null) {
+            throw new Error('Portal lifetime contribution has no Portal scope')
           }
 
           const rows = await tx
@@ -120,13 +245,24 @@ export function createAtomicMetricCommandStore(
               propertyLocalDate: command.reading.propertyLocalDate,
               dataQuality: command.reading.dataQuality,
               retentionClass: command.reading.retentionClass,
+              portalDestinationKind: command.portalLifetimeFact?.destinationKind ?? null,
+              ...staffAttributionColumns(command.reading.staffAttribution),
             })
             .onConflictDoNothing()
             .returning({ id: metricReadings.id })
 
           if (!rows[0]) {
             const existing = await tx
-              .select({ id: metricReadings.id })
+              .select({
+                id: metricReadings.id,
+                attributedStaffParticipantId: metricReadings.attributedStaffParticipantId,
+                attributedStaffParticipationId:
+                  metricReadings.attributedStaffParticipationId,
+                attributionResponsibilityId: metricReadings.attributionResponsibilityId,
+                staffAttributionEffectiveFrom:
+                  metricReadings.staffAttributionEffectiveFrom,
+                staffAttributionEffectiveTo: metricReadings.staffAttributionEffectiveTo,
+              })
               .from(metricReadings)
               .where(
                 and(
@@ -138,6 +274,15 @@ export function createAtomicMetricCommandStore(
                 ),
               )
               .limit(1)
+            if (
+              existing[0] &&
+              !primaryStaffAttributionEquals(
+                staffAttributionFromColumns(existing[0]),
+                command.reading.staffAttribution,
+              )
+            ) {
+              throw new Error('Duplicate metric reading Staff attribution does not match')
+            }
             return {
               result: {
                 status: 'duplicate' as const,
@@ -149,7 +294,7 @@ export function createAtomicMetricCommandStore(
 
           let correctionEvent: MetricCorrected | null = null
           if (correctedReadingId && command.supersedesSourceEventId) {
-            const correctionId = crypto.randomUUID()
+            const correctionId = idGen()
             await tx.insert(metricCorrections).values({
               id: correctionId,
               readingId: correctedReadingId,
@@ -163,6 +308,7 @@ export function createAtomicMetricCommandStore(
               eventAt: command.reading.occurredAt,
               supersedesCorrectionId: null,
               recordedAt: command.reading.recordedAt,
+              ...staffAttributionColumns(command.reading.staffAttribution),
             })
             correctionEvent = metricCorrected({
               correctionId,
@@ -174,7 +320,27 @@ export function createAtomicMetricCommandStore(
               sourceEventId: command.reading.sourceEventId,
               supersededSourceEventId: command.supersedesSourceEventId,
               occurredAt: command.reading.occurredAt,
+              staffAttribution: command.reading.staffAttribution,
             })
+          }
+
+          if (expectedPortalLifetimeFact && command.reading.portalId) {
+            await applyPortalLifetimeChanges(
+              tx as unknown as Database,
+              {
+                organizationId: command.reading.organizationId,
+                propertyId: command.reading.propertyId,
+                portalId: command.reading.portalId,
+              },
+              [
+                ...(correctedPortalLifetimeChange ? [correctedPortalLifetimeChange] : []),
+                {
+                  fact: expectedPortalLifetimeFact,
+                  multiplier: 1,
+                  propertyLocalDate: command.reading.propertyLocalDate,
+                },
+              ],
+            )
           }
 
           await insertOutboxRow(tx, command.event)
@@ -199,11 +365,31 @@ export function createAtomicMetricCommandStore(
         const correctionSourceEventId = `${command.sourceEventId}:${command.definitionVersionId}`
         const committed = await db.transaction(async (tx) => {
           const duplicate = await tx
-            .select({ readingId: metricCorrections.readingId })
+            .select({
+              readingId: metricCorrections.readingId,
+              attributedStaffParticipantId:
+                metricCorrections.attributedStaffParticipantId,
+              attributedStaffParticipationId:
+                metricCorrections.attributedStaffParticipationId,
+              attributionResponsibilityId: metricCorrections.attributionResponsibilityId,
+              staffAttributionEffectiveFrom:
+                metricCorrections.staffAttributionEffectiveFrom,
+              staffAttributionEffectiveTo: metricCorrections.staffAttributionEffectiveTo,
+            })
             .from(metricCorrections)
             .where(eq(metricCorrections.sourceEventId, correctionSourceEventId))
             .limit(1)
           if (duplicate[0]) {
+            if (
+              !primaryStaffAttributionEquals(
+                staffAttributionFromColumns(duplicate[0]),
+                command.staffAttribution,
+              )
+            ) {
+              throw new Error(
+                'Duplicate metric correction Staff attribution does not match',
+              )
+            }
             return {
               result: {
                 status: 'duplicate' as const,
@@ -214,7 +400,19 @@ export function createAtomicMetricCommandStore(
           }
 
           const target = await tx
-            .select({ id: metricReadings.id })
+            .select({
+              id: metricReadings.id,
+              attributedStaffParticipantId: metricReadings.attributedStaffParticipantId,
+              attributedStaffParticipationId:
+                metricReadings.attributedStaffParticipationId,
+              attributionResponsibilityId: metricReadings.attributionResponsibilityId,
+              staffAttributionEffectiveFrom: metricReadings.staffAttributionEffectiveFrom,
+              staffAttributionEffectiveTo: metricReadings.staffAttributionEffectiveTo,
+              metricKey: metricReadings.metricKey,
+              exactValue: metricReadings.exactValue,
+              portalDestinationKind: metricReadings.portalDestinationKind,
+              propertyLocalDate: metricReadings.propertyLocalDate,
+            })
             .from(metricReadings)
             .where(
               and(
@@ -232,8 +430,19 @@ export function createAtomicMetricCommandStore(
               event: null,
             }
           }
+          const targetStaffAttribution = staffAttributionFromColumns(target[0])
+          if (
+            !primaryStaffAttributionEquals(
+              targetStaffAttribution,
+              command.staffAttribution,
+            )
+          ) {
+            throw new Error(
+              'Metric retraction Staff attribution does not match its source reading',
+            )
+          }
 
-          const correctionId = crypto.randomUUID()
+          const correctionId = idGen()
           const inserted = await tx
             .insert(metricCorrections)
             .values({
@@ -249,6 +458,7 @@ export function createAtomicMetricCommandStore(
               eventAt: command.occurredAt,
               supersedesCorrectionId: null,
               recordedAt: command.occurredAt,
+              ...staffAttributionColumns(targetStaffAttribution),
             })
             .onConflictDoNothing()
             .returning({ id: metricCorrections.id })
@@ -266,7 +476,41 @@ export function createAtomicMetricCommandStore(
             sourceEventId: command.sourceEventId,
             supersededSourceEventId: command.supersedesSourceEventId,
             occurredAt: command.occurredAt,
+            staffAttribution: targetStaffAttribution,
           })
+          if (target[0].exactValue !== null) {
+            const fact = portalLifetimeFactForMetric({
+              metricKey: target[0].metricKey,
+              value: Number(target[0].exactValue),
+              destinationKind:
+                target[0].portalDestinationKind === 'google_review' ||
+                target[0].portalDestinationKind === 'secondary_link'
+                  ? target[0].portalDestinationKind
+                  : null,
+            })
+            if (fact) {
+              if (!target[0].propertyLocalDate) {
+                throw new Error(
+                  'Portal lifetime source reading has no Property-local date',
+                )
+              }
+              await applyPortalLifetimeChanges(
+                tx as unknown as Database,
+                {
+                  organizationId: command.organizationId,
+                  propertyId: command.propertyId,
+                  portalId: command.portalId,
+                },
+                [
+                  {
+                    fact,
+                    multiplier: -1,
+                    propertyLocalDate: target[0].propertyLocalDate,
+                  },
+                ],
+              )
+            }
+          }
           await insertOutboxRow(tx, event)
           return {
             result: {

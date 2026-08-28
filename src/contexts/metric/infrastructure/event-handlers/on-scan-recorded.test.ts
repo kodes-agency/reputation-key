@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
-const mockLogger = vi.hoisted(() => ({
+const ambientLogger = vi.hoisted(() => ({
   info: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
@@ -8,7 +8,7 @@ const mockLogger = vi.hoisted(() => ({
 }))
 
 vi.mock('#/shared/observability/logger', () => ({
-  getLogger: vi.fn(() => mockLogger),
+  getLogger: vi.fn(() => ambientLogger),
 }))
 
 import { onScanRecorded } from './on-scan-recorded'
@@ -24,6 +24,11 @@ import {
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
 
+const injectedLogger = {
+  warn: vi.fn(),
+  error: vi.fn(),
+}
+
 const createFakeDeps = (
   overrides: Partial<Pick<OnScanRecordedDeps, 'findGroupForPortal'>> = {},
 ): OnScanRecordedDeps & {
@@ -34,9 +39,10 @@ const createFakeDeps = (
     readings,
     recordMetric: async (input) => {
       readings.push({ ...input })
-      return input
+      return { status: 'duplicate', existingReadingId: input.sourceEventId }
     },
     findGroupForPortal: overrides.findGroupForPortal ?? (async () => null),
+    logger: injectedLogger,
   }
 }
 
@@ -48,7 +54,7 @@ const scanEvent = () => ({
   organizationId: organizationId('org-1'),
   portalId: portalId('portal-1'),
   propertyId: propertyId('prop-1'),
-  source: 'qr' as const,
+  scanSource: 'qr' as const,
   occurredAt: FIXED_TIME,
 })
 
@@ -77,6 +83,7 @@ describe('onScanRecorded', () => {
       value: 1,
       sampleCount: 1,
       attributionQuality: 'exact',
+      staffAttribution: null,
       occurredAt: FIXED_TIME,
     })
   })
@@ -121,8 +128,9 @@ describe('onScanRecorded', () => {
     // attribution is still exact; only the group enrichment is missing.
     expect(groupDeps.readings[0]!.attributionQuality).toBe('exact')
     // …and the lost enrichment is observable to an operator.
-    expect(mockLogger.warn).toHaveBeenCalledTimes(1)
-    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(injectedLogger.warn).toHaveBeenCalledTimes(1)
+    expect(injectedLogger.error).not.toHaveBeenCalled()
+    expect(ambientLogger.warn).not.toHaveBeenCalled()
   })
 
   it('does not throw when recordMetric fails', async () => {
@@ -131,9 +139,12 @@ describe('onScanRecorded', () => {
         throw new Error('DB unavailable')
       },
       findGroupForPortal: async () => null,
+      logger: injectedLogger,
     }
     const handler = onScanRecorded(failingDeps)
 
     await expect(handler(scanEvent())).resolves.toBeUndefined()
+    expect(injectedLogger.error).toHaveBeenCalledOnce()
+    expect(ambientLogger.error).not.toHaveBeenCalled()
   })
 })

@@ -17,8 +17,11 @@ import type {
 import type { MetricKey } from '#/shared/domain/metric-keys'
 import type { SourcePolicyClass } from '../../domain/metric-registry'
 import type { AttributionQuality } from '../../domain/attribution-quality'
-import { getLogger } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
+import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
+import type { PortalDestinationKind } from '../../domain/portal-lifetime-aggregate'
+import type { ReadingResult } from '../../domain/metric-reading'
 
 /** Common shape of the guest events that record a portal metric. */
 export type PortalMetricEvent = Readonly<{
@@ -29,15 +32,17 @@ export type PortalMetricEvent = Readonly<{
   eventId: string
   supersedesSourceEventId?: string | null
   occurredAt: Date
+  staffAttribution?: PrimaryStaffAttributionSnapshot | null
 }>
 
 export type RecordPortalMetricDeps = Readonly<{
-  recordMetric(input: RecordMetricInput): Promise<unknown>
+  recordMetric(input: RecordMetricInput): Promise<ReadingResult>
   findGroupForPortal: (
     orgId: OrganizationId,
     portalId: PortalId,
     asOf: Date,
   ) => Promise<{ portalGroupId: PortalGroupId } | null>
+  logger: Pick<LoggerPort, 'error' | 'warn'>
 }>
 
 export type PortalMetricHandlerOptions<E extends PortalMetricEvent> = Readonly<{
@@ -46,6 +51,10 @@ export type PortalMetricHandlerOptions<E extends PortalMetricEvent> = Readonly<{
   sourcePolicy: SourcePolicyClass
   span: string
   value?: (event: E) => number
+  /** Producer-owned event-time attribution. When present, it must not be
+   * recomputed from current Portal membership during replay. */
+  portalGroupId?: (event: E) => PortalGroupId | null
+  destinationKind?: (event: E) => PortalDestinationKind
 }>
 
 async function recordPortalMetrics<E extends PortalMetricEvent>(
@@ -60,7 +69,10 @@ async function recordPortalMetrics<E extends PortalMetricEvent>(
   // producers whose attribution really is unknown — record-metric.ts
   // quarantines that value before the reading is constructed.
   const attributionQuality: AttributionQuality = 'exact'
-  if (event.portalId) {
+  const capturedGroup = options[0]?.portalGroupId
+  if (capturedGroup) {
+    portalGroupId = capturedGroup(event)
+  } else if (event.portalId) {
     try {
       portalGroupId =
         (
@@ -73,14 +85,14 @@ async function recordPortalMetrics<E extends PortalMetricEvent>(
     } catch (err) {
       // A group-enrichment outage must not discard an exact portal reading.
       // The durable consumer still propagates failures from recordMetric.
-      getLogger().warn(
+      deps.logger.warn(
         { err, event: event._tag, metricKeys: options.map((item) => item.metricKey) },
         'metric: portal-group lookup failed — recording Portal metrics with a null group',
       )
     }
   }
   for (const opts of options) {
-    await deps.recordMetric({
+    const result = await deps.recordMetric({
       organizationId: event.organizationId,
       propertyId: event.propertyId,
       portalId: event.portalId,
@@ -96,7 +108,18 @@ async function recordPortalMetrics<E extends PortalMetricEvent>(
       sampleCount: 1,
       occurredAt: event.occurredAt,
       attributionQuality,
+      staffAttribution: event.staffAttribution ?? null,
+      ...(opts.destinationKind ? { destinationKind: opts.destinationKind(event) } : {}),
     })
+    if (
+      result.status === 'quarantined' &&
+      result.reason === 'superseded_reading_not_found'
+    ) {
+      // The durable source correction raced its original projection. Keeping
+      // the delivery retryable lets the ordered state converge; accepting the
+      // receipt here would strand a permanent quarantine and stale totals.
+      throw new Error('superseded metric source reading is not available')
+    }
   }
 }
 
@@ -115,7 +138,7 @@ export function makeRecordMetricFanoutHandler<E extends PortalMetricEvent>(
         try {
           await recordPortalMetrics(options, deps, event)
         } catch (err) {
-          getLogger().error(
+          deps.logger.error(
             {
               err,
               event: event._tag,

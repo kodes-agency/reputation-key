@@ -25,6 +25,7 @@ import { Pool } from 'pg'
 import type { Database } from '#/shared/db'
 import * as schema from '#/shared/db/schema'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
 import { METRIC_VERSION_IDS } from '../../application/public-api'
 import { createPortalAnalyticsRepository } from './portal-analytics.repository'
@@ -168,7 +169,7 @@ beforeAll(async () => {
   )
   await pool.query('DELETE FROM portals WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
-  await pool.query('DELETE FROM organization WHERE id = $1', [ORG])
+  await deleteTestOrganizations(pool, [ORG])
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, 'Portal metrics integration', 'portal-metrics-integration', now())`,
@@ -244,7 +245,7 @@ afterAll(async () => {
   await pool.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM portals WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
-  await pool.query('DELETE FROM organization WHERE id = $1', [ORG])
+  await deleteTestOrganizations(pool, [ORG])
   await pool.end()
 })
 

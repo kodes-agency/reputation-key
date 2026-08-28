@@ -25,8 +25,8 @@ const GOAL_METRIC_SPECS: Readonly<Record<string, GoalMetricSpec>> = {
   [METRIC_VERSION_IDS.qualifiedScanGoal]: {
     metricKey: 'portal.qualified_scan',
     calculation: 'sum',
-    sourceActive: false,
-    eventTypes: [],
+    sourceActive: true,
+    eventTypes: ['guest.qualified_scan.recorded', 'guest.qualified_scan.retracted'],
   },
   [METRIC_VERSION_IDS.portalRatingCountGoal]: {
     metricKey: 'portal.rating_count',
@@ -59,6 +59,7 @@ export type GovernedGoalMetricResult = Readonly<{
   sampleCount: number
   minimumSample: number | null
   sourceCompleteThrough: Date | null
+  correctionHead?: Date | null
   reason: string | null
 }>
 
@@ -92,6 +93,7 @@ function unavailable(
     sampleCount: 0,
     minimumSample,
     sourceCompleteThrough: null,
+    correctionHead: null,
     reason,
   }
 }
@@ -202,6 +204,7 @@ export const queryGoalMetric =
       sampleCount: aggregate.sampleCount,
       minimumSample: governed.version.minimumSample,
       sourceCompleteThrough: null,
+      correctionHead: aggregate.correctionHead,
     } as const
 
     if (source.state === 'quarantined' || hasInvalidAggregate(aggregate)) {

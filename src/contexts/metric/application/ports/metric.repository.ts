@@ -60,6 +60,8 @@ export type GoalMetricAggregate = Readonly<{
   invalidSampleCount: number
   invalidSourceCount: number
   invalidDefinitionCount: number
+  /** Latest current correction tip affecting this exact subject/period. */
+  correctionHead: Date | null
 }>
 
 export type MetricRepository = Readonly<{

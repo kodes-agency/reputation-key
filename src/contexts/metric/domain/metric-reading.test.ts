@@ -54,6 +54,7 @@ const correction = (
   occurredAt: NOW,
   recordedAt: NOW,
   supersedesCorrectionId: null,
+  staffAttribution: null,
   ...overrides,
 })
 

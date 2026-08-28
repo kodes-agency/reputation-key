@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { onFeedbackSubmitted } from './on-feedback-submitted'
 import type { RecordPortalMetricDeps as OnFeedbackSubmittedDeps } from './record-portal-metric'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
   organizationId,
   portalId,
@@ -23,9 +24,10 @@ const createFakeDeps = (
     readings,
     recordMetric: async (input) => {
       readings.push({ ...input })
-      return input
+      return { status: 'duplicate', existingReadingId: input.sourceEventId }
     },
     findGroupForPortal: overrides.findGroupForPortal ?? (async () => null),
+    logger: createMockLogger(),
   }
 }
 
@@ -65,6 +67,7 @@ describe('onFeedbackSubmitted', () => {
       value: 1,
       sampleCount: 1,
       attributionQuality: 'exact',
+      staffAttribution: null,
       occurredAt: FIXED_TIME,
     })
   })
@@ -107,6 +110,7 @@ describe('onFeedbackSubmitted', () => {
         throw new Error('DB unavailable')
       },
       findGroupForPortal: async () => null,
+      logger: createMockLogger(),
     }
     const handler = onFeedbackSubmitted(failingDeps)
 

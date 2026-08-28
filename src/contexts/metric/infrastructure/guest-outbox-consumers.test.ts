@@ -15,6 +15,7 @@ vi.mock('#/shared/events/schema-registry', () => ({
 }))
 
 import { registerGuestMetricConsumers } from './guest-outbox-consumers'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 
 const common = {
   organizationId: 'org-1',
@@ -33,6 +34,7 @@ describe('Guest metric durable consumers', () => {
       recordMetric,
       retractMetric,
       findGroupForPortal: vi.fn().mockResolvedValue(null),
+      logger: createMockLogger(),
     })
 
     const registrations = mocks.registerConsumer.mock.calls.map(([value]) => value)
@@ -44,6 +46,14 @@ describe('Guest metric durable consumers', () => {
     ).toEqual([
       {
         eventType: 'guest.scan.recorded',
+        consumerName: 'metric.guest-analytics',
+      },
+      {
+        eventType: 'guest.qualified_scan.recorded',
+        consumerName: 'metric.guest-analytics',
+      },
+      {
+        eventType: 'guest.qualified_scan.retracted',
         consumerName: 'metric.guest-analytics',
       },
       {
@@ -68,7 +78,7 @@ describe('Guest metric durable consumers', () => {
       },
     ])
 
-    await registrations[1].handler({
+    await registrations[3].handler({
       eventId: 'evt-rating',
       eventType: 'guest.rating.submitted',
       eventVersion: 1,
@@ -89,7 +99,7 @@ describe('Guest metric durable consumers', () => {
       }),
     )
 
-    await registrations[2].handler({
+    await registrations[4].handler({
       eventId: 'evt-rating-retracted',
       eventType: 'guest.rating.retracted',
       eventVersion: 1,
@@ -112,12 +122,77 @@ describe('Guest metric durable consumers', () => {
     )
   })
 
+  it('replays Qualified Scans with their captured group and correction source', async () => {
+    const recordMetric = vi.fn().mockResolvedValue({ status: 'recorded' })
+    const retractMetric = vi.fn().mockResolvedValue({ status: 'retracted' })
+    const findGroupForPortal = vi.fn()
+    registerGuestMetricConsumers({
+      recordMetric,
+      retractMetric,
+      findGroupForPortal,
+      logger: createMockLogger(),
+    })
+    const registrations = mocks.registerConsumer.mock.calls.map(([value]) => value)
+    const recorded = registrations.find(
+      ({ eventType }) => eventType === 'guest.qualified_scan.recorded',
+    )
+    const retracted = registrations.find(
+      ({ eventType }) => eventType === 'guest.qualified_scan.retracted',
+    )
+    const payload = {
+      ...common,
+      qualifiedScanId: '72000000-0000-4000-8000-000000000001',
+      portalGroupId: '72000000-0000-4000-8000-000000000002',
+      accessArtifactId: '72000000-0000-4000-8000-000000000003',
+    }
+
+    await recorded.handler({
+      eventId: '72000000-0000-4000-8000-000000000004',
+      eventType: 'guest.qualified_scan.recorded',
+      eventVersion: 1,
+      payload,
+      organizationId: common.organizationId,
+      propertyId: common.propertyId,
+      sourceContext: 'guest',
+      sourceAggregateId: payload.qualifiedScanId,
+    })
+    await retracted.handler({
+      eventId: '72000000-0000-4000-8000-000000000005',
+      eventType: 'guest.qualified_scan.retracted',
+      eventVersion: 1,
+      payload: {
+        ...payload,
+        supersedesSourceEventId: '72000000-0000-4000-8000-000000000004',
+      },
+      organizationId: common.organizationId,
+      propertyId: common.propertyId,
+      sourceContext: 'guest',
+      sourceAggregateId: payload.qualifiedScanId,
+    })
+
+    expect(findGroupForPortal).not.toHaveBeenCalled()
+    expect(recordMetric).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceEventId: '72000000-0000-4000-8000-000000000004',
+        portalGroupId: payload.portalGroupId,
+        definitionVersionId: '11111111-1111-4111-8111-111111111301',
+      }),
+    )
+    expect(retractMetric).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceEventId: '72000000-0000-4000-8000-000000000005',
+        supersedesSourceEventId: '72000000-0000-4000-8000-000000000004',
+      }),
+    )
+  })
+
   it('propagates metric persistence failures so the dispatcher can retry', async () => {
     const recordMetric = vi.fn().mockRejectedValue(new Error('database unavailable'))
     registerGuestMetricConsumers({
       recordMetric,
       retractMetric: vi.fn().mockResolvedValue({ status: 'retracted' }),
       findGroupForPortal: vi.fn().mockResolvedValue(null),
+      logger: createMockLogger(),
     })
     const registration = mocks.registerConsumer.mock.calls[0]![0]
 
@@ -134,4 +209,39 @@ describe('Guest metric durable consumers', () => {
       }),
     ).rejects.toThrow('database unavailable')
   })
+
+  it.each([
+    { eventVersion: 1, sourceField: { source: 'qr' as const } },
+    { eventVersion: 2, sourceField: { scanSource: 'nfc' as const } },
+  ])(
+    'replays the versioned scan-source vocabulary for v$eventVersion',
+    async ({ eventVersion, sourceField }) => {
+      const recordMetric = vi.fn().mockResolvedValue({ status: 'recorded' })
+      registerGuestMetricConsumers({
+        recordMetric,
+        retractMetric: vi.fn().mockResolvedValue({ status: 'retracted' }),
+        findGroupForPortal: vi.fn().mockResolvedValue(null),
+        logger: createMockLogger(),
+      })
+      const registration = mocks.registerConsumer.mock.calls[0]![0]
+
+      await registration.handler({
+        eventId: `evt-scan-v${eventVersion}`,
+        eventType: 'guest.scan.recorded',
+        eventVersion,
+        payload: { ...common, scanId: `scan-v${eventVersion}`, ...sourceField },
+        organizationId: common.organizationId,
+        propertyId: common.propertyId,
+        sourceContext: 'guest',
+        sourceAggregateId: `scan-v${eventVersion}`,
+      })
+
+      expect(recordMetric).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceEventId: `evt-scan-v${eventVersion}`,
+          value: 1,
+        }),
+      )
+    },
+  )
 })

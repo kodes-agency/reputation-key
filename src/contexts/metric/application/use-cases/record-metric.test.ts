@@ -12,6 +12,7 @@ import { createSequentialMetricCommandStore } from '#/shared/testing/sequential-
 import {
   metricReadingId,
   organizationId,
+  portalId,
   portalGroupId,
   propertyId,
 } from '#/shared/domain/ids'
@@ -120,6 +121,56 @@ describe('recordMetric', () => {
     expect(fakes.events[0]).toMatchObject({
       _tag: 'metric.recorded',
       permittedConsumers: governed.version.permittedConsumers,
+    })
+  })
+
+  it('passes the anonymous lifetime contribution only for an eligible Portal fact', async () => {
+    const rating: GovernedMetricVersion = {
+      definition: {
+        ...governed.definition,
+        key: 'portal.rating',
+        valueKind: 'level',
+        privacyClass: 'guest_private_analytics',
+      },
+      version: {
+        ...governed.version,
+        id: '11111111-1111-4111-8111-111111111202',
+        allowedScopes: ['portal'],
+        sourcePolicyAllowlist: ['first_party_guest_private'],
+        permittedConsumers: ['dashboard', 'portal_analytics'],
+      },
+    }
+    const fakes = createDeps(rating)
+    let lifetime: unknown = 'not-called'
+    const deps: RecordMetricDeps = {
+      ...fakes.deps,
+      commandStore: {
+        ...fakes.deps.commandStore,
+        recordMetric: async (command) => {
+          lifetime = command.portalLifetimeFact
+          return { status: 'recorded', reading: command.reading }
+        },
+      },
+    }
+
+    await recordMetric(deps)(
+      input({
+        portalId: portalId('d4000000-0000-4000-8000-000000000081'),
+        portalGroupId: null,
+        definitionVersionId: rating.version.id,
+        sourcePolicy: 'first_party_guest_private',
+        scope: 'portal',
+        value: 4,
+      }),
+    )
+
+    expect(lifetime).toMatchObject({
+      destinationKind: null,
+      contribution: {
+        privateRatingCount: 1,
+        privateRatingSum: 4,
+        privateRating4Count: 1,
+      },
     })
   })
 

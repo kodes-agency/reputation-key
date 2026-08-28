@@ -15,6 +15,10 @@ import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
 
+const injectedLogger = {
+  error: vi.fn(),
+}
+
 const createFakeDeps = (
   rating: number | null = 3,
 ): OnReviewCreatedDeps & {
@@ -25,11 +29,12 @@ const createFakeDeps = (
     readings,
     recordMetric: async (input) => {
       readings.push({ ...input })
-      return input
+      return { status: 'duplicate', existingReadingId: input.sourceEventId }
     },
     reviewRatingLookup: {
       getEligibleRatingById: vi.fn(async () => rating),
     },
+    logger: injectedLogger,
   }
 }
 
@@ -107,9 +112,11 @@ describe('onReviewCreated', () => {
       reviewRatingLookup: {
         getEligibleRatingById: async () => 1,
       },
+      logger: injectedLogger,
     }
     const handler = onReviewCreated(failingDeps)
 
     await expect(handler(makeEvent())).resolves.toBeUndefined()
+    expect(injectedLogger.error).toHaveBeenCalledOnce()
   })
 })

@@ -33,6 +33,7 @@ const aggregate = (
   invalidSampleCount: 0,
   invalidSourceCount: 0,
   invalidDefinitionCount: 0,
+  correctionHead: null,
   ...overrides,
 })
 
@@ -241,7 +242,7 @@ describe('queryGoalMetric', () => {
     ).resolves.toMatchObject({ state: 'quarantined', reason: 'invalid_governed_reading' })
   })
 
-  it('does not fabricate qualified scans before signed source activation', async () => {
+  it('queries the active Qualified Scan source after Access Artifact activation', async () => {
     const { useCase, queryGoalAggregate, inspect } = harness({
       versionId: METRIC_VERSION_IDS.qualifiedScanGoal,
       metricKey: 'portal.qualified_scan',
@@ -250,12 +251,18 @@ describe('queryGoalMetric', () => {
       useCase(query(METRIC_VERSION_IDS.qualifiedScanGoal)),
     ).resolves.toMatchObject({
       metricKey: 'portal.qualified_scan',
-      state: 'unavailable',
-      exactValue: null,
-      reason: 'metric_source_not_active',
+      state: 'eligible',
+      exactValue: 0,
+      reason: null,
     })
-    expect(queryGoalAggregate).not.toHaveBeenCalled()
-    expect(inspect).not.toHaveBeenCalled()
+    expect(queryGoalAggregate).toHaveBeenCalledOnce()
+    expect(inspect).toHaveBeenCalledWith(
+      expect.objectContaining({
+        definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,
+        expectedMetricKey: 'portal.qualified_scan',
+      }),
+      ['guest.qualified_scan.recorded', 'guest.qualified_scan.retracted'],
+    )
   })
 
   it('rejects unknown versions, invalid periods, and cross-property subjects', async () => {

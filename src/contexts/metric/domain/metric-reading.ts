@@ -16,7 +16,7 @@ import type {
   PropertyId,
 } from '#/shared/domain/ids'
 import type { MetricKey } from '#/shared/domain/metric-keys'
-export type MetricValueKind = 'counter' | 'duration' | 'level' | 'ratio' | 'average'
+import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 export type ReadingDataQuality = 'exact' | 'approximate' | 'delayed' | 'reconciling'
 export type CorrectionKind = 'retract' | 'replace' | 'adjust'
 
@@ -41,6 +41,7 @@ export interface MetricReading {
   readonly attributionQuality: AttributionQuality
   readonly dataQuality: ReadingDataQuality
   readonly retentionClass: string
+  readonly staffAttribution: PrimaryStaffAttributionSnapshot | null
 }
 
 export interface MetricCorrection {
@@ -56,6 +57,7 @@ export interface MetricCorrection {
   readonly occurredAt: Date
   readonly recordedAt: Date
   readonly supersedesCorrectionId: string | null
+  readonly staffAttribution: PrimaryStaffAttributionSnapshot | null
 }
 
 export type ReadingResult =
@@ -96,6 +98,7 @@ export function createReading(params: {
   attributionQuality: AttributionQuality
   dataQuality?: ReadingDataQuality
   retentionClass: string
+  staffAttribution?: PrimaryStaffAttributionSnapshot | null
   now: Date
 }): MetricReading {
   return {
@@ -119,6 +122,7 @@ export function createReading(params: {
     attributionQuality: params.attributionQuality,
     dataQuality: params.dataQuality ?? 'exact',
     retentionClass: params.retentionClass,
+    staffAttribution: params.staffAttribution ?? null,
   }
 }
 /**

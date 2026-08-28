@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { onRatingSubmitted } from './on-rating-submitted'
 import type { RecordPortalMetricDeps as OnRatingSubmittedDeps } from './record-portal-metric'
 import type { RecordMetricInput } from '../../application/use-cases/record-metric'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import {
   organizationId,
   portalId,
@@ -11,6 +12,13 @@ import {
 } from '#/shared/domain/ids'
 
 const FIXED_TIME = new Date('2026-05-20T12:00:00Z')
+const STAFF_ATTRIBUTION = {
+  staffParticipantId: '10000000-0000-4000-8000-000000000001',
+  staffParticipationId: '10000000-0000-4000-8000-000000000002',
+  portalResponsibilityId: '10000000-0000-4000-8000-000000000003',
+  effectiveFrom: new Date('2026-05-01T00:00:00.000Z'),
+  effectiveTo: null,
+} as const
 
 const createFakeDeps = (
   overrides: Partial<Pick<OnRatingSubmittedDeps, 'findGroupForPortal'>> = {},
@@ -22,9 +30,10 @@ const createFakeDeps = (
     readings,
     recordMetric: async (input) => {
       readings.push({ ...input })
-      return input
+      return { status: 'duplicate', existingReadingId: input.sourceEventId }
     },
     findGroupForPortal: overrides.findGroupForPortal ?? (async () => null),
+    logger: createMockLogger(),
   }
 }
 
@@ -38,6 +47,7 @@ const ratingEvent = () => ({
   propertyId: propertyId('prop-1'),
   value: 4,
   occurredAt: FIXED_TIME,
+  staffAttribution: STAFF_ATTRIBUTION,
 })
 
 describe('onRatingSubmitted', () => {
@@ -65,6 +75,7 @@ describe('onRatingSubmitted', () => {
       sampleCount: 1,
       attributionQuality: 'exact',
       occurredAt: FIXED_TIME,
+      staffAttribution: STAFF_ATTRIBUTION,
     })
     expect(deps.readings[1]).toMatchObject({
       definitionVersionId: '11111111-1111-4111-8111-111111111302',
@@ -122,6 +133,7 @@ describe('onRatingSubmitted', () => {
         throw new Error('DB unavailable')
       },
       findGroupForPortal: async () => null,
+      logger: createMockLogger(),
     }
     const handler = onRatingSubmitted(failingDeps)
 

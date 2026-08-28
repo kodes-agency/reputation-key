@@ -16,6 +16,11 @@ import {
 import type { MetricScope, SourcePolicyClass } from '../../domain/metric-registry'
 import type { MetricCommandStore } from '../ports/metric-command-store.port'
 import type { MetricRegistryRepository } from '../ports/metric-registry.repository.port'
+import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
+import {
+  portalLifetimeFactForMetric,
+  type PortalDestinationKind,
+} from '../../domain/portal-lifetime-aggregate'
 
 export type RecordMetricInput = Readonly<{
   organizationId: OrganizationId
@@ -36,6 +41,9 @@ export type RecordMetricInput = Readonly<{
   occurredAt: Date
   attributionQuality: AttributionQuality
   dataQuality?: ReadingDataQuality
+  staffAttribution?: PrimaryStaffAttributionSnapshot | null
+  /** Required only for a qualified destination-selection fact. */
+  destinationKind?: PortalDestinationKind | null
 }>
 
 export type RecordMetricDeps = Readonly<{
@@ -65,6 +73,8 @@ const payloadHash = (input: RecordMetricInput): string =>
         denominator: input.denominator ?? null,
         sampleCount: input.sampleCount,
         occurredAt: input.occurredAt.toISOString(),
+        staffAttribution: input.staffAttribution ?? null,
+        destinationKind: input.destinationKind ?? null,
       }),
     )
     .digest('hex')
@@ -162,12 +172,23 @@ export const recordMetric =
       attributionQuality: input.attributionQuality,
       dataQuality: input.dataQuality,
       retentionClass: definition.retentionClass,
+      staffAttribution: input.staffAttribution ?? null,
       now: deps.clock(),
     })
+
+    const portalLifetimeFact = portalLifetimeFactForMetric({
+      metricKey: reading.metricKey,
+      value: reading.value,
+      destinationKind: input.destinationKind ?? null,
+    })
+    if (portalLifetimeFact && reading.portalId === null) {
+      return quarantine('invalid_portal_lifetime_scope')
+    }
 
     return deps.commandStore.recordMetric({
       reading,
       supersedesSourceEventId: input.supersedesSourceEventId ?? null,
+      portalLifetimeFact,
       event: metricRecorded({
         readingId: reading.id,
         organizationId: reading.organizationId,
@@ -185,6 +206,7 @@ export const recordMetric =
         attributionQuality: reading.attributionQuality,
         permittedConsumers: version.permittedConsumers,
         occurredAt: reading.occurredAt,
+        staffAttribution: reading.staffAttribution,
       }),
     })
   }

@@ -9,6 +9,15 @@ import type { MetricRepository } from '../../application/ports/metric.repository
 import { unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
+function dateOrNull(value: unknown): Date | null {
+  if (value === null || value === undefined) return null
+  const parsed = value instanceof Date ? value : new Date(String(value))
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error('Goal metric aggregate contains an invalid correction timestamp')
+  }
+  return parsed
+}
+
 export const createMetricRepository = (
   db: Database,
   clock: () => Date,
@@ -21,6 +30,7 @@ export const createMetricRepository = (
           kind: metricCorrections.kind,
           exactDelta: metricCorrections.exactDelta,
           replacementValue: metricCorrections.replacementValue,
+          recordedAt: metricCorrections.recordedAt,
         })
         .from(metricCorrections)
         .where(
@@ -116,6 +126,7 @@ export const createMetricRepository = (
           kind: metricCorrections.kind,
           exactDelta: metricCorrections.exactDelta,
           replacementValue: metricCorrections.replacementValue,
+          recordedAt: metricCorrections.recordedAt,
         })
         .from(metricCorrections)
         .where(
@@ -188,6 +199,7 @@ export const createMetricRepository = (
           invalidDefinitionCount: sql<number>`CAST(COUNT(${effectiveValue}) FILTER (
             WHERE ${metricReadings.metricKey} <> ${query.expectedMetricKey}
           ) AS INTEGER)`,
+          correctionHead: sql<unknown>`MAX(${correctionTips.recordedAt})`,
         })
         .from(metricReadings)
         .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
@@ -204,6 +216,7 @@ export const createMetricRepository = (
         invalidSampleCount: Number(row?.invalidSampleCount ?? 0),
         invalidSourceCount: Number(row?.invalidSourceCount ?? 0),
         invalidDefinitionCount: Number(row?.invalidDefinitionCount ?? 0),
+        correctionHead: dateOrNull(row?.correctionHead),
       }
     }),
 })

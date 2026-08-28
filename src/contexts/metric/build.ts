@@ -21,16 +21,29 @@ import { registerMetricHandlers } from './infrastructure/event-handlers'
 import { registerMetricCorrectionConsumer } from './infrastructure/correction-outbox-consumers'
 import { registerPortalWorkflowMetricConsumers } from './infrastructure/outbox-consumers'
 import { registerGuestMetricConsumers } from './infrastructure/guest-outbox-consumers'
+import { registerPublicReputationMetricConsumers } from './infrastructure/public-reputation-outbox-consumers'
 import { metricReadingId } from '#/shared/domain/ids'
 import type { ReviewRatingLookupPort } from './application/ports/review-rating-lookup.port'
 import { queryGoalMetric } from './application/use-cases/query-goal-metric'
 import { queryPortalAnalytics } from './application/use-cases/query-portal-analytics'
 import { createPortalAnalyticsRepository } from './infrastructure/repositories/portal-analytics.repository'
+import { createPortalLifetimeAggregateRepository } from './infrastructure/repositories/portal-lifetime-aggregate.repository'
+import { createGoalMetricCorrectionImpactLookup } from './infrastructure/repositories/goal-metric-correction-impact.lookup'
+import {
+  repairPortalLifetime,
+  type RepairPortalLifetimeResult,
+} from './application/use-cases/repair-portal-lifetime'
+import type { PortalLifetimeScope } from './application/ports/portal-lifetime-aggregate.port'
+import type { LoggerPort } from '#/shared/domain/logger.port'
+import { createCurrentGoogleReputationSnapshotRepository } from './infrastructure/repositories/current-google-reputation-snapshot.repository'
+import { registerCurrentGoogleReputationConsumer } from './infrastructure/current-google-reputation-outbox-consumers'
 
 export type MetricContextBuildInput = Readonly<{
   db: Database
   events: EventBus
   clock: () => Date
+  idGen: () => string
+  logger: LoggerPort
   /** Portal group resolution (portal public API) — the build wraps it into
    * the findGroupForPortal shape the event handlers consume. */
   portalGroupApi: PortalGroupPublicApi
@@ -40,10 +53,23 @@ export type MetricContextBuildInput = Readonly<{
 
 export type MetricContextApi = Readonly<{
   publicApi: MetricPublicApi
+  /** Operator-only projection maintenance. The report-first contract remains
+   * context-owned instead of being published through the application API. */
+  maintenance: Readonly<{
+    repairPortalLifetime: (
+      input: Readonly<{
+        scope: PortalLifetimeScope
+        mode: 'report' | 'apply'
+      }>,
+    ) => Promise<RepairPortalLifetimeResult>
+  }>
+  /** Context-owned worker registration; exposes no repositories or use cases. */
+  worker: Readonly<{ registerOutboxConsumers: () => void }>
   internal: Readonly<{
     repos: Record<string, never>
-    registerOutboxConsumers: () => void
-    useCases: Readonly<{ recordMetric: RecordMetric }>
+    useCases: Readonly<{
+      recordMetric: RecordMetric
+    }>
   }>
 }>
 
@@ -53,8 +79,13 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
   const portalAnalytics = queryPortalAnalytics(
     createPortalAnalyticsRepository(input.db, input.clock),
   )
+  const portalLifetime = createPortalLifetimeAggregateRepository(input.db, input.clock)
+  const goalCorrectionImpacts = createGoalMetricCorrectionImpactLookup(input.db)
+  const currentGoogleReputation = createCurrentGoogleReputationSnapshotRepository(
+    input.db,
+  )
   // BQC-3.5: every metric state mutation + fact commits atomically here.
-  const commandStore = createAtomicMetricCommandStore(input.db, input.events)
+  const commandStore = createAtomicMetricCommandStore(input.db, input.events, input.idGen)
   const readGoalMetric = queryGoalMetric({
     metrics: metricRepo,
     registry,
@@ -83,7 +114,7 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
   const record = recordMetric({
     commandStore,
     clock: input.clock,
-    idGen: () => metricReadingId(crypto.randomUUID()),
+    idGen: () => metricReadingId(input.idGen()),
     registry,
     resolvePropertyLocalDate: createPropertyLocalDateResolver(input.db),
   })
@@ -120,6 +151,7 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
     findGroupForPortal,
     reviewRatingLookup: input.reviewRatingLookup,
     resolvePortalWorkflowAttribution,
+    logger: input.logger,
   })
 
   const registerOutboxConsumers = () => {
@@ -132,7 +164,13 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
       recordMetric: record,
       retractMetric: retractMetric(commandStore),
       findGroupForPortal,
+      logger: input.logger,
     })
+    registerPublicReputationMetricConsumers({
+      recordMetric: record,
+      reviewRatingLookup: input.reviewRatingLookup,
+    })
+    registerCurrentGoogleReputationConsumer(currentGoogleReputation)
     registerMetricCorrectionConsumer(input.db)
   }
 
@@ -140,6 +178,10 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
     queryAggregate: (query) => metricRepo.queryAggregate(query),
     queryGoalMetric: readGoalMetric,
     portalAnalytics,
+    portalLifetime: Object.freeze({ get: portalLifetime.get }),
+    getCurrentOnGoogle: currentGoogleReputation.getCurrentOnGoogle,
+    findGoalMetricCorrectionImpacts:
+      goalCorrectionImpacts.findGoalMetricCorrectionImpacts,
     getApprovedGoalVersion: async (definitionVersionId) => {
       const governed = await registry.findVersionById(definitionVersionId)
       if (
@@ -156,10 +198,16 @@ export const buildMetricContext = (input: MetricContextBuildInput): MetricContex
 
   return {
     publicApi,
+    maintenance: Object.freeze({
+      repairPortalLifetime: (repairInput) =>
+        repairPortalLifetime({ lifetime: portalLifetime }, repairInput),
+    }),
+    worker: Object.freeze({ registerOutboxConsumers }),
     internal: {
       repos: {} as const,
-      useCases: { recordMetric: record },
-      registerOutboxConsumers,
+      useCases: {
+        recordMetric: record,
+      },
     },
   } as const
 }

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Database } from '#/shared/db'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
@@ -9,12 +10,14 @@ import { clearEventSchemas, validateEventPayload } from '#/shared/events/schema-
 import {
   metricReadingId,
   organizationId,
+  portalId,
   portalGroupId,
   propertyId,
 } from '#/shared/domain/ids'
 import { createReading, type MetricReading } from '../domain/metric-reading'
 import { metricRecorded, type MetricRecorded } from '../domain/events'
 import { createAtomicMetricCommandStore } from './metric-command-store'
+import { portalLifetimeFactForMetric } from '../domain/portal-lifetime-aggregate'
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => ({ info: () => {}, warn: () => {}, error: () => {}, debug: () => {} }),
@@ -131,7 +134,7 @@ describe('createAtomicMetricCommandStore', () => {
   it('commits governed reading and outbox fact before emitting', async () => {
     const order: string[] = []
     const { db, stateValues, outboxRows } = createMockDb(order)
-    const store = createAtomicMetricCommandStore(db, makeEvents(order))
+    const store = createAtomicMetricCommandStore(db, makeEvents(order), randomUUID)
     const reading = makeReading()
     const result = await store.recordMetric({ reading, event: recordedEvent(reading) })
 
@@ -157,7 +160,7 @@ describe('createAtomicMetricCommandStore', () => {
     } as unknown as MetricRecorded
 
     await expect(
-      createAtomicMetricCommandStore(db, events).recordMetric({
+      createAtomicMetricCommandStore(db, events, randomUUID).recordMetric({
         reading: makeReading(),
         event: ghost,
       }),
@@ -172,6 +175,7 @@ describe('createAtomicMetricCommandStore', () => {
     const result = await createAtomicMetricCommandStore(
       db,
       makeEvents(order, true),
+      randomUUID,
     ).recordMetric({
       reading: makeReading(),
       event: recordedEvent(),
@@ -254,7 +258,11 @@ describe('createAtomicMetricCommandStore', () => {
     } as unknown as Database
     const events = makeEvents([])
 
-    const result = await createAtomicMetricCommandStore(db, events).recordMetric({
+    const result = await createAtomicMetricCommandStore(
+      db,
+      events,
+      randomUUID,
+    ).recordMetric({
       reading: replacement,
       supersedesSourceEventId: 'source-event-1',
       event: recordedEvent(replacement),
@@ -274,5 +282,122 @@ describe('createAtomicMetricCommandStore', () => {
       'metric.corrected',
     ])
     expect(events.emit).toHaveBeenCalledTimes(2)
+  })
+
+  it('updates the anonymous lifetime aggregate before the outbox fact commits', async () => {
+    const order: string[] = []
+    let aggregateExecuteCount = 0
+    const rating = makeReading({
+      portalId: portalId('b0000000-0000-4000-8000-0000000000b1'),
+      portalGroupId: null,
+      metricKey: 'portal.rating',
+      value: 4,
+      definitionVersionId: '11111111-1111-4111-8111-111111111202',
+      sourcePolicy: 'first_party_guest_private',
+    })
+    const tx = {
+      execute: vi.fn(async () => {
+        aggregateExecuteCount += 1
+        order.push(`tx.lifetime.${aggregateExecuteCount}`)
+        return { rows: [] }
+      }),
+      insert: vi.fn((table: unknown) => {
+        if (table === metricReadings) {
+          order.push('tx.state')
+          return {
+            values: vi.fn(() => ({
+              onConflictDoNothing: vi.fn(() => ({
+                returning: vi.fn(async () => [{ id: rating.id }]),
+              })),
+            })),
+          }
+        }
+        if (table === outboxEvents) {
+          order.push('tx.outbox')
+          return { values: vi.fn(async () => undefined) }
+        }
+        throw new Error('unexpected table')
+      }),
+    }
+    const db = {
+      transaction: vi.fn(async (work: (value: typeof tx) => Promise<unknown>) => {
+        order.push('tx.start')
+        const result = await work(tx)
+        order.push('tx.commit')
+        return result
+      }),
+    } as unknown as Database
+
+    await createAtomicMetricCommandStore(db, makeEvents(order), randomUUID).recordMetric({
+      reading: rating,
+      portalLifetimeFact: portalLifetimeFactForMetric({
+        metricKey: rating.metricKey,
+        value: rating.value,
+      }),
+      event: recordedEvent(rating),
+    })
+
+    expect(order).toEqual([
+      'tx.start',
+      'tx.state',
+      'tx.lifetime.1',
+      'tx.lifetime.2',
+      'tx.lifetime.3',
+      'tx.outbox',
+      'tx.commit',
+      'emit',
+    ])
+  })
+
+  it('does not publish when the lifetime aggregate mutation fails', async () => {
+    const rating = makeReading({
+      portalId: portalId('b0000000-0000-4000-8000-0000000000b1'),
+      portalGroupId: null,
+      metricKey: 'portal.rating',
+      value: 4,
+      definitionVersionId: '11111111-1111-4111-8111-111111111202',
+      sourcePolicy: 'first_party_guest_private',
+    })
+    let executeCount = 0
+    const tx = {
+      execute: vi.fn(async () => {
+        executeCount += 1
+        if (executeCount === 3) throw new Error('aggregate unavailable')
+        return { rows: [] }
+      }),
+      insert: vi.fn((table: unknown) => {
+        if (table === metricReadings) {
+          return {
+            values: vi.fn(() => ({
+              onConflictDoNothing: vi.fn(() => ({
+                returning: vi.fn(async () => [{ id: rating.id }]),
+              })),
+            })),
+          }
+        }
+        if (table === outboxEvents) {
+          return { values: vi.fn(async () => undefined) }
+        }
+        throw new Error('unexpected table')
+      }),
+    }
+    const db = {
+      transaction: vi.fn(async (work: (value: typeof tx) => Promise<unknown>) =>
+        work(tx),
+      ),
+    } as unknown as Database
+    const events = makeEvents([])
+
+    await expect(
+      createAtomicMetricCommandStore(db, events, randomUUID).recordMetric({
+        reading: rating,
+        portalLifetimeFact: portalLifetimeFactForMetric({
+          metricKey: rating.metricKey,
+          value: rating.value,
+        }),
+        event: recordedEvent(rating),
+      }),
+    ).rejects.toThrow('aggregate unavailable')
+    expect(events.emit).not.toHaveBeenCalled()
   })
 })

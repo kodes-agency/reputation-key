@@ -20,10 +20,13 @@ const event = {
 }
 
 describe('Portal metric retraction handlers', () => {
+  const logger = { error: vi.fn() }
+
   it('durably retracts every configured metric against the superseded source', async () => {
     const retract = vi.fn().mockResolvedValue({ status: 'retracted' })
     await makeDurablePortalMetricRetractionHandler(options)({
       retractMetric: retract,
+      logger,
     })(event)
 
     expect(retract).toHaveBeenCalledTimes(2)
@@ -43,6 +46,7 @@ describe('Portal metric retraction handlers', () => {
     await expect(
       makeDurablePortalMetricRetractionHandler(options)({
         retractMetric: retract,
+        logger,
       })(event),
     ).rejects.toThrow('metric source reading is not available for retraction')
   })
@@ -51,7 +55,11 @@ describe('Portal metric retraction handlers', () => {
     const retract = vi.fn().mockResolvedValue({ status: 'source_reading_not_found' })
 
     await expect(
-      makePortalMetricRetractionHandler(options)({ retractMetric: retract })(event),
+      makePortalMetricRetractionHandler(options)({
+        retractMetric: retract,
+        logger,
+      })(event),
     ).resolves.toBeUndefined()
+    expect(logger.error).toHaveBeenCalledOnce()
   })
 })

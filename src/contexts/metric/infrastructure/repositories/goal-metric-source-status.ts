@@ -23,6 +23,8 @@ type ParsedSourceRow = Readonly<{
   eventId: string
   eventType: string
   portalId: string
+  capturedPortalGroupId: string | null
+  hasCapturedPortalGroup: boolean
   occurredAt: Date
   receiptStatus: string | null
   quarantined: boolean
@@ -58,6 +60,8 @@ function parseRow(row: SourceRow): ParsedSourceRow | null {
   const portal = (payload as Record<string, unknown>)['portalId']
   const occurred = (payload as Record<string, unknown>)['occurredAt']
   const supersedes = (payload as Record<string, unknown>)['supersedesSourceEventId']
+  const payloadRecord = payload as Record<string, unknown>
+  const capturedGroup = payloadRecord['portalGroupId']
   if (typeof portal !== 'string' || typeof occurred !== 'string') return null
   const occurredAt = new Date(occurred)
   if (Number.isNaN(occurredAt.getTime())) return null
@@ -65,6 +69,8 @@ function parseRow(row: SourceRow): ParsedSourceRow | null {
     eventId: row.event_id,
     eventType: row.event_type,
     portalId: portal,
+    capturedPortalGroupId: typeof capturedGroup === 'string' ? capturedGroup : null,
+    hasCapturedPortalGroup: Object.hasOwn(payloadRecord, 'portalGroupId'),
     occurredAt,
     receiptStatus: typeof row.receipt_status === 'string' ? row.receipt_status : null,
     quarantined: row.quarantined === true,
@@ -78,10 +84,10 @@ function parseRow(row: SourceRow): ParsedSourceRow | null {
   }
 }
 
-export function createGoalMetricSourceStatus(
+export const createGoalMetricSourceStatus = (
   db: Database,
   portalGroups: PortalGroupPublicApi,
-): GoalMetricSourceStatusPort {
+): GoalMetricSourceStatusPort => {
   return {
     inspect: async (query, eventTypes) => {
       if (eventTypes.length === 0) return result('unavailable', 0, 0, 'no_source')
@@ -165,6 +171,11 @@ export function createGoalMetricSourceStatus(
           continue
         }
         if (query.subject.kind === 'portal_group') {
+          if (row.hasCapturedPortalGroup) {
+            if (row.capturedPortalGroupId !== query.subject.portalGroupId) continue
+            relevant.push({ ...row, expectedGroupId: row.capturedPortalGroupId })
+            continue
+          }
           let group
           try {
             group = await portalGroups.findGroupForPortal(

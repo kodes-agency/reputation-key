@@ -11,6 +11,8 @@ import type { MetricReading, ReadingResult } from '../../domain/metric-reading'
 import type { MetricRecorded } from '../../domain/events'
 import type { SourcePolicyClass } from '../../domain/metric-registry'
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
+import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
+import type { PortalLifetimeFact } from '../../domain/portal-lifetime-aggregate'
 
 /**
  * Reading insert + metric.recorded fact in one transaction. The reading id
@@ -20,6 +22,7 @@ import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 export type RecordMetricCommand = Readonly<{
   reading: MetricReading
   supersedesSourceEventId?: string | null
+  portalLifetimeFact?: PortalLifetimeFact | null
   event: MetricRecorded
 }>
 
@@ -44,6 +47,7 @@ export type RetractMetricCommand = Readonly<{
   /** The currently effective Guest fact whose reading must be retracted. */
   supersedesSourceEventId: string
   occurredAt: Date
+  staffAttribution: PrimaryStaffAttributionSnapshot | null
 }>
 
 export type RetractMetricResult =

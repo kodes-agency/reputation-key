@@ -8,7 +8,7 @@
 
 import type { Job } from 'bullmq'
 import type { Database } from '#/shared/db'
-import { getLogger } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   refreshDailyMetricsIncrementally,
   refreshWeeklyMetricsIncrementally,
@@ -17,6 +17,7 @@ import {
 
 export type RefreshRollupDeps = Readonly<{
   db: Database
+  logger: Pick<LoggerPort, 'debug' | 'info'>
 }>
 
 export const JOB_NAMES = {
@@ -33,7 +34,6 @@ const refreshFns = {
 
 export const createRefreshRollupHandler =
   (deps: RefreshRollupDeps, rollupType: keyof typeof refreshFns) => async (_job: Job) => {
-    const logger = getLogger()
-    const result = await refreshFns[rollupType](deps.db)
-    logger.info({ rollupType, result }, 'Incrementally refreshed rollup table')
+    const result = await refreshFns[rollupType](deps.db, deps.logger)
+    deps.logger.info({ rollupType, result }, 'Incrementally refreshed rollup table')
   }

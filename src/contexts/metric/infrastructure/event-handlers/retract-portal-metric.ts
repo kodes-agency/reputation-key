@@ -1,7 +1,8 @@
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type { RetractMetric } from '../../application/use-cases/retract-metric'
-import { getLogger } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
+import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 
 export type PortalMetricRetractionEvent = Readonly<{
   _tag: string
@@ -11,10 +12,12 @@ export type PortalMetricRetractionEvent = Readonly<{
   portalId: PortalId
   supersedesSourceEventId: string
   occurredAt: Date
+  staffAttribution?: PrimaryStaffAttributionSnapshot | null
 }>
 
 export type RetractPortalMetricDeps = Readonly<{
   retractMetric: RetractMetric
+  logger: Pick<LoggerPort, 'error'>
 }>
 
 type RetractionOption = Readonly<{
@@ -36,6 +39,7 @@ async function retractPortalMetrics(
       sourceEventId: event.eventId,
       supersedesSourceEventId: event.supersedesSourceEventId,
       occurredAt: event.occurredAt,
+      staffAttribution: event.staffAttribution ?? null,
     })
     if (result.status === 'source_reading_not_found') {
       // Durable delivery may race the original projection. Throwing leaves the
@@ -54,7 +58,7 @@ export function makePortalMetricRetractionHandler<E extends PortalMetricRetracti
         try {
           await retractPortalMetrics(options, deps, event)
         } catch (err) {
-          getLogger().error(
+          deps.logger.error(
             { err, event: event._tag },
             'metric: failed to retract Portal metric',
           )

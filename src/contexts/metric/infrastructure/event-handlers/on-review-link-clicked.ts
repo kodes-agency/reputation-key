@@ -11,6 +11,7 @@ const options = {
   definitionVersionId: METRIC_VERSION_IDS.portalDestinationClickAnalytics,
   sourcePolicy: 'review_solicitation_analytics_only',
   span: 'metric.event.onReviewLinkClicked',
+  destinationKind: (event: GuestReviewLinkClicked) => event.destinationKind,
 } as const
 
 export const onReviewLinkClicked =

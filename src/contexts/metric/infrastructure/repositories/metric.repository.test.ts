@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import type {
   GoalMetricAggregateQuery,
@@ -119,7 +120,7 @@ beforeEach(async () => {
 afterAll(async () => {
   await clean()
   await pool.query('DELETE FROM properties WHERE id = $1', [PROP_ID])
-  await pool.query('DELETE FROM organization WHERE id = $1', [ORG_ID])
+  await deleteTestOrganizations(pool, [ORG_ID])
   await pool.end()
 })
 
@@ -304,11 +305,11 @@ describe.sequential('governed metric aggregate reader (integration)', () => {
     await pool.query(
       `INSERT INTO metric_corrections (
          id, reading_id, source_event_id, kind, reason, actor_type, actor_id,
-         exact_delta, replacement_value, event_at
+         exact_delta, replacement_value, event_at, recorded_at
        ) VALUES (
          '4f000000-0000-4000-8000-000000000302', $1,
          'goal-reader-retraction', 'retract', 'guest_fact_retracted',
-         'system', 'guest.gateway', NULL, NULL, $2
+         'system', 'guest.gateway', NULL, NULL, $2, $2
        )`,
       [first, NOW],
     )
@@ -322,6 +323,7 @@ describe.sequential('governed metric aggregate reader (integration)', () => {
       weightedSum: 3,
       sampleCount: 1,
       readingCount: 1,
+      correctionHead: NOW,
     })
   })
 })

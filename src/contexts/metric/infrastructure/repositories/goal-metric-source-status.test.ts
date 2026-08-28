@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
 import type { PortalGroupPublicApi } from '#/contexts/portal/application/public-api'
 import type { GoalMetricAggregateQuery } from '../../application/ports/metric.repository'
@@ -12,6 +13,7 @@ const PROPERTY = propertyId('62000000-0000-4000-8000-000000000001')
 const PORTAL = portalId('62000000-0000-4000-8000-000000000002')
 const GROUP = portalGroupId('62000000-0000-4000-8000-000000000003')
 const VERSION = '11111111-1111-4111-8111-111111111302'
+const QUALIFIED_SCAN_VERSION = '11111111-1111-4111-8111-111111111301'
 const SUBMITTED_EVENT = '62000000-0000-4000-8000-000000000004'
 const RETRACTED_EVENT = '62000000-0000-4000-8000-000000000005'
 const READING = '62000000-0000-4000-8000-000000000006'
@@ -158,7 +160,7 @@ afterAll(async () => {
   await db.execute(sql`DELETE FROM portal_groups WHERE id = ${GROUP}`)
   await db.execute(sql`DELETE FROM portals WHERE id = ${PORTAL}`)
   await db.execute(sql`DELETE FROM properties WHERE id = ${PROPERTY}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
 })
 
 describe.sequential('Goal metric durable source status (integration)', () => {
@@ -296,5 +298,39 @@ describe.sequential('Goal metric durable source status (integration)', () => {
         'guest.rating.retracted',
       ]),
     ).resolves.toMatchObject({ state: 'complete', relevantFactCount: 2 })
+  })
+
+  it('uses Qualified Scan captured group attribution instead of current membership', async () => {
+    const status = createGoalMetricSourceStatus(db, {
+      ...portalGroups,
+      findGroupForPortal: async () => {
+        throw new Error('current membership must not reinterpret Qualified Scan facts')
+      },
+    })
+    await insertSource(SUBMITTED_EVENT, 'guest.qualified_scan.recorded')
+    await db.execute(sql`
+      UPDATE outbox_events
+      SET payload = payload || ${JSON.stringify({ portalGroupId: GROUP })}::jsonb
+      WHERE id = ${SUBMITTED_EVENT}::uuid
+    `)
+    await receipt(SUBMITTED_EVENT)
+    await insertReading()
+    await db.execute(sql`
+      UPDATE metric_readings
+      SET definition_version_id = ${QUALIFIED_SCAN_VERSION}::uuid,
+          metric_key = 'portal.qualified_scan'
+      WHERE id = ${READING}::uuid
+    `)
+
+    await expect(
+      status.inspect(
+        {
+          ...query({ kind: 'portal_group', portalGroupId: GROUP }),
+          definitionVersionId: QUALIFIED_SCAN_VERSION,
+          expectedMetricKey: 'portal.qualified_scan',
+        },
+        ['guest.qualified_scan.recorded', 'guest.qualified_scan.retracted'],
+      ),
+    ).resolves.toMatchObject({ state: 'complete', relevantFactCount: 1 })
   })
 })
