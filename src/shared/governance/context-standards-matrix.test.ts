@@ -74,8 +74,8 @@ describe('17-context by 11-rule standards matrix', () => {
       ),
     ).toEqual([])
     expect(summarizeContextStandardsMatrix(CONTEXT_STANDARDS_MATRIX)).toEqual({
-      acceptedExceptions: 41,
-      evidenced: 122,
+      acceptedExceptions: 43,
+      evidenced: 120,
       notApplicable: 24,
       unresolved: 0,
       total: 187,

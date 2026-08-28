@@ -147,7 +147,7 @@ const EVIDENCED = {
     'staff',
     'team',
   ],
-  files: ['badge', 'leaderboard'],
+  files: [],
   factories: [
     'activity',
     'ai',
@@ -227,6 +227,8 @@ const ACCEPTED_EXCEPTIONS: Partial<
     review: 'STD-MAINT-031',
     staff: 'STD-MAINT-032',
     team: 'STD-MAINT-033',
+    badge: 'STD-MAINT-037',
+    leaderboard: 'STD-MAINT-038',
   },
   repositories: {
     activity: 'STD-MAINT-034',

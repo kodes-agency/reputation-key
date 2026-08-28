@@ -481,6 +481,34 @@
       "expiresAt": "2027-02-28"
     },
     {
+      "id": "STD-MAINT-037",
+      "tier": "maintainability",
+      "context": "badge",
+      "dimension": "files",
+      "rule": "docs/standards.md §8.1–§8.2 context-layer filenames and tests follow their layer convention",
+      "scopes": ["src/contexts/badge/infrastructure/adapters"],
+      "reason": "The Organization Export contract requires all seventeen contexts to contribute, so beta-dark Badge gained one export adapter whose integration test uses the established .adapter.integration.test.ts name rather than the mirrored .adapter.test.ts. The capability stays dark; only the export contributor exists.",
+      "owner": "Recognition contraction",
+      "compensatingCheck": "The exhaustive filename audit pins 1 exact path by digest and rejects any inventory change; the Recognition active-surface and capability-fate pins prove the adapter adds no reachable surface.",
+      "sunsetTrigger": "Remove with Recognition contraction, or rename if the adapter is materially changed first.",
+      "reviewedAt": "2026-08-28",
+      "expiresAt": "2027-02-28"
+    },
+    {
+      "id": "STD-MAINT-038",
+      "tier": "maintainability",
+      "context": "leaderboard",
+      "dimension": "files",
+      "rule": "docs/standards.md §8.1–§8.2 context-layer filenames and tests follow their layer convention",
+      "scopes": ["src/contexts/leaderboard/infrastructure/adapters"],
+      "reason": "The Organization Export contract requires all seventeen contexts to contribute, so beta-dark Leaderboard gained one export adapter whose integration test uses the established .adapter.integration.test.ts name rather than the mirrored .adapter.test.ts. The capability stays dark; only the export contributor exists.",
+      "owner": "Recognition contraction",
+      "compensatingCheck": "The exhaustive filename audit pins 1 exact path by digest and rejects any inventory change; the Recognition active-surface and capability-fate pins prove the adapter adds no reachable surface.",
+      "sunsetTrigger": "Remove with Recognition contraction, or rename if the adapter is materially changed first.",
+      "reviewedAt": "2026-08-28",
+      "expiresAt": "2027-02-28"
+    },
+    {
       "id": "STD-MAINT-034",
       "tier": "maintainability",
       "context": "activity",

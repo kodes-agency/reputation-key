@@ -42,13 +42,21 @@ const LEGACY_CONTEXT_BUILDS = [
   'src/contexts/leaderboard/build.ts',
 ] as const
 
+// LIF-01: the Organization Export contract requires a contribution from all 17
+// contexts, so a dark context still owns a read-only export adapter. Each one is
+// a `SELECT`-only reader of its own retained rows: it constructs no repository,
+// registers no consumer or job, and is deliberately unreachable from the inert
+// build boundary asserted below. Adding a row here widens the retained-source
+// inventory by exactly that one reader — it does not relax any darkness rule.
 const RETAINED_RECOGNITION_PRODUCTION_SOURCES = [
   'src/contexts/badge/application/public-api.ts',
   'src/contexts/badge/build.ts',
   'src/contexts/badge/domain/events.ts',
+  'src/contexts/badge/infrastructure/adapters/badge-organization-export.adapter.ts',
   'src/contexts/leaderboard/application/legacy-recognition-inventory.ts',
   'src/contexts/leaderboard/application/public-api.ts',
   'src/contexts/leaderboard/build.ts',
+  'src/contexts/leaderboard/infrastructure/adapters/leaderboard-organization-export.adapter.ts',
   'src/contexts/leaderboard/infrastructure/legacy-recognition-inventory.repository.ts',
 ] as const
 

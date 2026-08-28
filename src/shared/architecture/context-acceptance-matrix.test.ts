@@ -457,16 +457,41 @@ describe('row 11 — Team (quarantined): no executable beta product surface', ()
     const catalogue = strippedSource('src/shared/governance/entry-point-catalogue.ts')
     expect(catalogue).not.toMatch(/src\/contexts\/team\/server/u)
 
+    // Two narrowly-scoped importers, each justified below and each pinned to
+    // the exact module it may import — a bare path allowance would let any
+    // future Team import in under the same exception.
+    const TEAM_IMPORTER_EXCEPTIONS = new Set([
+      'src/shared/events/events.ts',
+      // LIF-01-T11: the Organization Export contract requires all seventeen
+      // contexts to answer, so a quarantined context must still contribute —
+      // with retained rows or an affirmative no_data. Exporting a tenant's own
+      // retained Team rows is not an activation: it grants no capability, adds
+      // no reachable surface, and the assertions below pin that.
+      'src/composition/organization-export-contributors.ts',
+    ])
     const importers = SOURCES.filter(
       ({ path, body }) =>
         !path.startsWith('src/contexts/team/') &&
-        path !== 'src/shared/events/events.ts' &&
+        !TEAM_IMPORTER_EXCEPTIONS.has(path) &&
         /(?:from\s*|import\(\s*)['"][^'"]*(?:contexts\/team\/|\/team\/)/u.test(body),
     ).map(({ path }) => path)
     expect(
       importers,
       `production Team importers outside the retained event union:\n${importers.join('\n')}`,
     ).toEqual([])
+
+    // The export exception may reach exactly one Team module, and no other.
+    const exportComposition = strippedSource(
+      'src/composition/organization-export-contributors.ts',
+    )
+    const teamImports = [
+      ...exportComposition.matchAll(
+        /(?:from\s*|import\(\s*)['"]([^'"]*contexts\/team\/[^'"]*)['"]/gu,
+      ),
+    ].map((match) => match[1])
+    expect(teamImports).toEqual([
+      '#/contexts/team/infrastructure/adapters/team-organization-export.adapter',
+    ])
     expect(strippedSource('src/shared/events/events.ts')).toContain(
       "from '#/contexts/team/domain/events'",
     )

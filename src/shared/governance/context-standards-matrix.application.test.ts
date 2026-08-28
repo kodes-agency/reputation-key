@@ -231,32 +231,32 @@ describe('context-layer filename standards matrix proof', () => {
 
   it('pins every retained filename variance and classifies all contexts explicitly', () => {
     const expected = {
-      activity: [6, '7d279a9c72cb27283dc69ffd4186575d1a85138186ca156fe655927e6ef2a16c'],
-      ai: [9, '8ddb01c7954f20162d136293946b21bbccf685dc8c90a92ff4727e831f4ec806'],
-      badge: [0, 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'],
-      dashboard: [5, '04109286db02e1d3b8752b06ce1b161180e3d847b06bdbf9b2bd1d55d9d0e0de'],
-      goal: [25, '88878a3a9908941392e7e6203a19b3f1520b7eae5ae018731b967b3e95431ef9'],
-      guest: [23, '68dd69461cd50b0d3020216012f4494eb1162d5e0d4814e16f18a3887e4d946f'],
+      activity: [7, 'c98cec543b73369f083348301ef8bdde6271c170ad09780a6e5ef605254e21c8'],
+      ai: [10, '098c2971f712bcf78a59bf422f56e859a0e329957944c0d9b760105c34c0b1ae'],
+      badge: [1, '990ecec1cdc06bbef0086cbab4a358b07608821a01ebfb2b1ff715f7d291b341'],
+      dashboard: [6, '3f74d90f9f191c6ba7de8c1a2565ef80c6c45d2b6e6905d5f9c6378f2dae2a51'],
+      goal: [26, 'f19a8b9fcb7f3c87f022d9f7a740489cac234e2ef8cc65b031017d4060603d8c'],
+      guest: [24, '83872f2e3770517086c11cdd583b0874733d1bdb8b16477d783f5b22fe6ca683'],
       identity: [47, '0498ef3fa8015e5ee244276c3fa449fafa2ab175f3ee882e30b2c8323ac65b0e'],
-      inbox: [15, '72bdbf7dfc5c088c865f3010f095bb523e19ebaca615c8c80926bc9a39e3905f'],
+      inbox: [19, '201953374adafe91ecc151d6a537537fec9a4b6688267a5de4114877ba438cec'],
       integration: [
-        15,
-        'a94f1cc20e2dbe738c8701e352231ca0b096b0d6cd14d53dbbfd63d09b2727b6',
+        16,
+        'fda5f937fe7ad6eaa69be601b7ac6f90af5f4d26c08a0710fe6198a2a97a1d9f',
       ],
       leaderboard: [
-        0,
-        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        1,
+        '5c0e7882639411a91077a795b8a80bce0fdd1cf2134a3e17a7b74f64a6413339',
       ],
-      metric: [17, '0b4536378d46c010da626201400081b4023969147a48fab2813ca437a5ded3ad'],
+      metric: [18, 'f80c75862a34be5d8027bd9944d23a2a439f7be40ce24f2df4f57d3e19678451'],
       notification: [
-        24,
-        'e1ab29a1ab9c8cb39b1a7691e7d18e58207cc9697dff0916897bb0e14f6a71b0',
+        25,
+        'bc9964c7165cd69ac76a13a623f1a0a32ebfe260fce7a80816909d57dfbf68db',
       ],
-      portal: [23, 'b0416f6b47d64fa483e583b1d1eba5a54e13181d6d9f14db0066cadf5db0f37b'],
-      property: [17, '8ddd89191732646e31d6ac9238cfc207f32e89301d7957a08f28f04ca32e1cb1'],
-      review: [19, '0507f27b57cfacbf07e2ac1c54d7307636c5c45b3e258a1bc159bdb7ba2b9a1f'],
-      staff: [9, '38c19eddfc0456f5bbe9333183b1a8e9e4878b93816e6b681909500d37f51628'],
-      team: [2, '50433bffcc0eda1d0c9d81595515853391dca37543417fbcf51ca92113da6377'],
+      portal: [24, '7c869f84715da2b078270c588951088b78050ddf002eb359a9d759042e50ce12'],
+      property: [18, '6739505e6303693dca1a819e48db5489cead2c760d6b57e4df8c55a54e065fa8'],
+      review: [20, 'a169e1cf65e35a0e2fe9d093805aa48004215cb6a612322c9c94dc59afb70f9e'],
+      staff: [10, 'c675bd2a55047cdc1ca067cc233e96414b8c8db3b02056b65b1c2c01bda6af7d'],
+      team: [3, 'a3e4d412de702156cf00a47b56bba98ca453d012a86c001e7cc0b217ecb0376f'],
     } as const
 
     for (const row of CONTEXT_STANDARDS_MATRIX) {

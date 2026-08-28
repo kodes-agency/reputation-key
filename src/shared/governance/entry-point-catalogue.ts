@@ -2013,6 +2013,17 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'scoped via inboxItemId' },
     ),
     sf(
+      'getInboxItemHistoryFn',
+      `${INBOX}/inbox-item-queries.ts`,
+      'inbox.read',
+      'inbox.use',
+      'property',
+      {
+        notes:
+          'IBX-01-T5 complete handling record: cycles, assignments and escalations for one Inbox Item, scoped via inboxItemId; manager-internal note text additionally requires inbox.write and feedback.handle',
+      },
+    ),
+    sf(
       'assignInboxItemFn',
       `${INBOX}/inbox-item-actions.ts`,
       'inbox.write',
