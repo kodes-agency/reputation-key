@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "baselineSha": "9501a6c33ddda7a95b5f4c66f1c7927cbc124612",
-  "assessedAt": "2026-08-28",
+  "baselineSha": "d377da032526a36f6f5cdec02e1ec3610e8b66db",
+  "assessedAt": "2026-08-29",
   "packages": [
     {
       "id": "FND-01",
@@ -50,7 +50,7 @@
       "repositoryVerification": {
         "status": "in_progress",
         "remaining": [
-          "Complete the remaining implementation work, rerun the package-specific test and fault matrix against the final candidate, and publish the section 16 completion record."
+          "Rerun the ADR, capability, context and data-fate authorities against the frozen candidate. Current discovery reports 242 governed Drizzle models, 537 entry points and 4,073 TypeScript modules."
         ]
       },
       "externalVerification": {
@@ -93,7 +93,7 @@
       "externalVerification": {
         "status": "not_started",
         "remaining": [
-          "Retain deployed boot, readiness, registration, and delivery evidence against the final candidate."
+          "Revalidate the 537 catalogued entry points and retain deployed registration and delivery proof against the frozen candidate."
         ],
         "blockers": []
       },
@@ -339,7 +339,7 @@
       "repositoryVerification": {
         "status": "in_progress",
         "remaining": [
-          "Retain one clean isolated install/build/type/lint/test/coverage/artifact run plus hosted SBOM/scan/signature/provenance artifacts at the immutable candidate SHA; resolve or explicitly expire any candidate-time dependency findings."
+          "Rerun artifact containment against the frozen candidate. The current ownership scope is 4,073 TypeScript modules."
         ]
       },
       "externalVerification": {
@@ -450,11 +450,11 @@
     },
     {
       "id": "ARC-03",
-      "summary": "Boundary controls improved and AI now has the standard context document, build seam, and public API. Composition remains a large internal-service-locator with global mutable process state, direct server/framework calls, shared super-context ambiguity, and separately deployed sidecars without package-level dependency boundaries.",
+      "summary": "Composition is decomposed: the root is under 1,000 lines with the Google provider boundary, leaf-context builds and per-deployable projections in named modules. ExecutionPolicy, DelayedExecutionPolicy, CapabilityPolicyStore and the outbox consumer registry are container-owned with one explicit process installation; the container has a shutdown seam and no longer leaks the policy poller. Late-bound build-order cycles are replaced by named ports with contract tests, the ambient request context and better-auth session are injected, and each deployable builds exactly one Application Container proved by independent process fixtures.",
       "implementation": {
         "status": "in_progress",
         "remaining": [
-          "Deepen composition interfaces, eliminate global execution/container/queue registries, move direct server/framework calls behind context seams, partition/document shared authorities, decide package boundaries for sidecars, stop late environment reads, and prove one isolated container per process."
+          "Bring scripts/** under eslint-plugin-boundaries with its negative control, give trust-boundary sidecars a named shared kernel, split the shared-other catch-all so the documented dependency rules stop being documentation-only, add the production-cannot-import-test-surfaces control, and enable boundaries/no-unknown. All five require editing eslint.config.js, which a local config-protection hook currently blocks; the exact change is prepared and reverted cleanly rather than routed around."
         ]
       },
       "repositoryVerification": {
@@ -759,11 +759,11 @@
     },
     {
       "id": "IBX-01",
-      "summary": "Review and private-feedback Inbox items use an expand-only Handling Cycle model with locked compare-and-swap heads and durable material-revision reopening. Inbox authorization intersects Inbox and source permissions at the exact Property, and every complete human command requirement set is rechecked in the write transaction against current membership, grants, permission generation, and active Staff participation. Assignment grants no authority and records append-only cycle-attributed history. Single-item status, assignment, escalation, resolution, note, and private-feedback handling commands share optimistic revision fences. Managers close private-feedback work only by choosing one of five controlled outcomes; an optional internal note stays manager-only, and later corrections append history while preserving the original completion time, deadline result, cycle, and source rating. Bulk Close is disabled; Bulk Reopen accepts distinct item/revision pairs, preauthorizes the complete candidate set, returns ordered privacy-safe outcomes, and emits facts only for landed row fences. The first successful page advances a monotonic server response cutoff, so arrivals during load remain new, and transient search uses replacement history. Provider publication facts remain receipt-only; only exact current Google observations may automatically change Review work. Existing workflow status remains a compatibility projection rather than the final source-specific cycle authority.",
+      "summary": "Projection ordering, handling cycles and response targets converge to exact current state. The legacy classification contract, the read-only cutover and parity report and its signed runbook exist; escalation history is append-only (migration 0169); the manager experience presents the complete cycle, assignment and escalation record; the fresh-database replay matrix proves convergence, duplicate-harmlessness and deterministic rebuild; reminders are proved by time travel across the halfway, target and post-target boundaries; retention, redaction and source-unavailable can never produce a manager handling outcome; and inbox_items.status is read-only-retained with its writers cut.",
       "implementation": {
         "status": "in_progress",
         "remaining": [
-          "Backfill and classify legacy Review/private-feedback items and cut reads/commands from compatibility status to the cycle head; complete eligibility-loss reconciliation, response-target snapshots/reminders, receipt-coordinated lifecycle recovery, and the remaining cycle-aware source-specific manual status commands; add bulk assign/reassign/release, current-user display names, and the remaining history UI; then run the full replay/browser evidence matrix, including hosted proof for the scoped cache policy."
+          "Publish the section 16 completion record against the frozen candidate."
         ]
       },
       "repositoryVerification": {
@@ -1364,11 +1364,11 @@
     },
     {
       "id": "LIF-01",
-      "summary": "Suspension, retention, and recovery tools exist, and all 177 persisted models now have an explicit machine-checked lifecycle classification. Normal Property deletion remains destructive and Organization closure/export/privacy lifecycles are not implemented; classification is not execution evidence.",
+      "summary": "All seventeen Organization Export contributors and all seventeen destructive lifecycle contributors exist, on one frozen protocol and a shared transaction-bound receipt store. Export generation is unfenced because migration 0170 made the post-upload crash window recoverable. The backup-erasure ledger and restore resurrection fence stop a restore from undoing a purge; permanent Property Erase is operator-only with property.erase still blocked as a tenant capability; privacy access, correction, withdrawal and erasure exist; the retention registry ships report-only with apply refused while counsel approval is pending; and the Closure Center, explicit reactivation, transfer-first leave and the Purge Pending final notice are implemented.",
       "implementation": {
         "status": "in_progress",
         "remaining": [
-          "Fence destructive normal deletion; implement archive/restore, support-mediated erase, Organization closure/cancellation, backup fences, context-owned export, Guest-contact/Participant privacy, and full retention reconciliation drills."
+          "Activate the lifecycle and export schedules and compose the destructive contributor set, which stays deliberately unarmed until crash recovery, backup fencing and counsel-approved retention are all satisfied. Publish the section 16 completion record against the frozen candidate."
         ]
       },
       "repositoryVerification": {
@@ -1659,11 +1659,11 @@
     },
     {
       "id": "CNV-01",
-      "summary": "Team and post-core surfaces are quarantined, the unused Activity hash-chain abstraction and deprecated ActivityLog/createActivityLog aliases have been removed, and new Recent Activity writes are fenced to an exact active vocabulary. A bidirectional data-fate authority identifies every compatibility, quarantine, archive, and bounded-contraction row family without treating classification as deletion proof. Dormant billing columns are explicitly retained only as non-input/non-returned compatibility storage pending approved erase. The tracked 2.3 MB stale unit-result dump has been removed and its regenerable path is now ignored. Multiple false/unused/legacy islands and retained Activity physical storage/job/read names still lack the required parity, release, restore, and contraction record.",
+      "summary": "The analyser blind spots are modelled as configuration rather than deleted, so the reachability graph is trustworthy. The contraction inventory registry proves every bounded_contraction and compatibility_read table has exactly one read-only inventory command, and the six previously uncovered families now have one. The non-foreign-key reference scanner and the reachability-proof harness exist. No physical contraction has been performed.",
       "implementation": {
         "status": "in_progress",
         "remaining": [
-          "Complete replacement paths, prove zero reachability and data/FK disposition, delete false abstractions and stale artifacts in small reversible slices, and retain release/restore evidence for each contraction."
+          "Execute the proved-dead deletion slices for the residual analyser findings and the named candidate families, each carrying machine-generated reachability evidence, and publish the deletion report. Physical schema contraction stays blocked until one verified release plus restore proof."
         ]
       },
       "repositoryVerification": {
@@ -1696,11 +1696,11 @@
     },
     {
       "id": "LEG-01",
-      "summary": "A dated engineering fact map now reconciles capability posture, Portal/Guest flow and access, current retention classes, independent AI boundaries, target-versus-live Railway state, stale legal-draft deltas, and the exact acceptance checklist. Every older legal draft is visibly marked not for publication and the Google-confirmation source link is repaired. Written Google confirmation is recorded, but customer-facing notices/terms and counsel/provider acceptance remain open.",
+      "summary": "Counsel approval is machine-checked and fails closed. A registry records five documents with their exact digests; the authority refuses post-approval drift, a stale draft digest, an approver who is not external counsel, self-approval, expiry, an unregistered document, and approving a document while a counsel decision blocking it is open. requireApprovedLegalDocument throws for all three counsel-owned documents, which are registered as drafts with a null approver. The nine open decision categories are an addressable checklist anchored to verbatim text in the source documents, and Gate F now consumes the validated result instead of accepting an unchecked reference.",
       "implementation": {
         "status": "in_progress",
         "remaining": [
-          "Use the fact map to produce accepted customer-facing privacy/terms/Google disclosures; close unresolved base Guest metric, legacy compatibility, account/content, Contact Request, backup, and provider-reply lifecycles; verify the live subprocessor/region/backup/monitoring inventory; record named counsel/provider approvals plus effective, review, and expiry dates."
+          "Counsel must answer the checklist and approve the three documents. Engineering cannot self-approve this gate, and the registry refuses to let it."
         ]
       },
       "repositoryVerification": {
@@ -1733,11 +1733,11 @@
     },
     {
       "id": "REL-01",
-      "summary": "Release tooling and evidence schemas exist, and pull requests now run the same coverage floor/staleness ratchet plus integration suite as main without duplicating the unit run. No clean signed candidate has yet passed all gates and been promoted unchanged through the required cell-us environments.",
+      "summary": "Every Gate F evidence key now has a producer that fails closed rather than improvising: the candidate freeze, promotion read-back, deployed critical journeys, the canary sampler against a versioned threshold profile, normalized live-evidence importers, the report-first recovery orchestrator with a digest-bound human pause, and the approval envelope that holds no key material. The legal fail-open is closed.",
       "implementation": {
         "status": "in_progress",
         "remaining": [
-          "Close all beta blockers, produce independent reviews and full test/fault evidence, obtain legal acceptance, create and exercise cell-us and its backups, promote one signed digest candidate, run smoke/rollback, and publish all section 16 records."
+          "Ratify the canary observation window duration in ADR 0059, which is an operating owner decision rather than an engineering one; the sampler exits non-zero naming it until then. Freeze one immutable candidate and run Gate F against it."
         ]
       },
       "repositoryVerification": {

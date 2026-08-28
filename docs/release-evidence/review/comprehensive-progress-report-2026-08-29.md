@@ -1,0 +1,187 @@
+# Comprehensive implementation progress report
+
+**Assessment date:** 2026-08-29
+**Branch:** `codex/comprehensive-program-continuation`
+**Supersedes:** [`comprehensive-progress-report-2026-08-28.md`](comprehensive-progress-report-2026-08-28.md)
+**Plan:** [`docs/program-completion-plan-2026-08-28.md`](../../program-completion-plan-2026-08-28.md)
+**Backlog:** [`program-completion-backlog-2026-08-28.json`](program-completion-backlog-2026-08-28.json)
+
+## What changed since 2026-08-28
+
+The 2,447-path uncommitted tree is gone. It is now 34 path-scoped commits plus
+seven implementation waves, all on one branch, all pushed. The three-axis ledger
+counts are unchanged in shape — and that is the point of the model, not a
+failure of the work.
+
+| Measure                        | 2026-08-28 | 2026-08-29 |
+| ------------------------------ | ---------- | ---------- |
+| Implementation complete        | 36 / 42    | 36 / 42    |
+| Repository verification passed | 0 / 42     | 0 / 42     |
+| Formally closed                | 0 / 42     | 0 / 42     |
+| Uncommitted working-tree paths | 2,447      | **0**      |
+| TypeScript modules             | 3,729      | 4,073      |
+| Unit tests                     | 10,902     | 12,256     |
+| Integration tests              | 1,034      | 1,279      |
+| Migrations                     | 169        | 175        |
+
+The six open packages all advanced substantially, but none crossed to
+`complete`, and no package can pass repository verification until one immutable
+candidate is frozen. The ledger says so, and the validator enforces it.
+
+## The tree is no longer the largest risk
+
+The 2026-08-28 report named the uncommitted tree as the largest immediate
+delivery risk. It is resolved: 34 attributable commits by concern, then one
+commit per wave-concern, branch pushed, pull request open. Only the series tip
+is a verified state; intermediate commits are integration checkpoints.
+
+## What landed
+
+### The development database, diagnosed and fenced
+
+`repkey_dev` is **forked**, not behind: five applied migrations have hashes no
+current repository file produces, the ledger diverges from the journal at
+ordinal 25, and 57 migrations are unapplied. The reported already-exists column
+was a consequence. The recommendation is recreation, not reconciliation —
+hand-editing the ledger would produce a database claiming a lineage it does not
+have.
+
+The hole is closed structurally. `ConfiguredDatabaseFence` refuses any target
+matching a connection string in this checkout's own env files, before a
+connection is opened, with no override.
+
+### `LIF-01` — from one contributor to the whole lifecycle
+
+All seventeen export contributors and all seventeen destructive lifecycle
+contributors exist on one frozen protocol. Migration 0170 made the
+post-upload/pre-completion crash window recoverable, so export generation is no
+longer hard-fenced. The backup-erasure ledger and restore resurrection fence,
+operator-only Property Erase, privacy access/correction/withdrawal/erasure, the
+report-only retention registry, the Closure Center, explicit reactivation,
+transfer-first leave and the Purge Pending final notice all exist.
+
+The destructive contributor set is assembled and proved complete **and
+deliberately not composed into the default container**. Readiness reporting
+seventeen missing contexts is the honest state: destructive activation waits for
+crash recovery, backup fencing and counsel-approved retention.
+
+### `ARC-03` — the composition root
+
+Under 1,000 lines. Process-global ExecutionPolicy, DelayedExecutionPolicy,
+CapabilityPolicyStore and the outbox consumer registry are container-owned with
+one explicit process installation. Late-bound build-order cycles are replaced by
+named ports with contract tests. Each deployable builds exactly one Application
+Container, proved by independently spawned process fixtures.
+
+### `LEG-01` — counsel approval made mechanical
+
+Five documents, five drafts, zero approvals, three publication blockers — the
+output of `pnpm check:legal-registry`, which runs on push. The authority refuses
+post-approval drift, a stale draft digest, an approver who is not external
+counsel, self-approval, expiry, an unregistered document, and approving a
+document while a decision blocking it is open. Gate F's legal fail-open is
+closed. See [ADR 0060](../../adr/0060-machine-checked-legal-approval.md).
+
+### `REL-01` — producers that refuse
+
+Every Gate F evidence key has a producer that fails closed. The canary observer
+currently exits non-zero because the observation-window duration in ADR 0059 is
+an operating owner's decision, not engineering's. That is the correct state.
+
+### `IBX-01` and `CNV-01`
+
+Inbox has the legacy classification contract and read-only parity report, the
+complete handling record, the fresh-database replay matrix, reminder time-travel
+evidence, and `inbox_items.status` cut to read-only-retained. Contraction has
+the inventory registry proving every candidate table has exactly one read-only
+command, plus the non-FK scanner and reachability harness. **No physical
+contraction has been performed.**
+
+## Independent review — 9 confirmed findings
+
+Five independent read-only lenses reviewed the new surfaces; every finding then
+faced an adversarial refutation pass whose default verdict is refuted. Of 25
+candidates, **9 survived**. Full record:
+[`independent-review-2026-08-29.json`](independent-review-2026-08-29.json).
+
+### Fixed in this wave
+
+- **CRITICAL — the Closure Center could permanently brick a tenant.** Requesting
+  a closure commits an Organization-wide suspension; cancelling deliberately
+  leaves it in place with the reactivation fence set; and reactivation was
+  impossible in both composition (no probes bound) and the database (migration
+  0159 permits no `active → active` edge). One click by any AccountAdmin on a
+  live route would have suspended the tenant with no in-product recovery.
+  `requestClosure` now refuses when the deployment cannot reactivate. Arming a
+  suspension whose only exit is not composed is now impossible.
+- **LOW — the entry-point catalogue recorded a false safety property**, claiming
+  cancellation clears the suspension. It does not, by design. The note now says
+  what the code does.
+- **LOW — Gate F role separation was declared but not enforced.**
+  `GATE_F_ENGINEERING_ROLES` had zero consumers, so one keypair enrolled for
+  both `security` and `counsel` would have satisfied both approvals. The role
+  key map now refuses a key enrolled for two roles, and names the
+  engineering/counsel collision explicitly.
+
+### Open, recorded, not fixed
+
+These are real and should be scheduled before a candidate freeze. None is
+reachable in a default container today.
+
+| Severity | Finding                                                                                                                                                                                                                                                                                             |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HIGH     | The backup-erasure ledger lives inside the database it fences. A PITR restore rolls the ledger back with everything else, so the fence reads an empty ledger and reports `verified: true`. Latent: nothing calls the fence during a restore yet. Needs an out-of-cell copy or a pre-restore export. |
+| HIGH     | Export `delete_pending` is a dead end: a crash or transient object-store error between the claim and the delete strands the tenant archive in the bucket.                                                                                                                                           |
+| MEDIUM   | `runPhase` opens 17 concurrent transactions on a 10-connection pool, exceeding the pinned per-job budget.                                                                                                                                                                                           |
+| MEDIUM   | Gate F accepts a bundle where the approved legal bytes and the on-disk legal bytes disagree, if the checklist digest is rewritten to match.                                                                                                                                                         |
+| LOW      | The Property Erase job header claims a crash resumes from receipts, but the pass is one transaction, so a crash discards them.                                                                                                                                                                      |
+
+## Verification
+
+Run under Node 22.23.2 at the series tip:
+
+| Gate        | Result                                                          |
+| ----------- | --------------------------------------------------------------- |
+| Typecheck   | 3 projects / 4,073 modules                                      |
+| Lint        | including architecture, filename, component, Zod, product-state |
+| Format      | clean                                                           |
+| Unit        | 1,262 files / 12,256 passed / 6 skipped                         |
+| Integration | 239 files / 1,279 passed, on a database created from scratch    |
+
+One integration run on a **reused** database showed a single failure that
+disappeared on a brand-new one — the same reuse contamination the 2026-08-28
+report documented. The fresh run is authoritative.
+
+Governance controls caught real regressions at every wave and were answered
+rather than relaxed: browser reachability (a `node:crypto` import reachable from
+the Inbox public API), the entry-point catalogue order digest, the
+operator-command classifier, the Team quarantine, the Recognition surface
+inventory, the dark-context properties-table watch, filename and type-triple
+variances, a banned observability key, and a double-serialized route payload.
+
+## Still blocked, and why
+
+- **`ARC-03` cannot reach complete.** Five tasks need `eslint.config.js`, which a
+  local `config-protection` hook blocks. The agent that hit it wrote the failing
+  controls first, confirmed they went red for the right reason, then reverted
+  cleanly rather than routing around a user-installed guard.
+- **No package can pass repository verification** until one immutable candidate
+  is frozen and the matrix reruns against that exact SHA.
+- **34 packages need external evidence** that cannot be produced here. See
+  [`external-verification-execution-pack.md`](../../operations/external-verification-execution-pack.md)
+  for the eight lanes, the authority each needs, and what is already prepared.
+
+## Recommended next checkpoint
+
+1. Unblock and land the five `ARC-03` boundary tasks.
+2. Schedule the five open review findings, starting with the backup-erasure
+   ledger's own survival across a restore.
+3. Ratify the canary observation window in ADR 0059.
+4. Freeze one immutable candidate, rerun the whole matrix against that SHA, and
+   only then move repository verification to `passed`.
+5. Execute the external lanes in the order the pack gives, retaining each
+   artifact as it is produced.
+
+Nothing above should be read as beta readiness. A large amount of correct local
+implementation is not a deployed, externally verified system, and the ledger is
+built to keep saying so.
