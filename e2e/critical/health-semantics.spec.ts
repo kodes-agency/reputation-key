@@ -7,7 +7,8 @@
 //                        deliberately NOT an input
 //   /api/health          same upgraded readiness semantics (legacy route)
 //   /api/health/started  200 once booted (container + migrations + policy) —
-//                        the platform activation gate (railway.json)
+//                        local/staging startup diagnostic; Railway activation
+//                        uses /api/health/ready under ADR 0057
 //   /api/health/metrics  PRIVATE: 404 without a token, 404 with a wrong token
 //                        (never 403 — existence is not revealed), 200 with
 //                        OPS_METRICS_TOKEN; identifier-only payload (no PII)

@@ -1,4 +1,6 @@
 import type { Locator, Page } from '@playwright/test'
+import { existsSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { test, expect } from '../helpers/error-detection'
 import { signIn } from '../helpers/auth'
 import { waitForHydration, clickWhenReady } from '../helpers/interaction'
@@ -208,11 +210,6 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expectControlledUnavailable(page, 'Portals')
     await page.goto(`/properties/${seed.p3PropertyId}/portals`)
     await expectControlledUnavailable(page, 'Portals')
-    await page.goto(`/properties/${seed.p2PropertyId}/teams/${seed.teamId}`)
-    await expectControlledUnavailable(page, 'Teams')
-    await page.goto(`/properties/${seed.p3PropertyId}/teams/${seed.teamId}`)
-    await expectControlledUnavailable(page, 'Teams')
-
     await page.goto(`/p/${seed.p2PortalToken}`)
     await expectPublicUnavailable(page)
     await expect(page.getByText('E2E Guest Portal P2')).toHaveCount(0)
@@ -236,11 +233,10 @@ test.describe('Critical: beta-local-1 product journeys', () => {
 
     for (const [url, feature] of [
       [`/properties/${seed.p3PropertyId}/portals`, 'Portals'],
-      [`/properties/${seed.p3PropertyId}/teams`, 'Teams'],
       [`/properties/${seed.p3PropertyId}/goals`, 'Goals'],
       [
         `/leaderboard?propertyId=${seed.p3PropertyId}&portalGroupId=${seed.portalGroupId}`,
-        'Recognition board',
+        'Achievement Board',
       ],
     ] as const) {
       await page.goto(url)
@@ -327,9 +323,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
   })
 
-  test('cross-property Portal, Team, and email resources fail closed', async ({
-    page,
-  }) => {
+  test('cross-property Portal and email resources fail closed', async ({ page }) => {
     const log = attachRequestLog(page)
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
 
@@ -368,14 +362,6 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       /error|denied|forbidden|not found/i,
     )
 
-    const teamDenial = await callServerFnGetExpectError(page, {
-      file: 'src/contexts/team/server/teams.ts',
-      exportName: 'listTeams',
-      data: { propertyId: seed.p2PropertyId },
-    })
-    expect(teamDenial.message ?? teamDenial.code ?? '').toMatch(
-      /error|denied|forbidden|not found/i,
-    )
     for (const propertyId of [seed.p2PropertyId, seed.p3PropertyId]) {
       const emailPreferenceDenial = await callServerFnExpectError(page, {
         file: 'src/contexts/notification/server/notifications.ts',
@@ -397,102 +383,6 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     }
 
     log.assertNoExternalHosts([BASE_HOST])
-  })
-
-  test('manager creates a team, adds members, and durably replaces its lead', async ({
-    page,
-  }) => {
-    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
-    const teamName = `E2E Created Team ${e2eRunId.slice(-8)}`
-    const created = await callServerFn<{ team: { id: string } }>(page, {
-      file: 'src/contexts/team/server/teams.ts',
-      exportName: 'createTeam',
-      data: {
-        propertyId: seed.p1PropertyId,
-        name: teamName,
-        description: 'Created through the real Team command.',
-      },
-    })
-
-    await callServerFn(page, {
-      file: 'src/contexts/team/server/teams.ts',
-      exportName: 'addTeamMember',
-      data: {
-        teamId: created.team.id,
-        staffParticipationId: seed.candidateAParticipationId,
-      },
-    })
-    await callServerFn(page, {
-      file: 'src/contexts/team/server/teams.ts',
-      exportName: 'setTeamLead',
-      data: {
-        teamId: created.team.id,
-        staffParticipationId: seed.candidateAParticipationId,
-      },
-    })
-    await callServerFn(page, {
-      file: 'src/contexts/team/server/teams.ts',
-      exportName: 'addTeamMember',
-      data: {
-        teamId: created.team.id,
-        staffParticipationId: seed.candidateBParticipationId,
-      },
-    })
-    await callServerFn(page, {
-      file: 'src/contexts/team/server/teams.ts',
-      exportName: 'setTeamLead',
-      data: {
-        teamId: created.team.id,
-        staffParticipationId: seed.candidateBParticipationId,
-      },
-    })
-
-    await page.goto(`/properties/${seed.p1PropertyId}/teams/${created.team.id}`)
-    await expect(page.getByRole('heading', { name: teamName })).toBeVisible()
-    await expect(
-      page.getByRole('combobox', { name: 'Active team member' }),
-    ).toContainText(seed.candidateBName)
-    await page.reload()
-    await expect(
-      page.getByRole('combobox', { name: 'Active team member' }),
-    ).toContainText(seed.candidateBName)
-
-    const denied = await callServerFnExpectError(page, {
-      file: 'src/contexts/team/server/teams.ts',
-      exportName: 'createTeam',
-      data: {
-        propertyId: seed.p2PropertyId,
-        name: `Denied ${teamName}`,
-      },
-    })
-    expect(denied.message ?? denied.code ?? '').toMatch(/error|denied|forbidden/i)
-  })
-
-  test('manager replaces the P1 team lead, reloads durable state, and restores it', async ({
-    page,
-  }) => {
-    await signIn(page, seed.email, seed.password, BASE_ORIGIN)
-    await page.goto(`/properties/${seed.p1PropertyId}/teams/${seed.teamId}`)
-    await waitForHydration(page)
-    await expect(
-      page.getByRole('heading', { name: 'E2E Guest Services Team' }),
-    ).toBeVisible()
-
-    const leadSelect = page.getByRole('combobox', { name: 'Active team member' })
-    await clickWhenReady(leadSelect)
-    await clickWhenReady(page.getByRole('option', { name: seed.staffName }))
-    await clickWhenReady(page.getByRole('button', { name: 'Replace lead' }))
-    await expect(page.getByText('Team lead updated')).toBeVisible()
-
-    await page.reload()
-    await expect(leadSelect).toContainText(seed.staffName)
-
-    await clickWhenReady(leadSelect)
-    await clickWhenReady(page.getByRole('option', { name: seed.managerName }))
-    await clickWhenReady(page.getByRole('button', { name: 'Replace lead' }))
-    await expect(page.getByText('Team lead updated')).toBeVisible()
-    await page.reload()
-    await expect(leadSelect).toContainText(seed.managerName)
   })
 
   test('manager creates an active governed P1 goal while P2 direct navigation is denied', async ({
@@ -702,104 +592,26 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expectControlledUnavailable(page, 'Goals')
   })
 
-  test('recognition activation settings and governed P1 group board persist; P2 is denied', async ({
+  test('legacy Recognition routes remain unavailable and server operations stay removed', async ({
     page,
   }) => {
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
     await page.goto(`/settings/recognition?propertyId=${seed.p1PropertyId}`)
-    await expect(page.getByRole('heading', { name: 'Recognition' })).toBeVisible()
-    await expect(page.getByLabel('E2E Guest Services')).toBeChecked()
-    await expect(page.getByLabel('Jurisdiction')).toHaveValue('local-e2e')
-    const settings = await callServerFnGet<{
-      activation: {
-        status: string
-        selectedPortalGroupIds: readonly string[]
-        employmentDecisionEligible: false
-      }
-    }>(page, {
-      file: 'src/contexts/leaderboard/server/leaderboards.ts',
-      exportName: 'getRecognitionSettings',
-      data: { propertyId: seed.p1PropertyId },
-    })
-    expect(settings.activation).toMatchObject({
-      status: 'active',
-      employmentDecisionEligible: false,
-    })
-    expect(settings.activation.selectedPortalGroupIds).toContain(seed.portalGroupId)
-    await page.reload()
-    await expect(page.getByLabel('E2E Guest Services')).toBeChecked()
-    await expect(page.getByLabel('Jurisdiction')).toHaveValue('local-e2e')
-
-    const prohibitedSource = await callServerFnExpectError(page, {
-      file: 'src/contexts/leaderboard/server/leaderboards.ts',
-      exportName: 'activateRecognition',
-      data: {
-        propertyId: seed.p1PropertyId,
-        policyVersion: 'beta-local-1',
-        jurisdiction: 'local-e2e',
-        noticeStatus: 'completed',
-        consultationStatus: 'not_required',
-        audience: 'property_managers_and_scoped_staff',
-        selectedPortalGroupIds: [seed.portalGroupId],
-        metricDefinitionVersionId: '11111111-1111-4111-8111-111111111202',
-        aggregation: 'latest',
-        periodKind: 'monthly',
-        minimumExposure: 1,
-        minimumSample: 5,
-        freshnessSeconds: 2_678_400,
-        minimumCompleteness: 0.9,
-      },
-    })
-    expect(prohibitedSource.message ?? prohibitedSource.code ?? '').toMatch(
-      /error|invalid|denied|forbidden/i,
-    )
-
-    const board = await callServerFnGet<{
-      status: string
-      employmentDecisionEligible: false
-      entries: ReadonlyArray<{
-        portalGroupId: string
-        portalGroupLabel: string
-        rank: number | null
-      }>
-    }>(page, {
-      file: 'src/contexts/leaderboard/server/leaderboards.ts',
-      exportName: 'getRecognitionBoard',
-      data: {
-        propertyId: seed.p1PropertyId,
-        portalGroupId: seed.portalGroupId,
-      },
-    })
-    expect(board.employmentDecisionEligible).toBe(false)
-    expect(board.entries).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          portalGroupId: seed.portalGroupId,
-          portalGroupLabel: 'E2E Guest Services',
-          rank: 1,
-        }),
-      ]),
-    )
+    await expectControlledUnavailable(page, 'Recognition')
     await page.goto(
       `/leaderboard?propertyId=${seed.p1PropertyId}&portalGroupId=${seed.portalGroupId}`,
     )
-    await expect(page.getByRole('heading', { name: 'Recognition board' })).toBeVisible()
-    await expect(page.getByText('E2E Guest Services')).toBeVisible()
+    await expectControlledUnavailable(page, 'Achievement Board')
 
-    await page.goto(
-      `/leaderboard?propertyId=${seed.p2PropertyId}&portalGroupId=${seed.portalGroupId}`,
-    )
-    await expectControlledUnavailable(page, 'Recognition board')
-    await page.goto(`/settings/recognition?propertyId=${seed.p2PropertyId}`)
-    await expect(page).toHaveURL(/\/unavailable/)
-    const deniedFeature = new URL(page.url()).searchParams.get('feature')
-    expect(['Recognition', 'Recognition board']).toContain(deniedFeature)
-    await expect(page.getByText(`${deniedFeature} isn't available yet`)).toBeVisible()
+    expect(
+      [
+        'src/contexts/badge/server/badges.ts',
+        'src/contexts/leaderboard/server/leaderboards.ts',
+      ].filter((path) => existsSync(resolve(path))),
+    ).toEqual([])
   })
 
-  test('Staff reads its P1 group board but cannot open manager settings', async ({
-    page,
-  }) => {
+  test('Staff cannot open legacy Recognition or manager settings', async ({ page }) => {
     await signIn(
       page,
       seed.staffEmail,
@@ -811,14 +623,10 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await page.goto(
       `/leaderboard?propertyId=${seed.p1PropertyId}&portalGroupId=${seed.portalGroupId}`,
     )
-    await expect(page.getByRole('heading', { name: 'Recognition board' })).toBeVisible()
-    await expect(page.getByText('E2E Guest Services')).toBeVisible()
-    await expect(page.getByText(seed.managerName, { exact: true })).toHaveCount(0)
-    await expect(page.getByText(seed.staffName, { exact: true })).toHaveCount(0)
+    await expectControlledUnavailable(page, 'Achievement Board')
 
     await page.goto('/settings/recognition')
-    await expect(page).toHaveURL(/\/settings\/profile/)
-    await expect(page.getByRole('heading', { name: 'Recognition' })).toHaveCount(0)
+    await expectControlledUnavailable(page, 'Recognition')
 
     await page.goto('/settings/organization')
     await expect(page).toHaveURL(/\/settings\/profile/)

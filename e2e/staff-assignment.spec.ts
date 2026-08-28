@@ -21,7 +21,6 @@ test.describe('Staff Assignment', () => {
 
     const staffTab = page.getByRole('tab', { name: /staff/i })
     await expect(staffTab).toBeVisible()
-    await expect(page.getByRole('tab', { name: /teams/i })).toBeVisible()
     await expect(page.getByRole('tab', { name: /directory/i })).toBeVisible()
     await clickWhenReady(staffTab)
 

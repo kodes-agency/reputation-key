@@ -4,7 +4,7 @@
 // Scope notes:
 // - Self-service registration is permanently blocked in beta. The positive
 //   invitation→registration→sign-in journey lives in e2e/auth.spec.ts.
-// - Property people/teams UI stays residual until loader is green under CI seed.
+// - Property People covers Staff Participants; quarantined Team has no beta UI.
 // - Property/inbox/members use seed-state deep-links (no UI property create).
 
 import { test, expect } from '../helpers/error-detection'
