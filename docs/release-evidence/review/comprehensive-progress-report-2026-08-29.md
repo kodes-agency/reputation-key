@@ -159,6 +159,40 @@ operator-command classifier, the Team quarantine, the Recognition surface
 inventory, the dark-context properties-table watch, filename and type-triple
 variances, a banned observability key, and a double-serialized route payload.
 
+## Continuous integration: first run on this branch
+
+CI had never run on this work — it lived in an uncommitted tree. The first runs
+therefore surfaced a backlog of failures at once. Fixed so far:
+
+- **Docker and e2e image builds.** The artifact gate refuses any Google import
+  compatibility path in the final worker artifact. The wave-6 Integration
+  lifecycle contributor named three compatibility mirrors directly and a
+  catalogue note spelled out two more. Those mirrors belong to the compatibility
+  build; the contributor defers them and its purge receipt now says so, because
+  a partial purge that stays silent reads as complete.
+- **Simulation.** The scenario builder created reviews with a null content
+  clock, which took a compatibility path that writes no material review
+  revision, so every reply and Inbox item fenced by that foreign key failed. The
+  builder now takes the production observation route.
+- **A real production defect the simulation exposed.** `ARC-03-T12` surfaced
+  Notification's delivery capability but left `deliverySettlement` behind, so
+  the worker's insert-notification handler was built without it and every
+  outbox-delivered notification threw.
+- **Three Inbox Storybook stories** that regressed in this session, confirmed
+  against the pre-session tree where they passed.
+
+Still red at the time of writing, with attribution:
+
+| Job              | Cause                                                                                                                                                            | Attribution                                                                                           |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `audit`          | The Fallow `new-only` gate counts findings new **in changed files**. This branch changes 3,706 files, so the entire accepted 331-finding residual counts as new. | Property of the diff. Resolving it means landing the `CNV-01` deletion slices, not widening the gate. |
+| `simulate`       | `review-inbox-consistency` reports reviews without an Inbox item — a different failure from the one fixed, and it does not reproduce locally.                    | Under investigation.                                                                                  |
+| `docker`         | The image smoke check (contract, non-root, prod-deps purity) now fails where the build previously did.                                                           | Under investigation.                                                                                  |
+| `storybook-test` | Several stories outside the Inbox set, including two verified to fail identically at the pre-session SHA.                                                        | Pre-existing.                                                                                         |
+
+None of these is a reason to treat the repository work as unfinished, and none
+should be resolved by relaxing the gate that found it.
+
 ## Still blocked, and why
 
 - **`ARC-03` cannot reach complete.** Five tasks need `eslint.config.js`, which a
