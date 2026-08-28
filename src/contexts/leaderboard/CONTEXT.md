@@ -2,10 +2,12 @@
 
 ## Bounded context
 
-This package retains historical ranking/snapshot code and rows for bounded
-contraction only. Competitive leaderboards are not approved beta behavior and
-are not the future recognition model. `leaderboard.use` remains denied; reads,
-refreshes, consumers, and schedules must stay unreachable.
+This package retains only an inert build and the content-free inventory needed
+to export and restore historical ranking rows. Ranking repositories,
+use cases, scoring, comparison, mapping, reconciliation, and Recognition
+activation mechanics have been removed from the runtime source tree.
+Competitive leaderboards are not approved beta behavior and are not the future
+recognition model. `leaderboard.use` remains denied.
 
 The former `/leaderboard` address may show only a mild **Achievement Board
 unavailable** state. It must not load ranking data, calculate snapshots, expose a
@@ -14,8 +16,8 @@ or Teams are being ranked.
 
 ## Invariants
 
-1. `leaderboard.use` remains denied and no ranking read, refresh, consumer, or
-   schedule may be beta-reachable.
+1. `leaderboard.use` remains denied and no ranking read, server operation,
+   refresh, consumer, or schedule may exist in the beta runtime.
 2. Retained snapshots cannot influence access, Staff assessment, Goals,
    notifications, manager workflow, or Portal publication.
 3. Historical ranking data remains distinguishable from any future neutral
@@ -24,32 +26,36 @@ or Teams are being ranked.
 
 ## Events produced
 
-Leaderboard currently defines no cross-context domain events. Its retained
-refresh paths must remain inactive while the capability is denied.
+Leaderboard defines no cross-context domain events and retains no refresh path.
 
 ## Public API
 
-`application/public-api.ts` retains historical read types for compatibility.
-It is not an activation surface; runtime use remains governed by the capability
-and entry-point authorities.
+`application/public-api.ts` exposes only the content-free 13-table inventory
+model and canonical report formatter. It has no ranking or Recognition product
+operation. The production container does not construct or expose Leaderboard,
+and no Leaderboard server operation exists.
 
 ## Prohibited beta behavior
 
 - no per-metric or composite rank, normalized score, tie ordering, competition,
   weak-performer language, or Staff/Team comparison;
 - no refresh on Metric events and no reconciliation schedule;
-- no server-function, navigation, API, export, Dashboard, Staff-home, Portal, or
-  notification reachability;
+- no successful server-function behavior or data reachability, navigation, API,
+  export, Dashboard, Staff-home, Portal, or notification surface; server
+  declarations are absent;
 - no authorization or management decision derived from retained snapshots;
 - no migration of Team memberships into Portal Groups.
 
 ## Retained implementation
 
-The legacy schema, domain types, repository, server function, handlers, and jobs
-remain temporarily for data inventory, restore compatibility, and deletion
-proof. Their names and tests describe historical mechanics, not a current
-product contract. Any maintenance change must strengthen darkness or bounded
-contraction.
+The legacy schema and content-free inventory repository remain for restore
+compatibility and deletion proof. Production composition does not call
+`buildLeaderboardContext`; that build constructs no repository, use case,
+consumer, job, or schedule. The entry/event catalogues contain no Leaderboard
+server or consumer declaration. A removal-only scheduler tombstone remains so
+an older deployed BullMQ schedule is deleted rather than orphaned. Ranking and
+activation mechanics are absent, and an executable exact-source allowlist fails
+if they return.
 
 ## Future recognition boundary
 
@@ -60,10 +66,18 @@ leaderboard ranks or snapshots as its decision authority.
 
 ## Exit criteria
 
-Inventory and disposition retained rows, prove no executable entry point or
-production artifact depends on the model, capture restore/export evidence, then
-remove the ranking paths and obsolete schema through a reversible contraction
-plan.
+The unreachable ranking paths, server operations, and consumer declaration are
+already removed and can be recovered from version control if rollback is needed.
+Inventory and disposition retained rows, prove no compatibility reader depends
+on the schema, capture restore/export evidence, then remove the obsolete schema
+through a separately reviewed reversible contraction plan.
+
+The read-only `ops:report-legacy-recognition` command owns the exact table/count
+and reconstructable schema-qualified inbound/outbound foreign-key inventory.
+Both reads share one repeatable-read, read-only database snapshot. Its fixed
+Staff lifecycle owner, bounded-contraction disposition, and REC-01/CNV-01
+authority mirror the executable data-fate catalogue. Export/restore remains a
+separate blocking step; the report never authorizes deletion.
 
 ## Verification authority
 
@@ -73,5 +87,8 @@ plan.
   `src/shared/architecture/legacy-recognition-active-surfaces.test.ts`
 - Entry-point/job dispositions: `src/shared/governance/entry-point-catalogue.ts`
   and `src/shared/governance/event-job-catalogue.ts`
+- Direct metric-reader and raw-role absence:
+  `src/shared/governance/metric-read-authority.test.ts` and
+  `src/shared/governance/raw-role-decision-catalogue.test.ts`
 - Product decision: `docs/comprehensive-beta-implementation-program-2026-08-25.md`
   (`REC-01`)
