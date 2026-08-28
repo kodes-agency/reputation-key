@@ -188,7 +188,14 @@ export const createGuestInteractionRepository = (
         if (filter.ratingMax !== undefined)
           conditions.push(lte(ratings.value, filter.ratingMax))
         if (filter.textQuery) {
-          const escaped = filter.textQuery.replace(/%/g, '\\%').replace(/_/g, '\\_')
+          // The backslash must be escaped FIRST. Escaping `%` and `_` before it
+          // turns a literal backslash in the input into an escape character:
+          // `\%` would become `\\%`, which reads as an escaped backslash
+          // followed by an UNESCAPED wildcard, so the search silently widens.
+          const escaped = filter.textQuery
+            .replace(/\\/g, '\\\\')
+            .replace(/%/g, '\\%')
+            .replace(/_/g, '\\_')
           conditions.push(sql`${feedback.comment} ilike ${'%' + escaped + '%'}`)
         }
         const rows = await db

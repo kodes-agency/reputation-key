@@ -24,7 +24,7 @@ import type { Redis } from 'ioredis'
 import type { Clock } from '#/shared/domain/clock'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Env } from '#/shared/config/env'
-import { createHash, randomBytes, randomUUID } from 'node:crypto'
+import { hkdfSync, randomBytes, randomUUID } from 'node:crypto'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
@@ -160,13 +160,33 @@ export function buildGoogleProviderAuthority(input: GoogleProviderAuthorityInput
       }
       providerEphemeralStore = createInMemoryProviderEphemeralStore()
     }
-    const fallbackKey = createHash('sha256').update(env.OAUTH_STATE_SECRET).digest('hex')
+    // Non-production fallback keyrings, derived per purpose.
+    //
+    // This used to be one `sha256(OAUTH_STATE_SECRET)` shared by BOTH keyrings,
+    // which had two problems. A single fast hash is not a key-derivation
+    // function, and — the one that actually matters — two distinct HMAC
+    // purposes were signing with the same key, so a reference token and a
+    // replay token were interchangeable even in development.
+    //
+    // HKDF with the variable name as `info` gives real domain separation: each
+    // keyring gets a different key, and neither is the configured secret.
+    // Production never reaches this: it throws for a missing keyring above.
+    const fallbackKeyFor = (name: string): string =>
+      Buffer.from(
+        hkdfSync(
+          'sha256',
+          env.OAUTH_STATE_SECRET,
+          'repkey/google-provider-authority/local-fallback',
+          name,
+          32,
+        ),
+      ).toString('hex')
     const requiredKeyring = (raw: string | undefined, name: string): string => {
       if (raw) return raw
       if (env.NODE_ENV === 'production') {
         throw new Error(`${name} is required for opaque OAuth state`)
       }
-      return `local:${fallbackKey}`
+      return `local:${fallbackKeyFor(name)}`
     }
     googleOpaqueReferenceKeys = createVersionedHmacKeyring(
       requiredKeyring(
