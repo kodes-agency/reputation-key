@@ -60,6 +60,7 @@ never issued; numbers are not reused.
 | [0057](0057-single-us-beta-data-cell.md)                                  | Single US beta Data Cell               | Active topology; release model amended by 0058           |
 | [0058](0058-dedicated-railway-projects-and-iac-source-promotion.md)       | Dedicated Railway projects/source      | Active; supersedes 0057's project/release procedure      |
 | [0059](0059-rel-01-canary-observation-window.md)                          | REL-01 canary observation window       | Proposed; duration OPEN for operating-owner ratification |
+| [0060](0060-machine-checked-legal-approval.md)                            | Machine-checked legal approval         | Active                                                   |
 
 When an ADR is added, removed, or renamed, update this table in the same change.
 Supersession must name the exact retained and replaced decisions; do not delete
