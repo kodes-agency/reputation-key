@@ -1,5 +1,5 @@
 import type { IdentityMemberInvited } from '#/contexts/identity/application/public-api'
-import type { InsertActivityLogInput } from '../../application/use-cases/insert-activity-log'
+import type { ProjectRecentActivityInput } from '../../application/use-cases/project-recent-activity'
 import type { Queue } from 'bullmq'
 
 type Deps = { queue: Queue }
@@ -7,7 +7,7 @@ type Deps = { queue: Queue }
 export const onMemberInvited =
   (deps: Deps) =>
   async (event: IdentityMemberInvited): Promise<void> => {
-    const payload: InsertActivityLogInput = {
+    const payload: ProjectRecentActivityInput = {
       action: 'invited' as const,
       resourceType: 'member' as const,
       resourceId: event.invitationId,
@@ -23,5 +23,5 @@ export const onMemberInvited =
         detail: null,
       },
     }
-    await deps.queue.add('insert-activity-log', payload)
+    await deps.queue.add('project-recent-activity', payload)
   }

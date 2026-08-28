@@ -7,13 +7,18 @@ import {
   type ActivityAction,
   type ResourceType,
 } from './types'
-import { userId, propertyId, organizationId, activityLogId } from '#/shared/domain/ids'
+import {
+  userId,
+  propertyId,
+  organizationId,
+  recentActivityEntryId,
+} from '#/shared/domain/ids'
 
 const clock = () => new Date('2026-06-02T12:00:00Z')
 
 describe('createRecentActivityEntry', () => {
   const validInput = {
-    id: activityLogId('al-1'),
+    id: recentActivityEntryId('al-1'),
     actorId: userId('user-1'),
     actorName: 'Bozhidar',
     actorAvatarUrl: null,
@@ -33,7 +38,7 @@ describe('createRecentActivityEntry', () => {
     eventId: 'test-event-id',
   }
 
-  it('constructs a valid activity log entry', () => {
+  it('constructs a valid recent activity entry', () => {
     const result = createRecentActivityEntry(validInput, clock)
     expect(result.isOk()).toBe(true)
     if (!result.isOk()) throw new Error('unreachable')

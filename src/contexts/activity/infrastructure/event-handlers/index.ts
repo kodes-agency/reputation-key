@@ -4,6 +4,7 @@
 
 import type { EventBus } from '#/shared/events/event-bus'
 import type { Queue } from 'bullmq'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { InboxItemLookupPort } from '../../ports/inbox-item-lookup.port'
 import { onInboxItemCreated } from './on-inbox-item-created'
 import { onInboxStatusChanged } from './on-inbox-status-changed'
@@ -36,6 +37,7 @@ export type RegisterActivityHandlersDeps = Readonly<{
   events: EventBus
   queue: Queue
   inboxItemLookup: InboxItemLookupPort
+  logger: LoggerPort
 }>
 
 export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): void => {
@@ -45,7 +47,7 @@ export const registerActivityHandlers = (deps: RegisterActivityHandlersDeps): vo
   })
   deps.events.on(
     'inbox.inbox_item.status_changed',
-    onInboxStatusChanged({ queue: deps.queue }),
+    onInboxStatusChanged({ queue: deps.queue, logger: deps.logger }),
 
     { consumer: 'activity.event-handlers' },
   )

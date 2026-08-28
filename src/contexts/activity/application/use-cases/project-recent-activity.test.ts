@@ -1,11 +1,16 @@
 import { describe, it, expect, vi } from 'vitest'
 
-import { insertActivityLog } from './insert-activity-log'
+import { projectRecentActivity } from './project-recent-activity'
 import { createSimulationContainer } from '#/shared/testing/simulation-container.server'
-import { organizationId, userId, propertyId, activityLogId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  userId,
+  propertyId,
+  recentActivityEntryId,
+} from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 
-describe('insertActivityLog', () => {
+describe('projectRecentActivity', () => {
   it('inserts log via repo and emits event', async () => {
     const insert = vi.fn().mockResolvedValue(undefined)
     const repo = { insert, findDuplicate: vi.fn().mockResolvedValue(null) } as any // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -16,7 +21,7 @@ describe('insertActivityLog', () => {
       debug: vi.fn(),
       child: vi.fn(),
     } as any // eslint-disable-line @typescript-eslint/no-explicit-any
-    const idGen = () => activityLogId('act-1')
+    const idGen = () => recentActivityEntryId('act-1')
     const clock = () => new Date('2026-06-01T12:00:00Z')
     const userLookup = {
       lookup: vi.fn().mockResolvedValue({
@@ -29,7 +34,7 @@ describe('insertActivityLog', () => {
 
     const deps = { repo, userLookup, clock, logger, idGen }
 
-    await insertActivityLog(deps)({
+    await projectRecentActivity(deps)({
       action: 'created' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       resourceType: 'property' as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       resourceId: 'p1',
@@ -66,10 +71,10 @@ describe('insertActivityLog', () => {
         debug: vi.fn(),
         child: vi.fn(),
       } as any, // eslint-disable-line @typescript-eslint/no-explicit-any
-      idGen: () => activityLogId('act-late-invite'),
+      idGen: () => recentActivityEntryId('act-late-invite'),
     }
 
-    await insertActivityLog(deps)({
+    await projectRecentActivity(deps)({
       action: 'invited',
       resourceType: 'member',
       resourceId: 'invitation-1',

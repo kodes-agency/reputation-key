@@ -1,14 +1,14 @@
 import type { InboxItemStatusChanged } from '#/contexts/inbox/application/public-api'
-import type { InsertActivityLogInput } from '../../application/use-cases/insert-activity-log'
+import type { ProjectRecentActivityInput } from '../../application/use-cases/project-recent-activity'
 import type { Queue } from 'bullmq'
-import { getLogger } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
-type Deps = { queue: Queue }
+type Deps = Readonly<{ queue: Queue; logger: LoggerPort }>
 
 export const onInboxStatusChanged =
   (deps: Deps) =>
   async (event: InboxItemStatusChanged): Promise<void> => {
-    const payload: InsertActivityLogInput = {
+    const payload: ProjectRecentActivityInput = {
       action: 'changed' as const,
       resourceType: 'inbox_item' as const,
       resourceId: event.inboxItemId,
@@ -24,9 +24,9 @@ export const onInboxStatusChanged =
         detail: null,
       },
     }
-    getLogger().info(
+    deps.logger.info(
       { from: event.oldStatus, to: event.newStatus },
-      'Enqueue insert-activity-log job',
+      'Enqueue project-recent-activity job',
     )
-    await deps.queue.add('insert-activity-log', payload)
+    await deps.queue.add('project-recent-activity', payload)
   }

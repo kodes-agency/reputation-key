@@ -1,5 +1,5 @@
 import type { IdentityOrganizationCreated } from '#/contexts/identity/application/public-api'
-import type { InsertActivityLogInput } from '../../application/use-cases/insert-activity-log'
+import type { ProjectRecentActivityInput } from '../../application/use-cases/project-recent-activity'
 import type { Queue } from 'bullmq'
 
 type Deps = { queue: Queue }
@@ -9,7 +9,7 @@ type Deps = { queue: Queue }
 export const onOrganizationCreated =
   (deps: Deps) =>
   async (event: IdentityOrganizationCreated): Promise<void> => {
-    const payload: InsertActivityLogInput = {
+    const payload: ProjectRecentActivityInput = {
       action: 'created' as const,
       resourceType: 'organization' as const,
       resourceId: event.organizationId,
@@ -22,8 +22,8 @@ export const onOrganizationCreated =
         subject: 'organization',
         from: null,
         to: null,
-        detail: event.organizationName,
+        detail: null,
       },
     }
-    await deps.queue.add('insert-activity-log', payload)
+    await deps.queue.add('project-recent-activity', payload)
   }

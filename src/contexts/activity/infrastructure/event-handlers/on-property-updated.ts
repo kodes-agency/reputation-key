@@ -1,5 +1,5 @@
 import type { PropertyUpdated } from '#/contexts/property/application/public-api'
-import type { InsertActivityLogInput } from '../../application/use-cases/insert-activity-log'
+import type { ProjectRecentActivityInput } from '../../application/use-cases/project-recent-activity'
 import type { Queue } from 'bullmq'
 
 type Deps = { queue: Queue }
@@ -8,7 +8,7 @@ type Deps = { queue: Queue }
 export const onPropertyUpdated =
   (deps: Deps) =>
   async (event: PropertyUpdated): Promise<void> => {
-    const payload: InsertActivityLogInput = {
+    const payload: ProjectRecentActivityInput = {
       action: 'changed' as const,
       resourceType: 'property' as const,
       resourceId: event.propertyId,
@@ -21,8 +21,8 @@ export const onPropertyUpdated =
         subject: 'property',
         from: null,
         to: null,
-        detail: event.name,
+        detail: null,
       },
     }
-    await deps.queue.add('insert-activity-log', payload)
+    await deps.queue.add('project-recent-activity', payload)
   }

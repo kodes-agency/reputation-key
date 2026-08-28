@@ -1,5 +1,5 @@
 import type { IntegrationGoogleConnectionVisibilityChanged } from '#/contexts/integration/application/public-api'
-import type { InsertActivityLogInput } from '../../application/use-cases/insert-activity-log'
+import type { ProjectRecentActivityInput } from '../../application/use-cases/project-recent-activity'
 import type { Queue } from 'bullmq'
 
 type Deps = { queue: Queue }
@@ -10,7 +10,7 @@ type Deps = { queue: Queue }
 export const onGoogleConnectionVisibilityChanged =
   (deps: Deps) =>
   async (event: IntegrationGoogleConnectionVisibilityChanged): Promise<void> => {
-    const payload: InsertActivityLogInput = {
+    const payload: ProjectRecentActivityInput = {
       action: 'changed' as const,
       resourceType: 'integration' as const,
       resourceId: event.connectionId,
@@ -26,5 +26,5 @@ export const onGoogleConnectionVisibilityChanged =
         detail: null,
       },
     }
-    await deps.queue.add('insert-activity-log', payload)
+    await deps.queue.add('project-recent-activity', payload)
   }

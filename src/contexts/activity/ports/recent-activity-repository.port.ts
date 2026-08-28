@@ -2,7 +2,7 @@ import type { RecentActivityEntry } from '../domain/types'
 import type { ActivityAction, ResourceType, ActivityPayload } from '../domain/types'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
-export type ActivityFilter = Readonly<{
+export type RecentActivityFilter = Readonly<{
   resourceType?: string
   resourceId?: string
   propertyId?: PropertyId
@@ -13,7 +13,7 @@ export type ActivityFilter = Readonly<{
 
 export type Pagination = Readonly<{ limit: number; offset: number }>
 
-export type FindDuplicateInput = Readonly<{
+export type FindRecentActivityDuplicateInput = Readonly<{
   eventId: string
   action: ActivityAction
   resourceType: ResourceType
@@ -22,7 +22,7 @@ export type FindDuplicateInput = Readonly<{
   payload: ActivityPayload
 }>
 
-export type ActivityRepository = Readonly<{
+export type RecentActivityRepository = Readonly<{
   insert(entry: RecentActivityEntry): Promise<void>
   findByResource(
     orgId: OrganizationId,
@@ -32,9 +32,9 @@ export type ActivityRepository = Readonly<{
   ): Promise<readonly RecentActivityEntry[]>
   findByOrganization(
     orgId: OrganizationId,
-    filter: ActivityFilter,
+    filter: RecentActivityFilter,
     pagination: Pagination,
   ): Promise<readonly RecentActivityEntry[]>
   /** Check if a duplicate activity entry already exists (idempotency gate). */
-  findDuplicate(input: FindDuplicateInput): Promise<boolean>
+  findDuplicate(input: FindRecentActivityDuplicateInput): Promise<boolean>
 }>

@@ -3,7 +3,7 @@
 
 import type { Role } from '#/shared/domain/roles'
 import type {
-  ActivityLogId,
+  RecentActivityEntryId,
   UserId,
   OrganizationId,
   PropertyId,
@@ -41,6 +41,8 @@ export const ACTIVITY_RESOURCE_TYPES = [
   'staff_assignment',
   'integration',
   'organization',
+  'portal',
+  'goal',
 ] as const
 
 export type ResourceType = (typeof ACTIVITY_RESOURCE_TYPES)[number]
@@ -74,6 +76,9 @@ export const RECENT_ACTIVITY_KINDS = [
   { action: 'disconnected', resourceType: 'integration' },
   { action: 'changed', resourceType: 'integration' },
   { action: 'created', resourceType: 'organization' },
+  { action: 'published', resourceType: 'portal' },
+  { action: 'changed', resourceType: 'portal' },
+  { action: 'changed', resourceType: 'goal' },
 ] as const satisfies readonly Readonly<{
   action: ActivityAction
   resourceType: ResourceType
@@ -94,7 +99,7 @@ export type ActivityPayload = Readonly<{
 }>
 
 export type RecentActivityEntry = Readonly<{
-  id: ActivityLogId
+  id: RecentActivityEntryId
   actorId: UserId
   actorName: string
   actorAvatarUrl: string | null

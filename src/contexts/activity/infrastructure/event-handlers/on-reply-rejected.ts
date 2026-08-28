@@ -1,5 +1,5 @@
 import type { ReviewReplyRejected } from '#/contexts/review/application/public-api'
-import type { InsertActivityLogInput } from '../../application/use-cases/insert-activity-log'
+import type { ProjectRecentActivityInput } from '../../application/use-cases/project-recent-activity'
 import type { InboxItemLookupPort } from '../../ports/inbox-item-lookup.port'
 import type { Queue } from 'bullmq'
 
@@ -14,7 +14,7 @@ export const onReplyRejected =
     )
     if (!inboxItemId) return
 
-    const payload: InsertActivityLogInput = {
+    const payload: ProjectRecentActivityInput = {
       action: 'rejected' as const,
       resourceType: 'reply' as const,
       resourceId: event.replyId as string,
@@ -23,7 +23,7 @@ export const onReplyRejected =
       userId: event.userId || null,
       source: event.source,
       eventId: event.eventId,
-      payload: { subject: 'reply', from: null, to: null, detail: event.reason },
+      payload: { subject: 'reply', from: null, to: null, detail: null },
     }
-    await deps.queue.add('insert-activity-log', payload)
+    await deps.queue.add('project-recent-activity', payload)
   }

@@ -6,7 +6,7 @@ import { walk } from '#/shared/testing/source-tree'
 const ROOT = process.cwd()
 
 describe('Recent Activity integrity-claim boundary', () => {
-  it('contains no home-grown Operational Action History or row-hash implementation', () => {
+  it('contains no row-hash implementation or cryptographic integrity claim', () => {
     const offenders = walk(join(ROOT, 'src/contexts/activity'))
       .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'))
       .flatMap((file) => {
@@ -24,9 +24,9 @@ describe('Recent Activity integrity-claim boundary', () => {
 
     expect(
       offenders,
-      'Activity is a rebuildable Recent Activity projection. Restricted ' +
-        'Operational Action History requires its own accepted design and must ' +
-        'not be simulated with hashes stored beside mutable rows.',
+      'Restricted Operational Action History has ordinary append-only database ' +
+        'defenses and sequence readiness only; it must not be presented as ' +
+        'cryptographic integrity or simulated with hashes beside mutable rows.',
     ).toEqual([])
   })
 

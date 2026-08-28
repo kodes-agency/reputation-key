@@ -1,6 +1,6 @@
-// BQC-4.4 — activity_log read-side org isolation (real PostgreSQL).
+// BQC-4.4 — recent_activity_entries read-side org isolation (real PostgreSQL).
 //
-// The 4.3 data-flow map documents that activity_log payload.detail can carry
+// The 4.3 data-flow map documents that recent_activity_entries payload.detail can carry
 // TENANT-AUTHORED free text. The read-side governance decision (BQC-4.4):
 // that text is tenant-owned content in the cell DB, displayed only to members
 // of the owning org — every activity read filters organization_id in SQL.
@@ -10,12 +10,18 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
-import { createActivityRepository } from '../activity-repository.drizzle'
+import { createRecentActivityRepository } from '../recent-activity-repository.drizzle'
 import type { RecentActivityEntry } from '../../domain/types'
-import { activityLogId, userId, propertyId, organizationId } from '#/shared/domain/ids'
+import {
+  recentActivityEntryId,
+  userId,
+  propertyId,
+  organizationId,
+} from '#/shared/domain/ids'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 
 const db = getDb()
-const repo = createActivityRepository(db)
+const repo = createRecentActivityRepository(db, createMockLogger())
 const ORG_A = organizationId('org-activity-iso-a')
 const ORG_B = organizationId('org-activity-iso-b')
 const ORG_C = organizationId('org-activity-valid-vocabulary')
@@ -28,7 +34,7 @@ function entry(
   detail: string | null,
 ): RecentActivityEntry {
   return {
-    id: activityLogId(id),
+    id: recentActivityEntryId(id),
     actorId: userId('user-activity-iso'),
     actorName: 'Iso Tester',
     actorAvatarUrl: null,
@@ -57,7 +63,7 @@ const ROW_C: RecentActivityEntry = {
 
 beforeAll(async () => {
   await db.execute(
-    sql`DELETE FROM activity_log WHERE organization_id IN (${ORG_A}, ${ORG_B}, ${ORG_C})`,
+    sql`DELETE FROM recent_activity_entries WHERE organization_id IN (${ORG_A}, ${ORG_B}, ${ORG_C})`,
   )
   await repo.insert(ROW_A)
   await repo.insert(ROW_B)
@@ -66,7 +72,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.execute(
-    sql`DELETE FROM activity_log WHERE organization_id IN (${ORG_A}, ${ORG_B}, ${ORG_C})`,
+    sql`DELETE FROM recent_activity_entries WHERE organization_id IN (${ORG_A}, ${ORG_B}, ${ORG_C})`,
   )
 })
 
@@ -95,5 +101,15 @@ describe('activity repository org isolation (BQC-4.4, real PostgreSQL)', () => {
     const rows = await repo.findByOrganization(ORG_C, {}, { limit: 50, offset: 0 })
 
     expect(rows).toEqual([ROW_C])
+  })
+
+  it('does not return Organization-scoped rows through an assigned-Property filter', async () => {
+    const rows = await repo.findByOrganization(
+      ORG_C,
+      { propertyIds: [propertyId('d4000000-0000-4000-8000-0000000000b1')] },
+      { limit: 50, offset: 0 },
+    )
+
+    expect(rows).toEqual([])
   })
 })

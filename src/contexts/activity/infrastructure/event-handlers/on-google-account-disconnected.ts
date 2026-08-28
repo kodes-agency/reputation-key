@@ -1,5 +1,5 @@
 import type { IntegrationGoogleAccountDisconnected } from '#/contexts/integration/application/public-api'
-import type { InsertActivityLogInput } from '../../application/use-cases/insert-activity-log'
+import type { ProjectRecentActivityInput } from '../../application/use-cases/project-recent-activity'
 import type { Queue } from 'bullmq'
 
 type Deps = { queue: Queue }
@@ -7,7 +7,7 @@ type Deps = { queue: Queue }
 export const onGoogleAccountDisconnected =
   (deps: Deps) =>
   async (event: IntegrationGoogleAccountDisconnected): Promise<void> => {
-    const payload: InsertActivityLogInput = {
+    const payload: ProjectRecentActivityInput = {
       action: 'disconnected' as const,
       resourceType: 'integration' as const,
       resourceId: event.connectionId,
@@ -23,5 +23,5 @@ export const onGoogleAccountDisconnected =
         detail: null,
       },
     }
-    await deps.queue.add('insert-activity-log', payload)
+    await deps.queue.add('project-recent-activity', payload)
   }

@@ -20,7 +20,7 @@ describe('onMemberInvited', () => {
     })
 
     expect(add).toHaveBeenCalledWith(
-      'insert-activity-log',
+      'project-recent-activity',
       expect.objectContaining({
         resourceId: 'invitation-1',
         payload: {
