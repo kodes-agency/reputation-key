@@ -129,4 +129,40 @@ describe('persisted-model lifecycle authority', () => {
       expect(row.exitCriteria, dataFateKey(row.schemaFile, row.exportName)).not.toBe('')
     }
   })
+
+  it('gives every non-active row a substantive exit criterion and no active row a stray one', () => {
+    // CNV-01: whitespace or a one-word placeholder would satisfy a bare
+    // non-empty check while telling an operator nothing about how the rows
+    // leave. An active_authority row carrying exit text is the opposite
+    // failure — a half-made contraction decision hiding inside live data.
+    for (const row of DATA_FATE_AUTHORITY) {
+      const key = dataFateKey(row.schemaFile, row.exportName)
+      if (row.disposition === 'active_authority') {
+        expect(row.exitCriteria, key).toBe('')
+        continue
+      }
+      expect(row.exitCriteria.trim(), key).not.toBe('')
+      expect(row.exitCriteria.trim().split(/\s+/u).length, key).toBeGreaterThanOrEqual(8)
+    }
+  })
+
+  it('routes every contraction candidate through the CNV-01 authority', () => {
+    // The inventory registry derives its command coverage from these rows, so
+    // a candidate classified without naming CNV-01 would be a table nobody has
+    // agreed to inventory.
+    const candidates = DATA_FATE_AUTHORITY.filter(
+      ({ disposition }) =>
+        disposition === 'bounded_contraction' || disposition === 'compatibility_read',
+    )
+
+    expect(candidates).toHaveLength(33)
+    expect(
+      candidates.filter(({ disposition }) => disposition === 'compatibility_read'),
+    ).toHaveLength(7)
+    for (const row of candidates) {
+      expect(row.authority, dataFateKey(row.schemaFile, row.exportName)).toContain(
+        'CNV-01',
+      )
+    }
+  })
 })
