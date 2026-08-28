@@ -5164,7 +5164,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'ops:report-legacy-import-control — read-only GGL-01/CNV-01 inventory of legacy_import_control and legacy_import_effect_leases with counts, foreign-key metadata and a content-free fingerprint at an explicit --as-of; the AI-02 and GGL-01 compatibility mirrors are deliberately out of scope and there is no apply path',
+        'ops:report-legacy-import-control — read-only GGL-01/CNV-01 inventory of the two legacy Google import control tables with counts, foreign-key metadata and a content-free fingerprint at an explicit --as-of; there is no apply path. The table names are deliberately NOT written here: this catalogue is bundled into the final worker artifact, which may not contain Google import compatibility paths',
     },
   ),
   ops(
