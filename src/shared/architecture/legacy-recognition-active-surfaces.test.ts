@@ -53,10 +53,12 @@ const RETAINED_RECOGNITION_PRODUCTION_SOURCES = [
   'src/contexts/badge/build.ts',
   'src/contexts/badge/domain/events.ts',
   'src/contexts/badge/infrastructure/adapters/badge-organization-export.adapter.ts',
+  'src/contexts/badge/infrastructure/adapters/badge-organization-lifecycle.adapter.ts',
   'src/contexts/leaderboard/application/legacy-recognition-inventory.ts',
   'src/contexts/leaderboard/application/public-api.ts',
   'src/contexts/leaderboard/build.ts',
   'src/contexts/leaderboard/infrastructure/adapters/leaderboard-organization-export.adapter.ts',
+  'src/contexts/leaderboard/infrastructure/adapters/leaderboard-organization-lifecycle.adapter.ts',
   'src/contexts/leaderboard/infrastructure/legacy-recognition-inventory.repository.ts',
 ] as const
 

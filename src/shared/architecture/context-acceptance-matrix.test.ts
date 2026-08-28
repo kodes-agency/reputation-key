@@ -177,6 +177,8 @@ export const PROPERTY_TABLE_WATCH_REGISTER: Readonly<Record<string, string>> = {
     'WATCH (owner Property): bounded people/team migration reconciliation reads property ownership directly',
   'src/contexts/portal/infrastructure/portal-health-reconciliation-store.ts':
     'WATCH (owner Property): Portal Health takes a shared Property-row lock in the same transaction as its receipt and effective-dated interval transition',
+  'src/contexts/leaderboard/infrastructure/adapters/leaderboard-organization-lifecycle.adapter.ts':
+    'WATCH (owner Property): legacy leaderboard_snapshots rows carry no organization_id, so the Organization purge scopes them through a read-only property-ownership subquery; a Property belongs to exactly one Organization, so the clause cannot reach another tenant',
 }
 
 const DARK_CONTEXT_DIRS = ['team', 'portal', 'guest', 'goal', 'badge', 'leaderboard']
@@ -317,6 +319,10 @@ describe('row 9 — Activity (enabled/limited): collaboration facts and security
     expect(offendersMatching(RECENT_ACTIVITY_WRITE, () => false)).toEqual([
       'src/contexts/activity/infrastructure/activity-delivery-store.ts',
       'src/contexts/activity/infrastructure/activity-recovery-store.ts',
+      // LIF-01-T14: the Organization purge scrubs Recent Activity, which is
+      // tenant data. Operational Action History is independently retained
+      // evidence under program bullet 5 and is deliberately NOT touched here.
+      'src/contexts/activity/infrastructure/adapters/activity-organization-lifecycle.adapter.ts',
       'src/contexts/activity/infrastructure/recent-activity-privacy-store.ts',
       'src/contexts/activity/infrastructure/recent-activity-repository.drizzle.ts',
       'src/contexts/activity/infrastructure/recent-activity-vocabulary-reconciliation.store.ts',
@@ -489,8 +495,9 @@ describe('row 11 — Team (quarantined): no executable beta product surface', ()
         /(?:from\s*|import\(\s*)['"]([^'"]*contexts\/team\/[^'"]*)['"]/gu,
       ),
     ].map((match) => match[1])
-    expect(teamImports).toEqual([
+    expect(teamImports.sort()).toEqual([
       '#/contexts/team/infrastructure/adapters/team-organization-export.adapter',
+      '#/contexts/team/infrastructure/adapters/team-organization-lifecycle.adapter',
     ])
     expect(strippedSource('src/shared/events/events.ts')).toContain(
       "from '#/contexts/team/domain/events'",

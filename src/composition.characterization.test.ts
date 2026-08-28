@@ -235,6 +235,7 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
       'cancelImportsForUser',
       'finalizePropertyDeletion',
       'organizationExportContributor',
+      'organizationLifecycleContributor',
       'prepareConnectorDeparture',
       'preparePropertyDeletion',
     ])
