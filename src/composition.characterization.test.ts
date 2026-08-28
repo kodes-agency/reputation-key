@@ -127,6 +127,8 @@ const EXPECTED_INBOX_PUBLIC_API_KEYS = [
   'getGoogleReviewTargetAnalytics',
   'getInboxFolderCounts',
   'getInboxItemDetail',
+  // IBX-01-T5: the manager Handling History read.
+  'getInboxItemHistory',
   'getInboxItems',
   'getInboxNotes',
   'getLastVisitCount',
@@ -232,6 +234,7 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
       'cancelImportsForOrganization',
       'cancelImportsForUser',
       'finalizePropertyDeletion',
+      'organizationExportContributor',
       'prepareConnectorDeparture',
       'preparePropertyDeletion',
     ])
@@ -283,6 +286,8 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
   })
 
   it('keeps the named Organization lifecycle runtime non-executable without reviewed bindings', () => {
+    // Destructive lifecycle still has no contributors: those are supplied only
+    // by an explicitly reviewed composition, never by default.
     expect(container.identityLifecycleRuntime.maintenance.readiness).toMatchObject({
       configured: false,
       contributorsConfigured: false,
@@ -295,19 +300,22 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
       container.identityLifecycleRuntime.maintenance.runScheduledPass,
     ).toBeUndefined()
     expect(container.identityLifecycleRuntime.support).toBeUndefined()
+
+    // LIF-01-T11: export contributor coverage is now complete by default,
+    // because reading nothing and writing nothing is not an activation. The
+    // export service is still absent — egress needs storage, the archive
+    // writer, the retrieval-secret binding and generation recovery, none of
+    // which a default container supplies.
     expect(container.identityLifecycleRuntime.organizationExport.readiness).toMatchObject(
       {
         configured: false,
-        contributorsConfigured: false,
+        contributorsConfigured: true,
         storageConfigured: false,
       },
     )
     expect(
       container.identityLifecycleRuntime.organizationExport.readiness.missingContexts,
-    ).toHaveLength(16)
-    expect(
-      container.identityLifecycleRuntime.organizationExport.readiness.missingContexts,
-    ).not.toContain('identity')
+    ).toHaveLength(0)
     expect(container.identityLifecycleRuntime.organizationExport.service).toBeUndefined()
   })
 

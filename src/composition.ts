@@ -88,6 +88,7 @@ import { buildInfrastructure } from './composition/infrastructure'
 import { buildReadAndNotifyContexts } from './composition/read-and-notify-contexts'
 import type { CreateContainerOptions } from './composition/container-options'
 import { buildOperationalReadout } from './composition/operational-readout'
+import { composeOrganizationLifecycle } from '#/composition/organization-export-contributors'
 import { buildGoogleProviderAuthority } from './composition/google-provider-authority'
 import { bindPropertyCapabilityProvisioning } from './composition/property-capability-provisioning'
 import {
@@ -320,9 +321,10 @@ export function createContainer(options?: CreateContainerOptions) {
     releaseMemberAuthorities: memberAuthorityLifecycle.port.releaseMemberAuthorities,
     reconcileResponsibleManagerEligibility:
       memberAuthorityLifecycle.port.reconcileResponsibleManagerEligibility,
-    ...(options?.organizationLifecycle
-      ? { organizationLifecycle: options.organizationLifecycle }
-      : {}),
+    organizationLifecycle: composeOrganizationLifecycle(
+      db,
+      options?.organizationLifecycle,
+    ),
   })
 
   // ARC-03-T10: the Google provider trust boundary — provider-ephemeral
