@@ -27,6 +27,8 @@ import type { ReviewHandlingCycleStore } from '#/contexts/inbox/application/port
 import type { FeedbackHandlingStore } from '#/contexts/inbox/application/ports/feedback-handling.store'
 import type { ResponseTargetStore } from '#/contexts/inbox/application/ports/response-target.store'
 import type { ResponseTargetPolicyStore } from '#/contexts/inbox/application/ports/response-target-policy.store'
+import type { InboxHistoryRepository } from '#/contexts/inbox/application/ports/inbox-history.repository'
+import type { InboxActorDirectory } from '#/contexts/inbox/application/ports/inbox-actor-directory.port'
 import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-inbox-command-store'
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -217,6 +219,21 @@ const emptyResponseTargetPolicyStore: ResponseTargetPolicyStore = {
   },
 }
 
+/**
+ * Storybook renders the manager view, not the manager history: the read model
+ * is exercised by its own integration test against a real schema. An empty page
+ * is the honest stand-in — never a fabricated story.
+ */
+const emptyInboxHistoryRepo: InboxHistoryRepository = {
+  findByInboxItemId: async () => ({ entries: [], truncated: false }),
+}
+
+/** Display names the stories seed, so no story renders a raw id fragment. */
+const storybookActorDirectory: InboxActorDirectory = {
+  resolveDisplayNames: async (_organizationId, userIds) =>
+    new Map(userIds.map((id) => [id, `Manager ${String(id).slice(-4)}`])),
+}
+
 export function createInboxContainer() {
   const inboxRepo = createInMemoryInboxRepo()
   const inboxNoteRepo = createInMemoryNoteRepo()
@@ -227,7 +244,9 @@ export function createInboxContainer() {
   const useCases = wireUseCases({
     inboxRepo,
     inboxNoteRepo,
+    inboxHistoryRepo: emptyInboxHistoryRepo,
     inboxViewRepo,
+    actorDirectory: storybookActorDirectory,
     commandStore: createSequentialInboxCommandStore({
       repo: inboxRepo,
       noteRepo: inboxNoteRepo,
@@ -258,6 +277,7 @@ export function createInboxContainer() {
     stampLastInboxView: useCases.stampLastInboxView,
     getInboxItemDetail: useCases.getInboxItemDetail,
     getInboxNotes: useCases.getInboxNotes,
+    getInboxItemHistory: useCases.getInboxItemHistory,
     getInboxFolderCounts: useCases.getInboxFolderCounts,
     markFeedbackHandled: useCases.markFeedbackHandled,
     correctFeedbackHandlingOutcome: useCases.correctFeedbackHandlingOutcome,

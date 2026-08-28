@@ -17,6 +17,7 @@ import {
   getInboxItemsDto,
   getInboxItemDetailDto,
   getInboxNotesDto,
+  getInboxItemHistoryDto,
   updateStatusDto,
   escalateInboxItemDto,
   resolveEscalationDto,
@@ -33,6 +34,7 @@ import type {
   getInboxItemsFn,
   getInboxItemDetailFn,
   getInboxNotesFn,
+  getInboxItemHistoryFn,
   getInboxFolderCountsFn,
   stampLastInboxViewFn,
   updateInboxStatusFn,
@@ -108,6 +110,18 @@ export function makeInboxFns(container: InboxContainer): InboxServerFns {
         },
         ctx,
       )) as unknown as typeof getInboxNotesFn,
+
+    getInboxItemHistory: (async ({
+      data,
+    }: {
+      data: z.infer<typeof getInboxItemHistoryDto>
+    }) =>
+      container.inboxPublicApi.getInboxItemHistory(
+        {
+          inboxItemId: inboxItemId(data.inboxItemId),
+        },
+        ctx,
+      )) as unknown as typeof getInboxItemHistoryFn,
 
     // Folder counts are org-wide (no filters in the DTO); the real use-case
     // computes the per-folder tally over the seeded repo.

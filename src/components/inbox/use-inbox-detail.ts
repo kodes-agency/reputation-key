@@ -27,7 +27,7 @@ import type { InboxServerFns } from './types'
 import type {
   InboxItem,
   InboxItemDetailResult,
-  InboxNote,
+  InboxNoteView,
 } from '#/contexts/inbox/application/public-api'
 
 export type UseInboxDetailOptions = Readonly<{
@@ -42,7 +42,7 @@ export type InboxDetailState = Readonly<{
   detail: InboxItemDetailResult | null
   /** Retry on error — refetches detail + notes via Query. */
   refetch: () => void
-  notes: ReadonlyArray<InboxNote>
+  notes: ReadonlyArray<InboxNoteView>
   isLoading: boolean
   currentItem: InboxItem | null
   updateStatus: Action<

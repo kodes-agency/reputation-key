@@ -16,6 +16,7 @@ import type {
   InboxItem,
   InboxItemDetailResult,
   InboxNote,
+  InboxNoteView,
 } from '#/contexts/inbox/application/public-api'
 import type { InboxDetailState } from './use-inbox-detail'
 
@@ -79,12 +80,13 @@ const translatedReviewDetail: InboxItemDetailResult = {
   reviewTranslatedText: EN_TRANSLATION,
 }
 
-const notes: ReadonlyArray<InboxNote> = [
+const notes: ReadonlyArray<InboxNoteView> = [
   {
     id: 'note-1' as InboxNote['id'],
     inboxItemId: reviewItem.id,
     organizationId: 'org-1' as InboxNote['organizationId'],
     userId: 'user-1' as InboxNote['userId'],
+    displayName: 'Ada Lovelace',
     text: 'Drafting a reply today.',
     createdAt: new Date('2025-06-01T10:00:00Z'),
   },

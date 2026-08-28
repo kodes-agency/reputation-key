@@ -7,11 +7,11 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 // Receives addInboxNote server fn as a prop per src/components/CONTEXT.md:55.
 import type { addInboxNoteFn } from '#/contexts/inbox/server/inbox'
 import { Send, Clock, User } from 'lucide-react'
-import type { InboxNote } from '#/contexts/inbox/application/public-api'
+import type { InboxNoteView } from '#/contexts/inbox/application/public-api'
 import { addInboxNoteFormDto } from '#/contexts/inbox/application/dto/inbox.dto'
 
 type Props = Readonly<{
-  notes: ReadonlyArray<InboxNote>
+  notes: ReadonlyArray<InboxNoteView>
   inboxItemId: string
   expectedCommandRevision: number
   currentUserId?: string
@@ -19,6 +19,16 @@ type Props = Readonly<{
   addInboxNote: typeof addInboxNoteFn
   canAdd?: boolean
 }>
+
+/**
+ * IBX-01-T6: never render a raw user id. The server resolves the author's
+ * current display name inside the Organization; an unresolvable author is an
+ * opaque "Unknown user", not an id fragment and not an email.
+ */
+function authorLabel(note: InboxNoteView, currentUserId?: string): string {
+  if (note.userId === currentUserId) return 'You'
+  return note.displayName ?? 'Unknown user'
+}
 
 function formatRelativeTime(date: Date): string {
   const d = typeof date === 'string' ? new Date(date) : date
@@ -94,9 +104,7 @@ export function InboxNotesThread({
             <div key={note.id} className="rounded-md border bg-muted/30 p-3">
               <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
                 <User className="size-3" />
-                <span className="font-medium">
-                  {note.userId === currentUserId ? 'You' : `${note.userId.slice(0, 8)}…`}
-                </span>
+                <span className="font-medium">{authorLabel(note, currentUserId)}</span>
                 <span className="flex items-center gap-1">
                   <Clock className="size-3" />
                   {formatRelativeTime(note.createdAt)}

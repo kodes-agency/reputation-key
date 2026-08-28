@@ -15,13 +15,13 @@ import type { InboxDetailFns } from './types'
 import type {
   InboxItem,
   InboxItemDetailResult,
-  InboxNote,
+  InboxNoteView,
 } from '#/contexts/inbox/application/public-api'
 
 export type DetailContentProps = Readonly<{
   currentItem: InboxItem
   detail: InboxItemDetailResult | null
-  notes: ReadonlyArray<InboxNote>
+  notes: ReadonlyArray<InboxNoteView>
   onNoteAdded: (resultingCommandRevision: number) => void
   onReplyMutated: (change: InboxReplyCacheChange) => void
   detailFns: InboxDetailFns
