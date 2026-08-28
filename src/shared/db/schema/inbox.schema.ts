@@ -870,6 +870,63 @@ export const inboxAssignmentHistory = pgTable(
   ],
 )
 
+/**
+ * Append-only escalation decisions (IBX-01).
+ *
+ * `inboxItems` keeps only the latest escalation flags, which cannot answer
+ * "who escalated this, when, and how often". Like `inboxAssignmentHistory`,
+ * the resulting item command revision is the history identity, so a row here
+ * always names the exact command that committed the flag change.
+ *
+ * Per ADR 0023 escalation is orthogonal to status: this table intentionally
+ * holds no status, no assignee and no permission, and writing to it neither
+ * grants access nor moves an item between open and closed.
+ *
+ * `handlingCycleNumber` is nullable for the same expand-period reason as
+ * assignment history: legacy items whose Handling Cycle head is still awaiting
+ * repair must still be able to append their escalation fact.
+ */
+export const inboxEscalationHistory = pgTable(
+  'inbox_escalation_history',
+  {
+    inboxItemId: uuid('inbox_item_id')
+      .notNull()
+      .references(() => inboxItems.id, { onDelete: 'cascade' }),
+    resultingCommandRevision: bigint('resulting_command_revision', {
+      mode: 'number',
+    }).notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: varchar('property_id', { length: 255 }).notNull(),
+    handlingCycleNumber: bigint('handling_cycle_number', { mode: 'number' }),
+    kind: varchar('kind', { length: 16 }).notNull(),
+    actorUserId: varchar('actor_user_id', { length: 255 }),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (t) => [
+    primaryKey({
+      name: 'inbox_escalation_history_pk',
+      columns: [t.inboxItemId, t.resultingCommandRevision],
+    }),
+    index('inbox_escalation_history_scope_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.occurredAt,
+      t.inboxItemId,
+    ),
+    index('inbox_escalation_history_item_idx').on(t.inboxItemId, t.occurredAt),
+    check(
+      'inbox_escalation_history_revision_safe',
+      sql`${t.resultingCommandRevision} BETWEEN 2 AND '9007199254740991'::bigint
+        AND (${t.handlingCycleNumber} IS NULL OR ${t.handlingCycleNumber} BETWEEN 1 AND '9007199254740991'::bigint)`,
+    ),
+    check(
+      'inbox_escalation_history_kind_valid',
+      sql`${t.kind} IN ('escalated', 'resolved')`,
+    ),
+  ],
+)
+
 export const inboxNotes = pgTable(
   'inbox_notes',
   {

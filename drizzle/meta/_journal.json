@@ -1184,6 +1184,27 @@
       "when": 1790352000039,
       "tag": "0168_identity_organization_lifecycle_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 169,
+      "version": "7",
+      "when": 1790352000040,
+      "tag": "0169_inbox_escalation_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 170,
+      "version": "7",
+      "when": 1790352000041,
+      "tag": "0170_organization_export_pre_egress_evidence",
+      "breakpoints": true
+    },
+    {
+      "idx": 171,
+      "version": "7",
+      "when": 1790352000042,
+      "tag": "0171_context_organization_lifecycle_receipts",
+      "breakpoints": true
     }
   ]
 }

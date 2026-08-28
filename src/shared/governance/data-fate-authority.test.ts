@@ -79,6 +79,14 @@ describe('persisted-model lifecycle authority', () => {
     expect(byKey.get('portal.schema.ts#portalHealthIntervals')).toBe(
       'recoverable_archive',
     )
+    expect(
+      byKey.get(
+        'context-organization-lifecycle-receipts.schema.ts#contextOrganizationLifecycleReceipts',
+      ),
+    ).toBe('recoverable_archive')
+    expect(byKey.get('inbox.schema.ts#inboxEscalationHistory')).toBe(
+      'recoverable_archive',
+    )
     expect(byKey.get('badge.schema.ts#badgeAwards')).toBe('bounded_contraction')
     expect(byKey.get('leaderboard.schema.ts#leaderboardEntries')).toBe(
       'bounded_contraction',

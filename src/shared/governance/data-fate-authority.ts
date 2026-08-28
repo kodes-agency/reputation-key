@@ -116,6 +116,15 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'Content-free triage transition evidence is retained through support response, incident/privacy handling, scoped export/restore, and the counsel-approved support retention horizon; no destructive lifecycle is active before approval.',
   }),
   ...rows({
+    schemaFile: 'context-organization-lifecycle-receipts.schema.ts',
+    exportNames: ['contextOrganizationLifecycleReceipts'],
+    owner: 'platform',
+    disposition: 'recoverable_archive',
+    authority: 'LIF-01',
+    exitCriteria:
+      'Content-free per-context closure outcomes are retained through closure retry/recovery and the explicit reactivation horizon; contract only after approved evidence retention, scoped export/restore proof, and zero retry dependence. No destructive receipt lifecycle is active.',
+  }),
+  ...rows({
     schemaFile: 'activity.schema.ts',
     exportNames: ['recentActivityActorLabelRedactions', 'recentActivityReplayFacts'],
     owner: 'activity',
@@ -466,7 +475,11 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'inbox.schema.ts',
-    exportNames: ['inboxFeedbackHandlingOutcomes', 'inboxHandlingCycleTransitions'],
+    exportNames: [
+      'inboxEscalationHistory',
+      'inboxFeedbackHandlingOutcomes',
+      'inboxHandlingCycleTransitions',
+    ],
     owner: 'inbox',
     disposition: 'recoverable_archive',
     authority: 'IBX-01',

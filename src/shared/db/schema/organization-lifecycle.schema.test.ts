@@ -1,4 +1,5 @@
-import { getTableConfig } from 'drizzle-orm/pg-core'
+import type { SQL } from 'drizzle-orm'
+import { getTableConfig, type PgTable } from 'drizzle-orm/pg-core'
 import { describe, expect, it } from 'vitest'
 import {
   identityOrganizationLifecycleReceipts,
@@ -7,6 +8,30 @@ import {
   organizationLifecycleAuthority,
   organizationLifecycleCommandReceipts,
 } from './organization-lifecycle.schema'
+
+/**
+ * Renders a Drizzle SQL fragment back to readable text for assertions:
+ * literal chunks verbatim, column references as `"table"."column"`.
+ */
+function sqlText(fragment: SQL): string {
+  return fragment.queryChunks
+    .map((chunk) => {
+      if (typeof chunk !== 'object' || chunk === null) return String(chunk)
+      if ('value' in chunk) return String((chunk as { value: unknown }).value)
+      if ('name' in chunk && 'table' in chunk) {
+        const column = chunk as { name: string; table: PgTable }
+        return `"${getTableConfig(column.table).name}"."${column.name}"`
+      }
+      return String(chunk)
+    })
+    .join('')
+}
+
+function checkExpression(table: PgTable, name: string): string {
+  const found = getTableConfig(table).checks.find((candidate) => candidate.name === name)
+  if (!found) throw new Error(`missing check constraint ${name}`)
+  return sqlText(found.value)
+}
 
 describe('Organization lifecycle schema', () => {
   it('keeps lifecycle authority outside Better Auth with explicit terminal semantics', () => {
@@ -66,6 +91,43 @@ describe('Organization lifecycle schema', () => {
         'organization_exports_expiry_idx',
       ]),
     )
+  })
+
+  it('makes egress_pending carry pre-egress evidence while generating still carries none', () => {
+    const shape = checkExpression(organizationExports, 'organization_export_state_shape')
+    const normalized = shape.replace(/\s+/gu, ' ')
+
+    // egress_pending: digests + key are durable, the upload is not confirmed.
+    expect(normalized).toContain(
+      '"organization_exports"."state" = \'egress_pending\' ' +
+        'AND "organization_exports"."generation_lease_expires_at" IS NOT NULL ' +
+        'AND "organization_exports"."coverage_sha256" IS NOT NULL ' +
+        'AND "organization_exports"."manifest_sha256" IS NOT NULL ' +
+        'AND "organization_exports"."archive_sha256" IS NOT NULL ' +
+        'AND "organization_exports"."object_key" IS NOT NULL ' +
+        'AND "organization_exports"."encryption_evidence_ref" IS NULL ' +
+        'AND "organization_exports"."pre_egress_recorded_at" IS NOT NULL',
+    )
+    // generating: nothing has been produced yet, so nothing may be recorded.
+    expect(normalized).toContain(
+      '"organization_exports"."state" = \'generating\' ' +
+        'AND "organization_exports"."generation_lease_expires_at" IS NOT NULL ' +
+        'AND "organization_exports"."coverage_sha256" IS NULL ' +
+        'AND "organization_exports"."manifest_sha256" IS NULL ' +
+        'AND "organization_exports"."archive_sha256" IS NULL ' +
+        'AND "organization_exports"."object_key" IS NULL ' +
+        'AND "organization_exports"."encryption_evidence_ref" IS NULL ' +
+        'AND "organization_exports"."pre_egress_recorded_at" IS NULL',
+    )
+    expect(
+      checkExpression(organizationExports, 'organization_export_state_valid'),
+    ).toContain("'egress_pending'")
+    // A mid-egress export is still an OPEN export.
+    const openIndex = getTableConfig(organizationExports).indexes.find(
+      (candidate) =>
+        candidate.config.name === 'organization_exports_one_open_per_org_idx',
+    )
+    expect(sqlText(openIndex!.config.where!)).toContain("'egress_pending'")
   })
 
   it('retains content-free command receipts for retry-safe transitions', () => {

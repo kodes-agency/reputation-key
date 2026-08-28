@@ -232,6 +232,14 @@ export const organizationExports = pgTable(
     archiveSha256: varchar('archive_sha256', { length: 64 }),
     objectKey: varchar('object_key', { length: 200 }),
     encryptionEvidenceRef: varchar('encryption_evidence_ref', { length: 200 }),
+    /**
+     * Set BEFORE the archive leaves the process. Its presence is what makes a
+     * post-upload/pre-completion crash recoverable: the digests and object key
+     * beside it were durable before egress, so a reclaimed lease can verify
+     * the stored object instead of rebuilding a later live snapshot.
+     */
+    preEgressRecordedAt: timestamptz('pre_egress_recorded_at'),
+    egressRecoveryAttempts: integer('egress_recovery_attempts').notNull().default(0),
     retrievalOperationId: uuid('retrieval_operation_id'),
     retrievalTokenDigest: varchar('retrieval_token_digest', { length: 64 }),
     retrievalIssuedAt: timestamptz('retrieval_issued_at'),
@@ -246,9 +254,13 @@ export const organizationExports = pgTable(
   (t) => [
     check(
       'organization_export_state_valid',
-      sql`${t.state} IN ('requested', 'generating', 'ready', 'retrieval_issued', 'retrieved', 'delete_pending', 'deleted', 'failed')`,
+      sql`${t.state} IN ('requested', 'generating', 'egress_pending', 'ready', 'retrieval_issued', 'retrieved', 'delete_pending', 'deleted', 'failed')`,
     ),
     check('organization_export_revision_positive', sql`${t.revision} >= 1`),
+    check(
+      'organization_export_recovery_attempts_nonnegative',
+      sql`${t.egressRecoveryAttempts} >= 0`,
+    ),
     check(
       'organization_export_version_fixed',
       sql`${t.formatVersion} = 'organization-export/v1'`,
@@ -283,6 +295,7 @@ export const organizationExports = pgTable(
         AND ${t.archiveSha256} IS NULL
         AND ${t.objectKey} IS NULL
         AND ${t.encryptionEvidenceRef} IS NULL
+        AND ${t.preEgressRecordedAt} IS NULL
         AND ${t.lastErrorCode} IS NULL
       ) OR (
         ${t.state} = 'generating'
@@ -292,6 +305,17 @@ export const organizationExports = pgTable(
         AND ${t.archiveSha256} IS NULL
         AND ${t.objectKey} IS NULL
         AND ${t.encryptionEvidenceRef} IS NULL
+        AND ${t.preEgressRecordedAt} IS NULL
+        AND ${t.lastErrorCode} IS NULL
+      ) OR (
+        ${t.state} = 'egress_pending'
+        AND ${t.generationLeaseExpiresAt} IS NOT NULL
+        AND ${t.coverageSha256} IS NOT NULL
+        AND ${t.manifestSha256} IS NOT NULL
+        AND ${t.archiveSha256} IS NOT NULL
+        AND ${t.objectKey} IS NOT NULL
+        AND ${t.encryptionEvidenceRef} IS NULL
+        AND ${t.preEgressRecordedAt} IS NOT NULL
         AND ${t.lastErrorCode} IS NULL
       ) OR (
         ${t.state} IN ('ready', 'retrieval_issued', 'retrieved', 'delete_pending', 'deleted')
@@ -305,12 +329,23 @@ export const organizationExports = pgTable(
       ) OR (
         ${t.state} = 'failed'
         AND ${t.generationLeaseExpiresAt} IS NULL
-        AND ${t.coverageSha256} IS NULL
-        AND ${t.manifestSha256} IS NULL
-        AND ${t.archiveSha256} IS NULL
-        AND ${t.objectKey} IS NULL
         AND ${t.encryptionEvidenceRef} IS NULL
         AND ${t.lastErrorCode} IS NOT NULL
+        AND (
+          (
+            ${t.coverageSha256} IS NULL
+            AND ${t.manifestSha256} IS NULL
+            AND ${t.archiveSha256} IS NULL
+            AND ${t.objectKey} IS NULL
+            AND ${t.preEgressRecordedAt} IS NULL
+          ) OR (
+            ${t.coverageSha256} IS NOT NULL
+            AND ${t.manifestSha256} IS NOT NULL
+            AND ${t.archiveSha256} IS NOT NULL
+            AND ${t.objectKey} IS NOT NULL
+            AND ${t.preEgressRecordedAt} IS NOT NULL
+          )
+        )
       )`,
     ),
     check(
@@ -354,13 +389,16 @@ export const organizationExports = pgTable(
     ),
     uniqueIndex('organization_exports_one_open_per_org_idx')
       .on(t.organizationId)
-      .where(sql`${t.state} IN ('requested', 'generating', 'ready', 'retrieval_issued')`),
+      .where(
+        sql`${t.state} IN ('requested', 'generating', 'egress_pending', 'ready', 'retrieval_issued')`,
+      ),
     index('organization_exports_generation_idx').on(
       t.state,
       t.generationLeaseExpiresAt,
       t.createdAt,
     ),
     index('organization_exports_expiry_idx').on(t.state, t.objectExpiresAt),
+    index('organization_exports_pre_egress_idx').on(t.state, t.preEgressRecordedAt),
   ],
 )
 
