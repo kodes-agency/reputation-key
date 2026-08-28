@@ -1205,6 +1205,27 @@
       "when": 1790352000042,
       "tag": "0171_context_organization_lifecycle_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 172,
+      "version": "7",
+      "when": 1790352000043,
+      "tag": "0172_backup_erasure_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 173,
+      "version": "7",
+      "when": 1790352000044,
+      "tag": "0173_property_erase_authority",
+      "breakpoints": true
+    },
+    {
+      "idx": 174,
+      "version": "7",
+      "when": 1790352000045,
+      "tag": "0174_privacy_requests",
+      "breakpoints": true
     }
   ]
 }

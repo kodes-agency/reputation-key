@@ -392,3 +392,172 @@ the whole sweep.
   BQC-7.6 placeholder-secret boot guard refuses known test values in
   production). `OPS_OPERATOR_IDENTITIES` gates operator commands per
   environment.
+
+---
+
+## 8. Backup-erasure ledger and the restore resurrection fence (LIF-01-T15)
+
+A restore is the one operation that can undo an irreversible erasure. The backup
+a cell is restored from predates the purge, so a plain restore silently brings
+back every Organization, Property and privacy subject erased after the restore
+point. That is the worst outcome in the whole lifecycle package: data the
+product promised was destroyed becomes readable again.
+
+**The control.** `backup_erasure_ledger` is an append-only record of every
+irreversible erasure — subject class, tenant/property/subject identity, the
+owning context, the effective erasure instant, a row count and a content-free
+evidence reference. It has **no foreign key** to `organization` or `properties`:
+an entry exists precisely because its subject is gone, and a referential
+dependency would cascade away the evidence that prevents resurrection. UPDATE,
+DELETE and TRUNCATE are refused by `ENABLE ALWAYS` triggers and revoked from
+`PUBLIC`, because an entry an operator can quietly remove after a bad restore is
+exactly the failure this ledger exists to prevent.
+
+**Where entries come from.**
+
+| Source                          | Subject class     | Lineage                                     |
+| ------------------------------- | ----------------- | ------------------------------------------- |
+| Organization purge (LIF-01-T14) | `organization`    | closure lineage, one entry per context plan |
+| Property Erase (LIF-01-T19)     | `property`        | erase authority id                          |
+| Privacy erasure (LIF-01-T20)    | `privacy_subject` | privacy request id                          |
+
+Each append is idempotent by `(subject_class, closure_lineage_id,
+lifecycle_revision, context)`, so a retried purge phase cannot inflate the
+counts the fence later replays.
+
+**The fence.** `applyRestoreResurrectionFence` (see
+`src/shared/ops/backup-erasure-ledger.ts`) reads the ledger for the cell and
+classifies every entry against the restore point:
+
+- `already_erased` — the erasure took effect at or before the restore point, so
+  it is already baked into the restored bytes. Replaying it would double-count.
+  This is what makes the fence convergent.
+- `replay_required` — the erasure took effect after the restore point, so the
+  restore undid it. A registered replayer re-applies it.
+- `held` — the entry carries a documented delayed-erasure / legal-hold policy
+  reference and no counsel-authorised release. It is deferred, reported, and
+  **not** re-applied until a release is appended to
+  `backup_erasure_hold_releases` (itself append-only, for the same reason).
+
+**Fail-closed.** `verified` is false whenever any entry could not be re-applied
+— typically because no replayer is registered for its `(context, subjectClass)`.
+`assertRestoredCellVerified` throws in that case, and a restored cell that is not
+verified must not be opened for traffic. A partially re-erased restore is never
+declared verified; being noisy here is strictly better than quietly serving data
+the product said was destroyed.
+
+**Operator procedure after a restore.**
+
+1. Run `ops:restore-preflight` as today (restore point inside the platform
+   range).
+2. Run the recovery fence (`src/shared/db/recovery/postgres-recovery-fence.ts`).
+3. Run the resurrection fence with the SAME `restorePointAt`. Record the
+   returned `BackupErasureReplayCounts` alongside the `RecoveryFenceCounts` —
+   `mergeRecoveryFenceCounts` produces the combined document.
+4. If `verified` is false, DO NOT open the cell. Register the missing replayer,
+   or obtain a counsel-authorised hold release, and re-run. The fence is
+   convergent, so re-running is safe.
+
+**Wiring not yet composed.** `postgres-recovery-fence.ts` does not yet call the
+resurrection fence, and only the Guest organization-scoped replayer exists
+(`createGuestBackupErasureReplayer`). Until every erasing context registers a
+replayer, a restore whose point precedes a purge of another context will
+correctly report `verified: false`.
+
+---
+
+## 9. Permanent Property Erase (LIF-01-T19)
+
+**Posture.** `property.erase` is DISABLED in
+`src/shared/governance/capability-fate.ts` and is a member of
+`BLOCKED_CAPABILITIES` in `src/shared/auth/beta-capabilities.ts`. **It stays
+blocked as a tenant capability.** The only entry point is
+`pnpm ops:property-erase`. There is no route, no server function and no tenant
+capability check that reaches the erase use case — asserted by a negative test
+in `src/contexts/property/application/use-cases/erase-property.test.ts`.
+
+An AccountAdmin may **request**. Requesting is not authorizing. Authorization is
+a registered operator plus an **independent** support authorization reference
+that is not derived from the tenant session or from the requester's identity
+verification.
+
+**Gates, in order.**
+
+1. the Property is already `archived` — erasure is not a shortcut past the
+   recoverable lifecycle;
+2. the requester is a **current** AccountAdmin;
+3. an independent, content-free support authorization reference is supplied;
+4. the dependency inventory (every owning context's row counts, content-free)
+   and the export/retention preview are recorded; and
+5. the typed confirmation is exactly `ERASE PROPERTY <property-id>` and names
+   the inventory revision the admin was shown. A stale revision is refused.
+
+**State machine.** `requested → previewed → confirmed → purge_pending → purging
+→ purged`, with `cancelled` reachable from every state before `purging`.
+
+**The irreversible boundary is `purge_pending → purging`**, guarded three
+independent times: the domain transition table, the store's `from` predicate,
+and the `property_erase_authorities` database trigger. A cancel attempt after it
+is refused with `irreversible_state` in the application and
+`irreversible once purging has begun` in direct SQL.
+
+**Asynchronous purge.** `advance-property-erase.job.ts` advances at most ONE
+Property per pass. Each context's erase writes an append-only receipt in the
+same transaction as its deletes, so an interruption resumes from the receipts
+rather than re-running contexts that already answered. A `no_data` receipt is
+still evidence — a context with nothing to erase must be distinguishable from a
+context that was never asked. Completion appends the backup-erasure ledger entry
+described in §8.
+
+**What survives.** The `properties` row survives as a tombstone with its
+descriptive content scrubbed: `purged` is a declared lifecycle state and the
+tombstone keeps every receipt, audit row and ledger entry that names the
+Property resolvable. Sibling Properties in the same Organization are
+byte-identical, and independently retained managerial work (replies to reviews
+of other Properties, org-level `audit_logs`) is untouched.
+
+**Not yet armed.** `scripts/ops/property-erase.ts` refuses `--apply` and says so.
+Only the Guest and Property erase contributors exist; the remaining fourteen
+contexts, the container composition and the job registration are pending.
+
+---
+
+## 10. Privacy requests (LIF-01-T20)
+
+`privacy_requests` records access, correction, withdrawal and erasure requests
+for Guest contact/feedback and Participant data.
+
+**Structural properties.**
+
+- **Tenant AND property scoped** — both ids are NOT NULL. A request that is not
+  bound to exactly one Property cannot be answered without reading across
+  tenants.
+- **No subject content** — the subject is the SHA-256 of a VERIFIED identifier
+  (for a Guest, the Portal session id, hashed inside the database so the
+  plaintext never reaches the application). A record about a person's data must
+  not become another copy of that person's data.
+- **Expiry bound** — an access package reference carries a mandatory expiry and
+  a content classification. A privacy export that never expires is a permanent
+  secondary copy.
+- **No edge skips verification** — `received → verified → in_progress →
+fulfilled | refused`, enforced by the domain, the CHECK constraints and the
+  `privacy_requests` trigger. Every refusal carries an enumerated reason code;
+  there is no free-text refusal.
+
+**The ordering rule.** A withdrawal or correction must reach the anonymous
+lifetime aggregate BEFORE the source facts are purged — the same gate the Guest
+Organization lifecycle contributor enforces at closure. `fulfilPrivacyRequest`
+applies the contributor operation, then delivers corrections, and only then
+appends the ledger entry. Undelivered corrections leave the request
+`in_progress` with the source facts intact: a retryable stall beats a
+permanently wrong aggregate with no fact left to fix it.
+
+**Audit.** Every received and fulfilled request appends
+`privacy_request.received` / `privacy_request.fulfilled` carrying the request id
+and no subject content. These catalogue actions were declared and unused before
+this task.
+
+**Not yet armed.** `scripts/ops/privacy-request.ts` refuses `--apply` and says
+so. The Guest subject contributor exists and is proved against real PostgreSQL;
+the persistent `PrivacyRequestStore`, the Staff (Participant) contributor and
+the Inbox contributor are pending.

@@ -1,5 +1,11 @@
 import type { RecoveryFenceCounts } from '#/shared/db/schema/recovery.schema'
 import type { DataCellId } from '#/shared/domain/data-cell-catalogue'
+import {
+  RESTORE_RESURRECTION_FENCE_UNVERIFIED,
+  ZERO_BACKUP_ERASURE_REPLAY_COUNTS,
+  type BackupErasureReplayCounts,
+  type RestoreResurrectionFenceResult,
+} from '#/shared/db/lifecycle/backup-erasure-ledger'
 
 const SHA = /^[0-9a-f]{40}$/u
 const SHA256 = /^[0-9a-f]{64}$/u
@@ -72,4 +78,41 @@ export function validateRecoveryFenceInput(input: RecoveryFenceInput): void {
   ) {
     throw new Error('recovery operator and correlation identities are required')
   }
+}
+
+// ── LIF-01-T15: the restore resurrection fence's contribution ────────
+
+/**
+ * The fence counts a restored cell reports: the authority/effect counts the
+ * base fence produces, PLUS the backup-erasure replay counts.
+ *
+ * They are a separate, additive type rather than extra members of
+ * `RecoveryFenceCounts` because the base counts are persisted verbatim in the
+ * immutable `recovery_runs.counts` document written by earlier generations.
+ * Widening that document's required shape would make every historical row fail
+ * to parse, which is the opposite of durable evidence.
+ */
+export type RestoredCellFenceCounts = RecoveryFenceCounts & BackupErasureReplayCounts
+
+export function mergeRecoveryFenceCounts(
+  base: RecoveryFenceCounts,
+  replay: BackupErasureReplayCounts = ZERO_BACKUP_ERASURE_REPLAY_COUNTS,
+): RestoredCellFenceCounts {
+  return { ...base, ...replay }
+}
+
+/**
+ * FAIL CLOSED. A restored cell may only be declared verified when every
+ * erasure the restore undid has been re-applied.
+ *
+ * Anything else — a ledger entry with no registered replayer, a replayer that
+ * refused — leaves resurrected tenant data reachable in a cell that operators
+ * are about to open for traffic. Being noisy here is strictly better than
+ * quietly serving data the product said was destroyed.
+ */
+export function assertRestoredCellVerified(result: RestoreResurrectionFenceResult): void {
+  if (result.verified) return
+  throw new Error(
+    `${RESTORE_RESURRECTION_FENCE_UNVERIFIED} (${result.unreplayedEntryIds.length} entries)`,
+  )
 }
