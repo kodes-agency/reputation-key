@@ -19,7 +19,6 @@
 //   transaction and re-check the last-owner invariant under it, preserving
 //   the pre-BQC-3.5 withOrgLock serialization semantics.
 
-import { randomUUID } from 'crypto'
 import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
@@ -27,9 +26,11 @@ import {
   invitation,
   member,
   organization,
+  session,
   user as userTable,
 } from '#/shared/db/schema/auth'
 import { userOrganizationBindings } from '#/shared/db/schema/identity-governance.schema'
+import { invitedRegistrationAttempts } from '#/shared/db/schema/invited-registration.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
@@ -165,7 +166,7 @@ async function lockMemberForRoleChange(
   orgId: string,
   memberId: string,
   opts: { newRole?: string } = {},
-): Promise<void> {
+): Promise<typeof member.$inferSelect> {
   await lockOrg(tx, orgId)
   const rows = await tx
     .select()
@@ -188,6 +189,7 @@ async function lockMemberForRoleChange(
       )
     }
   }
+  return target
 }
 
 /** Parse the JSON-encoded propertyIds string from an invitation row. */
@@ -203,10 +205,11 @@ function parsePropertyIds(raw: string | null): ReadonlyArray<string> {
   }
 }
 
-export function createAtomicIdentityCommandStore(
+export const createAtomicIdentityCommandStore = (
   db: Database,
   events: EventBus,
-): IdentityCommandStore {
+  idGen: () => string,
+): IdentityCommandStore => {
   return {
     validateInvitationRegistration: async (
       command: ValidateInvitationRegistrationCommand,
@@ -390,6 +393,32 @@ export function createAtomicIdentityCommandStore(
           if (inv.expiresAt <= command.now) {
             throw identityError('invitation_not_found', 'Invitation has expired')
           }
+          if (command.registrationAttemptId) {
+            const registrationRows = await tx
+              .select({
+                id: invitedRegistrationAttempts.id,
+                invitationId: invitedRegistrationAttempts.invitationId,
+                organizationId: invitedRegistrationAttempts.organizationId,
+                expectedUserId: invitedRegistrationAttempts.expectedUserId,
+                state: invitedRegistrationAttempts.state,
+              })
+              .from(invitedRegistrationAttempts)
+              .where(eq(invitedRegistrationAttempts.id, command.registrationAttemptId))
+              .for('update')
+            const registration = registrationRows[0]
+            if (
+              !registration ||
+              registration.state !== 'prepared' ||
+              registration.invitationId !== inv.id ||
+              registration.organizationId !== inv.organizationId ||
+              registration.expectedUserId !== (command.acceptorUserId as string)
+            ) {
+              throw identityError(
+                'registration_failed',
+                'Registration recovery fence does not match this invitation',
+              )
+            }
+          }
           // 4. Re-validate the role at acceptance. Staff users and custom
           //    roles are retained as data but cannot become beta logins.
           const role = (inv.role ?? 'member').trim().toLowerCase()
@@ -422,7 +451,7 @@ export function createAtomicIdentityCommandStore(
 
           // 6. Create the membership + mark accepted.
           await tx.insert(member).values({
-            id: randomUUID(),
+            id: idGen(),
             organizationId: inv.organizationId,
             userId: command.acceptorUserId as string,
             role,
@@ -439,6 +468,21 @@ export function createAtomicIdentityCommandStore(
           }
           const fact = command.buildEvent(accepted)
           await insertOutboxRow(tx, fact)
+          if (command.registrationAttemptId) {
+            await tx
+              .update(invitedRegistrationAttempts)
+              .set({
+                state: 'accepted',
+                providerObservedAt: command.now,
+                acceptedAt: command.now,
+                nextRecoveryAt: null,
+                leaseOwner: null,
+                leaseExpiresAt: null,
+                lastFailureCode: null,
+                updatedAt: command.now,
+              })
+              .where(eq(invitedRegistrationAttempts.id, command.registrationAttemptId))
+          }
           return { kind: 'accepted' as const, result: accepted, event: fact }
         })
         if (outcome.kind === 'rejected') {
@@ -474,11 +518,42 @@ export function createAtomicIdentityCommandStore(
     removeMember: async (command: RemoveMemberCommand) => {
       return trace('identity.commandStore.removeMember', async () => {
         await db.transaction(async (tx) => {
-          await lockMemberForRoleChange(
+          const target = await lockMemberForRoleChange(
             tx,
             command.organizationId as string,
             command.memberId,
           )
+          if (target.userId !== (command.event.userId as string)) {
+            throw identityError(
+              'organization_conflict',
+              'Member removal fact does not match the locked member authority',
+            )
+          }
+          // Membership removal is also login offboarding. Revoke every
+          // current Better Auth session and release the singular beta
+          // Organization binding in the same transaction as the membership
+          // deletion and durable fact. A stale cookie or binding therefore
+          // cannot survive a committed removal.
+          await tx.delete(session).where(eq(session.userId, target.userId))
+          await tx
+            .update(userOrganizationBindings)
+            .set({
+              state: 'released',
+              version: sql`${userOrganizationBindings.version} + 1`,
+              resolutionReason: 'member_removed',
+              releasedAt: command.event.occurredAt,
+              updatedAt: command.event.occurredAt,
+            })
+            .where(
+              and(
+                eq(userOrganizationBindings.userId, target.userId),
+                eq(
+                  userOrganizationBindings.organizationId,
+                  command.organizationId as string,
+                ),
+                eq(userOrganizationBindings.state, 'active'),
+              ),
+            )
           await tx
             .delete(member)
             .where(
@@ -547,12 +622,15 @@ export function createAtomicIdentityCommandStore(
             createdAt: command.now,
           })
           await tx.insert(member).values({
-            id: randomUUID(),
+            id: idGen(),
             organizationId: command.organizationId as string,
             userId: command.ownerId as string,
             role: 'owner',
             createdAt: command.now,
           })
+          // Migration 0159 owns lifecycle provisioning with an AFTER INSERT
+          // trigger on Better Auth's Organization table. Writing a second row
+          // here would race that database authority and fail the whole command.
           await claimUserOrganizationBinding(tx, {
             userId: command.ownerId as string,
             organizationId: command.organizationId as string,

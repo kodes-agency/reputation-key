@@ -12,6 +12,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { organizationId, userId, propertyId } from '#/shared/domain/ids'
 import { createGrantAccessLookup } from '../adapters/grant-access-lookup.adapter'
 import {
@@ -55,7 +56,7 @@ beforeAll(async () => {
   await db.execute(sql`DELETE FROM property_access_grant WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM "user" WHERE id IN (${USER_A}, ${USER_B})`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
 
   await db.execute(
     sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Lookup Org', ${ORG}, now())`,
@@ -112,19 +113,19 @@ afterAll(async () => {
   await db.execute(sql`DELETE FROM property_access_grant WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM "user" WHERE id IN (${USER_A}, ${USER_B})`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
 })
 
 describe('grant-backed access lookup (BQC-2.3)', () => {
   it('staff_assignment WITHOUT a grant does NOT authorize', async () => {
-    const lookup = createGrantAccessLookup(db)
+    const lookup = createGrantAccessLookup(db, () => new Date())
     const ids = await lookup(ORG_ID, USER_A_ID)
     expect(ids).not.toContain(propertyId(propStaffOnly))
     expect(ids).toEqual([])
   })
 
   it('grants WITHOUT staff_assignment DO authorize; revoked/expired never do', async () => {
-    const lookup = createGrantAccessLookup(db)
+    const lookup = createGrantAccessLookup(db, () => new Date())
     const ids = await lookup(ORG_ID, USER_B_ID)
     expect(ids).toContain(propertyId(propGrantOnly))
     expect(ids).toContain(propertyId(propBoth))
@@ -134,7 +135,7 @@ describe('grant-backed access lookup (BQC-2.3)', () => {
   })
 
   it('cache invalidates on policy_version bump (next call sees the grant change)', async () => {
-    const lookup = createGrantAccessLookup(db)
+    const lookup = createGrantAccessLookup(db, () => new Date())
     const first = await lookup(ORG_ID, USER_A_ID)
     expect(first).toEqual([])
 

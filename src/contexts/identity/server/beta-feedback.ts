@@ -4,14 +4,18 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import {
+  BETA_FEEDBACK_ATTACHMENT_RETENTION_DAYS,
   type BetaFeedbackInput,
   betaFeedbackInputSchema,
+  classifyBetaFeedbackRoute,
 } from '#/shared/beta-feedback-contract'
-import { getEnv } from '#/shared/config/env'
-import { canForContext } from '#/shared/domain/permissions'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { deliverBetaFeedback } from './beta-feedback-delivery.server'
-import { enforceBetaFeedbackRateLimit } from './beta-feedback-rate-limit.server'
+import {
+  betaFeedbackPseudonym,
+  enforceBetaFeedbackRateLimit,
+} from './beta-feedback-rate-limit.server'
 
 export const submitBetaFeedbackHandler = createServerOnlyFn(
   async ({
@@ -19,27 +23,83 @@ export const submitBetaFeedbackHandler = createServerOnlyFn(
   }: Readonly<{ data: BetaFeedbackInput }>): Promise<Readonly<{ reference: string }>> => {
     const headers = await headersFromContext()
     const actor = await resolveTenantContext(headers)
-    if (!canForContext(actor, 'feedback.respond')) {
-      throwContextError(
-        'FeedbackError',
-        {
-          code: 'forbidden',
-          message: 'Beta feedback is available to account administrators and managers.',
-        },
-        403,
-      )
-    }
+    await requireExecutionAllowed({ actor, action: 'feedback.respond' })
 
     try {
-      const secret = getEnv().BETTER_AUTH_SECRET
+      const {
+        rateLimiter,
+        identityRequestSecurity,
+        betaFeedbackTriageRepo: triage,
+        idGen,
+        clock,
+      } = getContainer()
+      const secret = identityRequestSecurity.betaFeedbackHmacSecret
       await enforceBetaFeedbackRateLimit({
-        rateLimiter: getContainer().rateLimiter,
+        rateLimiter,
         actorId: actor.userId,
         organizationId: actor.organizationId,
         keyHmacSecret: secret,
       })
 
-      const reference = deliverBetaFeedback({ data, actor, hmacSecret: secret })
+      const now = clock()
+      const reference = idGen()
+      const attachmentExpiresAt =
+        data.type === 'bug' && data.attachment
+          ? new Date(
+              now.getTime() +
+                BETA_FEEDBACK_ATTACHMENT_RETENTION_DAYS * 24 * 60 * 60 * 1_000,
+            )
+          : null
+      await triage.prepare({
+        reference,
+        organizationPseudonym: betaFeedbackPseudonym(
+          secret,
+          'telemetry-organization',
+          actor.organizationId,
+        ),
+        actorPseudonym: betaFeedbackPseudonym(secret, 'telemetry-actor', actor.userId),
+        feedbackType: data.type,
+        impactCode: data.type === 'bug' ? data.impact : data.importance,
+        routeKey: classifyBetaFeedbackRoute(data.routePath),
+        viewport: data.viewport,
+        reporterRole: actor.role,
+        attachmentKind:
+          data.type === 'bug' && data.attachment ? 'masked_layout_v1' : 'none',
+        attachmentCapturedAt: attachmentExpiresAt ? now : null,
+        attachmentExpiresAt,
+        now,
+      })
+
+      const delivery = deliverBetaFeedback({
+        data,
+        actor,
+        hmacSecret: secret,
+        reference,
+        capturedAt: now,
+        attachmentExpiresAt,
+      })
+      if (delivery.status === 'failed') {
+        await triage.markFailed({
+          reference,
+          failureCode: delivery.failureCode,
+          expectedRevision: 0,
+          now,
+        })
+        throwContextError(
+          'FeedbackError',
+          {
+            code: 'temporarily_unavailable',
+            message: 'Beta feedback is temporarily unavailable. Please try again later.',
+          },
+          503,
+        )
+      }
+      await triage.markDelivered({
+        reference,
+        providerReference: delivery.providerReference,
+        expectedRevision: 0,
+        now,
+      })
 
       return { reference }
     } catch (error) {

@@ -14,6 +14,7 @@ function limiterWith(results: ReadonlyArray<boolean>): RateLimiter & {
       allowed: results[index++] ?? true,
       remaining: 0,
       resetAt: new Date('2026-08-26T00:00:00.000Z'),
+      backendStatus: 'available' as const,
     })),
   }
 }

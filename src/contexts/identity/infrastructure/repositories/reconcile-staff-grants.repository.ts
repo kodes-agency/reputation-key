@@ -12,6 +12,7 @@
 
 import { sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { Clock } from '#/shared/domain/clock'
 import { BUMP_POLICY_VERSION_SQL } from './policy-version-sql'
 
 export type ReconcileAnomalyKind = 'org_mismatch' | 'property_inactive' | 'user_missing'
@@ -141,6 +142,7 @@ function classify(rows: ReadonlyArray<AssignmentRow>): {
 
 export async function buildReconcileReport(
   db: Database,
+  clock: Clock,
   scope?: ReconcileScope,
 ): Promise<ReconcileReport> {
   const rows = await loadAssignments(db, scope)
@@ -173,7 +175,7 @@ export async function buildReconcileReport(
     })
     .sort((a, b) => a.organizationId.localeCompare(b.organizationId))
 
-  return { organizations, anomalyRows: anomalies, generatedAt: new Date() }
+  return { organizations, anomalyRows: anomalies, generatedAt: clock() }
 }
 
 export async function applyReconciliation(

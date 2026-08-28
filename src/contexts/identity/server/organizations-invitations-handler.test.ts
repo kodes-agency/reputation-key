@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('#/composition', () => ({
   getContainer: () => ({
-    useCases: { acceptInvitation: mocks.acceptInvitation },
+    identityPublicApi: {
+      requests: { acceptInvitation: mocks.acceptInvitation },
+    },
   }),
 }))
 vi.mock('#/shared/auth/headers', () => ({

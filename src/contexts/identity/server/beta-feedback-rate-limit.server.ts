@@ -16,6 +16,8 @@ type PseudonymAudience =
   | 'rate-limit-organization'
   | 'telemetry-actor'
   | 'telemetry-organization'
+  | 'triage-operator'
+  | 'triage-owner'
 
 type Input = Readonly<{
   rateLimiter: RateLimiter

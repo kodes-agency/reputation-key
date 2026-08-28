@@ -153,6 +153,8 @@ export type MerchantAiCommandInput = Readonly<{
   reasonCode: string
 }>
 
+export type MerchantAiAuthorization = ReturnType<typeof createMerchantAiAuthorization>
+
 const RUNTIME_BY_CAPABILITY = new Map(
   AI_RUNTIME_CAPABILITIES_V1.map((entry) => [entry.capability, entry] as const),
 )

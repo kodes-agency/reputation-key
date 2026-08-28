@@ -3,6 +3,7 @@ import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
 import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { buildPeopleAuthorityReconciliationReportFromDatabase } from './people-authority-reconciliation.repository'
 
 const ORG = 'org-people-authority-report'
@@ -35,6 +36,10 @@ const AMBIGUOUS_LINK_B = 'ed000000-0000-4000-8000-000000000026'
 const ARCHIVED_PARTICIPANT_ASSIGNMENT = 'ed000000-0000-4000-8000-000000000027'
 const AMBIGUOUS_LINK_PARTICIPATION = 'ed000000-0000-4000-8000-000000000028'
 const PORTAL_MANAGER_AMBIGUOUS_LINK = 'ed000000-0000-4000-8000-000000000029'
+const ATTRIBUTED_RESPONSE = 'ed000000-0000-4000-8000-000000000030'
+const MISSING_ATTRIBUTION_RESPONSE = 'ed000000-0000-4000-8000-000000000031'
+const ATTRIBUTED_READING = 'ed000000-0000-4000-8000-000000000032'
+const ATTRIBUTED_CORRECTION = 'ed000000-0000-4000-8000-000000000033'
 const NOW = new Date('2026-08-26T08:00:00.000Z')
 const TOMORROW = new Date('2026-08-27T08:00:00.000Z')
 
@@ -50,6 +55,15 @@ const USERS = {
 let pool: Pool
 
 async function clearFixture(): Promise<void> {
+  await pool.query(
+    `DELETE FROM metric_corrections
+     WHERE reading_id IN (
+       SELECT id FROM metric_readings WHERE organization_id = $1
+     )`,
+    [ORG],
+  )
+  await pool.query('DELETE FROM metric_readings WHERE organization_id = $1', [ORG])
+  await pool.query('DELETE FROM guest_responses WHERE organization_id = $1', [ORG])
   for (const table of [
     'portal_responsible_managers',
     'property_responsible_managers',
@@ -118,7 +132,7 @@ afterAll(async () => {
   await pool.query('DELETE FROM properties WHERE id = $1', [PROPERTY])
   await clearMembers()
   await pool.query('DELETE FROM "user" WHERE id = ANY($1)', [Object.values(USERS)])
-  await pool.query('DELETE FROM organization WHERE id = $1', [ORG])
+  await deleteTestOrganizations(pool, [ORG])
   await pool.end()
 })
 
@@ -334,6 +348,69 @@ beforeEach(async () => {
 
 describe('people authority reconciliation repository', () => {
   it('classifies every authority independently and produces a stable read-only report', async () => {
+    await pool.query(
+      `INSERT INTO guest_responses (
+         id, organization_id, property_id, portal_id, status,
+         integrity_outcome, integrity_reason_code, integrity_revision,
+         integrity_assessed_at, rating, response_consent, submitted_at,
+         retention_deadline, attributed_staff_participant_id,
+         attributed_staff_participation_id, attribution_responsibility_id,
+         staff_attribution_effective_from
+       ) VALUES
+         ($1, $3, $4, $5, 'submitted', 'accepted', 'initial_submission', 1,
+          $6, 5, true, $6, $7, $8, $9, $10, $6),
+         ($2, $3, $4, $5, 'submitted', 'accepted', 'initial_submission', 1,
+          $6, 4, true, $6, $7, NULL, NULL, NULL, NULL)`,
+      [
+        ATTRIBUTED_RESPONSE,
+        MISSING_ATTRIBUTION_RESPONSE,
+        ORG,
+        PROPERTY,
+        PORTAL,
+        NOW,
+        new Date('2028-08-26T08:00:00.000Z'),
+        PARTICIPANT,
+        PARTICIPATION,
+        RESPONSIBILITY,
+      ],
+    )
+    await pool.query(
+      `INSERT INTO metric_readings (
+         id, organization_id, property_id, portal_id, metric_key, value,
+         recorded_at, attributed_staff_participant_id,
+         attributed_staff_participation_id, attribution_responsibility_id,
+         staff_attribution_effective_from
+       ) VALUES ($1, $2, $3, $4, 'portal.rating', 5, $5, $6, $7, $8, $5)`,
+      [
+        ATTRIBUTED_READING,
+        ORG,
+        PROPERTY,
+        PORTAL,
+        NOW,
+        PARTICIPANT,
+        PARTICIPATION,
+        RESPONSIBILITY,
+      ],
+    )
+    await pool.query(
+      `INSERT INTO metric_corrections (
+         id, reading_id, source_event_id, kind, reason, actor_type, actor_id,
+         event_at, attributed_staff_participant_id,
+         attributed_staff_participation_id, attribution_responsibility_id,
+         staff_attribution_effective_from
+       ) VALUES (
+         $1, $2, 'people-report-correction', 'retract', 'source_retracted',
+         'system', 'people-report', $3, $4, $5, $6, $3
+       )`,
+      [
+        ATTRIBUTED_CORRECTION,
+        ATTRIBUTED_READING,
+        NOW,
+        PARTICIPANT,
+        PARTICIPATION,
+        RESPONSIBILITY,
+      ],
+    )
     const input = { organizationIds: [ORG], asOf: NOW }
     const first = await buildPeopleAuthorityReconciliationReportFromDatabase(
       getDb(),
@@ -449,6 +526,34 @@ describe('people authority reconciliation repository', () => {
       source: 'property_responsible_manager',
       outcome: 'unsafe',
       reasonCode: 'property_manager_missing_active_participation',
+    })
+    expect(
+      classification(ATTRIBUTED_RESPONSE, 'event_time_staff_attribution'),
+    ).toMatchObject({
+      source: 'guest_response',
+      outcome: 'exact',
+      reasonCode: 'guest_response_event_time_primary_exact',
+    })
+    expect(
+      classification(MISSING_ATTRIBUTION_RESPONSE, 'event_time_staff_attribution'),
+    ).toMatchObject({
+      source: 'guest_response',
+      outcome: 'unsafe',
+      reasonCode: 'guest_response_missing_event_time_primary',
+    })
+    expect(
+      classification(ATTRIBUTED_READING, 'event_time_staff_attribution'),
+    ).toMatchObject({
+      source: 'metric_reading',
+      outcome: 'exact',
+      reasonCode: 'metric_reading_event_time_primary_exact',
+    })
+    expect(
+      classification(ATTRIBUTED_CORRECTION, 'event_time_staff_attribution'),
+    ).toMatchObject({
+      source: 'metric_correction',
+      outcome: 'exact',
+      reasonCode: 'metric_correction_preserves_reading_attribution',
     })
     expect(first.counts.total).toBe(first.rows.length)
 

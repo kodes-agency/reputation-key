@@ -9,13 +9,16 @@
 //   - internal.policyAdmin — BQC-2.7 least-privilege policy administration ops.
 //   - internal.writeOperatorAudit — BQC-4.5 content-free operator audit sink,
 //     injected into the property region-move workflow.
+//   - internal.organizationLifecycleRuntime — named lifecycle/export control,
+//     content-free diagnostics, and contributor-gated maintenance services.
 
 import type { Database } from '#/shared/db'
+import type { Clock } from '#/shared/domain/clock'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { IdentityPort } from './application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { EventBus } from '#/shared/events/event-bus'
 import { invitationId, organizationId } from '#/shared/domain/ids'
-import { randomUUID } from 'crypto'
 import { inviteMember } from './application/use-cases/invite-member'
 import { createCustomRole } from './application/use-cases/create-custom-role'
 import { updateCustomRole } from './application/use-cases/update-custom-role'
@@ -26,15 +29,13 @@ import { listInvitations } from './application/use-cases/list-invitations'
 import { resendInvitation } from './application/use-cases/resend-invitation'
 import { acceptInvitation } from './application/use-cases/accept-invitation'
 import { cancelInvitation } from './application/use-cases/cancel-invitation'
-import {
-  registerUserAndOrg,
-  type RegisterUserAndOrgLogger,
-} from './application/use-cases/register-user-and-org'
+import { registerUserAndOrg } from './application/use-cases/register-user-and-org'
 import { registerUser } from './application/use-cases/register-user'
 import { registerInvitedUser } from './application/use-cases/register-invited-user'
+import { recoverInvitedRegistrations } from './application/use-cases/recover-invited-registrations'
 import { updateOrganization } from './application/use-cases/update-organization'
 import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
-import { getLogger } from '#/shared/observability/logger'
+import { createInvitedRegistrationStore } from './infrastructure/invited-registration-store'
 import type { DataCellExecutionDecision } from '#/shared/routing/data-cell-execution-fence'
 import { initPersistedCapabilityPolicyStore } from './infrastructure/policy-store-init'
 import { createPolicyAdminOps } from './application/use-cases/policy-admin'
@@ -62,34 +63,61 @@ import {
 } from './application/dto/merchant-ai-notice.dto'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
 import {
-  setOrganizationPolicy,
-  setPropertyPolicy,
-  addOrganizationCapability,
-  removeOrganizationCapability,
-  addPropertyCapability,
-  removePropertyCapability,
-  isOrgMember,
   getMemberRole,
   loadOrgPolicyState,
 } from './infrastructure/repositories/policy-state.repository'
 import {
   grantPropertyAccess,
-  revokePropertyAccess,
   revokeAllPropertyAccessForUser,
   hasActiveGrant,
   listActiveGrantsForOrg,
 } from './infrastructure/repositories/property-access-grant.repository'
 import { createPropertyGrantHolderLookup } from './infrastructure/adapters/grant-access-lookup.adapter'
 import { writePolicyDecision } from './infrastructure/repositories/policy-decision-audit.repository'
+import { createPostgresPolicyAdminCommandStore } from './infrastructure/policy-admin-command-store'
+import { createOrganizationLifecycle } from './application/use-cases/organization-lifecycle'
+import { createOrganizationLifecycleCommandStore } from './infrastructure/organization-lifecycle-command-store'
+import {
+  createOrganizationLifecycleCoordinator,
+  type BeginIrreversibleOrganizationPurgeInput,
+  type CancelPendingOrganizationPurgeInput,
+  type WaiveOrganizationRecoveryInput,
+} from './application/use-cases/advance-organization-lifecycle'
+import { createOrganizationExportService } from './application/use-cases/organization-export'
+import type { OrganizationLifecycleContributor } from './application/ports/organization-lifecycle-contributor.port'
+import type {
+  OrganizationExportArchiveWriter,
+  OrganizationExportStorage,
+} from './application/ports/organization-export.port'
+import type { OrganizationExportContributor } from './application/organization-export-contract'
+import {
+  ORGANIZATION_LIFECYCLE_CONTEXTS,
+  type OrganizationLifecycleContext,
+} from './domain/organization-lifecycle'
+import { createOrganizationExportRepository } from './infrastructure/organization-export.repository'
+import { createIdentityOrganizationExportContributor } from './infrastructure/identity-organization-export-contributor'
 import type { RoutingDecision } from '#/shared/routing/processing-router'
 import { createManagerMembershipRepository } from './infrastructure/repositories/manager-membership.repository'
 import { resolveMemberAuthContextWithDatabase } from '#/shared/auth/tenant-resolver'
-import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
 import {
+  canForContext,
+  scopeForPermission,
+  type Permission,
+} from '#/shared/domain/permissions'
+import {
+  decideCurrentManagerPropertyAuthorities,
+  decideCurrentManagerPropertyAuthority,
   decideCurrentMemberPropertyAuthority,
   decideMemberPropertyAuthority,
+  type ManagerPropertyAuthorityRequirement,
   type MemberPropertyAuthorityDatabase,
 } from './infrastructure/repositories/member-property-authority'
+import type {
+  IdentityAccountAdminAuthorityPublicApi,
+  IdentityManagerFactsPublicApi,
+  IdentityPublicApi,
+  IdentityRequestApi,
+} from './application/public-api'
 
 /** Callback invoked after an invitation is accepted.
  * The composition root provides the implementation that creates
@@ -101,11 +129,33 @@ export type OnMemberJoined = (ctx: {
   displayName?: string
 }) => Promise<void>
 
+/**
+ * Reviewed cross-context bindings for the Organization lifecycle control
+ * plane. Partial contributor sets are accepted only as an explicit
+ * composition-readiness state; they can never execute a lifecycle phase or
+ * generate an export.
+ */
+export type IdentityOrganizationLifecycleComposition = Readonly<{
+  lifecycleContributors?: readonly OrganizationLifecycleContributor[]
+  supportAuthorization?: import('./application/ports/organization-lifecycle-contributor.port').OrganizationLifecycleSupportAuthorization
+  organizationExport?: Readonly<{
+    /** Cross-context contributors only; Identity supplies its own reviewed owner. */
+    contributors: readonly OrganizationExportContributor[]
+    archiveWriter: OrganizationExportArchiveWriter
+    storage: OrganizationExportStorage
+    deriveRetrievalSecret: (input: {
+      requestId: string
+      operationId: string
+    }) => Uint8Array
+  }>
+}>
+
 type IdentityContextDeps = Readonly<{
   db: Database
   identityPort: IdentityPort
   events: EventBus
-  clock: () => Date
+  clock: Clock
+  idGen: () => string
   /** Sign up a new user. Returns user ID. */
   signUp: (name: string, email: string, password: string) => Promise<string>
   /** Set the active organization for the current session. */
@@ -127,9 +177,8 @@ type IdentityContextDeps = Readonly<{
   invitationExpiresInMs: number
   /** Delete a user (compensating transaction for registration rollback). */
   deleteUser: (userId: string) => Promise<void>
-  /** Logger for the register-user-and-org compensating transaction.
-   * Defaults to the shared pino logger; overridable for tests/simulations. */
-  logger?: RegisterUserAndOrgLogger
+  /** Logger supplied by the process composition boundary. */
+  logger: LoggerPort
   /**
    * BQC-2.2/2.7/4.4 capability-policy wiring. Identity owns the persisted
    * policy store (readiness), the least-privilege admin ops, and the operator
@@ -154,10 +203,15 @@ type IdentityContextDeps = Readonly<{
     cell: string
     /** Fresh process-local Property Data Cell admission for every policy boundary. */
     admitPropertyExecution: (propertyId: string) => Promise<DataCellExecutionDecision>
-    /** The cell's logical provider reference (CELL_TARGETS) — never a URL. */
+    /** The accepting cell's catalogue provider reference — never a URL. */
     providerRef: string | null
   }>
   cancelGoogleImportsForUser?: (organizationId: string, userId: string) => Promise<void>
+  prepareGoogleConnectorDeparture?: (
+    organizationId: string,
+    userId: string,
+    cause: 'member_removed' | 'account_admin_role_lost',
+  ) => Promise<void>
   releaseMemberAuthorities?: (
     organizationId: string,
     userId: string,
@@ -172,7 +226,49 @@ type IdentityContextDeps = Readonly<{
     headers: Headers
     password: string
   }) => Promise<boolean>
+  organizationLifecycle?: IdentityOrganizationLifecycleComposition
 }>
+
+/**
+ * Build the container-scoped post-acceptance capability used by the Better
+ * Auth Identity adapter. Property selections from the durable invitation are
+ * access grants only; Staff participation remains a separate manager command.
+ * Each Property is failure-isolated so one stale selection cannot suppress a
+ * valid sibling grant, while retry/concurrency converges on the active row.
+ */
+export function createInvitationPropertyAccessProvisioner(
+  deps: Readonly<{
+    db: Database
+    clock: Clock
+    logger: Pick<LoggerPort, 'warn'>
+  }>,
+): IdentityPort['runOnAcceptInvitation'] {
+  return async ({ organizationId: orgId, userId, propertyIds }) => {
+    for (const propertyId of propertyIds) {
+      const input = { organizationId: orgId, propertyId, userId } as const
+      try {
+        if (await hasActiveGrant(deps.db, { ...input, at: deps.clock() })) continue
+        try {
+          await grantPropertyAccess(deps.db, {
+            ...input,
+            source: 'invitation',
+            createdBy: `invitation:${userId}`,
+          })
+        } catch (error) {
+          // A concurrent/retried acceptance may have won the unique race.
+          // Suppress only after a fresh authority read proves convergence.
+          const active = await hasActiveGrant(deps.db, {
+            ...input,
+            at: deps.clock(),
+          })
+          if (!active) throw error
+        }
+      } catch (error) {
+        deps.logger.warn({ err: error }, 'Failed to provision invited property access')
+      }
+    }
+  }
+}
 
 /**
  * Content-free operator audit entry (BQC-4.5 region move, mirrors the
@@ -189,6 +285,30 @@ type OperatorAuditEntry = Readonly<{
   reason: string
 }>
 
+type ContributorReadiness = Readonly<{
+  contributorsConfigured: boolean
+  missingContexts: readonly OrganizationLifecycleContext[]
+}>
+
+function contributorReadiness(
+  contributors: readonly Readonly<{ context: OrganizationLifecycleContext }>[] = [],
+  surface = 'Organization lifecycle',
+): ContributorReadiness {
+  const contexts = contributors.map(({ context }) => context)
+  if (new Set(contexts).size !== contexts.length) {
+    throw new Error(`${surface} composition has duplicate context owners`)
+  }
+  const missingContexts = ORGANIZATION_LIFECYCLE_CONTEXTS.filter(
+    (context) => !contexts.includes(context),
+  )
+  return Object.freeze({
+    contributorsConfigured:
+      missingContexts.length === 0 &&
+      contexts.length === ORGANIZATION_LIFECYCLE_CONTEXTS.length,
+    missingContexts: Object.freeze(missingContexts),
+  })
+}
+
 export const buildIdentityContext = (deps: IdentityContextDeps) => {
   const managerMembershipRepo = createManagerMembershipRepository(
     deps.db,
@@ -204,7 +324,8 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     },
   )
   // BQC-3.5: every identity state mutation + fact commits atomically here.
-  const commandStore = createAtomicIdentityCommandStore(deps.db, deps.events)
+  const commandStore = createAtomicIdentityCommandStore(deps.db, deps.events, deps.idGen)
+  const invitedRegistrationStore = createInvitedRegistrationStore(deps.db)
 
   // BQC-2.2: install the composite capability policy store — env global
   // posture (kill switch / e2e overrides unchanged) + persisted tenant state
@@ -214,10 +335,134 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   const policyStore = initPersistedCapabilityPolicyStore({
     db: deps.db,
     env: deps.policy.env,
+    clock: deps.clock,
+    logger: deps.logger,
     admitPropertyExecution: deps.policy.admitPropertyExecution,
   })
+  const organizationLifecycleStore = createOrganizationLifecycleCommandStore(
+    deps.db,
+    deps.events,
+  )
+  const organizationLifecycle = createOrganizationLifecycle({
+    store: organizationLifecycleStore,
+    clock: deps.clock,
+    refreshPolicy: async () => {
+      const result = await policyStore.refreshRequired()
+      if ('unavailable' in result) {
+        // The command is already durable and retry-safe. A caller must retry
+        // the same operation id; do not claim this process observes the fence.
+        throw new Error('Organization closure committed; policy refresh unavailable')
+      }
+    },
+  })
+  const lifecycleContributorReadiness = contributorReadiness(
+    deps.organizationLifecycle?.lifecycleContributors,
+  )
+  const suppliedExportContributors =
+    deps.organizationLifecycle?.organizationExport?.contributors ?? []
+  if (suppliedExportContributors.some(({ context }) => context === 'identity')) {
+    throw new Error(
+      'Organization Export composition must not override the Identity-owned contributor',
+    )
+  }
+  const exportContributors = Object.freeze([
+    createIdentityOrganizationExportContributor(deps.db),
+    ...suppliedExportContributors,
+  ])
+  const exportContributorReadiness = contributorReadiness(
+    exportContributors,
+    'Organization Export',
+  )
+  const supportAuthorizationConfigured =
+    deps.organizationLifecycle?.supportAuthorization !== undefined
+  const lifecycleCompositionConfigured =
+    lifecycleContributorReadiness.contributorsConfigured && supportAuthorizationConfigured
+  const exportStorageConfigured =
+    deps.organizationLifecycle?.organizationExport !== undefined
+  // A reclaimed lease must recover an object written before an ambiguous
+  // post-upload crash without rebuilding a historical snapshot. That durable
+  // pre-egress/recovery protocol is not implemented yet, so production
+  // composition remains non-executable even if all contributors and storage
+  // are supplied. The application service stays directly testable while this
+  // activation fence prevents future wiring from silently weakening safety.
+  const exportGenerationRecoveryConfigured = false
+  const exportCompositionConfigured =
+    exportContributorReadiness.contributorsConfigured &&
+    exportStorageConfigured &&
+    exportGenerationRecoveryConfigured
+  const organizationLifecycleCoordinator =
+    lifecycleCompositionConfigured &&
+    deps.organizationLifecycle?.supportAuthorization &&
+    deps.organizationLifecycle.lifecycleContributors
+      ? createOrganizationLifecycleCoordinator({
+          store: organizationLifecycleStore,
+          contributors: deps.organizationLifecycle.lifecycleContributors,
+          supportAuthorization: deps.organizationLifecycle.supportAuthorization,
+          clock: deps.clock,
+        })
+      : null
+  const organizationExport =
+    exportCompositionConfigured && deps.organizationLifecycle?.organizationExport
+      ? createOrganizationExportService({
+          repository: createOrganizationExportRepository(deps.db),
+          contributors: exportContributors,
+          archiveWriter: deps.organizationLifecycle.organizationExport.archiveWriter,
+          storage: deps.organizationLifecycle.organizationExport.storage,
+          authority: {
+            isCurrentAccountAdmin: ({ organizationId: orgId, actorUserId }) =>
+              managerMembershipRepo.isCurrentAccountAdmin({
+                organizationId: orgId,
+                userId: actorUserId,
+              }),
+          },
+          deriveRetrievalSecret:
+            deps.organizationLifecycle.organizationExport.deriveRetrievalSecret,
+          clock: deps.clock,
+        })
+      : null
+  const organizationLifecycleRuntime = Object.freeze({
+    control: organizationLifecycle,
+    operator: Object.freeze({
+      readStatus: (orgId: string) => organizationLifecycleStore.getAuthority(orgId),
+    }),
+    maintenance: Object.freeze({
+      readiness: Object.freeze({
+        configured: lifecycleCompositionConfigured,
+        ...lifecycleContributorReadiness,
+        supportAuthorizationConfigured,
+      }),
+      runScheduledPass: organizationLifecycleCoordinator
+        ? (input?: Readonly<{ limit?: number }>) =>
+            organizationLifecycleCoordinator.runScheduledPass(input)
+        : undefined,
+    }),
+    support: organizationLifecycleCoordinator
+      ? Object.freeze({
+          waiveRecoveryWindow: (input: WaiveOrganizationRecoveryInput) =>
+            organizationLifecycleCoordinator.waiveRecoveryWindow(input),
+          cancelPendingPurge: (input: CancelPendingOrganizationPurgeInput) =>
+            organizationLifecycleCoordinator.cancelPendingPurge(input),
+          beginIrreversiblePurge: (input: BeginIrreversibleOrganizationPurgeInput) =>
+            organizationLifecycleCoordinator.beginIrreversiblePurge(input),
+        })
+      : undefined,
+    organizationExport: Object.freeze({
+      readiness: Object.freeze({
+        configured: exportCompositionConfigured,
+        ...exportContributorReadiness,
+        storageConfigured: exportStorageConfigured,
+        generationRecoveryConfigured: exportGenerationRecoveryConfigured,
+      }),
+      service: organizationExport ?? undefined,
+    }),
+  })
   const merchantAiAuthorization = createMerchantAiAuthorization({
-    store: createMerchantAiAuthorizationStore(deps.db, deps.events),
+    store: createMerchantAiAuthorizationStore(
+      deps.db,
+      deps.events,
+      deps.idGen,
+      deps.logger,
+    ),
     authorizeManagement: async (input) => {
       const role = await getMemberRole(deps.db, input.organizationId, input.actorUserId)
       if (!role) return false
@@ -268,6 +513,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     getMemberRole: (orgId, uid) => getMemberRole(deps.db, orgId, uid),
     hasActiveGrant: (input) => hasActiveGrant(deps.db, input),
   })
+  const policyAdminCommandStore = createPostgresPolicyAdminCommandStore(deps.db)
   const policyAdmin = createPolicyAdminOps({
     clock: deps.clock,
     isCoreCapability: (cap) => isCoreCapability(cap as Capability),
@@ -285,21 +531,8 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       providerRef: deps.policy.providerRef,
     }),
     refreshPolicy: () => policyStore.refresh(),
-    setOrganizationPolicy: (input) => setOrganizationPolicy(deps.db, input),
-    setPropertyPolicy: (input) => setPropertyPolicy(deps.db, input),
-    propertyBelongsToOrganization: deps.policy.propertyBelongsToOrganization,
-    addOrganizationCapability: (orgId, cap, by) =>
-      addOrganizationCapability(deps.db, orgId, cap, by),
-    removeOrganizationCapability: (orgId, cap) =>
-      removeOrganizationCapability(deps.db, orgId, cap),
-    addPropertyCapability: (propertyId, cap, by) =>
-      addPropertyCapability(deps.db, propertyId, cap, by),
-    removePropertyCapability: (propertyId, cap) =>
-      removePropertyCapability(deps.db, propertyId, cap),
-    isOrgMember: (orgId, uid) => isOrgMember(deps.db, orgId, uid),
+    commandStore: policyAdminCommandStore,
     loadOrgPolicyState: (orgId) => loadOrgPolicyState(deps.db, orgId),
-    grantPropertyAccess: (input) => grantPropertyAccess(deps.db, input),
-    revokePropertyAccess: (input) => revokePropertyAccess(deps.db, input),
     reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
     listActiveGrantsForOrg: (orgId, at) => listActiveGrantsForOrg(deps.db, orgId, at),
     writePolicyDecision: (entry) => writePolicyDecision(deps.db, entry),
@@ -323,37 +556,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       correlationId: null,
     })
 
-  const grantInvitationPropertyAccess = async (
-    input: Readonly<{
-      organizationId: string
-      propertyId: string
-      userId: string
-    }>,
-  ): Promise<void> => {
-    const at = deps.clock()
-    if (
-      await hasActiveGrant(deps.db, {
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        userId: input.userId,
-        at,
-      })
-    ) {
-      return
-    }
-    try {
-      await grantPropertyAccess(deps.db, {
-        ...input,
-        source: 'invitation',
-        createdBy: `invitation:${input.userId}`,
-      })
-    } catch (error) {
-      // Concurrent/retried invitation acceptance converges on the same active
-      // grant; only suppress the unique race after proving the row exists.
-      const active = await hasActiveGrant(deps.db, { ...input, at: deps.clock() })
-      if (!active) throw error
-    }
-  }
   const hasActivePropertyGrant = (
     tx: Database,
     input: Readonly<{
@@ -384,12 +586,41 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       permission: 'reply.manage',
     })
 
+  /**
+   * Transaction-bound, owning-context authority for commands that require
+   * several manager permissions but only one membership/grant snapshot.
+   */
+  const decideManagerPropertyAuthority = (
+    tx: MemberPropertyAuthorityDatabase,
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      userId: string
+      permissions: readonly Permission[]
+      at: Date
+    }>,
+  ) => decideCurrentManagerPropertyAuthority(tx, input)
+
+  /**
+   * Transaction-bound authority for every principal/Property tuple in one
+   * command. Identity owns the globally ordered membership/grant locks and the
+   * command-wide permission-generation cutover.
+   */
+  const decideManagerPropertyAuthorities = (
+    tx: MemberPropertyAuthorityDatabase,
+    input: Readonly<{
+      organizationId: string
+      requirements: readonly ManagerPropertyAuthorityRequirement[]
+      at: Date
+    }>,
+  ) => decideCurrentManagerPropertyAuthorities(tx, input)
+
   const useCases = {
     inviteMember: inviteMember({
       identity: deps.identityPort,
       commandStore,
       clock: deps.clock,
-      idGen: () => invitationId(randomUUID()),
+      idGen: () => invitationId(deps.idGen()),
       invitationExpiresInMs: deps.invitationExpiresInMs,
       sendEmail: deps.sendEmail,
       getOrganizationName: deps.getOrganizationName,
@@ -400,12 +631,14 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       commandStore,
       clock: deps.clock,
       reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
+      prepareGoogleConnectorDeparture: deps.prepareGoogleConnectorDeparture,
     }),
     removeMember: removeMember({
       identity: deps.identityPort,
       commandStore,
       clock: deps.clock,
       cancelGoogleImportsForUser: deps.cancelGoogleImportsForUser,
+      prepareGoogleConnectorDeparture: deps.prepareGoogleConnectorDeparture,
       releaseMemberAuthorities: deps.releaseMemberAuthorities,
     }),
     listInvitations: listInvitations({ identity: deps.identityPort }),
@@ -428,27 +661,28 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       signUp: deps.signUp,
       setActiveOrg: deps.setActiveOrg,
       clock: deps.clock,
-      idGen: () => organizationId(randomUUID()),
+      idGen: () => organizationId(deps.idGen()),
       commandStore,
       deleteUser: deps.deleteUser,
-      logger:
-        deps.logger ??
-        ({
-          error: (obj: object, msg?: string) => getLogger().error(obj, msg),
-        } satisfies RegisterUserAndOrgLogger),
+      logger: deps.logger,
     }),
     registerUser: registerUser({ identity: deps.identityPort }),
     registerInvitedUser: registerInvitedUser({
       commandStore,
+      registrationStore: invitedRegistrationStore,
       signUp: deps.identityPort.signUp,
-      deleteUser: deps.identityPort.deleteUser,
+      idGen: deps.idGen,
       runOnAccepted: deps.identityPort.runOnAcceptInvitation,
       clock: deps.clock,
-      logger:
-        deps.logger ??
-        ({
-          error: (obj: object, msg?: string) => getLogger().error(obj, msg),
-        } satisfies RegisterUserAndOrgLogger),
+      logger: deps.logger,
+    }),
+    recoverInvitedRegistrations: recoverInvitedRegistrations({
+      commandStore,
+      registrationStore: invitedRegistrationStore,
+      runOnAccepted: deps.identityPort.runOnAcceptInvitation,
+      idGen: deps.idGen,
+      clock: deps.clock,
+      logger: deps.logger,
     }),
     updateOrganization: updateOrganization({
       updateOrg: deps.updateOrg,
@@ -457,12 +691,49 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     updateCustomRole: updateCustomRole({ identity: deps.identityPort }),
     deleteCustomRole: deleteCustomRole({ identity: deps.identityPort }),
     merchantAiAuthorization,
+    organizationLifecycle,
   } as const
 
+  const merchantAiRequestApi: IdentityRequestApi['merchantAiAuthorization'] =
+    Object.freeze({
+      get: useCases.merchantAiAuthorization.get,
+      enable: useCases.merchantAiAuthorization.enable,
+      change: useCases.merchantAiAuthorization.change,
+      revoke: useCases.merchantAiAuthorization.revoke,
+    })
+  const requestApi: IdentityRequestApi = Object.freeze({
+    inviteMember: useCases.inviteMember,
+    updateMemberRole: useCases.updateMemberRole,
+    removeMember: useCases.removeMember,
+    listInvitations: useCases.listInvitations,
+    resendInvitation: useCases.resendInvitation,
+    acceptInvitation: useCases.acceptInvitation,
+    cancelInvitation: useCases.cancelInvitation,
+    registerInvitedUser: useCases.registerInvitedUser,
+    registerUserAndOrg: useCases.registerUserAndOrg,
+    updateOrganization: useCases.updateOrganization,
+    createCustomRole: useCases.createCustomRole,
+    updateCustomRole: useCases.updateCustomRole,
+    deleteCustomRole: useCases.deleteCustomRole,
+    merchantAiAuthorization: merchantAiRequestApi,
+  })
+  const managerFacts: IdentityManagerFactsPublicApi = Object.freeze({
+    listActiveManagers: managerMembershipRepo.listActiveManagers,
+  })
+  const accountAdminAuthority: IdentityAccountAdminAuthorityPublicApi = Object.freeze({
+    isCurrentAccountAdmin: managerMembershipRepo.isCurrentAccountAdmin,
+  })
+  const publicApi: IdentityPublicApi = Object.freeze({
+    managerFacts,
+    accountAdminAuthority,
+    requests: requestApi,
+  })
+
   return {
-    publicApi: {
-      listActiveManagers: managerMembershipRepo.listActiveManagers,
-    } as const,
+    publicApi,
+    worker: Object.freeze({
+      recoverInvitedRegistrations: useCases.recoverInvitedRegistrations,
+    }),
     internal: {
       repos: {} as const,
       useCases,
@@ -478,14 +749,19 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       policyStoreVersion: policyStore.currentVersion,
       // BQC-4.5: operator audit sink for the property region-move workflow.
       writeOperatorAudit,
-      grantInvitationPropertyAccess,
       // Identity owns the grant table; callers supply their authorization
       // transaction so the grant read participates in the same commit check.
       hasActivePropertyGrant,
+      decideManagerPropertyAuthority,
+      decideManagerPropertyAuthorities,
       decidePublicationActorAuthority,
+      // Named lifecycle/export control plane. It exposes AccountAdmin
+      // commands, content-free operator diagnostics, and only fully bound
+      // maintenance services; partial contributor sets remain non-executable.
+      organizationLifecycleRuntime,
       // Property-scoped recipient resolution for other contexts (notification
       // fan-out). Identity owns the grant table, so the read lives here.
-      propertyAccessHolders: createPropertyGrantHolderLookup(deps.db),
+      propertyAccessHolders: createPropertyGrantHolderLookup(deps.db, deps.clock),
       revokeAllPropertyAccessForUser: (organizationId: string, userId: string) =>
         revokeAllPropertyAccessForUser(deps.db, {
           organizationId,

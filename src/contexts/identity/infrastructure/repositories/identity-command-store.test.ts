@@ -8,11 +8,13 @@
 //   3. Guards hold on the real DB: already-member/already-invited,
 //      last-owner, slug conflict, invitation lifecycle.
 
+import { randomUUID } from 'node:crypto'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
-import { getDb } from '#/shared/db'
+import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { withLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -27,7 +29,10 @@ import {
 } from '../../domain/events'
 import type { IdentityMemberInvited } from '../../domain/events'
 import { isIdentityError } from '../../domain/errors'
-import { createAtomicIdentityCommandStore } from '../identity-command-store'
+import { createAtomicIdentityCommandStore as createAtomicIdentityCommandStoreWithDeps } from '../identity-command-store'
+
+const createAtomicIdentityCommandStore = (db: Database, events: EventBus) =>
+  createAtomicIdentityCommandStoreWithDeps(db, events, randomUUID)
 
 const ORG_ID = organizationId('org-idcmd-0000-0000-0000-000000000001')
 const INVITER_ID = userId('user-idcmd-inviter-00000000000001')
@@ -76,6 +81,10 @@ async function truncateAll(p: Pool) {
            OR organization_id LIKE 'org-idcmd-%'`,
       [INVITER_ID, ACCEPTOR_ID],
     )
+    await client.query('DELETE FROM session WHERE "userId" IN ($1, $2)', [
+      INVITER_ID,
+      ACCEPTOR_ID,
+    ])
     await client.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_ID])
     await client.query(
       `DELETE FROM invitation
@@ -89,9 +98,13 @@ async function truncateAll(p: Pool) {
     await client.query(
       `DELETE FROM outbox_events WHERE organization_id LIKE 'org-idcmd-%'`,
     )
-    await client.query(
-      `DELETE FROM organization WHERE slug LIKE 'idcmd-%' AND id <> $1`,
+    const conflictingOrganizations = await client.query<{ id: string }>(
+      `SELECT id FROM organization WHERE slug LIKE 'idcmd-%' AND id <> $1`,
       [ORG_ID],
+    )
+    await deleteTestOrganizations(
+      client,
+      conflictingOrganizations.rows.map(({ id }) => id),
     )
   })
 }
@@ -109,7 +122,7 @@ afterAll(async () => {
   clearEventSchemas()
   await truncateAll(pool)
   await withLastOwnerGuardDisabled(pool, async (client) => {
-    await client.query('DELETE FROM organization WHERE id = $1', [ORG_ID])
+    await deleteTestOrganizations(client, [ORG_ID])
     await client.query('DELETE FROM "user" WHERE id IN ($1, $2)', [
       INVITER_ID,
       ACCEPTOR_ID,
@@ -596,13 +609,25 @@ describe.sequential('identityCommandStore (integration)', () => {
     )
   })
 
-  it('removeMember deletes + records; the last-owner guard fires on the real DB', async () => {
+  it('removeMember revokes sessions and releases the Organization binding atomically', async () => {
     const store = createAtomicIdentityCommandStore(db, silentEvents)
     await pool.query(
       `INSERT INTO member (id, "organizationId", "userId", role, "createdAt")
        VALUES ('member-idcmd-owner', $1, $2, 'owner', NOW()),
               ('member-idcmd-staff', $1, $3, 'member', NOW())`,
       [ORG_ID, INVITER_ID, ACCEPTOR_ID],
+    )
+    await pool.query(
+      `INSERT INTO user_organization_bindings
+         (user_id, organization_id, state, source, version, created_at, updated_at)
+       VALUES ($1, $2, 'active', 'operator', 1, $3, $3)`,
+      [ACCEPTOR_ID, ORG_ID, NOW],
+    )
+    await pool.query(
+      `INSERT INTO session
+         (id, "expiresAt", token, "userId", "activeOrganizationId", "createdAt", "updatedAt")
+       VALUES ('session-idcmd-removed', $1, 'token-idcmd-removed', $2, $3, $4, $4)`,
+      [new Date('2026-07-01T12:00:00.000Z'), ACCEPTOR_ID, ORG_ID, NOW],
     )
 
     await store.removeMember({
@@ -621,6 +646,22 @@ describe.sequential('identityCommandStore (integration)', () => {
       [ORG_ID],
     )
     expect(members.rows).toEqual([{ id: 'member-idcmd-owner' }])
+    const sessions = await pool.query('SELECT id FROM session WHERE "userId" = $1', [
+      ACCEPTOR_ID,
+    ])
+    expect(sessions.rows).toEqual([])
+    const binding = await pool.query(
+      `SELECT organization_id, state, version, resolution_reason, released_at
+       FROM user_organization_bindings WHERE user_id = $1`,
+      [ACCEPTOR_ID],
+    )
+    expect(binding.rows[0]).toMatchObject({
+      organization_id: ORG_ID,
+      state: 'released',
+      version: 2,
+      resolution_reason: 'member_removed',
+      released_at: NOW,
+    })
     const facts = await pool.query(
       `SELECT event_type FROM outbox_events
        WHERE organization_id = $1 AND event_type = 'identity.member.removed'`,
@@ -708,6 +749,20 @@ describe.sequential('identityCommandStore (integration)', () => {
       newOrgId,
     ])
     expect(orgs.rows).toHaveLength(1)
+    const lifecycle = await pool.query(
+      `SELECT state, revision, last_actor_id, last_reason_code
+       FROM organization_lifecycle_authority
+       WHERE organization_id = $1`,
+      [newOrgId],
+    )
+    expect(lifecycle.rows).toEqual([
+      {
+        state: 'active',
+        revision: 0,
+        last_actor_id: 'system:organization',
+        last_reason_code: 'provisioned',
+      },
+    ])
     const members = await pool.query(
       'SELECT "userId", role FROM member WHERE "organizationId" = $1',
       [newOrgId],

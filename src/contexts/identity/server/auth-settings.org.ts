@@ -52,7 +52,9 @@ export const createOrganizationFn = createServerFn({ method: 'POST' })
             },
           })
         } catch (e) {
+          const { getContainer } = await import('#/composition')
           handleAuthError(
+            getContainer().logger,
             e,
             'IdentityError',
             'org_setup_failed',

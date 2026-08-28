@@ -2,6 +2,21 @@
 // Shared infrastructure (event bus) and other contexts consume event
 // types and port interfaces from this barrel. Per ADR-0001.
 
+import type { InviteMember } from './use-cases/invite-member'
+import type { UpdateMemberRole } from './use-cases/update-member-role'
+import type { RemoveMember } from './use-cases/remove-member'
+import type { ListInvitations } from './use-cases/list-invitations'
+import type { ResendInvitation } from './use-cases/resend-invitation'
+import type { AcceptInvitation } from './use-cases/accept-invitation'
+import type { CancelInvitation } from './use-cases/cancel-invitation'
+import type { RegisterInvitedUser } from './use-cases/register-invited-user'
+import type { RegisterUserAndOrg } from './use-cases/register-user-and-org'
+import type { UpdateOrganization } from './use-cases/update-organization'
+import type { CreateCustomRole } from './use-cases/create-custom-role'
+import type { UpdateCustomRole } from './use-cases/update-custom-role'
+import type { DeleteCustomRole } from './use-cases/delete-custom-role'
+import type { MerchantAiAuthorization } from './use-cases/merchant-ai-authorization'
+
 export {
   identityOrganizationCreated,
   identityMemberInvited,
@@ -10,6 +25,7 @@ export {
   identityMemberRemoved,
   identityMemberRoleChanged,
   identityMerchantAiChanged,
+  identityOrganizationLifecycleChanged,
 } from '../domain/events'
 export type {
   IdentityOrganizationCreated,
@@ -19,8 +35,16 @@ export type {
   IdentityMemberRemoved,
   IdentityMemberRoleChanged,
   IdentityMerchantAiChanged,
+  IdentityOrganizationLifecycleChanged,
   IdentityEvent,
 } from '../domain/events'
+
+export type {
+  OrganizationLifecycleState,
+  OrganizationLifecycleStatus,
+  OrganizationClosureRequestReasonCode,
+  OrganizationClosureCancelReasonCode,
+} from '../domain/organization-lifecycle'
 
 export {
   CURRENT_MERCHANT_AI_CAPABILITIES,
@@ -48,6 +72,42 @@ export type ManagerMembership = Readonly<{
   propertyAccessScope: 'organization' | 'assigned-properties'
 }>
 
-export type IdentityPublicApi = Readonly<{
+/** Current manager membership facts. This facade carries no mutation authority. */
+export type IdentityManagerFactsPublicApi = Readonly<{
   listActiveManagers: (organizationId: string) => Promise<readonly ManagerMembership[]>
+}>
+
+/** Current AccountAdmin authority, kept separate from general membership facts. */
+export type IdentityAccountAdminAuthorityPublicApi = Readonly<{
+  isCurrentAccountAdmin: (
+    input: Readonly<{
+      organizationId: string
+      userId: string
+    }>,
+  ) => Promise<boolean>
+}>
+
+/** Request-facing Identity operations. Infrastructure and worker controls stay private. */
+export type IdentityRequestApi = Readonly<{
+  inviteMember: InviteMember
+  updateMemberRole: UpdateMemberRole
+  removeMember: RemoveMember
+  listInvitations: ListInvitations
+  resendInvitation: ResendInvitation
+  acceptInvitation: AcceptInvitation
+  cancelInvitation: CancelInvitation
+  registerInvitedUser: RegisterInvitedUser
+  registerUserAndOrg: RegisterUserAndOrg
+  updateOrganization: UpdateOrganization
+  createCustomRole: CreateCustomRole
+  updateCustomRole: UpdateCustomRole
+  deleteCustomRole: DeleteCustomRole
+  merchantAiAuthorization: MerchantAiAuthorization
+}>
+
+/** Complete delivery-boundary facade used by Identity request handlers. */
+export type IdentityPublicApi = Readonly<{
+  managerFacts: IdentityManagerFactsPublicApi
+  accountAdminAuthority: IdentityAccountAdminAuthorityPublicApi
+  requests: IdentityRequestApi
 }>

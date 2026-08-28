@@ -11,6 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { executeWithLastOwnerGuardDisabled } from '#/shared/db/disable-guard-triggers'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createPolicyAdminOps } from '../../application/use-cases/policy-admin'
 import {
   createPolicyDiagnostic,
@@ -29,24 +30,17 @@ import {
   type Capability,
 } from '#/shared/auth/beta-capabilities'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
+import { getMemberRole, loadOrgPolicyState } from './policy-state.repository'
 import {
-  setOrganizationPolicy,
-  setPropertyPolicy,
-  addOrganizationCapability,
-  removeOrganizationCapability,
-  addPropertyCapability,
-  removePropertyCapability,
-  isOrgMember,
-  getMemberRole,
-  loadOrgPolicyState,
-} from './policy-state.repository'
-import {
-  grantPropertyAccess,
-  revokePropertyAccess,
   hasActiveGrant,
   listActiveGrantsForOrg,
 } from './property-access-grant.repository'
 import { writePolicyDecision } from './policy-decision-audit.repository'
+import { createPostgresPolicyAdminCommandStore } from '../policy-admin-command-store'
+import {
+  DATA_CELL_CATALOGUE_POLICY_VERSION,
+  dataCellById,
+} from '#/shared/domain/data-cell-catalogue'
 
 const db = getDb()
 const ORG = 'org-region-diag'
@@ -80,26 +74,8 @@ const ops = createPolicyAdminOps({
     providerRef: providerRefForCell(CELL) ?? null,
   }),
   refreshPolicy: async () => {},
-  setOrganizationPolicy: (input) => setOrganizationPolicy(db, input),
-  setPropertyPolicy: (input) => setPropertyPolicy(db, input),
-  propertyBelongsToOrganization: async (orgId, propertyId) => {
-    const result = await db.execute(
-      sql`SELECT 1 FROM properties WHERE organization_id = ${orgId} AND id = ${propertyId}`,
-    )
-    return result.rows.length > 0
-  },
-  addOrganizationCapability: (orgId, cap, by) =>
-    addOrganizationCapability(db, orgId, cap, by),
-  removeOrganizationCapability: (orgId, cap) =>
-    removeOrganizationCapability(db, orgId, cap),
-  addPropertyCapability: (propertyId, cap, by) =>
-    addPropertyCapability(db, propertyId, cap, by),
-  removePropertyCapability: (propertyId, cap) =>
-    removePropertyCapability(db, propertyId, cap),
-  isOrgMember: (orgId, uid) => isOrgMember(db, orgId, uid),
+  commandStore: createPostgresPolicyAdminCommandStore(db),
   loadOrgPolicyState: (orgId) => loadOrgPolicyState(db, orgId),
-  grantPropertyAccess: (input) => grantPropertyAccess(db, input),
-  revokePropertyAccess: (input) => revokePropertyAccess(db, input),
   listActiveGrantsForOrg: (orgId, at) => listActiveGrantsForOrg(db, orgId, at),
   writePolicyDecision: (entry) => writePolicyDecision(db, entry),
 })
@@ -110,9 +86,17 @@ async function seedProperty(
   source: string,
   version: number,
 ): Promise<void> {
+  const dataCellId = dataCellById(region)?.id ?? null
   await db.execute(sql`
-    INSERT INTO properties (id, organization_id, name, slug, timezone, processing_region, processing_region_source, routing_policy_version)
-    VALUES (${id}, ${ORG}, ${'region-prop-' + region}, ${'region-prop-' + region + '-' + id.slice(-2)}, 'UTC', ${region}, ${source}, ${version})
+    INSERT INTO properties (
+      id, organization_id, name, slug, timezone, processing_region,
+      data_cell_id, processing_region_source, routing_policy_version
+    )
+    VALUES (
+      ${id}, ${ORG}, ${'region-prop-' + region},
+      ${'region-prop-' + region + '-' + id.slice(-2)}, 'UTC', ${region},
+      ${dataCellId}, ${source}, ${version}
+    )
   `)
 }
 
@@ -133,8 +117,8 @@ async function clearOrgFixtures() {
     sql`DELETE FROM properties WHERE organization_id = ${ORG}`,
     sql`DELETE FROM member WHERE "organizationId" = ${ORG}`,
     sql`DELETE FROM "user" WHERE id = ${ADMIN}`,
-    sql`DELETE FROM organization WHERE id = ${ORG}`,
   ])
+  await deleteTestOrganizations(db, [ORG])
 }
 
 beforeAll(async () => {
@@ -149,11 +133,21 @@ beforeAll(async () => {
   await db.execute(
     sql`INSERT INTO member (id, "userId", "organizationId", role, "createdAt") VALUES ('m-region-diag-1', ${ADMIN}, ${ORG}, 'owner', now())`,
   )
-  await seedProperty(PROP_US, 'us', 'country_default', 2)
+  await seedProperty(PROP_US, 'us', 'country_default', DATA_CELL_CATALOGUE_POLICY_VERSION)
   await seedProperty(PROP_UNRESOLVED, 'unresolved', 'organization_default', 1)
-  await seedProperty(PROP_EUROPE, 'europe', 'google_address', 1)
-  await seedProperty(PROP_GLOBAL, 'global', 'manual', 3)
-  await seedProperty(PROP_DENIED, 'ap-southeast-2', 'manual', 1)
+  await seedProperty(
+    PROP_EUROPE,
+    'europe',
+    'google_address',
+    DATA_CELL_CATALOGUE_POLICY_VERSION,
+  )
+  await seedProperty(PROP_GLOBAL, 'global', 'manual', DATA_CELL_CATALOGUE_POLICY_VERSION)
+  await seedProperty(
+    PROP_DENIED,
+    'ap-southeast-2',
+    'manual',
+    DATA_CELL_CATALOGUE_POLICY_VERSION,
+  )
 })
 
 afterAll(async () => {
@@ -172,7 +166,7 @@ describe('region diagnostic (BQC-4.4, real PostgreSQL)', () => {
       propertyId: PROP_US,
       processingRegion: 'us',
       processingRegionSource: 'country_default',
-      routingPolicyVersion: 2,
+      routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
       processable: true,
       blockedReason: null,
       cell: 'us',
@@ -207,7 +201,7 @@ describe('region diagnostic (BQC-4.4, real PostgreSQL)', () => {
     })
     expect(globalProp.processable).toBe(false)
     expect(globalProp.blockedReason).toBe('region_denied')
-    expect(globalProp.routingPolicyVersion).toBe(3)
+    expect(globalProp.routingPolicyVersion).toBe(DATA_CELL_CATALOGUE_POLICY_VERSION)
 
     // A region with no routing target still fails closed.
     const denied = await ops.getRegionDiagnostic({

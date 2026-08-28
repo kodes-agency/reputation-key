@@ -14,7 +14,6 @@ import {
 import { catchUntagged } from '#/shared/auth/server-errors'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { getContainer } from '#/composition'
-import { getEnv } from '#/shared/config/env'
 import { isIdentityError } from '../domain/errors'
 import { throwIdentityError } from './organizations.errors.server'
 import { invitationId, userId } from '#/shared/domain/ids'
@@ -34,8 +33,7 @@ export const acceptInvitation = createServerFn({ method: 'POST' })
           const headers = await headersFromContext()
           const user = await requireAuth(headers)
 
-          const { useCases } = getContainer()
-          await useCases.acceptInvitation({
+          await getContainer().identityPublicApi.requests.acceptInvitation({
             invitationId: invitationId(data.invitationId),
             headers,
             userId: userId(user.id),
@@ -66,8 +64,7 @@ export const cancelInvitation = createServerFn({ method: 'POST' })
           const ctx = await resolveTenantContext(headers)
           await requireExecutionAllowed({ actor: ctx, action: 'invitation.cancel' })
 
-          const { useCases } = getContainer()
-          await useCases.cancelInvitation(
+          await getContainer().identityPublicApi.requests.cancelInvitation(
             { invitationId: invitationId(data.invitationId) },
             ctx,
           )
@@ -93,14 +90,15 @@ export const resendInvitation = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'invitation.resend' })
 
         try {
-          const { useCases, rateLimiter } = getContainer()
+          const { identityPublicApi, rateLimiter, identityRequestSecurity } =
+            getContainer()
           await enforceInvitationSendRateLimit({
             rateLimiter,
             actorId: ctx.userId,
             organizationId: ctx.organizationId,
-            keyHmacSecret: getEnv().BETTER_AUTH_SECRET,
+            keyHmacSecret: identityRequestSecurity.invitationRateLimitHmacSecret,
           })
-          await useCases.resendInvitation(data, ctx)
+          await identityPublicApi.requests.resendInvitation(data, ctx)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
           throw catchUntagged(e)
@@ -121,8 +119,10 @@ export const listInvitations = createServerFn({ method: 'GET' }).handler(
       await requireExecutionAllowed({ actor: ctx, action: 'invitation.list' })
 
       try {
-        const { useCases } = getContainer()
-        return await useCases.listInvitations(undefined, ctx)
+        return await getContainer().identityPublicApi.requests.listInvitations(
+          undefined,
+          ctx,
+        )
       } catch (e) {
         if (isIdentityError(e)) throwIdentityError(e)
         throw catchUntagged(e)

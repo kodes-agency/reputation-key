@@ -12,6 +12,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   grantPropertyAccess,
   revokePropertyAccess,
@@ -48,7 +49,7 @@ beforeAll(async () => {
     sql`DELETE FROM properties WHERE organization_id IN (${ORG_A}, ${ORG_B})`,
   )
   await db.execute(sql`DELETE FROM "user" WHERE id = ${USER_1}`)
-  await db.execute(sql`DELETE FROM organization WHERE id IN (${ORG_A}, ${ORG_B})`)
+  await deleteTestOrganizations(db, [ORG_A, ORG_B])
 
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt")
@@ -72,7 +73,7 @@ afterAll(async () => {
     sql`DELETE FROM properties WHERE organization_id IN (${ORG_A}, ${ORG_B})`,
   )
   await db.execute(sql`DELETE FROM "user" WHERE id = ${USER_1}`)
-  await db.execute(sql`DELETE FROM organization WHERE id IN (${ORG_A}, ${ORG_B})`)
+  await deleteTestOrganizations(db, [ORG_A, ORG_B])
 })
 
 describe('PropertyAccessGrant persistence (BQC-2.2)', () => {

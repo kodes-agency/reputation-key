@@ -1,7 +1,9 @@
+import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   MERCHANT_AI_NOTICE_DIGEST,
   MERCHANT_AI_NOTICE_VERSION,
@@ -31,7 +33,9 @@ const CONNECTION = '20000000-0000-4000-8000-000000000001'
 const NOW = new Date('2026-08-15T12:00:00.000Z')
 
 const eventBus = { emit: vi.fn(async () => undefined) }
-const store = createMerchantAiAuthorizationStore(db, eventBus)
+const store = createMerchantAiAuthorizationStore(db, eventBus, randomUUID, {
+  warn: vi.fn(),
+})
 
 function command(overrides: Record<string, unknown> = {}) {
   return {
@@ -126,12 +130,9 @@ async function advanceAnalysisHead(): Promise<number> {
       FOR UPDATE
     `)
     const result = await tx.execute(sql`
-      UPDATE review_ai_analysis_heads
-      SET head_sequence = head_sequence + 1
-      WHERE organization_id = ${ORG}
-        AND property_id = ${PROPERTY}::uuid
-        AND source_epoch = 3
-      RETURNING head_sequence
+      SELECT lock_review_ai_analysis_head_v1(
+        ${ORG}, ${PROPERTY}::uuid, 3
+      ) AS head_sequence
     `)
     return Number(result.rows[0]?.head_sequence)
   })
@@ -158,7 +159,7 @@ beforeAll(async () => {
   await db.execute(sql`DELETE FROM properties WHERE id = ${PROPERTY}::uuid`)
   await db.execute(sql`DELETE FROM google_connections WHERE id = ${CONNECTION}::uuid`)
   await db.execute(sql`DELETE FROM "user" WHERE id = ${USER}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt")
     VALUES (${ORG}, 'Merchant AI Store', ${ORG}, now())
@@ -180,7 +181,7 @@ beforeAll(async () => {
       ${CONNECTION}::uuid, ${ORG}, 'merchant-ai-store-subject',
       'encrypted-access', 'encrypted-refresh', now() + interval '1 hour',
       ARRAY['https://www.googleapis.com/auth/business.manage'], ${USER},
-      'private', 'active'
+      'organization', 'active'
     )
   `)
   await insertProperty()
@@ -198,7 +199,7 @@ afterAll(async () => {
   await withLastOwnerGuardDisabled(cleanupPool, async (client) => {
     await client.query('DELETE FROM member WHERE "organizationId" = $1', [ORG])
     await client.query('DELETE FROM "user" WHERE id = $1', [USER])
-    await client.query('DELETE FROM organization WHERE id = $1', [ORG])
+    await deleteTestOrganizations(client, [ORG])
   })
   await cleanupPool.end()
 })
@@ -295,6 +296,88 @@ describe('Merchant AI authorization store', () => {
     expect(outbox.rows[0]?.payload).not.toHaveProperty('actorUserId')
     expect(outbox.rows[0]?.payload).not.toHaveProperty('capabilities')
     expect(eventBus.emit).toHaveBeenCalledTimes(1)
+  })
+
+  it('creates an explicit zero Review head when enabling analysis on a zero-review Property', async () => {
+    await db.execute(sql`
+      DELETE FROM review_ai_analysis_heads
+      WHERE organization_id = ${ORG}
+        AND property_id = ${PROPERTY}::uuid
+        AND source_epoch = 3
+    `)
+
+    const snapshot = await store.mutate(command())
+
+    expect(snapshot).toMatchObject({
+      state: 'enabled',
+      authorizedSourceEpoch: 3,
+      analysisStartSequence: 0,
+    })
+    const head = await db.execute(sql`
+      SELECT head_sequence
+      FROM review_ai_analysis_heads
+      WHERE organization_id = ${ORG}
+        AND property_id = ${PROPERTY}::uuid
+        AND source_epoch = 3
+    `)
+    expect(head.rows).toEqual([{ head_sequence: '0' }])
+  })
+
+  it('does not manufacture a zero frontier when a material Review exists', async () => {
+    await db.execute(sql`
+      DELETE FROM review_ai_analysis_heads
+      WHERE organization_id = ${ORG}
+        AND property_id = ${PROPERTY}::uuid
+        AND source_epoch = 3
+    `)
+    await db.execute(sql`
+      INSERT INTO reviews (
+        id, organization_id, property_id, platform, source_epoch,
+        source_revision, analysis_sequence
+      ) VALUES (
+        '10000000-0000-4000-8000-000000000099'::uuid,
+        ${ORG}, ${PROPERTY}::uuid, 'google', 3, 1, 1
+      )
+    `)
+
+    await expect(store.mutate(command())).rejects.toMatchObject({
+      code: 'property_inactive',
+      message: 'Current Review analysis source head is unavailable',
+    })
+    const head = await db.execute(sql`
+      SELECT head_sequence
+      FROM review_ai_analysis_heads
+      WHERE organization_id = ${ORG}
+        AND property_id = ${PROPERTY}::uuid
+        AND source_epoch = 3
+    `)
+    expect(head.rows).toEqual([])
+  })
+
+  it('serializes zero-review authorization with the first material-revision allocation', async () => {
+    await db.execute(sql`
+      DELETE FROM review_ai_analysis_heads
+      WHERE organization_id = ${ORG}
+        AND property_id = ${PROPERTY}::uuid
+        AND source_epoch = 3
+    `)
+
+    const [enabled, firstSequence] = await Promise.all([
+      store.mutate(command()),
+      advanceAnalysisHead(),
+    ])
+
+    expect(firstSequence).toBe(1)
+    expect([0, 1]).toContain(enabled.analysisStartSequence)
+    if (enabled.analysisStartSequence === 0) {
+      // Authorization won the shared Property lock. The first revision is a
+      // live arrival strictly after the captured zero frontier.
+      expect(firstSequence).toBe(enabled.analysisStartSequence + 1)
+    } else {
+      // Review allocation won. The first revision is inside enrollment's
+      // immutable first-enablement frontier.
+      expect(firstSequence).toBe(enabled.analysisStartSequence)
+    }
   })
 
   it('fails exact consent fences after source, state, notice, or runtime drift', async () => {

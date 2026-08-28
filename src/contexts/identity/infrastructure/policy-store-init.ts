@@ -17,7 +17,6 @@
 
 import type { Database } from '#/shared/db'
 import type { CapabilityPolicyEnv } from '#/shared/auth/beta-capabilities'
-import { getLogger } from '#/shared/observability/logger'
 import {
   createEnvCapabilityPolicyStore,
   initCapabilityPolicyStore,
@@ -70,19 +69,27 @@ export type PolicyStoreHandle = Readonly<{
   stopPolling: () => void
 }>
 
+export type PolicyStoreLogger = Readonly<{
+  warn(fields: Readonly<Record<string, unknown>>, message: string): void
+}>
+
 export function initPersistedCapabilityPolicyStore(deps: {
   db: Database
   env: CapabilityPolicyEnv
+  clock: () => Date
+  logger: PolicyStoreLogger
   admitPropertyExecution?: (propertyId: string) => Promise<DataCellExecutionDecision>
 }): PolicyStoreHandle {
-  const logger = getLogger()
   const envStore = createEnvCapabilityPolicyStore(deps.env)
   const persisted = createPersistedPolicyStore({
     loadSnapshot: () => loadPolicySnapshot(deps.db),
     loadControlVersion: () => getPolicyControlVersion(deps.db),
     initialSnapshot: snapshotFromEnv(deps.env),
     onRefreshError: (err) =>
-      logger.warn({ err }, 'policy snapshot refresh failed — keeping previous snapshot'),
+      deps.logger.warn(
+        { err },
+        'policy snapshot refresh failed — keeping previous snapshot',
+      ),
   })
   initCapabilityPolicyStore(
     createCompositePolicyStore({ globalStore: envStore, tenantStore: persisted }),
@@ -94,7 +101,7 @@ export function initPersistedCapabilityPolicyStore(deps: {
   // store installed above, so tenant state stays consistent across both.
   // BQC-7.5: the operator branch's named-operator allowlist binds from
   // OPS_OPERATOR_IDENTITIES (absent/empty = every operator command denies).
-  const grantLookup = createGrantAccessLookup(deps.db)
+  const grantLookup = createGrantAccessLookup(deps.db, deps.clock)
   const operatorIdentities = parseOperatorIdentities(deps.env)
   const hasActiveConsent = async (input: {
     organizationId: string
@@ -124,7 +131,8 @@ export function initPersistedCapabilityPolicyStore(deps: {
       },
       hasActiveConsent,
       writeDecisionAudit: (entry) => writePolicyDecision(deps.db, entry),
-      onAuditError: (err) => logger.warn({ err }, 'policy decision audit write failed'),
+      onAuditError: (err) =>
+        deps.logger.warn({ err }, 'policy decision audit write failed'),
       isRegisteredOperator: (id) => operatorIdentities.has(id),
       ...(deps.admitPropertyExecution
         ? { admitPropertyExecution: deps.admitPropertyExecution }
@@ -140,7 +148,8 @@ export function initPersistedCapabilityPolicyStore(deps: {
       refreshPolicy: () => persisted.refresh(),
       hasActiveConsent,
       writeDecisionAudit: (entry) => writePolicyDecision(deps.db, entry),
-      onAuditError: (err) => logger.warn({ err }, 'delayed decision audit write failed'),
+      onAuditError: (err) =>
+        deps.logger.warn({ err }, 'delayed decision audit write failed'),
     }),
   )
 

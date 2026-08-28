@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest'
 
 import {
+  identityInvitationAccepted,
+  identityInvitationCanceled,
   identityMemberInvited,
+  identityMemberRemoved,
+  identityMemberRoleChanged,
   identityMerchantAiChanged,
   identityOrganizationCreated,
 } from './events'
@@ -38,6 +42,76 @@ describe('identity events', () => {
     })
     expect(event._tag).toBe('identity.member.invited')
     expect(event).not.toHaveProperty('email')
+  })
+
+  it('preserves caller correlation across every constructor', () => {
+    const correlationId = 'correlation-1'
+    const correlated = [
+      identityOrganizationCreated({
+        organizationId: ORG_ID,
+        organizationName: 'Test Org',
+        slug: 'test-org',
+        ownerId: USER_ID,
+        occurredAt: NOW,
+        correlationId,
+      }),
+      identityMemberInvited({
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        role: 'Staff',
+        invitationId: INV_ID,
+        occurredAt: NOW,
+        correlationId,
+      }),
+      identityInvitationAccepted({
+        invitationId: INV_ID,
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        propertyIds: [],
+        occurredAt: NOW,
+        correlationId,
+      }),
+      identityInvitationCanceled({
+        invitationId: INV_ID,
+        organizationId: ORG_ID,
+        occurredAt: NOW,
+        correlationId,
+      }),
+      identityMemberRemoved({
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        removedBy: userId('manager-1'),
+        occurredAt: NOW,
+        correlationId,
+      }),
+      identityMemberRoleChanged({
+        organizationId: ORG_ID,
+        memberUserId: USER_ID,
+        previousRole: 'Staff',
+        newRole: 'PropertyManager',
+        userId: userId('manager-1'),
+        occurredAt: NOW,
+        correlationId,
+      }),
+      identityMerchantAiChanged({
+        organizationId: ORG_ID,
+        propertyId: 'property-1',
+        authorizationLineageId: 'lineage-1',
+        state: 'enabled',
+        reviewAnalysisEpoch: 1,
+        replyDraftingEpoch: 1,
+        propertyTrendsEpoch: 1,
+        authorizedSourceEpoch: 0,
+        analysisStartSequence: 0,
+        stateVersion: 1,
+        occurredAt: NOW,
+        correlationId,
+      }),
+    ]
+
+    expect(correlated.map((event) => event.correlationId)).toEqual(
+      Array.from({ length: correlated.length }, () => correlationId),
+    )
   })
 
   it('throws/asserts for invalid occurredAt', () => {

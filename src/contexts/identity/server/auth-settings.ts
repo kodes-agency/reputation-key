@@ -8,18 +8,17 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { z } from 'zod/v4'
 import { handleAuthError } from './auth-settings.helpers'
+import { changePasswordCommandSchema } from '../application/dto/change-password.dto'
+import {
+  updateProfileInputSchema,
+  updateUserImageInputSchema,
+} from '../application/dto/profile-settings.dto'
 
 // ── Change password ────────────────────────────────────────────────
 
 export const changePasswordFn = createServerFn({ method: 'POST' })
-  .validator(
-    z.object({
-      currentPassword: z.string().min(1),
-      newPassword: z.string().min(8),
-    }),
-  )
+  .validator(changePasswordCommandSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -40,7 +39,9 @@ export const changePasswordFn = createServerFn({ method: 'POST' })
             },
           })
         } catch (e) {
+          const { getContainer } = await import('#/composition')
           handleAuthError(
+            getContainer().logger,
             e,
             'AuthError',
             'password_change_failed',
@@ -55,15 +56,8 @@ export const changePasswordFn = createServerFn({ method: 'POST' })
 
 // ── Update profile ─────────────────────────────────────────────────
 
-const updateProfileSchema = z.object({
-  name: z
-    .string()
-    .min(1, 'Name is required')
-    .max(100, 'Name must be 100 characters or less'),
-})
-
 export const updateProfileFn = createServerFn({ method: 'POST' })
-  .validator(updateProfileSchema)
+  .validator(updateProfileInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -78,7 +72,9 @@ export const updateProfileFn = createServerFn({ method: 'POST' })
             body: { name: data.name },
           })
         } catch (e) {
+          const { getContainer } = await import('#/composition')
           handleAuthError(
+            getContainer().logger,
             e,
             'AuthError',
             'profile_update_failed',
@@ -93,12 +89,8 @@ export const updateProfileFn = createServerFn({ method: 'POST' })
 
 // ── Update user image ──────────────────────────────────────────────
 
-const updateUserImageSchema = z.object({
-  imageUrl: z.url(),
-})
-
 export const updateUserImageFn = createServerFn({ method: 'POST' })
-  .validator(updateUserImageSchema)
+  .validator(updateUserImageInputSchema)
   .handler(
     tracedHandler(
       async ({ data }) => {
@@ -113,7 +105,9 @@ export const updateUserImageFn = createServerFn({ method: 'POST' })
             body: { image: data.imageUrl },
           })
         } catch (e) {
+          const { getContainer } = await import('#/composition')
           handleAuthError(
+            getContainer().logger,
             e,
             'AuthError',
             'avatar_update_failed',

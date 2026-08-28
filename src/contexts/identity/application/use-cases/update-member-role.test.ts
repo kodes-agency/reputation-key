@@ -114,6 +114,24 @@ describe('updateMemberRole', () => {
     expect(commandStore.memberById(PM_MEMBER.id)?.role).toBe('owner')
   })
 
+  it('retries eligibility reconciliation after the role write already committed', async () => {
+    let attempts = 0
+    const { useCase, identity, commandStore } = setup(async () => {
+      attempts += 1
+      if (attempts === 1) throw new Error('temporary reconciliation failure')
+    })
+    seedMemberBoth(identity, commandStore, STAFF_MEMBER)
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(
+      useCase({ memberId: STAFF_MEMBER.id, role: 'PropertyManager' }, ctx),
+    ).rejects.toThrow('temporary reconciliation failure')
+    await expect(
+      useCase({ memberId: STAFF_MEMBER.id, role: 'PropertyManager' }, ctx),
+    ).resolves.toEqual({ success: true })
+    expect(attempts).toBe(2)
+  })
+
   it('allows AccountAdmin to promote Staff to PropertyManager', async () => {
     const { useCase, identity, events, commandStore } = setup()
     seedMemberBoth(identity, commandStore, STAFF_MEMBER)

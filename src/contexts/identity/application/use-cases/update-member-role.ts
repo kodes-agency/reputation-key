@@ -29,6 +29,12 @@ export type UpdateMemberRoleDeps = Readonly<{
     userId: string,
     actorId: string,
   ) => Promise<void>
+  /** Fence current OAuth authority before an AccountAdmin role is lost. */
+  prepareGoogleConnectorDeparture?: (
+    organizationId: string,
+    userId: string,
+    cause: 'account_admin_role_lost',
+  ) => Promise<void>
 }>
 export type UpdateMemberRole = ReturnType<typeof updateMemberRole>
 
@@ -80,6 +86,14 @@ export const updateMemberRole =
           'Cannot demote the last admin of the organization',
         )
       }
+    }
+
+    if (isOwnerToken(targetMember.rawRole) && input.role !== ADMIN_ROLE) {
+      await deps.prepareGoogleConnectorDeparture?.(
+        ctx.organizationId,
+        targetMember.userId,
+        'account_admin_role_lost',
+      )
     }
 
     // 4. Persist + fact — atomic via the command store

@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   recordPolicyConsent,
   revokePolicyConsent,
@@ -20,7 +21,7 @@ const HOUR = 60 * 60 * 1000
 
 beforeAll(async () => {
   await db.execute(sql`DELETE FROM policy_consent WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
   await db.execute(
     sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Consent Org', ${ORG}, now())`,
   )
@@ -28,7 +29,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await db.execute(sql`DELETE FROM policy_consent WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
 })
 
 describe('policy consent records (BQC-2.2)', () => {

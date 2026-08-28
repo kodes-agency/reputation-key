@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   buildReconcileReport,
   applyReconciliation,
@@ -52,8 +53,8 @@ beforeAll(async () => {
       sql`DELETE FROM property_access_grant WHERE organization_id = ${org}`,
     )
     await db.execute(sql`DELETE FROM properties WHERE organization_id = ${org}`)
-    await db.execute(sql`DELETE FROM organization WHERE id = ${org}`)
   }
+  await deleteTestOrganizations(db, [ORG_A, ORG_B])
   await db.execute(sql`DELETE FROM "user" WHERE id IN (${USER_1}, ${USER_2})`)
 
   await db.execute(sql`
@@ -102,16 +103,18 @@ afterAll(async () => {
       sql`DELETE FROM property_access_grant WHERE organization_id = ${org}`,
     )
     await db.execute(sql`DELETE FROM properties WHERE organization_id = ${org}`)
-    await db.execute(sql`DELETE FROM organization WHERE id = ${org}`)
   }
+  await deleteTestOrganizations(db, [ORG_A, ORG_B])
   await db.execute(sql`DELETE FROM "user" WHERE id IN (${USER_1}, ${USER_2})`)
 })
 
 describe('staff→grant reconciliation (BQC-2.3)', () => {
   const SCOPE = { organizationIds: [ORG_A, ORG_B] }
+  const GENERATED_AT = new Date('2026-08-28T00:00:00.000Z')
+  const clock = () => GENERATED_AT
 
   it('reports clean pairs, skips, and anomalies separately', async () => {
-    const report = await buildReconcileReport(db, SCOPE)
+    const report = await buildReconcileReport(db, clock, SCOPE)
     const orgA = report.organizations.find((o) => o.organizationId === ORG_A)
     expect(orgA).toBeTruthy()
     // 3 distinct clean pairs; 1 already granted; 2 to create
@@ -123,10 +126,11 @@ describe('staff→grant reconciliation (BQC-2.3)', () => {
     expect(report.anomalyRows).toHaveLength(2)
     const kinds = report.anomalyRows.map((a) => a.kind).sort()
     expect(kinds).toEqual(['org_mismatch', 'property_inactive'])
+    expect(report.generatedAt).toBe(GENERATED_AT)
   })
 
   it('apply converts only clean rows and is idempotent', async () => {
-    const report = await buildReconcileReport(db, SCOPE)
+    const report = await buildReconcileReport(db, clock, SCOPE)
     const first = await applyReconciliation(db, report, {
       createdBy: 'reconcile-test',
       scope: SCOPE,
@@ -149,10 +153,14 @@ describe('staff→grant reconciliation (BQC-2.3)', () => {
     expect(anomalyGrants.rows).toHaveLength(0)
 
     // Second run creates nothing
-    const second = await applyReconciliation(db, await buildReconcileReport(db, SCOPE), {
-      createdBy: 'reconcile-test',
-      scope: SCOPE,
-    })
+    const second = await applyReconciliation(
+      db,
+      await buildReconcileReport(db, clock, SCOPE),
+      {
+        createdBy: 'reconcile-test',
+        scope: SCOPE,
+      },
+    )
     expect(second.created).toBe(0)
   })
 })

@@ -11,6 +11,7 @@ import { canonicalPeopleAuthorityRowsSql } from './people-authority-reconciliati
 import { legacyPeopleAuthorityRowsSql } from './people-authority-reconciliation.legacy-query'
 import { managerPeopleAuthorityRowsSql } from './people-authority-reconciliation.manager-query'
 import { membershipPeopleAuthorityRowsSql } from './people-authority-reconciliation.membership-query'
+import { attributionPeopleAuthorityRowsSql } from './people-authority-reconciliation.attribution-query'
 
 type RawRow = Readonly<{
   source: string
@@ -37,6 +38,10 @@ const SOURCES = new Set<PeopleAuthorityReconciliationSource>([
   'team_membership',
   'portal_responsible_manager',
   'property_responsible_manager',
+  'guest_qualified_scan',
+  'guest_response',
+  'metric_reading',
+  'metric_correction',
 ])
 const DIMENSIONS = new Set<PeopleAuthorityReconciliationDimension>([
   'participant_mapping',
@@ -51,6 +56,7 @@ const DIMENSIONS = new Set<PeopleAuthorityReconciliationDimension>([
   'manager_eligibility',
   'team_quarantine',
   'retained_history',
+  'event_time_staff_attribution',
 ])
 const OUTCOMES = new Set<PeopleAuthorityReconciliationOutcome>([
   'exact',
@@ -104,6 +110,8 @@ export async function buildPeopleAuthorityReconciliationReportFromDatabase(
       ${membershipPeopleAuthorityRowsSql()}
       UNION ALL
       ${managerPeopleAuthorityRowsSql(input.asOf)}
+      UNION ALL
+      ${attributionPeopleAuthorityRowsSql()}
     )
     SELECT "source", "sourceId", "dimension", "outcome",
            "organizationId", "propertyId", "portalId", "userId",

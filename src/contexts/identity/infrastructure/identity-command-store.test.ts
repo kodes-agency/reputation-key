@@ -9,8 +9,9 @@
 // rows, invitation lifecycle) roll back and record NO fact, emit nothing.
 // A post-commit bus failure must not propagate (durable row already retained).
 
+import { randomUUID } from 'node:crypto'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { createAtomicIdentityCommandStore } from './identity-command-store'
+import { createAtomicIdentityCommandStore as createAtomicIdentityCommandStoreWithDeps } from './identity-command-store'
 import type { Database } from '#/shared/db'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -30,6 +31,9 @@ import {
 } from '../domain/events'
 import { isIdentityError } from '../domain/errors'
 import type { AcceptedInvitation } from '../application/ports/identity-command-store.port'
+
+const createAtomicIdentityCommandStore = (db: Database, events: EventBus) =>
+  createAtomicIdentityCommandStoreWithDeps(db, events, randomUUID)
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => ({
@@ -631,15 +635,24 @@ describe('createAtomicIdentityCommandStore', () => {
       }),
     })
 
-    it('takes the org lock, deletes the member + removed fact in one tx before emit', async () => {
+    it('atomically releases the binding, revokes sessions, deletes the member, and records the fact', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
+      const updateSets: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
         order,
         selectQueue: [
-          [{ id: 'member-target', organizationId: ORG_ID as string, role: 'member' }],
+          [
+            {
+              id: 'member-target',
+              organizationId: ORG_ID as string,
+              userId: 'user-target-00000000000000001',
+              role: 'member',
+            },
+          ],
         ],
         outboxRows,
+        updateSets,
       })
       const events = makeEvents(order)
       const store = createAtomicIdentityCommandStore(db, events)
@@ -653,9 +666,18 @@ describe('createAtomicIdentityCommandStore', () => {
         'tx.lock',
         'tx.read',
         'tx.state',
+        'tx.state',
+        'tx.state',
         'tx.outbox',
         'tx.commit',
         'emit',
+      ])
+      expect(updateSets).toEqual([
+        expect.objectContaining({
+          state: 'released',
+          resolutionReason: 'member_removed',
+          releasedAt: NOW,
+        }),
       ])
     })
 
@@ -665,7 +687,14 @@ describe('createAtomicIdentityCommandStore', () => {
       const { db } = createMockDb({
         order,
         selectQueue: [
-          [{ id: 'member-solo', organizationId: ORG_ID as string, role: 'owner' }],
+          [
+            {
+              id: 'member-solo',
+              organizationId: ORG_ID as string,
+              userId: 'user-target-00000000000000001',
+              role: 'owner',
+            },
+          ],
           [{ role: 'owner' }],
         ],
         outboxRows,
@@ -688,6 +717,40 @@ describe('createAtomicIdentityCommandStore', () => {
 
       await expect(store.removeMember(command())).rejects.toSatisfy(
         (e: unknown) => isIdentityError(e) && e.code === 'member_not_found',
+      )
+      expect(order).toEqual(['tx.start', 'tx.lock', 'tx.read', 'tx.rollback'])
+    })
+
+    it('rejects a removal fact that does not name the locked member', async () => {
+      const order: string[] = []
+      const { db } = createMockDb({
+        order,
+        selectQueue: [
+          [
+            {
+              id: 'member-target',
+              organizationId: ORG_ID as string,
+              userId: 'user-target-00000000000000001',
+              role: 'member',
+            },
+          ],
+        ],
+      })
+      const store = createAtomicIdentityCommandStore(db, makeEvents(order))
+
+      await expect(
+        store.removeMember({
+          ...command(),
+          event: identityMemberRemoved({
+            organizationId: ORG_ID,
+            userId: userId('user-different-0000000000000001'),
+            removedBy: INVITER,
+            occurredAt: NOW,
+          }),
+        }),
+      ).rejects.toSatisfy(
+        (error: unknown) =>
+          isIdentityError(error) && error.code === 'organization_conflict',
       )
       expect(order).toEqual(['tx.start', 'tx.lock', 'tx.read', 'tx.rollback'])
     })
@@ -773,7 +836,7 @@ describe('createAtomicIdentityCommandStore', () => {
       }),
     })
 
-    it('commits organization + owner member + created fact in one tx before emit', async () => {
+    it('commits organization + owner + binding + created fact before emit', async () => {
       const order: string[] = []
       const outboxRows: Array<Record<string, unknown>> = []
       const insertedRows: Array<Record<string, unknown>> = []

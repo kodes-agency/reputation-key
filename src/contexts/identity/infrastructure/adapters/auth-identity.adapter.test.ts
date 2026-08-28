@@ -19,6 +19,16 @@ const mockListInvitations = vi.fn()
 const mockListUserInvitations = vi.fn()
 const mockListOrganizations = vi.fn()
 const mockSetActiveOrganization = vi.fn()
+const FIXED_NOW = new Date('2026-08-28T12:00:00.000Z')
+const adapterDeps = {
+  clock: vi.fn(() => FIXED_NOW),
+  idGen: vi.fn(() => 'generated-role-id'),
+  logger: {
+    debug: vi.fn(),
+    warn: vi.fn(),
+  },
+  onAcceptInvitation: mockOnAcceptInvitation,
+}
 
 vi.mock('#/shared/auth/auth', () => ({
   getAuth: () => ({
@@ -32,7 +42,6 @@ vi.mock('#/shared/auth/auth', () => ({
       getSession: mockGetSession,
     },
   }),
-  getOnAcceptInvitation: () => mockOnAcceptInvitation,
 }))
 
 // Mock getRequest to return null (no request context in tests)
@@ -57,7 +66,7 @@ beforeEach(() => {
   vi.clearAllMocks()
 })
 describe('createBetterAuthIdentityAdapter', () => {
-  const adapter = createBetterAuthIdentityAdapter(db)
+  const adapter = createBetterAuthIdentityAdapter(db, adapterDeps)
 
   describe('signUp', () => {
     it('returns user ID on successful sign-up', async () => {
@@ -72,6 +81,30 @@ describe('createBetterAuthIdentityAdapter', () => {
       expect(mockSignUpEmail).toHaveBeenCalledWith({
         body: { name: 'Alice', email: 'alice@test.com', password: 'password123' },
       })
+    })
+
+    it('accepts an exact preallocated user ID for recoverable registration', async () => {
+      mockSignUpEmail.mockResolvedValue({ user: { id: 'preallocated-user-1' } })
+
+      await expect(
+        adapter.signUp('Alice', 'alice@test.com', 'password123', {
+          userId: 'preallocated-user-1',
+          credentialAccountId: 'preallocated-account-1',
+          initialSessionId: 'preallocated-session-1',
+        }),
+      ).resolves.toBe('preallocated-user-1')
+    })
+
+    it('fails closed when the provider does not use the preallocated user ID', async () => {
+      mockSignUpEmail.mockResolvedValue({ user: { id: 'different-user' } })
+
+      await expect(
+        adapter.signUp('Alice', 'alice@test.com', 'password123', {
+          userId: 'preallocated-user-1',
+          credentialAccountId: 'preallocated-account-1',
+          initialSessionId: 'preallocated-session-1',
+        }),
+      ).rejects.toThrow('provider returned an unexpected user ID')
     })
 
     it('throws when sign-up returns no user ID', async () => {
@@ -266,7 +299,44 @@ describe('createBetterAuthIdentityAdapter', () => {
   })
 
   describe('runOnAcceptInvitation', () => {
-    it('invokes the registered hook with the accepted context', async () => {
+    it('keeps invitation provisioning scoped to the adapter that owns it', async () => {
+      const firstProvisioner = vi.fn(async () => undefined)
+      const secondProvisioner = vi.fn(async () => undefined)
+      const firstAdapter = createBetterAuthIdentityAdapter(db, {
+        ...adapterDeps,
+        onAcceptInvitation: firstProvisioner,
+      })
+      const secondAdapter = createBetterAuthIdentityAdapter(db, {
+        ...adapterDeps,
+        onAcceptInvitation: secondProvisioner,
+      })
+
+      await firstAdapter.runOnAcceptInvitation({
+        userId: 'user-1',
+        organizationId: 'org-1',
+        propertyIds: ['prop-1'],
+      })
+      await secondAdapter.runOnAcceptInvitation({
+        userId: 'user-2',
+        organizationId: 'org-2',
+        propertyIds: ['prop-2'],
+      })
+
+      expect(firstProvisioner).toHaveBeenCalledTimes(1)
+      expect(firstProvisioner).toHaveBeenCalledWith({
+        userId: 'user-1',
+        organizationId: 'org-1',
+        propertyIds: ['prop-1'],
+      })
+      expect(secondProvisioner).toHaveBeenCalledTimes(1)
+      expect(secondProvisioner).toHaveBeenCalledWith({
+        userId: 'user-2',
+        organizationId: 'org-2',
+        propertyIds: ['prop-2'],
+      })
+    })
+
+    it('invokes the injected provisioner with the accepted context', async () => {
       await adapter.runOnAcceptInvitation({
         userId: 'user-1',
         organizationId: 'org-1',
@@ -300,6 +370,10 @@ describe('createBetterAuthIdentityAdapter', () => {
           propertyIds: ['prop-1'],
         }),
       ).resolves.toBeUndefined()
+      expect(adapterDeps.logger.warn).toHaveBeenCalledWith(
+        { err: expect.any(Error) },
+        'Failed to provision invited property access',
+      )
     })
   })
 
@@ -399,6 +473,44 @@ describe('createBetterAuthIdentityAdapter', () => {
         headers,
         body: { organizationId: 'org-1' },
       })
+    })
+  })
+
+  describe('custom role persistence', () => {
+    it('uses the injected identifier for the role row', async () => {
+      const values = vi.fn().mockResolvedValue(undefined)
+      const tx = { insert: vi.fn(() => ({ values })) }
+      vi.mocked(db.transaction).mockImplementationOnce(async (run) => run(tx as never))
+
+      await adapter.createCustomRole(testCtx, {
+        role: 'Concierge',
+        permissions: ['review.read'],
+        dataScope: 'assigned-properties',
+      })
+
+      expect(adapterDeps.idGen).toHaveBeenCalledOnce()
+      expect(values.mock.calls[0]?.[0]).toMatchObject({
+        id: 'generated-role-id',
+        organizationId: 'org-1',
+        role: 'concierge',
+      })
+    })
+
+    it('uses one injected timestamp for both role policy updates', async () => {
+      const where = vi.fn().mockResolvedValue(undefined)
+      const set = vi.fn((_value: Record<string, unknown>) => ({ where }))
+      const tx = { update: vi.fn(() => ({ set })) }
+      vi.mocked(db.transaction).mockImplementationOnce(async (run) => run(tx as never))
+
+      await adapter.updateCustomRole(testCtx, 'Concierge', {
+        permissions: ['review.read'],
+        dataScope: 'assigned-properties',
+      })
+
+      expect(adapterDeps.clock).toHaveBeenCalledOnce()
+      expect(set).toHaveBeenCalledTimes(2)
+      expect(set.mock.calls[0]?.[0]).toMatchObject({ updatedAt: FIXED_NOW })
+      expect(set.mock.calls[1]?.[0]).toMatchObject({ updatedAt: FIXED_NOW })
     })
   })
 })

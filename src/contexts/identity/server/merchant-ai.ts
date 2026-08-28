@@ -59,13 +59,12 @@ export const getMerchantAiAuthorizationFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const { actor } = await managementContext(data.propertyId)
         try {
-          const authorization = await getContainer().useCases.merchantAiAuthorization.get(
-            {
+          const authorization =
+            await getContainer().identityPublicApi.requests.merchantAiAuthorization.get({
               organizationId: actor.organizationId as string,
               propertyId: data.propertyId,
               actorUserId: actor.userId as string,
-            },
-          )
+            })
           return { authorization, notice: MERCHANT_AI_NOTICE }
         } catch (error) {
           mapMerchantAiError(error)
@@ -83,16 +82,18 @@ export const enableMerchantAiFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const { headers, actor } = await managementContext(data.propertyId)
         try {
-          return await getContainer().useCases.merchantAiAuthorization.enable({
-            organizationId: actor.organizationId as string,
-            propertyId: data.propertyId,
-            actorUserId: actor.userId as string,
-            idempotencyKey: data.idempotencyKey,
-            expectedStateVersion: data.expectedStateVersion,
-            stepUpProof: data.password,
-            requestHeaders: headers,
-            reasonCode: 'merchant_enabled',
-          })
+          return await getContainer().identityPublicApi.requests.merchantAiAuthorization.enable(
+            {
+              organizationId: actor.organizationId as string,
+              propertyId: data.propertyId,
+              actorUserId: actor.userId as string,
+              idempotencyKey: data.idempotencyKey,
+              expectedStateVersion: data.expectedStateVersion,
+              stepUpProof: data.password,
+              requestHeaders: headers,
+              reasonCode: 'merchant_enabled',
+            },
+          )
         } catch (error) {
           mapMerchantAiError(error)
         }
@@ -113,17 +114,19 @@ export const changeMerchantAiCapabilitiesFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const { headers, actor } = await managementContext(data.propertyId)
         try {
-          return await getContainer().useCases.merchantAiAuthorization.change({
-            organizationId: actor.organizationId as string,
-            propertyId: data.propertyId,
-            actorUserId: actor.userId as string,
-            idempotencyKey: data.idempotencyKey,
-            expectedStateVersion: data.expectedStateVersion,
-            stepUpProof: data.password,
-            requestHeaders: headers,
-            reasonCode: 'capabilities_changed',
-            capabilities: data.capabilities,
-          })
+          return await getContainer().identityPublicApi.requests.merchantAiAuthorization.change(
+            {
+              organizationId: actor.organizationId as string,
+              propertyId: data.propertyId,
+              actorUserId: actor.userId as string,
+              idempotencyKey: data.idempotencyKey,
+              expectedStateVersion: data.expectedStateVersion,
+              stepUpProof: data.password,
+              requestHeaders: headers,
+              reasonCode: 'capabilities_changed',
+              capabilities: data.capabilities,
+            },
+          )
         } catch (error) {
           mapMerchantAiError(error)
         }
@@ -140,16 +143,18 @@ export const revokeMerchantAiFn = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const { headers, actor } = await managementContext(data.propertyId)
         try {
-          return await getContainer().useCases.merchantAiAuthorization.revoke({
-            organizationId: actor.organizationId as string,
-            propertyId: data.propertyId,
-            actorUserId: actor.userId as string,
-            idempotencyKey: data.idempotencyKey,
-            expectedStateVersion: data.expectedStateVersion,
-            stepUpProof: data.password,
-            requestHeaders: headers,
-            reasonCode: 'merchant_revoked',
-          })
+          return await getContainer().identityPublicApi.requests.merchantAiAuthorization.revoke(
+            {
+              organizationId: actor.organizationId as string,
+              propertyId: data.propertyId,
+              actorUserId: actor.userId as string,
+              idempotencyKey: data.idempotencyKey,
+              expectedStateVersion: data.expectedStateVersion,
+              stepUpProof: data.password,
+              requestHeaders: headers,
+              reasonCode: 'merchant_revoked',
+            },
+          )
         } catch (error) {
           mapMerchantAiError(error)
         }

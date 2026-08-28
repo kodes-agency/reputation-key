@@ -60,6 +60,8 @@ export type InviteMemberCommand = Readonly<{
  */
 export type AcceptInvitationCommand = Readonly<{
   invitationId: InvitationId
+  /** Present only for the durable invited-account registration saga. */
+  registrationAttemptId?: string
   /** Lowercase-normalized inside the store before comparison. */
   acceptorEmail: string
   acceptorUserId: UserId
@@ -79,10 +81,10 @@ export type CancelInvitationCommand = Readonly<{
 }>
 
 /**
- * Remove a member: org advisory lock + member delete + member.removed fact
- * in one transaction. The last-owner invariant is re-enforced under the lock
- * (throws `last_owner`); a missing row throws `member_not_found` — both
- * record NO fact.
+ * Remove a member: org advisory lock + session revocation + singular binding
+ * release + member delete + member.removed fact in one transaction. The
+ * last-owner invariant is re-enforced under the lock (throws `last_owner`); a
+ * missing row throws `member_not_found` — both record NO fact.
  */
 export type RemoveMemberCommand = Readonly<{
   organizationId: OrganizationId

@@ -21,6 +21,25 @@ export const createManagerMembershipRepository = (
   db: Database,
   resolvePropertyAuthority: ManagerPropertyAuthorityResolver,
 ) => ({
+  isCurrentAccountAdmin: async (
+    input: Readonly<{
+      organizationId: string
+      userId: string
+    }>,
+  ): Promise<boolean> => {
+    const rows = await db
+      .select({ id: member.id })
+      .from(member)
+      .where(
+        and(
+          eq(member.organizationId, input.organizationId),
+          eq(member.userId, input.userId),
+          eq(member.role, 'owner'),
+        ),
+      )
+      .limit(1)
+    return rows.length === 1
+  },
   listActiveManagers: async (
     organizationId: string,
   ): Promise<readonly ManagerMembership[]> => {

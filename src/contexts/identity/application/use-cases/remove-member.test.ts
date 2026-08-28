@@ -120,17 +120,24 @@ describe('removeMember', () => {
     for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
       seedMemberBoth(identity, commandStore, member)
     }
+    const prepareGoogleConnectorDeparture = vi.fn(async () => undefined)
     const cancelGoogleImportsForUser = vi.fn(async () => undefined)
     const useCase = removeMember({
       identity,
       commandStore,
       clock: () => FIXED_TIME,
+      prepareGoogleConnectorDeparture,
       cancelGoogleImportsForUser,
     })
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     await useCase({ memberId: STAFF_MEMBER.id }, ctx)
 
+    expect(prepareGoogleConnectorDeparture).toHaveBeenCalledWith(
+      ctx.organizationId,
+      STAFF_MEMBER.userId,
+      'member_removed',
+    )
     expect(cancelGoogleImportsForUser).toHaveBeenCalledWith(
       ctx.organizationId,
       STAFF_MEMBER.userId,
@@ -185,6 +192,34 @@ describe('removeMember', () => {
       'import lifecycle unavailable',
     )
 
+    expect(commandStore.memberById(STAFF_MEMBER.id)).not.toBeNull()
+    expect(events.capturedByTag('identity.member.removed')).toEqual([])
+  })
+
+  it('preserves membership when connector departure fencing fails', async () => {
+    const identity = createInMemoryIdentityPort()
+    const events = createCapturingEventBus()
+    const commandStore = createSequentialIdentityCommandStore({ events })
+    for (const member of [STAFF_MEMBER, ADMIN_MEMBER]) {
+      seedMemberBoth(identity, commandStore, member)
+    }
+    const cancelGoogleImportsForUser = vi.fn(async () => undefined)
+    const useCase = removeMember({
+      identity,
+      commandStore,
+      clock: () => FIXED_TIME,
+      prepareGoogleConnectorDeparture: async () => {
+        throw new Error('connector lifecycle unavailable')
+      },
+      cancelGoogleImportsForUser,
+    })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(useCase({ memberId: STAFF_MEMBER.id }, ctx)).rejects.toThrow(
+      'connector lifecycle unavailable',
+    )
+
+    expect(cancelGoogleImportsForUser).not.toHaveBeenCalled()
     expect(commandStore.memberById(STAFF_MEMBER.id)).not.toBeNull()
     expect(events.capturedByTag('identity.member.removed')).toEqual([])
   })

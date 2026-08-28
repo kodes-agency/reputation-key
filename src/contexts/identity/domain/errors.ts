@@ -18,6 +18,7 @@ export type IdentityErrorCode =
   | 'organization_conflict'
   | 'last_owner'
   | 'org_setup_failed'
+  | 'feedback_triage_invalid'
 
 export type IdentityError = Readonly<{
   _tag: 'IdentityError'

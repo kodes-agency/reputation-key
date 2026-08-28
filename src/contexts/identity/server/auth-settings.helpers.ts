@@ -2,10 +2,11 @@
 // Extracted from auth-settings.ts to keep each file ≤150 lines.
 
 import { throwContextError } from '#/shared/auth/server-errors'
-import { getLogger } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
 /** Map better-auth APIError status codes to appropriate HTTP status + domain code. */
 export const handleAuthError = (
+  logger: Pick<LoggerPort, 'warn'>,
   error: unknown,
   errorName: string,
   code: string,
@@ -17,7 +18,7 @@ export const handleAuthError = (
     const status = apiError.statusCode
     const message = apiError.message ?? fallbackMessage
 
-    getLogger().warn({ err: error, statusCode: status }, `${errorName}: ${code}`)
+    logger.warn({ err: error, statusCode: status }, `${errorName}: ${code}`)
 
     if (status === 401) {
       throwContextError(
@@ -53,6 +54,6 @@ export const handleAuthError = (
   }
 
   // Fallback for non-APIError errors
-  getLogger().warn({ err: error }, `${errorName}: ${code}`)
+  logger.warn({ err: error }, `${errorName}: ${code}`)
   throwContextError(errorName, { code, message: fallbackMessage }, 400)
 }

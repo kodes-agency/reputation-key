@@ -27,7 +27,7 @@ import {
 
 // ── Registration gate (B0.6 capability check) ───────────────────────
 // BQC-5.3: the /register route's beforeLoad must not import beta-capabilities
-// directly — its lazy policy store reads process.env, which does not exist in
+// directly — its lazy policy store reads process configuration, which does not exist in
 // the browser module graph (client-side navigation to /register crashed on
 // `process`). The gate runs server-side and returns a typed signal that the
 // route maps to a redirect.
@@ -71,8 +71,7 @@ export const registerMember = createServerFn({ method: 'POST' })
           )
         }
         try {
-          const { useCases } = getContainer()
-          await useCases.registerInvitedUser({
+          await getContainer().identityPublicApi.requests.registerInvitedUser({
             ...data,
             invitationId: invitationId(data.invitationId),
           })
@@ -107,8 +106,7 @@ export const registerUserAndOrg = createServerFn({ method: 'POST' })
           )
         }
         try {
-          const { useCases } = getContainer()
-          await useCases.registerUserAndOrg(data)
+          await getContainer().identityPublicApi.requests.registerUserAndOrg(data)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
           throw catchUntagged(e)
@@ -129,7 +127,7 @@ export const signInUser = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const reqHeaders = await headersFromContext()
         const ip = clientIpFromHeaders(reqHeaders)
-        const { rateLimiter: rl } = getContainer()
+        const { rateLimiter: rl, logger } = getContainer()
         const rlResult = await rl.check(`auth:signin:${ip}`)
         if (!rlResult.allowed) {
           throwContextError(
@@ -166,12 +164,8 @@ export const signInUser = createServerFn({ method: 'POST' })
             setResponseHeader('Set-Cookie', setCookies)
           }
         } catch (e) {
-          const { getLogger } = await import('#/shared/observability/logger')
           const { maskEmail } = await import('#/shared/observability/pii')
-          getLogger().warn(
-            { emailPrefix: maskEmail(data.email), err: e },
-            'Sign-in failed',
-          )
+          logger.warn({ emailPrefix: maskEmail(data.email), err: e }, 'Sign-in failed')
           // Distinguish infrastructure errors (5xx) from auth errors (401).
           // better-auth APIError carries a statusCode property.
           const statusCode = (e as { statusCode?: number }).statusCode

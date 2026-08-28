@@ -10,6 +10,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import type { Env } from '#/shared/config/env'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { userId, organizationId } from '#/shared/domain/ids'
@@ -36,7 +37,7 @@ beforeAll(async () => {
     sql`DELETE FROM organization_capability WHERE organization_id = ${ORG}`,
   )
   await db.execute(sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
   await db.execute(
     sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Store Init Org', ${ORG}, now())`,
   )
@@ -48,13 +49,18 @@ afterAll(async () => {
     sql`DELETE FROM organization_capability WHERE organization_id = ${ORG}`,
   )
   await db.execute(sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
 })
 
 describe('persisted policy store — end-to-end (BQC-2.2)', () => {
   it('allowlist and suspension take effect via the version-gated refresh', async () => {
     resetCapabilityPolicyStore()
-    const handle = initPersistedCapabilityPolicyStore({ db, env: {} as Env })
+    const handle = initPersistedCapabilityPolicyStore({
+      db,
+      env: {} as Env,
+      clock: () => new Date(),
+      logger: { warn: () => {} },
+    })
     try {
       await handle.refresh()
 

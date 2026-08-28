@@ -10,6 +10,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   setOrganizationPolicy,
   setPropertyPolicy,
@@ -31,7 +32,7 @@ beforeAll(async () => {
   )
   await db.execute(sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
   await db.execute(
     sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Policy Org', ${ORG}, now())`,
   )
@@ -49,7 +50,7 @@ afterAll(async () => {
   )
   await db.execute(sql`DELETE FROM organization_policy WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
 })
 
 describe('policy state persistence (BQC-2.2)', () => {

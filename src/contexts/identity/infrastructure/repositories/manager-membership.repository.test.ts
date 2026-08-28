@@ -91,4 +91,63 @@ describe('manager membership repository', () => {
 
     expect(rows).toEqual([])
   })
+
+  it('recognizes only the current AccountAdmin membership in the requested tenant', async () => {
+    const suffix = randomUUID()
+    const organization = `org-account-admin-${suffix}`
+    const otherOrganization = `org-account-admin-other-${suffix}`
+    const owner = `account-admin-${suffix}`
+    const manager = `property-manager-${suffix}`
+    const otherOwner = `other-account-admin-${suffix}`
+    const rollback = new Error('rollback account-admin authority fixture')
+    let decisions: readonly boolean[] = []
+
+    await expect(
+      getDb().transaction(async (tx) => {
+        await tx.execute(sql`
+          INSERT INTO organization (id, name, slug, "createdAt") VALUES
+            (${organization}, ${organization}, ${organization}, NOW()),
+            (${otherOrganization}, ${otherOrganization}, ${otherOrganization}, NOW())
+        `)
+        for (const id of [owner, manager, otherOwner]) {
+          await tx.execute(sql`
+            INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+            VALUES (${id}, ${id}, ${`${id}@example.test`}, true, NOW(), NOW())
+          `)
+        }
+        await tx.execute(sql`
+          INSERT INTO member (id, "userId", "organizationId", role, "createdAt") VALUES
+            (${`membership-owner-${suffix}`}, ${owner}, ${organization}, 'owner', NOW()),
+            (${`membership-manager-${suffix}`}, ${manager}, ${organization}, 'admin', NOW()),
+            (${`membership-other-owner-${suffix}`}, ${otherOwner}, ${otherOrganization}, 'owner', NOW())
+        `)
+
+        const repository = createManagerMembershipRepository(
+          tx as unknown as Database,
+          async () => 'organization',
+        )
+        decisions = await Promise.all([
+          repository.isCurrentAccountAdmin({
+            organizationId: organization,
+            userId: owner,
+          }),
+          repository.isCurrentAccountAdmin({
+            organizationId: organization,
+            userId: manager,
+          }),
+          repository.isCurrentAccountAdmin({
+            organizationId: organization,
+            userId: otherOwner,
+          }),
+          repository.isCurrentAccountAdmin({
+            organizationId: organization,
+            userId: `missing-${suffix}`,
+          }),
+        ])
+        throw rollback
+      }),
+    ).rejects.toBe(rollback)
+
+    expect(decisions).toEqual([true, false, false, false])
+  })
 })

@@ -88,14 +88,14 @@ export const setOrgCapabilityFn = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'policy.admin' })
 
         try {
-          const { policyAdmin } = getContainer()
+          const { policyAdmin, clock } = getContainer()
           await policyAdmin.setOrgCapability({
             organizationId: ctx.organizationId as string,
             capability: data.capability as Capability,
             enabled: data.enabled,
             reason: data.reason,
             actorUserId: ctx.userId as string,
-            now: new Date(),
+            now: clock(),
           })
           return { ok: true }
         } catch (e) {
@@ -132,7 +132,7 @@ export const setPropertyCapabilityFn = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'policy.admin' })
 
         try {
-          const { policyAdmin } = getContainer()
+          const { policyAdmin, clock } = getContainer()
           await policyAdmin.setPropertyCapability({
             organizationId: ctx.organizationId as string,
             propertyId: data.propertyId,
@@ -140,7 +140,7 @@ export const setPropertyCapabilityFn = createServerFn({ method: 'POST' })
             enabled: data.enabled,
             reason: data.reason,
             actorUserId: ctx.userId as string,
-            now: new Date(),
+            now: clock(),
           })
           return { ok: true }
         } catch (e) {
@@ -166,14 +166,14 @@ export const setOrgSuspensionFn = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'policy.admin' })
 
         try {
-          const { policyAdmin } = getContainer()
+          const { policyAdmin, clock } = getContainer()
           await policyAdmin.setOrgSuspension({
             organizationId: ctx.organizationId as string,
             suspend: data.suspend,
             reason: data.reason,
             ticketRef: data.ticketRef,
             actorUserId: ctx.userId as string,
-            now: new Date(),
+            now: clock(),
           })
           return { ok: true }
         } catch (e) {
@@ -207,7 +207,7 @@ export const setPropertySuspensionFn = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'policy.admin' })
 
         try {
-          const { policyAdmin } = getContainer()
+          const { policyAdmin, clock } = getContainer()
           await policyAdmin.setPropertySuspension({
             organizationId: ctx.organizationId as string,
             propertyId: data.propertyId,
@@ -215,7 +215,7 @@ export const setPropertySuspensionFn = createServerFn({ method: 'POST' })
             reason: data.reason,
             ticketRef: data.ticketRef,
             actorUserId: ctx.userId as string,
-            now: new Date(),
+            now: clock(),
           })
           return { ok: true }
         } catch (e) {
@@ -251,7 +251,7 @@ export const grantPropertyAccessFn = createServerFn({ method: 'POST' })
         })
 
         try {
-          const { policyAdmin } = getContainer()
+          const { policyAdmin, clock } = getContainer()
           await policyAdmin.grantPropertyAccessOp({
             organizationId: ctx.organizationId as string,
             propertyId: data.propertyId,
@@ -260,7 +260,7 @@ export const grantPropertyAccessFn = createServerFn({ method: 'POST' })
             ticketRef: data.ticketRef,
             expiresAt: data.expiresAt,
             actorUserId: ctx.userId as string,
-            now: new Date(),
+            now: clock(),
           })
           return { ok: true }
         } catch (e) {
@@ -294,14 +294,14 @@ export const revokePropertyAccessFn = createServerFn({ method: 'POST' })
         })
 
         try {
-          const { policyAdmin } = getContainer()
+          const { policyAdmin, clock } = getContainer()
           await policyAdmin.revokePropertyAccessOp({
             organizationId: ctx.organizationId as string,
             propertyId: data.propertyId,
             userId: data.userId,
             reason: data.reason,
             actorUserId: ctx.userId as string,
-            now: new Date(),
+            now: clock(),
           })
           return { ok: true }
         } catch (e) {
@@ -335,13 +335,13 @@ export const explainPolicyDecisionFn = createServerFn({ method: 'GET' })
         })
 
         try {
-          const { policyAdmin } = getContainer()
+          const { policyAdmin, clock } = getContainer()
           return await policyAdmin.explainPolicyDecision({
             organizationId: ctx.organizationId as string,
             action: data.action as Permission,
             propertyId: data.propertyId,
             userId: data.userId ?? (ctx.userId as string),
-            now: new Date(),
+            now: clock(),
           })
         } catch (e) {
           throw catchUntagged(e)

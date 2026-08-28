@@ -16,6 +16,8 @@ import type {
   PropertyAccessGrantRecord,
 } from '../../application/ports/property-access-grant.port'
 
+type PolicySqlExecutor = Pick<Database, 'execute'>
+
 // The record contract lives in application/ports (boundary rule); re-exported
 // here for the repository's existing consumers.
 export type { GrantSource, PropertyAccessGrantRecord }
@@ -51,7 +53,7 @@ function toDate(v: unknown): Date | null {
 }
 
 export async function grantPropertyAccess(
-  db: Database,
+  db: PolicySqlExecutor,
   input: GrantPropertyAccessInput,
 ): Promise<PropertyAccessGrantRecord> {
   const rows = await db.execute(sql`
@@ -75,7 +77,7 @@ export async function grantPropertyAccess(
 }
 
 export async function revokePropertyAccess(
-  db: Database,
+  db: PolicySqlExecutor,
   input: Readonly<{
     organizationId: string
     propertyId: string

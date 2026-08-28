@@ -11,6 +11,7 @@ function limiterWith(results: ReadonlyArray<boolean>): RateLimiter & {
         allowed: results[check.mock.calls.length - 1] ?? true,
         remaining: 0,
         resetAt: new Date('2026-08-26T12:00:00.000Z'),
+        backendStatus: 'available',
       }) as const,
   )
   return { check }

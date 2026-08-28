@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { getPool } from '#/shared/db/pool'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { decideCurrentMemberPropertyAuthority } from './member-property-authority'
 
 const db = getDb()
@@ -45,7 +46,7 @@ beforeAll(async () => {
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM "user" WHERE id = ${USER}`)
   await db.execute(sql`DELETE FROM permission_version WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
 
   await db.execute(sql`
     INSERT INTO organization (id, name, slug, "createdAt")
@@ -76,7 +77,7 @@ afterAll(async () => {
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM "user" WHERE id = ${USER}`)
   await db.execute(sql`DELETE FROM permission_version WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
 })
 
 describe.sequential('current member Property authority', () => {

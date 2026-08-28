@@ -24,6 +24,10 @@ import type {
   PolicyAdminExplanation,
   PolicyAdminRegionDiagnostic,
 } from '../ports/property-access-grant.port'
+import type {
+  PolicyAdminAuditEntry,
+  PolicyAdminCommandStore,
+} from '../ports/policy-admin-command-store.port'
 import type { Permission } from '#/shared/domain/permissions'
 
 // ── Injected persistence + policy surface (bound at composition) ─────
@@ -52,53 +56,10 @@ export type PolicyAdminDeps = Readonly<{
   }) => Promise<PolicyAdminRegionDiagnostic>
   /** Strong-read the persisted capability snapshot after tenant policy mutations. */
   refreshPolicy: () => Promise<void>
-  // Identity repositories.
-  setOrganizationPolicy: (input: {
-    organizationId: string
-    cohort?: string
-    suspendedAt?: Date | null
-    suspendedReason?: string | null
-  }) => Promise<void>
-  setPropertyPolicy: (input: {
-    propertyId: string
-    suspendedAt?: Date | null
-    suspendedReason?: string | null
-  }) => Promise<void>
-  propertyBelongsToOrganization: (
-    organizationId: string,
-    propertyId: string,
-  ) => Promise<boolean>
-  addOrganizationCapability: (
-    organizationId: string,
-    capability: string,
-    createdBy?: string,
-  ) => Promise<void>
-  removeOrganizationCapability: (
-    organizationId: string,
-    capability: string,
-  ) => Promise<void>
-  addPropertyCapability: (
-    propertyId: string,
-    capability: string,
-    createdBy?: string,
-  ) => Promise<void>
-  removePropertyCapability: (propertyId: string, capability: string) => Promise<void>
-  isOrgMember: (organizationId: string, userId: string) => Promise<boolean>
+  // Identity-owned transaction boundary. Policy/grant state, its version
+  // bump, and the required audit evidence commit together here.
+  commandStore: PolicyAdminCommandStore
   loadOrgPolicyState: (organizationId: string) => Promise<OrgPolicyState>
-  grantPropertyAccess: (input: {
-    organizationId: string
-    propertyId: string
-    userId: string
-    source: 'operator' | 'migration' | 'invitation'
-    createdBy?: string
-    expiresAt?: Date
-  }) => Promise<PropertyAccessGrantRecord>
-  revokePropertyAccess: (input: {
-    organizationId: string
-    propertyId: string
-    userId: string
-    reason?: string
-  }) => Promise<boolean>
   reconcileResponsibleManagerEligibility?: (
     organizationId: string,
     userId: string,
@@ -108,21 +69,7 @@ export type PolicyAdminDeps = Readonly<{
     organizationId: string,
     at: Date,
   ) => Promise<ReadonlyArray<PropertyAccessGrantRecord>>
-  writePolicyDecision: (
-    entry: Readonly<{
-      actorType: string
-      actorId: string | null
-      organizationId: string | null
-      propertyId: string | null
-      action: string
-      capability: string | null
-      executionKind: string
-      decision: string
-      reason: string
-      policyVersion: string
-      correlationId: string | null
-    }>,
-  ) => Promise<void>
+  writePolicyDecision: (entry: PolicyAdminAuditEntry) => Promise<void>
 }>
 
 // ── Shared validation + audit ────────────────────────────────────────
@@ -146,7 +93,21 @@ async function auditOp(
     actorUserId: string
   }>,
 ): Promise<void> {
-  await deps.writePolicyDecision({
+  await deps.writePolicyDecision(auditEntry(deps, input))
+}
+
+function auditEntry(
+  deps: PolicyAdminDeps,
+  input: Readonly<{
+    organizationId: string
+    propertyId?: string | null
+    action: string
+    capability?: string | null
+    reason: string
+    actorUserId: string
+  }>,
+): PolicyAdminAuditEntry {
+  return {
     actorType: 'operator',
     actorId: input.actorUserId,
     organizationId: input.organizationId,
@@ -158,7 +119,7 @@ async function auditOp(
     reason: input.reason.slice(0, 200),
     policyVersion: deps.policyVersion,
     correlationId: null,
-  })
+  }
 }
 
 // ── The operations ───────────────────────────────────────────────────
@@ -193,23 +154,20 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
     }
     requireReason(input.reason)
 
-    if (input.enabled) {
-      await deps.addOrganizationCapability(
-        input.organizationId,
-        input.capability,
-        input.actorUserId,
-      )
-    } else {
-      await deps.removeOrganizationCapability(input.organizationId, input.capability)
-    }
-    await deps.refreshPolicy()
-    await auditOp(deps, {
+    await deps.commandStore.setOrganizationCapability({
       organizationId: input.organizationId,
-      action: input.enabled ? 'policy.allowlist.set' : 'policy.allowlist.clear',
       capability: input.capability,
-      reason: input.reason,
-      actorUserId: input.actorUserId,
+      enabled: input.enabled,
+      createdBy: input.actorUserId,
+      audit: auditEntry(deps, {
+        organizationId: input.organizationId,
+        action: input.enabled ? 'policy.allowlist.set' : 'policy.allowlist.clear',
+        capability: input.capability,
+        reason: input.reason,
+        actorUserId: input.actorUserId,
+      }),
     })
+    await deps.refreshPolicy()
   }
 
   async function setPropertyCapability(
@@ -233,32 +191,24 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
       throw new Error(`capability '${input.capability}' is blocked — never allowlistable`)
     }
     requireReason(input.reason)
-    if (
-      !(await deps.propertyBelongsToOrganization(input.organizationId, input.propertyId))
-    ) {
-      throw new Error('property not found in organization')
-    }
-
-    if (input.enabled) {
-      await deps.addPropertyCapability(
-        input.propertyId,
-        input.capability,
-        input.actorUserId,
-      )
-    } else {
-      await deps.removePropertyCapability(input.propertyId, input.capability)
-    }
-    await deps.refreshPolicy()
-    await auditOp(deps, {
+    await deps.commandStore.setPropertyCapability({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
-      action: input.enabled
-        ? 'policy.property.allowlist.set'
-        : 'policy.property.allowlist.clear',
       capability: input.capability,
-      reason: input.reason,
-      actorUserId: input.actorUserId,
+      enabled: input.enabled,
+      createdBy: input.actorUserId,
+      audit: auditEntry(deps, {
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        action: input.enabled
+          ? 'policy.property.allowlist.set'
+          : 'policy.property.allowlist.clear',
+        capability: input.capability,
+        reason: input.reason,
+        actorUserId: input.actorUserId,
+      }),
     })
+    await deps.refreshPolicy()
   }
 
   async function setOrgSuspension(
@@ -273,18 +223,18 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
   ): Promise<void> {
     requireReason(input.reason)
     requireTicket(input.ticketRef)
-    await deps.setOrganizationPolicy({
+    await deps.commandStore.setOrganizationSuspension({
       organizationId: input.organizationId,
       suspendedAt: input.suspend ? input.now : null,
       suspendedReason: input.suspend ? input.reason : null,
+      audit: auditEntry(deps, {
+        organizationId: input.organizationId,
+        action: input.suspend ? 'policy.org.suspend' : 'policy.org.unsuspend',
+        reason: `${input.reason} (${input.ticketRef})`,
+        actorUserId: input.actorUserId,
+      }),
     })
     await deps.refreshPolicy()
-    await auditOp(deps, {
-      organizationId: input.organizationId,
-      action: input.suspend ? 'policy.org.suspend' : 'policy.org.unsuspend',
-      reason: `${input.reason} (${input.ticketRef})`,
-      actorUserId: input.actorUserId,
-    })
   }
 
   async function setPropertySuspension(
@@ -300,24 +250,20 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
   ): Promise<void> {
     requireReason(input.reason)
     requireTicket(input.ticketRef)
-    if (
-      !(await deps.propertyBelongsToOrganization(input.organizationId, input.propertyId))
-    ) {
-      throw new Error('property not found in organization')
-    }
-    await deps.setPropertyPolicy({
+    await deps.commandStore.setPropertySuspension({
+      organizationId: input.organizationId,
       propertyId: input.propertyId,
       suspendedAt: input.suspend ? input.now : null,
       suspendedReason: input.suspend ? input.reason : null,
+      audit: auditEntry(deps, {
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        action: input.suspend ? 'policy.property.suspend' : 'policy.property.unsuspend',
+        reason: `${input.reason} (${input.ticketRef})`,
+        actorUserId: input.actorUserId,
+      }),
     })
     await deps.refreshPolicy()
-    await auditOp(deps, {
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      action: input.suspend ? 'policy.property.suspend' : 'policy.property.unsuspend',
-      reason: `${input.reason} (${input.ticketRef})`,
-      actorUserId: input.actorUserId,
-    })
   }
 
   async function grantPropertyAccessOp(
@@ -337,24 +283,22 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
     if (input.expiresAt && input.expiresAt.getTime() <= input.now.getTime()) {
       throw new Error('expiresAt must be in the future for temporary access')
     }
-    if (!(await deps.isOrgMember(input.organizationId, input.userId))) {
-      throw new Error(`user ${input.userId} is not a member of this organization`)
-    }
-    await deps.grantPropertyAccess({
+    await deps.commandStore.grantPropertyAccess({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       userId: input.userId,
       source: 'operator',
       createdBy: input.actorUserId,
       expiresAt: input.expiresAt,
+      audit: auditEntry(deps, {
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        action: 'policy.grant',
+        reason: `${input.reason} (${input.ticketRef})`,
+        actorUserId: input.actorUserId,
+      }),
     })
-    await auditOp(deps, {
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      action: 'policy.grant',
-      reason: `${input.reason} (${input.ticketRef})`,
-      actorUserId: input.actorUserId,
-    })
+    await deps.refreshPolicy()
   }
 
   async function revokePropertyAccessOp(
@@ -368,19 +312,20 @@ export function createPolicyAdminOps(deps: PolicyAdminDeps) {
     }>,
   ): Promise<void> {
     requireReason(input.reason)
-    await deps.revokePropertyAccess({
+    await deps.commandStore.revokePropertyAccess({
       organizationId: input.organizationId,
       propertyId: input.propertyId,
       userId: input.userId,
       reason: input.reason,
+      audit: auditEntry(deps, {
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        action: 'policy.revoke',
+        reason: input.reason,
+        actorUserId: input.actorUserId,
+      }),
     })
-    await auditOp(deps, {
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      action: 'policy.revoke',
-      reason: input.reason,
-      actorUserId: input.actorUserId,
-    })
+    await deps.refreshPolicy()
     await deps.reconcileResponsibleManagerEligibility?.(
       input.organizationId,
       input.userId,

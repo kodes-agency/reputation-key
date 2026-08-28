@@ -1,0 +1,70 @@
+import type {
+  OrganizationClosureCancelReasonCode,
+  OrganizationClosureRequestReasonCode,
+  OrganizationLifecycleState,
+  OrganizationLifecycleStatus,
+} from '../../domain/organization-lifecycle'
+
+export type RequestOrganizationClosureCommand = Readonly<{
+  operationId: string
+  organizationId: string
+  actorUserId: string
+  reasonCode: OrganizationClosureRequestReasonCode
+  supportEvidenceRef: string
+  now: Date
+  recoverableUntil: Date
+}>
+
+export type CancelOrganizationClosureCommand = Readonly<{
+  operationId: string
+  organizationId: string
+  actorUserId: string
+  reasonCode: OrganizationClosureCancelReasonCode
+  supportEvidenceRef: string
+  now: Date
+}>
+
+export type TransitionOrganizationLifecycleCommand = Readonly<{
+  organizationId: string
+  closureLineageId: string
+  expectedRevision: number
+  from: OrganizationLifecycleState
+  to: OrganizationLifecycleState
+  actorUserId: string
+  reasonCode:
+    | 'closing_prepared'
+    | 'recovery_window_elapsed'
+    | 'recovery_window_waived'
+    | 'purge_cancelled_before_irreversible'
+    | 'irreversible_purge_authorized'
+    | 'context_purge_complete'
+  supportEvidenceRef: string
+  now: Date
+}>
+
+export type ListOrganizationLifecycleCandidatesInput = Readonly<{
+  states: readonly OrganizationLifecycleState[]
+  now: Date
+  limit: number
+}>
+
+export type OrganizationLifecycleCommandStore = Readonly<{
+  requestClosure(
+    command: RequestOrganizationClosureCommand,
+  ): Promise<OrganizationLifecycleStatus>
+  getStatus(input: {
+    organizationId: string
+    actorUserId: string
+  }): Promise<OrganizationLifecycleStatus>
+  cancelClosure(
+    command: CancelOrganizationClosureCommand,
+  ): Promise<OrganizationLifecycleStatus>
+  /** Internal worker/operator read. Authorization belongs to its caller. */
+  getAuthority(organizationId: string): Promise<OrganizationLifecycleStatus>
+  listCandidates(
+    input: ListOrganizationLifecycleCandidatesInput,
+  ): Promise<readonly OrganizationLifecycleStatus[]>
+  transition(
+    command: TransitionOrganizationLifecycleCommand,
+  ): Promise<OrganizationLifecycleStatus>
+}>

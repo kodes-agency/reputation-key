@@ -26,6 +26,12 @@ export type RemoveMemberDeps = Readonly<{
     organizationId: OrganizationId,
     userId: string,
   ) => Promise<void>
+  /** Fence any current OAuth grant authorized by the departing member. */
+  prepareGoogleConnectorDeparture?: (
+    organizationId: OrganizationId,
+    userId: string,
+    cause: 'member_removed',
+  ) => Promise<void>
   /** Release Inbox/manager/access authorities without requiring replacements. */
   releaseMemberAuthorities?: (
     organizationId: OrganizationId,
@@ -72,6 +78,11 @@ export const removeMember =
       }
     }
 
+    await deps.prepareGoogleConnectorDeparture?.(
+      ctx.organizationId,
+      targetMember.userId,
+      'member_removed',
+    )
     await deps.cancelGoogleImportsForUser?.(ctx.organizationId, targetMember.userId)
     await deps.releaseMemberAuthorities?.(
       ctx.organizationId,

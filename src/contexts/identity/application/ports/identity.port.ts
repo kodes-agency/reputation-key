@@ -7,6 +7,7 @@ import type { Permission } from '#/shared/domain/permissions'
 import type { DataScope } from '#/shared/domain/data-scope'
 import type { OrganizationId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
 
 /** Organization member shape returned by the port. */
 export type MemberRecord = Readonly<{
@@ -50,8 +51,16 @@ export type OrganizationRecord = Readonly<{
 
 /** Port for identity operations — wraps better-auth API calls. */
 export type IdentityPort = Readonly<{
-  /** Sign up a new user. Returns user ID. */
-  signUp: (name: string, email: string, password: string) => Promise<string>
+  /**
+   * Sign up a new user. Returns user ID. When supplied, expectedUserId is a
+   * recovery-fenced identities allocated before provider work begins.
+   */
+  signUp: (
+    name: string,
+    email: string,
+    password: string,
+    expectedAuthIds?: RegistrationAuthIds,
+  ) => Promise<string>
 
   /** List members of the active organization. */
   listMembers: (ctx: AuthContext) => Promise<ReadonlyArray<MemberRecord>>

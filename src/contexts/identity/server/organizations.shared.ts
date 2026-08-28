@@ -18,6 +18,7 @@ export const identityErrorStatus = (code: IdentityErrorCode): number =>
       'invalid_slug',
       'invalid_name',
       'validation_error',
+      'feedback_triage_invalid',
       () => HTTP_STATUS.BAD_REQUEST,
     )
     .with('registration_failed', () => HTTP_STATUS.BAD_REQUEST)

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 
 export const PEOPLE_AUTHORITY_RECONCILIATION_VERSION =
-  'repkey-people-authority-reconciliation-1' as const
+  'repkey-people-authority-reconciliation-2' as const
 
 export type PeopleAuthorityReconciliationOutcome =
   'exact' | 'mappable' | 'conflict' | 'orphan' | 'unsafe'
@@ -18,6 +18,10 @@ export type PeopleAuthorityReconciliationSource =
   | 'team_membership'
   | 'portal_responsible_manager'
   | 'property_responsible_manager'
+  | 'guest_qualified_scan'
+  | 'guest_response'
+  | 'metric_reading'
+  | 'metric_correction'
 
 export type PeopleAuthorityReconciliationDimension =
   | 'participant_mapping'
@@ -32,6 +36,7 @@ export type PeopleAuthorityReconciliationDimension =
   | 'manager_eligibility'
   | 'team_quarantine'
   | 'retained_history'
+  | 'event_time_staff_attribution'
 
 export type PeopleAuthorityReconciliationRow = Readonly<{
   source: PeopleAuthorityReconciliationSource
