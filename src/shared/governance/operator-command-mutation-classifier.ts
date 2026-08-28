@@ -69,6 +69,7 @@ const PURE_DIAGNOSTIC_COMMANDS = [
   'scripts/review/comprehensive-program-status.ts',
   'scripts/review/finding-revalidation.ts',
   'scripts/review/finding-revalidation-fragment.ts',
+  'scripts/review/legal-document-registry.ts',
   'scripts/review/pre-fix-oracles.ts',
   'scripts/review/zod-v4-conformance.ts',
   'scripts/simulation-invocation.ts',

@@ -5168,6 +5168,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/review/legal-document-registry.ts',
+    'scripts/review/legal-document-registry.ts',
+    'none',
+    {
+      notes:
+        'check:legal-registry — LEG-01 read-only validator: recomputes every legal document digest, refuses an approved document whose bytes changed, refuses engineering self-approval, and refuses approving a document while a counsel decision that blocks it is still open',
+    },
+  ),
+  ops(
     'scripts/review/finding-revalidation.ts',
     'scripts/review/finding-revalidation.ts',
     'none',

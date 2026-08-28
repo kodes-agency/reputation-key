@@ -665,7 +665,7 @@ describe('BQC-2.1 entry-point catalogue', () => {
         .update(rows.map((entry) => `${entry.id}|${entry.file}`).join('\n'))
         .digest('hex')
     expect(orderedDigest(catalogue)).toBe(
-      'dfbaafb4b2b0cd922863615aa5628b9c7c03b84fff079285e722728f8a0a5716',
+      '6b1a1d99f60b5854de6b4aaf30654e22b17c74291c1b30e0e7ed23e141d25765',
     )
     expect(
       orderedDigest(
@@ -673,7 +673,7 @@ describe('BQC-2.1 entry-point catalogue', () => {
           ({ id }) => id !== 'consumer:notification.workflow-outbox-consumers',
         ),
       ),
-    ).toBe('8e3febf02f08de391c277b94c65aecb67cd529b6cf818152cda207b7e499b7d0')
+    ).toBe('73c0c7285499ab01322432011ba711cf0aff1f991c3666b890efe76d9fbf2a7e')
 
     const invalid = {
       ...catalogue[0],
