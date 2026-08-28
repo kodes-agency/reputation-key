@@ -14,8 +14,8 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   clean: true,
-  alias: {
-    '#': './src',
+  esbuildOptions(options) {
+    options.alias = { '#': './src' }
   },
   noExternal: [/^#/],
   external: ['pg', 'ioredis', 'bullmq', 'pino', 'better-auth', 'drizzle-orm'],

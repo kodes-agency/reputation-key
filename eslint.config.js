@@ -40,10 +40,47 @@ export default tseslint.config(
       '**/.a5c/**',
       '**/.agents/**',
       'src/routeTree.gen.ts',
-      'scripts/**',
       'deacon/**',
       'reputation_key/**',
     ],
+  },
+
+  // Operational and CI scripts execute on the repository-pinned Node runtime.
+  // Keep them in the lint gate with the runtime globals they actually receive;
+  // do not make the whole repository ambiently Node-shaped because browser
+  // modules should still catch accidental server-global use.
+  {
+    files: ['scripts/**/*.{ts,mjs}'],
+    languageOptions: {
+      globals: {
+        AbortController: 'readonly',
+        Blob: 'readonly',
+        Buffer: 'readonly',
+        clearInterval: 'readonly',
+        clearTimeout: 'readonly',
+        console: 'readonly',
+        crypto: 'readonly',
+        fetch: 'readonly',
+        FormData: 'readonly',
+        Headers: 'readonly',
+        process: 'readonly',
+        Request: 'readonly',
+        Response: 'readonly',
+        setInterval: 'readonly',
+        setTimeout: 'readonly',
+        structuredClone: 'readonly',
+        TextDecoder: 'readonly',
+        TextEncoder: 'readonly',
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+      },
+    },
+    rules: {
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
+    },
   },
 
   // ─── Architectural boundary enforcement ────────────────────────────
@@ -250,7 +287,7 @@ export default tseslint.config(
         },
         {
           category: 'composition-root',
-          pattern: ['src/composition.ts', 'src/bootstrap.ts'],
+          pattern: ['src/composition.ts', 'src/composition/**/*.ts', 'src/bootstrap.ts'],
         },
         {
           category: 'start-entry',

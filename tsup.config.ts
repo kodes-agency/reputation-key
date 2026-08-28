@@ -26,9 +26,10 @@ export default defineConfig({
   splitting: false,
   sourcemap: true,
   clean: true,
-  // Allows importing from shared code that uses `#/` path alias
-  alias: {
-    '#': './src',
+  // Allows importing from shared code that uses `#/` path alias. tsup 8
+  // exposes esbuild's alias map through this supported configuration hook.
+  esbuildOptions(options) {
+    options.alias = { '#': './src' }
   },
   // Don't bundle node_modules — the worker runs on Node.js
   // (bare names also match their subpath imports, e.g. 'better-auth' covers

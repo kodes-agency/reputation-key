@@ -3,6 +3,7 @@
 dist-worker/
 storybook-static/
 .tmp-storybook-build/
+.tmp-unit-results.json
 
 
 # Generated artifacts

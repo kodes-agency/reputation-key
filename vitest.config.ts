@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig, type TestProjectConfiguration } from 'vitest/config'
 import { resolve } from 'path'
 import { storybookTest } from '@storybook/addon-vitest/vitest-plugin'
 import { playwright } from '@vitest/browser-playwright'
@@ -19,7 +19,7 @@ import { testEnvironment } from './src/shared/testing/test-environment'
 // force-name the project `storybook:<configDir>` (the exact name the manager
 // filters by), so existence and naming stay consistent. The `test:storybook`
 // CLI script sets VITEST_STORYBOOK=true explicitly to opt in.
-const storybookProject =
+const storybookProject: TestProjectConfiguration[] =
   process.env.VITEST_STORYBOOK === 'true'
     ? [
         {
@@ -57,9 +57,8 @@ export default defineConfig({
     // `--coverage.enabled=true`; these defaults shape that run.
     coverage: {
       provider: 'v8',
-      // Count every included source file, not just the ones tests import —
-      // an untested file must lower the baseline, not vanish from it.
-      all: true,
+      // An explicit include makes untouched matching files part of Vitest 4's
+      // report; an untested file must lower the baseline, not vanish from it.
       include: ['src/**/*.{ts,tsx}'],
       exclude: [
         'src/**/*.test.ts',
@@ -134,6 +133,7 @@ export default defineConfig({
           // (idempotent — fast-skips when the deploy migration state is present).
           globalSetup: ['src/shared/testing/integration-global-setup.ts'],
           pool: 'forks',
+          fileParallelism: false,
           maxWorkers: 1,
           testTimeout: 30_000,
           env: {

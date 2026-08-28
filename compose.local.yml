@@ -302,7 +302,9 @@ services:
     environment:
       RELEASE_SHA: ${SOURCE_REVISION}
       HOST: 0.0.0.0
-      PORT: '8443'
+      PORT: '8080'
+      INTERNAL_MTLS_PORT: '8443'
+      PROCESSING_CELL: us
       DATABASE_URL: postgresql://repkey_google_admission_local:${GOOGLE_ADMISSION_DATABASE_PASSWORD}@postgres:5432/${POSTGRES_DB}
       GOOGLE_ADMISSION_DATABASE_CA_B64: ${AI_CONTROL_DATABASE_CA_B64}
       REDIS_URL: redis://redis:6379
@@ -317,7 +319,7 @@ services:
           CMD,
           node,
           -e,
-          "const h=require('node:https'),f=require('node:fs');const r=h.get({host:'127.0.0.1',port:8443,path:'/health/ready',ca:f.readFileSync('/run/repkey/ca.crt'),cert:f.readFileSync('/run/repkey/google-healthcheck.crt'),key:f.readFileSync('/run/repkey/google-healthcheck.key'),servername:'google-execution-admission',minVersion:'TLSv1.3'},x=>process.exit(x.statusCode===200?0:1));r.on('error',()=>process.exit(1))",
+          "fetch('http://127.0.0.1:8080/health/ready').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 2s
       timeout: 3s
@@ -358,7 +360,9 @@ services:
         SOURCE_REVISION: ${SOURCE_REVISION}
     environment:
       RELEASE_SHA: ${SOURCE_REVISION}
-      PORT: '8443'
+      PORT: '8080'
+      INTERNAL_MTLS_PORT: '8443'
+      PROCESSING_CELL: us
       GOOGLE_EGRESS_GATEWAY_IDENTITY: spiffe://repkey.internal/google-egress-gateway
       GOOGLE_EGRESS_ALLOWED_CALLER_IDENTITIES: spiffe://repkey.internal/repkey-web,spiffe://repkey.internal/repkey-worker
       GOOGLE_EXECUTION_ADMISSION_ORIGIN: https://google-execution-admission:8443
@@ -379,7 +383,7 @@ services:
           CMD,
           node,
           -e,
-          "const h=require('node:https'),f=require('node:fs');const r=h.get({host:'127.0.0.1',port:8443,path:'/health/ready',ca:f.readFileSync('/run/repkey/ca.crt'),cert:f.readFileSync('/run/repkey/google-healthcheck.crt'),key:f.readFileSync('/run/repkey/google-healthcheck.key'),servername:'google-egress-gateway',minVersion:'TLSv1.3'},x=>process.exit(x.statusCode===200?0:1));r.on('error',()=>process.exit(1))",
+          "fetch('http://127.0.0.1:8080/health/ready').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 2s
       timeout: 3s
@@ -528,6 +532,7 @@ services:
     command: [node, dist-worker/migrate-deploy.js]
     environment:
       <<: *app-environment
+      DEPLOY_MIGRATE: '1'
       BETTER_AUTH_URL: http://127.0.0.1:3000
       REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS: ${REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS}
     depends_on:
@@ -594,7 +599,9 @@ services:
       NODE_ENV: production
       AI_KEY_INVENTORY_PROFILE: ${AI_KEY_INVENTORY_PROFILE}
       HOST: '::'
-      PORT: '8443'
+      PORT: '8080'
+      INTERNAL_MTLS_PORT: '8443'
+      PROCESSING_CELL: us
       AI_CONTROL_DATABASE_URL: postgresql://repkey_ai_admission_local:${AI_CONTROL_DATABASE_PASSWORD}@ai-control-postgres:5432/${POSTGRES_DB}
       AI_CONTROL_DATABASE_CA_B64: ${AI_CONTROL_DATABASE_CA_B64}
       AI_INTERNAL_MTLS_CA_B64: ${AI_INTERNAL_MTLS_CA_B64}
@@ -631,7 +638,7 @@ services:
           CMD,
           node,
           -e,
-          "const s=require('node:net').connect(8443,'::1');s.once('connect',()=>{s.destroy();process.exit(0)});s.once('error',()=>process.exit(1));setTimeout(()=>process.exit(1),1000)",
+          "fetch('http://[::1]:8080/health/ready').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 2s
       timeout: 3s
@@ -654,7 +661,9 @@ services:
       NODE_ENV: production
       AI_KEY_INVENTORY_PROFILE: ${AI_KEY_INVENTORY_PROFILE}
       HOST: '::'
-      PORT: '8443'
+      PORT: '8080'
+      INTERNAL_MTLS_PORT: '8443'
+      PROCESSING_CELL: us
       RELEASE_SHA: ${SOURCE_REVISION}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-local-ai-provider-stub-not-live}
       AI_EXECUTION_ADMISSION_ORIGIN: https://ai-execution-admission.railway.internal:8443
@@ -695,7 +704,7 @@ services:
           CMD,
           node,
           -e,
-          "const s=require('node:net').connect(8443,'::1');s.once('connect',()=>{s.destroy();process.exit(0)});s.once('error',()=>process.exit(1));setTimeout(()=>process.exit(1),1000)",
+          "fetch('http://[::1]:8080/health/ready').then(r=>process.exit(r.status===200?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 2s
       timeout: 3s

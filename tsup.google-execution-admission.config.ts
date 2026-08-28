@@ -2,7 +2,7 @@ import { defineConfig } from 'tsup'
 
 export default defineConfig({
   entry: {
-    index: 'services/google-execution-admission/index.ts',
+    index: 'services/google-execution-admission/entry.ts',
   },
   outDir: 'dist-google-execution-admission',
   format: ['esm'],

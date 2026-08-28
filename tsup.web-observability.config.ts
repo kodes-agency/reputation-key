@@ -15,8 +15,8 @@ export default defineConfig({
   sourcemap: true,
   clean: false,
   outExtension: () => ({ js: '.mjs' }),
-  alias: {
-    '#': './src',
+  esbuildOptions(options) {
+    options.alias = { '#': './src' }
   },
   noExternal: [/^#/],
   external: ['@sentry/node', 'pino'],

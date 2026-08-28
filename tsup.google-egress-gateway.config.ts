@@ -2,7 +2,7 @@ import { defineConfig } from 'tsup'
 
 export default defineConfig({
   entry: {
-    index: 'services/google-egress-gateway/index.ts',
+    index: 'services/google-egress-gateway/entry.ts',
   },
   outDir: 'dist-google-egress-gateway',
   format: ['esm'],

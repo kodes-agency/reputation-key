@@ -2,7 +2,7 @@ import { defineConfig } from 'tsup'
 
 export default defineConfig({
   entry: {
-    index: 'services/google-egress-gateway/index.ts',
+    index: 'services/google-egress-gateway/entry.ts',
     'control-proxy': 'services/google-egress-gateway/control-proxy.ts',
     'tcp-relay': 'services/google-egress-gateway/tcp-relay.ts',
   },

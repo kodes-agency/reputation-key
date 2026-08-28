@@ -2,7 +2,7 @@ import { defineConfig } from 'tsup'
 
 export default defineConfig({
   entry: {
-    index: 'services/ai-execution-admission/index.ts',
+    index: 'services/ai-execution-admission/entry.ts',
   },
   outDir: 'dist-ai-execution-admission',
   format: ['esm'],
@@ -10,22 +10,7 @@ export default defineConfig({
   splitting: false,
   sourcemap: false,
   clean: true,
-  noExternal: [
-    /^#/,
-    'pg',
-    'pg-connection-string',
-    'pg-pool',
-    'pg-protocol',
-    'pg-types',
-    'pgpass',
-    'postgres-array',
-    'postgres-bytea',
-    'postgres-date',
-    'postgres-interval',
-    'split2',
-    'xtend',
-    'zod',
-  ],
+  noExternal: [/.*/],
   external: ['pg-native', 'pg-cloudflare'],
   env: {
     NODE_ENV: process.env.NODE_ENV ?? 'production',

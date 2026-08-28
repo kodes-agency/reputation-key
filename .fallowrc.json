@@ -10,17 +10,41 @@
     "scripts/check-db.ts",
     "scripts/check-schema-drift.ts",
     "scripts/cleanup-all.ts",
+    "scripts/ai-language-attestation.ts",
+    "scripts/beta/run-product-journeys.ts",
+    "scripts/beta/verify-gate-evidence.ts",
+    "scripts/generate-ai-language-script-table.ts",
+    "scripts/generate-ai-reply-language-profile.ts",
+    "scripts/generate-ai-review-language-profile.ts",
+    "scripts/generate-ai-review-language-regions.ts",
+    "scripts/generate-ai-unicode-case-folding.ts",
+    "scripts/generate-ai-zh-orthography-table.ts",
+    "scripts/google-import-final-schema-probe.ts",
+    "scripts/local-stack/provision-ai-admission-role.ts",
+    "scripts/migrations/null-inbox-source-copies.ts",
+    "scripts/ops/report-people-authority.ts",
+    "scripts/ops/report-portal-access-artifacts.ts",
+    "scripts/seed-demo-reviews.ts",
+    "scripts/test-db-setup.ts",
+    "scripts/verify-ai-gateway-runtime-assets.ts",
+    "scripts/verify-ai-runtime-image.mjs",
     "vite.config.ts",
     "drizzle.config.ts",
     "services/ai-egress-gateway/canary-entry.ts",
     "services/ai-egress-gateway/index.ts",
     "services/ai-egress-gateway/local-provider-entry.ts",
     "services/ai-egress-gateway/runtime-egress-probe.ts",
+    "services/ai-execution-admission/entry.ts",
     "services/ai-execution-admission/index.ts",
     "services/google-egress-gateway/control-proxy.ts",
+    "services/google-egress-gateway/entry.ts",
     "services/google-egress-gateway/index.ts",
     "services/google-egress-gateway/tcp-relay.ts",
-    "services/google-execution-admission/index.ts"
+    "services/google-execution-admission/entry.ts",
+    "services/google-execution-admission/index.ts",
+    "tsup.ai-egress-gateway-local.config.ts",
+    "tsup.ai-egress-gateway-runtime-assets.config.ts",
+    "tsup.ai-egress-probe.config.ts"
   ],
   "ignorePatterns": [
     "src/routeTree.gen.ts",
@@ -31,8 +55,7 @@
     "e2e/**",
     "docs/**",
     ".claude/**",
-    "src/shared/testing/**",
-    "scripts/**"
+    "src/shared/testing/**"
   ],
   "ignoreDependencies": [
     "@rolldown/binding-darwin-arm64",
@@ -136,6 +159,14 @@
       "exports": ["setVitalsReporter"]
     },
     {
+      "file": "scripts/ops/operator-command.ts",
+      "exports": ["runOperatorCommand"]
+    },
+    {
+      "file": "src/shared/ops/operator-command.ts",
+      "exports": ["runOperatorCommand"]
+    },
+    {
       "file": "src/shared/bqc/status-schema.ts",
       "exports": [
         "BQC_STATES",
@@ -200,6 +231,8 @@
     {
       "files": [
         "server/plugins/production-secret-guard.ts",
+        "server/plugins/redis-runtime-guard.ts",
+        "server/plugins/release-identity-guard.ts",
         "server/plugins/restore-mode-guard.ts",
         "server/plugins/security-headers.ts",
         "server/plugins/request-guard.ts",
@@ -215,6 +248,19 @@
       ],
       "rules": {
         "unused-files": "off"
+      }
+    },
+    {
+      "files": [
+        "src/contexts/badge/application/public-api.ts",
+        "src/contexts/badge/build.ts",
+        "src/contexts/leaderboard/build.ts",
+        "src/contexts/team/application/public-api.ts",
+        "src/contexts/team/build.ts"
+      ],
+      "rules": {
+        "unused-files": "off",
+        "unused-exports": "off"
       }
     },
     {
