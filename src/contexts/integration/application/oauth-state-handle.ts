@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto'
+import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { z } from 'zod/v4'
 import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
@@ -11,6 +11,8 @@ export type OAuthVerifierMaterialV2 = Readonly<{
 const oauthStateRecordSchema = z
   .object({
     version: z.literal(2),
+    state: z.literal('issued'),
+    exchangeAttemptId: z.uuid(),
     organizationId: z.string().min(1).max(255),
     userId: z.string().min(1).max(255),
     audience: z.literal('google-connect'),
@@ -28,7 +30,24 @@ const oauthStateRecordSchema = z
   })
   .strict()
 
+const oauthStateRecoveryTombstoneSchema = z
+  .object({
+    version: z.literal(2),
+    state: z.literal('redeemed'),
+    exchangeAttemptId: z.uuid(),
+    organizationId: z.string().min(1).max(255),
+    userId: z.string().min(1).max(255),
+    audience: z.literal('google-connect-recovery'),
+    returnRoute: z.literal('/properties/import-google'),
+    sessionBindingKeyVersion: z.string().min(1).max(32),
+    sessionBindingDigest: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+    issuedAtMs: z.number().int().nonnegative(),
+    expiresAtMs: z.number().int().positive(),
+  })
+  .strict()
+
 export type OAuthStateHandleRecord = z.infer<typeof oauthStateRecordSchema>
+type OAuthStateRecoveryTombstone = z.infer<typeof oauthStateRecoveryTombstoneSchema>
 export type OAuthStateHandleRejection =
   'malformed' | 'not_found' | 'expired' | 'binding_mismatch' | 'replayed'
 
@@ -58,12 +77,20 @@ export type OAuthStateHandleService = Readonly<{
   ) => Promise<
     | Readonly<{
         ok: true
+        kind: 'exchange'
+        exchangeAttemptId: string
         visibility: 'private' | 'organization'
         purpose: 'reviews' | 'import_gbp_v2' | 'performance_reauth'
         connectionMode: 'new' | 'reauth' | 'reconnect'
         targetConnectionId: string | null
         returnRoute: '/properties/import-google'
         verifierMaterial: OAuthVerifierMaterialV2
+      }>
+    | Readonly<{
+        ok: true
+        kind: 'recovery'
+        exchangeAttemptId: string
+        returnRoute: '/properties/import-google'
       }>
     | Readonly<{ ok: false; code: OAuthStateHandleRejection }>
   >
@@ -82,10 +109,12 @@ export function createOAuthStateHandleService(
     handleKeys: VersionedHmacKeyring
     sessionKeys: VersionedHmacKeyring
     random?: (bytes: number) => Buffer
+    newExchangeAttemptId?: () => string
     ensureRuntimeReady?: () => Promise<void>
   }>,
 ): OAuthStateHandleService {
   const random = deps.random ?? randomBytes
+  const newExchangeAttemptId = deps.newExchangeAttemptId ?? randomUUID
 
   const parseHandle = (handle: string): boolean => {
     const parts = handle.split('.')
@@ -102,10 +131,15 @@ export function createOAuthStateHandleService(
     )
   }
 
-  const parseRecord = (encoded: string): OAuthStateHandleRecord | null => {
+  const parseRecord = (
+    encoded: string,
+  ): OAuthStateHandleRecord | OAuthStateRecoveryTombstone | null => {
     try {
-      const parsed = oauthStateRecordSchema.safeParse(JSON.parse(encoded))
-      return parsed.success ? parsed.data : null
+      const value: unknown = JSON.parse(encoded)
+      const issued = oauthStateRecordSchema.safeParse(value)
+      if (issued.success) return issued.data
+      const recovered = oauthStateRecoveryTombstoneSchema.safeParse(value)
+      return recovered.success ? recovered.data : null
     } catch {
       return null
     }
@@ -130,6 +164,8 @@ export function createOAuthStateHandleService(
       }
       const record: OAuthStateHandleRecord = {
         version: 2,
+        state: 'issued',
+        exchangeAttemptId: newExchangeAttemptId(),
         organizationId: input.organizationId,
         userId: input.userId,
         audience: 'google-connect',
@@ -180,11 +216,53 @@ export function createOAuthStateHandleService(
       ) {
         return { ok: false, code: 'binding_mismatch' }
       }
-      const consumption = await deps.store.consumeIfEquals('oauth-state', key, encoded)
-      if (consumption === 'not_found') return { ok: false, code: 'replayed' }
-      if (consumption === 'mismatch') return { ok: false, code: 'malformed' }
+      if (record.state === 'redeemed') {
+        return {
+          ok: true,
+          kind: 'recovery',
+          exchangeAttemptId: record.exchangeAttemptId,
+          returnRoute: record.returnRoute,
+        }
+      }
+      const tombstone: OAuthStateRecoveryTombstone = {
+        version: 2,
+        state: 'redeemed',
+        exchangeAttemptId: record.exchangeAttemptId,
+        organizationId: record.organizationId,
+        userId: record.userId,
+        audience: 'google-connect-recovery',
+        returnRoute: record.returnRoute,
+        sessionBindingKeyVersion: record.sessionBindingKeyVersion,
+        sessionBindingDigest: record.sessionBindingDigest,
+        issuedAtMs: record.issuedAtMs,
+        expiresAtMs: record.expiresAtMs,
+      }
+      const replacement = await deps.store.replaceIfEquals(
+        'oauth-state',
+        key,
+        encoded,
+        JSON.stringify(tombstone),
+        Math.max(1, Math.ceil((record.expiresAtMs - input.nowMs) / 1_000)),
+      )
+      if (replacement === 'not_found') return { ok: false, code: 'replayed' }
+      if (replacement === 'mismatch') {
+        const raced = await deps.store.read('oauth-state', key)
+        const parsedRace = raced ? parseRecord(raced) : null
+        return parsedRace?.state === 'redeemed' &&
+          parsedRace.organizationId === input.organizationId &&
+          parsedRace.userId === input.userId
+          ? {
+              ok: true,
+              kind: 'recovery',
+              exchangeAttemptId: parsedRace.exchangeAttemptId,
+              returnRoute: parsedRace.returnRoute,
+            }
+          : { ok: false, code: 'replayed' }
+      }
       return {
         ok: true,
+        kind: 'exchange',
+        exchangeAttemptId: record.exchangeAttemptId,
         visibility: record.visibility,
         purpose: record.purpose,
         connectionMode: record.connectionMode,

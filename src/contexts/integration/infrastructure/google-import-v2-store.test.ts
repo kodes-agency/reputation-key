@@ -67,6 +67,9 @@ const INTENT: GoogleImportV2Intent = {
   outboxEventId: '00000000-0000-4000-8000-000000000005',
 }
 
+const createStore = (database: Database, clock: () => Date = () => NOW) =>
+  createGoogleImportV2Store(database, clock)
+
 type InsertRecord = Readonly<{ table: unknown; values: unknown }>
 
 function transactionalDb(failTable?: unknown, failure?: unknown) {
@@ -96,9 +99,12 @@ function selectingDb(results: readonly (readonly unknown[])[]) {
       from: () => ({
         where: () => {
           const rows = results[call++] ?? []
+          const ordered = Object.assign(Promise.resolve(rows), {
+            limit: async () => rows,
+          })
           return {
             limit: async () => rows,
-            orderBy: () => ({ limit: async () => rows }),
+            orderBy: () => ordered,
           }
         },
       }),
@@ -110,7 +116,7 @@ function selectingDb(results: readonly (readonly unknown[])[]) {
 describe('Google import v2 store', () => {
   it('commits parent, items, and identifier-only outbox intent together', async () => {
     const fake = transactionalDb()
-    const store = createGoogleImportV2Store(fake.database)
+    const store = createStore(fake.database)
 
     await expect(store.commitIntent(INTENT)).resolves.toBe('committed')
 
@@ -155,7 +161,7 @@ describe('Google import v2 store', () => {
 
   it('rolls back every staged row when the outbox insert fails', async () => {
     const fake = transactionalDb(outboxEvents)
-    const store = createGoogleImportV2Store(fake.database)
+    const store = createStore(fake.database)
 
     await expect(store.commitIntent(INTENT)).rejects.toThrow('insert failed')
     expect(fake.committed).toEqual([])
@@ -167,12 +173,12 @@ describe('Google import v2 store', () => {
       cause: { code: '23505' },
     })
 
-    await expect(
-      createGoogleImportV2Store(direct.database).commitIntent(INTENT),
-    ).resolves.toBe('conflict')
-    await expect(
-      createGoogleImportV2Store(wrapped.database).commitIntent(INTENT),
-    ).resolves.toBe('conflict')
+    await expect(createStore(direct.database).commitIntent(INTENT)).resolves.toBe(
+      'conflict',
+    )
+    await expect(createStore(wrapped.database).commitIntent(INTENT)).resolves.toBe(
+      'conflict',
+    )
     expect(direct.committed).toEqual([])
     expect(wrapped.committed).toEqual([])
   })
@@ -191,7 +197,7 @@ describe('Google import v2 store', () => {
         },
       ],
     ])
-    const store = createGoogleImportV2Store(fake.database)
+    const store = createStore(fake.database)
 
     await expect(
       store.listPendingDispatchItems(INTENT.organizationId, INTENT.id),
@@ -210,7 +216,7 @@ describe('Google import v2 store', () => {
 
   it('distinguishes a missing parent and never reads child rows', async () => {
     const fake = selectingDb([[]])
-    const store = createGoogleImportV2Store(fake.database)
+    const store = createStore(fake.database)
 
     await expect(
       store.listPendingDispatchItems(INTENT.organizationId, INTENT.id),
@@ -220,12 +226,62 @@ describe('Google import v2 store', () => {
 
   it('does not dispatch pending-shaped rows from a terminal parent', async () => {
     const fake = selectingDb([[{ id: INTENT.id, status: 'cancelled' }]])
-    const store = createGoogleImportV2Store(fake.database)
+    const store = createStore(fake.database)
 
     await expect(
       store.listPendingDispatchItems(INTENT.organizationId, INTENT.id),
     ).resolves.toEqual([])
     expect(fake.calls()).toBe(1)
+  })
+
+  it('derives active progress polling from the injected clock', async () => {
+    const pollNow = new Date('2099-01-01T12:00:00.000Z')
+    const updatedAt = new Date(pollNow.getTime() - 30_000)
+    let clockCalls = 0
+    const fake = selectingDb([
+      [],
+      [
+        {
+          id: INTENT.id,
+          requestId: INTENT.requestId,
+          status: 'processing',
+          totalCount: 1,
+          processedCount: 0,
+          pendingCount: 0,
+          processingCount: 1,
+          importedCount: 0,
+          relinkedCount: 0,
+          alreadyExistsCount: 0,
+          regionUnavailableCount: 0,
+          failedCount: 0,
+          cancelledCount: 0,
+          purgeAt: null,
+          updatedAt,
+        },
+      ],
+      [
+        {
+          id: INTENT.items[0]!.id,
+          propertyName: INTENT.items[0]!.propertyName,
+          action: 'create',
+          status: 'processing',
+          outcomeCode: null,
+          connectionId: INTENT.items[0]!.connectionId,
+          providerAccountSuffix: INTENT.items[0]!.providerAccountSuffix,
+          providerLocationSuffix: INTENT.items[0]!.providerLocationSuffix,
+          retryRevision: 0,
+        },
+      ],
+    ])
+
+    await expect(
+      createStore(fake.database, () => {
+        clockCalls += 1
+        return pollNow
+      }).getOperatorProgress(INTENT.organizationId, INTENT.id),
+    ).resolves.toMatchObject({ pollAfterMs: 5_000, updatedAt: updatedAt.toISOString() })
+    expect(clockCalls).toBe(1)
+    expect(fake.calls()).toBe(3)
   })
 })
 

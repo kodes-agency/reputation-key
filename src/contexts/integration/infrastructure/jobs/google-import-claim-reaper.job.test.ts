@@ -24,11 +24,9 @@ const mockLogger = vi.hoisted(() => ({
   warn: vi.fn(),
   error: vi.fn(),
   debug: vi.fn(),
+  child: vi.fn(),
 }))
 
-vi.mock('#/shared/observability/logger', () => ({
-  getLogger: vi.fn(() => mockLogger),
-}))
 vi.mock('#/shared/observability/trace', () => ({
   trace: vi.fn(async (_name: string, fn: () => Promise<unknown>) => fn()),
 }))
@@ -146,7 +144,7 @@ function createHarness(
     }),
   )
   return {
-    handler: createGoogleImportClaimReaperHandler({ reap }),
+    handler: createGoogleImportClaimReaperHandler({ reap, logger: mockLogger }),
     reap,
     listStaleClaimItems,
     releaseClaimForRetry,
@@ -351,7 +349,10 @@ describe('google import claim-lease reaper job', () => {
     const reap = vi.fn<GoogleImportV2ClaimReaper>(async () => {
       throw failure
     })
-    const handler = createGoogleImportClaimReaperHandler({ reap })
+    const handler = createGoogleImportClaimReaperHandler({
+      reap,
+      logger: mockLogger,
+    })
 
     await expect(handler(tick())).rejects.toBe(failure)
 

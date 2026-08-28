@@ -1,12 +1,12 @@
 import { and, asc, eq, inArray, isNotNull, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { Clock } from '#/shared/domain/clock'
 import {
   gbpImportItemRetryReceipts,
   gbpImportRequestItems,
   gbpImportRequests,
   gbpImportSagas,
 } from '#/shared/db/schema/google-import-v2.schema'
-import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import { organizationId } from '#/shared/domain/ids'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import {
@@ -213,19 +213,7 @@ function lifecycleScopePredicate(scope: GoogleImportV2LifecycleScope) {
     case 'organization':
       return tenant
     case 'user':
-      return and(
-        tenant,
-        or(
-          eq(gbpImportRequests.initiatedBy, scope.userId),
-          sql`${gbpImportRequestItems.connectionId} IN (
-            SELECT ${googleConnections.id}
-            FROM ${googleConnections}
-            WHERE ${googleConnections.organizationId} = ${scope.organizationId}
-              AND ${googleConnections.connectedBy} = ${scope.userId}
-              AND ${googleConnections.visibility} = 'private'
-          )`,
-        ),
-      )
+      return and(tenant, eq(gbpImportRequests.initiatedBy, scope.userId))
     case 'connection':
       return and(tenant, eq(gbpImportRequestItems.connectionId, scope.connectionId))
     case 'property':
@@ -290,6 +278,7 @@ function progressItemFromRow(row: GoogleImportItemRow): ImportProgressItemDto {
 async function loadSagaProgress(
   db: Database,
   saga: typeof gbpImportSagas.$inferSelect,
+  clock: Clock,
 ): Promise<ImportProgressDto> {
   const batches = await db
     .select()
@@ -373,7 +362,7 @@ async function loadSagaProgress(
     pollAfterMs: googleImportProgressPollAfterMs(
       reduction.status,
       updatedAt.getTime(),
-      Date.now(),
+      clock().getTime(),
     ),
     purgeAt: purgeAt?.toISOString() ?? null,
     updatedAt: updatedAt.toISOString(),
@@ -384,6 +373,7 @@ async function loadProgress(
   db: Database,
   organizationId: string,
   importJobId: string,
+  clock: Clock,
   initiatedBy?: string,
 ): Promise<ImportProgressDto | null> {
   const [saga] = await db
@@ -398,7 +388,7 @@ async function loadProgress(
     .limit(1)
   if (saga) {
     if (initiatedBy !== undefined && saga.initiatedBy !== initiatedBy) return null
-    return loadSagaProgress(db, saga)
+    return loadSagaProgress(db, saga, clock)
   }
   const [parent] = await db
     .select()
@@ -445,19 +435,20 @@ async function loadProgress(
     counts,
     items,
     canRetry: items.some((item) => item.retryable),
-    // A polling hint only, never a visibility or retention decision, so the process
-    // clock is sufficient here; skew can at worst cost one extra or one delayed poll.
     pollAfterMs: googleImportProgressPollAfterMs(
       parent.status,
       parent.updatedAt.getTime(),
-      Date.now(),
+      clock().getTime(),
     ),
     purgeAt: parent.purgeAt?.toISOString() ?? null,
     updatedAt: parent.updatedAt.toISOString(),
   }
 }
 
-export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
+export const createGoogleImportV2Store = (
+  db: Database,
+  clock: Clock,
+): GoogleImportV2Store => {
   return Object.freeze({
     findReplay: async (organizationId, requestId) => {
       const [saga] = await db
@@ -1900,9 +1891,9 @@ export function createGoogleImportV2Store(db: Database): GoogleImportV2Store {
     },
 
     getOperatorProgress: (organizationId, importJobId) =>
-      loadProgress(db, organizationId, importJobId),
+      loadProgress(db, organizationId, importJobId, clock),
 
     getProgress: (organizationId, userId, importJobId) =>
-      loadProgress(db, organizationId, importJobId, userId),
+      loadProgress(db, organizationId, importJobId, clock, userId),
   })
 }

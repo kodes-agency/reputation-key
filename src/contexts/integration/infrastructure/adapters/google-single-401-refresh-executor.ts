@@ -1,6 +1,6 @@
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
 
-export function createSingle401RefreshExecutor(
+export const createSingle401RefreshExecutor = (
   deps: Readonly<{
     executor: GoogleAuthorizedProviderExecutor
     refreshAccessToken: (
@@ -27,7 +27,7 @@ export function createSingle401RefreshExecutor(
       Parameters<GoogleAuthorizedProviderExecutor['execute']>[1]['authorization']
     >
   }>,
-): GoogleAuthorizedProviderExecutor {
+): GoogleAuthorizedProviderExecutor => {
   const sameScope = (
     current: Parameters<GoogleAuthorizedProviderExecutor['execute']>[1]['authorization'],
     refreshed: Parameters<

@@ -3,7 +3,10 @@
 // Steps: find connection → check status → check expiry → decrypt → refresh → encrypt → update → return
 
 import type { GoogleConnectionRepository } from '../ports/google-connection.repository'
-import type { GoogleOAuthPort } from '../ports/google-oauth.port'
+import type {
+  GoogleOAuthPort,
+  GoogleOAuthProviderCallAuthorizer,
+} from '../ports/google-oauth.port'
 import type { TokenEncryptionPort } from '../ports/token-encryption.port'
 import type { GoogleConnection } from '../../domain/types'
 import type { OrganizationId } from '#/shared/domain/ids'
@@ -11,6 +14,7 @@ import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { TOKEN_EXPIRY_BUFFER_MS } from '../constants'
 import type { GoogleRefreshCoordination } from '../ports/google-refresh-coordination.port'
+import type { AssertDirectGoogleCredentialUse } from '../google-credential-execution-gate'
 
 const REFRESH_COORDINATION_DEADLINE_MS = 25_000
 
@@ -25,6 +29,8 @@ export type RefreshGoogleTokenDeps = Readonly<{
   encryption: TokenEncryptionPort
   clock: () => Date
   coordination?: GoogleRefreshCoordination
+  assertDirectCredentialUse: AssertDirectGoogleCredentialUse
+  authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer
 }>
 
 export const refreshGoogleToken =
@@ -91,8 +97,20 @@ export const refreshGoogleToken =
     ): Promise<GoogleConnection> => {
       // Credential material is not decrypted until the replica owns the
       // renewable Redis lease and shared failure backoff has admitted it.
+      await deps.assertDirectCredentialUse(connection)
+      const providerAuthorization = deps.authorizeProviderCall
+        ? await deps.authorizeProviderCall({
+            operation: 'oauth.token.refresh',
+            organizationId: orgId,
+            connectionId,
+            initiatorUserId: connection.credentialAuthorizedBy,
+          })
+        : undefined
       const refreshToken = deps.encryption.decrypt(connection.encryptedRefreshToken)
-      const refreshResult = await deps.oauth.refreshAccessToken(refreshToken)
+      const refreshResult = await deps.oauth.refreshAccessToken(
+        refreshToken,
+        providerAuthorization,
+      )
       const tokenExpiresAt = new Date(now + refreshResult.expiresIn * 1000)
       const encryptedAccessToken = deps.encryption.encrypt(refreshResult.accessToken)
 

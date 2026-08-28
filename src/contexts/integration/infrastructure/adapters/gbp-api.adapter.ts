@@ -3,7 +3,7 @@
 // adapters; this narrow port exists only for the best-effort notification lifecycle.
 
 import { z } from 'zod/v4'
-import type { GbpApiPort, GbpAccount } from '../../application/ports/gbp-api.port'
+import type { GbpApiPort, GbpApiAccount } from '../../application/ports/gbp-api.port'
 import { createGbpApiError } from '../../domain/gbp-api-error'
 import type { GbpApiErrorKind } from '../../domain/gbp-api-error'
 import { trace } from '#/shared/observability/trace'
@@ -35,7 +35,7 @@ function classifyHttpStatus(status: number): GbpApiErrorKind {
   return 'upstream_error'
 }
 
-function mapAccount(account: z.infer<typeof accountSchema>): GbpAccount {
+function mapAccount(account: z.infer<typeof accountSchema>): GbpApiAccount {
   const accountName = account.name.slice('accounts/'.length)
   return Object.freeze({
     name: account.name,
@@ -51,7 +51,7 @@ export const createGbpApiAdapter = (config: {
 }): GbpApiPort => ({
   listAccounts: async (accessToken) => {
     config.assertDirectCredentialEgressAllowed?.('account-management.accounts.list')
-    const allAccounts: GbpAccount[] = []
+    const allAccounts: GbpApiAccount[] = []
     const seenAccountIds = new Set<string>()
     const seenPageTokens = new Set<string>()
     let nextPageToken: string | undefined

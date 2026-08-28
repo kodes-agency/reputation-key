@@ -6,7 +6,10 @@ import { isDomainError } from '#/shared/domain/errors'
 import {
   integrationGoogleAccountConnected,
   integrationGoogleAccountDisconnected,
+  integrationGoogleAccountReauthorizationRequired,
   integrationGoogleConnectionVisibilityChanged,
+  integrationGoogleReviewPushAccepted,
+  integrationPropertyImportRequested,
   integrationPropertyImportRetentionReleased,
 } from './events'
 import { googleConnectionId, organizationId, userId } from '#/shared/domain/ids'
@@ -20,7 +23,7 @@ describe('integrationGoogleAccountConnected', () => {
     const event = integrationGoogleAccountConnected({
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
-      connectedBy: userId('user-1'),
+      userId: userId('user-1'),
       occurredAt: now,
     })
     expect(event._tag).toBe('integration.google_account.connected')
@@ -30,20 +33,20 @@ describe('integrationGoogleAccountConnected', () => {
     const event = integrationGoogleAccountConnected({
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
-      connectedBy: userId('user-1'),
+      userId: userId('user-1'),
       occurredAt: now,
     })
     expect(event.connectionId).toBe(googleConnectionId('conn-1'))
     expect(event.organizationId).toBe(organizationId('org-1'))
-    expect(event.connectedBy).toBe(userId('user-1'))
+    expect(event.userId).toBe(userId('user-1'))
     expect(Object.keys(event).sort()).toEqual([
       '_tag',
-      'connectedBy',
       'connectionId',
       'correlationId',
       'eventId',
       'occurredAt',
       'organizationId',
+      'userId',
     ])
   })
 
@@ -51,7 +54,7 @@ describe('integrationGoogleAccountConnected', () => {
     const event = integrationGoogleAccountConnected({
       connectionId: googleConnectionId('conn-1'),
       organizationId: organizationId('org-1'),
-      connectedBy: userId('user-1'),
+      userId: userId('user-1'),
       occurredAt: now,
     })
     expect(event.occurredAt).toBeInstanceOf(Date)
@@ -167,6 +170,70 @@ describe('integrationPropertyImportRetentionReleased', () => {
   })
 })
 
+describe('correlation', () => {
+  it('preserves caller correlation across every constructor', () => {
+    const correlationId = 'correlation-1'
+    const connectionId = googleConnectionId('connection-1')
+    const organization = organizationId('organization-1')
+    const correlated = [
+      integrationPropertyImportRequested({
+        organizationId: organization,
+        importJobId: 'import-1',
+        occurredAt: now,
+        correlationId,
+      }),
+      integrationGoogleAccountConnected({
+        connectionId,
+        organizationId: organization,
+        userId: userId('user-1'),
+        occurredAt: now,
+        correlationId,
+      }),
+      integrationGoogleAccountDisconnected({
+        connectionId,
+        organizationId: organization,
+        occurredAt: now,
+        correlationId,
+      }),
+      integrationGoogleAccountReauthorizationRequired({
+        connectionId,
+        organizationId: organization,
+        cause: 'member_removed',
+        occurredAt: now,
+        correlationId,
+      }),
+      integrationGoogleConnectionVisibilityChanged({
+        connectionId,
+        organizationId: organization,
+        visibility: 'organization',
+        occurredAt: now,
+        correlationId,
+      }),
+      integrationPropertyImportRetentionReleased({
+        organizationId: organization,
+        importJobId: 'import-1',
+        idempotencyKeys: ['key-1'],
+        occurredAt: now,
+        correlationId,
+      }),
+      integrationGoogleReviewPushAccepted({
+        organizationId: organization,
+        propertyId: 'property-1',
+        connectionId,
+        sourceEpoch: 1,
+        referenceRef: null,
+        notificationKind: 'REVIEW_CHANGED',
+        occurredAt: now,
+        correlationId,
+      }),
+    ]
+
+    expect(correlated.map((event) => event.correlationId)).toEqual(
+      Array.from({ length: correlated.length }, () => correlationId),
+    )
+  })
+})
+
 // ── occurredAt validation (assertion_failed DomainError) ─────────────────────────
 
 describe('event constructors validate occurredAt', () => {
@@ -178,7 +245,7 @@ describe('event constructors validate occurredAt', () => {
       integrationGoogleAccountConnected({
         connectionId: googleConnectionId('conn-1'),
         organizationId: organizationId('org-1'),
-        connectedBy: userId('user-1'),
+        userId: userId('user-1'),
         occurredAt: '2025-06-15' as unknown as Date,
       })
     } catch (e) {

@@ -12,6 +12,8 @@ describe('opaque OAuth callback input', () => {
     expect(
       buildOpaqueOAuthConnectInput('provider-code', {
         ok: true,
+        kind: 'exchange',
+        exchangeAttemptId: '60000000-0000-4000-8000-000000000001',
         visibility: 'organization',
         purpose: 'performance_reauth',
         connectionMode: 'reauth',
@@ -20,6 +22,7 @@ describe('opaque OAuth callback input', () => {
         verifierMaterial,
       }),
     ).toEqual({
+      exchangeAttemptId: '60000000-0000-4000-8000-000000000001',
       code: 'provider-code',
       visibility: 'organization',
       purpose: 'performance_reauth',

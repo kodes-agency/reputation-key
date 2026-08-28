@@ -3,7 +3,10 @@
 
 import type { GoogleConnectionRepository } from '../ports/google-connection.repository'
 import type { IntegrationCommandStore } from '../ports/integration-command-store.port'
-import type { GoogleOAuthPort } from '../ports/google-oauth.port'
+import type {
+  GoogleOAuthPort,
+  GoogleOAuthProviderCallAuthorizer,
+} from '../ports/google-oauth.port'
 import type { TokenEncryptionPort } from '../ports/token-encryption.port'
 import type { GoogleConnection } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -15,6 +18,11 @@ import { googleConnectionId, type OrganizationId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { integrationGoogleAccountDisconnected } from '../../domain/events'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import type { AssertDirectGoogleCredentialUse } from '../google-credential-execution-gate'
+import {
+  GOOGLE_DISCONNECT_REVOKE_WINDOW_MS,
+  type GoogleDisconnectRevokeStore,
+} from '../google-disconnect-revoke'
 
 export type DisconnectGoogleAccountDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
@@ -41,6 +49,10 @@ export type DisconnectGoogleAccountDeps = Readonly<{
     organizationId: OrganizationId,
     connectionId: string,
   ) => Promise<void>
+  assertDirectCredentialUse: AssertDirectGoogleCredentialUse
+  authorizeProviderCall?: GoogleOAuthProviderCallAuthorizer
+  disconnectRevokeStore?: GoogleDisconnectRevokeStore
+  idGen?: () => string
 }>
 
 export const disconnectGoogleAccount =
@@ -71,8 +83,21 @@ export const disconnectGoogleAccount =
 
     await deps.cancelGoogleImportsForConnection?.(ctx.organizationId, connectionId)
 
+    // Wrong-home and expand-phase legacy rows may still be disconnected and
+    // redacted locally, but no provider credential is decrypted or sent.
+    let providerCredentialAdmitted = false
+    try {
+      await deps.assertDirectCredentialUse(connection)
+      providerCredentialAdmitted = true
+    } catch {
+      deps.logger.warn(
+        { stage: 'credential-home' },
+        'Google provider cleanup skipped outside the credential home',
+      )
+    }
+
     // GBP Pub/Sub lifecycle: unsubscribe before the token is revoked (still valid).
-    if (deps.unsubscribeFromNotifications) {
+    if (providerCredentialAdmitted && deps.unsubscribeFromNotifications) {
       try {
         await deps.unsubscribeFromNotifications(ctx.organizationId, input.connectionId)
       } catch (e) {
@@ -82,21 +107,88 @@ export const disconnectGoogleAccount =
         )
       }
     }
-    // 3. Revoke token with Google (best-effort)
-    try {
-      const refreshToken = deps.encryption.decrypt(connection.encryptedRefreshToken)
-      await deps.oauth.revokeToken(refreshToken)
-    } catch (e) {
-      deps.logger.warn(
-        { err: e },
-        'Google token revocation failed — disconnecting locally anyway',
+    // 3. A revoke is never a best-effort direct side effect. The governed
+    // executor first binds it to one durable cleanup attempt and one exact
+    // admission permit; its result then commits with local redaction. If the
+    // process disappears after provider dispatch, the elapsed-attempt
+    // reconciler finishes locally without ever sending the token again.
+    let updated: GoogleConnection | null = null
+    if (
+      providerCredentialAdmitted &&
+      deps.authorizeProviderCall &&
+      deps.disconnectRevokeStore &&
+      deps.oauth.revokeTokenWithOutcome &&
+      deps.idGen
+    ) {
+      const now = deps.clock()
+      const attemptId = deps.idGen()
+      const cleanupDeadlineAt = new Date(
+        now.getTime() + GOOGLE_DISCONNECT_REVOKE_WINDOW_MS,
       )
+      let providerAuthorization
+      try {
+        providerAuthorization = await deps.authorizeProviderCall({
+          operation: 'oauth.revoke',
+          organizationId: ctx.organizationId,
+          connectionId,
+          initiatorUserId: ctx.userId,
+          disconnectRevoke: { attemptId, cleanupDeadlineAt },
+        })
+      } catch {
+        deps.logger.warn(
+          { stage: 'revoke-authorization' },
+          'Google cleanup authorization was unavailable; disconnecting locally',
+        )
+      }
+      if (providerAuthorization) {
+        const refreshToken = deps.encryption.decrypt(connection.encryptedRefreshToken)
+        let outcome: Awaited<
+          ReturnType<NonNullable<GoogleOAuthPort['revokeTokenWithOutcome']>>
+        >
+        try {
+          outcome = await deps.oauth.revokeTokenWithOutcome(
+            refreshToken,
+            providerAuthorization,
+          )
+        } catch {
+          outcome = 'cleanup_ambiguous'
+        }
+        const event = integrationGoogleAccountDisconnected({
+          connectionId,
+          organizationId: ctx.organizationId,
+          occurredAt: deps.clock(),
+        })
+        const settled = await deps.disconnectRevokeStore.settle({
+          attemptId,
+          organizationId: ctx.organizationId,
+          connectionId,
+          initiatorUserId: ctx.userId,
+          outcome,
+          outcomeCode:
+            outcome === 'confirmed_revoked'
+              ? 'google_revoke_confirmed'
+              : outcome === 'confirmed_not_sent'
+                ? 'provider_dispatch_not_started'
+                : 'google_revoke_outcome_ambiguous',
+          event,
+          now: event.occurredAt,
+        })
+        if (!settled.ok) {
+          throw integrationError(
+            'oauth_failed',
+            'Google disconnect cleanup will be completed by recovery',
+          )
+        }
+        updated = settled.value
+      }
     }
 
-    // 4. Atomic disconnect: status, identifier/secret redaction, and the
+    // 4. No provider authority means no provider socket was opened. Local
+    // disconnect remains safe and deterministic for wrong-home/legacy rows.
+    // Atomic disconnect: status, identifier/secret redaction, and the
     // durable disconnected fact commit in one transaction. Source-content
     // purge remains an idempotent cross-context cleanup after the commit.
-    const updated = await deps.commandStore.disconnectGoogleAccount({
+    updated ??= await deps.commandStore.disconnectGoogleAccount({
       organizationId: ctx.organizationId,
       connectionId,
       event: integrationGoogleAccountDisconnected({

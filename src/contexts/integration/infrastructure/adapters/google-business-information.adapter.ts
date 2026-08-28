@@ -89,12 +89,12 @@ function parseLocation(
   })
 }
 
-export function createGoogleBusinessInformationAdapter(
+export const createGoogleBusinessInformationAdapter = (
   deps: Readonly<{
     executor: GoogleAuthorizedProviderExecutor
     nowMs?: () => number
   }>,
-): GoogleBusinessInformationPort {
+): GoogleBusinessInformationPort => {
   const nowMs = deps.nowMs ?? Date.now
   return Object.freeze({
     listLocations: async (input) => {

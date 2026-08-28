@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   gbpImportItemRetryReceipts,
   gbpImportRequestItems,
@@ -93,13 +94,13 @@ function intent(now = NOW): GoogleImportV2Intent {
 
 describe('Google import v2 fenced store (real PostgreSQL)', () => {
   const db = getDb()
-  const store = createGoogleImportV2Store(db)
+  const store = createGoogleImportV2Store(db, () => NOW)
   const clear = async () => {
     await db.delete(gbpImportRequests).where(eq(gbpImportRequests.organizationId, ORG_ID))
     await db.delete(gbpImportSagas).where(eq(gbpImportSagas.organizationId, ORG_ID))
     await db.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORG_ID))
     await db.delete(googleConnections).where(eq(googleConnections.organizationId, ORG_ID))
-    await db.execute(sql`DELETE FROM organization WHERE id = ${ORG_ID}`)
+    await deleteTestOrganizations(db, [ORG_ID])
   }
   const resetStorage = async () => {
     await db.delete(gbpImportRequests).where(eq(gbpImportRequests.organizationId, ORG_ID))

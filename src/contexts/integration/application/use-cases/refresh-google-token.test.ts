@@ -7,17 +7,18 @@ import { createInMemoryGoogleOAuthPort } from '#/shared/testing/in-memory-google
 import { createInMemoryTokenEncryption } from '#/shared/testing/in-memory-token-encryption'
 import { buildTestGoogleConnection } from '#/shared/testing/fixtures'
 import { isIntegrationError } from '../../domain/errors'
-import { organizationId } from '#/shared/domain/ids'
+import { organizationId, userId } from '#/shared/domain/ids'
 import type { GoogleRefreshCoordination } from '../ports/google-refresh-coordination.port'
 
 const FIXED_NOW = new Date('2026-01-15T12:00:00Z')
 const clock = () => FIXED_NOW
+const assertDirectCredentialUse = async () => undefined
 
 const setup = () => {
   const connectionRepo = createInMemoryGoogleConnectionRepo()
   const oauth = createInMemoryGoogleOAuthPort()
   const encryption = createInMemoryTokenEncryption()
-  const deps = { connectionRepo, oauth, encryption, clock }
+  const deps = { connectionRepo, oauth, encryption, clock, assertDirectCredentialUse }
   const useCase = refreshGoogleToken(deps)
   return { useCase, connectionRepo, oauth, encryption }
 }
@@ -101,6 +102,46 @@ describe('refreshGoogleToken', () => {
     expect(result.tokenExpiresAt.getTime()).toBe(FIXED_NOW.getTime() + 3600 * 1000)
   })
 
+  it('authorizes refresh as the AccountAdmin who owns the current grant, not first-connection provenance', async () => {
+    const { connectionRepo, oauth, encryption } = setup()
+    const currentGrantOwner = userId('user-current-google-grant-owner')
+    const connection = buildTestGoogleConnection({
+      connectedBy: userId('user-original-google-connector'),
+      credentialAuthorizedBy: currentGrantOwner,
+      tokenExpiresAt: new Date(FIXED_NOW.getTime() - 60 * 60 * 1000),
+    })
+    connectionRepo.seed([connection])
+    const authorizeProviderCall = vi.fn(async () => ({
+      capability: 'property.import_gbp_v2' as const,
+      organizationId: ORG_ID,
+      propertyId: null,
+      connectionId: connection.id,
+      initiatorUserId: currentGrantOwner,
+      approvalBindingId: 'approval-refresh',
+      expectedCredentialGeneration: connection.credentialGeneration,
+      authorizationVector: {
+        credentialGeneration: connection.credentialGeneration,
+      },
+    }))
+    const useCase = refreshGoogleToken({
+      connectionRepo,
+      oauth,
+      encryption,
+      clock,
+      assertDirectCredentialUse,
+      authorizeProviderCall,
+    })
+
+    await useCase(ORG_ID, connection.id)
+
+    expect(authorizeProviderCall).toHaveBeenCalledWith({
+      operation: 'oauth.token.refresh',
+      organizationId: ORG_ID,
+      connectionId: connection.id,
+      initiatorUserId: currentGrantOwner,
+    })
+  })
+
   it('throws when connection not found', async () => {
     const { useCase } = setup()
 
@@ -174,6 +215,7 @@ describe('refreshGoogleToken', () => {
       oauth,
       encryption,
       clock,
+      assertDirectCredentialUse,
     })
 
     await expect(useCase(ORG_ID, connection.id)).rejects.toSatisfy(
@@ -217,6 +259,7 @@ describe('refreshGoogleToken', () => {
       encryption,
       clock,
       coordination,
+      assertDirectCredentialUse,
     })
 
     await expect(useCase(ORG_ID, connection.id)).resolves.toEqual(committed)
@@ -236,6 +279,7 @@ describe('refreshGoogleToken', () => {
       oauth,
       encryption,
       clock,
+      assertDirectCredentialUse,
       coordination: {
         run: async () => ({
           ok: false as const,

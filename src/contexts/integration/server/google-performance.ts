@@ -25,7 +25,7 @@ export const getPropertyGooglePerformance = createServerFn({ method: 'GET' })
         disableProviderContentCaching()
         const headers = await headersFromContext()
         const actor = await resolveTenantContext(headers)
-        const getPerformance = getContainer().useCases.getPropertyGooglePerformance
+        const getPerformance = getContainer().integrationPublicApi.performance.get
         if (!getPerformance) {
           return {
             status: 'unavailable',
@@ -59,7 +59,7 @@ export const renewPropertyGooglePerformanceLease = createServerFn({
         disableProviderContentCaching()
         const headers = await headersFromContext()
         const actor = await resolveTenantContext(headers)
-        const renewLease = getContainer().useCases.renewGooglePerformanceLease
+        const renewLease = getContainer().integrationPublicApi.performance.renewLease
         if (!renewLease) return { ok: false } as const
 
         try {

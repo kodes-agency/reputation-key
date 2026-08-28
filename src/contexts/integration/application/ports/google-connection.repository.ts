@@ -9,6 +9,7 @@ import type {
   GoogleConnectionStatus,
 } from '../../domain/types'
 import type { OrganizationId, UserId } from '#/shared/domain/ids'
+import type { GoogleCredentialHomeBinding } from '#/shared/domain/google-credential-home'
 
 /** Tagged error thrown when a unique-constraint violation occurs on insert. */
 export type UniqueViolationError = Readonly<{
@@ -97,6 +98,9 @@ export type GoogleConnectionRepository = Readonly<{
     tokenExpiresAt: Date,
     visibility: GoogleConnectionVisibility,
     scopes: ReadonlyArray<string>,
+    credentialHome: GoogleCredentialHomeBinding,
+    credentialAuthorizedBy: UserId,
+    credentialAuthorizedAt: Date,
   ) => Promise<void>
   delete: (orgId: OrganizationId, id: GoogleConnectionId) => Promise<void>
 }>

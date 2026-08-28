@@ -11,7 +11,7 @@ import { validateGoogleProviderSuffix } from './google-resource-suffix'
 
 type FetchPerformanceInput = Parameters<GooglePerformanceSourcePort['fetchReport']>[0]
 
-export function createGooglePerformanceAdapter(
+export const createGooglePerformanceAdapter = (
   deps: Readonly<{
     executor: GoogleAuthorizedProviderExecutor
     nowMs?: () => number
@@ -22,7 +22,7 @@ export function createGooglePerformanceAdapter(
     accessToken: string,
     authorization: GoogleProviderCallAuthorization,
   ): ReturnType<GooglePerformanceSourcePort['fetchReport']>
-}> {
+}> => {
   const nowMs = deps.nowMs ?? Date.now
 
   return Object.freeze({

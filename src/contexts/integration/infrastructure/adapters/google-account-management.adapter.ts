@@ -44,12 +44,12 @@ function parseAccount(raw: z.infer<typeof accountSchema>): GbpAccount | null {
   })
 }
 
-export function createGoogleAccountManagementAdapter(
+export const createGoogleAccountManagementAdapter = (
   deps: Readonly<{
     executor: GoogleAuthorizedProviderExecutor
     nowMs?: () => number
   }>,
-): GoogleAccountManagementPort {
+): GoogleAccountManagementPort => {
   const nowMs = deps.nowMs ?? Date.now
   return Object.freeze({
     listAccounts: async (input) => {

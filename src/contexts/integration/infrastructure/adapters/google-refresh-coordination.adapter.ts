@@ -39,7 +39,7 @@ function isAdapterError(value: unknown): value is RefreshCoordinationAdapterErro
   )
 }
 
-export function createRedisGoogleRefreshCoordination(
+export const createRedisGoogleRefreshCoordination = (
   deps: Readonly<{
     redis: RefreshCoordinationRedis
     connectionKeys: VersionedHmacKeyring
@@ -50,7 +50,7 @@ export function createRedisGoogleRefreshCoordination(
     leaseMs?: number
     pollMs?: number
   }>,
-): GoogleRefreshCoordination {
+): GoogleRefreshCoordination => {
   const singleFlight = createRedisDistributedRefreshSingleFlight({
     redis: deps.redis,
     nowMs: deps.nowMs,

@@ -64,3 +64,10 @@ export {
   type GetGoogleAuthUrlInput,
   type GetGoogleAuthUrlResult,
 } from './get-google-auth-url'
+
+export {
+  prepareGoogleConnectorDeparture,
+  type PrepareGoogleConnectorDeparture,
+  type PrepareGoogleConnectorDepartureDeps,
+  type PrepareGoogleConnectorDepartureInput,
+} from './prepare-google-connector-departure'

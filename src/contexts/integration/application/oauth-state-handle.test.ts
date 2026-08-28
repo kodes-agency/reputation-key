@@ -12,6 +12,7 @@ const build = (now: { value: number }, rawHandleKeys = `v2:${KEY_A},v1:${KEY_B}`
     handleKeys: createVersionedHmacKeyring(rawHandleKeys),
     sessionKeys: createVersionedHmacKeyring(`v3:${KEY_B},v2:${KEY_A}`),
     random: () => Buffer.alloc(32, 7),
+    newExchangeAttemptId: () => '60000000-0000-4000-8000-000000000001',
   })
 
 const issue = (
@@ -59,6 +60,8 @@ describe('OAuth state handles', () => {
       }),
     ).resolves.toMatchObject({
       ok: true,
+      kind: 'exchange',
+      exchangeAttemptId: '60000000-0000-4000-8000-000000000001',
       visibility: 'private',
       purpose: 'reviews',
       verifierMaterial: { contractVersion: 'v2', codeVerifier: 'v'.repeat(43) },
@@ -140,7 +143,7 @@ describe('OAuth state handles', () => {
     ).rejects.toThrow('mode and target are inconsistent')
   })
 
-  it('fails malformed, expired, and replayed handles closed', async () => {
+  it('fails malformed and expired handles closed and turns replay into recovery only', async () => {
     const now = { value: 1_000 }
     const service = build(now)
     await expect(
@@ -162,12 +165,18 @@ describe('OAuth state handles', () => {
       nowMs: now.value,
     }
     await expect(service.redeem(input)).resolves.toMatchObject({ ok: true })
-    await expect(service.redeem(input)).resolves.toEqual({ ok: false, code: 'not_found' })
+    await expect(service.redeem(input)).resolves.toEqual({
+      ok: true,
+      kind: 'recovery',
+      exchangeAttemptId: '60000000-0000-4000-8000-000000000001',
+      returnRoute: '/properties/import-google',
+    })
 
-    const expiredHandle = await issue(service, now.value)
+    const expiredService = build(now)
+    const expiredHandle = await issue(expiredService, now.value)
     now.value += 601_000
     await expect(
-      service.redeem({ ...input, handle: expiredHandle, nowMs: now.value }),
+      expiredService.redeem({ ...input, handle: expiredHandle, nowMs: now.value }),
     ).resolves.toEqual({ ok: false, code: 'not_found' })
   })
 

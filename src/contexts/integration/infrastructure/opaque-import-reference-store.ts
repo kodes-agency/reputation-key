@@ -349,7 +349,7 @@ function cursorBudget(value: number | undefined): number | null {
     : null
 }
 
-export function createOpaqueImportReferenceStore(
+export const createOpaqueImportReferenceStore = (
   deps: Readonly<{
     store: ProviderEphemeralStore
     handleKeys: VersionedHmacKeyring
@@ -358,7 +358,7 @@ export function createOpaqueImportReferenceStore(
     random?: (bytes: number) => Buffer
     nowMs?: () => number
   }>,
-): GoogleImportReferenceStore {
+): GoogleImportReferenceStore => {
   const random = deps.random ?? randomBytes
   const nowMs = deps.nowMs ?? Date.now
   const keyVersions = Object.freeze([

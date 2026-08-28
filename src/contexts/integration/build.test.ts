@@ -6,6 +6,7 @@
 // Construction is query-free: the DB is a Proxy that throws on any access.
 
 import { describe, it, expect, afterEach, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 import type { Database } from '#/shared/db'
 import type { EventBus } from '#/shared/events/event-bus'
 import type {
@@ -32,6 +33,7 @@ import type { ExecutionDecision } from '#/shared/auth/execution-policy'
 import { initExecutionPolicy, resetExecutionPolicy } from '#/shared/auth/execution-policy'
 import type { RequiredPolicyRefreshResult } from '#/shared/auth/persisted-policy-store'
 import type { OutboxRepository } from '#/shared/outbox'
+import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 
 /** Query-free guard: any DB access during construction throws. */
 const dbStub = new Proxy(
@@ -56,6 +58,16 @@ const ENDPOINTS: ProviderEndpoints = {
   oauthRevokeUrl: 'https://oauth.example.test/revoke',
 }
 
+const CONFIG = {
+  nodeEnv: 'test' as const,
+  googleClientId: 'integration-build-client',
+  googleClientSecret: 'integration-build-secret',
+  encryptionKey: '11'.repeat(32),
+  authBaseUrl: 'https://app.example.test',
+  pubsubTopic: '',
+  pubsubNotificationTypes: 'NEW_REVIEW',
+}
+
 function buildDeps(overrides: {
   googleOAuth?: ReturnType<typeof createInMemoryGoogleOAuthPort>
   gbpApi?: ReturnType<typeof createInMemoryGbpApiPort>
@@ -76,17 +88,126 @@ function buildDeps(overrides: {
     outboxRepo: {} as unknown as OutboxRepository,
     events: silentEvents,
     clock: () => new Date('2026-01-15T12:00:00.000Z'),
+    idGen: () => '00000000-0000-4000-8000-000000000101',
+    invalidationOwnerGen: () => 'deterministic-invalidation-owner',
     jobQueue: createInMemoryQueue(),
     propertyApi: {} as unknown as PropertyPublicApi,
     logger: createMockLogger(),
     sourceContentPurge: {} as unknown as SourceContentPurge,
     providerEndpoints: ENDPOINTS,
+    config: CONFIG,
+    localDataCellId: 'us' as const,
+    admitPropertyExecution: async () => ({
+      kind: 'allow' as const,
+      cell: 'us' as const,
+      routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
+    }),
     oauthStateHandles: {} as unknown as OAuthStateHandleService,
     ...overrides,
   }
 }
 
 describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
+  it('exposes frozen capabilities for requests, maintenance, lifecycle, webhook, and workers', () => {
+    const ctx = buildIntegrationContext(buildDeps({}))
+
+    expect(Object.keys(ctx).sort()).toEqual([
+      'internal',
+      'lifecycle',
+      'maintenance',
+      'publicApi',
+      'webhook',
+      'worker',
+    ])
+    expect(Object.keys(ctx.publicApi).sort()).toEqual([
+      'connections',
+      'imports',
+      'oauth',
+      'performance',
+    ])
+    expect(ctx.publicApi.connections.connect).toBe(
+      ctx.internal.useCases.connectGoogleAccount,
+    )
+    expect(ctx.publicApi.connections.resume).toBe(
+      ctx.internal.useCases.resumeGoogleAccountConnection,
+    )
+    expect(ctx.publicApi.imports.discover).toBe(
+      ctx.internal.useCases.googleImportDiscovery,
+    )
+    expect(ctx.maintenance.imports.inspectBacklog).toBe(
+      ctx.internal.useCases.inspectGoogleImportV2Lifecycle,
+    )
+    expect(ctx.lifecycle.prepareConnectorDeparture).toBe(
+      ctx.internal.useCases.prepareGoogleConnectorDeparture,
+    )
+    expect(ctx.webhook.handleNotification).toBe(ctx.internal.gbpNotificationHandler)
+    expect(ctx.worker.processImportItem).toBe(
+      ctx.internal.useCases.processGoogleImportV2Item,
+    )
+    expect(ctx.worker.sweepImportLifecycle).toBe(
+      ctx.internal.useCases.sweepGoogleImportV2Lifecycle,
+    )
+
+    expect(Object.isFrozen(ctx.publicApi)).toBe(true)
+    expect(Object.isFrozen(ctx.publicApi.connections)).toBe(true)
+    expect(Object.isFrozen(ctx.publicApi.oauth)).toBe(true)
+    expect(Object.isFrozen(ctx.publicApi.imports)).toBe(true)
+    expect(Object.isFrozen(ctx.publicApi.performance)).toBe(true)
+    expect(Object.isFrozen(ctx.maintenance)).toBe(true)
+    expect(Object.isFrozen(ctx.maintenance.imports)).toBe(true)
+    expect(Object.isFrozen(ctx.lifecycle)).toBe(true)
+    expect(Object.isFrozen(ctx.webhook)).toBe(true)
+    expect(Object.isFrozen(ctx.worker)).toBe(true)
+  })
+
+  it('uses only the parsed configuration injected by the composition boundary', () => {
+    const source = readFileSync(new URL('./build.ts', import.meta.url), 'utf8')
+    expect(source).not.toMatch(/\bgetEnv\s*\(/u)
+    expect(source).not.toContain("from '#/shared/config/env'")
+  })
+
+  it('routes Review reads and reply publication through their distinct system authorities', () => {
+    const source = readFileSync(new URL('./build.ts', import.meta.url), 'utf8')
+    const start = source.indexOf('const googleReviewSyncAuthorizer =')
+    const end = source.indexOf('const googleReviewApi:', start)
+    expect(start).toBeGreaterThanOrEqual(0)
+    expect(end).toBeGreaterThan(start)
+    const reviewWiring = source.slice(start, end)
+    expect(reviewWiring).toContain('createGoogleReviewSyncAuthorizer')
+    expect(reviewWiring).toContain('createGoogleReplyPublicationAuthorizer')
+    expect(reviewWiring).toContain("authorization.capability === 'property.connect_gbp'")
+    expect(reviewWiring).toContain(
+      "authorization.capability === 'property.publish_reply'",
+    )
+    expect(reviewWiring).toContain('authorization.publication.attemptNumber')
+    expect(reviewWiring).toContain('propertySourceEpoch')
+    expect(reviewWiring).not.toContain('connectedBy')
+    expect(reviewWiring).not.toContain('property.import_gbp_v2')
+  })
+
+  it('routes notification account lookup and desired-state writes through the governed executor', () => {
+    const source = readFileSync(new URL('./build.ts', import.meta.url), 'utf8')
+    const start = source.indexOf('const googleNotificationProviderExecutor =')
+    const end = source.indexOf('const gbpSubscribeBackfill =', start)
+    expect(start).toBeGreaterThanOrEqual(0)
+    expect(end).toBeGreaterThan(start)
+    const notificationWiring = source.slice(start, end)
+    expect(notificationWiring).toContain('createSingle401RefreshExecutor')
+    expect(notificationWiring).toContain('createMyBusinessNotificationsAdapter')
+    expect(notificationWiring).toContain('authorization_unavailable')
+    expect(notificationWiring).not.toContain('createGoogleAccountManagementAdapter')
+    expect(source).toContain('const targetedAccounts = new Set<string>()')
+    expect(source).toContain('gbpAccountId: binding.accountId')
+    expect(source).not.toContain('createGbpApiAdapter')
+  })
+
+  it('activates a durable, non-empty provider-authorization invalidation handler set', () => {
+    const source = readFileSync(new URL('./build.ts', import.meta.url), 'utf8')
+    expect(source).toContain('createProviderAuthorizationInvalidationFanout')
+    expect(source).toContain("id: 'google_import_references'")
+    expect(source).toContain('registerProviderAuthorizationInvalidationConsumer')
+  })
+
   it('honors injected googleOAuth and gbpApi overrides', () => {
     const googleOAuth = createInMemoryGoogleOAuthPort()
     const gbpApi = createInMemoryGbpApiPort()
@@ -160,7 +281,7 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     expect(missingLease.internal.useCases.renewGooglePerformanceLease).toBeNull()
   })
 
-  it('builds the real env-driven adapters when no overrides are injected', () => {
+  it('keeps the legacy direct account adapter dark when no override is injected', async () => {
     const ctx = buildIntegrationContext(buildDeps({}))
     const oauth = ctx.internal.repos.oauthPort
     const gbp = ctx.internal.repos.gbpApiPort
@@ -170,6 +291,9 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     // The default adapters are constructed, not the in-memory fakes' extras.
     expect('setExchangeResult' in oauth).toBe(false)
     expect('setAccounts' in gbp).toBe(false)
+    await expect(gbp.listAccounts('credential')).rejects.toThrow(
+      'Legacy Google account lookup is unavailable',
+    )
   })
 
   it('threads the production credential-egress refusal into the real OAuth adapter', async () => {

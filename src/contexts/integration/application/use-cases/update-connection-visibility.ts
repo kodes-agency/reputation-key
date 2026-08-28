@@ -7,10 +7,10 @@ import type { GoogleConnection } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { UpdateConnectionVisibilityInput } from '../dto/update-connection-visibility.dto'
 export type { UpdateConnectionVisibilityInput } from '../dto/update-connection-visibility.dto'
-import { canForContext } from '#/shared/domain/permissions'
 import { googleConnectionId } from '#/shared/domain/ids'
 import { integrationError } from '../../domain/errors'
 import { integrationGoogleConnectionVisibilityChanged } from '../../domain/events'
+import { canManageOrganizationGoogleConnections } from '../google-organization-authority'
 
 export type UpdateConnectionVisibilityDeps = Readonly<{
   connectionRepo: GoogleConnectionRepository
@@ -25,7 +25,7 @@ export const updateConnectionVisibility =
     ctx: AuthContext,
   ): Promise<GoogleConnection> => {
     // 1. Authorize
-    if (!canForContext(ctx, 'integration.manage')) {
+    if (!canManageOrganizationGoogleConnections(ctx)) {
       throw integrationError(
         'forbidden',
         'You do not have permission to manage integrations',

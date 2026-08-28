@@ -10,10 +10,14 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { GoogleConnectionRepository } from '../../application/ports/google-connection.repository'
 import type { TokenEncryptionPort } from '../../application/ports/token-encryption.port'
 import type { RefreshGoogleToken } from '../../application/use-cases/refresh-google-token'
-import type { OrganizationId, GoogleConnectionId } from '#/shared/domain/ids'
+import type { OrganizationId, GoogleConnectionId, PropertyId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type { GoogleAuthorizedProviderExecutor } from '../../application/ports/google-authorized-provider-executor.port'
-import type { GoogleProviderCallAuthorization } from '../../application/google-provider-contract'
+import type {
+  GoogleProviderCallAuthorization,
+  GoogleReplyPublicationProviderCallAuthorization,
+  GoogleReviewSyncProviderCallAuthorization,
+} from '../../application/google-provider-contract'
 import type { GoogleProviderRouteDescriptor } from '#/shared/google-provider-control/route-catalogue'
 import { canonicalProviderAuthorizationVector } from '#/shared/provider-ephemeral/authorization-binding'
 import {
@@ -21,6 +25,7 @@ import {
   type ReviewProviderResource,
 } from '#/shared/review-provider-subject-contract'
 import { parseGoogleReviewComment } from '#/shared/google-review-comment'
+import { googleReplyTextDigest } from '#/shared/domain/google-reply-text'
 import {
   executeGoogleProviderJson,
   executeGoogleProviderRaw,
@@ -73,11 +78,32 @@ const gbpReviewItemSchema = z.object({
   updateTime: z.string().min(1).max(64).optional(),
 })
 
-const gbpReviewsPageSchema = z.object({
-  reviews: z.array(gbpReviewItemSchema).max(PAGE_SIZE).optional(),
-  totalReviewCount: z.number().int().safe().nonnegative(),
-  nextPageToken: z.string().min(1).max(2_048).optional(),
-})
+const gbpReviewsPageSchema = z
+  .object({
+    reviews: z.array(gbpReviewItemSchema).max(PAGE_SIZE).optional(),
+    totalReviewCount: z.number().int().safe().nonnegative(),
+    averageRating: z.number().finite().min(0).max(5).optional(),
+    nextPageToken: z.string().min(1).max(2_048).optional(),
+  })
+  .superRefine((page, context) => {
+    if (page.totalReviewCount === 0) {
+      if (page.averageRating !== undefined && page.averageRating !== 0) {
+        context.addIssue({
+          code: 'custom',
+          path: ['averageRating'],
+          message: 'A zero-review page cannot carry a non-zero average',
+        })
+      }
+      return
+    }
+    if (page.averageRating === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['averageRating'],
+        message: 'A non-empty review snapshot requires the provider average',
+      })
+    }
+  })
 
 type GbpReviewItem = z.infer<typeof gbpReviewItemSchema>
 
@@ -89,13 +115,35 @@ type GoogleReviewApiAdapterDeps = Readonly<{
   baseUrl: string
   cursorStore: GoogleReviewCursorStore
   executor?: GoogleAuthorizedProviderExecutor
-  authorizeProviderCall?: (
-    organizationId: OrganizationId,
-    connectionId: GoogleConnectionId,
+  authorizeReviewSyncProviderCall?: (
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      connectionId: GoogleConnectionId
+      sourceEpoch: number
+    }>,
   ) => Promise<
     Readonly<{
       accessToken: string
-      authorization: GoogleProviderCallAuthorization
+      authorization: GoogleReviewSyncProviderCallAuthorization
+    }>
+  >
+  authorizeReplyPublicationProviderCall?: (
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      connectionId: GoogleConnectionId
+      sourceEpoch: number
+      reviewId: string
+      materialReviewRevision: number
+      replyId: string
+      publicationCycle: number
+      attemptNumber: number
+    }>,
+  ) => Promise<
+    Readonly<{
+      accessToken: string
+      authorization: GoogleReplyPublicationProviderCallAuthorization
     }>
   >
   /**
@@ -437,22 +485,34 @@ export const createGoogleReviewApiAdapter = (
   }
 
   const resolveProviderContext = async (
-    organizationId: OrganizationId,
-    connectionId: GoogleConnectionId,
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      connectionId: GoogleConnectionId
+      sourceEpoch: number
+    }>,
   ): Promise<ProviderContext> => {
     let accessToken: string
     let authorization: GoogleProviderCallAuthorization | null
     let connection
     if (deps.executor) {
-      if (!deps.authorizeProviderCall) {
+      if (!deps.authorizeReviewSyncProviderCall) {
         throw reviewApiError('provider_unavailable', true)
       }
-      const authorized = await deps.authorizeProviderCall(organizationId, connectionId)
+      const authorized = await deps.authorizeReviewSyncProviderCall({
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        connectionId: input.connectionId,
+        sourceEpoch: input.sourceEpoch,
+      })
       accessToken = authorized.accessToken
       authorization = authorized.authorization
-      connection = await deps.connectionRepo.findById(organizationId, connectionId)
+      connection = await deps.connectionRepo.findById(
+        input.organizationId,
+        input.connectionId,
+      )
     } else {
-      connection = await deps.refreshToken(organizationId, connectionId)
+      connection = await deps.refreshToken(input.organizationId, input.connectionId)
       accessToken = deps.encryption.decrypt(connection.encryptedAccessToken)
       authorization = null
     }
@@ -461,8 +521,12 @@ export const createGoogleReviewApiAdapter = (
       connection.status !== 'active' ||
       connection.credentialUseState !== 'active' ||
       (authorization !== null &&
-        (authorization.organizationId !== organizationId ||
-          authorization.connectionId !== connectionId ||
+        (authorization.capability !== 'property.connect_gbp' ||
+          authorization.initiatorUserId !== null ||
+          authorization.organizationId !== input.organizationId ||
+          authorization.propertyId !== input.propertyId ||
+          authorization.connectionId !== input.connectionId ||
+          authorization.authorizationVector.propertySourceEpoch !== input.sourceEpoch ||
           authorization.expectedCredentialGeneration !== connection.credentialGeneration))
     ) {
       throw reviewApiError('authorization_changed', false)
@@ -481,11 +545,15 @@ export const createGoogleReviewApiAdapter = (
   }
 
   const assertAuthorizationCurrent = async (
-    organizationId: OrganizationId,
-    connectionId: GoogleConnectionId,
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      connectionId: GoogleConnectionId
+      sourceEpoch: number
+    }>,
     expected: GoogleReviewCursorAuthorization,
   ): Promise<void> => {
-    const current = await resolveProviderContext(organizationId, connectionId)
+    const current = await resolveProviderContext(input)
     if (!sameCursorAuthorization(current.cursorAuthorization, expected)) {
       throw reviewApiError('authorization_changed', false)
     }
@@ -571,7 +639,7 @@ export const createGoogleReviewApiAdapter = (
       throw reviewApiError('invalid_request', false)
     }
     assertLocationName(input.locationName)
-    const context = await resolveProviderContext(input.organizationId, input.connectionId)
+    const context = await resolveProviderContext(input)
     const scope = {
       organizationId: String(input.organizationId),
       propertyId: String(input.propertyId),
@@ -630,11 +698,7 @@ export const createGoogleReviewApiAdapter = (
       context,
       `${deps.baseUrl}/${input.locationName}/reviews?${params.toString()}`,
     )
-    await assertAuthorizationCurrent(
-      input.organizationId,
-      input.connectionId,
-      context.cursorAuthorization,
-    )
+    await assertAuthorizationCurrent(input, context.cursorAuthorization)
     const parsed = gbpReviewsPageSchema.safeParse(raw)
     if (!parsed.success) {
       // Shape only — key names and zod issue paths/codes, never values. A page
@@ -703,6 +767,8 @@ export const createGoogleReviewApiAdapter = (
     return {
       reviews,
       totalReviewCount: parsed.data.totalReviewCount,
+      averageRating:
+        parsed.data.totalReviewCount === 0 ? null : parsed.data.averageRating!,
       nextCursorRef,
     }
   }
@@ -740,7 +806,7 @@ export const createGoogleReviewApiAdapter = (
     }
     assertLocationName(input.locationName)
     assertReviewName(input.reviewName, input.locationName)
-    const context = await resolveProviderContext(input.organizationId, input.connectionId)
+    const context = await resolveProviderContext(input)
     let raw: unknown
     if (deps.executor && context.authorization) {
       const timeout = withTimeout(30_000)
@@ -762,11 +828,7 @@ export const createGoogleReviewApiAdapter = (
         }
         if (result.status === 404) {
           result.body.fill(0)
-          await assertAuthorizationCurrent(
-            input.organizationId,
-            input.connectionId,
-            context.cursorAuthorization,
-          )
+          await assertAuthorizationCurrent(input, context.cursorAuthorization)
           return { status: 'not_found' }
         }
         if (
@@ -807,11 +869,7 @@ export const createGoogleReviewApiAdapter = (
       }
       if (response.status === 404) {
         await response.body?.cancel()
-        await assertAuthorizationCurrent(
-          input.organizationId,
-          input.connectionId,
-          context.cursorAuthorization,
-        )
+        await assertAuthorizationCurrent(input, context.cursorAuthorization)
         return { status: 'not_found' }
       }
       if (!response.ok) {
@@ -828,11 +886,7 @@ export const createGoogleReviewApiAdapter = (
       }
       raw = parseJsonBytes(await readBoundedResponseBody(response))
     }
-    await assertAuthorizationCurrent(
-      input.organizationId,
-      input.connectionId,
-      context.cursorAuthorization,
-    )
+    await assertAuthorizationCurrent(input, context.cursorAuthorization)
     const parsed = gbpReviewItemSchema.safeParse(raw)
     if (!parsed.success) throw reviewApiError('malformed_response', false)
     return { status: 'found', review: mapReview(parsed.data, input.locationName) }
@@ -884,43 +938,122 @@ export const createGoogleReviewApiAdapter = (
     }
   }
 
-  const replyToReview: GoogleReviewApiPort['replyToReview'] = async (
-    organizationId,
-    connectionId,
-    reviewName,
-    text,
-  ) => {
-    const context = await resolveProviderContext(organizationId, connectionId)
-    if (deps.executor && context.authorization) {
-      const response = await trace('googleReviewApi.replyToReview', () =>
-        executeGoogleProviderRaw({
-          operation: 'review reply',
+  const replyToReview: GoogleReviewApiPort['replyToReview'] = async (input) => {
+    if (
+      !exactKeys(input, [
+        'organizationId',
+        'propertyId',
+        'connectionId',
+        'sourceEpoch',
+        'reviewId',
+        'materialReviewRevision',
+        'replyId',
+        'publicationCycle',
+        'attemptNumber',
+        'reviewName',
+        'text',
+      ]) ||
+      !isSafeScopeId(input.organizationId) ||
+      !isCanonicalUuid(input.propertyId) ||
+      !isCanonicalUuid(input.connectionId) ||
+      !isCanonicalUuid(input.reviewId) ||
+      !isCanonicalUuid(input.replyId) ||
+      !Number.isSafeInteger(input.sourceEpoch) ||
+      input.sourceEpoch < 0 ||
+      !Number.isSafeInteger(input.materialReviewRevision) ||
+      input.materialReviewRevision < 1 ||
+      !Number.isSafeInteger(input.publicationCycle) ||
+      input.publicationCycle < 1 ||
+      !Number.isSafeInteger(input.attemptNumber) ||
+      input.attemptNumber < 1 ||
+      typeof input.text !== 'string' ||
+      input.text.length < 1 ||
+      input.text.length > 4_096
+    ) {
+      throw reviewApiError('invalid_request', false)
+    }
+    try {
+      parseReviewProviderResource(input.reviewName)
+    } catch {
+      throw reviewApiError('invalid_request', false)
+    }
+
+    if (deps.executor) {
+      if (!deps.authorizeReplyPublicationProviderCall) {
+        throw reviewApiError('provider_unavailable', false)
+      }
+      let authorized: Awaited<
+        ReturnType<NonNullable<typeof deps.authorizeReplyPublicationProviderCall>>
+      >
+      try {
+        authorized = await deps.authorizeReplyPublicationProviderCall({
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          connectionId: input.connectionId,
+          sourceEpoch: input.sourceEpoch,
+          reviewId: input.reviewId,
+          materialReviewRevision: input.materialReviewRevision,
+          replyId: input.replyId,
+          publicationCycle: input.publicationCycle,
+          attemptNumber: input.attemptNumber,
+        })
+      } catch {
+        throw reviewApiError('authorization_changed', false)
+      }
+      const publication = authorized.authorization.publication
+      if (
+        authorized.authorization.capability !== 'property.publish_reply' ||
+        authorized.authorization.initiatorUserId !== null ||
+        authorized.authorization.organizationId !== input.organizationId ||
+        authorized.authorization.propertyId !== input.propertyId ||
+        authorized.authorization.connectionId !== input.connectionId ||
+        publication.reviewId !== input.reviewId ||
+        publication.replyId !== input.replyId ||
+        publication.publicationCycle !== input.publicationCycle ||
+        publication.attemptNumber !== input.attemptNumber ||
+        publication.sourceEpoch !== input.sourceEpoch ||
+        publication.materialReviewRevision !== input.materialReviewRevision ||
+        googleReplyTextDigest(input.text) !==
+          authorized.authorization.authorizationVector.expectedReplyDigest
+      ) {
+        throw reviewApiError('authorization_changed', false)
+      }
+      try {
+        const result = await executeGoogleProviderRaw({
+          operation: 'reviews.reply',
           descriptor: {
             routeKey: 'reviews.reply',
-            accessToken: context.accessToken,
-            reviewName,
-            comment: text,
+            accessToken: authorized.accessToken,
+            reviewName: input.reviewName,
+            comment: input.text,
           },
-          authorization: context.authorization!,
-          executor: deps.executor!,
+          authorization: authorized.authorization,
+          executor: deps.executor,
           nowMs,
-        }),
-      )
-      const providerCorrelationId = response.headers.providerCorrelationId ?? null
-      response.body.fill(0)
-      return { providerCorrelationId }
+        })
+        const providerCorrelationId = result.headers.providerCorrelationId ?? null
+        result.body.fill(0)
+        return { providerCorrelationId }
+      } catch (error) {
+        throw executorErrorToReviewApiError(error)
+      }
     }
     deps.assertDirectEgressAllowed?.('reviews.reply')
+    const connection = await deps.refreshToken(input.organizationId, input.connectionId)
+    if (connection.status !== 'active' || connection.credentialUseState !== 'active') {
+      throw reviewApiError('authorization_changed', false)
+    }
+    const accessToken = deps.encryption.decrypt(connection.encryptedAccessToken)
     const timeout = withTimeout(30_000)
     let response: Response
     try {
-      response = await fetch(`${deps.baseUrl}/${reviewName}/reply`, {
+      response = await fetch(`${deps.baseUrl}/${input.reviewName}/reply`, {
         method: 'PUT',
         headers: {
-          Authorization: `Bearer ${context.accessToken}`,
+          Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ comment: text }),
+        body: JSON.stringify({ comment: input.text }),
         signal: timeout.signal,
       })
     } finally {

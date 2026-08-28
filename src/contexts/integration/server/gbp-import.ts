@@ -58,14 +58,14 @@ function discoveryErrorStatus(code: GoogleImportDiscoveryErrorCode): number {
 }
 
 function requireGoogleImportDiscovery() {
-  const discovery = getContainer().useCases.googleImportDiscovery
+  const discovery = getContainer().integrationPublicApi.imports.discover
   if (!discovery) {
     throw new GoogleImportDiscoveryError('temporarily_unavailable')
   }
   return discovery
 }
 function requireGoogleImportTransaction() {
-  const transaction = getContainer().useCases.googleImportTransaction
+  const transaction = getContainer().integrationPublicApi.imports.transact
   if (!transaction) {
     throw new GoogleImportTransactionError('temporarily_unavailable')
   }

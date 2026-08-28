@@ -25,8 +25,8 @@ export const listGoogleConnections = createServerFn({ method: 'GET' }).handler(
       await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
 
       try {
-        const { useCases } = getContainer()
-        const connections = await useCases.listGoogleConnections(ctx)
+        const { integrationPublicApi } = getContainer()
+        const connections = await integrationPublicApi.connections.list(ctx)
         return { connections: connections.map(toGoogleConnectionDto) }
       } catch (e) {
         if (isIntegrationError(e))
@@ -51,8 +51,8 @@ export const disconnectGoogle = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
 
         try {
-          const { useCases } = getContainer()
-          const connection = await useCases.disconnectGoogleAccount(data, ctx)
+          const { integrationPublicApi } = getContainer()
+          const connection = await integrationPublicApi.connections.disconnect(data, ctx)
           return { connection: toGoogleConnectionDto(connection) }
         } catch (e) {
           if (isIntegrationError(e))
@@ -77,8 +77,11 @@ export const updateConnectionVisibility = createServerFn({ method: 'POST' })
         await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
 
         try {
-          const { useCases } = getContainer()
-          const connection = await useCases.updateConnectionVisibility(data, ctx)
+          const { integrationPublicApi } = getContainer()
+          const connection = await integrationPublicApi.connections.updateVisibility(
+            data,
+            ctx,
+          )
           return { connection: toGoogleConnectionDto(connection) }
         } catch (e) {
           if (isIntegrationError(e))

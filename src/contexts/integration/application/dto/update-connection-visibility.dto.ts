@@ -6,7 +6,7 @@ import { z } from 'zod/v4'
 
 export const updateConnectionVisibilityInputSchema = z.object({
   connectionId: z.string().min(1, 'Connection ID is required'),
-  visibility: z.enum(['private', 'organization']),
+  visibility: z.literal('organization'),
 })
 
 export type UpdateConnectionVisibilityInput = z.infer<

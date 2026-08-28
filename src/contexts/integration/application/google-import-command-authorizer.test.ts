@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { Permission } from '#/shared/domain/permissions'
 import {
   googleConnectionId,
   organizationId,
@@ -15,7 +16,7 @@ const actor: AuthContext = {
   organizationId: organizationId('org-1'),
   userId: userId('user-1'),
   role: 'AccountAdmin',
-  effectivePermissions: new Set([
+  effectivePermissions: new Set<Permission>([
     'integration.manage',
     'property.read',
     'property.update',
@@ -41,6 +42,9 @@ const connection = (overrides: Partial<GoogleConnection> = {}): GoogleConnection
   lifecycleVersion: 3,
   accessVersion: 4,
   credentialGeneration: 5,
+  credentialHomeCellId: 'us',
+  credentialHomePolicyVersion: 2,
+  credentialHomeAuthorityGeneration: 1,
   encryptionKeyId: 'v1',
   lastSuccessfulSyncAt: null,
   statusReason: null,
@@ -48,6 +52,7 @@ const connection = (overrides: Partial<GoogleConnection> = {}): GoogleConnection
   createdAt: new Date('2026-08-01T10:00:00.000Z'),
   updatedAt: new Date('2026-08-01T10:00:00.000Z'),
   ...overrides,
+  credentialAuthorizedBy: overrides.credentialAuthorizedBy ?? actor.userId,
 })
 
 const allow = (policyVersion = 'beta-local-2'): ExecutionDecision => ({
@@ -72,7 +77,9 @@ const contentAuthorization = (
     executionPolicyVersion: 'beta-local-2',
     googleContentPolicyVersion: 11,
     emergencyKillVersion: 4,
+    principalKind: 'user',
     role: 'AccountAdmin',
+    permissionVersion: 7,
     permissionDigest: googleAuthorizationPermissionDigest(actor),
     connectionLifecycleVersion: 3,
     connectionAccessVersion: 4,
@@ -143,6 +150,7 @@ function setup(
     decide,
     readProperty,
     authorizeGoogleContent,
+    clock: () => new Date('2026-08-12T12:00:00.000Z'),
     ...(input?.warn ? { warn: input.warn } : {}),
   })
   return {
@@ -167,7 +175,7 @@ describe('authorizeGoogleImportCommand', () => {
     })
 
     expect(decide).toHaveBeenCalledTimes(2)
-    expect(getAccessToken).toHaveBeenCalledWith(actor.organizationId, connectionId)
+    expect(getAccessToken).toHaveBeenCalledWith(actor.organizationId, connectionId, [])
     expect(result).toMatchObject({
       ok: true,
       authorization: {
@@ -242,7 +250,7 @@ describe('authorizeGoogleImportCommand', () => {
     expect(fixture.authorizeGoogleContent).toHaveBeenCalledOnce()
   })
 
-  it('denies before token access for capability, visibility, status, or scope failure', async () => {
+  it('denies before token access for capability, status, credential, or scope failure', async () => {
     const deniedDecision = setup({
       decide: async () => ({ ...allow(), allowed: false, reason: 'capability_disabled' }),
     })
@@ -257,7 +265,6 @@ describe('authorizeGoogleImportCommand', () => {
     expect(deniedDecision.getAccessToken).not.toHaveBeenCalled()
 
     for (const current of [
-      connection({ visibility: 'private', connectedBy: userId('other-user') }),
       connection({ status: 'disconnected' }),
       connection({ credentialUseState: 'none' }),
       connection({ scopes: [] }),
@@ -273,6 +280,46 @@ describe('authorizeGoogleImportCommand', () => {
       ).resolves.toEqual({ ok: false, code: 'connection_unavailable' })
       expect(denied.getAccessToken).not.toHaveBeenCalled()
     }
+  })
+
+  it('treats connectedBy as provenance for a legacy private row', async () => {
+    const current = connection({
+      visibility: 'private',
+      connectedBy: userId('former-connector'),
+    })
+    const { authorize } = setup({ current })
+
+    await expect(
+      authorize({
+        actor,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: false,
+      }),
+    ).resolves.toMatchObject({ ok: true })
+  })
+
+  it('requires current Organization-wide authority instead of the raw role label', async () => {
+    const { authorize, decide, findById } = setup()
+    const assignedManager: AuthContext = {
+      ...actor,
+      role: 'PropertyManager',
+      effectivePermissions: new Set<Permission>(['integration.manage']),
+      scopeByPermission: new Map<Permission, 'assigned-properties'>([
+        ['integration.manage', 'assigned-properties'],
+      ]),
+    }
+
+    await expect(
+      authorize({
+        actor: assignedManager,
+        connectionId,
+        phase: 'provider_call',
+        requireAccessToken: false,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'authorization_denied' })
+    expect(decide).not.toHaveBeenCalled()
+    expect(findById).not.toHaveBeenCalled()
   })
 
   it('denies a post-call check when any frozen connection generation changed', async () => {
@@ -440,7 +487,9 @@ describe('authorizeGoogleImportCommand', () => {
         executionPolicyVersion: 'beta-local-2',
         googleContentPolicyVersion: generation,
         emergencyKillVersion: 4,
+        principalKind: 'user',
         role: 'AccountAdmin',
+        permissionVersion: 7,
         permissionDigest: googleAuthorizationPermissionDigest(actor),
         connectionLifecycleVersion: 3,
         connectionAccessVersion: 4,
@@ -604,7 +653,9 @@ describe('authorizeGoogleImportCommand', () => {
         executionPolicyVersion: 'beta-local-2',
         googleContentPolicyVersion: 11,
         emergencyKillVersion: 4,
+        principalKind: 'user',
         role: 'AccountAdmin',
+        permissionVersion: 7,
         permissionDigest: googleAuthorizationPermissionDigest(actor),
         connectionLifecycleVersion: 3,
         connectionAccessVersion: 4,

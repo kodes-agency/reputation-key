@@ -7,7 +7,6 @@
 
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { z } from 'zod/v4'
 import { integrationErrorStatus } from './error-helpers'
 import { integrationError } from '../domain/errors'
 import type { IntegrationErrorCode } from '../domain/errors'
@@ -15,6 +14,7 @@ import { throwContextError } from '#/shared/auth/server-errors'
 import { connectGoogleInputSchema } from '../application/dto/connect-google.dto'
 import { disconnectGoogleInputSchema } from '../application/dto/disconnect-google.dto'
 import { updateConnectionVisibilityInputSchema } from '../application/dto/update-connection-visibility.dto'
+import { googleAuthUrlInputSchema } from '../application/dto/google-auth-url.dto'
 
 describe('Google OAuth server boundary', () => {
   it('does not expose a server function that accepts PKCE verifier material', () => {
@@ -90,31 +90,27 @@ describe('throwContextError with IntegrationError (google-connections handlers)'
 
 // ── getAuthUrl input validation (inline schema) ───────────────────
 
-const getAuthUrlInputSchema = z.object({
-  visibility: z.enum(['private', 'organization']).default('private'),
-})
-
 describe('getAuthUrlInputSchema', () => {
-  it('accepts valid visibility "private"', () => {
-    const result = getAuthUrlInputSchema.safeParse({ visibility: 'private' })
-    expect(result.success).toBe(true)
+  it('rejects legacy private visibility for a newly issued ceremony', () => {
+    const result = googleAuthUrlInputSchema.safeParse({ visibility: 'private' })
+    expect(result.success).toBe(false)
   })
 
   it('accepts valid visibility "organization"', () => {
-    const result = getAuthUrlInputSchema.safeParse({ visibility: 'organization' })
+    const result = googleAuthUrlInputSchema.safeParse({ visibility: 'organization' })
     expect(result.success).toBe(true)
   })
 
-  it('defaults visibility to "private" when omitted', () => {
-    const result = getAuthUrlInputSchema.safeParse({})
+  it('defaults visibility to "organization" when omitted', () => {
+    const result = googleAuthUrlInputSchema.safeParse({})
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.visibility).toBe('private')
+      expect(result.data.visibility).toBe('organization')
     }
   })
 
   it('rejects invalid visibility value', () => {
-    const result = getAuthUrlInputSchema.safeParse({ visibility: 'public' })
+    const result = googleAuthUrlInputSchema.safeParse({ visibility: 'public' })
     expect(result.success).toBe(false)
   })
 })
@@ -122,6 +118,7 @@ describe('getAuthUrlInputSchema', () => {
 // ── callback-only connect command validation ─────────────────────
 
 const validConnectInput = () => ({
+  exchangeAttemptId: '60000000-0000-4000-8000-000000000001',
   code: 'auth-code-123',
   purpose: 'reviews' as const,
   connectionMode: 'new' as const,
@@ -203,12 +200,12 @@ describe('disconnectGoogleInputSchema', () => {
 // ── updateConnectionVisibility input validation ───────────────────
 
 describe('updateConnectionVisibilityInputSchema', () => {
-  it('accepts valid input with visibility "private"', () => {
+  it('rejects a transition back to private visibility', () => {
     const result = updateConnectionVisibilityInputSchema.safeParse({
       connectionId: 'conn-123',
       visibility: 'private',
     })
-    expect(result.success).toBe(true)
+    expect(result.success).toBe(false)
   })
 
   it('accepts valid input with visibility "organization"', () => {
@@ -221,7 +218,7 @@ describe('updateConnectionVisibilityInputSchema', () => {
 
   it('rejects missing connectionId', () => {
     const result = updateConnectionVisibilityInputSchema.safeParse({
-      visibility: 'private',
+      visibility: 'organization',
     })
     expect(result.success).toBe(false)
   })
@@ -229,7 +226,7 @@ describe('updateConnectionVisibilityInputSchema', () => {
   it('rejects empty connectionId', () => {
     const result = updateConnectionVisibilityInputSchema.safeParse({
       connectionId: '',
-      visibility: 'private',
+      visibility: 'organization',
     })
     expect(result.success).toBe(false)
   })

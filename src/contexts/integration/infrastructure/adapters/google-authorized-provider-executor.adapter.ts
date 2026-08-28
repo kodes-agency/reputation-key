@@ -5,6 +5,7 @@ import {
   type GoogleProviderRouteTarget,
 } from '#/shared/google-provider-control/route-catalogue'
 import type { GoogleProviderCallAuthorization } from '../../application/google-provider-contract'
+import { isGoogleDisconnectRevokeAuthorization } from '../../application/google-provider-contract'
 import type {
   GoogleAuthorizedProviderExecutor,
   GoogleProviderAdmissionCode,
@@ -13,6 +14,7 @@ import type {
 } from '../../application/ports/google-authorized-provider-executor.port'
 import type { GoogleContentAuthorityDenyCode } from '#/shared/auth/google-content-authority'
 import type { DataCellExecutionDecision } from '#/shared/routing/data-cell-execution-fence'
+import type { GoogleDisconnectRevokeDispatchHooks } from '../../application/google-disconnect-revoke'
 
 /**
  * Total map from the content authority's own deny union onto the closed set the
@@ -97,19 +99,28 @@ type GoogleEgressGatewayClient = Readonly<{
   ): Promise<GoogleProviderExecutionResult>
 }>
 
-export function createGoogleAuthorizedProviderExecutor(
+export const createGoogleAuthorizedProviderExecutor = (
   deps: Readonly<{
     bindCredential: (credential: string) => string
     admit: GoogleProviderPermitAdmitter
     gateway: GoogleEgressGatewayClient
+    disconnectRevoke?: GoogleDisconnectRevokeDispatchHooks
+    now?: () => Date
     /** REG-01 defense in depth immediately before any provider permit/effect. */
     admitPropertyExecution?: (propertyId: string) => Promise<DataCellExecutionDecision>
+    /** Phase-A direct mode only. Broker mode cannot carry raw descriptor tokens. */
+    admitDirectCredentialExecution?: (
+      input: Readonly<{
+        routeKey: GoogleProviderRouteDescriptor['routeKey']
+        authorization: GoogleProviderCallAuthorization
+      }>,
+    ) => Promise<'direct' | 'credential_home_unavailable' | 'credential_home_mismatch'>
     routeTarget?: GoogleProviderRouteTarget
     logger?: Readonly<{
       warn(fields: Readonly<Record<string, unknown>>, message: string): void
     }>
   }>,
-): GoogleAuthorizedProviderExecutor {
+): GoogleAuthorizedProviderExecutor => {
   return Object.freeze({
     execute: async (descriptor, options) => {
       if (options.signal?.aborted) {
@@ -158,6 +169,34 @@ export function createGoogleAuthorizedProviderExecutor(
           }
         }
       }
+      if (deps.admitDirectCredentialExecution) {
+        let credentialDecision:
+          'direct' | 'credential_home_unavailable' | 'credential_home_mismatch'
+        try {
+          credentialDecision = await deps.admitDirectCredentialExecution({
+            routeKey: descriptor.routeKey,
+            authorization: options.authorization,
+          })
+        } catch {
+          credentialDecision = 'credential_home_unavailable'
+        }
+        if (credentialDecision !== 'direct') {
+          deps.logger?.warn(
+            {
+              routeKey: descriptor.routeKey,
+              stage: 'credential-home',
+              code: credentialDecision,
+            },
+            'Google provider execution rejected',
+          )
+          return {
+            ok: false,
+            code: 'admission_denied',
+            admissionCode: credentialDecision,
+            retryAfterMs: 0,
+          }
+        }
+      }
       let admission: GoogleProviderAdmissionMetadata
       try {
         admission = compileGoogleProviderRequest(
@@ -171,6 +210,31 @@ export function createGoogleAuthorizedProviderExecutor(
           'Google provider execution rejected',
         )
         return { ok: false, code: 'malformed_request', retryAfterMs: 0 }
+      }
+      const disconnectAuthorization = isGoogleDisconnectRevokeAuthorization(
+        options.authorization,
+      )
+        ? options.authorization
+        : null
+      const disconnectRevoke = disconnectAuthorization?.disconnectRevoke
+      if (disconnectRevoke) {
+        if (
+          descriptor.routeKey !== 'oauth.revoke' ||
+          !deps.disconnectRevoke ||
+          !Number.isSafeInteger(disconnectRevoke.cleanupDeadlineAtMs)
+        ) {
+          return { ok: false, code: 'admission_denied', retryAfterMs: 0 }
+        }
+        const prepared = await deps.disconnectRevoke.prepare({
+          attemptId: disconnectRevoke.attemptId,
+          authorization: disconnectAuthorization,
+          credentialBinding: admission.credentialBinding,
+          cleanupDeadlineAt: new Date(disconnectRevoke.cleanupDeadlineAtMs),
+          now: deps.now?.() ?? new Date(),
+        })
+        if (!prepared.ok) {
+          return { ok: false, code: 'admission_denied', retryAfterMs: 0 }
+        }
       }
       let permit: Awaited<ReturnType<GoogleProviderPermitAdmitter>>
       try {
@@ -192,6 +256,18 @@ export function createGoogleAuthorizedProviderExecutor(
           code: 'admission_denied',
           admissionCode: permit.code,
           retryAfterMs: 0,
+        }
+      }
+      if (disconnectRevoke) {
+        const acquired = await deps.disconnectRevoke!.acquireDispatch({
+          attemptId: disconnectRevoke.attemptId,
+          cleanupWorkPermitId: permit.permitId,
+          authorization: disconnectAuthorization!,
+          credentialBinding: admission.credentialBinding,
+          now: deps.now?.() ?? new Date(),
+        })
+        if (!acquired.ok) {
+          return { ok: false, code: 'admission_denied', retryAfterMs: 0 }
         }
       }
       if (options.signal?.aborted) {

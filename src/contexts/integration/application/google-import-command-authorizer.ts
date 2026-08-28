@@ -15,6 +15,7 @@ import type {
   GoogleImportCommandAuthorizationResult,
 } from './google-import-discovery'
 import { GOOGLE_BUSINESS_MANAGE_SCOPE } from './google-provider-contract'
+import { canManageOrganizationGoogleConnections } from './google-organization-authority'
 
 type PropertyAuthorizationView = Readonly<{
   propertyId: PropertyId
@@ -47,9 +48,7 @@ function connectionIsUsable(
     connection.id === input.connectionId &&
     connection.status === 'active' &&
     connection.credentialUseState === 'active' &&
-    connection.scopes.includes(GOOGLE_BUSINESS_MANAGE_SCOPE) &&
-    (connection.visibility === 'organization' ||
-      connection.connectedBy === input.actor.userId)
+    connection.scopes.includes(GOOGLE_BUSINESS_MANAGE_SCOPE)
   )
 }
 
@@ -161,7 +160,7 @@ export function createGoogleImportCommandAuthorizer(
       organizationId: Parameters<GoogleConnectionRepository['findById']>[0],
       propertyId: PropertyId,
     ) => Promise<PropertyAuthorizationView | null>
-    clock?: () => Date
+    clock: () => Date
     /**
      * Structured warn for a refused authorization. Optional: unset is a no-op,
      * so tests and any caller that has no logger stay unchanged.
@@ -169,7 +168,6 @@ export function createGoogleImportCommandAuthorizer(
     warn?: (fields: Readonly<Record<string, unknown>>, message: string) => void
   }>,
 ): GoogleImportCommandAuthorizer {
-  const clock = deps.clock ?? (() => new Date())
   const warn = deps.warn ?? (() => {})
 
   const deny = (
@@ -193,6 +191,10 @@ export function createGoogleImportCommandAuthorizer(
   }
 
   return async (input) => {
+    if (!canManageOrganizationGoogleConnections(input.actor)) {
+      return deny('authorization_denied')
+    }
+
     const decideCapability = async (
       capability: 'property.import_gbp_v2' | 'property.connect_gbp',
       action = 'integration.manage',
@@ -205,7 +207,7 @@ export function createGoogleImportCommandAuthorizer(
         organizationId: input.actor.organizationId,
         ...(propertyId ? { propertyId } : {}),
         executionKind: 'interactive',
-        now: clock(),
+        now: deps.clock(),
       })
 
     let importDecision: GoogleImportExecutionDecision
@@ -312,6 +314,7 @@ export function createGoogleImportCommandAuthorizer(
         accessToken = await deps.tokenProvider.getAccessToken(
           input.actor.organizationId,
           input.connectionId,
+          (input.properties ?? []).map((property) => property.propertyId),
         )
         connection = await deps.connectionRepo.findById(
           input.actor.organizationId,
@@ -363,11 +366,21 @@ export function createGoogleImportCommandAuthorizer(
       }
     }
 
+    const permissionVersion = contentAuthorization.authorizationVector.permissionVersion
+    if (
+      contentAuthorization.authorizationVector.principalKind !== 'user' ||
+      !Number.isSafeInteger(permissionVersion) ||
+      Number(permissionVersion) < 0
+    ) {
+      return denyChanged({ site: 'principal_generation_vector' })
+    }
     const expectedAuthorizationVector = {
       executionPolicyVersion: importDecision.policyVersion,
       googleContentPolicyVersion: contentAuthorization.policyVersion,
       emergencyKillVersion: contentAuthorization.emergencyKillVersion,
+      principalKind: 'user',
       role: input.actor.role,
+      permissionVersion: Number(permissionVersion),
       permissionDigest: googleAuthorizationPermissionDigest(input.actor),
       connectionLifecycleVersion: connection.lifecycleVersion,
       connectionAccessVersion: connection.accessVersion,

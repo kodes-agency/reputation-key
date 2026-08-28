@@ -23,7 +23,9 @@ import type {
   ImportReferenceResult,
 } from './ports/google-import-reference-store.port'
 
-const CONTENT_TTL_MS = 15 * 60_000
+/** Durable pre-confirmation checkpoint window; current authorization is still
+ * revalidated on every page, lease renewal, and confirmation claim. */
+export const GOOGLE_IMPORT_DISCOVERY_CONTENT_TTL_MS = 24 * 60 * 60_000
 
 export type GoogleImportAuthorizationPropertySnapshot = Readonly<{
   propertyId: PropertyId
@@ -339,7 +341,7 @@ export function createGoogleImportDiscovery(
           role: account.role,
         })),
         nextPageToken: providerPage.nextPageToken,
-        contentDeadlineMs: nowMs() + CONTENT_TTL_MS,
+        contentDeadlineMs: nowMs() + GOOGLE_IMPORT_DISCOVERY_CONTENT_TTL_MS,
       }),
     )
     return published.value
@@ -460,7 +462,7 @@ export function createGoogleImportDiscovery(
         },
         candidates,
         nextPageToken: providerPage.nextPageToken,
-        contentDeadlineMs: nowMs() + CONTENT_TTL_MS,
+        contentDeadlineMs: nowMs() + GOOGLE_IMPORT_DISCOVERY_CONTENT_TTL_MS,
       }),
     )
     return published.value

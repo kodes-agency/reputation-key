@@ -1,164 +1,177 @@
-// Integration context — handle GBP notification use case tests
-
-import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
-import { describe, it, expect } from 'vitest'
-import { handleGbpNotification } from './handle-gbp-notification'
+import { describe, expect, it, vi } from 'vitest'
+import {
+  GOOGLE_LOCATION_PRIMARY_RESOURCE,
+  GOOGLE_PROVIDER_FIXTURES_V1,
+  GOOGLE_REVIEW_PRIMARY_RESOURCE,
+} from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { PropertyLookup } from '../ports/property-lookup.port'
-import type {
-  SyncPropertyReviewsJobData,
-  AddSyncJobOptions,
-} from '#/contexts/review/application/public-api'
+import type { GoogleReviewPushReferenceStore } from '../ports/google-review-push-reference.port'
+import type { GbpReviewPushReceiptStore } from '../ports/gbp-review-push-receipt.port'
+import { handleGbpNotification } from './handle-gbp-notification'
 
-// ── In-memory fakes ──────────────────────────────────────────────
+const ORGANIZATION_ID = 'org-google-push'
+const PROPERTY_ID = '00000000-0000-4000-8000-000000000001'
+const CONNECTION_ID = '00000000-0000-4000-8000-000000000002'
+const ACCOUNT_ID =
+  GOOGLE_PROVIDER_FIXTURES_V1['google-review-primary'].expectedSegments.accountId
+const LOCATION_ID =
+  GOOGLE_PROVIDER_FIXTURES_V1['google-review-primary'].expectedSegments.locationId
+const REFERENCE_REF = `v1.${Buffer.alloc(32, 7).toString('base64url')}`
+const NOW = new Date('2026-08-27T08:00:00.000Z')
 
-const createFakePropertyLookup = (
-  lookup: Record<string, PropertyLookup | null> = {},
-) => ({
-  findByGbpLocationId: async (gbpLocationId: string): Promise<PropertyLookup | null> =>
-    lookup[gbpLocationId] ?? null,
+const PROPERTY: PropertyLookup = {
+  id: PROPERTY_ID,
+  organizationId: ORGANIZATION_ID,
+  googleConnectionId: CONNECTION_ID,
+  gbpAccountId: ACCOUNT_ID,
+  gbpLocationId: LOCATION_ID,
+  googleBindingState: 'active',
+  sourceEpoch: 5,
+}
+
+function setup(
+  input: Readonly<{
+    property?: PropertyLookup | null
+    publish?: Awaited<ReturnType<GoogleReviewPushReferenceStore['publish']>>
+    receiptStatus?: 'recorded' | 'duplicate'
+  }> = {},
+) {
+  const publish = vi.fn<GoogleReviewPushReferenceStore['publish']>(async () =>
+    Promise.resolve(
+      input.publish ?? ({ ok: true, referenceRef: REFERENCE_REF } as const),
+    ),
+  )
+  const record = vi.fn<GbpReviewPushReceiptStore['record']>(async () => ({
+    status: input.receiptStatus ?? 'recorded',
+  }))
+  const useCase = handleGbpNotification({
+    propertyLookup: {
+      findByGbpLocationId: async () =>
+        input.property === undefined ? PROPERTY : input.property,
+    },
+    references: { publish, resolve: vi.fn() },
+    receipts: { record },
+    clock: () => NOW,
+    logger: createMockLogger(),
+  })
+  return { useCase, publish, record }
+}
+
+const INPUT = Object.freeze({
+  topic: 'projects/repkey/topics/gbp-reviews',
+  messageId: 'message-1',
+  notificationKind: 'NEW_REVIEW' as const,
+  locationId: LOCATION_ID,
+  locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+  reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
 })
 
-const createFakeReviewQueue = () => {
-  const jobs: Array<{ data: SyncPropertyReviewsJobData; options?: AddSyncJobOptions }> =
-    []
-  return {
-    addSyncJob: async (data: SyncPropertyReviewsJobData, options?: AddSyncJobOptions) => {
-      jobs.push({ data, options })
-    },
-    getJobs: () => jobs,
-  }
-}
-
-// ── Setup ────────────────────────────────────────────────────────
-
-const setup = () => {
-  const reviewQueue = createFakeReviewQueue()
-  const deps = {
-    propertyLookup: createFakePropertyLookup(),
-    reviewQueue,
-    logger: createMockLogger(),
-  }
-  const useCase = handleGbpNotification(deps)
-  return { useCase, reviewQueue }
-}
-
-// ── Tests ────────────────────────────────────────────────────────
-
 describe('handleGbpNotification', () => {
-  it('happy path: enqueues review sync when property found with google connection', async () => {
-    const { reviewQueue } = setup()
-    const testProperty: PropertyLookup = {
-      id: 'prop-001',
-      organizationId: 'org-001',
-      googleConnectionId: 'conn-001',
-    }
-    // Override the lookup
-    const lookup: Record<string, PropertyLookup | null> = {
-      'ChIJ-test-place': testProperty,
-    }
-    const deps = {
-      propertyLookup: createFakePropertyLookup(lookup),
-      reviewQueue,
-      logger: createMockLogger(),
-    }
-    const useCaseWithLookup = handleGbpNotification(deps)
+  it('persists a targeted identifier-only handoff instead of calling the review queue inline', async () => {
+    const { useCase, publish, record } = setup()
 
-    const result = await useCaseWithLookup({
-      locationId: 'ChIJ-test-place',
+    await expect(useCase(INPUT)).resolves.toEqual({
+      accepted: true,
+      duplicate: false,
+      handoff: 'targeted',
+      propertyId: PROPERTY_ID,
+    })
+    expect(publish).toHaveBeenCalledWith({
+      scope: {
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_ID,
+        connectionId: CONNECTION_ID,
+        sourceEpoch: 5,
+      },
       locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
-      messageId: 'msg-001',
+      reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
     })
-
-    expect(result.enqueued).toBe(true)
-    expect(result.propertyId).toBe('prop-001')
-    expect(result.reason).toBeUndefined()
-
-    // Verify job was enqueued with correct data
-    const jobs = reviewQueue.getJobs()
-    expect(jobs).toHaveLength(1)
-    expect(jobs[0].data).toEqual({
-      propertyId: 'prop-001',
-      organizationId: 'org-001',
-      connectionId: 'conn-001',
-      locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
-      // Named, content-free webhook attribution.
-      initiator: { kind: 'system', id: 'webhook:gbp' },
-      correlationId: 'webhook:msg-001',
+    expect(record).toHaveBeenCalledTimes(1)
+    const receipt = record.mock.calls[0]![0]
+    expect(receipt).toMatchObject({
+      topic: INPUT.topic,
+      messageId: INPUT.messageId,
+      notificationKind: 'NEW_REVIEW',
+      resolvedPropertyId: PROPERTY_ID,
+      outcome: 'accepted_targeted',
     })
-    expect(jobs[0].options?.jobId).toBe('webhook:msg-001')
+    expect(receipt.event).toMatchObject({
+      _tag: 'integration.google_review_push.accepted',
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      connectionId: CONNECTION_ID,
+      sourceEpoch: 5,
+      referenceRef: REFERENCE_REF,
+    })
+    expect(JSON.stringify(receipt.event)).not.toContain('accounts/')
   })
 
-  it('returns property_not_found when property does not exist', async () => {
-    const { useCase, reviewQueue } = setup()
-
-    const result = await useCase({
-      locationId: 'ChIJ-unknown-place',
-      locationName: `${GOOGLE_LOCATION_PRIMARY_RESOURCE}-missing`,
-      messageId: 'msg-002',
+  it('acknowledges a duplicate without creating a second durable handoff', async () => {
+    const { useCase } = setup({ receiptStatus: 'duplicate' })
+    await expect(useCase(INPUT)).resolves.toMatchObject({
+      accepted: true,
+      duplicate: true,
+      handoff: 'targeted',
     })
-
-    expect(result.enqueued).toBe(false)
-    expect(result.reason).toBe('property_not_found')
-    expect(result.propertyId).toBeUndefined()
-
-    // No job should be enqueued
-    expect(reviewQueue.getJobs()).toHaveLength(0)
   })
 
-  it('returns property_not_found when property exists but has no google connection', async () => {
-    const reviewQueue = createFakeReviewQueue()
-    const testProperty: PropertyLookup = {
-      id: 'prop-002',
-      organizationId: 'org-001',
-      googleConnectionId: null,
-    }
-    const lookup: Record<string, PropertyLookup | null> = {
-      'ChIJ-no-conn': testProperty,
-    }
-    const deps = {
-      propertyLookup: createFakePropertyLookup(lookup),
-      reviewQueue,
-      logger: createMockLogger(),
-    }
-    const useCase = handleGbpNotification(deps)
-
-    const result = await useCase({
-      locationId: 'ChIJ-no-conn',
-      locationName: `${GOOGLE_LOCATION_PRIMARY_RESOURCE}-no-connection`,
-      messageId: 'msg-003',
+  it('durably requests a full reconciliation when the short-lived reference store is unavailable', async () => {
+    const { useCase, record } = setup({
+      publish: { ok: false, code: 'unavailable' },
     })
 
-    expect(result.enqueued).toBe(false)
-    expect(result.reason).toBe('property_not_found')
-    expect(reviewQueue.getJobs()).toHaveLength(0)
+    await expect(useCase(INPUT)).resolves.toMatchObject({
+      accepted: true,
+      duplicate: false,
+      handoff: 'reconciliation',
+    })
+    expect(record.mock.calls[0]![0]).toMatchObject({
+      outcome: 'accepted_reconciliation',
+      event: { referenceRef: null },
+    })
   })
 
-  it('uses messageId-based jobId for deduplication', async () => {
-    const reviewQueue = createFakeReviewQueue()
-    const testProperty: PropertyLookup = {
-      id: 'prop-003',
-      organizationId: 'org-002',
-      googleConnectionId: 'conn-002',
-    }
-    const lookup: Record<string, PropertyLookup | null> = {
-      'ChIJ-dedup': testProperty,
-    }
-    const deps = {
-      propertyLookup: createFakePropertyLookup(lookup),
-      reviewQueue,
-      logger: createMockLogger(),
-    }
-    const useCase = handleGbpNotification(deps)
+  it('durably ignores an unimported location and emits no handoff fact', async () => {
+    const { useCase, publish, record } = setup({ property: null })
 
-    await useCase({
-      locationId: 'ChIJ-dedup',
-      locationName: `${GOOGLE_LOCATION_PRIMARY_RESOURCE}-dedup`,
-      messageId: 'unique-msg-id-12345',
+    await expect(useCase(INPUT)).resolves.toEqual({
+      accepted: true,
+      duplicate: false,
+      handoff: 'ignored',
+    })
+    expect(publish).not.toHaveBeenCalled()
+    expect(record.mock.calls[0]![0]).toMatchObject({
+      outcome: 'ignored_property_not_found',
+      resolvedPropertyId: null,
+      event: null,
+    })
+  })
+
+  it('does not route a stale account/location binding to another property', async () => {
+    const { useCase, publish, record } = setup({
+      property: { ...PROPERTY, gbpAccountId: 'different-account' },
     })
 
-    const jobs = reviewQueue.getJobs()
-    expect(jobs).toHaveLength(1)
-    expect(jobs[0].options?.jobId).toBe('webhook:unique-msg-id-12345')
+    await expect(useCase(INPUT)).resolves.toMatchObject({ handoff: 'ignored' })
+    expect(publish).not.toHaveBeenCalled()
+    expect(record.mock.calls[0]![0]).toMatchObject({
+      outcome: 'ignored_binding_mismatch',
+      event: null,
+    })
+  })
+
+  it('rejects a non-canonical cross-location review resource before writing a receipt', async () => {
+    const { useCase, record } = setup()
+    await expect(
+      useCase({
+        ...INPUT,
+        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE.replace(
+          `/locations/${LOCATION_ID}/`,
+          '/locations/different-location/',
+        ),
+      }),
+    ).rejects.toThrow('resource mismatch')
+    expect(record).not.toHaveBeenCalled()
   })
 })

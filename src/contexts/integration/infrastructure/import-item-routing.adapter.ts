@@ -12,7 +12,7 @@ const ACTIVE_ITEM_STATUSES = ['pending', 'processing'] as const
  * Tenant-keyed content-free routing lookup for delayed import-item work.
  * Terminal, purged, cross-tenant, or deleted-parent items deliberately look missing.
  */
-export function createImportItemRoutingLoader(deps: Readonly<{ db: Database }>) {
+export const createImportItemRoutingLoader = (deps: Readonly<{ db: Database }>) => {
   return async (
     organizationId: string,
     itemId: string,

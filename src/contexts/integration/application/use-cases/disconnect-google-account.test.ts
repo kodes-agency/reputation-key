@@ -28,12 +28,14 @@ const setup = () => {
     commandStore: createSequentialIntegrationCommandStore({ connectionRepo, events }),
     clock: () => FIXED_TIME,
     logger: createMockLogger(),
+    assertDirectCredentialUse: async () => undefined,
   }
   return {
     useCase: disconnectGoogleAccount(baseDeps),
     baseDeps,
     connectionRepo,
     oauth,
+    encryption,
     events,
   }
 }
@@ -92,6 +94,28 @@ describe('disconnectGoogleAccount', () => {
     )
   })
 
+  it('redacts locally without decrypting or calling Google outside the credential home', async () => {
+    const { baseDeps, connectionRepo, oauth, encryption } = setup()
+    const connection = buildTestGoogleConnection()
+    connectionRepo.seed([connection])
+    const decrypt = vi.spyOn(encryption, 'decrypt')
+    const useCase = disconnectGoogleAccount({
+      ...baseDeps,
+      assertDirectCredentialUse: async () => {
+        throw new Error('wrong home')
+      },
+    })
+
+    await expect(
+      useCase(
+        { connectionId: connection.id },
+        buildTestAuthContext({ role: 'AccountAdmin' }),
+      ),
+    ).resolves.toMatchObject({ status: 'disconnected', credentialUseState: 'none' })
+    expect(decrypt).not.toHaveBeenCalled()
+    expect(oauth.revokeTokenCalls()).toEqual([])
+  })
+
   it('rejects an unknown tenant-scoped connection', async () => {
     const { useCase } = setup()
     await expect(
@@ -148,7 +172,7 @@ describe('disconnectGoogleAccount', () => {
     })
   })
 
-  it('unsubscribes before revocation and still disconnects if revocation fails', async () => {
+  it('unsubscribes but never falls back to an undurable direct revoke', async () => {
     const { baseDeps, connectionRepo, oauth, events } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
     const connection = buildTestGoogleConnection({ status: 'active' })
@@ -168,9 +192,89 @@ describe('disconnectGoogleAccount', () => {
     await expect(
       useCase({ connectionId: connection.id as string }, ctx),
     ).resolves.toMatchObject({ status: 'disconnected' })
-    expect(order).toEqual(['unsubscribe', 'revoke'])
+    expect(order).toEqual(['unsubscribe'])
     expect(events.capturedByTag('integration.google_account.disconnected')).toHaveLength(
       1,
+    )
+  })
+
+  it('binds a durable revoke attempt to the current AccountAdmin and exact connection', async () => {
+    const { baseDeps, connectionRepo, oauth } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const connection = buildTestGoogleConnection({ status: 'active' })
+    connectionRepo.seed([connection])
+    const authorizeProviderCall = vi.fn(async (input) => ({
+      capability: 'property.import_gbp_v2' as const,
+      organizationId: ctx.organizationId,
+      propertyId: null,
+      connectionId: connection.id,
+      initiatorUserId: ctx.userId,
+      approvalBindingId: 'approval-revoke',
+      expectedCredentialGeneration: connection.credentialGeneration,
+      authorizationVector: {
+        connectionLifecycleVersion: connection.lifecycleVersion,
+        connectionAccessVersion: connection.accessVersion,
+        credentialGeneration: connection.credentialGeneration,
+      },
+      disconnectRevoke: {
+        attemptId: input.disconnectRevoke!.attemptId,
+        cleanupDeadlineAtMs: input.disconnectRevoke!.cleanupDeadlineAt.getTime(),
+      },
+    }))
+    const revokeTokenWithOutcome = vi.fn(async () => 'cleanup_ambiguous' as const)
+    ;(oauth as Record<string, unknown>).revokeTokenWithOutcome = revokeTokenWithOutcome
+    const settle = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        ...connection,
+        status: 'disconnected' as const,
+        credentialUseState: 'none' as const,
+        encryptedAccessToken: 'redacted',
+        encryptedRefreshToken: 'redacted',
+        googleSubject: null,
+        scopes: [],
+      },
+    }))
+    const useCase = disconnectGoogleAccount({
+      ...baseDeps,
+      authorizeProviderCall,
+      disconnectRevokeStore: {
+        prepare: vi.fn(),
+        acquireDispatch: vi.fn(),
+        settle,
+        reconcileElapsed: vi.fn(),
+      },
+      idGen: () => '70000000-0000-4000-8000-000000000001',
+    })
+
+    await useCase({ connectionId: connection.id }, ctx)
+
+    expect(authorizeProviderCall).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: 'oauth.revoke',
+        organizationId: ctx.organizationId,
+        connectionId: connection.id,
+        initiatorUserId: ctx.userId,
+        disconnectRevoke: {
+          attemptId: '70000000-0000-4000-8000-000000000001',
+          cleanupDeadlineAt: new Date(FIXED_TIME.getTime() + 60_000),
+        },
+      }),
+    )
+    expect(revokeTokenWithOutcome).toHaveBeenCalledWith(
+      'refresh-token',
+      expect.objectContaining({
+        disconnectRevoke: {
+          attemptId: '70000000-0000-4000-8000-000000000001',
+          cleanupDeadlineAtMs: FIXED_TIME.getTime() + 60_000,
+        },
+      }),
+    )
+    expect(settle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attemptId: '70000000-0000-4000-8000-000000000001',
+        outcome: 'cleanup_ambiguous',
+      }),
     )
   })
 })

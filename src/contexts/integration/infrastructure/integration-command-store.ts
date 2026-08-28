@@ -7,7 +7,9 @@
 import { and, eq, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { Clock } from '#/shared/domain/clock'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
+import { googleOauthExchangeAttempts } from '#/shared/db/schema/google-content-control.schema'
 import type { EventBus } from '#/shared/events/event-bus'
 import { emitAfterCommit, insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
@@ -24,6 +26,10 @@ import type {
   ReconnectGoogleAccountCommand,
   UpdateConnectionVisibilityCommand,
 } from '../application/ports/integration-command-store.port'
+import {
+  applyOrganizationGoogleCredentialHome,
+  type ApplyOrganizationGoogleCredentialHome,
+} from './organization-google-credential-home-command'
 
 /** True when a Postgres unique-constraint violation (SQLSTATE 23505) caused the error. */
 function isPgUniqueViolation(err: unknown): boolean {
@@ -66,18 +72,86 @@ function updateConnectionRow(
     )
 }
 
-export function createAtomicIntegrationCommandStore(
+async function completeOAuthExchangeAttempt(
+  tx: Tx,
+  input: Readonly<{
+    attemptId: string | undefined
+    organizationId: string
+    connectionId: string
+    initiatorUserId: string
+    now: Date
+  }>,
+): Promise<void> {
+  if (!input.attemptId) return
+  const rows = await tx
+    .update(googleOauthExchangeAttempts)
+    .set({
+      state: 'completed',
+      encryptedResult: null,
+      responseExpiresAt: null,
+      applyLeaseExpiresAt: null,
+      terminalAt: input.now,
+      outcomeCode: 'connection_committed',
+      updatedAt: input.now,
+    })
+    .where(
+      and(
+        eq(googleOauthExchangeAttempts.id, input.attemptId),
+        eq(googleOauthExchangeAttempts.organizationId, input.organizationId),
+        eq(googleOauthExchangeAttempts.connectionId, input.connectionId),
+        eq(googleOauthExchangeAttempts.initiatorUserId, input.initiatorUserId),
+        eq(googleOauthExchangeAttempts.state, 'applying'),
+      ),
+    )
+    .returning({ id: googleOauthExchangeAttempts.id })
+  if (!rows[0]) {
+    throw integrationError('oauth_failed', 'Google OAuth recovery state changed')
+  }
+}
+
+export const createAtomicIntegrationCommandStore = (
   db: Database,
   events: EventBus,
-): IntegrationCommandStore {
+  clock: Clock,
+  options?: Readonly<{
+    applyCredentialHome?: ApplyOrganizationGoogleCredentialHome
+  }>,
+): IntegrationCommandStore => {
+  const applyCredentialHome =
+    options?.applyCredentialHome ?? applyOrganizationGoogleCredentialHome
   return {
     connectGoogleAccount: async (command: ConnectGoogleAccountCommand) => {
       return trace('integration.commandStore.connectGoogleAccount', async () => {
+        if (
+          command.connection.credentialHomeCellId === null ||
+          command.connection.credentialHomePolicyVersion === null ||
+          command.connection.credentialHomeAuthorityGeneration === null ||
+          command.connection.credentialHomeAuthorityGeneration !==
+            command.credentialHomeBinding.authorityGeneration
+        ) {
+          throw integrationError('oauth_failed', 'Google credential home is unavailable')
+        }
         try {
           await db.transaction(async (tx) => {
+            await applyCredentialHome(tx, {
+              organizationId: command.connection.organizationId,
+              targetConnectionId: null,
+              requested: command.credentialHomeBinding,
+              reason: 'new_grant',
+              changedBy: command.event.userId,
+              changeTicket: null,
+              now: command.event.occurredAt,
+            })
             await tx
               .insert(googleConnections)
               .values(googleConnectionToInsert(command.connection))
+            await completeOAuthExchangeAttempt(tx, {
+              attemptId: command.exchangeAttemptId,
+              organizationId: command.connection.organizationId,
+              connectionId: command.connection.id,
+              initiatorUserId: command.event.userId,
+              now: command.event.occurredAt,
+            })
             await insertOutboxRow(tx, command.event)
           })
         } catch (err) {
@@ -96,6 +170,16 @@ export function createAtomicIntegrationCommandStore(
         let updated: typeof googleConnections.$inferSelect
         try {
           updated = await db.transaction(async (tx) => {
+            await applyCredentialHome(tx, {
+              organizationId: command.organizationId,
+              targetConnectionId: command.connectionId,
+              requested: command.credentialHome,
+              reason: command.credentialHomeReason,
+              changedBy: command.event.userId,
+              changeTicket: null,
+              now: command.event.occurredAt,
+            })
+            const now = clock()
             const rows = await updateConnectionRow(tx, command, {
               googleSubject: command.googleSubject,
               encryptedAccessToken: command.encryptedAccessToken,
@@ -105,11 +189,17 @@ export function createAtomicIntegrationCommandStore(
               status: 'active',
               visibility: command.visibility,
               credentialUseState: 'active',
+              credentialAuthorizedBy: command.event.userId,
+              credentialAuthorizedAt: command.event.occurredAt,
               cleanupMaterialDeadlineAt: null,
               lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
               accessVersion: sql`${googleConnections.accessVersion} + 1`,
               credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
-              updatedAt: new Date(),
+              credentialHomeCellId: command.credentialHome.homeCellId,
+              credentialHomePolicyVersion: command.credentialHome.cataloguePolicyVersion,
+              credentialHomeAuthorityGeneration:
+                command.credentialHome.authorityGeneration,
+              updatedAt: now,
             }).returning()
             if (!rows[0]) {
               throw integrationError(
@@ -117,6 +207,13 @@ export function createAtomicIntegrationCommandStore(
                 'Google connection not found',
               )
             }
+            await completeOAuthExchangeAttempt(tx, {
+              attemptId: command.exchangeAttemptId,
+              organizationId: command.organizationId,
+              connectionId: command.connectionId,
+              initiatorUserId: command.event.userId,
+              now: command.event.occurredAt,
+            })
             await insertOutboxRow(tx, command.event)
             return rows[0]
           })
@@ -134,10 +231,11 @@ export function createAtomicIntegrationCommandStore(
     disconnectGoogleAccount: async (command: DisconnectGoogleAccountCommand) => {
       return trace('integration.commandStore.disconnectGoogleAccount', async () => {
         const redacted = await db.transaction(async (tx) => {
+          const now = clock()
           const statusRows = await updateConnectionRow(tx, command, {
             status: 'disconnected',
             lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
-            updatedAt: new Date(),
+            updatedAt: now,
           }).returning({ id: googleConnections.id })
           if (!statusRows[0]) {
             throw integrationError('connection_not_found', 'Google connection not found')
@@ -153,7 +251,7 @@ export function createAtomicIntegrationCommandStore(
             cleanupMaterialDeadlineAt: null,
             accessVersion: sql`${googleConnections.accessVersion} + 1`,
             credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
-            updatedAt: new Date(),
+            updatedAt: now,
           }).returning()
           if (!redactedRows[0]) {
             throw integrationError('connection_not_found', 'Google connection not found')
@@ -169,10 +267,11 @@ export function createAtomicIntegrationCommandStore(
     updateConnectionVisibility: async (command: UpdateConnectionVisibilityCommand) => {
       return trace('integration.commandStore.updateConnectionVisibility', async () => {
         const updated = await db.transaction(async (tx) => {
+          const now = clock()
           const rows = await updateConnectionRow(tx, command, {
             visibility: command.visibility,
             accessVersion: sql`${googleConnections.accessVersion} + 1`,
-            updatedAt: new Date(),
+            updatedAt: now,
           }).returning()
           if (!rows[0]) {
             throw integrationError('connection_not_found', 'Google connection not found')

@@ -1,9 +1,10 @@
 // Integration context — Drizzle repository implementation for Google connections
 // Per architecture: factory function returning Readonly<{ method }>.
-// Filters by organizationId AND visibility/connectedBy for proper access control.
+// Filters by organizationId; connectedBy is audit provenance, not authority.
 
-import { and, eq, or, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import type { Clock } from '#/shared/domain/clock'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import type {
   GoogleConnectionRepository,
@@ -20,6 +21,7 @@ import { trace } from '#/shared/observability/trace'
 export const createGoogleConnectionRepository = (
   db: Database,
   propertyFkCleanup: PropertyFkCleanupPort,
+  clock: Clock,
 ): GoogleConnectionRepository => ({
   findById: async (orgId, id) => {
     return trace('googleConnection.findById', async () => {
@@ -58,20 +60,12 @@ export const createGoogleConnectionRepository = (
     })
   },
 
-  listByOrganization: async (orgId, filter: ConnectionVisibilityFilter) => {
+  listByOrganization: async (orgId, _filter: ConnectionVisibilityFilter) => {
     return trace('googleConnection.listByOrganization', async () => {
-      const whereClause =
-        filter.showAll === true
-          ? eq(googleConnections.organizationId, orgId)
-          : and(
-              eq(googleConnections.organizationId, orgId),
-              or(
-                eq(googleConnections.visibility, 'organization'),
-                eq(googleConnections.connectedBy, filter.userId),
-              ),
-            )
-
-      const rows = await db.select().from(googleConnections).where(whereClause)
+      const rows = await db
+        .select()
+        .from(googleConnections)
+        .where(eq(googleConnections.organizationId, orgId))
       return rows.map(googleConnectionFromRow)
     })
   },
@@ -102,7 +96,7 @@ export const createGoogleConnectionRepository = (
           encryptedRefreshToken: refreshToken,
           tokenExpiresAt: expiresAt,
           credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
-          updatedAt: new Date(),
+          updatedAt: clock(),
         })
         .where(
           and(
@@ -136,7 +130,7 @@ export const createGoogleConnectionRepository = (
           status,
           credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
           accessVersion: sql`${googleConnections.accessVersion} + 1`,
-          updatedAt: new Date(),
+          updatedAt: clock(),
         })
         .where(
           and(
@@ -155,7 +149,7 @@ export const createGoogleConnectionRepository = (
         .set({
           status,
           lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
-          updatedAt: new Date(),
+          updatedAt: clock(),
         })
         .where(
           and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
@@ -177,7 +171,7 @@ export const createGoogleConnectionRepository = (
           lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
           accessVersion: sql`${googleConnections.accessVersion} + 1`,
           credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
-          updatedAt: new Date(),
+          updatedAt: clock(),
         })
         .where(
           and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
@@ -192,7 +186,7 @@ export const createGoogleConnectionRepository = (
         .set({
           visibility,
           accessVersion: sql`${googleConnections.accessVersion} + 1`,
-          updatedAt: new Date(),
+          updatedAt: clock(),
         })
         .where(
           and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),
@@ -209,6 +203,9 @@ export const createGoogleConnectionRepository = (
     expiresAt,
     visibility,
     scopes,
+    credentialHome,
+    credentialAuthorizedBy,
+    credentialAuthorizedAt,
   ) => {
     return trace('googleConnection.updateReconnection', async () => {
       await db
@@ -221,12 +218,17 @@ export const createGoogleConnectionRepository = (
           status: 'active',
           visibility,
           scopes: [...scopes],
+          credentialAuthorizedBy,
+          credentialAuthorizedAt,
           credentialUseState: 'active',
+          credentialHomeCellId: credentialHome.homeCellId,
+          credentialHomePolicyVersion: credentialHome.cataloguePolicyVersion,
+          credentialHomeAuthorityGeneration: credentialHome.authorityGeneration,
           cleanupMaterialDeadlineAt: null,
           lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
           accessVersion: sql`${googleConnections.accessVersion} + 1`,
           credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
-          updatedAt: new Date(),
+          updatedAt: clock(),
         })
         .where(
           and(eq(googleConnections.organizationId, orgId), eq(googleConnections.id, id)),

@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { organizationId, propertyId, userId } from '#/shared/domain/ids'
+import {
+  googleConnectionId,
+  organizationId,
+  propertyId,
+  userId,
+} from '#/shared/domain/ids'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
 import type {
@@ -276,6 +281,7 @@ function setup(
   candidateRefs: readonly string[] = [REF_A],
   overrides?: Readonly<{
     cancelImportSaga?: (organizationId: string, importJobId: string) => Promise<void>
+    propertyBindingApi?: PropertyGoogleBindingPublicApi
   }>,
 ) {
   const refs = referenceStore(
@@ -293,7 +299,7 @@ function setup(
   const transaction = createGoogleImportTransaction({
     store: stored.store,
     references: refs.references,
-    propertyBindingApi: propertyApi(),
+    propertyBindingApi: overrides?.propertyBindingApi ?? propertyApi(),
     authorizeGoogleImportCommand,
     replayKeys: createVersionedHmacKeyring(`v1:${'11'.repeat(32)}`),
     clock: () => NOW,
@@ -376,27 +382,81 @@ describe('Google import transaction', () => {
   })
 
   it('fails closed before commit when a selected Data Cell is not accepting', async () => {
-    const fixture = setup([REF_A, REF_B])
-    const input = startInput([REF_A, REF_B])
-    const multiCellInput = startPropertyImportInputSchema.parse({
-      ...input,
-      items: [
-        input.items[0]!,
+    const existingPropertyId = propertyId('00000000-0000-4000-8000-000000000020')
+    const dormantPropertyApi = {
+      ...propertyApi(),
+      readInternal: vi.fn(async () => ({
+        organizationId: actor.organizationId,
+        propertyId: existingPropertyId,
+        state: 'disconnected' as const,
+        connectionId: googleConnectionId(CONNECTION_ID),
+        accountId: 'account-1',
+        locationId: 'location-1',
+        sourceEpoch: 7,
+        profileVersion: 3,
+        profileSource: 'tenant_confirmed' as const,
+        profileConfirmedAt: NOW,
+        deletedAt: null,
+        name: 'Cafe One',
+        address: '1 Main Street',
+        countryCode: 'GB',
+        timezone: 'Europe/London',
+        processingRegion: 'europe',
+        lifecycleState: 'active',
+        googleReviewDestination: {
+          state: 'unavailable' as const,
+          uri: null,
+          retrievedAt: null,
+          sourceEpoch: null,
+          profileVersion: null,
+        },
+      })),
+    } satisfies PropertyGoogleBindingPublicApi
+    const fixture = setup([REF_A], { propertyBindingApi: dormantPropertyApi })
+    const claim = createClaim(REF_A)
+    fixture.claimCandidates.mockResolvedValueOnce({
+      ok: true,
+      candidates: [
         {
-          ...input.items[1]!,
+          ...claim,
+          candidate: {
+            ...claim.candidate,
+            eligibility: {
+              kind: 'relink',
+              propertyId: existingPropertyId,
+              profile: {
+                name: 'Cafe One',
+                address: '1 Main Street',
+                countryCode: 'GB',
+                timezone: 'Europe/London',
+                profileVersion: 3,
+              },
+            },
+            expectedSourceEpoch: 7,
+            expectedProfileVersion: 3,
+            affectedPropertyId: existingPropertyId,
+          },
+        },
+      ],
+    })
+    const input = startPropertyImportInputSchema.parse({
+      requestId: REQUEST_ID,
+      confirmation: 'apply',
+      items: [
+        {
+          candidateRef: REF_A,
+          action: 'relink',
+          existingPropertyId,
           profile: {
-            ...input.items[1]!.profile,
-            countryCode: 'GB',
             timezone: 'Europe/London',
+            confirmed: true,
+            updateExistingProfile: false,
           },
         },
       ],
     })
 
-    await expectCode(
-      fixture.transaction.start(multiCellInput, actor),
-      'invalid_reference',
-    )
+    await expectCode(fixture.transaction.start(input, actor), 'invalid_reference')
     expect(fixture.commitSaga).not.toHaveBeenCalled()
     expect(fixture.releaseCandidateClaims).toHaveBeenCalledTimes(1)
   })

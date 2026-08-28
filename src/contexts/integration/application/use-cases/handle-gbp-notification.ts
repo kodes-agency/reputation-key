@@ -1,74 +1,154 @@
-// Integration context — handle GBP notification use case
-// Steps: lookup property by GBP location ID → validate connection → enqueue review sync
-// This is the business logic extracted from the webhook route.
-//
-// This is layer 1 of the imported-properties scoping (Pub/Sub lifecycle): inbound
-// notifications for non-imported/deleted locations resolve to no property here and
-// are dropped (property_not_found) before any review sync is enqueued.
-
-import type { PropertyLookupPort } from '../ports/property-lookup.port'
-import {
-  GBP_PUSH_SYNC_INITIATOR_ID,
-  type ReviewQueuePort,
-} from '#/contexts/review/application/public-api'
+import { googleConnectionId, organizationId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
+import {
+  integrationGoogleReviewPushAccepted,
+  type GoogleReviewPushNotificationKind,
+} from '../../domain/events'
+import type { GbpReviewPushReceiptStore } from '../ports/gbp-review-push-receipt.port'
+import type { GoogleReviewPushReferenceStore } from '../ports/google-review-push-reference.port'
+import type { PropertyLookupPort } from '../ports/property-lookup.port'
 
 export type HandleGbpNotificationInput = Readonly<{
+  topic: string
+  messageId: string
+  notificationKind: GoogleReviewPushNotificationKind
   locationId: string
   locationName: string
-  messageId: string
+  reviewName: string
 }>
 
 export type HandleGbpNotificationResult = Readonly<{
-  enqueued: boolean
+  accepted: true
+  duplicate: boolean
+  handoff: 'targeted' | 'reconciliation' | 'ignored'
   propertyId?: string
-  reason?: string
 }>
 
 export type HandleGbpNotificationDeps = Readonly<{
   propertyLookup: PropertyLookupPort
-  reviewQueue: ReviewQueuePort
+  references: GoogleReviewPushReferenceStore
+  receipts: GbpReviewPushReceiptStore
+  clock: () => Date
   logger: LoggerPort
 }>
+
+function exactProviderTarget(input: HandleGbpNotificationInput) {
+  const resource = parseReviewProviderResource(input.reviewName)
+  const canonicalLocation = `accounts/${resource.accountId}/locations/${resource.locationId}`
+  if (
+    canonicalLocation !== input.locationName ||
+    resource.locationId !== input.locationId
+  ) {
+    throw new TypeError('Google review push resource mismatch')
+  }
+  return resource
+}
 
 export const handleGbpNotification =
   (deps: HandleGbpNotificationDeps) =>
   async (input: HandleGbpNotificationInput): Promise<HandleGbpNotificationResult> => {
-    const logger = deps.logger
-
-    // 1. Resolve property by canonical GBP location ID.
+    const receivedAt = deps.clock()
+    const resource = exactProviderTarget(input)
     const property = await deps.propertyLookup.findByGbpLocationId(input.locationId)
 
-    if (!property || !property.googleConnectionId) {
-      logger.info(
-        { locationId: input.locationId },
-        'Webhook notification for unknown or deleted property — ignoring',
+    if (!property) {
+      const receipt = await deps.receipts.record({
+        topic: input.topic,
+        messageId: input.messageId,
+        receivedAt,
+        acceptedAt: deps.clock(),
+        notificationKind: input.notificationKind,
+        resolvedPropertyId: null,
+        outcome: 'ignored_property_not_found',
+        event: null,
+      })
+      deps.logger.info(
+        { duplicate: receipt.status === 'duplicate' },
+        'GBP review push accepted for an unimported location',
       )
-      return { enqueued: false, reason: 'property_not_found' }
+      return {
+        accepted: true,
+        duplicate: receipt.status === 'duplicate',
+        handoff: 'ignored',
+      }
     }
 
-    // 2. Enqueue review sync job with messageId-based jobId for deduplication
-    await deps.reviewQueue.addSyncJob(
-      {
-        propertyId: property.id,
-        organizationId: property.organizationId,
-        connectionId: property.googleConnectionId,
-        locationName: input.locationName,
-        // Webhook-initiated delayed work carries named, content-free attribution.
-        initiator: { kind: 'system', id: GBP_PUSH_SYNC_INITIATOR_ID },
-        correlationId: `webhook:${input.messageId}`,
-      },
-      {
-        jobId: `webhook:${input.messageId}`,
-      },
-    )
+    const exactBinding =
+      property.googleBindingState === 'active' &&
+      property.googleConnectionId !== null &&
+      property.gbpAccountId === resource.accountId &&
+      property.gbpLocationId === resource.locationId &&
+      Number.isSafeInteger(property.sourceEpoch) &&
+      property.sourceEpoch >= 0
+    if (!exactBinding) {
+      const receipt = await deps.receipts.record({
+        topic: input.topic,
+        messageId: input.messageId,
+        receivedAt,
+        acceptedAt: deps.clock(),
+        notificationKind: input.notificationKind,
+        resolvedPropertyId: property.id,
+        outcome: 'ignored_binding_mismatch',
+        event: null,
+      })
+      deps.logger.warn(
+        { duplicate: receipt.status === 'duplicate' },
+        'GBP review push did not match the current Property binding',
+      )
+      return {
+        accepted: true,
+        duplicate: receipt.status === 'duplicate',
+        handoff: 'ignored',
+      }
+    }
 
-    logger.info(
-      { correlationId: `webhook:${input.messageId}` },
-      'Webhook enqueued review sync',
+    const scope = {
+      organizationId: property.organizationId,
+      propertyId: property.id,
+      connectionId: property.googleConnectionId!,
+      sourceEpoch: property.sourceEpoch,
+    }
+    const published = await deps.references.publish({
+      scope,
+      locationName: input.locationName,
+      reviewName: input.reviewName,
+    })
+    const referenceRef = published.ok ? published.referenceRef : null
+    const handoff = published.ok ? 'targeted' : 'reconciliation'
+    const occurredAt = deps.clock()
+    const event = integrationGoogleReviewPushAccepted({
+      organizationId: organizationId(property.organizationId),
+      propertyId: property.id,
+      connectionId: googleConnectionId(property.googleConnectionId!),
+      sourceEpoch: property.sourceEpoch,
+      referenceRef,
+      notificationKind: input.notificationKind,
+      occurredAt,
+    })
+    const receipt = await deps.receipts.record({
+      topic: input.topic,
+      messageId: input.messageId,
+      receivedAt,
+      acceptedAt: occurredAt,
+      notificationKind: input.notificationKind,
+      resolvedPropertyId: property.id,
+      outcome: published.ok ? 'accepted_targeted' : 'accepted_reconciliation',
+      event,
+    })
+    deps.logger.info(
+      {
+        duplicate: receipt.status === 'duplicate',
+        handoff,
+      },
+      'GBP review push durably accepted',
     )
-
-    return { enqueued: true, propertyId: property.id }
+    return {
+      accepted: true,
+      duplicate: receipt.status === 'duplicate',
+      handoff,
+      propertyId: property.id,
+    }
   }
 
 export type HandleGbpNotification = ReturnType<typeof handleGbpNotification>
