@@ -304,6 +304,15 @@
   "boundaries": {
     "zones": [
       {
+        "name": "tests",
+        "patterns": [
+          "**/*.test.ts",
+          "**/*.test.tsx",
+          "**/*.integration.test.ts",
+          "**/*.test-fixtures.ts"
+        ]
+      },
+      {
         "name": "domain",
         "patterns": ["src/contexts/*/domain/**"]
       },
@@ -345,6 +354,22 @@
       }
     ],
     "rules": [
+      {
+        "from": "tests",
+        "allow": [
+          "tests",
+          "domain",
+          "application",
+          "infrastructure",
+          "server",
+          "shared",
+          "shared-events",
+          "test-support",
+          "architecture-fixtures",
+          "routes",
+          "components"
+        ]
+      },
       {
         "from": "domain",
         "allow": ["shared", "shared-events", "test-support"]

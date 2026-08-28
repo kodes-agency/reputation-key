@@ -138,3 +138,36 @@ production boundary violations, and dependency-override/catalogue defects.
 4. Represent architecture fixtures and shared integration support as explicit
    test zones so production boundaries remain strict and the report becomes
    signal rather than noise.
+
+## 2026-08-29 rerun — the tests zone correction
+
+Rerunning the audit against the whole branch surfaced thirteen boundary
+violations that were **all test files**: a test importing a domain event
+constructor to exercise it, a schema test importing the lifecycle vocabulary it
+validates, a migration test importing the domain it migrates. None is
+production coupling.
+
+The cause was this document's own recommendation 4, implemented on 2026-08-28:
+the `boundaries.zones` added then applied to every file, including tests. Zone
+matching is order-sensitive, so a `tests` zone declared FIRST now takes those
+files out of the production coupling measurement, and a rule asserts no
+production zone may reach it.
+
+| Category            | 2026-08-28 | 2026-08-29 |
+| ------------------- | ---------: | ---------: |
+| Total dead-code     |        331 |        331 |
+| Boundary violations |         35 |          0 |
+
+The residual is unchanged at 331 across roughly 500 new files, which is the
+useful signal: this wave added no net dead-code debt. It also did not reduce it
+— the deletion slices are `CNV-01-T2` through `T8` and remain open.
+
+### The CI audit gate on this branch
+
+`fallow audit --gate new-only --changed-since <merge-base>` counts findings that
+are new **in changed files**. This branch changes 3,706 files, so effectively
+every accepted residual finding is counted as new and the gate fails. That is a
+property of a branch that rewrites most of the repository against a stale
+`main`, not thirty-one new defects. Resolving it means either landing the
+`CNV-01` deletion slices so the residual genuinely shrinks, or rebasing the
+comparison. It should not be resolved by widening the gate.

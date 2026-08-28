@@ -109,4 +109,28 @@ describe('Fallow configuration', () => {
   it('keeps exact container command assertions parseable as shell commands', () => {
     expect(ci).not.toMatch(/=\s*'\["node","[^"\n]+\.js"\]'/u)
   })
+
+  it('declares the tests zone FIRST, so test files are not measured as production coupling', () => {
+    // Zone matching is order-sensitive. A test file importing a domain event
+    // constructor to exercise it is not a production boundary violation, and
+    // measuring it as one made thirteen honest test files look like coupling.
+    const zones = config.boundaries.zones as ReadonlyArray<{ name: string }>
+    expect(zones[0]?.name).toBe('tests')
+
+    const rule = (
+      config.boundaries.rules as ReadonlyArray<{ from: string; allow: string[] }>
+    ).find((candidate) => candidate.from === 'tests')
+    expect(rule?.allow).toEqual(expect.arrayContaining(zones.map((zone) => zone.name)))
+  })
+
+  it('never lets a production zone reach the tests zone', () => {
+    const rules = config.boundaries.rules as ReadonlyArray<{
+      from: string
+      allow: string[]
+    }>
+    for (const rule of rules) {
+      if (rule.from === 'tests') continue
+      expect(rule.allow, rule.from).not.toContain('tests')
+    }
+  })
 })
