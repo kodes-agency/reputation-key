@@ -4762,6 +4762,51 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ops/report-inbox-handling-cutover.ts',
+    'scripts/ops/report-inbox-handling-cutover.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-inbox-handling-cutover — read-only IBX-01 legacy cutover and parity evidence over one Organization: opens a single REPEATABLE READ, READ ONLY snapshot at a mandatory --observed-at, classifies each relationship exact/mappable/ambiguous/orphan, and prints one content-free canonical report with its digest; no apply path and no inferred handling outcome',
+    },
+  ),
+  ops(
+    'scripts/ops/report-legacy-rollups.ts',
+    'scripts/ops/report-legacy-rollups.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-legacy-rollups — read-only MET-01/CNV-01 inventory of the four legacy Metric rollup tables with row counts, foreign-key metadata, contraction blockers and a content-free fingerprint at an explicit --as-of; no apply path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-legacy-import-control.ts',
+    'scripts/ops/report-legacy-import-control.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-legacy-import-control — read-only GGL-01/CNV-01 inventory of legacy_import_control and legacy_import_effect_leases with counts, foreign-key metadata and a content-free fingerprint at an explicit --as-of; the AI-02 and GGL-01 compatibility mirrors are deliberately out of scope and there is no apply path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-compatibility-read-surfaces.ts',
+    'scripts/ops/report-compatibility-read-surfaces.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-compatibility-read-surfaces — read-only inventory of all seven compatibility_read mirrors plus the Integration-owned physical-to-Drizzle name mapping, carrying an active reader count per mirror so a mirror with live readers can never be presented as a contraction candidate; no apply path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-non-fk-references.ts',
+    'scripts/ops/report-non-fk-references.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-non-fk-references — read-only non-foreign-key reference scan for contraction candidates covering uuid columns without a declared reference, resource_type/resource_id pairs, textual aggregate identifiers and jsonb documents; content-free counts at an explicit --as-of with no apply path',
+    },
+  ),
+  ops(
     'scripts/ops/rebuild-projection.ts',
     'scripts/ops/rebuild-projection.ts',
     'organization',
@@ -5165,6 +5210,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'review:validate-program-status — read-only validation and summary of the machine-checked 42-package implementation ledger',
+    },
+  ),
+  ops(
+    'scripts/review/reachability-proof.ts',
+    'scripts/review/reachability-proof.ts',
+    'none',
+    {
+      notes:
+        'review:reachability-proof — CNV-01 local read-only deletion-evidence harness for one file and export: runs the real dead-code trace, symbol-impact and ripgrep passes and reads the analyser configuration plus both runtime catalogues, so each deletion slice carries machine-generated evidence rather than a claim',
     },
   ),
   ops(
@@ -5690,6 +5744,42 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'release:create-promotion-manifest — verifies the exact trusted repository/workflow identity and emits the immutable, digest-bound multi-service promotion manifest',
+    },
+  ),
+  ops(
+    'scripts/release/observe-canary-window.ts',
+    'scripts/release/observe-canary-window.ts',
+    'none',
+    {
+      notes:
+        'release:observe-canary — REL-01 canary observer: GET-only sampling of the production cell-us origin against the ratified threshold profile, writing one candidate-bound canary-window artifact; refuses retries, a non-production origin, a manifest-digest mismatch, an unratified observation window, or a signal source with no configured endpoint, so an unreachable source fails rather than producing a plausible artifact',
+    },
+  ),
+  ops(
+    'scripts/release/run-deployed-critical-journeys.ts',
+    'scripts/release/run-deployed-critical-journeys.ts',
+    'none',
+    {
+      notes:
+        'release:deployed-journeys — REL-01 deployed critical-journey runner: drives the isolated read-only deployed-critical browser project with no retries against the production cell-us origin and writes one candidate-bound journey artifact; checks the authorization window before launching a browser',
+    },
+  ),
+  ops(
+    'scripts/release/rehearse-recovery.ts',
+    'scripts/release/rehearse-recovery.ts',
+    'none',
+    {
+      notes:
+        'release:rehearse-recovery — REL-01 report-first recovery orchestrator: --plan writes one plan and stops, and --apply proceeds only under an authorization whose digest equals that plan, with a named operator, a reason and an operator-supplied platform receipt; reverse DDL is rejected at plan build and the tool itself calls no platform API',
+    },
+  ),
+  ops(
+    'scripts/release/create-legal-revision-set.ts',
+    'scripts/release/create-legal-revision-set.ts',
+    'none',
+    {
+      notes:
+        'release:create-legal-revision-set — LEG-01 producer for the typed legal revision set consumed by Gate F; refuses and writes nothing while any counsel-owned document is a draft, which is the current state, so engineering cannot manufacture legal approval',
     },
   ),
   ops(
