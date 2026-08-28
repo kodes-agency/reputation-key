@@ -1,16 +1,18 @@
-// Goal context — staff goals server function
-// Lists goals for the currently authenticated staff member's assigned portals.
-// Business logic extracted into the listStaffGoals use case (D8-002).
+// Goal context — retained Staff Goal compatibility declaration.
+// The beta Staff surface uses GoalProgram results. Authenticated callers of
+// this historical entry receive an explicit 410 before container/data access.
 
 import { z } from 'zod/v4'
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { catchUntagged } from '#/shared/auth/server-errors'
+import { throwContextError } from '#/shared/auth/server-errors'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-import { getContainer } from '#/composition'
-import { propertyId as toPropertyId } from '#/shared/domain/ids'
+import {
+  LegacyGoalAuthorityError,
+  denyLegacyGoalBetaEntry,
+} from '../application/goal-authority-inventory'
 
 // ── Schema ──────────────────────────────────────────────────────────
 
@@ -26,23 +28,22 @@ export const listStaffGoals = createServerFn({ method: 'GET' })
   .validator(listStaffGoalsSchema)
   .handler(
     tracedHandler(
-      async ({ data }) => {
+      async () => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'goal.read' })
 
         try {
-          const { useCases } = getContainer()
-          const goals = await useCases.listStaffGoals(
-            {
-              propertyId: data.propertyId ? toPropertyId(data.propertyId) : undefined,
-            },
-            ctx,
-          )
-
-          return { goals }
-        } catch (e) {
-          throw catchUntagged(e)
+          return denyLegacyGoalBetaEntry('legacy-goal.staff-server-read')
+        } catch (error) {
+          if (error instanceof LegacyGoalAuthorityError) {
+            throwContextError(
+              error.name,
+              { code: error.code, message: error.message },
+              410,
+            )
+          }
+          throw error
         }
       },
       'GET',

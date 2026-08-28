@@ -1,12 +1,15 @@
-// Goal context — staff-goals server function tests
-// Verifies the permission gate and the input schema. The goal resolution
-// pipeline lives in the listStaffGoals use case and is covered directly by
-// ../application/use-cases/list-staff-goals.test.ts.
+// Goal context — retained Staff Goal compatibility boundary tests.
+// Verifies authorization, explicit retirement, and input compatibility.
 
-import { describe, it, expect, vi } from 'vitest'
+import { AsyncLocalStorage } from 'node:async_hooks'
+import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { can } from '#/shared/domain/permissions'
 import { throwContextError } from '#/shared/auth/server-errors'
-import { listStaffGoalsSchema } from './staff-goals'
+
+const mocks = vi.hoisted(() => ({
+  getContainer: vi.fn(),
+  requireExecutionAllowed: vi.fn(),
+}))
 
 vi.mock('#/shared/auth/headers', () => ({
   headersFromContext: vi.fn(() => new Headers()),
@@ -28,10 +31,39 @@ vi.mock('#/shared/auth/middleware', () => ({
 // scripted use cases would only let tests assert what they themselves
 // configured.
 vi.mock('#/composition', () => ({
-  getContainer: vi.fn(),
+  getContainer: mocks.getContainer,
 }))
 
+vi.mock('#/shared/auth/execution-policy', () => ({
+  requireExecutionAllowed: mocks.requireExecutionAllowed,
+}))
+
+import { listStaffGoals, listStaffGoalsSchema } from './staff-goals'
+
+const START_KEY = Symbol.for('tanstack-start:start-storage-context')
+function withStartContext<T>(fn: () => Promise<T>): Promise<T> {
+  const global = globalThis as Record<symbol, AsyncLocalStorage<unknown> | undefined>
+  global[START_KEY] ??= new AsyncLocalStorage()
+  return global[START_KEY].run({ startOptions: {} }, fn)
+}
+
 describe('listStaffGoals — permission gate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.requireExecutionAllowed.mockResolvedValue(undefined)
+  })
+
+  it('denies the retained legacy read before resolving its repository', async () => {
+    await expect(
+      withStartContext(() => listStaffGoals({ data: {} })),
+    ).rejects.toMatchObject({
+      name: 'LegacyGoalAuthorityError',
+      code: 'legacy_goal_authority_disabled',
+      status: 410,
+    })
+    expect(mocks.getContainer).not.toHaveBeenCalled()
+  })
+
   it('allows AccountAdmin to read goals', () => {
     expect(can('AccountAdmin', 'goal.read')).toBe(true)
   })
@@ -40,8 +72,8 @@ describe('listStaffGoals — permission gate', () => {
     expect(can('PropertyManager', 'goal.read')).toBe(true)
   })
 
-  it('allows Staff to read goals', () => {
-    expect(can('Staff', 'goal.read')).toBe(true)
+  it('keeps manager-facing Goal metrics unavailable to Staff in beta', () => {
+    expect(can('Staff', 'goal.read')).toBe(false)
   })
 
   it('keeps Staff goal access read-only', () => {

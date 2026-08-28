@@ -19,27 +19,9 @@ import type {
   GovernedGoalRepository,
   GovernedGoalVersion,
 } from '../ports/governed-goal.repository'
-import {
-  canForContext,
-  type PermissionAuthorityContext,
-} from '#/shared/domain/permissions'
-
-export type GoalActor = Readonly<{
-  organizationId: string
-  userId: string
-}> &
-  PermissionAuthorityContext
-
-export type GoalExecutionPolicy = Readonly<{
-  authorize(
-    input: Readonly<{
-      actor: GoalActor | 'system'
-      organizationId: string
-      propertyId: string
-      action: 'goal.read' | 'goal.create' | 'goal.update' | 'goal.cancel'
-    }>,
-  ): Promise<void>
-}>
+import { canForContext } from '#/shared/domain/permissions'
+import type { GoalActor, GoalExecutionPolicy } from '../ports/goal-execution-policy'
+export type { GoalActor, GoalExecutionPolicy } from '../ports/goal-execution-policy'
 
 export type GoalPropertyReader = Readonly<{
   getTimezone(organizationId: string, propertyId: string): Promise<string | null>

@@ -5,9 +5,15 @@ import type {
   GoalMonthlyResult,
   GoalProgramBundle,
   GoalProgramRepository,
+  GoalResultRevision,
 } from '../ports/goal-program.repository'
-import type { GoalActor, GoalExecutionPolicy } from './governed-goals'
-import { createGoalProgramService, GoalProgramError } from './goal-programs'
+import type { GoalActor, GoalExecutionPolicy } from '../ports/goal-execution-policy'
+import {
+  createGoalProgramService,
+  GoalProgramError,
+  MAX_GOAL_ASSIGNMENT_SELECTIONS,
+  type GoalProgramSubjectReader,
+} from './goal-programs'
 
 const actor: GoalActor = {
   organizationId: 'org-1',
@@ -62,6 +68,7 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
   let now = initialNow
   let created: GoalProgramBundle | null = null
   const results = new Map<string, GoalMonthlyResult>()
+  const resultRevisions = new Map<string, GoalResultRevision>()
   const assignmentHistory = new Map<string, GoalProgramBundle['assignments'][number]>()
   const versionHistory = new Map<string, GoalProgramBundle['version']>()
   const repository: GoalProgramRepository = {
@@ -75,10 +82,24 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
     }),
     get: vi.fn(async () => created),
     list: vi.fn(async () => (created ? [created] : [])),
-    listOperational: vi.fn(async () => (created ? [created] : [])),
-    changeStatus: vi.fn(async () => null),
+    listOperational: vi.fn(async () =>
+      created && ['scheduled', 'active'].includes(created.program.status)
+        ? [created]
+        : [],
+    ),
+    changeStatus: vi.fn(async (input) => {
+      if (!created || created.program.status !== input.expectedStatus) return null
+      const program = {
+        ...created.program,
+        status: input.status,
+        statusReason: input.reason,
+        updatedAt: input.at,
+      }
+      created = { ...created, program }
+      return program
+    }),
     revise: vi.fn(async ({ version, assignments, at }) => {
-      if (!created) return
+      if (!created) return false
       const previous = created
       created = {
         program: {
@@ -95,7 +116,9 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
         assignmentHistory.set(assignment.id, assignment)
       }
       versionHistory.set(version.id, version)
+      return true
     }),
+    findAssignmentConflicts: vi.fn(async () => []),
     activate: vi.fn(async ({ bundle, results: newResults, at }) => {
       const program = {
         ...bundle.program,
@@ -149,6 +172,73 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
       results.set(result.id, result)
       return result
     }),
+    getClosedResult: vi.fn(async (organizationId, propertyId, resultId) => {
+      const result = results.get(resultId)
+      if (
+        !result ||
+        result.status !== 'closed' ||
+        result.organizationId !== organizationId ||
+        result.propertyId !== propertyId
+      ) {
+        return null
+      }
+      const revision = resultRevisions.get(resultId) ?? null
+      return {
+        result: revision
+          ? {
+              ...result,
+              evaluation: revision.evaluation,
+              sourceCompleteThrough: revision.sourceCompleteThrough,
+              evaluationWatermark: revision.evaluationWatermark,
+              updatedAt: revision.createdAt,
+            }
+          : result,
+        revision,
+      }
+    }),
+    appendResultRevision: vi.fn(async (input) => {
+      const current = resultRevisions.get(input.head.result.id) ?? null
+      if ((current?.id ?? null) !== (input.head.revision?.id ?? null)) {
+        return { status: 'conflict' as const }
+      }
+      const same =
+        JSON.stringify(input.head.result.evaluation) ===
+          JSON.stringify(input.evaluation) &&
+        input.head.result.sourceCompleteThrough?.getTime() ===
+          input.sourceCompleteThrough?.getTime()
+      if (same) return { status: 'unchanged' as const, result: input.head.result }
+      const revision: GoalResultRevision = {
+        id: input.revisionId,
+        monthlyResultId: input.head.result.id,
+        organizationId: input.head.result.organizationId,
+        propertyId: input.head.result.propertyId,
+        revision: (current?.revision ?? 0) + 1,
+        supersedesRevisionId: current?.id ?? null,
+        evaluation: input.evaluation,
+        sourceCompleteThrough: input.sourceCompleteThrough,
+        evaluationWatermark: input.evaluationWatermark,
+        changeReason: input.changeReason,
+        createdBy: input.createdBy,
+        createdAt: input.at,
+      }
+      resultRevisions.set(input.head.result.id, revision)
+      return {
+        status: 'revised' as const,
+        result: {
+          ...input.head.result,
+          evaluation: revision.evaluation,
+          sourceCompleteThrough: revision.sourceCompleteThrough,
+          evaluationWatermark: revision.evaluationWatermark,
+          updatedAt: revision.createdAt,
+        },
+        revision,
+        outcomeChanged:
+          input.head.result.evaluation.achieved !== input.evaluation.achieved,
+        availabilityChanged:
+          input.head.result.evaluation.state !== input.evaluation.state,
+      }
+    }),
+    findClosedResultIdsForMetricImpact: vi.fn(async () => []),
   }
   const metrics: MetricPublicApi = {
     queryAggregate: vi.fn<MetricPublicApi['queryAggregate']>(async () => ({
@@ -180,6 +270,11 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
         throw new Error('Portal analytics is not used by the Goal test')
       }),
     },
+    portalLifetime: {
+      get: async () => null,
+    },
+    getCurrentOnGoogle: vi.fn(async () => null),
+    findGoalMetricCorrectionImpacts: vi.fn(async () => []),
     getApprovedGoalVersion: vi.fn(async (versionId) =>
       governedVersion(
         versionId,
@@ -188,13 +283,19 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
     ),
   }
   const policy: GoalExecutionPolicy = { authorize: vi.fn(async () => undefined) }
+  const subjects: GoalProgramSubjectReader = {
+    getTimezone: vi.fn(async () => 'UTC'),
+    subjectBelongsToProperty: vi.fn<GoalProgramSubjectReader['subjectBelongsToProperty']>(
+      async () => true,
+    ),
+    listCurrentPortalIds: vi.fn<GoalProgramSubjectReader['listCurrentPortalIds']>(
+      async () => ['portal-2', 'portal-3'],
+    ),
+  }
   const service = createGoalProgramService({
     repository,
     policy,
-    subjects: {
-      getTimezone: vi.fn(async () => 'UTC'),
-      subjectBelongsToProperty: vi.fn(async () => true),
-    },
+    subjects,
     metrics,
     id: () => `00000000-0000-4000-8000-${String(++id).padStart(12, '0')}`,
     now: () => now,
@@ -204,6 +305,7 @@ function setup(initialNow = new Date('2026-03-01T00:00:00.000Z')) {
     policy,
     repository,
     metrics,
+    subjects,
     results,
     getCreated: () => created,
     setNow: (next: Date) => {
@@ -380,6 +482,493 @@ describe('canonical Goal Program service', () => {
     expect(repository.revise).toHaveBeenCalledOnce()
   })
 
+  it('bulk-adds and removes explicit subjects in one fenced next-month revision', async () => {
+    const { service, repository, setNow } = setup()
+    const created = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'Monthly ratings',
+        metric: 'portal_rating_count',
+        targetValue: 25,
+        subjects: [
+          { kind: 'property', propertyId: 'property-1' },
+          { kind: 'portal', portalId: 'portal-1' },
+        ],
+      },
+      actor,
+    )
+    setNow(new Date('2026-03-15T12:00:00.000Z'))
+
+    const changed = await service.changeAssignments(
+      {
+        propertyId: 'property-1',
+        programId: created.program.id,
+        expectedVersion: 1,
+        add: [{ kind: 'portal_group', portalGroupId: 'group-1' }],
+        remove: [{ kind: 'portal', portalId: 'portal-1' }],
+        selectAllCurrentPortals: false,
+        reason: 'Apply the new operating scope',
+      },
+      actor,
+    )
+
+    expect(changed).toMatchObject({
+      previousVersion: 1,
+      currentVersion: 2,
+      effectiveFrom: new Date('2026-04-01T00:00:00.000Z'),
+      outcomes: [
+        {
+          operation: 'add',
+          subject: { kind: 'portal_group', portalGroupId: 'group-1' },
+          outcome: 'added',
+        },
+        {
+          operation: 'remove',
+          subject: { kind: 'portal', portalId: 'portal-1' },
+          outcome: 'removed',
+        },
+      ],
+    })
+    const revision = vi.mocked(repository.revise).mock.calls.at(-1)?.[0]
+    expect(revision?.expectedVersion.version).toBe(1)
+    expect(revision?.version).toMatchObject({
+      version: 2,
+      metric: 'portal_rating_count',
+      targetValue: 25,
+      effectiveFrom: new Date('2026-04-01T00:00:00.000Z'),
+    })
+    expect(revision?.assignments.map(({ subject }) => subject)).toEqual([
+      { kind: 'property', propertyId: 'property-1' },
+      { kind: 'portal_group', portalGroupId: 'group-1' },
+    ])
+  })
+
+  it('expands all current Portals once at request time without future inheritance', async () => {
+    const { service, subjects, repository, setNow } = setup()
+    const created = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'Portal scans',
+        metric: 'qualified_scans',
+        targetValue: 100,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    setNow(new Date('2026-03-15T12:00:00.000Z'))
+
+    const changed = await service.changeAssignments(
+      {
+        propertyId: 'property-1',
+        programId: created.program.id,
+        expectedVersion: 1,
+        add: [],
+        remove: [],
+        selectAllCurrentPortals: true,
+        reason: 'Cover every portal operating today',
+      },
+      actor,
+    )
+
+    expect(subjects.listCurrentPortalIds).toHaveBeenCalledWith(
+      actor.organizationId,
+      'property-1',
+      MAX_GOAL_ASSIGNMENT_SELECTIONS + 1,
+    )
+    expect(changed.selectedAt).toEqual(new Date('2026-03-15T12:00:00.000Z'))
+    expect(changed.selectedCurrentPortalCount).toBe(2)
+    expect(changed.outcomes).toEqual([
+      {
+        operation: 'add',
+        source: 'all_current_portals',
+        subject: { kind: 'portal', portalId: 'portal-2' },
+        outcome: 'added',
+      },
+      {
+        operation: 'add',
+        source: 'all_current_portals',
+        subject: { kind: 'portal', portalId: 'portal-3' },
+        outcome: 'added',
+      },
+    ])
+    expect(
+      vi
+        .mocked(repository.revise)
+        .mock.calls.at(-1)?.[0]
+        .assignments.map(({ subject }) => subject),
+    ).toEqual([
+      { kind: 'portal', portalId: 'portal-1' },
+      { kind: 'portal', portalId: 'portal-2' },
+      { kind: 'portal', portalId: 'portal-3' },
+    ])
+
+    vi.mocked(subjects.listCurrentPortalIds).mockResolvedValueOnce([
+      'portal-2',
+      'portal-3',
+      'portal-created-later',
+    ])
+    expect(vi.mocked(repository.revise)).toHaveBeenCalledOnce()
+  })
+
+  it('reports duplicate, conflicting, invalid, overlapping, and no-op selections', async () => {
+    const { service, subjects, repository, setNow } = setup()
+    const created = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'Portal scans',
+        metric: 'qualified_scans',
+        targetValue: 100,
+        subjects: [
+          { kind: 'property', propertyId: 'property-1' },
+          { kind: 'portal', portalId: 'portal-1' },
+        ],
+      },
+      actor,
+    )
+    setNow(new Date('2026-03-15T12:00:00.000Z'))
+    vi.mocked(subjects.subjectBelongsToProperty).mockImplementation(
+      async (_org, _property, subject) =>
+        subject.kind !== 'portal' || subject.portalId !== 'foreign-portal',
+    )
+    vi.mocked(repository.findAssignmentConflicts).mockResolvedValueOnce([
+      { kind: 'portal', portalId: 'busy-portal' },
+    ])
+
+    const changed = await service.changeAssignments(
+      {
+        propertyId: 'property-1',
+        programId: created.program.id,
+        expectedVersion: 1,
+        add: [
+          { kind: 'portal', portalId: 'portal-1' },
+          { kind: 'portal', portalId: 'portal-2' },
+          { kind: 'portal', portalId: 'portal-2' },
+          { kind: 'portal', portalId: 'foreign-portal' },
+          { kind: 'portal', portalId: 'busy-portal' },
+          { kind: 'portal_group', portalGroupId: 'both-ways' },
+        ],
+        remove: [
+          { kind: 'portal', portalId: 'not-assigned' },
+          { kind: 'portal_group', portalGroupId: 'both-ways' },
+        ],
+        selectAllCurrentPortals: false,
+        reason: 'Apply valid selections only',
+      },
+      actor,
+    )
+
+    expect(changed.outcomes.map(({ outcome }) => outcome)).toEqual([
+      'already_assigned',
+      'added',
+      'duplicate',
+      'invalid_subject',
+      'overlap',
+      'conflicting_operations',
+      'not_assigned',
+      'conflicting_operations',
+    ])
+    expect(
+      vi
+        .mocked(repository.revise)
+        .mock.calls.at(-1)?.[0]
+        .assignments.map(({ subject }) => subject),
+    ).toEqual([
+      { kind: 'property', propertyId: 'property-1' },
+      { kind: 'portal', portalId: 'portal-1' },
+      { kind: 'portal', portalId: 'portal-2' },
+    ])
+  })
+
+  it('fences stale and oversized assignment changes before persistence', async () => {
+    const { service, repository, subjects, setNow } = setup()
+    const created = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'Portal scans',
+        metric: 'qualified_scans',
+        targetValue: 100,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    setNow(new Date('2026-03-15T12:00:00.000Z'))
+
+    await expect(
+      service.changeAssignments(
+        {
+          propertyId: 'property-1',
+          programId: created.program.id,
+          expectedVersion: 2,
+          add: [{ kind: 'portal', portalId: 'portal-2' }],
+          remove: [],
+          selectAllCurrentPortals: false,
+          reason: 'Stale browser state',
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'revision_conflict' })
+
+    vi.mocked(subjects.listCurrentPortalIds).mockResolvedValueOnce(
+      Array.from(
+        { length: MAX_GOAL_ASSIGNMENT_SELECTIONS + 1 },
+        (_, index) => `portal-${index + 10}`,
+      ),
+    )
+    await expect(
+      service.changeAssignments(
+        {
+          propertyId: 'property-1',
+          programId: created.program.id,
+          expectedVersion: 1,
+          add: [],
+          remove: [],
+          selectAllCurrentPortals: true,
+          reason: 'Too many current portals',
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'assignment_limit_exceeded' })
+    expect(repository.revise).not.toHaveBeenCalled()
+  })
+
+  it('authorizes assignment changes before validation or repository reads', async () => {
+    const { service, policy, repository } = setup()
+    const created = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'Portal scans',
+        metric: 'qualified_scans',
+        targetValue: 100,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    vi.mocked(repository.get).mockClear()
+    vi.mocked(policy.authorize).mockRejectedValueOnce(new GoalProgramError('forbidden'))
+
+    await expect(
+      service.changeAssignments(
+        {
+          propertyId: 'property-1',
+          programId: created.program.id,
+          expectedVersion: 1,
+          add: Array.from({ length: MAX_GOAL_ASSIGNMENT_SELECTIONS + 1 }, (_, index) => ({
+            kind: 'portal' as const,
+            portalId: `portal-${index}`,
+          })),
+          remove: [],
+          selectAllCurrentPortals: false,
+          reason: '',
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(repository.get).not.toHaveBeenCalled()
+  })
+
+  it('bounds the resulting assignment set and the audited reason', async () => {
+    const { service, repository, setNow } = setup()
+    const currentSubjects = Array.from(
+      { length: MAX_GOAL_ASSIGNMENT_SELECTIONS },
+      (_, index) => ({ kind: 'portal' as const, portalId: `portal-${index}` }),
+    )
+    const created = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'Portal scans',
+        metric: 'qualified_scans',
+        targetValue: 100,
+        subjects: currentSubjects,
+      },
+      actor,
+    )
+    setNow(new Date('2026-03-15T12:00:00.000Z'))
+
+    await expect(
+      service.changeAssignments(
+        {
+          propertyId: 'property-1',
+          programId: created.program.id,
+          expectedVersion: 1,
+          add: [{ kind: 'portal', portalId: 'portal-over-limit' }],
+          remove: [],
+          selectAllCurrentPortals: false,
+          reason: 'One subject too many',
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'assignment_limit_exceeded' })
+    await expect(
+      service.changeAssignments(
+        {
+          propertyId: 'property-1',
+          programId: created.program.id,
+          expectedVersion: 1,
+          add: [],
+          remove: [{ kind: 'portal', portalId: 'portal-0' }],
+          selectAllCurrentPortals: false,
+          reason: 'x'.repeat(501),
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_reason' })
+    await expect(
+      service.changeAssignments(
+        {
+          propertyId: 'property-1',
+          programId: created.program.id,
+          expectedVersion: 1,
+          add: [],
+          remove: [],
+          selectAllCurrentPortals: false,
+          reason: 'No selections',
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_subject' })
+    expect(repository.revise).not.toHaveBeenCalled()
+  })
+
+  it('does not stack a second future revision before the pending month starts', async () => {
+    const { service, repository, setNow } = setup()
+    const created = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'Portal scans',
+        metric: 'qualified_scans',
+        targetValue: 100,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    setNow(new Date('2026-03-15T12:00:00.000Z'))
+    await service.changeAssignments(
+      {
+        propertyId: 'property-1',
+        programId: created.program.id,
+        expectedVersion: 1,
+        add: [{ kind: 'portal', portalId: 'portal-2' }],
+        remove: [],
+        selectAllCurrentPortals: false,
+        reason: 'First pending revision',
+      },
+      actor,
+    )
+
+    await expect(
+      service.changeAssignments(
+        {
+          propertyId: 'property-1',
+          programId: created.program.id,
+          expectedVersion: 2,
+          add: [{ kind: 'portal', portalId: 'portal-3' }],
+          remove: [],
+          selectAllCurrentPortals: false,
+          reason: 'Would skip the pending revision',
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'revision_conflict' })
+    await expect(
+      service.revise(
+        {
+          propertyId: 'property-1',
+          programId: created.program.id,
+          metric: 'qualified_scans',
+          targetValue: 120,
+          subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+          reason: 'Would also skip the pending revision',
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'revision_conflict' })
+    expect(repository.revise).toHaveBeenCalledOnce()
+  })
+
+  it('surfaces repository CAS loss as a revision conflict', async () => {
+    const { service, repository, setNow } = setup()
+    const created = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'Portal scans',
+        metric: 'qualified_scans',
+        targetValue: 100,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    setNow(new Date('2026-03-15T12:00:00.000Z'))
+    vi.mocked(repository.revise).mockResolvedValueOnce(false)
+
+    await expect(
+      service.changeAssignments(
+        {
+          propertyId: 'property-1',
+          programId: created.program.id,
+          expectedVersion: 1,
+          add: [{ kind: 'portal', portalId: 'portal-2' }],
+          remove: [],
+          selectAllCurrentPortals: false,
+          reason: 'Add a portal',
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'revision_conflict' })
+  })
+
+  it('does not mint a version for no-ops or leave a Program without a subject', async () => {
+    const { service, repository, setNow } = setup()
+    const created = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'Portal scans',
+        metric: 'qualified_scans',
+        targetValue: 100,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    setNow(new Date('2026-03-15T12:00:00.000Z'))
+
+    await expect(
+      service.changeAssignments(
+        {
+          propertyId: 'property-1',
+          programId: created.program.id,
+          expectedVersion: 1,
+          add: [{ kind: 'portal', portalId: 'portal-1' }],
+          remove: [{ kind: 'portal', portalId: 'not-assigned' }],
+          selectAllCurrentPortals: false,
+          reason: 'No effective change',
+        },
+        actor,
+      ),
+    ).resolves.toMatchObject({
+      currentVersion: 1,
+      effectiveFrom: null,
+      outcomes: [{ outcome: 'already_assigned' }, { outcome: 'not_assigned' }],
+    })
+    await expect(
+      service.changeAssignments(
+        {
+          propertyId: 'property-1',
+          programId: created.program.id,
+          expectedVersion: 1,
+          add: [],
+          remove: [{ kind: 'portal', portalId: 'portal-1' }],
+          selectAllCurrentPortals: false,
+          reason: 'Cannot remove the final subject',
+        },
+        actor,
+      ),
+    ).resolves.toMatchObject({
+      currentVersion: 1,
+      effectiveFrom: null,
+      outcomes: [{ outcome: 'last_assignment_required' }],
+    })
+    expect(repository.revise).not.toHaveBeenCalled()
+  })
+
   it('materializes a revised version only when its effective month starts', async () => {
     const { service, repository, setNow } = setup()
     const created = await service.create(
@@ -452,6 +1041,100 @@ describe('canonical Goal Program service', () => {
     ).rejects.toMatchObject({ code: 'metric_unavailable' })
   })
 
+  it('pauses future scheduling without abandoning an already-open monthly result', async () => {
+    const { service, metrics, repository, setNow } = setup()
+    const created = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'March ratings',
+        metric: 'portal_rating_count',
+        targetValue: 20,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    await service.changeStatus(
+      {
+        propertyId: 'property-1',
+        programId: created.program.id,
+        status: 'paused',
+        reason: 'Pause after the March period',
+      },
+      actor,
+    )
+    setNow(new Date('2026-04-02T01:00:00.000Z'))
+    vi.mocked(metrics.queryGoalMetric).mockResolvedValue({
+      definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
+      metricKey: 'portal.rating_count',
+      state: 'eligible',
+      exactValue: 20,
+      sampleCount: 20,
+      minimumSample: 0,
+      sourceCompleteThrough: new Date('2026-04-01T00:00:00.000Z'),
+      reason: null,
+    })
+
+    await expect(service.maintain()).resolves.toMatchObject({
+      inspected: 0,
+      scheduledResults: 0,
+      reconciled: 1,
+      failed: 0,
+    })
+    await expect(service.maintain()).resolves.toMatchObject({
+      inspected: 0,
+      scheduledResults: 0,
+      reconciled: 1,
+      closed: 1,
+      failed: 0,
+    })
+    expect(repository.appendResults).not.toHaveBeenCalled()
+  })
+
+  it('retains terminal Program history and denies later assignment changes', async () => {
+    const { service } = setup()
+    const created = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'March ratings',
+        metric: 'portal_rating_count',
+        targetValue: 20,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    await expect(
+      service.changeStatus(
+        {
+          propertyId: 'property-1',
+          programId: created.program.id,
+          status: 'ended',
+          reason: 'Program archived by manager',
+        },
+        actor,
+      ),
+    ).resolves.toMatchObject({ status: 'ended' })
+    await expect(
+      service.get({ propertyId: 'property-1', programId: created.program.id }, actor),
+    ).resolves.toMatchObject({
+      program: { status: 'ended' },
+      results: [{ id: created.results[0]?.id }],
+    })
+    await expect(
+      service.changeAssignments(
+        {
+          propertyId: 'property-1',
+          programId: created.program.id,
+          expectedVersion: 1,
+          add: [{ kind: 'portal', portalId: 'portal-2' }],
+          remove: [],
+          selectAllCurrentPortals: false,
+          reason: 'Should not change archived history',
+        },
+        actor,
+      ),
+    ).rejects.toMatchObject({ code: 'invalid_transition' })
+  })
+
   it('activates due programs and materializes only the month that has started', async () => {
     const { service, repository, setNow } = setup(new Date('2026-03-15T12:00:00.000Z'))
     await service.create(
@@ -504,7 +1187,7 @@ describe('canonical Goal Program service', () => {
   it('moves a due result through reconciling before immutable closure', async () => {
     const reconciliationTime = new Date('2026-04-02T01:00:00.000Z')
     const setupResult = setup()
-    const { service, metrics, setNow } = setupResult
+    const { service, metrics, repository, setNow } = setupResult
     const bundle = await service.create(
       {
         propertyId: 'property-1',
@@ -548,5 +1231,251 @@ describe('canonical Goal Program service', () => {
     })
     expect(closed.status).toBe('closed')
     expect(closed.closedAt).toEqual(reconciliationTime)
+
+    vi.mocked(metrics.queryGoalMetric).mockResolvedValue({
+      definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
+      metricKey: 'portal.rating_count',
+      state: 'eligible',
+      exactValue: 20,
+      sampleCount: 20,
+      minimumSample: 0,
+      sourceCompleteThrough: new Date('2026-04-01T00:00:00.000Z'),
+      reason: null,
+    })
+    const corrected = await service.reconcileClosedResult({
+      organizationId: actor.organizationId,
+      propertyId: 'property-1',
+      resultId: result.id,
+    })
+    expect(corrected).toMatchObject({
+      status: 'revised',
+      result: {
+        status: 'closed',
+        evaluation: { state: 'eligible', value: 20, achieved: false },
+        closedAt: reconciliationTime,
+      },
+      revision: { revision: 1, changeReason: 'metric_correction_reconciliation' },
+      outcomeChanged: true,
+      availabilityChanged: false,
+    })
+    expect(repository.updateResult).toHaveBeenCalledTimes(2)
+
+    await expect(
+      service.reconcileClosedResult({
+        organizationId: actor.organizationId,
+        propertyId: 'property-1',
+        resultId: result.id,
+      }),
+    ).resolves.toMatchObject({ status: 'unchanged' })
+  })
+
+  it('keeps an eligible result reconciling until Metric is complete through period end', async () => {
+    const { service, metrics, setNow } = setup()
+    const bundle = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'March ratings',
+        metric: 'portal_rating_count',
+        targetValue: 25,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    const result = bundle.results[0]!
+    setNow(new Date('2026-04-02T00:00:00.000Z'))
+    vi.mocked(metrics.queryGoalMetric).mockResolvedValue({
+      definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
+      metricKey: 'portal.rating_count',
+      state: 'eligible',
+      exactValue: 26,
+      sampleCount: 26,
+      minimumSample: 0,
+      sourceCompleteThrough: new Date('2026-03-31T23:59:59.999Z'),
+      reason: null,
+    })
+
+    await expect(
+      service.reconcileResult({
+        organizationId: actor.organizationId,
+        propertyId: 'property-1',
+        resultId: result.id,
+      }),
+    ).resolves.toMatchObject({ status: 'reconciling', closedAt: null })
+    await expect(
+      service.reconcileResult({
+        organizationId: actor.organizationId,
+        propertyId: 'property-1',
+        resultId: result.id,
+      }),
+    ).resolves.toMatchObject({ status: 'reconciling', closedAt: null })
+
+    vi.mocked(metrics.queryGoalMetric).mockResolvedValue({
+      definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
+      metricKey: 'portal.rating_count',
+      state: 'eligible',
+      exactValue: 26,
+      sampleCount: 26,
+      minimumSample: 0,
+      sourceCompleteThrough: result.periodEnd,
+      reason: null,
+    })
+    await expect(
+      service.reconcileResult({
+        organizationId: actor.organizationId,
+        propertyId: 'property-1',
+        resultId: result.id,
+      }),
+    ).resolves.toMatchObject({
+      status: 'closed',
+      sourceCompleteThrough: result.periodEnd,
+      closedAt: new Date('2026-04-02T00:00:00.000Z'),
+    })
+  })
+
+  it('keeps an unavailable result with unknown source completeness reconciling', async () => {
+    const { service, metrics, setNow } = setup()
+    const bundle = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'March ratings',
+        metric: 'portal_rating_count',
+        targetValue: 25,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    const result = bundle.results[0]!
+    setNow(new Date('2026-04-02T00:00:00.000Z'))
+    vi.mocked(metrics.queryGoalMetric).mockResolvedValue({
+      definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
+      metricKey: 'portal.rating_count',
+      state: 'unavailable',
+      exactValue: null,
+      sampleCount: 0,
+      minimumSample: 0,
+      sourceCompleteThrough: null,
+      reason: 'metric_source_unavailable',
+    })
+
+    await service.reconcileResult({
+      organizationId: actor.organizationId,
+      propertyId: 'property-1',
+      resultId: result.id,
+    })
+    await expect(
+      service.reconcileResult({
+        organizationId: actor.organizationId,
+        propertyId: 'property-1',
+        resultId: result.id,
+      }),
+    ).resolves.toMatchObject({
+      status: 'reconciling',
+      evaluation: { state: 'unavailable', achieved: null },
+      sourceCompleteThrough: null,
+      closedAt: null,
+    })
+  })
+
+  it('closes a verified zero count at the exact time and source boundaries', async () => {
+    const { service, metrics, repository, setNow } = setup()
+    const bundle = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'March ratings',
+        metric: 'portal_rating_count',
+        targetValue: 25,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    const result = bundle.results[0]!
+    setNow(new Date('2026-04-02T00:00:00.000Z'))
+    vi.mocked(metrics.queryGoalMetric).mockResolvedValue({
+      definitionVersionId: METRIC_VERSION_IDS.portalRatingCountGoal,
+      metricKey: 'portal.rating_count',
+      state: 'eligible',
+      exactValue: 0,
+      sampleCount: 0,
+      minimumSample: 0,
+      sourceCompleteThrough: result.periodEnd,
+      reason: null,
+    })
+
+    await expect(
+      service.reconcileResult({
+        organizationId: actor.organizationId,
+        propertyId: 'property-1',
+        resultId: result.id,
+      }),
+    ).resolves.toMatchObject({ status: 'reconciling' })
+    await expect(
+      service.reconcileResult({
+        organizationId: actor.organizationId,
+        propertyId: 'property-1',
+        resultId: result.id,
+      }),
+    ).resolves.toMatchObject({
+      status: 'closed',
+      evaluation: { state: 'eligible', value: 0, achieved: false },
+      sourceCompleteThrough: result.periodEnd,
+      closedAt: new Date('2026-04-02T00:00:00.000Z'),
+    })
+    expect(repository.updateResult).toHaveBeenCalledTimes(2)
+  })
+
+  it('preserves the last closed result while a late correction is still updating', async () => {
+    const setupResult = setup()
+    const { service, metrics, repository, setNow } = setupResult
+    const bundle = await service.create(
+      {
+        propertyId: 'property-1',
+        name: 'March scans',
+        metric: 'qualified_scans',
+        targetValue: 25,
+        subjects: [{ kind: 'portal', portalId: 'portal-1' }],
+      },
+      actor,
+    )
+    const result = bundle.results[0]!
+    setNow(new Date('2026-04-02T01:00:00.000Z'))
+    vi.mocked(metrics.queryGoalMetric).mockResolvedValue({
+      definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,
+      metricKey: 'portal.qualified_scan',
+      state: 'eligible',
+      exactValue: 30,
+      sampleCount: 30,
+      minimumSample: 0,
+      sourceCompleteThrough: result.periodEnd,
+      reason: null,
+    })
+    await service.reconcileResult({
+      organizationId: actor.organizationId,
+      propertyId: 'property-1',
+      resultId: result.id,
+    })
+    await service.reconcileResult({
+      organizationId: actor.organizationId,
+      propertyId: 'property-1',
+      resultId: result.id,
+    })
+    vi.mocked(metrics.queryGoalMetric).mockResolvedValue({
+      definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,
+      metricKey: 'portal.qualified_scan',
+      state: 'updating',
+      exactValue: 29,
+      sampleCount: 29,
+      minimumSample: 0,
+      sourceCompleteThrough: null,
+      reason: 'source_reconciling',
+    })
+
+    await expect(
+      service.reconcileClosedResult({
+        organizationId: actor.organizationId,
+        propertyId: 'property-1',
+        resultId: result.id,
+      }),
+    ).resolves.toMatchObject({ status: 'pending' })
+    expect(repository.appendResultRevision).not.toHaveBeenCalled()
   })
 })

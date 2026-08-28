@@ -25,13 +25,15 @@ const FIXED_TIME = new Date('2026-06-15T12:00:00Z')
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 interface FakeMetricRepo {
   queryAggregate: (query: MetricReadingsQuery) => Promise<MetricReadingsAggregate>
   queryGoalMetric: MetricPublicApi['queryGoalMetric']
   portalAnalytics: MetricPublicApi['portalAnalytics']
+  portalLifetime: MetricPublicApi['portalLifetime']
+  getCurrentOnGoogle: MetricPublicApi['getCurrentOnGoogle']
+  findGoalMetricCorrectionImpacts: MetricPublicApi['findGoalMetricCorrectionImpacts']
   _setAggregate: (agg: MetricReadingsAggregate) => void
   _getQueries: () => MetricReadingsQuery[]
 }
@@ -164,6 +166,11 @@ function createFakeDeps(accessible: ReadonlyArray<PropertyId> | null = null): Fa
         throw new Error('Portal analytics is not used by the Goal test')
       },
     },
+    portalLifetime: {
+      get: async () => null,
+    },
+    getCurrentOnGoogle: async () => null,
+    findGoalMetricCorrectionImpacts: async () => [],
     _setAggregate: (agg: MetricReadingsAggregate) => {
       aggregateResponse = agg
     },

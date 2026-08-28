@@ -81,9 +81,10 @@ export type GoalRepository = Readonly<{
     portalGroupId: PortalGroupId | null,
   ): Promise<ReadonlyArray<Goal>>
 
-  // Upsert progress — inserts if no row exists, increments otherwise.
-  // Used by event-driven handler (onMetricRecorded) where initial row
-  // may not exist yet for newly created goals.
+  /**
+   * @deprecated Compatibility-only mutation for the retired event-driven
+   * `goals` model. Canonical Goal Programs must not call this operation.
+   */
   upsertProgress(
     goalId: GoalId,
     organizationId: OrganizationId,
@@ -95,6 +96,10 @@ export type GoalRepository = Readonly<{
     currentCount: number | null
   }>
 
+  /**
+   * @deprecated Compatibility-only split completion mutation. Canonical Goal
+   * Program result closure is one CAS + outbox transaction in updateResult.
+   */
   markGoalCompleted(
     goalId: GoalId,
     organizationId: OrganizationId,

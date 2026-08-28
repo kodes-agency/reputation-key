@@ -41,6 +41,7 @@ export type GoalAssignmentWindow = Readonly<{
 }>
 
 export const RATING_AVERAGE_MINIMUM_SAMPLE = 10
+export const MAX_GOAL_ASSIGNMENT_SELECTIONS = 250
 export type GoalTargetValidation =
   | Readonly<{ ok: true; normalizedTarget: number }>
   | Readonly<{

@@ -23,7 +23,6 @@ const ctxFor = (role: Role): AuthContext =>
 const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 // ── Fake repo ───────────────────────────────────────────────────────────

@@ -12,16 +12,22 @@ import {
 import type { GoalProgramSubjectReader } from '../../application/use-cases/goal-programs'
 
 /** Cross-context, tenant-bound subject validation for canonical Goal Programs. */
-export function createGoalProgramSubjectReader(
+export const createGoalProgramSubjectReader = (
   propertyApi: PropertyFactsPublicApi,
   portalApi: PortalPublicApi,
   portalGroupApi: PortalGroupPublicApi,
-): GoalProgramSubjectReader {
+): GoalProgramSubjectReader => {
   return {
     getTimezone: (organizationId, propertyId) =>
       propertyApi.getPropertyTimezone(
         toOrganizationId(organizationId),
         toPropertyId(propertyId),
+      ),
+    listCurrentPortalIds: (organizationId, propertyId, limit) =>
+      portalApi.listCurrentPortalIds(
+        toOrganizationId(organizationId),
+        toPropertyId(propertyId),
+        limit,
       ),
     subjectBelongsToProperty: async (organizationId, propertyId, subject) => {
       if (subject.kind === 'property') return subject.propertyId === propertyId
@@ -32,9 +38,16 @@ export function createGoalProgramSubjectReader(
           toPortalGroupId(subject.portalGroupId),
         )
       }
-      const context = await portalApi.resolvePortalContext(toPortalId(subject.portalId))
+      const brandedPortalId = toPortalId(subject.portalId)
+      const [context, portal] = await Promise.all([
+        portalApi.resolvePortalContext(brandedPortalId),
+        portalApi.getPortalInfo(toOrganizationId(organizationId), brandedPortalId),
+      ])
       return (
-        context?.organizationId === organizationId && context.propertyId === propertyId
+        context?.organizationId === organizationId &&
+        context.propertyId === propertyId &&
+        portal !== null &&
+        portal.publicationState !== 'archived'
       )
     },
   }

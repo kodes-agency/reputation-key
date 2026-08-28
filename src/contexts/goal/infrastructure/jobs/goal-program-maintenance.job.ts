@@ -10,6 +10,6 @@ import type { GoalProgramService } from '../../application/use-cases/goal-progra
 
 export const GOAL_PROGRAM_MAINTENANCE_JOB_NAME = 'goal-program.maintain' as const
 
-export function createGoalProgramMaintenanceHandler(service: GoalProgramService) {
+export const createGoalProgramMaintenanceHandler = (service: GoalProgramService) => {
   return async (_job: Job) => service.maintain()
 }

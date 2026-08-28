@@ -70,6 +70,53 @@ export type GoalMonthlyResult = Readonly<{
   closedAt: Date | null
   createdAt: Date
   updatedAt: Date
+  /** Present only when the immutable closed base is overlaid by a revision. */
+  revision?: Readonly<{
+    id: string
+    number: number
+    changeReason: string
+    createdAt: Date
+  }>
+}>
+
+export type GoalResultRevision = Readonly<{
+  id: string
+  monthlyResultId: string
+  organizationId: string
+  propertyId: string
+  revision: number
+  supersedesRevisionId: string | null
+  evaluation: GoalMetricEvaluation
+  sourceCompleteThrough: Date | null
+  evaluationWatermark: Date
+  changeReason: string
+  createdBy: string
+  createdAt: Date
+}>
+
+export type ClosedGoalResultHead = Readonly<{
+  result: GoalMonthlyResult
+  revision: GoalResultRevision | null
+}>
+
+export type AppendGoalResultRevisionResult =
+  | Readonly<{
+      status: 'revised'
+      result: GoalMonthlyResult
+      revision: GoalResultRevision
+      outcomeChanged: boolean
+      availabilityChanged: boolean
+    }>
+  | Readonly<{ status: 'unchanged'; result: GoalMonthlyResult }>
+  | Readonly<{ status: 'conflict' }>
+
+export type FindClosedGoalResultIdsForMetricImpactInput = Readonly<{
+  organizationId: string
+  propertyId: string
+  definitionVersionId: string
+  portalId: string | null
+  portalGroupId: string | null
+  eventAt: Date
 }>
 
 export type GoalProgramBundle = Readonly<{
@@ -121,7 +168,17 @@ export type GoalProgramRepository = Readonly<{
       at: Date
       outboxEventId: string
     }>,
-  ): Promise<void>
+  ): Promise<boolean>
+  findAssignmentConflicts(
+    input: Readonly<{
+      organizationId: string
+      propertyId: string
+      excludeProgramId: string
+      metric: GoalMetric
+      effectiveFrom: Date
+      subjects: readonly GoalSubject[]
+    }>,
+  ): Promise<readonly GoalSubject[]>
   activate(
     input: Readonly<{
       bundle: GoalProgramBundle
@@ -160,7 +217,30 @@ export type GoalProgramRepository = Readonly<{
     input: Readonly<{
       result: GoalMonthlyResult
       expectedStatus: GoalMonthlyResultStatus
-      outboxEventId: string
     }>,
   ): Promise<GoalMonthlyResult | null>
+  getClosedResult(
+    organizationId: string,
+    propertyId: string,
+    resultId: string,
+  ): Promise<ClosedGoalResultHead | null>
+  appendResultRevision(
+    input: Readonly<{
+      head: ClosedGoalResultHead
+      revisionId: string
+      evaluation: GoalMetricEvaluation
+      sourceCompleteThrough: Date | null
+      evaluationWatermark: Date
+      changeReason: string
+      createdBy: string
+      at: Date
+    }>,
+  ): Promise<AppendGoalResultRevisionResult>
+  /**
+   * Locates immutable closed results whose exact version, subject, and
+   * half-open period contain one Metric-owned correction impact.
+   */
+  findClosedResultIdsForMetricImpact(
+    input: FindClosedGoalResultIdsForMetricImpactInput,
+  ): Promise<readonly string[]>
 }>

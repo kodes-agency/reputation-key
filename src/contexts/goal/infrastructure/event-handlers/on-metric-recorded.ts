@@ -5,7 +5,7 @@
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { MetricRecorded } from '#/contexts/metric/application/public-api'
 import type { EventBus } from '#/shared/events/event-bus'
-import type { getLogger as getLoggerType } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 import { shouldEmitCompleted } from '../../domain/progress-strategy'
 import { goalCompleted } from '../../domain/events'
@@ -16,12 +16,17 @@ export type OnMetricRecordedDeps = Readonly<{
   goalRepo: GoalRepository
   eventBus: EventBus
   clock: () => Date
-  getLogger: typeof getLoggerType
+  logger: Pick<LoggerPort, 'error'>
 }>
 
 // ── Handler factory ───────────────────────────────────────────────────
 
-export function onMetricRecorded(deps: OnMetricRecordedDeps) {
+/**
+ * @deprecated Compatibility-only implementation for the retired `goals` /
+ * `goal_progress` model. It is intentionally absent from active handler
+ * registration; canonical beta Goal Programs reconcile monthly results.
+ */
+export const onMetricRecorded = (deps: OnMetricRecordedDeps) => {
   return async (event: MetricRecorded): Promise<void> => {
     return trace('event.onMetricRecorded', async () => {
       const { goalRepo, eventBus, clock } = deps
@@ -39,12 +44,10 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
           resolvedPortalGroupId,
         )
       } catch (err) {
-        deps
-          .getLogger()
-          .error(
-            { err, metricKey: event.metricKey },
-            'goal: fatal error querying goals in onMetricRecorded',
-          )
+        deps.logger.error(
+          { err, metricKey: event.metricKey },
+          'goal: fatal error querying goals in onMetricRecorded',
+        )
         return
       }
 
@@ -84,17 +87,17 @@ export function onMetricRecorded(deps: OnMetricRecordedDeps) {
                 completedValue: result.currentValue,
                 completedAt: now,
                 parentGoalId: goal.parentGoalId,
-                createdBy: goal.createdBy,
+                userId: goal.createdBy,
+                occurredAt: now,
+                correlationId: event.correlationId,
               }),
             )
           }
         } catch (err) {
-          deps
-            .getLogger()
-            .error(
-              { err, goalId: goal.id, metricKey: event.metricKey },
-              'goal: error processing metric.recorded for goal',
-            )
+          deps.logger.error(
+            { err, metricKey: event.metricKey },
+            'goal: error processing metric.recorded for goal',
+          )
           // continue processing other goals
         }
       }

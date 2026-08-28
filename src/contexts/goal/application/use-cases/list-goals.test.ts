@@ -149,7 +149,6 @@ const setup = () => {
   const staffPublicApi: StaffPublicApi = {
     getAccessiblePropertyIds: async () => null,
     getAssignedPortals: async () => [],
-    countAssignmentsByTeam: async () => 0,
   }
   const useCase = listGoals({ goalRepo, staffPublicApi })
 
@@ -353,7 +352,6 @@ describe('listGoals', () => {
     const staffPublicApi: StaffPublicApi = {
       getAccessiblePropertyIds: async () => [],
       getAssignedPortals: async () => [],
-      countAssignmentsByTeam: async () => 0,
     }
     const useCase = listGoals({ goalRepo, staffPublicApi })
     state.goals = [makeGoal({ id: 'g-1' })]

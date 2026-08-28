@@ -143,6 +143,16 @@ describe('canonical Goal Program contract', () => {
       expect(period.end.toISOString()).toBe('2026-12-01T05:00:00.000Z')
     })
 
+    it('keeps a full leap-year month across the European spring DST change', () => {
+      const period = firstFullMonthlyPeriodAtOrAfter(
+        new Date('2028-02-29T12:00:00.000Z'),
+        'Europe/Sofia',
+      )
+      expect(period.start.toISOString()).toBe('2028-02-29T22:00:00.000Z')
+      expect(period.end.toISOString()).toBe('2028-03-31T21:00:00.000Z')
+      expect(isCompleteMonthlyPeriod(period, 'Europe/Sofia')).toBe(true)
+    })
+
     it('rejects partial monthly windows', () => {
       expect(
         isCompleteMonthlyPeriod(

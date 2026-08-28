@@ -199,10 +199,7 @@ function makeFakeDeps() {
     goalRepo,
     eventBus,
     clock: () => FIXED_TIME,
-    getLogger: () =>
-      logger as unknown as OnMetricRecordedDeps['getLogger'] extends () => infer R
-        ? R
-        : never,
+    logger,
   }
 
   function addGoalWithProgress(
@@ -634,10 +631,7 @@ describe('onMetricRecorded', () => {
       const handlerWithThrowingRepo = onMetricRecorded({
         ...fakes.deps,
         goalRepo: throwingRepo,
-        getLogger: () =>
-          logger as unknown as OnMetricRecordedDeps['getLogger'] extends () => infer R
-            ? R
-            : never,
+        logger,
       })
 
       // Should NOT throw

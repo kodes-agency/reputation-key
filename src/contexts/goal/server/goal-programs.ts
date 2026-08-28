@@ -1,5 +1,4 @@
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod/v4'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
@@ -10,53 +9,28 @@ import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import type {
   GoalActor,
   GoalExecutionPolicy,
-} from '../application/use-cases/governed-goals'
+} from '../application/ports/goal-execution-policy'
+import { GoalProgramError } from '../application/use-cases/goal-programs'
 import {
-  GoalProgramError,
-  type GoalProgramService,
-} from '../application/use-cases/goal-programs'
-import type { GoalProgramBundle, GoalSubject } from '../application/public-api'
+  changeGoalProgramAssignmentsSchema,
+  changeGoalProgramStatusSchema,
+  createGoalProgramSchema,
+  goalProgramIdentitySchema,
+  listGoalProgramsSchema,
+  reviseGoalProgramSchema,
+} from '../application/dto/goal-program.dto'
+export {
+  changeGoalProgramAssignmentsSchema,
+  changeGoalProgramStatusSchema,
+  createGoalProgramSchema,
+  reviseGoalProgramSchema,
+} from '../application/dto/goal-program.dto'
+import type {
+  GoalProgramBundle,
+  GoalProgramRequestApi,
+  GoalSubject,
+} from '../application/public-api'
 import { canForContext } from '#/shared/domain/permissions'
-
-const uuid = z.uuid()
-const metricSchema = z.enum([
-  'qualified_scans',
-  'portal_rating_count',
-  'portal_rating_average',
-])
-const subjectSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('property'), propertyId: uuid }),
-  z.object({ kind: z.literal('portal_group'), portalGroupId: uuid }),
-  z.object({ kind: z.literal('portal'), portalId: uuid }),
-])
-
-export const createGoalProgramSchema = z.object({
-  propertyId: uuid,
-  name: z.string().trim().min(1).max(200),
-  description: z.string().trim().max(2_000).nullable().optional(),
-  metric: metricSchema,
-  targetValue: z.number().finite(),
-  subjects: z.array(subjectSchema).min(1).max(250),
-})
-
-export const reviseGoalProgramSchema = z.object({
-  propertyId: uuid,
-  programId: uuid,
-  metric: metricSchema,
-  targetValue: z.number().finite(),
-  subjects: z.array(subjectSchema).min(1).max(250),
-  reason: z.string().trim().min(1).max(500),
-})
-
-export const changeGoalProgramStatusSchema = z.object({
-  propertyId: uuid,
-  programId: uuid,
-  status: z.enum(['scheduled', 'active', 'paused', 'ended']),
-  reason: z.string().trim().min(1).max(500),
-})
-
-const goalProgramIdentitySchema = z.object({ propertyId: uuid, programId: uuid })
-const listGoalProgramsSchema = z.object({ propertyId: uuid })
 
 export function scopeGoalProgramsForStaff<
   Assignment extends Readonly<{ id: string; subject: GoalSubject }>,
@@ -154,21 +128,25 @@ const goalProgramStatus = (error: GoalProgramError): number => {
     case 'invalid_target':
     case 'invalid_subject':
     case 'duplicate_subject':
+    case 'assignment_limit_exceeded':
+    case 'invalid_reason':
       return 400
   }
 }
 
-async function withGoalProgramService<T>(
+async function withGoalPrograms<T>(
   run: (
-    service: GoalProgramService,
+    programs: GoalProgramRequestApi,
+    policy: GoalExecutionPolicy,
     actor: GoalActor,
     ctx: Awaited<ReturnType<typeof resolveTenantContext>>,
   ) => Promise<T>,
 ): Promise<T> {
   const ctx = await resolveTenantContext(await headersFromContext())
-  const service = getContainer().useCases.createGoalProgramService(requestPolicy(ctx))
+  const programs = getContainer().goalPublicApi.programs
+  const policy = requestPolicy(ctx)
   try {
-    return await run(service, requestActor(ctx), ctx)
+    return await run(programs, policy, requestActor(ctx), ctx)
   } catch (error) {
     if (error instanceof GoalProgramError) {
       throwContextError('GoalProgramError', error, goalProgramStatus(error))
@@ -182,7 +160,9 @@ export const createGoalProgram = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalProgramService((service, actor) => service.create(data, actor)),
+        withGoalPrograms((programs, policy, actor) =>
+          programs.create(policy, data, actor),
+        ),
       'POST',
       'goal.createGoalProgram',
     ),
@@ -193,9 +173,24 @@ export const reviseGoalProgram = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalProgramService((service, actor) => service.revise(data, actor)),
+        withGoalPrograms((programs, policy, actor) =>
+          programs.revise(policy, data, actor),
+        ),
       'POST',
       'goal.reviseGoalProgram',
+    ),
+  )
+
+export const changeGoalProgramAssignments = createServerFn({ method: 'POST' })
+  .validator(changeGoalProgramAssignmentsSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms((programs, policy, actor) =>
+          programs.changeAssignments(policy, data, actor),
+        ),
+      'POST',
+      'goal.changeGoalProgramAssignments',
     ),
   )
 
@@ -204,7 +199,9 @@ export const changeGoalProgramStatus = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalProgramService((service, actor) => service.changeStatus(data, actor)),
+        withGoalPrograms((programs, policy, actor) =>
+          programs.changeStatus(policy, data, actor),
+        ),
       'POST',
       'goal.changeGoalProgramStatus',
     ),
@@ -215,8 +212,8 @@ export const getGoalProgram = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalProgramService(async (service, actor, ctx) => {
-          const program = await service.get(data, actor)
+        withGoalPrograms(async (programs, policy, actor, ctx) => {
+          const program = await programs.get(policy, data, actor)
           const [visible] = await scopeProgramsForRequest([program], ctx, data.propertyId)
           if (!visible) throw new GoalProgramError('not_found')
           return visible
@@ -231,8 +228,8 @@ export const listGoalPrograms = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalProgramService(async (service, actor, ctx) => {
-          const programs = await service.list(data.propertyId, actor)
+        withGoalPrograms(async (programApi, policy, actor, ctx) => {
+          const programs = await programApi.list(policy, data.propertyId, actor)
           return {
             programs: await scopeProgramsForRequest(programs, ctx, data.propertyId),
           }

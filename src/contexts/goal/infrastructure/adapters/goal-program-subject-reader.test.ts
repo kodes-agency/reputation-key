@@ -2,7 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createGoalProgramSubjectReader } from './goal-program-subject-reader'
 
 const propertyApi = { getPropertyTimezone: vi.fn() }
-const portalApi = { resolvePortalContext: vi.fn() }
+const portalApi = {
+  resolvePortalContext: vi.fn(),
+  getPortalInfo: vi.fn(),
+  listCurrentPortalIds: vi.fn(),
+}
 const portalGroupApi = { portalGroupBelongsToProperty: vi.fn() }
 const reader = () =>
   createGoalProgramSubjectReader(
@@ -41,6 +45,11 @@ describe('Goal Program subject reader', () => {
       organizationId: 'org-1',
       propertyId: 'property-1',
     })
+    portalApi.getPortalInfo.mockResolvedValue({
+      id: 'portal-1',
+      name: 'Lobby',
+      publicationState: 'published',
+    })
     const subject = { kind: 'portal' as const, portalId: 'portal-1' }
 
     await expect(
@@ -48,6 +57,25 @@ describe('Goal Program subject reader', () => {
     ).resolves.toBe(true)
     await expect(
       reader().subjectBelongsToProperty('org-2', 'property-1', subject),
+    ).resolves.toBe(false)
+  })
+
+  it('does not treat an archived Portal as a current Goal subject', async () => {
+    portalApi.resolvePortalContext.mockResolvedValue({
+      organizationId: 'org-1',
+      propertyId: 'property-1',
+    })
+    portalApi.getPortalInfo.mockResolvedValue({
+      id: 'portal-1',
+      name: 'Lobby',
+      publicationState: 'archived',
+    })
+
+    await expect(
+      reader().subjectBelongsToProperty('org-1', 'property-1', {
+        kind: 'portal',
+        portalId: 'portal-1',
+      }),
     ).resolves.toBe(false)
   })
 
@@ -59,5 +87,18 @@ describe('Goal Program subject reader', () => {
       }),
     ).resolves.toBe(false)
     expect(portalApi.resolvePortalContext).not.toHaveBeenCalled()
+  })
+
+  it('takes a bounded current-Portal snapshot through the Portal owner', async () => {
+    portalApi.listCurrentPortalIds.mockResolvedValue(['portal-1', 'portal-2'])
+
+    await expect(
+      reader().listCurrentPortalIds('org-1', 'property-1', 251),
+    ).resolves.toEqual(['portal-1', 'portal-2'])
+    expect(portalApi.listCurrentPortalIds).toHaveBeenCalledWith(
+      'org-1',
+      'property-1',
+      251,
+    )
   })
 })

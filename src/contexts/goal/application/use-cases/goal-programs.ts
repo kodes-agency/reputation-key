@@ -10,7 +10,7 @@ import {
   portalId as toPortalId,
   propertyId as toPropertyId,
 } from '#/shared/domain/ids'
-import type { GoalExecutionPolicy, GoalActor } from './governed-goals'
+import type { GoalActor, GoalExecutionPolicy } from '../ports/goal-execution-policy'
 import type {
   GoalMonthlyResult,
   GoalProgramBundle,
@@ -23,6 +23,8 @@ import {
   evaluateGoalMetric,
   firstFullMonthlyPeriodAtOrAfter,
   goalSubjectIdentity,
+  isGoalResultReadyToClose,
+  MAX_GOAL_ASSIGNMENT_SELECTIONS,
   minimumSampleForGoalMetric,
   validateGoalTarget,
   type GoalMetric,
@@ -30,6 +32,8 @@ import {
   type GoalProgramStatus,
   type GoalSubject,
 } from '../../domain/goal-program'
+
+export { MAX_GOAL_ASSIGNMENT_SELECTIONS } from '../../domain/goal-program'
 
 const GOAL_METRIC_VERSION_IDS: Readonly<Record<GoalMetric, string>> = {
   qualified_scans: METRIC_VERSION_IDS.qualifiedScanGoal,
@@ -44,6 +48,15 @@ export type GoalProgramSubjectReader = Readonly<{
     propertyId: string,
     subject: GoalSubject,
   ): Promise<boolean>
+  /**
+   * Returns a bounded request-time snapshot. The result is never persisted as
+   * a selector and therefore cannot assign Portals created after this call.
+   */
+  listCurrentPortalIds(
+    organizationId: string,
+    propertyId: string,
+    limit: number,
+  ): Promise<readonly string[]>
 }>
 
 export type GoalProgramDependencies = Readonly<{
@@ -64,6 +77,8 @@ export class GoalProgramError extends Error {
       | 'invalid_target'
       | 'invalid_subject'
       | 'duplicate_subject'
+      | 'assignment_limit_exceeded'
+      | 'invalid_reason'
       | 'metric_unavailable'
       | 'invalid_transition'
       | 'revision_conflict',
@@ -72,6 +87,34 @@ export class GoalProgramError extends Error {
     this.name = 'GoalProgramError'
   }
 }
+
+export type GoalAssignmentChangeOutcomeCode =
+  | 'added'
+  | 'removed'
+  | 'already_assigned'
+  | 'not_assigned'
+  | 'duplicate'
+  | 'conflicting_operations'
+  | 'invalid_subject'
+  | 'overlap'
+  | 'last_assignment_required'
+
+export type GoalAssignmentChangeOutcome = Readonly<{
+  operation: 'add' | 'remove'
+  source: 'explicit' | 'all_current_portals'
+  subject: GoalSubject
+  outcome: GoalAssignmentChangeOutcomeCode
+}>
+
+export type GoalAssignmentChangeResult = Readonly<{
+  programId: string
+  previousVersion: number
+  currentVersion: number
+  effectiveFrom: Date | null
+  selectedAt: Date
+  selectedCurrentPortalCount: number
+  outcomes: readonly GoalAssignmentChangeOutcome[]
+}>
 
 export type GoalProgramMaintenanceStats = Readonly<{
   inspected: number
@@ -119,6 +162,23 @@ function evaluationFromGovernedRead(
       sampleCount: reading.sampleCount,
     },
   })
+}
+
+function sameGoalEvaluation(
+  left: GoalMetricEvaluation,
+  right: GoalMetricEvaluation,
+): boolean {
+  return (
+    left.state === right.state &&
+    left.value === right.value &&
+    left.sampleCount === right.sampleCount &&
+    left.achieved === right.achieved &&
+    left.reason === right.reason
+  )
+}
+
+function sameInstant(left: Date | null, right: Date | null): boolean {
+  return left?.getTime() === right?.getTime()
 }
 
 function assignmentFor(
@@ -451,6 +511,13 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       if (current.program.status === 'ended') {
         throw new GoalProgramError('invalid_transition')
       }
+      const now = deps.now()
+      // A future Program head is already the one pending revision that the
+      // maintenance runtime will activate. Stacking another future head would
+      // either create a zero-length version or skip the pending version.
+      if (current.version.effectiveFrom > now) {
+        throw new GoalProgramError('revision_conflict')
+      }
       const target = validateGoalTarget(input.metric, input.targetValue)
       if (!target.ok) throw new GoalProgramError('invalid_target')
       const [timezone, governed] = await Promise.all([
@@ -461,7 +528,6 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       if (!timezone) throw new GoalProgramError('not_found')
       const readinessSubject = input.subjects[0]
       if (!readinessSubject) throw new GoalProgramError('invalid_subject')
-      const now = deps.now()
       // Revisions never redefine a month already in progress, even when the
       // request lands exactly on its first instant.
       const period = firstFullMonthlyPeriodAtOrAfter(
@@ -518,7 +584,7 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
           at: now,
         }),
       )
-      await deps.repository.revise({
+      const revised = await deps.repository.revise({
         expectedVersion: current.version,
         version,
         assignments,
@@ -526,12 +592,275 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         at: now,
         outboxEventId: deps.id(),
       })
+      if (!revised) throw new GoalProgramError('revision_conflict')
       return {
         program: { ...current.program, currentVersion: version.version, updatedAt: now },
         version,
         versions: [...current.versions, version],
         assignments: [...current.assignments, ...assignments],
         results: current.results,
+      }
+    },
+
+    changeAssignments: async (
+      input: Readonly<{
+        propertyId: string
+        programId: string
+        expectedVersion: number
+        add: readonly GoalSubject[]
+        remove: readonly GoalSubject[]
+        selectAllCurrentPortals: boolean
+        reason: string
+      }>,
+      actor: GoalActor,
+    ): Promise<GoalAssignmentChangeResult> => {
+      await deps.policy.authorize({
+        actor,
+        organizationId: actor.organizationId,
+        propertyId: input.propertyId,
+        action: 'goal.update',
+      })
+      if (input.add.length + input.remove.length > MAX_GOAL_ASSIGNMENT_SELECTIONS) {
+        throw new GoalProgramError('assignment_limit_exceeded')
+      }
+      if (
+        input.add.length === 0 &&
+        input.remove.length === 0 &&
+        !input.selectAllCurrentPortals
+      ) {
+        throw new GoalProgramError('invalid_subject')
+      }
+      const reason = input.reason.trim()
+      if (!reason || reason.length > 500) throw new GoalProgramError('invalid_reason')
+
+      const current = await deps.repository.get(
+        actor.organizationId,
+        input.propertyId,
+        input.programId,
+      )
+      if (!current) throw new GoalProgramError('not_found')
+      if (current.program.status === 'ended') {
+        throw new GoalProgramError('invalid_transition')
+      }
+      if (current.version.version !== input.expectedVersion) {
+        throw new GoalProgramError('revision_conflict')
+      }
+
+      const selectedAt = deps.now()
+      if (current.version.effectiveFrom > selectedAt) {
+        throw new GoalProgramError('revision_conflict')
+      }
+      const currentPortalIds = input.selectAllCurrentPortals
+        ? await deps.subjects.listCurrentPortalIds(
+            actor.organizationId,
+            input.propertyId,
+            MAX_GOAL_ASSIGNMENT_SELECTIONS + 1,
+          )
+        : []
+      if (
+        currentPortalIds.length > MAX_GOAL_ASSIGNMENT_SELECTIONS ||
+        input.add.length + input.remove.length + currentPortalIds.length >
+          MAX_GOAL_ASSIGNMENT_SELECTIONS
+      ) {
+        throw new GoalProgramError('assignment_limit_exceeded')
+      }
+
+      type Selection = Readonly<{
+        operation: 'add' | 'remove'
+        source: GoalAssignmentChangeOutcome['source']
+        subject: GoalSubject
+      }>
+      const selections: readonly Selection[] = [
+        ...input.add.map((subject): Selection => ({
+          operation: 'add',
+          source: 'explicit',
+          subject,
+        })),
+        ...currentPortalIds.map((portalId): Selection => ({
+          operation: 'add',
+          source: 'all_current_portals',
+          subject: { kind: 'portal', portalId },
+        })),
+        ...input.remove.map((subject): Selection => ({
+          operation: 'remove',
+          source: 'explicit',
+          subject,
+        })),
+      ]
+      const operationByIdentity = new Map<string, Set<Selection['operation']>>()
+      for (const selection of selections) {
+        const identity = goalSubjectIdentity(selection.subject)
+        const operations = operationByIdentity.get(identity) ?? new Set()
+        operations.add(selection.operation)
+        operationByIdentity.set(identity, operations)
+      }
+      const seen = new Set<string>()
+      const preliminary = selections.map((selection) => {
+        const identity = goalSubjectIdentity(selection.subject)
+        const occurrence = `${selection.operation}:${identity}`
+        const outcome =
+          operationByIdentity.get(identity)?.size === 2
+            ? ('conflicting_operations' as const)
+            : seen.has(occurrence)
+              ? ('duplicate' as const)
+              : null
+        seen.add(occurrence)
+        return { ...selection, identity, outcome }
+      })
+      const ownership = await Promise.all(
+        preliminary.map((selection) =>
+          selection.outcome
+            ? Promise.resolve(true)
+            : deps.subjects.subjectBelongsToProperty(
+                actor.organizationId,
+                input.propertyId,
+                selection.subject,
+              ),
+        ),
+      )
+      const currentAssignments = current.assignments.filter(
+        (assignment) => assignment.programVersionId === current.version.id,
+      )
+      if (currentAssignments.length === 0) {
+        throw new GoalProgramError('invalid_subject')
+      }
+      const currentByIdentity = new Map(
+        currentAssignments.map((assignment) => [
+          goalSubjectIdentity(assignment.subject),
+          assignment.subject,
+        ]),
+      )
+      const effectiveFrom = firstFullMonthlyPeriodAtOrAfter(
+        new Date(selectedAt.getTime() + 1),
+        current.version.propertyTimezone,
+      ).start
+      const additionsToCheck = preliminary.flatMap((selection, index) => {
+        if (
+          selection.outcome ||
+          !ownership[index] ||
+          selection.operation !== 'add' ||
+          currentByIdentity.has(selection.identity)
+        ) {
+          return []
+        }
+        return [selection.subject]
+      })
+      const conflictingSubjects =
+        additionsToCheck.length === 0
+          ? []
+          : await deps.repository.findAssignmentConflicts({
+              organizationId: actor.organizationId,
+              propertyId: input.propertyId,
+              excludeProgramId: current.program.id,
+              metric: current.version.metric,
+              effectiveFrom,
+              subjects: additionsToCheck,
+            })
+      const overlapping = new Set(conflictingSubjects.map(goalSubjectIdentity))
+      const nextByIdentity = new Map(currentByIdentity)
+      let changed = false
+      let outcomes: GoalAssignmentChangeOutcome[] = preliminary.map(
+        (selection, index): GoalAssignmentChangeOutcome => {
+          const result = (
+            outcome: GoalAssignmentChangeOutcomeCode,
+          ): GoalAssignmentChangeOutcome => ({
+            operation: selection.operation,
+            source: selection.source,
+            subject: selection.subject,
+            outcome,
+          })
+          if (selection.outcome) {
+            return result(selection.outcome)
+          }
+          if (!ownership[index]) {
+            return result('invalid_subject')
+          }
+          if (selection.operation === 'add') {
+            if (nextByIdentity.has(selection.identity)) {
+              return result('already_assigned')
+            }
+            if (overlapping.has(selection.identity)) {
+              return result('overlap')
+            }
+            nextByIdentity.set(selection.identity, selection.subject)
+            changed = true
+            return result('added')
+          }
+          if (!nextByIdentity.has(selection.identity)) {
+            return result('not_assigned')
+          }
+          nextByIdentity.delete(selection.identity)
+          changed = true
+          return result('removed')
+        },
+      )
+
+      if (nextByIdentity.size === 0) {
+        outcomes = outcomes.map((outcome) =>
+          outcome.outcome === 'removed'
+            ? { ...outcome, outcome: 'last_assignment_required' }
+            : outcome,
+        )
+        changed = false
+      }
+      if (nextByIdentity.size > MAX_GOAL_ASSIGNMENT_SELECTIONS) {
+        throw new GoalProgramError('assignment_limit_exceeded')
+      }
+      if (!changed) {
+        return {
+          programId: current.program.id,
+          previousVersion: current.version.version,
+          currentVersion: current.version.version,
+          effectiveFrom: null,
+          selectedAt,
+          selectedCurrentPortalCount: currentPortalIds.length,
+          outcomes,
+        }
+      }
+
+      const versionId = deps.id()
+      const version: GoalProgramVersion = {
+        ...current.version,
+        id: versionId,
+        version: current.version.version + 1,
+        effectiveFrom,
+        effectiveTo: null,
+        changeReason: reason,
+        createdBy: actor.userId,
+        createdAt: selectedAt,
+      }
+      const assignments = [...nextByIdentity.values()].map((subject) =>
+        assignmentFor({
+          id: deps.id(),
+          programId: current.program.id,
+          programVersionId: versionId,
+          organizationId: actor.organizationId,
+          propertyId: input.propertyId,
+          metric: current.version.metric,
+          subject,
+          effectiveFrom,
+          effectiveTo: null,
+          actorId: actor.userId,
+          at: selectedAt,
+        }),
+      )
+      const revised = await deps.repository.revise({
+        expectedVersion: current.version,
+        version,
+        assignments,
+        actorId: actor.userId,
+        at: selectedAt,
+        outboxEventId: deps.id(),
+      })
+      if (!revised) throw new GoalProgramError('revision_conflict')
+      return {
+        programId: current.program.id,
+        previousVersion: current.version.version,
+        currentVersion: version.version,
+        effectiveFrom,
+        selectedAt,
+        selectedCurrentPortalCount: currentPortalIds.length,
+        outcomes,
       }
     },
 
@@ -615,7 +944,10 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         ),
       ])
       if (!program || !assignment || !version) throw new GoalProgramError('not_found')
-      if (program.program.status !== 'active') {
+      // Pausing or ending stops future period materialization, but an already
+      // opened month remains evidence that must reconcile and close. Otherwise
+      // a mid-lifecycle status change would strand an immutable result forever.
+      if (program.program.status === 'scheduled') {
         throw new GoalProgramError('invalid_transition')
       }
       const reading = await deps.metrics.queryGoalMetric({
@@ -635,7 +967,12 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       const close =
         result.status === 'reconciling' &&
         evaluation.state !== 'updating' &&
-        now.getTime() >= result.periodEnd.getTime() + 24 * 60 * 60 * 1_000
+        reading.sourceCompleteThrough !== null &&
+        isGoalResultReadyToClose({
+          periodEnd: result.periodEnd,
+          now,
+          sourceWatermark: reading.sourceCompleteThrough,
+        })
       const next: GoalMonthlyResult = {
         ...result,
         status: close ? 'closed' : 'reconciling',
@@ -648,10 +985,83 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       const updated = await deps.repository.updateResult({
         result: next,
         expectedStatus: result.status,
-        outboxEventId: deps.id(),
       })
       if (!updated) throw new GoalProgramError('revision_conflict')
       return updated
+    },
+
+    reconcileClosedResult: async (
+      input: Readonly<{
+        organizationId: string
+        propertyId: string
+        resultId: string
+      }>,
+    ) => {
+      const head = await deps.repository.getClosedResult(
+        input.organizationId,
+        input.propertyId,
+        input.resultId,
+      )
+      if (!head) throw new GoalProgramError('not_found')
+      await deps.policy.authorize({
+        actor: 'system',
+        organizationId: head.result.organizationId,
+        propertyId: head.result.propertyId,
+        action: 'goal.update',
+      })
+      const [assignment, version] = await Promise.all([
+        deps.repository.getAssignment(
+          head.result.organizationId,
+          head.result.propertyId,
+          head.result.assignmentId,
+        ),
+        deps.repository.getVersion(
+          head.result.organizationId,
+          head.result.propertyId,
+          head.result.programVersionId,
+        ),
+      ])
+      if (!assignment || !version) throw new GoalProgramError('not_found')
+      const reading = await deps.metrics.queryGoalMetric({
+        organizationId: toOrganizationId(head.result.organizationId),
+        propertyId: toPropertyId(head.result.propertyId),
+        definitionVersionId: version.metricDefinitionVersionId,
+        subject: metricSubject(assignment.subject),
+        periodStart: head.result.periodStart,
+        periodEnd: head.result.periodEnd,
+      })
+      // A correction consumer can temporarily make the source incomplete.
+      // Closed evidence is last-safe and must not be replaced by an updating
+      // placeholder; a later retry will append the settled revision.
+      if (reading.state === 'updating') {
+        return { status: 'pending' as const, result: head.result }
+      }
+      const evaluation = evaluationFromGovernedRead(
+        version.metric,
+        version.targetValue,
+        reading,
+      )
+      if (
+        sameGoalEvaluation(head.result.evaluation, evaluation) &&
+        sameInstant(head.result.sourceCompleteThrough, reading.sourceCompleteThrough)
+      ) {
+        return { status: 'unchanged' as const, result: head.result }
+      }
+      const now = deps.now()
+      const revised = await deps.repository.appendResultRevision({
+        head,
+        revisionId: deps.id(),
+        evaluation,
+        sourceCompleteThrough: reading.sourceCompleteThrough,
+        evaluationWatermark: now,
+        changeReason: 'metric_correction_reconciliation',
+        createdBy: 'system',
+        at: now,
+      })
+      if (revised.status === 'conflict') {
+        throw new GoalProgramError('revision_conflict')
+      }
+      return revised
     },
 
     maintain: async (): Promise<GoalProgramMaintenanceStats> => {

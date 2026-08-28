@@ -5,14 +5,14 @@
 import type { PortalDeleted } from '#/contexts/portal/application/public-api'
 import type { GoalRepository } from '../../application/ports/goal.repository'
 import type { SystemCancelGoalFn } from './index'
-import type { getLogger as getLoggerType } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
 // ── Dependencies ──────────────────────────────────────────────────────
 
 export type OnPortalDeletedDeps = Readonly<{
   goalRepo: GoalRepository
   systemCancelGoalFn: SystemCancelGoalFn
-  getLogger: typeof getLoggerType
+  logger: Pick<LoggerPort, 'error'>
 }>
 
 // ── Handler factory ───────────────────────────────────────────────────
@@ -34,17 +34,13 @@ export const onPortalDeleted =
           reason: 'portal_deleted',
         })
         if (result.isErr()) {
-          deps
-            .getLogger()
-            .error(
-              { err: result.error, goalId: goal.id },
-              'goal: failed to cancel on portal deleted',
-            )
+          deps.logger.error(
+            { errorCode: result.error.tag },
+            'goal: failed to cancel on portal deleted',
+          )
         }
       }
     } catch (err) {
-      deps
-        .getLogger()
-        .error({ err, portalId: event.portalId }, 'goal: fatal error in onPortalDeleted')
+      deps.logger.error({ err }, 'goal: fatal error in onPortalDeleted')
     }
   }

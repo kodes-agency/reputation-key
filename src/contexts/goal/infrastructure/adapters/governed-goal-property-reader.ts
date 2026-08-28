@@ -8,10 +8,10 @@ import {
 import type { GoalPropertyReader } from '../../application/use-cases/governed-goals'
 
 /** Tenant-bound property facts required by the governed Goal lifecycle. */
-export function createGovernedGoalPropertyReader(
+export const createGovernedGoalPropertyReader = (
   propertyApi: PropertyFactsPublicApi,
   portalGroupApi: PortalGroupPublicApi,
-): GoalPropertyReader {
+): GoalPropertyReader => {
   return {
     getTimezone: (organizationId, propertyId) =>
       propertyApi.getPropertyTimezone(

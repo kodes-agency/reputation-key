@@ -11,7 +11,7 @@ import {
   computeValue,
   progressQueryToMetricReadingsQuery,
 } from '../../application/progress-query'
-import { getLogger } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 
 import type { ScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
@@ -26,6 +26,7 @@ export type ReconcileGoalProgressDeps = Readonly<{
   events: EventBus
   clock: () => Date
   authorizeScope: ScheduledScopeAuthorizer
+  logger: Pick<LoggerPort, 'error' | 'info' | 'warn'>
 }>
 
 // ── Handler factory ───────────────────────────────────────────────────────
@@ -36,7 +37,6 @@ export const createReconcileGoalProgressHandler =
   (deps: ReconcileGoalProgressDeps) =>
     async (_job: Job): Promise<ReconcileSummary> => {
       return trace('job.reconcileGoalProgress', async () => {
-        const logger = getLogger()
         const now = deps.clock()
 
         // ⚠️ CROSS-TENANT by design — background job processes all orgs
@@ -67,7 +67,7 @@ export const createReconcileGoalProgressHandler =
             // 1. Build progress query
             const pqResult = buildProgressQuery(goal)
             if (pqResult.isErr()) {
-              logger.warn(
+              deps.logger.warn(
                 { error: pqResult.error },
                 'Skipping goal — cannot build progress query',
               )
@@ -135,7 +135,7 @@ export const createReconcileGoalProgressHandler =
               }
             }
           } catch (err) {
-            logger.error({ err }, 'goal: error reconciling goal — skipping')
+            deps.logger.error({ err }, 'goal: error reconciling goal — skipping')
             failed++
             continue
           }
@@ -149,7 +149,7 @@ export const createReconcileGoalProgressHandler =
           failed,
         }
 
-        logger.info(summary, 'Reconciled goal progress')
+        deps.logger.info(summary, 'Reconciled goal progress')
         return summary
       })
     }

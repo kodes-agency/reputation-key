@@ -148,7 +148,6 @@ const setup = (options?: SetupOptions) => {
   const staffPublicApi: StaffPublicApi = {
     getAccessiblePropertyIds: unsupported('getAccessiblePropertyIds'),
     getAssignedPortals,
-    countAssignmentsByTeam: unsupported('countAssignmentsByTeam'),
   }
 
   const useCase = listStaffGoals({

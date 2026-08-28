@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import type { Job } from 'bullmq'
 import {
   createReconcileGoalProgressHandler,
@@ -178,6 +178,11 @@ function createFakeDeps() {
         throw new Error('Portal analytics is not used by the Goal job test')
       },
     },
+    portalLifetime: {
+      get: async () => null,
+    },
+    getCurrentOnGoogle: async () => null,
+    findGoalMetricCorrectionImpacts: async () => [],
   }
 
   const events: EventBus = {
@@ -190,15 +195,22 @@ function createFakeDeps() {
     aggregateResponse = agg
   }
 
+  const logger = {
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  }
+
   const deps: ReconcileGoalProgressDeps = {
     goalRepo,
     metricApi: metricApi,
     events,
     clock: () => NOW,
     authorizeScope: async () => true,
+    logger,
   }
 
-  return { deps, goals, progresses, statusUpdates, _setAggregate }
+  return { deps, goals, progresses, statusUpdates, logger, _setAggregate }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────
@@ -236,6 +248,7 @@ describe('reconcile-goal-progress job', () => {
 
       expect(summary.updated).toBe(1)
       expect(summary.goalsReconciled).toBe(1)
+      expect(fakes.logger.info).toHaveBeenCalledWith(summary, 'Reconciled goal progress')
 
       const progress = fakes.progresses.get(goal.id as string)!
       expect(progress.currentValue).toBe(75)

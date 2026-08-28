@@ -12,6 +12,16 @@ The beta runtime uses `goal_programs` → immutable `goal_program_versions` →
 `goal_result_revisions`. The older `goals`/`goal_progress` and
 `goal_definitions`/`goal_periods` families are migration sources only. New beta
 features must not write new business behavior against either older family.
+`application/goal-authority-inventory.ts` is the executable cutover inventory:
+it records every retained mutation, read, job, schedule, fixture writer, and UI
+entry together with its fail-closed posture, plus every active GoalProgram
+entry. Its repository guard proves GoalProgram is the sole beta-active family.
+`application/legacy-goal-inventory.ts` is the separate, content-free data
+contraction inventory for the retained `goals` and `goal_progress` tables. Its
+read-only PostgreSQL repository records exact counts and reconstructable inbound
+and outbound foreign-key metadata; it does not authorize contraction. The
+evidence and deletion gate are documented in
+`docs/operations/legacy-goal-contraction.md`.
 
 - A Goal Program belongs to one Property and targets one governed metric version.
 - A version may be assigned to any number of Property, Portal Group, or Portal
@@ -20,6 +30,11 @@ features must not write new business behavior against either older family.
 - The only beta metrics are qualified scans, private rating count, and private
   rating average. They are analytics/management aids and are never eligible for
   employment decisions.
+- The Qualified Scan source is active: only server-verified published QR/NFC
+  Access Artifact observations count, once per signed response session and
+  Portal in a rolling 24-hour window. Direct visits, prefetch, bots, and raw
+  diagnostic loads never contribute. Portal Group scope uses membership captured
+  at source-event time.
 - Every result covers exactly one full Property-local calendar month. Changes
   start with the next complete month and never redefine a month in progress.
 - Rating average requires at least 10 eligible ratings. Count metrics may close
@@ -41,7 +56,7 @@ features must not write new business behavior against either older family.
 | **Goal Subject Assignment** | Half-open effective assignment of one Program version to one Property, Portal Group, or Portal. The database rejects overlap for the same subject and metric, even across Programs. |
 | **Goal Monthly Result** | One Property-local calendar-month result with an ordered Open/Reconciliation/Closed lifecycle and exact source-completeness evidence. |
 | **Goal Result Revision** | Append-only correction to a closed monthly result. Revisions form direct serialized lineage; the closed base result never changes. |
-| **Goal (legacy)** | Pre-beta aggregate stored in `goals`/`goal_progress`. Retained only for migration and the temporary staff-home compatibility read; its CRUD server surface was removed at the canonical route/UI cutover. |
+| **Goal (legacy)** | Pre-beta aggregate stored in `goals`/`goal_progress`. Retained only for migration/rollback evidence; its CRUD route surface and Staff Home read are not active beta consumers. |
 | **GoalType** | `'open'`, `'one_shot'`, `'rolling'`, or `'recurring'`. Determines how time periods and progress are computed. |
 | **GoalStatus** | Lifecycle: `active` → `completed`, `expired`, or `cancelled`. Only `active` goals accept progress updates. |
 | **GoalProgress** | Current numeric progress toward a goal's target. Tracks `currentValue`, `currentSum`, `currentCount`, and `computedSource`. One-to-one with a Goal. |
@@ -63,9 +78,22 @@ features must not write new business behavior against either older family.
 - Goal → PortalGroup (optional `portalGroupId`, scopes goal to a portal group).
 - Goal → Goal (optional `parentGoalId`, links recurring instances back to their template).
 - GoalProgress → Goal (one-to-one, tracks current progress).
-- Goal context **subscribes to** `metric.recorded`, `portal.deleted`, `portal_group.deleted` events from other contexts.
-- Goal context **depends on** `MetricPublicApi` from the metric context (for querying metric readings to reconcile progress).
-- Goal context **depends on** `PortalGroupPublicApi.findGroupForPortal` from the portal context (for resolving group membership on metric events).
+- Canonical Goal Programs **depend on** `MetricPublicApi` for governed,
+  version-pinned monthly reads; they do not increment progress from
+  `metric.recorded`.
+- Goal durably consumes `metric.corrected`. It asks Metric's public impact port
+  for exact original/replacement facts, then Goal's repository locates only
+  closed results with the same Organization, Property, immutable metric
+  version, event-time subject, and half-open month. No Goal code queries Metric
+  tables, and no Metric code queries Goal tables.
+- Retained legacy event-handler implementations are historical/migration
+  evidence only. Their index exports no registrar, and Portal or Portal Group
+  deletion does not mutate retained legacy Goal rows in the beta runtime.
+- Goal exposes exact delivery-time lookups for achieved close notices and for
+  corrected result notices. Correction delivery supplies the full Program,
+  Assignment, Result, and revision fence; a superseded revision resolves to
+  null, while the current closed head can honestly resolve achieved=false or an
+  unavailable state.
 
 ## Invariants
 
@@ -84,17 +112,28 @@ features must not write new business behavior against either older family.
 
 ## Events produced
 
-| Tag              | Payload                                                                                                                                                    | When                    |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `goal.completed` | goalId, organizationId, propertyId, scope IDs, goalType, metricKey, aggregationFunction, targetValue, completedValue, completedAt, parentGoalId, createdBy | Progress reaches target |
+| Tag                                          | Payload                                                                                                                    | When                                                                                                   |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `goal.monthly_result.reconciled`             | tenant/property + Program, version, assignment and monthly-result IDs; period; evaluation state; achieved; occurrence time | An open/reconciling canonical result is evaluated but not closed                                       |
+| `goal.monthly_result.closed`                 | the same identifier-only/result facts, with `status=closed`                                                                | The result wins the `reconciling` → `closed` CAS; state and outbox row commit in one transaction       |
+| `goal.monthly_result.revised`                | the same result identities plus direct revision lineage and outcome/availability-change flags                              | A governed late correction appends a new closed-result revision, audit row, and outbox fact atomically |
+| `goal.completed` (legacy compatibility only) | legacy Goal/progress facts                                                                                                 | Retained schema/factory only; no active Metric subscription produces it                                |
 
 ## Events consumed
 
-| Tag                    | Source context | Handler action                                  |
-| ---------------------- | -------------- | ----------------------------------------------- |
-| `metric.recorded`      | metric         | Increment goal progress via event_increment     |
-| `portal.deleted`       | portal         | Cancel goals scoped to the deleted portal       |
-| `portal_group.deleted` | portal         | Cancel goals scoped to the deleted portal group |
+| Tag                | Source context | Handler action                                                                                                 |
+| ------------------ | -------------- | -------------------------------------------------------------------------------------------------------------- |
+| `metric.corrected` | metric         | Reconcile and, when settled evidence changed, append a revision to each exact affected closed canonical result |
+
+`metric.recorded` is not consumed by Goal in the beta runtime. A correction is
+the deliberate exception: the durable `goal.metric-correction-reconciliation`
+consumer invokes `reconcileMetricCorrection`, deduplicates affected closed
+results, and retries while Metric completeness is `updating`. Replays converge
+because unchanged heads are no-ops and revision appends are serialized by CAS.
+The split
+`upsertProgress` + `markGoalCompleted` port operations and handler remain
+compatibility-only migration code and are executablely excluded from runtime
+composition.
 
 ## Architecture layers
 
@@ -102,24 +141,33 @@ features must not write new business behavior against either older family.
 goal/
   domain/              types.ts, constructors.ts, events.ts, errors.ts, progress-strategy.ts
   application/
-    ports/             goal.repository.ts, goal-program.repository.ts
+    ports/             goal.repository.ts, goal-program.repository.ts, monthly-result-notification-facts.lookup.ts
     dto/               goal.dto.ts (Zod schemas)
-    use-cases/         create-goal.ts, update-goal.ts, cancel-goal.ts, list-goals.ts, get-goal.ts
+    use-cases/         create-goal.ts, update-goal.ts, cancel-goal.ts, list-goals.ts,
+                       get-goal.ts, reconcile-metric-correction.ts
+    legacy-goal-inventory.ts  content-free GOA-01/CNV-01 contraction evidence
     public-api.ts      re-exports DTO types, port types, event types/constructors
   infrastructure/
     repositories/      goal.repository.ts, goal-program.repository.ts (Drizzle)
+    adapters/           monthly-result-notification-facts.lookup.ts
+    legacy-goal-inventory.repository.ts  read-only retained-table snapshot
+    metric-correction-outbox-consumers.ts
     mappers/           goal.mapper.ts
     event-handlers/    on-metric-recorded.ts, on-portal-deleted.ts, on-portal-group-deleted.ts
     jobs/              goal-program-maintenance.job.ts plus legacy lifecycle jobs
   server/              goal-programs.ts plus temporary staff-goals.ts compatibility read
-  ui/                  helpers.ts (pure UI helper functions)
   build.ts             composition root
 ```
 
 ## Use cases
 
 Canonical beta use cases are `createGoalProgramService().create`, `revise`,
-`changeStatus`, `get`, `list`, `reconcileResult`, and `maintain`. All writes use
+`changeAssignments`, `changeStatus`, `get`, `list`, `reconcileResult`, and
+`reconcileClosedResult`, `maintain`, and the durable
+`reconcileMetricCorrection` command. Closed-result reconciliation preserves
+the last safe result while Metric is updating, appends a revision only when the
+settled evaluation/source-completeness head changes, and never rewrites the
+closed base. All writes use
 the canonical repository's atomic state + audit/outbox transactions. The table
 below documents migration-era application code, not network-reachable CRUD.
 
@@ -140,19 +188,26 @@ Exported from `application/public-api.ts`:
 - Types: `CreateGoalInput`, `UpdateGoalInput`, `CancelGoalInput`, `ListGoalsInput`, `GetGoalInput`, `Goal`, `GoalProgress`, `GoalType`, `GoalStatus`, `StaffGoalEntry`, `GoalWithProgress`
 - Functions: `deriveEntityScope`
 - Port types: `GoalRepository`, `GoalListFilter`
-- Event types: `GoalCompleted`, `GoalEvent`
-- Event constructors: `goalCompleted`
+- Event types: `GoalCompleted` (legacy), `GoalMonthlyResultClosed`,
+  `GoalMonthlyResultReconciled`, `GoalMonthlyResultRevised`, `GoalEvent`
+- Event constructors: `goalCompleted` (legacy), `goalMonthlyResultClosed`,
+  `goalMonthlyResultReconciled`, `goalMonthlyResultRevised`
+- Goal build public API: `findMonthlyResultNotificationFacts` (exact
+  Organization/Property/Assignment/Result lookup; closed + achieved only) and
+  `findMonthlyResultRevisionNotificationFacts` (exact current revision fence;
+  includes non-achieved and unavailable outcomes without metric values)
 
 ## Server functions
 
-| Function                         | Method | Permission    | Purpose                                       |
-| -------------------------------- | ------ | ------------- | --------------------------------------------- |
-| `createGoalProgram`              | POST   | `goal.create` | Create a canonical monthly Program            |
-| `reviseGoalProgram`              | POST   | `goal.update` | Schedule its next-full-month version          |
-| `changeGoalProgramStatus`        | POST   | update/cancel | Pause, resume, or end a Program               |
-| `listGoalPrograms`               | GET    | `goal.read`   | Property-scoped canonical Program list        |
-| `getGoalProgram`                 | GET    | `goal.read`   | Canonical aggregate and monthly result detail |
-| `listStaffGoals` (compatibility) | GET    | `goal.read`   | Pre-beta staff-home read pending its cutover  |
+| Function                                  | Method | Permission    | Purpose                                                            |
+| ----------------------------------------- | ------ | ------------- | ------------------------------------------------------------------ |
+| `createGoalProgram`                       | POST   | `goal.create` | Create a canonical monthly Program                                 |
+| `reviseGoalProgram`                       | POST   | `goal.update` | Schedule its next-full-month version                               |
+| `changeGoalProgramAssignments`            | POST   | `goal.update` | Bulk add/remove a request-time subject set                         |
+| `changeGoalProgramStatus`                 | POST   | update/cancel | Pause, resume, or end a Program                                    |
+| `listGoalPrograms`                        | GET    | `goal.read`   | Property-scoped canonical Program list                             |
+| `getGoalProgram`                          | GET    | `goal.read`   | Canonical aggregate and monthly result detail                      |
+| `listStaffGoals` (compatibility artifact) | GET    | `goal.read`   | Explicit HTTP 410 denial before container or historical-row access |
 
 The original `goals.ts` and intermediate `governed-goals.ts` network surfaces
 were deleted at cutover. Their application/storage models remain migration
@@ -165,11 +220,31 @@ sources, but no client can create new records through them.
 - Manager list, create, detail, status, and revision flows use Goal Programs.
 - One creation/revision picker supports Property, Portal Group, and standalone
   Portal subjects; the same subject-to-command mapping is shared by both flows.
+- Bulk assignment changes are authorization-checked and version-fenced, report
+  an outcome for every requested subject, and begin next full month. “Select all
+  current portals” expands once on the server; it is never stored as future
+  inheritance, is bounded in the Portal-owned query, and excludes archived
+  Portals. Explicit archived Portals are rejected as non-current subjects. A
+  Program with an already-pending future version rejects another revision so
+  the pending version cannot be skipped or collapsed into a zero-length window.
+- Portal Group names and membership metadata remain Portal-owned projections.
+  Every confirmed Portal Group mutation refreshes both the Goal subject picker
+  and Goal subject-name cache for that exact Property.
 - The only choices are qualified scans, private rating count, and private
-  rating average. Inactive scan attribution is described as scheduled, not as
-  an error or a fabricated zero.
-- Monthly result rows use neutral states such as “Updating”, “More ratings
-  needed”, and “Needs review”; managers are not shown punitive staff language.
+  rating average. Qualified Scans use the active Access Artifact-backed source;
+  any other inactive future source is described as scheduled, not as an error
+  or a fabricated zero.
+- The manager Goal Results Matrix covers all three measures and all three scopes,
+  including ungrouped Portals. It shows Ready/Updating/Insufficient/Unavailable,
+  exact count or average/sample evidence, Data through, target provenance, and a
+  met/not-met explanation. It contains no ordinal rank, composite score, or
+  universal progress ring. Unassigned current Portals say “No Goal Programs
+  assigned.”
+- Canonical `get`/`list` reads overlay the latest direct append-only Result
+  Revision on its immutable closed base row. The base result and every prior
+  correction remain unchanged in storage while manager projections see the
+  current verified evidence head. Staff Goal metrics remain intentionally
+  unavailable until a dedicated Staff dashboard is separately approved.
 
 ## Legacy UI design archive (not beta authority)
 
@@ -177,7 +252,6 @@ sources, but no client can create new records through them.
 
 | Term                 | Definition                                                                                                             |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| **GoalProgressRing** | Reusable circular progress with time-proportional "expected" notch marker. Primary at-a-glance pace visualization.     |
 | **Health Donut**     | Pie chart (via ChartContainer + Recharts Pie) showing distribution of active goals by pace (ahead / on-pace / behind). |
 | **Trajectory Graph** | Time series (Area/Line) of actual vs expected progress.                                                                |
 | **Pace / On Pace**   | Comparison of current value to time-proportional expected (elapsed / total period \* target). Tolerance ~2%.           |
@@ -190,7 +264,8 @@ sources, but no client can create new records through them.
 - Reuse shadcn (Card, Badge, etc.) + ui/chart primitives heavily; no custom from-scratch charts.
 - No search / multi-select on list (fixed status sort).
 - Visual live ring in create preview (current=0 + notch).
-- Pace tolerance and labels centralized in ui/helpers (pure).
+- The retired legacy UI centralized pace tolerance and labels in one pure helper
+  module; that module is not part of the beta presentation authority.
 - High-quality: a11y roles, stories for all new components, lint + type clean, small supporting files.
 - Data: UI uses existing Goal + GoalProgress + period dates; full event history for rich trajectories deferred.
 - **Density pass (2026-07):** list + detail pages were too sparse (card stack,
@@ -224,14 +299,20 @@ sources, but no client can create new records through them.
      `Card` gained `py-4` to keep its top flush with the tightened sections. The
      form↔preview grid gutter stays `gap-6` (horizontal breathing, not whitespace).
 
-New reusable components live under `src/components/goals/` (GoalProgressRing, GoalTrajectoryGraph) for cross-use (list/detail/form + future). (GoalHealthDonut was removed in the 2026-07 density pass — see resolved decisions above.)
+The active manager result presentation lives in the Goal Results Matrix. The
+superseded ring, trajectory, legacy Staff goal list, summary, and progress bar
+have been removed rather than retained as story-only production components.
 
 | Permission    | AccountAdmin | PropertyManager | Staff |
 | ------------- | ------------ | --------------- | ----- |
-| `goal.read`   | ✓            | ✓               | ✓     |
+| `goal.read`   | ✓            | ✓               | —     |
 | `goal.create` | ✓            | ✓               | —     |
 | `goal.update` | ✓            | ✓               | —     |
 | `goal.cancel` | ✓            | ✓               | —     |
+
+`/progress` is a retained compatibility redirect, not a Staff Goal surface. It
+returns Staff to `/home` and sends an already-authorized manager with a selected
+Property to the canonical Property Goal Program page.
 
 ## Background jobs
 
@@ -248,4 +329,19 @@ New reusable components live under `src/components/goals/` (GoalProgressRing, Go
 
 The last two jobs above are legacy-only. Canonical scheduling/reconciliation uses
 the Goal Program service and the governed `MetricPublicApi.queryGoalMetric`
-reader; it must not reconstruct results from raw readings or mutable metric keys.
+reader; they are neither registered nor scheduled by the beta runtime and must
+not reconstruct results from raw readings or mutable metric keys. Property and
+Fleet attention projections likewise use only active canonical monthly results;
+retained `goals`/`goal_progress` and intermediate governed evaluations cannot
+affect beta attention counts.
+
+## Legacy Goal data contraction
+
+The retained `goals` and `goal_progress` tables are inventoried together in one
+repeatable-read, read-only database snapshot. The versioned report contains only
+fixed data-fate classifications, exact table counts, reconstructable foreign-key
+metadata, blockers, and a deterministic fingerprint; it never reads record
+content. A mechanically clean report is evidence, not permission to delete.
+Export/restore proof, non-FK dependency review, one verified release without a
+legacy reader or writer, and a reversible reviewed migration remain mandatory.
+See `docs/operations/legacy-goal-contraction.md`.

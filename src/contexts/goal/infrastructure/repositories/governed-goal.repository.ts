@@ -141,7 +141,7 @@ const evaluationValues = (evaluation: GovernedGoalEvaluation) => ({
   ...evaluation,
 })
 
-export function createGovernedGoalRepository(db: Database): GovernedGoalRepository {
+export const createGovernedGoalRepository = (db: Database): GovernedGoalRepository => {
   return {
     async getDefinitionScope(organizationId, definitionId) {
       const [row] = await db
