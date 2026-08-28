@@ -1,0 +1,4 @@
+ALTER TABLE "google_connections" ADD COLUMN "credential_home_cell_id" varchar(16);--> statement-breakpoint
+ALTER TABLE "google_connections" ADD COLUMN "credential_home_policy_version" integer;--> statement-breakpoint
+ALTER TABLE "google_connections" ADD CONSTRAINT "google_connections_credential_home_pair_check" CHECK (("google_connections"."credential_home_cell_id" IS NULL) = ("google_connections"."credential_home_policy_version" IS NULL));--> statement-breakpoint
+ALTER TABLE "google_connections" ADD CONSTRAINT "google_connections_credential_home_value_check" CHECK ("google_connections"."credential_home_cell_id" IS NULL OR ("google_connections"."credential_home_cell_id" IN ('us', 'europe', 'global') AND "google_connections"."credential_home_policy_version" >= 1));
