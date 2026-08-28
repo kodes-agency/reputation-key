@@ -79,19 +79,18 @@ describe('coverage and changed-code gates', () => {
     expect(ciWorkflow).toContain('run: pnpm check:changed-code')
   })
 
-  it('runs the coverage gate on main pushes only, without a second unit run', () => {
+  it('runs the same coverage ratchet before merge and on main without a second unit run', () => {
     expect(packageJson.scripts['check:coverage']).toBe('node scripts/check-coverage.mjs')
-    // The gate is not the cost — re-running the unit suite under v8 coverage on
-    // every PR was, and running `pnpm test` AND `check:coverage` on main ran the
-    // unit project twice for one result. So the Test step branches: PR gets
-    // `pnpm test`, main gets coverage (unit) + the integration project.
+    // check:coverage already runs the unit project. The workflow therefore
+    // pairs it with integration directly on every event and never invokes the
+    // duplicate umbrella `pnpm test` command.
     const testStep = /- name: Test\n(?<body>(?: {8}[^\n]*\n)+)/.exec(ciWorkflow)
     const body = testStep?.groups?.body
     expect(body).toBeDefined()
-    expect(body).toContain('if [ "${{ github.event_name }}" = "push" ]; then')
     expect(body).toContain('pnpm check:coverage')
     expect(body).toContain('pnpm test:integration')
-    expect(body).toContain('pnpm test')
+    expect(body).not.toContain('github.event_name')
+    expect(body).not.toMatch(/pnpm test\s*$/m)
     // And the standalone main-only coverage step is gone, not duplicated.
     expect(ciWorkflow).not.toContain('- name: Coverage gate')
   })

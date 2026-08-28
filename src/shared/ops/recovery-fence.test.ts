@@ -4,6 +4,8 @@ import { validateRecoveryFenceInput } from './recovery-fence'
 
 const VALID_INPUT: RecoveryFenceInput = {
   dataCellId: 'us',
+  runId: '10000000-0000-4000-8000-000000000001',
+  generation: 1,
   sourceReleaseSha: 'a'.repeat(40),
   sourceManifestSha256: 'b'.repeat(64),
   restorePointAt: new Date('2026-08-24T12:00:00.000Z'),
@@ -19,6 +21,9 @@ describe('recovery fence input', () => {
   })
 
   it.each([
+    [{ dataCellId: 'unknown' as never }, /Data Cell/],
+    [{ runId: 'not-a-uuid' }, /run ID/],
+    [{ generation: 0 }, /generation/],
     [{ sourceReleaseSha: 'A'.repeat(40) }, /release SHA/],
     [{ sourceManifestSha256: 'b'.repeat(63) }, /manifest SHA-256/],
     [{ restorePointAt: new Date('not-an-instant') }, /valid instant/],

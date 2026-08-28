@@ -14,6 +14,11 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   // LIF-01: destructive deletion is not ordinary Property management.
   // This capability stays blocked until support-mediated erasure exists.
   'property.delete': 'property.erase',
+  // Recoverable lifecycle commands are ordinary Property management and do
+  // not acquire the permanently blocked erasure capability.
+  'property.archive': 'property.create',
+  'property.restore': 'property.create',
+  'property.disconnect': 'property.create',
   'property.read': 'property.create',
   'property.admin': 'property.create',
   'property.import_gbp_v2': 'property.import_gbp_v2',
@@ -42,6 +47,7 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   // portal.write remains promotable. portal.upload is temporarily blocked at
   // capability policy level until its issuance-bound SEC-01 remediation lands.
   'portal.create': 'portal.write',
+  'portal.admin': 'portal.write',
   'portal.update': 'portal.write',
   'portal.delete': 'portal.write',
   'portal.read': 'portal.read',

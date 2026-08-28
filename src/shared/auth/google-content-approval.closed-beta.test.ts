@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   GOOGLE_CONTENT_APPROVAL_ROLES,
+  GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   type GoogleContentApprovalBinding,
   type GoogleContentApprovalRoleDocument,
 } from './google-content-contract'
@@ -39,7 +40,7 @@ function bindingBase(): Omit<GoogleContentApprovalBinding, 'evidenceIndexSha256'
     railwayClosedBetaCohortSha256: cohortSha256,
     railwayClosedBetaResidualRiskSha256: residualRiskSha256,
     performanceCatalogVersion: '2026-08-05',
-    routeCatalogueVersion: '2026-08-16',
+    routeCatalogueVersion: GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
     capabilityPolicyVersion: 'beta-local-2',
     executionPolicyVersion: 'beta-local-2',
     migrationHead: '0040_google-import-effect-lease-control-fk',

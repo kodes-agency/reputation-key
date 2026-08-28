@@ -4,11 +4,12 @@ import {
   DataCellExecutionDeniedError,
   type PropertyDataCellFacts,
 } from './data-cell-execution-fence'
+import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 
 const US_FACTS: PropertyDataCellFacts = {
   dataCellId: 'us',
   processingRegion: 'us',
-  routingPolicyVersion: 2,
+  routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
 }
 
 function fence(facts: PropertyDataCellFacts | null = US_FACTS, localCell = 'us') {
@@ -23,7 +24,7 @@ describe('DataCellExecutionFence', () => {
     await expect(fence().decideProperty('property-secret')).resolves.toEqual({
       kind: 'allow',
       cell: 'us',
-      routingPolicyVersion: 2,
+      routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
     })
   })
 
@@ -45,15 +46,27 @@ describe('DataCellExecutionFence', () => {
   it.each([
     [null, 'property_missing'],
     [
-      { dataCellId: null, processingRegion: 'unresolved', routingPolicyVersion: 2 },
+      {
+        dataCellId: null,
+        processingRegion: 'unresolved',
+        routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
+      },
       'cell_unresolved',
     ],
     [
-      { dataCellId: 'us', processingRegion: 'europe', routingPolicyVersion: 2 },
+      {
+        dataCellId: 'us',
+        processingRegion: 'europe',
+        routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
+      },
       'cell_denied',
     ],
     [
-      { dataCellId: 'europe', processingRegion: 'europe', routingPolicyVersion: 2 },
+      {
+        dataCellId: 'europe',
+        processingRegion: 'europe',
+        routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
+      },
       'cell_denied',
     ],
     [

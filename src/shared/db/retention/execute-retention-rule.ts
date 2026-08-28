@@ -79,10 +79,6 @@ function retentionPredicate(rule: RetentionRule, cutoff: Date): SQL {
  * caller must pass a rule from the static retention registry; identifiers and
  * predicates are deliberately not a public/user-input query surface.
  */
-// Runtime consumer is the catalogued TypeScript operator entry point
-// scripts/ops/restore-verify.ts; fallow's source graph does not follow that
-// script-to-src edge when checking changed exports.
-// fallow-ignore-next-line unused-export
 export async function countRetentionRuleCandidates(
   db: Database,
   rule: RetentionRule,

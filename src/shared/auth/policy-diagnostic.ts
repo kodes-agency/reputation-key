@@ -148,7 +148,8 @@ export function createPolicyDiagnostic(deps: PolicyDiagnosticDeps) {
 //
 // Operator-facing region state for one property: the persisted routing
 // facts, the router's processable/blocked decision, and the current cell +
-// LOGICAL provider reference (CELL_TARGETS — never a URL). Content-free by
+// LOGICAL provider reference (accepting Data Cell catalogue target — never a URL).
+// Content-free by
 // construction (ADR 0048 "control-plane metadata"). The ProcessingRouter
 // stays the ONE routing decision model — this diagnostic reports what the
 // router decides; it never re-derives region policy itself.
@@ -171,7 +172,7 @@ export type PropertyRegionDiagnostic = Readonly<{
   blockedReason: RoutingBlockedReason | null
   /** The deployment's processing cell (PROCESSING_CELL). */
   cell: string
-  /** The cell's logical provider reference (e.g. 'gbp-default') — never a URL. */
+  /** The accepting cell's logical provider reference (e.g. 'gbp-default') — never a URL. */
   providerRef: string | null
 }>
 

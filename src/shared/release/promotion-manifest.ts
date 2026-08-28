@@ -1,8 +1,12 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
-import { DATA_CELL_IDS } from '#/shared/domain/data-cell-catalogue'
+import {
+  BETA_DEPLOYMENT_DATA_CELL_IDS,
+  DATA_CELL_CATALOGUE_POLICY_VERSION,
+} from '#/shared/domain/data-cell-catalogue'
+import { releaseBuildToolchainSchema } from './release-build-toolchain'
 
-export const PROMOTION_MANIFEST_VERSION = 'repkey-promotion-manifest-1' as const
+export const PROMOTION_MANIFEST_VERSION = 'repkey-promotion-manifest-4' as const
 export const TRUSTED_RELEASE_REPOSITORY = 'kodes-agency/reputation-key' as const
 export const TRUSTED_RELEASE_WORKFLOW_IDENTITY =
   `https://github.com/${TRUSTED_RELEASE_REPOSITORY}/.github/workflows/release-images.yml@refs/heads/main` as const
@@ -18,6 +22,22 @@ export const PROMOTED_IMAGE_ROLES = [
   'googleImportCompatibility',
 ] as const
 export type PromotedImageRole = (typeof PROMOTED_IMAGE_ROLES)[number]
+
+/**
+ * A signed release may use only the repositories owned by this workflow.
+ * Registry syntax validation alone would let a well-formed manifest redirect
+ * one role to unrelated bytes in another allowed registry namespace.
+ */
+export const PROMOTED_IMAGE_REPOSITORIES = Object.freeze({
+  web: 'ghcr.io/kodes-agency/repkey-web',
+  googleProviderRedis: 'ghcr.io/kodes-agency/repkey-google-provider-redis',
+  worker: 'ghcr.io/kodes-agency/repkey-worker',
+  googleExecutionAdmission: 'ghcr.io/kodes-agency/repkey-google-execution-admission',
+  googleEgressGateway: 'ghcr.io/kodes-agency/repkey-google-egress-gateway',
+  aiExecutionAdmission: 'ghcr.io/kodes-agency/repkey-ai-execution-admission',
+  aiEgressGateway: 'ghcr.io/kodes-agency/repkey-ai-egress-gateway',
+  googleImportCompatibility: 'ghcr.io/kodes-agency/repkey-google-import-compatibility',
+} as const satisfies Readonly<Record<PromotedImageRole, string>>)
 
 export const RAILWAY_SERVICE_IMAGE_ROLES = Object.freeze({
   'google-provider-redis': 'googleProviderRedis',
@@ -73,16 +93,18 @@ const promotionManifestSchema = z
       .object({
         workflowIdentity: z.literal(TRUSTED_RELEASE_WORKFLOW_IDENTITY),
         runId: z.string().regex(/^[1-9][0-9]*$/),
-        runAttempt: z.number().int().min(1),
+        runAttempt: z.literal(1),
       })
       .strict(),
+    build: releaseBuildToolchainSchema,
     contract: z
       .object({
         lockfileSha256: sha256,
         iacSha256: sha256,
+        releaseControllerSha256: sha256,
         migrationHead: z.string().min(1).max(128),
         capabilityPolicyVersion: z.string().min(1).max(128),
-        dataCellCataloguePolicyVersion: z.number().int().min(1),
+        dataCellCataloguePolicyVersion: z.literal(DATA_CELL_CATALOGUE_POLICY_VERSION),
         betaEvidenceManifestSha256: sha256,
         testEvidenceSha256: sha256,
         providerApprovalEvidenceSha256: sha256,
@@ -90,16 +112,19 @@ const promotionManifestSchema = z
         vulnerabilityIndexSha256: sha256,
       })
       .strict(),
-    cells: z.tuple([
-      z.literal(DATA_CELL_IDS[0]),
-      z.literal(DATA_CELL_IDS[1]),
-      z.literal(DATA_CELL_IDS[2]),
-    ]),
+    cells: z.tuple([z.literal(BETA_DEPLOYMENT_DATA_CELL_IDS[0])]),
     images: z.object(imageSchemas).strict(),
   })
   .strict()
   .superRefine((manifest, context) => {
     for (const role of PROMOTED_IMAGE_ROLES) {
+      if (manifest.images[role].repository !== PROMOTED_IMAGE_REPOSITORIES[role]) {
+        context.addIssue({
+          code: 'custom',
+          path: ['images', role, 'repository'],
+          message: `image repository must be ${PROMOTED_IMAGE_REPOSITORIES[role]}`,
+        })
+      }
       if (manifest.images[role].sourceRevision !== manifest.releaseSha) {
         context.addIssue({
           code: 'custom',

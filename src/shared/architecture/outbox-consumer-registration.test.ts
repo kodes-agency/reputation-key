@@ -71,7 +71,7 @@ describe('BQR-2.2: outbox consumer registration', () => {
     const inboxBuildSrc = readFileSync(join(ROOT, 'src/contexts/inbox/build.ts'), 'utf-8')
     expect(inboxBuildSrc).toContain('registerInboxConsumers')
     expect(inboxBuildSrc).toContain('registerGuestFeedbackConsumer')
-    expect(compositionSrc).toContain('inbox.internal.registerOutboxConsumers')
+    expect(compositionSrc).toContain('inbox.worker.registerOutboxConsumers')
   })
 
   it('inbox outbox-consumers registers review and Guest feedback projections', () => {
@@ -90,6 +90,9 @@ describe('BQR-2.2: outbox consumer registration', () => {
     // BQC-3.4: metadata-only refresh consumer (resolves the BQC-3.1 orphan).
     expect(src).toContain("eventType: 'review.updated'")
     expect(src).toContain("consumerName: 'inbox.on-review-updated'")
+    // REV-01: stable Inbox identity receives a content-free source transition.
+    expect(src).toContain("eventType: 'review.source_transitioned'")
+    expect(src).toContain("consumerName: 'inbox.on-review-source-transitioned'")
     // Compatibility receipt plus the observation-authority close/reopen consumer.
     expect(src).toContain("eventType: 'review.reply.published'")
     expect(src).toContain("consumerName: 'inbox.on-reply-published'")
@@ -112,7 +115,7 @@ describe('BQR-2.2: outbox consumer registration', () => {
       'utf-8',
     )
 
-    expect(compositionSrc).toContain('review.internal.registerOutboxConsumers')
+    expect(compositionSrc).toContain('review.worker.registerOutboxConsumers')
     expect(reviewBuildSrc).toContain('registerReplyPublicationConsumers')
     expect(consumerSrc).toContain("eventType: 'review.reply.publication_requested'")
     expect(consumerSrc).toContain("consumerName: 'review.on-reply-publication-requested'")
@@ -144,11 +147,10 @@ describe('BQR-2.2: outbox consumer registration', () => {
     expect(src).toContain('handleInboxReviewUpdated')
     expect(src).toContain('handleInboxReplyPublished')
     expect(src).toContain('handleInboxReplyObserved')
-    expect(src).toContain('applySourceCreatedOnce')
+    expect(src).toContain('applyReviewProjectionOnce')
     expect(guestSrc).toContain('applySourceCreatedOnce')
     expect(guestSrc).toContain('applySourceWithdrawnOnce')
-    expect(src).toContain('applyReviewExpiredOnce')
-    expect(src).toContain('applyReviewUpdatedOnce')
+    expect(src).toContain('applyReviewSourceTransitionedOnce')
     expect(src).toContain('applyReplyObservedOnce')
     // BQC-1.2: no denormalized-field syncing remains.
     expect(src).not.toContain('syncDenormalizedFields')

@@ -20,9 +20,12 @@ import {
 import { AI_RUNTIME_CAPABILITIES_V1 } from './ai-runtime-capability-contract'
 import {
   AI_ANALYSIS_OUTPUT_SCHEMA,
-  AI_REPLY_SELECTION_OUTPUT_SCHEMA,
   AI_TREND_SELECTION_OUTPUT_SCHEMA,
 } from './openai-route-output-schemas'
+import {
+  AI_PERSONALIZED_REPLY_PROFILE_VERSION,
+  personalizedReplyDraftOutputSchema,
+} from './ai-personalized-reply-profile'
 
 const CONTROL_OR_FORMAT = /[\p{Cc}\p{Cf}]/u
 
@@ -70,14 +73,36 @@ const reviewText = z.union([
   z.string().refine((value) => hasOnlyUnicodeScalars(value) && !value.includes('\0')),
   z.null(),
 ])
+const reviewRating = z.union([
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+  z.literal(4),
+  z.literal(5),
+])
 
 const reviewSourceSchema = z
   .object({
     kind: z.literal('review'),
     text: reviewText,
-    rating: z.number().int().min(1).max(5),
+    rating: reviewRating,
     languageCode: nullableLanguageCode,
     reviewedAtEpochMillis: nonnegativeSafeInteger,
+  })
+  .strict()
+
+const replyBrandProfileSchema = z
+  .object({
+    displayName: z
+      .string()
+      .min(1)
+      .max(120)
+      .refine(
+        (value) =>
+          value === value.trim() &&
+          value.normalize('NFKC') === value &&
+          !CONTROL_OR_FORMAT.test(value),
+      ),
   })
   .strict()
 
@@ -212,6 +237,8 @@ export const replySuggestionGatewayRequestSchema = z
     actorId: actorIdSchema,
     redactionCountry: z.string().regex(/^[A-Z]{2}$/),
     observedContentExpiresAtEpochMillis: positiveSafeInteger,
+    replyProfileVersion: z.literal(AI_PERSONALIZED_REPLY_PROFILE_VERSION),
+    brandProfile: replyBrandProfileSchema,
     tone: z.enum(['professional', 'friendly', 'casual']),
     source: reviewSourceSchema,
   })
@@ -275,6 +302,10 @@ export const aiGatewayRouteRequestSchema = z
       const language = value.binding.concreteReplyLanguage
       if (
         language === null ||
+        value.binding.replyBrandProfileVersion === null ||
+        value.binding.replyBrandProfileVersion === undefined ||
+        value.binding.replyBrandDisplayNameDigest === null ||
+        value.binding.replyBrandDisplayNameDigest === undefined ||
         value.binding.outputLeakageProfileVersion === null ||
         value.binding.outputLeakageProfileDigest === null ||
         value.binding.replyTemplateCatalogueVersion === null ||
@@ -295,6 +326,8 @@ export const aiGatewayRouteRequestSchema = z
       }
     } else if (
       value.binding.concreteReplyLanguage !== null ||
+      value.binding.replyBrandProfileVersion != null ||
+      value.binding.replyBrandDisplayNameDigest != null ||
       value.binding.outputLeakageProfileVersion !== null ||
       value.binding.outputLeakageProfileDigest !== null ||
       value.binding.replyTemplateCatalogueVersion !== null ||
@@ -357,18 +390,14 @@ const aiErrorCodeSchema = z.enum([
 
 const analysisPayloadSchema = AI_ANALYSIS_OUTPUT_SCHEMA
 
-const replySelectionGatewaySchema = AI_REPLY_SELECTION_OUTPUT_SCHEMA.omit({
-  languageCode: true,
-}).extend({
-  concreteLanguageTag: AI_REPLY_SELECTION_OUTPUT_SCHEMA.shape.languageCode,
-})
-
-const replyPayloadSchema = replySelectionGatewaySchema
+const replyPayloadSchema = personalizedReplyDraftOutputSchema
+  .omit({ languageCode: true, grounding: true })
   .extend({
-    replyText: z
-      .string()
-      .min(1)
-      .refine((value) => utf8ByteLength(value) <= 16_384),
+    profileVersion: z.literal(AI_PERSONALIZED_REPLY_PROFILE_VERSION),
+    concreteLanguageTag: z.string().min(1).max(35),
+    replyText: personalizedReplyDraftOutputSchema.shape.replyText.refine(
+      (value) => utf8ByteLength(value) <= 16_384,
+    ),
     provenanceToken: z.string().min(1).max(32_768),
     expiresAtEpochMillis: positiveSafeInteger,
     baseReplyStateRevision: nonnegativeSafeInteger,

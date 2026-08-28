@@ -38,7 +38,8 @@ export const notifications = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     userId: varchar('user_id', { length: 255 }).notNull(),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
+    // Null only for Organization-scoped mandatory account/security notices.
+    propertyId: uuid('property_id'),
     type: varchar('type', { length: 64 }).notNull(),
     category: varchar('category', { length: 40 }).notNull(),
     priority: varchar('priority', { length: 16 }).notNull().default('normal'),
@@ -79,6 +80,22 @@ export const notifications = pgTable(
       foreignColumns: [properties.organizationId, properties.id],
       name: 'notifications_property_tenant_fk',
     }).onDelete('cascade'),
+    check(
+      'notifications_source_content_free_check',
+      sql`NOT (COALESCE(${t.payload}, '{}'::jsonb) ? 'rating') AND CASE WHEN COALESCE(${t.payload}, '{}'::jsonb) ? 'guestRating' THEN COALESCE(${t.payload}->>'platform' = 'portal' AND jsonb_typeof(${t.payload}->'guestRating') = 'number' AND ${t.payload}->>'guestRating' = ANY (ARRAY['1', '2', '3', '4', '5']::text[]), false) ELSE true END`,
+    ),
+    check(
+      'notifications_mandatory_scope_check',
+      sql`(
+        ${t.category} = 'mandatory'
+        AND ${t.propertyId} IS NULL
+        AND ${t.resourceType} = 'organization'
+      ) OR (
+        ${t.category} <> 'mandatory'
+        AND ${t.propertyId} IS NOT NULL
+        AND ${t.resourceType} <> 'organization'
+      )`,
+    ),
   ],
 )
 
@@ -91,7 +108,8 @@ export const notificationEmailQueue = pgTable(
     notificationId: uuid('notification_id').notNull(),
     userId: varchar('user_id', { length: 255 }).notNull(),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id').notNull(),
+    // Null only for Organization-scoped mandatory account/security notices.
+    propertyId: uuid('property_id'),
     category: varchar('category', { length: 40 }).notNull(),
     cadence: varchar('cadence', { length: 16 }).notNull().default('daily'),
     status: varchar('status', { length: 16 }).notNull().default('pending'),
@@ -121,11 +139,15 @@ export const notificationEmailQueue = pgTable(
       t.status,
       t.cadence,
     ),
-    uniqueIndex('email_queue_idempotency_unique').on(
-      t.organizationId,
-      t.propertyId,
-      t.idempotencyKey,
-    ),
+    index('notification_email_queue_immediate_acceptance_health_idx')
+      .on(t.createdAt.desc(), t.id)
+      .where(sql`${t.cadence} = 'immediate' AND ${t.notBefore} IS NULL`),
+    uniqueIndex('email_queue_property_idempotency_unique')
+      .on(t.organizationId, t.propertyId, t.idempotencyKey)
+      .where(sql`${t.propertyId} IS NOT NULL`),
+    uniqueIndex('email_queue_organization_idempotency_unique')
+      .on(t.organizationId, t.idempotencyKey)
+      .where(sql`${t.propertyId} IS NULL`),
     uniqueIndex('email_queue_notification_unique').on(t.notificationId),
     uniqueIndex('email_queue_id_tenant_recipient_unique').on(
       t.id,
@@ -137,6 +159,17 @@ export const notificationEmailQueue = pgTable(
       foreignColumns: [properties.organizationId, properties.id],
       name: 'notification_email_queue_property_tenant_fk',
     }).onDelete('cascade'),
+    check(
+      'notification_email_queue_mandatory_scope_check',
+      sql`(
+        ${t.category} = 'mandatory'
+        AND ${t.propertyId} IS NULL
+        AND ${t.cadence} = 'immediate'
+      ) OR (
+        ${t.category} <> 'mandatory'
+        AND ${t.propertyId} IS NOT NULL
+      )`,
+    ),
   ],
 )
 
@@ -308,6 +341,10 @@ export const notificationPreferences = pgTable(
         ${t.category} <> 'mandatory'
         AND NOT (${t.category} = 'urgent_operational' AND ${t.channel} = 'in_app')
       )`,
+    ),
+    check(
+      'notification_preferences_configurable_category_check',
+      sql`${t.category} <> 'mandatory'`,
     ),
   ],
 )

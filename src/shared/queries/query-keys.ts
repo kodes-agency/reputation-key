@@ -20,11 +20,25 @@ export const inboxKeys = {
   detail: (id: string) => [...inboxKeys.details(), id] as const,
   notes: (id: string) => [...inboxKeys.detail(id), 'notes'] as const,
   activity: (id: string) => [...inboxKeys.detail(id), 'activity'] as const,
+  responseTargetPolicies: (propertyId?: string) =>
+    [...inboxKeys.all, 'response-target-policies', propertyId ?? 'organization'] as const,
+  privateFeedbackTargetAnalytics: (propertyId?: string) =>
+    [
+      ...inboxKeys.all,
+      'private-feedback-target-analytics',
+      propertyId ?? 'organization',
+    ] as const,
+  googleReviewTargetAnalytics: (propertyId?: string) =>
+    [
+      ...inboxKeys.all,
+      'google-review-target-analytics',
+      propertyId ?? 'organization',
+    ] as const,
 }
 
 // Two deliberately DISJOINT subtrees under `all`:
 //
-//   notifications → feed     → count | list   (the bell + /notifications)
+//   notifications → feed     → list → head   (the bell + /notifications)
 //   notifications → settings → preferences | user-settings | email-capability
 //
 // They are siblings, not ancestor/descendant, because the feed is invalidated on
@@ -39,8 +53,6 @@ export const notificationKeys = {
   // ── Feed (bell popover + /notifications page) ────────────────────────
   feed: (organizationId: string) =>
     [...notificationKeys.all, 'feed', organizationId] as const,
-  count: (organizationId: string) =>
-    [...notificationKeys.feed(organizationId), 'count'] as const,
   lists: (organizationId: string) =>
     [...notificationKeys.feed(organizationId), 'list'] as const,
   list: (organizationId: string, limit: number, filter = 'all') =>
@@ -95,6 +107,7 @@ export const propertyKeys = {
 // ── Dashboard (fleet + per-property + staff) ─────────────────────────────
 export const dashboardKeys = {
   all: ['dashboard'] as const,
+  setup: () => [...dashboardKeys.all, 'setup-checklist'] as const,
   fleets: () => [...dashboardKeys.all, 'fleet'] as const,
   // Each range has its own infinite cache entry. Use `fleets()` when an
   // operation genuinely invalidates every range rather than the visible one.
@@ -174,6 +187,10 @@ export const portalKeys = {
     [...portalKeys.detail(portalId), 'responsible-managers'] as const,
   publicationHistory: (portalId: string) =>
     [...portalKeys.detail(portalId), 'publication-history'] as const,
+  experience: (propertyId: string, portalId: string) =>
+    [...portalKeys.detail(portalId), 'experience', propertyId] as const,
+  approvedDestinations: (portalId: string) =>
+    [...portalKeys.detail(portalId), 'approved-destinations'] as const,
   groups: (propertyId: string) => [...portalKeys.all, 'groups', propertyId] as const,
   goalSubjects: (propertyId: string) =>
     [...portalKeys.all, 'goal-subjects', propertyId] as const,

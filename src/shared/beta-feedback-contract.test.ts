@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { ZodError } from 'zod/v4'
 import {
+  BETA_FEEDBACK_ATTACHMENT_RETENTION_DAYS,
   betaFeedbackInputSchema,
   classifyBetaFeedbackRoute,
   classifyBetaFeedbackViewport,
+  isBetaFeedbackAttachmentAllowed,
   formatBetaFeedbackMessage,
+  maskedLayoutSnapshotSchema,
 } from './beta-feedback-contract'
 
 describe('beta feedback contract', () => {
@@ -35,7 +38,32 @@ describe('beta feedback contract', () => {
     ).toMatchObject({ type: 'suggestion', importance: 'helpful' })
   })
 
-  it('rejects attachment and replay fields, especially for suggestions', () => {
+  it('accepts only a bounded, content-free masked layout on Bug reports', () => {
+    const attachment = {
+      profile: 'masked-layout-v1',
+      consented: true,
+      gridWidth: 64,
+      gridHeight: 40,
+      blocks: [
+        { kind: 'surface', x: 0, y: 0, width: 64, height: 40 },
+        { kind: 'input', x: 8, y: 12, width: 32, height: 4 },
+      ],
+    } as const
+
+    expect(maskedLayoutSnapshotSchema.parse(attachment)).toEqual(attachment)
+    expect(
+      betaFeedbackInputSchema.parse({
+        type: 'bug',
+        title: 'A reproducible problem',
+        expected: 'The action should finish.',
+        actual: 'The action remains pending.',
+        impact: 'small_issue',
+        routePath: '/home',
+        viewport: 'regular',
+        attachment,
+      }),
+    ).toMatchObject({ type: 'bug', attachment })
+
     expect(() =>
       betaFeedbackInputSchema.parse({
         type: 'suggestion',
@@ -44,7 +72,7 @@ describe('beta feedback contract', () => {
         importance: 'helpful',
         routePath: '/home',
         viewport: 'regular',
-        screenshot: 'data:image/png;base64,private',
+        attachment,
       }),
     ).toThrow(ZodError)
     expect(() =>
@@ -59,7 +87,32 @@ describe('beta feedback contract', () => {
         replayId: 'private-replay',
       }),
     ).toThrow(ZodError)
+    expect(() =>
+      maskedLayoutSnapshotSchema.parse({
+        ...attachment,
+        blocks: [{ kind: 'text', x: 0, y: 0, width: 65, height: 1 }],
+      }),
+    ).toThrow(ZodError)
+    expect(JSON.stringify(attachment)).not.toContain('private')
+    expect(BETA_FEEDBACK_ATTACHMENT_RETENTION_DAYS).toBe(30)
   })
+
+  it.each([
+    ['/home', true],
+    ['/dashboard', true],
+    ['/inbox', false],
+    ['/properties/import-google', false],
+    ['/properties/private-property-id/reviews', false],
+    ['/settings/integrations', false],
+    ['/settings/profile', false],
+    ['/settings/security', false],
+    ['/not-a-known-route/private-value', false],
+  ] as const)(
+    'applies the sensitive-route attachment denylist to %s',
+    (path, allowed) => {
+      expect(isBetaFeedbackAttachmentAllowed(path)).toBe(allowed)
+    },
+  )
 
   it.each([
     ['/home', 'home'],

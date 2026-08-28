@@ -8,6 +8,10 @@ import {
   CONTEXT_STANDARDS_AUTHORITY,
   validateRequiredContextHeadings,
 } from './context-standards-authority'
+import {
+  CONTEXT_STANDARD_DIMENSIONS,
+  CONTEXT_STANDARDS_MATRIX,
+} from './context-standards-matrix'
 
 const ROOT = process.cwd()
 const CONTEXT_ROOT = join(ROOT, 'src', 'contexts')
@@ -16,6 +20,8 @@ const exceptionEntry = z
   .object({
     id: z.string().regex(/^STD-(?:INV|MAINT)-\d{3}$/u),
     tier: z.enum(['invariant', 'maintainability']),
+    context: z.string().trim().min(1),
+    dimension: z.string().trim().min(1),
     rule: z.string().trim().min(1),
     scopes: z
       .array(
@@ -29,6 +35,7 @@ const exceptionEntry = z
     reason: z.string().trim().min(1),
     owner: z.string().trim().min(1),
     compensatingCheck: z.string().trim().min(1),
+    sunsetTrigger: z.string().trim().min(1),
     reviewedAt: z.iso.date(),
     expiresAt: z.iso.date(),
   })
@@ -139,9 +146,40 @@ describe('standards exception register', () => {
     expect(new Set(register.entries.map(({ id }) => id)).size).toBe(
       register.entries.length,
     )
+    const contextDirectories = new Set<string>(
+      CONTEXT_STANDARDS_AUTHORITY.map(({ directory }) => directory),
+    )
+    const dimensions = new Set<string>(CONTEXT_STANDARD_DIMENSIONS.map(({ id }) => id))
     for (const entry of register.entries) {
       expect(entry.expiresAt > entry.reviewedAt, entry.id).toBe(true)
+      expect(contextDirectories.has(entry.context), entry.id).toBe(true)
+      expect(dimensions.has(entry.dimension), entry.id).toBe(true)
+      expect(
+        entry.scopes.some(
+          (scope) =>
+            scope === `src/contexts/${entry.context}` ||
+            scope.startsWith(`src/contexts/${entry.context}/`),
+        ),
+        `${entry.id}: missing context-owned scope`,
+      ).toBe(true)
+      for (const scope of entry.scopes) {
+        expect(existsSync(join(ROOT, scope)), `${entry.id}: ${scope}`).toBe(true)
+      }
     }
+
+    const registeredExceptionCells = register.entries.map(
+      ({ id, context, dimension }) => `${id}:${context}/${dimension}`,
+    )
+    const matrixExceptionCells = CONTEXT_STANDARDS_MATRIX.flatMap((row) =>
+      CONTEXT_STANDARD_DIMENSIONS.flatMap(({ id: dimension }) => {
+        const cell = row.standards[dimension]
+        return cell.applicability === 'applicable' &&
+          cell.resolution === 'accepted_exception'
+          ? [`${cell.exceptionId}:${row.directory}/${dimension}`]
+          : []
+      }),
+    )
+    expect(registeredExceptionCells.sort()).toEqual(matrixExceptionCells.sort())
   })
 
   it('rejects a broad or unowned negative fixture', () => {
@@ -155,11 +193,14 @@ describe('standards exception register', () => {
         {
           id: 'STD-INV-001',
           tier: 'invariant',
+          context: 'example',
+          dimension: 'errors',
           rule: 'example',
           scopes: ['src/**'],
           reason: 'fixture',
           owner: '',
           compensatingCheck: 'fixture',
+          sunsetTrigger: 'fixture',
           reviewedAt: '2026-08-26',
           expiresAt: '2026-09-30',
         },

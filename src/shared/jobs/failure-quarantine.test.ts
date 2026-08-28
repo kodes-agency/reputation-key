@@ -552,11 +552,11 @@ describe('createRedriveJob (BQC-3.6)', () => {
     const activityTarget = fakeQueue()
     const activityId = 'legacy-activity-quarantine'
     await activityQuarantine.add(
-      'insert-activity-log',
+      'project-recent-activity',
       {
         originalQueue: 'default',
         originalJobId: 'legacy-activity-original',
-        jobName: 'insert-activity-log',
+        jobName: 'project-recent-activity',
         data: {
           action: 'invited',
           resourceType: 'member',

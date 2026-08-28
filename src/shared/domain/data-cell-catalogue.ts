@@ -1,8 +1,8 @@
 import { getCountries, type CountryCode } from 'libphonenumber-js'
 
-export const DATA_CELL_CATALOGUE_POLICY_VERSION = 2
+export const DATA_CELL_CATALOGUE_POLICY_VERSION = 3
 /**
- * Review anchor for the exact ISO calling-country set approved by policy v2.
+ * Review anchor for the exact ISO calling-country set approved by policy v3.
  * CI hashes libphonenumber's sorted set against this value, so upgrading the
  * dependency cannot silently change Property placement. Any intentional set
  * change must update this digest and the catalogue policy version together.
@@ -13,6 +13,11 @@ export const DATA_CELL_SUPPORTED_COUNTRY_POLICY_SHA256 =
 
 export const DATA_CELL_IDS = ['us', 'europe', 'global'] as const
 export type DataCellId = (typeof DATA_CELL_IDS)[number]
+/** Railway environments that are intentionally deployable during beta. */
+export const BETA_DEPLOYMENT_DATA_CELL_IDS = [
+  'us',
+] as const satisfies readonly DataCellId[]
+export type BetaDeploymentDataCellId = (typeof BETA_DEPLOYMENT_DATA_CELL_IDS)[number]
 export type DataCellState = 'provisioning' | 'accepting' | 'draining' | 'denied'
 export type DataCellWorkload =
   'review.sync' | 'reply.publish' | 'property.import' | 'portal.media'
@@ -27,11 +32,12 @@ export type DataCellDefinition = Readonly<{
   providerProfile: 'gbp-production-fixed'
   providerRef: 'gbp-default'
   domain: string
+  /** Null means the logical identifier has no Railway deployment contract. */
   railway: Readonly<{
-    environment: `cell-${DataCellId}`
-    serviceRegion: 'us-west2' | 'europe-west4-drams3a' | 'asia-southeast1-eqsg3a'
-    bucketRegion: 'sjc' | 'ams' | 'sin'
-  }>
+    environment: 'cell-us'
+    serviceRegion: 'us-west2'
+    bucketRegion: 'sjc'
+  }> | null
   resources: Readonly<{
     web: 'web'
     worker: 'worker'
@@ -47,59 +53,8 @@ export type DataCellDefinition = Readonly<{
   }>
 }>
 
-const EUROPEAN_COUNTRY_CODES = Object.freeze([
-  'AT',
-  'BE',
-  'BG',
-  'HR',
-  'CY',
-  'CZ',
-  'DK',
-  'EE',
-  'FI',
-  'FR',
-  'DE',
-  'GR',
-  'HU',
-  'IS',
-  'IE',
-  'IT',
-  'LV',
-  'LI',
-  'LT',
-  'LU',
-  'MT',
-  'NL',
-  'NO',
-  'PL',
-  'PT',
-  'RO',
-  'SK',
-  'SI',
-  'ES',
-  'SE',
-  // Separately approved from the EEA list.
-  'GB',
-  'CH',
-] as const satisfies readonly CountryCode[])
-
-const US_COUNTRY_CODES = Object.freeze([
-  'US',
-  'PR',
-  'GU',
-  'VI',
-  'MP',
-  'AS',
-] as const satisfies readonly CountryCode[])
-
-const knownUs = new Set<CountryCode>(US_COUNTRY_CODES)
-const knownEurope = new Set<CountryCode>(EUROPEAN_COUNTRY_CODES)
-const SUPPORTED_COUNTRY_CODES = Object.freeze([...getCountries()].sort())
-const GLOBAL_COUNTRY_CODES = Object.freeze(
-  SUPPORTED_COUNTRY_CODES.filter(
-    (country) => !knownUs.has(country) && !knownEurope.has(country),
-  ),
-)
+export const DATA_CELL_SUPPORTED_COUNTRY_CODES = Object.freeze([...getCountries()].sort())
+const NO_COUNTRY_CODES = Object.freeze([] as CountryCode[])
 
 const ALL_WORKLOADS = Object.freeze([
   'review.sync',
@@ -107,6 +62,7 @@ const ALL_WORKLOADS = Object.freeze([
   'property.import',
   'portal.media',
 ] as const satisfies readonly DataCellWorkload[])
+const NO_WORKLOADS = Object.freeze([] as DataCellWorkload[])
 
 const RESOURCE_REFS = Object.freeze({
   web: 'web',
@@ -124,9 +80,11 @@ const RESOURCE_REFS = Object.freeze({
 
 /**
  * The one routing/placement interface used by domain routing and Railway IaC.
- * US is the existing accepting cell. Europe and Global remain provisioning
- * until their empty-cell, restore, provider, and wrong-cell drills pass; this
- * prevents a source merge from pretending an unprovisioned region is live.
+ * Beta has one accepting deployment in Railway US West. Every supported
+ * Property country is allocated there. Europe and Global remain stable,
+ * readable identifiers for future expansion, but are denied and receive no
+ * country or workload allocation until a later policy explicitly activates
+ * them.
  */
 export const DATA_CELL_CATALOGUE = Object.freeze({
   us: Object.freeze({
@@ -134,7 +92,7 @@ export const DATA_CELL_CATALOGUE = Object.freeze({
     residencyClass: 'united_states',
     state: 'accepting',
     policyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
-    allowedCountryCodes: US_COUNTRY_CODES,
+    allowedCountryCodes: DATA_CELL_SUPPORTED_COUNTRY_CODES,
     allowedWorkloads: ALL_WORKLOADS,
     providerProfile: 'gbp-production-fixed',
     providerRef: 'gbp-default',
@@ -149,35 +107,27 @@ export const DATA_CELL_CATALOGUE = Object.freeze({
   europe: Object.freeze({
     id: 'europe',
     residencyClass: 'europe',
-    state: 'provisioning',
+    state: 'denied',
     policyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
-    allowedCountryCodes: EUROPEAN_COUNTRY_CODES,
-    allowedWorkloads: ALL_WORKLOADS,
+    allowedCountryCodes: NO_COUNTRY_CODES,
+    allowedWorkloads: NO_WORKLOADS,
     providerProfile: 'gbp-production-fixed',
     providerRef: 'gbp-default',
     domain: 'eu.reputationkey.app',
-    railway: Object.freeze({
-      environment: 'cell-europe',
-      serviceRegion: 'europe-west4-drams3a',
-      bucketRegion: 'ams',
-    }),
+    railway: null,
     resources: RESOURCE_REFS,
   }),
   global: Object.freeze({
     id: 'global',
     residencyClass: 'rest_of_world',
-    state: 'provisioning',
+    state: 'denied',
     policyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
-    allowedCountryCodes: GLOBAL_COUNTRY_CODES,
-    allowedWorkloads: ALL_WORKLOADS,
+    allowedCountryCodes: NO_COUNTRY_CODES,
+    allowedWorkloads: NO_WORKLOADS,
     providerProfile: 'gbp-production-fixed',
     providerRef: 'gbp-default',
     domain: 'global.reputationkey.app',
-    railway: Object.freeze({
-      environment: 'cell-global',
-      serviceRegion: 'asia-southeast1-eqsg3a',
-      bucketRegion: 'sin',
-    }),
+    railway: null,
     resources: RESOURCE_REFS,
   }),
 } as const satisfies Record<DataCellId, DataCellDefinition>)
@@ -186,6 +136,12 @@ export const DATA_CELL_CATALOGUE = Object.freeze({
 export const ACCEPTING_DATA_CELL_IDS = Object.freeze(
   DATA_CELL_IDS.filter((cellId) => DATA_CELL_CATALOGUE[cellId].state === 'accepting'),
 )
+
+export function isBetaDeploymentDataCellId(
+  value: string,
+): value is BetaDeploymentDataCellId {
+  return (BETA_DEPLOYMENT_DATA_CELL_IDS as readonly string[]).includes(value)
+}
 
 const COUNTRY_TO_CELL = new Map<CountryCode, DataCellId>()
 for (const cell of Object.values(DATA_CELL_CATALOGUE)) {
@@ -213,7 +169,9 @@ export type DataCellTargetResult =
 
 /** Resolve a persisted cell identifier. No default/fallback is permitted. */
 export function dataCellById(value: string): DataCellDefinition | null {
-  return value in DATA_CELL_CATALOGUE ? DATA_CELL_CATALOGUE[value as DataCellId] : null
+  return Object.hasOwn(DATA_CELL_CATALOGUE, value)
+    ? DATA_CELL_CATALOGUE[value as DataCellId]
+    : null
 }
 
 /**

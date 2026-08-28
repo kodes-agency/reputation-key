@@ -16,6 +16,9 @@ import type { UnpublishedEvent } from './infrastructure/outbox-repository'
 import { sanitizeIdentityInvitationQueuePayload } from './identity-invitation-fact-contract'
 import { dataCellById, type DataCellId } from '#/shared/domain/data-cell-catalogue'
 
+export const DURABLE_COMMAND_CLASSIFICATION = 'durable_domain_fact_required' as const
+export const IDENTIFIER_ONLY_CONTENT_CLASSIFICATION = 'identifier_only' as const
+
 /**
  * Durable job payload delivered on the domain-events queue.
  * Must match what consumers receive from the dispatcher.
@@ -29,6 +32,18 @@ export type ConsumerEvent = Readonly<{
   propertyId: string | null
   sourceContext: string
   sourceAggregateId: string
+  /**
+   * ARC-01: every outbox envelope is the recovery fact for a command whose
+   * downstream effects must survive process loss. Local-only commands never
+   * enter this transport.
+   */
+  commandClassification?: typeof DURABLE_COMMAND_CLASSIFICATION
+  /**
+   * ARC-01 / ADR 0030: durable payloads contain only identifiers and approved
+   * content-free facts. Consumers reload governed content through owning
+   * context ports.
+   */
+  contentClassification?: typeof IDENTIFIER_ONLY_CONTENT_CLASSIFICATION
   /** BQC-3.7: domain-occurrence time (ISO) when the payload carries it. */
   occurredAt?: string
   /**
@@ -46,6 +61,12 @@ export type ConsumerEvent = Readonly<{
    * legacy or unversioned event families.
    */
   sourceAggregateVersion?: string | number | null
+  /**
+   * Data Cell that owns the database/process which committed this fact.
+   * Current relays always stamp it; optional only for pre-ARC-02 in-flight
+   * envelopes and direct unit fixtures.
+   */
+  sourceCellId?: DataCellId
   /** REG-01: freshly resolved immutable Property cell; optional for old jobs. */
   dataCellId?: DataCellId
   /** Routing policy version observed with dataCellId. */
@@ -67,7 +88,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function buildConsumerEvent(
   event: UnpublishedEvent,
   routing?: Readonly<{ dataCellId: DataCellId; routingPolicyVersion: number }>,
+  sourceCell?: DataCellId,
 ): ConsumerEvent {
+  if (sourceCell && routing && sourceCell !== routing.dataCellId) {
+    throw new Error('Outbox fact routing does not match its source Data Cell')
+  }
   const payload = isRecord(event.payload) ? event.payload : {}
   const durablePayload = sanitizeIdentityInvitationQueuePayload(
     event.eventType,
@@ -83,6 +108,8 @@ export function buildConsumerEvent(
     propertyId: event.propertyId,
     sourceContext: event.sourceContext,
     sourceAggregateId: event.sourceAggregateId,
+    commandClassification: DURABLE_COMMAND_CLASSIFICATION,
+    contentClassification: IDENTIFIER_ONLY_CONTENT_CLASSIFICATION,
     occurredAt: typeof payload.occurredAt === 'string' ? payload.occurredAt : undefined,
     recordedAt: event.recordedAt.toISOString(),
     correlationId:
@@ -93,13 +120,14 @@ export function buildConsumerEvent(
       typeof payload.sourceAggregateVersion === 'number'
         ? payload.sourceAggregateVersion
         : null,
+    ...(sourceCell ? { sourceCellId: sourceCell } : {}),
     ...(routing
       ? {
           dataCellId: routing.dataCellId,
           routingPolicyVersion: routing.routingPolicyVersion,
         }
       : {}),
-    region: routing?.dataCellId ?? 'unscoped',
+    region: routing?.dataCellId ?? sourceCell ?? 'unscoped',
   }
 }
 
@@ -110,6 +138,9 @@ type OptionalEnvelopeFields = Pick<
   | 'correlationId'
   | 'causationId'
   | 'sourceAggregateVersion'
+  | 'commandClassification'
+  | 'contentClassification'
+  | 'sourceCellId'
   | 'dataCellId'
   | 'routingPolicyVersion'
   | 'region'
@@ -128,6 +159,9 @@ function parseOptionalFields(
     correlationId,
     causationId,
     sourceAggregateVersion,
+    commandClassification,
+    contentClassification,
+    sourceCellId,
     dataCellId,
     routingPolicyVersion,
     region,
@@ -153,9 +187,22 @@ function parseOptionalFields(
     typeof sourceAggregateVersion !== 'number'
   )
     return null
+  if (
+    commandClassification !== undefined &&
+    commandClassification !== DURABLE_COMMAND_CLASSIFICATION
+  )
+    return null
+  if (
+    contentClassification !== undefined &&
+    contentClassification !== IDENTIFIER_ONLY_CONTENT_CLASSIFICATION
+  )
+    return null
   const parsedCell =
     typeof dataCellId === 'string' ? dataCellById(dataCellId)?.id : undefined
   if (dataCellId !== undefined && !parsedCell) return null
+  const parsedSourceCell =
+    typeof sourceCellId === 'string' ? dataCellById(sourceCellId)?.id : undefined
+  if (sourceCellId !== undefined && !parsedSourceCell) return null
   if (
     routingPolicyVersion !== undefined &&
     (typeof routingPolicyVersion !== 'number' ||
@@ -175,6 +222,15 @@ function parseOptionalFields(
   )
     return null
   if (parsedCell && region !== undefined && region !== parsedCell) return null
+  if (
+    !parsedCell &&
+    parsedSourceCell &&
+    region !== undefined &&
+    region !== parsedSourceCell
+  ) {
+    return null
+  }
+  if (parsedCell && parsedSourceCell && parsedCell !== parsedSourceCell) return null
 
   return {
     occurredAt: occurredAt as string | undefined,
@@ -182,9 +238,17 @@ function parseOptionalFields(
     correlationId: (correlationId ?? null) as string | null,
     causationId: (causationId ?? null) as string | null,
     sourceAggregateVersion: (sourceAggregateVersion ?? null) as string | number | null,
+    ...(commandClassification !== undefined
+      ? { commandClassification: DURABLE_COMMAND_CLASSIFICATION }
+      : {}),
+    ...(contentClassification !== undefined
+      ? { contentClassification: IDENTIFIER_ONLY_CONTENT_CLASSIFICATION }
+      : {}),
+    ...(parsedSourceCell ? { sourceCellId: parsedSourceCell } : {}),
     ...(parsedCell ? { dataCellId: parsedCell } : {}),
     ...(routingPolicyVersion !== undefined ? { routingPolicyVersion } : {}),
-    region: (region ?? 'unscoped') as 'unscoped' | DataCellId,
+    region: (region ?? parsedCell ?? parsedSourceCell ?? 'unscoped') as
+      'unscoped' | DataCellId,
   }
 }
 

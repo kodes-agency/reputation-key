@@ -6,6 +6,10 @@ const ROOT = process.cwd()
 const SRC = join(ROOT, 'src')
 const LEGACY_GOAL_UI = join(ROOT, 'src', 'components', 'features', 'property', 'goals')
 const SUPPORTED_GOAL_UI = join(ROOT, 'src', 'components', 'goals')
+const OBSOLETE_GOAL_UI_HELPERS = [
+  join(ROOT, 'src', 'contexts', 'goal', 'ui', 'helpers.ts'),
+  join(ROOT, 'src', 'contexts', 'goal', 'ui', 'helpers.test.ts'),
+] as const
 const OBSOLETE_DELETE_DIALOG = join(
   ROOT,
   'src',
@@ -28,7 +32,7 @@ function sourceFiles(directory: string): string[] {
 }
 
 describe('legacy policy UI stays out of active beta surfaces', () => {
-  it('has one supported Goal presentation owner and no legacy property-goal mirror', () => {
+  it('has one supported Goal presentation owner and no legacy presentation mirror', () => {
     const legacyModules = existsSync(LEGACY_GOAL_UI)
       ? sourceFiles(LEGACY_GOAL_UI).map((path) => relative(ROOT, path))
       : []
@@ -44,6 +48,7 @@ describe('legacy policy UI stays out of active beta surfaces', () => {
       legacyImporters: [],
       legacyModules: [],
     })
+    expect(OBSOLETE_GOAL_UI_HELPERS.filter(existsSync)).toEqual([])
   })
 
   it('keeps the superseded destructive property dialog absent', () => {

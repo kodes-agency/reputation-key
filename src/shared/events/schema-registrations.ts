@@ -52,6 +52,45 @@ const reviewSourceTransitionedSchema = z.object({
   occurredAt: z.string().optional(),
 })
 
+const databaseUuidSchema = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu)
+
+const reviewGoogleReputationSnapshotVerifiedSchema = z
+  .object({
+    organizationId: z.string().trim().min(1).max(255),
+    propertyId: databaseUuidSchema,
+    sourceEpoch: z.number().int().safe().nonnegative(),
+    runId: databaseUuidSchema,
+    reviewCount: z.number().int().safe().min(0).max(10_000),
+    averageRating: z.number().finite().min(0).max(5).nullable(),
+    evaluatedAt: z.iso.datetime(),
+    occurredAt: z.iso.datetime(),
+    sourceAggregateVersion: z.iso.datetime(),
+  })
+  .superRefine((value, context) => {
+    if (!(
+      (value.reviewCount === 0 && value.averageRating === null) ||
+      (value.reviewCount > 0 && value.averageRating !== null)
+    )) {
+      context.addIssue({
+        code: 'custom',
+        path: ['averageRating'],
+        message: 'The provider average must match the review count',
+      })
+    }
+    if (
+      value.sourceAggregateVersion !== value.evaluatedAt ||
+      value.occurredAt !== value.evaluatedAt
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['sourceAggregateVersion'],
+        message: 'The source aggregate version must equal evaluatedAt',
+      })
+    }
+  })
+
 const replyEventSchema = z.object({
   replyId: z.string(),
   reviewId: z.string(),
@@ -63,9 +102,38 @@ const replyEventSchema = z.object({
   occurredAt: z.string().optional(),
 })
 
-const databaseUuidSchema = z
-  .string()
-  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu)
+const googleReviewPushAcceptedSchema = z.object({
+  organizationId: z.string().trim().min(1).max(255),
+  propertyId: databaseUuidSchema,
+  connectionId: databaseUuidSchema,
+  sourceEpoch: z.number().int().safe().nonnegative(),
+  referenceRef: z
+    .string()
+    .regex(/^[a-z][a-z0-9_-]{0,31}\.[A-Za-z0-9_-]{43}$/u)
+    .nullable(),
+  notificationKind: z.enum(['NEW_REVIEW', 'UPDATED_REVIEW', 'REVIEW_CHANGED']),
+  occurredAt: z.iso.datetime(),
+})
+
+const primaryStaffAttributionSchema = z
+  .object({
+    staffParticipantId: databaseUuidSchema,
+    staffParticipationId: databaseUuidSchema,
+    portalResponsibilityId: databaseUuidSchema,
+    effectiveFrom: z.iso.datetime(),
+    effectiveTo: z.iso.datetime().nullable(),
+  })
+  .superRefine((value, context) => {
+    if (
+      value.effectiveTo !== null &&
+      new Date(value.effectiveTo).getTime() <= new Date(value.effectiveFrom).getTime()
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Primary Staff attribution interval must be half-open and non-empty',
+      })
+    }
+  })
 
 // BQC-3.8: publication cancellation — identifier-only (reply/review/property/
 // org + cause). No reply text, no actor content.
@@ -222,6 +290,7 @@ const inboxItemAssignedSchema = z.object({
   inboxItemId: z.string(),
   organizationId: z.string(),
   assignedTo: z.string(),
+  bulkId: z.string().optional(),
   propertyId: z.string().nullable().optional(),
   userId: z.string().optional(),
   source: z.string().optional(),
@@ -232,6 +301,7 @@ const inboxItemUnassignedSchema = z.object({
   inboxItemId: z.string(),
   organizationId: z.string(),
   previousAssignee: z.string(),
+  bulkId: z.string().optional(),
   propertyId: z.string().nullable().optional(),
   userId: z.string().nullable().optional(),
   source: z.string().optional(),
@@ -251,6 +321,137 @@ const inboxItemBulkStatusChangedSchema = z.object({
   source: z.string().optional(),
   occurredAt: z.string().optional(),
 })
+
+const inboxBulkAssignmentCompletedSchema = z.object({
+  organizationId: z.string(),
+  userId: z.string(),
+  bulkId: z.string(),
+  transitions: z
+    .array(
+      z.object({
+        inboxItemId: z.string(),
+        propertyId: z.string(),
+        previousAssignee: z.string().nullable(),
+        nextAssignee: z.string().nullable(),
+      }),
+    )
+    .min(1)
+    .max(100),
+  count: z.number().int().min(1).max(100),
+  source: z.literal('web'),
+  occurredAt: z.string().optional(),
+})
+
+const handlingCycleFactScopeSchema = z.object({
+  inboxItemId: databaseUuidSchema,
+  cycleNumber: z.number().int().positive().safe(),
+  stateRevision: z.number().int().positive().safe(),
+  organizationId: z.string().trim().min(1),
+  propertyId: databaseUuidSchema,
+  sourceType: z.enum(['review', 'feedback']),
+  sourceId: databaseUuidSchema,
+  sourceRevision: z.number().int().positive().safe(),
+  actorType: z.enum(['user', 'guest', 'provider', 'system']),
+  userId: z.string().trim().min(1).nullable(),
+  triggerEventId: z.string().trim().min(1).nullable(),
+  source: z.enum(['web', 'import']),
+  occurredAt: z.iso.datetime(),
+})
+
+const inboxHandlingCycleOpenedSchema = handlingCycleFactScopeSchema
+  .extend({
+    openReason: z.enum([
+      'legacy_backfill',
+      'review_observed',
+      'feedback_submitted',
+      'material_revision_changed',
+      'provider_reply_deleted',
+      'provider_reply_diverged',
+    ]),
+  })
+  .refine((value) => (value.actorType === 'user') === (value.userId !== null), {
+    message: 'Handling Cycle actor attribution is invalid',
+  })
+
+const inboxHandlingCycleClosedSchema = handlingCycleFactScopeSchema
+  .extend({
+    closeReason: z.enum([
+      'confirmed_on_google',
+      'external_reply_observed',
+      'guest_withdrawn',
+      'private_feedback_handled',
+      'source_ineligible',
+      'superseded_by_source_revision',
+    ]),
+  })
+  .refine((value) => (value.actorType === 'user') === (value.userId !== null), {
+    message: 'Handling Cycle actor attribution is invalid',
+  })
+
+const inboxHandlingCycleReopenedSchema = handlingCycleFactScopeSchema
+  .extend({
+    reopenReason: z.enum([
+      'guest_follow_up_still_needed',
+      'internal_follow_up_still_needed',
+      'new_information',
+      'correcting_handling_status',
+      'other',
+      'provider_reply_deleted',
+      'provider_reply_diverged',
+    ]),
+  })
+  .refine((value) => (value.actorType === 'user') === (value.userId !== null), {
+    message: 'Handling Cycle actor attribution is invalid',
+  })
+
+const inboxResponseTargetReminderDueSchema = z.object({
+  inboxItemId: databaseUuidSchema,
+  cycleNumber: z.number().int().positive().safe(),
+  organizationId: z.string().trim().min(1).max(255),
+  propertyId: databaseUuidSchema,
+  targetKind: z.enum(['google_review_response', 'private_feedback_handling']),
+  reminderKind: z.enum(['halfway', 'target_passed']),
+  scheduledFor: z.iso.datetime(),
+  userId: z.null(),
+  source: z.literal('import'),
+  occurredAt: z.iso.datetime(),
+})
+
+const inboxResponseTargetPolicyChangedSchema = z
+  .object({
+    organizationId: z.string().trim().min(1).max(255),
+    propertyId: databaseUuidSchema.nullable(),
+    targetKind: z.enum(['google_review_response', 'private_feedback_handling']),
+    policyScope: z.enum(['organization', 'property']),
+    durationMinutes: z.number().int().min(1).max(43_200).nullable(),
+    policyVersion: z.number().int().positive().safe(),
+    userId: z.string().trim().min(1).max(255),
+    source: z.literal('web'),
+    occurredAt: z.iso.datetime(),
+  })
+  .superRefine((value, ctx) => {
+    if ((value.policyScope === 'organization') !== (value.propertyId === null)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Response Target policy scope is invalid',
+      })
+    }
+    if (
+      value.policyScope === 'property' &&
+      value.targetKind !== 'private_feedback_handling'
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Google Review Response Target has no Property policy scope',
+      })
+    }
+    if (value.policyScope === 'organization' && value.durationMinutes === null) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Organization Response Target policy requires a duration',
+      })
+    }
+  })
 
 // ── Metric event schemas ────────────────────────────────────────────
 
@@ -292,6 +493,14 @@ const metricCorrectedSchema = z.object({
   occurredAt: z.string(),
 })
 
+const metricRecordedV2Schema = metricRecordedSchema.extend({
+  staffAttribution: primaryStaffAttributionSchema.nullable(),
+})
+
+const metricCorrectedV2Schema = metricCorrectedSchema.extend({
+  staffAttribution: primaryStaffAttributionSchema.nullable(),
+})
+
 // ── Property event schemas ──────────────────────────────────────────
 
 const propertyCreatedSchema = z.object({
@@ -312,11 +521,46 @@ const propertyUpdatedSchema = z.object({
   organizationId: z.string(),
   name: z.string(),
   slug: z.string(),
+  occurredAt: z.iso.datetime().optional(),
 })
 
 const propertyDeletedSchema = z.object({
   propertyId: z.string(),
   organizationId: z.string(),
+  occurredAt: z.iso.datetime().optional(),
+})
+
+const propertyLifecycleSchema = z.object({
+  propertyId: z.uuid(),
+  organizationId: z.string().trim().min(1),
+  userId: z.string().trim().min(1),
+  previousState: z.enum([
+    'active',
+    'suspended',
+    'archived',
+    'disconnecting',
+    'purge_pending',
+    'purging',
+    'purged',
+  ]),
+  sourceEpoch: z.number().int().positive(),
+  occurredAt: z.iso.datetime(),
+})
+
+const propertyArchivedSchema = propertyLifecycleSchema
+  .extend({
+    previousState: z.enum(['active', 'suspended']),
+    recoveryDeadline: z.iso.datetime(),
+  })
+  .refine(
+    ({ occurredAt, recoveryDeadline }) =>
+      Date.parse(recoveryDeadline) > Date.parse(occurredAt),
+    { message: 'Property recovery deadline must follow archive time' },
+  )
+
+const propertyRestoredSchema = propertyLifecycleSchema.extend({
+  previousState: z.literal('archived'),
+  googleBindingReadiness: z.enum(['ready', 'reconnect_required']),
 })
 
 const propertyResponsibilityNeededSchema = z.object({
@@ -338,13 +582,16 @@ const propertyGoogleBindingChangedSchema = z
     change: z.enum(['created', 'relinked', 'disconnected', 'deletion_started']),
   })
   .strict()
-  .transform(({ organizationId, propertyId, connectionId, sourceEpoch, change }) => ({
-    organizationId,
-    propertyId,
-    connectionId,
-    sourceEpoch,
-    change,
-  }))
+  .transform(
+    ({ organizationId, propertyId, connectionId, sourceEpoch, change, occurredAt }) => ({
+      organizationId,
+      propertyId,
+      connectionId,
+      sourceEpoch,
+      change,
+      occurredAt,
+    }),
+  )
 
 const integrationPropertyImportRetentionReleasedSchema = z
   .object({
@@ -405,13 +652,44 @@ const integrationPropertyImportRequestedSchema = z
 
 // ── Guest event schemas ─────────────────────────────────────────────
 
-const guestScanSchema = z.object({
+const guestScanV1Schema = z.object({
   scanId: z.string(),
   organizationId: z.string(),
   propertyId: z.string(),
   portalId: z.string(),
   source: z.enum(['qr', 'nfc', 'direct']),
   occurredAt: z.string(),
+})
+
+const guestScanV2Schema = z.object({
+  scanId: z.string(),
+  organizationId: z.string(),
+  propertyId: z.string(),
+  portalId: z.string(),
+  scanSource: z.enum(['qr', 'nfc', 'direct']),
+  occurredAt: z.string(),
+})
+
+const guestQualifiedScanSchema = z.object({
+  qualifiedScanId: z.uuid(),
+  organizationId: z.string(),
+  propertyId: z.uuid(),
+  portalId: z.uuid(),
+  portalGroupId: z.uuid().nullable(),
+  accessArtifactId: z.uuid(),
+  occurredAt: z.string(),
+})
+
+const guestQualifiedScanRetractedSchema = guestQualifiedScanSchema.extend({
+  supersedesSourceEventId: z.uuid(),
+})
+
+const guestQualifiedScanV2Schema = guestQualifiedScanSchema.extend({
+  staffAttribution: primaryStaffAttributionSchema.nullable(),
+})
+
+const guestQualifiedScanRetractedV2Schema = guestQualifiedScanRetractedSchema.extend({
+  staffAttribution: primaryStaffAttributionSchema.nullable(),
 })
 
 const guestRatingSchema = z.object({
@@ -451,6 +729,30 @@ const guestFeedbackRetractedSchema = z.object({
   occurredAt: z.string(),
 })
 
+const guestRatingV2Schema = guestRatingSchema.extend({
+  staffAttribution: primaryStaffAttributionSchema.nullable(),
+})
+
+const guestRatingRetractedV2Schema = guestRatingRetractedSchema.extend({
+  staffAttribution: primaryStaffAttributionSchema.nullable(),
+})
+
+const guestFeedbackV2Schema = guestFeedbackSchema.extend({
+  staffAttribution: primaryStaffAttributionSchema.nullable(),
+})
+
+const guestFeedbackRetractedV2Schema = guestFeedbackRetractedSchema.extend({
+  staffAttribution: primaryStaffAttributionSchema.nullable(),
+})
+
+const guestFeedbackV3Schema = guestFeedbackV2Schema.extend({
+  responseRevision: z.number().int().positive().safe(),
+})
+
+const guestFeedbackRetractedV3Schema = guestFeedbackRetractedV2Schema.extend({
+  responseRevision: z.number().int().positive().safe(),
+})
+
 const guestReviewLinkClickedSchema = z.object({
   linkId: z.string(),
   // Older click facts predate destination classification and represented
@@ -474,6 +776,77 @@ const goalCompletedSchema = z.object({
   completedValue: z.number(),
   targetValue: z.number(),
 })
+
+const goalMonthlyResultBaseSchema = z
+  .object({
+    // Tenant scope also lives in the durable envelope. These two fields are
+    // optional only for replay of rows written by the pre-adapter producer.
+    organizationId: z.string().trim().min(1).optional(),
+    propertyId: z.uuid().optional(),
+    programId: z.uuid(),
+    programVersionId: z.uuid(),
+    assignmentId: z.uuid(),
+    monthlyResultId: z.uuid(),
+    periodStart: z.iso.datetime(),
+    periodEnd: z.iso.datetime(),
+    evaluationState: z.enum([
+      'eligible',
+      'updating',
+      'insufficient_data',
+      'unavailable',
+      'quarantined',
+    ]),
+    achieved: z.boolean().nullable(),
+    // The outbox row created_at remains authoritative for the old producer.
+    occurredAt: z.iso.datetime().optional(),
+  })
+  .superRefine((payload, ctx) => {
+    if (new Date(payload.periodEnd) <= new Date(payload.periodStart)) {
+      ctx.addIssue({ code: 'custom', message: 'periodEnd must follow periodStart' })
+    }
+    if (
+      (payload.evaluationState === 'eligible' && payload.achieved === null) ||
+      (payload.evaluationState !== 'eligible' && payload.achieved !== null)
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'achievement must match the evaluation state',
+      })
+    }
+  })
+
+const goalMonthlyResultClosedSchema = goalMonthlyResultBaseSchema
+  .safeExtend({ status: z.literal('closed') })
+  .superRefine((payload, ctx) => {
+    if (payload.evaluationState === 'updating') {
+      ctx.addIssue({ code: 'custom', message: 'closed result cannot be updating' })
+    }
+  })
+
+const goalMonthlyResultReconciledSchema = goalMonthlyResultBaseSchema.safeExtend({
+  status: z.literal('reconciling'),
+})
+
+const goalMonthlyResultRevisedSchema = goalMonthlyResultBaseSchema
+  .safeExtend({
+    status: z.literal('closed'),
+    revisionId: z.uuid(),
+    revision: z.number().int().positive(),
+    supersedesRevisionId: z.uuid().nullable(),
+    outcomeChanged: z.boolean(),
+    availabilityChanged: z.boolean(),
+  })
+  .superRefine((payload, ctx) => {
+    if (payload.evaluationState === 'updating') {
+      ctx.addIssue({ code: 'custom', message: 'closed result cannot be updating' })
+    }
+    if (
+      (payload.revision === 1 && payload.supersedesRevisionId !== null) ||
+      (payload.revision > 1 && payload.supersedesRevisionId === null)
+    ) {
+      ctx.addIssue({ code: 'custom', message: 'result revision lineage is invalid' })
+    }
+  })
 
 // ── Team/Staff event schemas ────────────────────────────────────────
 
@@ -599,18 +972,49 @@ const merchantAiChangedSchema = z
     occurredAt: event.occurredAt,
   }))
 
+const organizationLifecycleChangedSchema = z.object({
+  organizationId: z.string().trim().min(1).max(255),
+  closureLineageId: databaseUuidSchema,
+  state: z.enum([
+    'active',
+    'closure_requested',
+    'closing',
+    'purge_pending',
+    'purging',
+    'closed',
+  ]),
+  revision: z.number().int().safe().positive(),
+  reactivationRequired: z.literal(true),
+  recoverableUntil: z.iso.datetime(),
+  occurredAt: z.iso.datetime(),
+})
+
 // ── Integration event schemas ───────────────────────────────────────
 
-// Connected events are identifier-only v2; the final binary has no v1 decoder.
+// v2 remains registered for already-written rows. Current producers emit v3,
+// whose actor field follows the canonical event vocabulary.
 const googleAccountConnectedV2Schema = z.object({
   connectionId: z.string(),
   organizationId: z.string(),
   connectedBy: z.string(),
 })
 
+const googleAccountConnectedV3Schema = z.object({
+  connectionId: z.string(),
+  organizationId: z.string(),
+  userId: z.string(),
+})
+
 const googleAccountDisconnectedSchema = z.object({
   connectionId: z.string(),
   organizationId: z.string(),
+})
+
+const googleAccountReauthorizationRequiredSchema = z.object({
+  connectionId: z.string(),
+  organizationId: z.string(),
+  cause: z.enum(['member_removed', 'account_admin_role_lost']),
+  occurredAt: z.iso.datetime(),
 })
 
 const connectionVisibilityChangedSchema = z.object({
@@ -676,6 +1080,16 @@ const portalUpdatedSchema = portalCreatedSchema.extend({
   previousPublicationState: z.enum(['draft', 'published', 'disabled', 'archived']),
 })
 
+const portalActorLifecycleFactSchema = portalLifecycleFactSchema.extend({
+  userId: z.string().trim().min(1),
+})
+
+const portalPublicationFactSchema = portalActorLifecycleFactSchema.extend({
+  publicationSnapshotId: z.string().trim().min(1),
+  publicationVersion: z.number().int().safe().positive(),
+  publicationDigest: z.string().regex(/^[0-9a-f]{64}$/u),
+})
+
 const portalDeletedSchema = portalLifecycleFactSchema
 
 const portalResponsibilityNeededV1Schema = z.object({
@@ -689,6 +1103,57 @@ const portalResponsibilityNeededV2Schema = portalLifecycleFactSchema
 
 const portalResponsibleManagersUpdatedSchema = portalLifecycleFactSchema.extend({
   assignmentCount: z.number().int().nonnegative(),
+})
+
+const portalHealthStatusSchema = z.enum(['healthy', 'degraded', 'unavailable'])
+const portalHealthReasonSchema = z.enum([
+  'operational',
+  'publication_draft',
+  'publication_disabled',
+  'publication_archived',
+  'property_unavailable',
+  'publication_snapshot_unavailable',
+  'public_address_unavailable',
+  'responsibility_needed',
+  'google_destination_awaiting_refresh',
+  'google_destination_unavailable',
+])
+const portalHealthChangedSchema = z.object({
+  portalId: z.string().min(1),
+  organizationId: z.string().min(1),
+  propertyId: z.string().min(1),
+  previousStatus: portalHealthStatusSchema,
+  previousReason: portalHealthReasonSchema,
+  status: portalHealthStatusSchema,
+  reason: portalHealthReasonSchema,
+  sourceVersion: z.string().trim().min(1).max(160),
+  occurredAt: z.iso.datetime(),
+})
+
+const portalPropertyFactSchema = z.object({
+  organizationId: z.string().min(1),
+  propertyId: z.string().min(1),
+  sourceAggregateVersion: z.iso.datetime(),
+  occurredAt: z.iso.datetime(),
+})
+const portalPropertyBrandProfileUpdatedSchema = portalPropertyFactSchema.extend({
+  profileVersion: z.number().int().positive(),
+})
+const portalPropertyBrandContentUpdatedSchema = portalPropertyFactSchema.extend({
+  guestLocale: z.enum(['en', 'bg']),
+  contentVersion: z.number().int().positive(),
+})
+const portalLocalizedOverrideUpdatedSchema = portalLifecycleFactSchema.extend({
+  guestLocale: z.enum(['en', 'bg']),
+  overrideVersion: z.number().int().positive().nullable(),
+})
+const portalLocaleSetUpdatedSchema = portalLifecycleFactSchema.extend({
+  primaryGuestLocale: z.enum(['en', 'bg']),
+  additionalGuestLocales: z.array(z.enum(['en', 'bg'])).max(1),
+})
+const portalApprovedDestinationUpdatedSchema = portalPropertyFactSchema.extend({
+  approvedDestinationId: z.uuid(),
+  approvalState: z.enum(['pending', 'approved', 'disabled', 'quarantined']),
 })
 
 const portalHeroImageProcessingRequestedSchema = z.object({
@@ -731,6 +1196,11 @@ const portalTokenRevokedSchema = z.object({
   propertyId: z.string(),
   sourceAggregateVersion: z.iso.datetime().optional(),
   occurredAt: z.iso.datetime().optional(),
+})
+
+const portalAccessArtifactPublishedSchema = portalLifecycleFactSchema.extend({
+  accessArtifactId: z.uuid(),
+  channel: z.enum(['qr', 'nfc']),
 })
 
 const portalGroupDeletedV1Schema = z.object({
@@ -846,6 +1316,11 @@ export function registerAllEventSchemas(): void {
     schema: reviewSourceTransitionedSchema,
   })
   registerEventSchema({
+    type: 'review.google_reputation_snapshot.verified',
+    version: EVENT_VERSION,
+    schema: reviewGoogleReputationSnapshotVerifiedSchema,
+  })
+  registerEventSchema({
     type: 'review.reply.submitted',
     version: EVENT_VERSION,
     schema: replyEventSchema,
@@ -937,6 +1412,36 @@ export function registerAllEventSchemas(): void {
     version: EVENT_VERSION,
     schema: inboxItemBulkStatusChangedSchema,
   })
+  registerEventSchema({
+    type: 'inbox.inbox_items.bulk_assignment_completed',
+    version: EVENT_VERSION,
+    schema: inboxBulkAssignmentCompletedSchema,
+  })
+  registerEventSchema({
+    type: 'inbox.handling_cycle.opened',
+    version: EVENT_VERSION,
+    schema: inboxHandlingCycleOpenedSchema,
+  })
+  registerEventSchema({
+    type: 'inbox.handling_cycle.closed',
+    version: EVENT_VERSION,
+    schema: inboxHandlingCycleClosedSchema,
+  })
+  registerEventSchema({
+    type: 'inbox.handling_cycle.reopened',
+    version: EVENT_VERSION,
+    schema: inboxHandlingCycleReopenedSchema,
+  })
+  registerEventSchema({
+    type: 'inbox.response_target.reminder_due',
+    version: EVENT_VERSION,
+    schema: inboxResponseTargetReminderDueSchema,
+  })
+  registerEventSchema({
+    type: 'inbox.response_target.policy_changed',
+    version: EVENT_VERSION,
+    schema: inboxResponseTargetPolicyChangedSchema,
+  })
 
   // Metric events
   registerEventSchema({
@@ -948,6 +1453,16 @@ export function registerAllEventSchemas(): void {
     type: 'metric.corrected',
     version: EVENT_VERSION,
     schema: metricCorrectedSchema,
+  })
+  registerEventSchema({
+    type: 'metric.recorded',
+    version: 2,
+    schema: metricRecordedV2Schema,
+  })
+  registerEventSchema({
+    type: 'metric.corrected',
+    version: 2,
+    schema: metricCorrectedV2Schema,
   })
 
   // Property events (only consumed ones — created triggers inbox/metric/notification)
@@ -965,6 +1480,16 @@ export function registerAllEventSchemas(): void {
     type: 'property.deleted',
     version: EVENT_VERSION,
     schema: propertyDeletedSchema,
+  })
+  registerEventSchema({
+    type: 'property.archived',
+    version: EVENT_VERSION,
+    schema: propertyArchivedSchema,
+  })
+  registerEventSchema({
+    type: 'property.restored',
+    version: EVENT_VERSION,
+    schema: propertyRestoredSchema,
   })
   registerEventSchema({
     type: 'property.google_binding.changed',
@@ -1004,7 +1529,22 @@ export function registerAllEventSchemas(): void {
   registerEventSchema({
     type: 'guest.scan.recorded',
     version: EVENT_VERSION,
-    schema: guestScanSchema,
+    schema: guestScanV1Schema,
+  })
+  registerEventSchema({
+    type: 'guest.scan.recorded',
+    version: 2,
+    schema: guestScanV2Schema,
+  })
+  registerEventSchema({
+    type: 'guest.qualified_scan.recorded',
+    version: EVENT_VERSION,
+    schema: guestQualifiedScanSchema,
+  })
+  registerEventSchema({
+    type: 'guest.qualified_scan.retracted',
+    version: EVENT_VERSION,
+    schema: guestQualifiedScanRetractedSchema,
   })
   registerEventSchema({
     type: 'guest.rating.submitted',
@@ -1027,6 +1567,46 @@ export function registerAllEventSchemas(): void {
     schema: guestFeedbackRetractedSchema,
   })
   registerEventSchema({
+    type: 'guest.qualified_scan.recorded',
+    version: 2,
+    schema: guestQualifiedScanV2Schema,
+  })
+  registerEventSchema({
+    type: 'guest.qualified_scan.retracted',
+    version: 2,
+    schema: guestQualifiedScanRetractedV2Schema,
+  })
+  registerEventSchema({
+    type: 'guest.rating.submitted',
+    version: 2,
+    schema: guestRatingV2Schema,
+  })
+  registerEventSchema({
+    type: 'guest.rating.retracted',
+    version: 2,
+    schema: guestRatingRetractedV2Schema,
+  })
+  registerEventSchema({
+    type: 'guest.feedback.submitted',
+    version: 2,
+    schema: guestFeedbackV2Schema,
+  })
+  registerEventSchema({
+    type: 'guest.feedback.retracted',
+    version: 2,
+    schema: guestFeedbackRetractedV2Schema,
+  })
+  registerEventSchema({
+    type: 'guest.feedback.submitted',
+    version: 3,
+    schema: guestFeedbackV3Schema,
+  })
+  registerEventSchema({
+    type: 'guest.feedback.retracted',
+    version: 3,
+    schema: guestFeedbackRetractedV3Schema,
+  })
+  registerEventSchema({
     type: 'guest.review_link.clicked',
     version: EVENT_VERSION,
     schema: guestReviewLinkClickedSchema,
@@ -1037,6 +1617,21 @@ export function registerAllEventSchemas(): void {
     type: 'goal.completed',
     version: EVENT_VERSION,
     schema: goalCompletedSchema,
+  })
+  registerEventSchema({
+    type: 'goal.monthly_result.closed',
+    version: EVENT_VERSION,
+    schema: goalMonthlyResultClosedSchema,
+  })
+  registerEventSchema({
+    type: 'goal.monthly_result.reconciled',
+    version: EVENT_VERSION,
+    schema: goalMonthlyResultReconciledSchema,
+  })
+  registerEventSchema({
+    type: 'goal.monthly_result.revised',
+    version: EVENT_VERSION,
+    schema: goalMonthlyResultRevisedSchema,
   })
 
   // Team/Staff events (consumed by activity)
@@ -1107,6 +1702,11 @@ export function registerAllEventSchemas(): void {
     version: EVENT_VERSION,
     schema: merchantAiChangedSchema,
   })
+  registerEventSchema({
+    type: 'identity.organization_lifecycle.changed',
+    version: EVENT_VERSION,
+    schema: organizationLifecycleChangedSchema,
+  })
 
   // Integration events
   registerEventSchema({
@@ -1115,14 +1715,29 @@ export function registerAllEventSchemas(): void {
     schema: googleAccountConnectedV2Schema,
   })
   registerEventSchema({
+    type: 'integration.google_account.connected',
+    version: 3,
+    schema: googleAccountConnectedV3Schema,
+  })
+  registerEventSchema({
     type: 'integration.google_account.disconnected',
     version: EVENT_VERSION,
     schema: googleAccountDisconnectedSchema,
   })
   registerEventSchema({
+    type: 'integration.google_account.reauthorization_required',
+    version: EVENT_VERSION,
+    schema: googleAccountReauthorizationRequiredSchema,
+  })
+  registerEventSchema({
     type: 'integration.google_connection.visibility_changed',
     version: EVENT_VERSION,
     schema: connectionVisibilityChangedSchema,
+  })
+  registerEventSchema({
+    type: 'integration.google_review_push.accepted',
+    version: EVENT_VERSION,
+    schema: googleReviewPushAcceptedSchema,
   })
 
   // Portal events
@@ -1135,6 +1750,26 @@ export function registerAllEventSchemas(): void {
     type: 'portal.updated',
     version: EVENT_VERSION,
     schema: portalUpdatedSchema,
+  })
+  registerEventSchema({
+    type: 'portal.publication.published',
+    version: EVENT_VERSION,
+    schema: portalPublicationFactSchema,
+  })
+  registerEventSchema({
+    type: 'portal.publication.rolled_back',
+    version: EVENT_VERSION,
+    schema: portalPublicationFactSchema,
+  })
+  registerEventSchema({
+    type: 'portal.archived',
+    version: EVENT_VERSION,
+    schema: portalActorLifecycleFactSchema,
+  })
+  registerEventSchema({
+    type: 'portal.restored',
+    version: EVENT_VERSION,
+    schema: portalActorLifecycleFactSchema,
   })
   registerEventSchema({
     type: 'portal.deleted',
@@ -1155,6 +1790,36 @@ export function registerAllEventSchemas(): void {
     type: 'portal.responsible_managers.updated',
     version: 2,
     schema: portalResponsibleManagersUpdatedSchema,
+  })
+  registerEventSchema({
+    type: 'portal.health.changed',
+    version: EVENT_VERSION,
+    schema: portalHealthChangedSchema,
+  })
+  registerEventSchema({
+    type: 'portal.property_brand_profile.updated',
+    version: EVENT_VERSION,
+    schema: portalPropertyBrandProfileUpdatedSchema,
+  })
+  registerEventSchema({
+    type: 'portal.property_brand_content.updated',
+    version: EVENT_VERSION,
+    schema: portalPropertyBrandContentUpdatedSchema,
+  })
+  registerEventSchema({
+    type: 'portal.localized_override.updated',
+    version: EVENT_VERSION,
+    schema: portalLocalizedOverrideUpdatedSchema,
+  })
+  registerEventSchema({
+    type: 'portal.locale_set.updated',
+    version: EVENT_VERSION,
+    schema: portalLocaleSetUpdatedSchema,
+  })
+  registerEventSchema({
+    type: 'portal.approved_destination.updated',
+    version: EVENT_VERSION,
+    schema: portalApprovedDestinationUpdatedSchema,
   })
   registerEventSchema({
     type: 'portal.hero_image.processing_requested',
@@ -1210,6 +1875,11 @@ export function registerAllEventSchemas(): void {
     type: 'portal.token.revoked',
     version: EVENT_VERSION,
     schema: portalTokenRevokedSchema,
+  })
+  registerEventSchema({
+    type: 'portal.access_artifact.published',
+    version: EVENT_VERSION,
+    schema: portalAccessArtifactPublishedSchema,
   })
   registerEventSchema({
     type: 'portal_link_category.created',

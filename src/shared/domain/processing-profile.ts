@@ -14,6 +14,7 @@ import type { PropertyId } from './ids'
 import {
   DATA_CELL_IDS,
   dataCellIdForCountry,
+  isDataCellAccepting,
   type DataCellId,
 } from './data-cell-catalogue'
 
@@ -83,7 +84,10 @@ export function checkProcessingAvailability(
   if (!profile.timeZone || profile.timeZone === 'UTC') {
     return { available: false, reason: 'timezone_unresolved' }
   }
-  if (profile.processingRegion === 'unresolved') {
+  if (
+    profile.processingRegion === 'unresolved' ||
+    !isDataCellAccepting(profile.processingRegion)
+  ) {
     return { available: false, reason: 'region_unsupported' }
   }
   return { available: true, profile }

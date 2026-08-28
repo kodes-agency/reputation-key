@@ -139,6 +139,8 @@ beforeAll(async () => {
   const handle = initPersistedCapabilityPolicyStore({
     db,
     env: { NODE_ENV: 'test', OPS_OPERATOR_IDENTITIES: OPERATOR },
+    clock: () => new Date(),
+    logger: { warn: () => {} },
   })
   await handle.refresh()
   stopPolicyPolling = handle.stopPolling

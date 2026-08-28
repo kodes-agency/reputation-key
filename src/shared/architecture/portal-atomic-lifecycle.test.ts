@@ -54,6 +54,19 @@ describe('architecture: core Portal lifecycle facts are atomic', () => {
         idempotencyKey: 'eventId',
       })
     }
+
+    for (const eventType of [
+      'portal.publication.published',
+      'portal.publication.rolled_back',
+      'portal.archived',
+      'portal.restored',
+    ]) {
+      expect(EVENT_FAMILY_ROWS.find((row) => row.eventType === eventType)).toMatchObject({
+        schemaRegistered: true,
+        recordedInOutbox: true,
+        idempotencyKey: 'eventId+consumerName',
+      })
+    }
   })
 
   it('leaves no partial responsibility-fact writer in PortalRepository', () => {

@@ -18,6 +18,15 @@ describe('schema tool supply-chain posture', () => {
     expect(manifest.scripts['auth:migrate']).toBe(
       'tsx scripts/better-auth-schema.ts migrate',
     )
+    expect(manifest.scripts['db:migrate-deploy']).toBe('tsx scripts/migrate-deploy.ts')
+  })
+
+  it('keeps the normal fresh-database instructions on the production deploy authority', () => {
+    const readme = readFileSync(resolve(root, 'README.md'), 'utf8')
+    const quickStart = /## Quick Start([\s\S]*?)## Architecture/u.exec(readme)?.[1]
+
+    expect(quickStart).toContain('pnpm db:migrate-deploy')
+    expect(quickStart).not.toContain('pnpm db:bootstrap-auth')
   })
 
   it('pins environment tooling and never network-fetches it in schema commands', () => {

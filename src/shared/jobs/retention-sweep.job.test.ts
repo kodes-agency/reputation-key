@@ -27,6 +27,7 @@ import { openRetentionRun, closeRetentionRun } from '#/shared/db/retention/evide
 import {
   createRetentionSweepHandler,
   GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT,
+  GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
   RETENTION_RULES,
 } from './retention-sweep.job'
 import type { RetentionRule } from '#/shared/db/retention/execute-retention-rule'
@@ -51,6 +52,25 @@ const RULE_B: RetentionRule = {
 describe('retention sweep job (BQC-1.6)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('expires the Activity replay authority and projection on the same exact 90-day source clock', () => {
+    const replay = RETENTION_RULES.find(
+      ({ subject }) => subject === 'recent_activity_replay_facts',
+    )
+    const projection = RETENTION_RULES.find(
+      ({ subject }) => subject === 'recent_activity_entries',
+    )
+    expect(replay).toMatchObject({
+      table: 'recent_activity_replay_facts',
+      tsColumn: 'source_occurred_at',
+      olderThanMs: 90 * 24 * 60 * 60 * 1_000,
+    })
+    expect(projection).toMatchObject({
+      table: 'recent_activity_entries',
+      tsColumn: 'created_at',
+      olderThanMs: replay?.olderThanMs,
+    })
   })
 
   it('opens and closes an evidence row per rule with counts', async () => {
@@ -257,6 +277,78 @@ describe('retention sweep job (BQC-1.6)', () => {
       }),
     )
   })
+
+  it('records the Guest-owned Contact Request material purge as bounded redaction evidence', async () => {
+    ;(executeRetentionRule as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      batches: 1,
+      rowsDeleted: 2,
+    })
+    const guestContactRequestRetentionSweep = vi.fn(async () => ({
+      batches: 2,
+      processed: 7,
+      capped: false,
+      completedThrough: NOW,
+    }))
+    const handler = createRetentionSweepHandler({
+      db: {} as never,
+      clock: () => NOW,
+      rules: [RULE_A],
+      batchSize: 100,
+      guestContactRequestRetentionSweep,
+    })
+
+    await handler({} as never)
+
+    expect(guestContactRequestRetentionSweep).toHaveBeenCalledWith({ batchSize: 100 })
+    expect(openRetentionRun).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
+      100,
+      NOW,
+    )
+    expect(closeRetentionRun).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      `run-${GUEST_CONTACT_REQUEST_RETENTION_SUBJECT}`,
+      {
+        finishedAt: NOW,
+        batches: 2,
+        rowsDeleted: 0,
+        rowsRedacted: 7,
+        outcome: 'completed',
+      },
+    )
+  })
+
+  it('keeps ordinary retention running and fails the job when Contact Request purge fails', async () => {
+    ;(executeRetentionRule as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      batches: 1,
+      rowsDeleted: 2,
+    })
+    const handler = createRetentionSweepHandler({
+      db: {} as never,
+      clock: () => NOW,
+      rules: [RULE_A],
+      guestContactRequestRetentionSweep: vi.fn(async () => {
+        throw new Error('contact purge unavailable')
+      }),
+    })
+
+    await expect(handler({} as never)).rejects.toThrow(
+      GUEST_CONTACT_REQUEST_RETENTION_SUBJECT,
+    )
+    expect(executeRetentionRule).toHaveBeenCalledTimes(1)
+    expect(closeRetentionRun).toHaveBeenNthCalledWith(
+      1,
+      expect.anything(),
+      `run-${GUEST_CONTACT_REQUEST_RETENTION_SUBJECT}`,
+      expect.objectContaining({
+        outcome: 'failed',
+        errorCode: 'contact purge unavailable',
+      }),
+    )
+  })
 })
 
 describe('retention rule registry (BQC-3.7)', () => {
@@ -303,6 +395,33 @@ describe('retention rule registry (BQC-3.7)', () => {
       ),
     ).toMatchObject({
       table: 'guest_destination_action_receipts',
+      keyColumns: ['id'],
+      tsColumn: 'expires_at',
+      olderThanMs: 0,
+    })
+  })
+
+  it('deletes Qualified Scan session receipts at their exact expiry', () => {
+    expect(
+      RETENTION_RULES.find(
+        (rule) => rule.subject === 'guest_qualified_scan_receipts.expired',
+      ),
+    ).toMatchObject({
+      table: 'guest_qualified_scan_receipts',
+      keyColumns: ['id'],
+      tsColumn: 'expires_at',
+      olderThanMs: 0,
+    })
+  })
+
+  it('deletes the canonical network-pressure class at its fixed seven-day expiry', () => {
+    expect(
+      RETENTION_RULES.find(
+        (rule) => rule.subject === 'guest_network_pressure_records.expired',
+      ),
+    ).toEqual({
+      subject: 'guest_network_pressure_records.expired',
+      table: 'guest_network_pressure_records',
       keyColumns: ['id'],
       tsColumn: 'expires_at',
       olderThanMs: 0,
@@ -363,6 +482,44 @@ describe('retention rule registry (BQC-3.7)', () => {
       keyColumns: ['id'],
       tsColumn: 'expires_at',
       olderThanMs: 0,
+    })
+  })
+
+  it('removes expired durable Google discovery state at its exact deadline', () => {
+    expect(
+      RETENTION_RULES.find(
+        (rule) => rule.subject === 'google_import_discovery_records.expired',
+      ),
+    ).toMatchObject({
+      table: 'google_import_discovery_records',
+      keyColumns: ['reference_key'],
+      tsColumn: 'expires_at',
+      olderThanMs: 0,
+    })
+    expect(
+      RETENTION_RULES.find(
+        (rule) => rule.subject === 'google_import_discovery_invalidations.expired',
+      ),
+    ).toMatchObject({
+      table: 'google_import_discovery_invalidations',
+      keyColumns: ['invalidation_key'],
+      tsColumn: 'expires_at',
+      olderThanMs: 0,
+    })
+  })
+
+  it('removes only settled invitation-registration fences after 90 days', () => {
+    expect(
+      RETENTION_RULES.find(
+        (rule) => rule.subject === 'invited_registration_attempts.settled',
+      ),
+    ).toEqual({
+      subject: 'invited_registration_attempts.settled',
+      table: 'invited_registration_attempts',
+      keyColumns: ['id'],
+      tsColumn: 'updated_at',
+      olderThanMs: 90 * 24 * 60 * 60 * 1000,
+      extraWhere: "state IN ('accepted', 'compensated')",
     })
   })
 

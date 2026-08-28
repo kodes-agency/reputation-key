@@ -15,6 +15,7 @@ import {
 } from './auth'
 import { organizationSchema } from './org-schema'
 import { ac } from './permissions'
+import { generateBetterAuthDatabaseId } from './registration-user-id'
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL_POOLER ?? process.env.DATABASE_URL,
@@ -33,6 +34,11 @@ const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   emailAndPassword: {
     enabled: true,
+  },
+  advanced: {
+    // Match runtime ID semantics. The schema runner has no registration
+    // context, so this produces Better Auth-compatible random text IDs.
+    database: { generateId: generateBetterAuthDatabaseId },
   },
   session: {
     expiresIn: SESSION_EXPIRY_SECONDS,

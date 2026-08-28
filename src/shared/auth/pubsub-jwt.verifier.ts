@@ -25,6 +25,7 @@ const getJwks = () => {
 export type VerifiedPubSubToken = Readonly<{
   sub: string
   email: string
+  emailVerified: boolean
   aud: string
   iat: number
   exp: number
@@ -48,6 +49,7 @@ export const verifyPubSubJwt = async (
   return {
     sub: payload.sub ?? '',
     email: (payload.email as string) ?? '',
+    emailVerified: payload.email_verified === true,
     aud: (payload.aud as string) ?? '',
     iat: payload.iat ?? 0,
     exp: payload.exp ?? 0,

@@ -12,23 +12,25 @@
 //   3. producers — row producer files must exist and contain the type literal
 //   4. consumers — `.on('<type>'` in event-handlers modules (bus) and
 //      registerConsumer({ eventType, consumerName }) in outbox-consumers.ts
-//   5. jobs — bootstrap.ts register(...) / registerCapabilityGatedJob(...)
-//      with imported JOB_NAME(S) constant resolution (same approach as the
-//      BQC-2.1 entry-point catalogue guard)
-//   6. schedules — worker/index.ts planSchedule(...) registrations
+//   5. jobs — production-reachable register(...) /
+//      registerCapabilityGatedJob(...) calls, including context-owned worker
+//      registrars, with imported JOB_NAME(S) constant resolution (same
+//      approach as the BQC-2.1 entry-point catalogue guard)
+//   6. schedules — the single operational scheduler authority used by workers
 //   7. cross-catalogue consistency with the BQC-2.1 entry-point catalogue
 //
-// Policy invariants: enabled event families have consumers, orphan families
-// are owned by a later slice, enabled jobs are actually registered, and
-// dark/blocked posture is derived from the authoritative capability sets —
-// never hand-declared.
+// Policy invariants: enabled event families have consumers, recorded-only
+// facts are durable and consumer-free, orphan families are owned by a later
+// slice, enabled jobs are actually registered, and dark/blocked posture is
+// derived from the authoritative capability sets — never hand-declared.
 
 import { describe, it, expect } from 'vitest'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import {
   EVENT_FAMILY_ROWS,
   JOB_FAMILY_ROWS,
+  RECORDED_EVENT_RETENTION,
   type EventConsumerRef,
   type EventFamilyRow,
   type JobFamilyRow,
@@ -39,6 +41,8 @@ import {
   PORTAL_DARK_CAPABILITIES,
   listBlockedCapabilities,
 } from '#/shared/auth/beta-capabilities'
+import { createOperationalSchedulerPlan } from '#/shared/jobs/operational-catalogue'
+import { RETENTION_RULES } from '#/shared/jobs/retention-sweep.job'
 import { walk } from '#/shared/testing/source-tree'
 
 const ROOT = process.cwd()
@@ -56,8 +60,11 @@ function importMap(file: string): Map<string, ImportTarget> {
   const content = readRel(file)
   const map = new Map<string, ImportTarget>()
   const add = (names: string, source: string) => {
-    const sourceFile =
-      source.replace(/^#\//, 'src/') + (source.endsWith('.ts') ? '' : '.ts')
+    const sourceFile = `${
+      source.startsWith('#/')
+        ? source.replace(/^#\//, 'src/')
+        : join(dirname(file), source)
+    }${source.endsWith('.ts') ? '' : '.ts'}`
     for (const part of names.split(',')) {
       const p = part.trim()
       const asAlias = /(\w+)\s+as\s+(\w+)/.exec(p)
@@ -108,6 +115,8 @@ function resolveJobName(
   ident: string | undefined,
   recordKey: string | undefined,
   imports: Map<string, ImportTarget>,
+  contextOwnedFacade?: string,
+  registrationSource?: string,
 ): string | undefined {
   if (literal) return literal
   if (recordKey) {
@@ -116,8 +125,54 @@ function resolveJobName(
       ? resolveRecordConstant(target.constName, recordKey, target.sourceFile)
       : undefined
   }
-  if (!ident) return undefined
-  const target = imports.get(ident)
+  if (ident) {
+    const target = imports.get(ident)
+    return target ? resolveStringConstant(target.constName, target.sourceFile) : undefined
+  }
+  return registrationSource
+    ? resolveContextOwnedJobName(registrationSource, contextOwnedFacade)
+    : undefined
+}
+
+/**
+ * Resolve the one context-owned job-name facade currently composed into the
+ * production container. Every link must remain visible in source: bootstrap's
+ * local alias, composition's Goal worker binding, Goal's build function, and
+ * the imported literal job-name constant. An arbitrary `.jobName` property is
+ * deliberately not treated as a production registration authority.
+ */
+function resolveContextOwnedJobName(
+  registrationSource: string,
+  facade: string | undefined,
+): string | undefined {
+  if (!facade) return undefined
+  const runtimePath = 'container.goalWorkerRuntime.programMaintenance'
+  const resolvesToRuntimePath =
+    facade === runtimePath ||
+    new RegExp(`\\bconst\\s+${facade}\\s*=\\s*${runtimePath}\\b`, 'u').test(
+      registrationSource,
+    )
+  if (!resolvesToRuntimePath) return undefined
+
+  const compositionFile = 'src/composition.ts'
+  const goalBuildFile = 'src/contexts/goal/build.ts'
+  const composition = readRel(compositionFile)
+  const goalBuildTarget = importMap(compositionFile).get('buildGoalContext')
+  if (
+    goalBuildTarget?.sourceFile !== goalBuildFile ||
+    !/\bconst goal = buildGoalContext\(/u.test(composition) ||
+    !/\bgoalWorkerRuntime:\s*goal\.worker\b/u.test(composition)
+  ) {
+    return undefined
+  }
+
+  const goalBuild = readRel(goalBuildFile)
+  const constantName =
+    /programMaintenance:\s*Object\.freeze\(\{[\s\S]{0,300}?\bjobName:\s*([A-Z][A-Z0-9_]*)\b/u.exec(
+      goalBuild,
+    )?.[1]
+  if (!constantName) return undefined
+  const target = importMap(goalBuildFile).get(constantName)
   return target ? resolveStringConstant(target.constName, target.sourceFile) : undefined
 }
 
@@ -181,113 +236,204 @@ function discoverDurableConsumers(): ReadonlyArray<DiscoveredConsumer> {
     f.endsWith('outbox-consumers.ts'),
   )
   for (const abs of files) {
-    const matches = read(abs).matchAll(
-      /registerConsumer\(\{\s*eventType:\s*'([^']+)',\s*consumerName:\s*'([^']+)'/g,
+    const source = read(abs)
+    const matches = source.matchAll(
+      /registerConsumer\(\{\s*eventType:\s*(?:'([^']+)'|([A-Z][A-Z0-9_]*)),\s*consumerName:\s*(?:'([^']+)'|([A-Z][A-Z0-9_]*))/g,
     )
     for (const m of matches) {
-      out.push({ eventType: m[1], module: rel(abs), kind: 'durable', name: m[2] })
+      const eventType = m[1] ?? resolveImportedStringConstant(abs, source, m[2] ?? '')
+      const consumerName = m[3] ?? resolveImportedStringConstant(abs, source, m[4] ?? '')
+      if (!eventType || !consumerName) continue
+      out.push({ eventType, module: rel(abs), kind: 'durable', name: consumerName })
+    }
+
+    // A maintained literal tuple may drive one registration loop. Resolve the
+    // tuple and imported consumer-name constant so the governance guard does
+    // not force production code to duplicate one registerConsumer call per
+    // event merely to remain mechanically discoverable.
+    for (const loop of source.matchAll(
+      /for\s*\(\s*const\s+(\w+)\s+of\s+(\w+)\s*\)\s*\{[\s\S]*?registerConsumer\(\{\s*eventType\s*(?::\s*(\w+))?\s*,\s*consumerName:\s*(?:'([^']+)'|(\w+))/g,
+    )) {
+      const [eventVariable, arrayName] = loop.slice(1, 3)
+      const registeredVariable = loop[3] ?? 'eventType'
+      if (eventVariable !== registeredVariable) continue
+
+      const array = new RegExp(
+        `export const ${arrayName}\\s*=\\s*Object\\.freeze\\(\\[([\\s\\S]*?)\\]\\s*as const\\)`,
+      ).exec(source)
+      if (!array) continue
+
+      const consumerName =
+        loop[4] ?? resolveImportedStringConstant(abs, source, loop[5] ?? '')
+      if (!consumerName) continue
+
+      for (const event of array[1].matchAll(/'([^']+)'/g)) {
+        out.push({
+          eventType: event[1],
+          module: rel(abs),
+          kind: 'durable',
+          name: consumerName,
+        })
+      }
     }
   }
   return out
+}
+
+function resolveImportedStringConstant(
+  importer: string,
+  source: string,
+  localName: string,
+): string | undefined {
+  const local = new RegExp(`(?:export\\s+)?const\\s+${localName}\\s*=\\s*'([^']+)'`).exec(
+    source,
+  )
+  if (local) return local[1]
+
+  for (const match of source.matchAll(/import \{([^}]+)\} from '([^']+)'/g)) {
+    for (const rawPart of match[1].split(',')) {
+      const part = rawPart.trim().replace(/^type\s+/u, '')
+      const alias = /^(\w+)\s+as\s+(\w+)$/u.exec(part)
+      const exportedName = alias?.[1] ?? part
+      const importedName = alias?.[2] ?? part
+      if (importedName !== localName || !/^\w+$/u.test(exportedName)) continue
+
+      const target = match[2].startsWith('#/')
+        ? join(ROOT, match[2].replace(/^#\//u, 'src/'))
+        : join(dirname(importer), match[2])
+      const targetFile = target.endsWith('.ts') ? target : `${target}.ts`
+      if (!existsSync(targetFile)) return undefined
+      return new RegExp(`export const ${exportedName}\\s*=\\s*'([^']+)'`).exec(
+        read(targetFile),
+      )?.[1]
+    }
+  }
+  return undefined
 }
 
 function discoverConsumers(): ReadonlyArray<DiscoveredConsumer> {
   return [...discoverBusConsumers(), ...discoverDurableConsumers()]
 }
 
-// ── 4. Job discovery (bootstrap.ts) ─────────────────────────────────
+// ── 4. Job discovery (production worker composition) ───────────────
 
 type DiscoveredJobs = Readonly<{
-  /** All job names registered in bootstrap.ts. */
+  /** All job names registered by production-reachable worker composition. */
   names: ReadonlyArray<string>
   /** registerCapabilityGatedJob 2nd arg: job name → capability. */
   registrationGates: ReadonlyMap<string, string>
 }>
 
 function discoverJobs(): DiscoveredJobs {
-  const file = 'src/bootstrap.ts'
-  const content = readRel(file)
-  const imports = importMap(file)
   const names = new Set<string>()
   const registrationGates = new Map<string, string>()
-  for (const m of content.matchAll(
-    /registerCapabilityGatedJob\(\s*(?:'([^']+)'|(\w+))\s*,\s*'([^']+)'/g,
-  )) {
-    const name = resolveJobName(m[1], m[2], undefined, imports)
-    if (name) {
-      names.add(name)
-      registrationGates.set(name, m[3])
+  for (const file of productionJobRegistrationFiles()) {
+    const content = readRel(file)
+    const imports = importMap(file)
+    for (const m of content.matchAll(
+      /registerCapabilityGatedJob\(\s*(?:'([^']+)'|([A-Z][A-Z0-9_]+)|((?:\w+\.)*\w+)\.jobName)\s*,\s*'([^']+)'/g,
+    )) {
+      const name = resolveJobName(m[1], m[2], undefined, imports, m[3], content)
+      if (name) {
+        names.add(name)
+        registrationGates.set(name, m[4])
+      }
     }
-  }
-  for (const m of content.matchAll(/jobRegistry\.register\(\s*(?:'([^']+)'|(\w+))/g)) {
-    const name = resolveJobName(m[1], m[2], undefined, imports)
-    if (name) names.add(name)
-  }
-  // Metric rollup loop: register(jobName) over JOB_NAMES.x entries.
-  for (const m of content.matchAll(/JOB_NAMES\.(\w+)/g)) {
-    const name = resolveJobName(undefined, undefined, m[1], imports)
-    if (name) names.add(name)
+    for (const m of content.matchAll(
+      /(?:jobRegistry|registry)\.register\(\s*(?:'([^']+)'|([A-Z][A-Z0-9_]+)|((?:\w+\.)*\w+)\.jobName)/g,
+    )) {
+      const name = resolveJobName(m[1], m[2], undefined, imports, m[3], content)
+      if (name) names.add(name)
+    }
+    // Metric rollup loop: register(jobName) over JOB_NAMES.x entries.
+    for (const m of content.matchAll(/JOB_NAMES\.(\w+)/g)) {
+      const name = resolveJobName(undefined, undefined, m[1], imports)
+      if (name) names.add(name)
+    }
   }
   return { names: [...names].sort(), registrationGates }
 }
 
-// ── 5. Schedule discovery (worker/index.ts) ─────────────────────────
+const PRODUCTION_COMPOSITION_ROOTS = new Set([
+  'src/bootstrap.ts',
+  'src/composition.ts',
+  'src/worker/index.ts',
+])
 
-/** Evaluate a pure numeric multiply expression ('5 * 60 * 1000' → 300000). */
-function evalNumericExpr(expr: string): number {
-  return expr
-    .split('*')
-    .map((p) => Number(p.trim()))
-    .reduce((a, b) => a * b, 1)
+function registrationCallSites(
+  registrationFunction: string,
+  definitionFile: string,
+): ReadonlyArray<string> {
+  const call = new RegExp(`\\b${registrationFunction}\\s*\\(`, 'u')
+  return walk(join(ROOT, 'src'))
+    .filter((file) => file.endsWith('.ts') && !file.endsWith('.test.ts'))
+    .map(rel)
+    .filter((file) => file !== definitionFile)
+    .filter((file) => call.test(readRel(file)))
+    .sort()
 }
 
-/** Canonical schedule string: 'cron:<pattern>' | 'every:<ms>[,offset:<ms>]' | 'none'. */
-function scheduleString(pattern?: string, every?: string, offset?: string): string {
-  if (pattern) return `cron:${pattern}`
-  if (!every) return 'none'
-  const ms = evalNumericExpr(every)
-  return offset ? `every:${ms},offset:${evalNumericExpr(offset)}` : `every:${ms}`
+function isProductionCompositionFile(
+  file: string,
+  visited: ReadonlySet<string> = new Set(),
+): boolean {
+  if (PRODUCTION_COMPOSITION_ROOTS.has(file)) return true
+  if (visited.has(file) || !file.endsWith('/build.ts')) return false
+
+  const source = readRel(file)
+  const buildFunction = /export (?:const|function) (build[A-Za-z0-9_]+)/u.exec(
+    source,
+  )?.[1]
+  if (!buildFunction) return false
+
+  const nextVisited = new Set(visited)
+  nextVisited.add(file)
+  return registrationCallSites(buildFunction, file).some((callSite) =>
+    isProductionCompositionFile(callSite, nextVisited),
+  )
 }
 
-/** Standalone `planSchedule({ jobName, repeat })` calls. */
-function plannedSchedules(
-  content: string,
-  imports: Map<string, ImportTarget>,
-): Map<string, string> {
-  const out = new Map<string, string>()
-  const callRe =
-    /planSchedule\(\s*\{\s*jobName:\s*(?:'([^']+)'|JOB_NAMES\.(\w+)|(\w+)),\s*repeat:\s*\{\s*(?:pattern:\s*'([^']+)'|every:\s*([0-9]+(?:\s*\*\s*[0-9]+)*))(?:,\s*offset:\s*([0-9]+(?:\s*\*\s*[0-9]+)*))?\s*\},/g
-  for (const match of content.matchAll(callRe)) {
-    const name = resolveJobName(match[1], match[3], match[2], imports)
-    if (name) out.set(name, scheduleString(match[4], match[5], match[6]))
+function productionJobRegistrationFiles(): ReadonlyArray<string> {
+  const files = new Set<string>(['src/bootstrap.ts'])
+  for (const abs of walk(join(ROOT, 'src/contexts')).filter(
+    (file) => file.endsWith('.ts') && !file.endsWith('.test.ts'),
+  )) {
+    const file = rel(abs)
+    const registrar =
+      /export (?:async )?(?:const|function) (register\w*WorkerJobs)\b/u.exec(
+        read(abs),
+      )?.[1]
+    if (
+      registrar &&
+      registrationCallSites(registrar, file).some((callSite) =>
+        isProductionCompositionFile(callSite),
+      )
+    ) {
+      files.add(file)
+    }
   }
-  return out
+  return [...files].sort()
 }
 
-/** Entries of the metricSchedules / capabilitySchedules array literals. */
-function arrayLiteralSchedules(
-  content: string,
-  imports: Map<string, ImportTarget>,
-): Map<string, string> {
-  const out = new Map<string, string>()
-  const entryRe =
-    /jobName:\s*(?:'([^']+)'|JOB_NAMES\.(\w+)|(\w+)),\s*(?:pattern:\s*'([^']+)'|every:\s*([0-9]+(?:\s*\*\s*[0-9]+)*))/g
-  for (const m of content.matchAll(entryRe)) {
-    const name = resolveJobName(m[1], m[3], m[2], imports)
-    if (name) out.set(name, scheduleString(m[4], m[5], undefined))
-  }
-  return out
-}
+// ── 5. Schedule discovery (single operational authority) ───────────
 
-/** Scheduled cadence per job name ('none' when the job is never scheduled). */
+/** Scheduled cadence per active job name; dark/quarantined rows are absent. */
 function discoverSchedules(): ReadonlyMap<string, string> {
-  const file = 'src/worker/index.ts'
-  const content = readRel(file)
-  const imports = importMap(file)
-  return new Map([
-    ...plannedSchedules(content, imports),
-    ...arrayLiteralSchedules(content, imports),
-  ])
+  const plan = createOperationalSchedulerPlan()
+  return new Map(
+    plan.desired.map((registration) => {
+      const repeat = registration.repeat
+      const schedule =
+        'pattern' in repeat
+          ? `cron:${repeat.pattern}`
+          : `every:${repeat.every}${
+              'offset' in repeat && repeat.offset !== undefined
+                ? `,offset:${repeat.offset}`
+                : ''
+            }`
+      return [registration.jobName, schedule]
+    }),
+  )
 }
 
 // ── Shared selectors ────────────────────────────────────────────────
@@ -304,9 +450,29 @@ const DARK_CAPS: ReadonlySet<string> = new Set<string>([
   ...PORTAL_DARK_CAPABILITIES,
 ])
 const BLOCKED_CAPS: ReadonlySet<string> = new Set<string>(listBlockedCapabilities())
-const DARK_CONTEXT_MODULE_RE = /\/contexts\/(team|portal|guest|goal|badge|leaderboard)\//
+const DARK_CONTEXT_MODULE_RE = /\/contexts\/(team|portal|guest|badge|leaderboard)\//
 
 describe('BQC-3.1 event/job family catalogue', () => {
+  it('binds every governed event family to its source Data Cell', () => {
+    expect(new Set(EVENT_FAMILY_ROWS.map((row) => row.region))).toEqual(
+      new Set(['source_cell']),
+    )
+  })
+
+  it('binds every governed job family to the serving Data Cell', () => {
+    expect(new Set(JOB_FAMILY_ROWS.map((row) => row.region))).toEqual(
+      new Set(['cell_local']),
+    )
+  })
+
+  it('keeps repair ownership in the observed operational authority only', () => {
+    expect(
+      JOB_FAMILY_ROWS.filter((row) => Object.hasOwn(row, 'repairCommand')).map(
+        (row) => row.jobName,
+      ),
+    ).toEqual([])
+  })
+
   it('discovers every emitted event type and catalogues it (bidirectional)', () => {
     const discovered = discoverEventTypes()
 
@@ -378,9 +544,9 @@ describe('BQC-3.1 event/job family catalogue', () => {
   it('pins durable consumer names to registerConsumer calls', () => {
     const bad = discoverDurableConsumers().filter((d) => {
       const ref = eventRow(d.eventType)?.consumers.find(
-        (c) => c.module === d.module && c.kind === 'durable',
+        (c) => c.module === d.module && c.kind === 'durable' && c.name === d.name,
       )
-      return !ref || ref.name !== d.name
+      return !ref
     })
     expect(
       bad.map((d) => `${d.eventType} ← ${d.name}`),
@@ -388,7 +554,7 @@ describe('BQC-3.1 event/job family catalogue', () => {
     ).toEqual([])
   })
 
-  it('discovers every job registered in bootstrap.ts (bidirectional)', () => {
+  it('discovers every job registered by production worker composition (bidirectional)', () => {
     const { names } = discoverJobs()
 
     const missing = names.filter((n) => !jobRow(n))
@@ -399,7 +565,7 @@ describe('BQC-3.1 event/job family catalogue', () => {
     const stale = JOB_FAMILY_ROWS.filter((r) => !names.includes(r.jobName))
     expect(
       stale.map((r) => r.jobName),
-      `rows with no bootstrap registration: ${stale.map((r) => r.jobName).join(', ')}`,
+      `rows with no production registration: ${stale.map((r) => r.jobName).join(', ')}`,
     ).toEqual([])
   })
 
@@ -414,21 +580,20 @@ describe('BQC-3.1 event/job family catalogue', () => {
     ).toEqual([])
   })
 
-  it('pins schedules to worker/index.ts (bidirectional)', () => {
+  it('pins schedules to the single operational scheduler plan (bidirectional)', () => {
     const discovered = discoverSchedules()
 
     const drift = JOB_FAMILY_ROWS.filter((r) => {
-      // A quarantined job may remain in worker's managed schedule set only so
-      // reconciliation removes a previously installed recurrence. It is not
-      // part of desired runtime scheduling.
-      const effectiveSchedule =
-        r.registration === 'quarantined' ? 'none' : (discovered.get(r.jobName) ?? 'none')
-      return effectiveSchedule !== r.schedule
+      // Non-active families remain in the managed set only so reconciliation
+      // removes a previously installed recurrence. They are never part of
+      // the desired runtime schedule.
+      if (r.registration !== 'enabled') return discovered.has(r.jobName)
+      return (discovered.get(r.jobName) ?? 'none') !== r.schedule
     })
     expect(
       drift.map(
         (r) =>
-          `${r.jobName}: row '${r.schedule}' worker '${discovered.get(r.jobName) ?? 'none'}'`,
+          `${r.jobName}: row '${r.schedule}' plan '${discovered.get(r.jobName) ?? 'none'}'`,
       ),
       `schedule drift:\n  ${drift.map((r) => r.jobName).join('\n  ')}`,
     ).toEqual([])
@@ -438,6 +603,10 @@ describe('BQC-3.1 event/job family catalogue', () => {
       uncatalogued,
       `scheduled jobs with no family row: ${uncatalogued.join(', ')}`,
     ).toEqual([])
+
+    const worker = readRel('src/worker/index.ts')
+    expect(worker).toContain('createOperationalSchedulerPlan()')
+    expect(worker).not.toMatch(/planSchedule\(\s*\{\s*jobName:/)
   })
 
   it('mirrors entry-point catalogue job rows (name/capability/action/processor)', () => {
@@ -482,12 +651,14 @@ describe('BQC-3.1 event/job family catalogue', () => {
     ).toEqual([])
   })
 
-  it('enforces the readiness invariant (enabled consumed; orphans owned; enabled jobs registered)', () => {
+  it('enforces the readiness invariant (enabled consumed; recorded-only durable; orphans owned; enabled jobs registered)', () => {
     const { names } = discoverJobs()
 
     const badEvents = EVENT_FAMILY_ROWS.filter(
       (r) =>
         (r.disposition === 'enabled' && r.consumers.length === 0) ||
+        (r.disposition === 'recorded_only' &&
+          (!r.recordedInOutbox || r.consumers.length > 0)) ||
         (r.disposition === 'orphan' && (r.consumers.length > 0 || !r.ownerSlice)) ||
         (r.disposition === 'quarantined' && (r.consumers.length > 0 || !r.ownerSlice)),
     )
@@ -501,7 +672,7 @@ describe('BQC-3.1 event/job family catalogue', () => {
     )
     expect(
       badJobs.map((r) => r.jobName),
-      `enabled jobs not registered in bootstrap.ts: ${badJobs.map((r) => r.jobName).join(', ')}`,
+      `enabled jobs not registered by production composition: ${badJobs.map((r) => r.jobName).join(', ')}`,
     ).toEqual([])
   })
 
@@ -515,6 +686,19 @@ describe('BQC-3.1 event/job family catalogue', () => {
     }
   })
 
+  it('keeps retained Team facts schema-only with no runtime delivery promise', () => {
+    for (const eventType of ['team.created', 'team.updated', 'team.deleted']) {
+      expect(eventRow(eventType)).toMatchObject({
+        capability: 'team.use',
+        recordedInOutbox: false,
+        consumers: [],
+        disposition: 'denied_dark',
+        idempotencyKey: 'none',
+        retention: 'none',
+      })
+    }
+  })
+
   it('keeps idempotency/retention consistent with recording and consumers', () => {
     const bad = EVENT_FAMILY_ROWS.filter((r) => {
       const durableConsumed = r.consumers.some((c) => c.kind === 'durable')
@@ -523,13 +707,21 @@ describe('BQC-3.1 event/job family catalogue', () => {
         : r.recordedInOutbox
           ? 'eventId'
           : 'none'
-      const expectedRetention = r.recordedInOutbox ? 'outbox:7d,receipts:90d' : 'none'
+      const expectedRetention = r.recordedInOutbox ? RECORDED_EVENT_RETENTION : 'none'
       return r.idempotencyKey !== expectedKey || r.retention !== expectedRetention
     })
     expect(
       bad.map((r) => r.eventType),
       `delivery-policy drift: ${bad.map((r) => r.eventType).join(', ')}`,
     ).toEqual([])
+  })
+
+  it('keeps the recorded-event catalogue horizon aligned with executable retention', () => {
+    const bySubject = new Map(RETENTION_RULES.map((rule) => [rule.subject, rule]))
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1_000
+    expect(RECORDED_EVENT_RETENTION).toBe('outbox:30d,receipts:30d')
+    expect(bySubject.get('outbox_events.published')?.olderThanMs).toBe(thirtyDaysMs)
+    expect(bySubject.get('event_consumer_receipts')?.olderThanMs).toBe(thirtyDaysMs)
   })
 
   it('derives event dark posture from the authoritative capability sets', () => {
@@ -558,6 +750,9 @@ describe('BQC-3.1 event/job family catalogue', () => {
     const quarantinedJobs = new Set([
       'expire-review-provider-source',
       'purge-expired-reviews',
+      'advance-organization-lifecycle',
+      'generate-organization-export',
+      'purge-expired-organization-exports',
     ])
     const bad = JOB_FAMILY_ROWS.filter((r) => {
       const expected = BLOCKED_CAPS.has(r.capability)

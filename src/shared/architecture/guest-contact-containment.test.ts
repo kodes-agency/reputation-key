@@ -25,7 +25,7 @@ function markerViolations(paths: readonly string[], markers: readonly string[]) 
 }
 
 describe('Contact Request beta containment', () => {
-  it('has no route, component, server, worker, or composition activation path', () => {
+  it('has no route, component, server, public API, or composition activation path', () => {
     const entryPaths = [
       ...sourceFiles(join(ROOT, 'src/routes')),
       ...sourceFiles(join(ROOT, 'src/components')),
@@ -48,6 +48,16 @@ describe('Contact Request beta containment', () => {
       ]),
     ).toEqual([])
     expect(isBlockedCapability('portal.guest_contact')).toBe(true)
+
+    const build = readFileSync(join(ROOT, 'src/contexts/guest/build.ts'), 'utf8')
+    const retention = readFileSync(
+      join(ROOT, 'src/shared/jobs/retention-sweep.job.ts'),
+      'utf8',
+    )
+    expect(build).toContain('createContactRequestRetentionRepository')
+    expect(build).not.toContain('contactRequestLifecycle')
+    expect(retention).toContain('guestContactRequestRetentionSweep')
+    expect(retention).not.toContain("'portal.guest_contact'")
   })
 
   it('keeps contact fields out of facts, notifications, analytics, inbox, AI, and search-owned code', () => {

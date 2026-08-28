@@ -23,6 +23,8 @@ describe('ADR navigation authority', () => {
     '0054-data-cell-catalogue-and-routing.md',
     '0055-stable-review-and-inbox-handling-cycles.md',
     '0056-operational-action-history-integrity-claims.md',
+    '0057-single-us-beta-data-cell.md',
+    '0058-dedicated-railway-projects-and-iac-source-promotion.md',
   ])('%s is an accepted superseding decision', (file) => {
     const content = readFileSync(join(ADR_DIRECTORY, file), 'utf8')
 

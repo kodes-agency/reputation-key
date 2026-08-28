@@ -19,6 +19,9 @@
 //   (c) POLICY DENIAL DRIFT — 51 real policy_decision_audit denials inside
 //       the trailing hour: the aux GROUP-BY read crosses the drift
 //       threshold and policy.denial-drift dispatches.
+//   (d) BETA-FEEDBACK TRIAGE BACKLOG — one delivered, unresolved content-free
+//       receipt older than 72h: the aux aggregate reports count + oldest age
+//       and beta-feedback.triage-backlog dispatches without report content.
 //
 // Determinism/cleanup: rows use a suite-unique org/subject marker and are
 // deleted after each test; the integration project runs serially
@@ -37,7 +40,10 @@ import {
   createAlertDispatcher,
   type AlertFetchFn,
 } from '#/shared/observability/alert-dispatcher'
-import { POLICY_DENIAL_DRIFT_THRESHOLD } from '#/shared/observability/alert-definitions'
+import {
+  BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
+  POLICY_DENIAL_DRIFT_THRESHOLD,
+} from '#/shared/observability/alert-definitions'
 import { isBannedLogKey } from '#/shared/observability/metrics-schema'
 import type { AlertStateStore } from '#/shared/health/alert-state'
 import type { RedisHeartbeatPort } from '#/shared/health/worker-heartbeat'
@@ -45,6 +51,7 @@ import { createHealthCheckHandler } from '#/shared/jobs/health-check.job'
 
 const MARKER_ORG = 'org-bqc74-alert-injection'
 const RETENTION_SUBJECT = 'bqc74.test-subject'
+const FEEDBACK_REFERENCE = '6108c5d6-3f73-4f06-9b62-1121eeea052f'
 
 const db = getDb()
 const outboxRepo = createOutboxRepository(db)
@@ -88,6 +95,16 @@ function realEvaluationHarness() {
       routingPolicy: 1,
       sourceContentPolicy: 1,
     },
+    readGuestObservationLoss: async () => ({
+      monitorAvailable: true,
+      windowMs: 24 * 60 * 60 * 1000,
+      precisionMs: 5 * 60 * 1000,
+      scanLossCount: 0,
+      reviewLinkLossCount: 0,
+      ratingLossCount: 0,
+      totalLossCount: 0,
+      ratingDisposition: 'not_applicable_durable',
+    }),
   })
   const auxReader = createAlertAuxReader({ db, quarantineQueue: null, logger })
   const handler = createHealthCheckHandler({
@@ -129,6 +146,9 @@ afterEach(async () => {
   await db.execute(sql`DELETE FROM retention_runs WHERE subject = ${RETENTION_SUBJECT}`)
   await db.execute(
     sql`DELETE FROM policy_decision_audit WHERE organization_id = ${MARKER_ORG}`,
+  )
+  await db.execute(
+    sql`DELETE FROM beta_feedback_triage WHERE reference = ${FEEDBACK_REFERENCE}`,
   )
 })
 
@@ -241,6 +261,38 @@ describe('BQC-7.4 alert injection — real reads', () => {
     })
     expect(Number(drift?.value)).toBeGreaterThan(POLICY_DENIAL_DRIFT_THRESHOLD)
     expect(String(drift?.detail)).toContain('capability_disabled')
+    expectNoBannedKeys(payloads)
+    expect(warn.mock.calls.filter((c) => String(c[1]).match(/alert-aux/))).toEqual([])
+  })
+
+  it('(d) a real content-free feedback receipt dispatches beta-feedback.triage-backlog', async () => {
+    const { handler, fetchFn, warn } = realEvaluationHarness()
+
+    await db.execute(sql`
+      INSERT INTO beta_feedback_triage
+        (reference, organization_pseudonym, actor_pseudonym, feedback_type,
+         impact_code, route_key, viewport, reporter_role, delivery_state,
+         provider_reference, attachment_kind, created_at, updated_at)
+      VALUES
+        (${FEEDBACK_REFERENCE}, ${'a'.repeat(64)}, ${'b'.repeat(64)}, 'bug',
+         'small_issue', 'dashboard', 'regular', 'AccountAdmin', 'delivered',
+         ${'c'.repeat(32)}, 'none',
+         NOW() - INTERVAL '73 hours', NOW() - INTERVAL '73 hours')
+    `)
+
+    const result = await handler({ id: 'bqc74-d', data: {} } as never)
+
+    expect(result.alerts?.dispatched).toContain('beta-feedback.triage-backlog')
+    const payloads = dispatchedPayloads(fetchFn)
+    const backlog = payloads.find(
+      (payload) => payload.alert === 'beta-feedback.triage-backlog',
+    )
+    expect(backlog).toMatchObject({
+      severity: 'P2',
+      runbook: 'runbooks.md §16',
+      threshold: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
+    })
+    expect(Number(backlog?.value)).toBeGreaterThan(BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS)
     expectNoBannedKeys(payloads)
     expect(warn.mock.calls.filter((c) => String(c[1]).match(/alert-aux/))).toEqual([])
   })

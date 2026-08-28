@@ -27,12 +27,13 @@ import { isRestoreIsolated } from '#/shared/config/restore-mode'
  * Capability-policy version. Bump when capability vocabulary or posture changes.
  * Recorded in the boot and release manifests.
  */
-export const CAPABILITY_POLICY_VERSION = 'beta-local-8'
+export const CAPABILITY_POLICY_VERSION = 'beta-local-10'
 
 // ── Capability definitions ──────────────────────────────────────────
 
 export type Capability =
   | 'identity.invite'
+  | 'identity.custom_roles'
   | 'identity.register'
   | 'organization.create'
   | 'property.create'
@@ -125,6 +126,10 @@ const CORE_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
  * reviewed capability rather than reusing these legacy authorities.
  */
 const BLOCKED_CAPABILITIES: ReadonlySet<Capability> = new Set<Capability>([
+  // Runtime role definitions and assignment are excluded from beta. The
+  // definitions remain only for reconciliation/migration of historical rows;
+  // neither tenant policy nor the E2E override may reopen their write surface.
+  'identity.custom_roles',
   'identity.register',
   'organization.create',
   // LIF-01: ordinary lifecycle changes must become recoverable Archive /
@@ -581,6 +586,7 @@ export function listBlockedCapabilities(): ReadonlyArray<Capability> {
 /** Complete capability vocabulary used by policy administration and guards. */
 export function listAllCapabilities(): ReadonlyArray<Capability> {
   const nonCore: ReadonlyArray<Capability> = [
+    'identity.custom_roles',
     'identity.register',
     'organization.create',
     'property.import_gbp_v2',
@@ -629,7 +635,6 @@ export const DARK_CONTEXT_CAPABILITIES = {
   team: 'team.use',
   portal: 'portal.read',
   guest: 'portal.read',
-  goal: 'goal.use',
   badge: 'badge.use',
   leaderboard: 'leaderboard.use',
 } as const satisfies Readonly<Record<string, Capability>>

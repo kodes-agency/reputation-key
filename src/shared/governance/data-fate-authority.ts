@@ -19,6 +19,7 @@ export type DataFateDisposition =
 export type DataFateOwner =
   | 'activity'
   | 'ai'
+  | 'dashboard'
   | 'goal'
   | 'guest'
   | 'identity'
@@ -92,11 +93,59 @@ const COMPATIBILITY_EXIT =
 export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'activity.schema.ts',
-    exportNames: ['activityLog'],
+    exportNames: ['recentActivityEntries'],
     owner: 'activity',
     disposition: 'recoverable_archive',
     authority: 'ACT-01',
     exitCriteria: RETAINED_HISTORY,
+  }),
+  ...rows({
+    schemaFile: 'beta-feedback-triage.schema.ts',
+    exportNames: ['betaFeedbackTriage'],
+    owner: 'identity',
+    disposition: 'active_authority',
+    authority: 'OBS-01',
+  }),
+  ...rows({
+    schemaFile: 'beta-feedback-triage.schema.ts',
+    exportNames: ['betaFeedbackTriageTransitions'],
+    owner: 'identity',
+    disposition: 'recoverable_archive',
+    authority: 'OBS-01',
+    exitCriteria:
+      'Content-free triage transition evidence is retained through support response, incident/privacy handling, scoped export/restore, and the counsel-approved support retention horizon; no destructive lifecycle is active before approval.',
+  }),
+  ...rows({
+    schemaFile: 'activity.schema.ts',
+    exportNames: ['recentActivityActorLabelRedactions', 'recentActivityReplayFacts'],
+    owner: 'activity',
+    disposition: 'active_authority',
+    authority: 'ACT-01/ARC-01',
+  }),
+  ...rows({
+    schemaFile: 'activity.schema.ts',
+    exportNames: ['recentActivityVocabularyReconciliations'],
+    owner: 'activity',
+    disposition: 'recoverable_archive',
+    authority: 'ACT-01',
+    exitCriteria:
+      'Content-minimal apply receipts with no payload or row identifiers are retained through retry/recovery and the compatibility reconciliation audit window; contraction requires scoped export/restore, retention, and erasure proof.',
+  }),
+  ...rows({
+    schemaFile: 'activity.schema.ts',
+    exportNames: ['operationalActionHistoryHeads', 'operationalActionHistoryLegalHolds'],
+    owner: 'activity',
+    disposition: 'active_authority',
+    authority: 'ACT-01/ADR-0056',
+  }),
+  ...rows({
+    schemaFile: 'activity.schema.ts',
+    exportNames: ['operationalActionHistoryRecords'],
+    owner: 'activity',
+    disposition: 'recoverable_archive',
+    authority: 'ACT-01/ADR-0056',
+    exitCriteria:
+      'Retain append-oriented action records and honor legal holds. The proposed 365-day horizon remains report-only until counsel approves a destructive lifecycle authority and restore/export evidence.',
   }),
   ...rows({
     schemaFile: 'ai.schema.ts',
@@ -104,6 +153,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'aiAdmissionCostReservations',
       'aiAdmissionProductConsumptions',
       'aiAdmissionRateWindows',
+      'aiAuthorizationLifecycleRecords',
       'aiCanaryAuthorizationHeads',
       'aiCanaryAuthorizations',
       'aiExecutionControlHeads',
@@ -127,6 +177,9 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'aiReadBarrierHeads',
       'aiReviewAnalysisBackfillRunMemberships',
       'aiReviewAnalysisBackfillRuns',
+      'aiReviewAnalysisEnrollmentMemberships',
+      'aiReviewAnalysisEnrollmentReplays',
+      'aiReviewAnalysisEnrollments',
       'aiReviewEventCursors',
       'aiRoutingPolicies',
       'aiRuntimeCapabilityProfiles',
@@ -197,6 +250,20 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'SAFE-02/PPL-01',
   }),
   ...rows({
+    schemaFile: 'data-cell-topology.schema.ts',
+    exportNames: ['dataCellTopologyCutovers'],
+    owner: 'platform',
+    disposition: 'active_authority',
+    authority: 'REG-01/REG-02',
+  }),
+  ...rows({
+    schemaFile: 'dashboard.schema.ts',
+    exportNames: ['setupChecklistMilestones'],
+    owner: 'dashboard',
+    disposition: 'active_authority',
+    authority: 'EXP-01',
+  }),
+  ...rows({
     schemaFile: 'goal.schema.ts',
     exportNames: ['goals', 'goalProgress'],
     owner: 'goal',
@@ -230,7 +297,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'google-connection.schema.ts',
-    exportNames: ['googleConnections'],
+    exportNames: ['googleConnections', 'googleOrganizationCredentialHomes'],
     owner: 'integration',
     disposition: 'active_authority',
     authority: 'GGL-01/SAFE-04',
@@ -248,6 +315,35 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     owner: 'integration',
     disposition: 'active_authority',
     authority: 'SAFE-04/GGL-01',
+  }),
+  ...rows({
+    schemaFile: 'google-content-control.schema.ts',
+    exportNames: ['googleOauthExchangeAttempts'],
+    owner: 'integration',
+    disposition: 'erasable_source_content',
+    authority: 'SAFE-04',
+    exitCriteria:
+      'The application-encrypted provider response is one-use and is erased atomically on connection commit, deterministic rejection, ambiguous terminalization, or no later than its database-recorded ten-minute expiry. Only content-free recovery outcome facts may remain after that boundary.',
+  }),
+  ...rows({
+    schemaFile: 'google-content-control.schema.ts',
+    exportNames: ['googleDisconnectRevokeAttempts'],
+    owner: 'integration',
+    disposition: 'recoverable_archive',
+    authority: 'SAFE-04',
+    exitCriteria:
+      'The credential binding becomes unusable at the database-recorded 60-second deadline and is erased before provider dispatch or by the next enabled five-minute recovery sweep. Retain only the content-free permit and outcome fact through disconnect recovery, audit, export, and restore evidence; contract after no retry or investigation path depends on it.',
+  }),
+  ...rows({
+    schemaFile: 'google-credential-routing.schema.ts',
+    exportNames: [
+      'googleCredentialBrokerReplay',
+      'googleCredentialRoutingDirectorySnapshots',
+      'googleCredentialRoutingDirectoryState',
+    ],
+    owner: 'integration',
+    disposition: 'active_authority',
+    authority: 'GGL-01/REG-01',
   }),
   ...rows({
     schemaFile: 'google-import-compatibility.schema.ts',
@@ -278,6 +374,22 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'GGL-01',
   }),
   ...rows({
+    schemaFile: 'google-import-discovery.schema.ts',
+    exportNames: ['googleImportDiscoveryInvalidations'],
+    owner: 'integration',
+    disposition: 'active_authority',
+    authority: 'GGL-01/SAFE-04',
+  }),
+  ...rows({
+    schemaFile: 'google-import-discovery.schema.ts',
+    exportNames: ['googleImportDiscoveryRecords'],
+    owner: 'integration',
+    disposition: 'erasable_source_content',
+    authority: 'GGL-01/SAFE-04/LIF-01',
+    exitCriteria:
+      'Delete provider discovery content on redemption or authorization invalidation and no later than its database-enforced 24-hour expiry; retain content-free purge evidence.',
+  }),
+  ...rows({
     schemaFile: 'guest.schema.ts',
     exportNames: ['feedback', 'ratings', 'scanEvents'],
     owner: 'guest',
@@ -290,6 +402,9 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exportNames: [
       'guestContactRequestPurgeCheckpoints',
       'guestDestinationActionReceipts',
+      'guestNetworkPressureRecords',
+      'guestQualifiedScanReceipts',
+      'guestQualifiedScans',
       'guestResponseExperienceSnapshots',
       'guestResponseIntegrityDecisions',
       'guestResponseSessionBindings',
@@ -334,15 +449,35 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'inbox.schema.ts',
     exportNames: [
+      'inboxAssignmentHistory',
       'inboxHandlingCycleHeads',
+      'inboxHandlingCycleResponseTargets',
       'inboxHandlingCycles',
       'inboxItems',
       'inboxNotes',
+      'inboxPrivateFeedbackTargetPropertyOverrides',
+      'inboxResponseTargetOrganizationPolicies',
+      'inboxResponseTargetReminders',
       'inboxUserViews',
     ],
     owner: 'inbox',
     disposition: 'active_authority',
     authority: 'IBX-01',
+  }),
+  ...rows({
+    schemaFile: 'inbox.schema.ts',
+    exportNames: ['inboxFeedbackHandlingOutcomes', 'inboxHandlingCycleTransitions'],
+    owner: 'inbox',
+    disposition: 'recoverable_archive',
+    authority: 'IBX-01',
+    exitCriteria: RETAINED_HISTORY,
+  }),
+  ...rows({
+    schemaFile: 'invited-registration.schema.ts',
+    exportNames: ['invitedRegistrationAttempts'],
+    owner: 'identity',
+    disposition: 'active_authority',
+    authority: 'SAFE-02/PPL-01',
   }),
   ...rows({
     schemaFile: 'leaderboard.schema.ts',
@@ -383,6 +518,8 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'metricDefinitions',
       'metricReadings',
       'metricSourceWatermarks',
+      'metricCurrentGoogleReputationSnapshots',
+      'portalMetricLifetimeAggregates',
     ],
     owner: 'metric',
     disposition: 'active_authority',
@@ -422,6 +559,26 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exitCriteria: RECONCILE_QUARANTINE,
   }),
   ...rows({
+    schemaFile: 'organization-lifecycle.schema.ts',
+    exportNames: ['organizationExports', 'organizationLifecycleAuthority'],
+    owner: 'identity',
+    disposition: 'active_authority',
+    authority: 'LIF-01',
+  }),
+  ...rows({
+    schemaFile: 'organization-lifecycle.schema.ts',
+    exportNames: [
+      'identityOrganizationLifecycleReceipts',
+      'organizationExportRetrievalIssuances',
+      'organizationLifecycleCommandReceipts',
+    ],
+    owner: 'identity',
+    disposition: 'recoverable_archive',
+    authority: 'LIF-01',
+    exitCriteria:
+      'Content-free idempotency outcomes are retained through closure retry/recovery and the explicit reactivation horizon; contract only after approved evidence retention, scoped export/restore proof, and zero retry dependence. No destructive receipt lifecycle is active.',
+  }),
+  ...rows({
     schemaFile: 'outbox.schema.ts',
     exportNames: ['eventConsumerReceipts', 'outboxEvents'],
     owner: 'platform',
@@ -433,7 +590,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exportNames: [
       'portalGroupMemberships',
       'portalResponsibilities',
-      'propertyAccessGrants',
       'staffParticipants',
       'staffParticipations',
       'staffUserLinks',
@@ -441,6 +597,14 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     owner: 'staff',
     disposition: 'active_authority',
     authority: 'PPL-01',
+  }),
+  ...rows({
+    schemaFile: 'people-access.schema.ts',
+    exportNames: ['propertyAccessGrants'],
+    owner: 'identity',
+    disposition: 'bounded_contraction',
+    authority: 'PPL-01/CNV-01',
+    exitCriteria: CONTRACT_AFTER_EXPORT,
   }),
   ...rows({
     schemaFile: 'people-access.schema.ts',
@@ -457,6 +621,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
       'organizationPolicy',
       'policyConsent',
       'policyVersion',
+      'propertyAccessGrant',
       'propertyCapability',
       'propertyPolicy',
     ],
@@ -473,14 +638,6 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exitCriteria: RETAINED_HISTORY,
   }),
   ...rows({
-    schemaFile: 'policy.schema.ts',
-    exportNames: ['propertyAccessGrant'],
-    owner: 'identity',
-    disposition: 'compatibility_read',
-    authority: 'PPL-01/CNV-01',
-    exitCriteria: COMPATIBILITY_EXIT,
-  }),
-  ...rows({
     schemaFile: 'portal-group.schema.ts',
     exportNames: ['portalGroups'],
     owner: 'portal',
@@ -490,6 +647,8 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'portal.schema.ts',
     exportNames: [
+      'portalAccessArtifacts',
+      'portalApprovedDestinations',
       'portalLinkCategories',
       'portalLinks',
       'portalResponsibleManagers',
@@ -503,7 +662,12 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'portal.schema.ts',
-    exportNames: ['portalPublicationActivations', 'portalPublicationSnapshots'],
+    exportNames: [
+      'portalHealthIntervals',
+      'portalPendingContentChanges',
+      'portalPublicationActivations',
+      'portalPublicationSnapshots',
+    ],
     owner: 'portal',
     disposition: 'recoverable_archive',
     authority: 'POR-01',
@@ -516,6 +680,18 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     disposition: 'compatibility_read',
     authority: 'POR-01/PPL-01/CNV-01',
     exitCriteria: COMPATIBILITY_EXIT,
+  }),
+  ...rows({
+    schemaFile: 'portal.schema.ts',
+    exportNames: [
+      'portalLocalizedOverrides',
+      'propertyPortalBrandContents',
+      'propertyPortalBrandProfiles',
+    ],
+    owner: 'portal',
+    disposition: 'erasable_source_content',
+    authority: 'POR-01/LIF-01',
+    exitCriteria: ERASE_WITH_OWNER,
   }),
   ...rows({
     schemaFile: 'property-operation-receipt.schema.ts',
@@ -533,10 +709,10 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'recovery.schema.ts',
-    exportNames: ['recoveryRuns'],
+    exportNames: ['recoveryRuns', 'reviewLifecycleRecoveryExecutions'],
     owner: 'platform',
     disposition: 'recoverable_archive',
-    authority: 'REG-04',
+    authority: 'SAFE-03/REG-04/REV-01',
     exitCriteria: RETAINED_HISTORY,
   }),
   ...rows({
@@ -582,6 +758,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exportNames: [
       'googleReplyObservations',
       'materialReviewRevisions',
+      'reviewGoogleReputationSnapshotFacts',
       'reviewProviderSnapshotMembers',
       'reviewSourceObservations',
     ],

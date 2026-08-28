@@ -93,6 +93,8 @@ function replyRequest(): ReplySuggestionGatewayRequestV1 {
     ...analysis,
     route: 'reply-suggestion',
     actorId: 'better-auth-user_01',
+    replyProfileVersion: 'reply-draft-v2',
+    brandProfile: { displayName: 'Example Hotel' },
     tone: 'professional',
     binding: {
       ...analysis.binding,
@@ -102,6 +104,9 @@ function replyRequest(): ReplySuggestionGatewayRequestV1 {
         baseReplyStateRevision: 0,
       },
       concreteReplyLanguage: { tag: 'en-Latn', templateGroup: 'en-Latn' },
+      replyBrandProfileVersion: 7,
+      replyBrandDisplayNameDigest:
+        '030c644bf71ad1d7570dc9ab6131f5209ac02fa65e930e2910778e024fc643bf',
       replyLanguageVerifierDigest: SHA,
       languageScriptConsistencyDigest: SHA,
       zhOrthographyVerifierDigest: SHA,
@@ -314,6 +319,51 @@ describe('AI gateway caller-wire contract', () => {
             templateGroup: 'es-Latn',
           },
         },
+      }),
+    ).toThrow(ZodError)
+  })
+
+  it('carries only the distinct personalized profile on the reply route', () => {
+    expect(parseAiGatewayRouteRequest(replyRequest())).toMatchObject({
+      route: 'reply-suggestion',
+      replyProfileVersion: 'reply-draft-v2',
+      brandProfile: { displayName: 'Example Hotel' },
+    })
+    expect(() =>
+      parseAiGatewayRouteRequest({
+        ...replyRequest(),
+        replyProfileVersion: 'reply-suggestion-v1',
+      }),
+    ).toThrow(ZodError)
+    expect(() =>
+      parseAiGatewayRouteRequest({
+        ...replyRequest(),
+        brandProfile: {
+          displayName: 'Example Hotel',
+          logoUrl: 'https://cdn.example/logo.png',
+        },
+      }),
+    ).toThrow(ZodError)
+
+    const response = {
+      route: 'reply-suggestion',
+      status: 'success',
+      result: {
+        profileVersion: 'reply-draft-v2',
+        replyText: 'Thank you for sharing that the room was quiet during your stay.',
+        provenanceToken: 'signed-personalized-provenance',
+        expiresAtEpochMillis: 1_780_000_010_000,
+        baseReplyStateRevision: 0,
+        concreteLanguageTag: 'en-Latn',
+        templateGroup: 'en-Latn',
+      },
+      settlementReceipt: receipt,
+    }
+    expect(parseAiGatewayRouteResponse(response)).toEqual(response)
+    expect(() =>
+      parseAiGatewayRouteResponse({
+        ...response,
+        result: { ...response.result, templateId: 'appreciation_positive' },
       }),
     ).toThrow(ZodError)
   })

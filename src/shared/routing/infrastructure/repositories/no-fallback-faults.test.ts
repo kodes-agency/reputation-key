@@ -10,11 +10,13 @@
 //
 // Phase doc §4.6: inject unavailable queue / database / provider conditions in
 // the US target cell and prove jobs remain in the approved cell, age/alert
-// visibly, and resume/reconcile there — plus the denied-Europe routing repeat.
+// visibly, and resume/reconcile there — plus an unapproved persisted-cell
+// routing repeat. Dormant Europe/Global behavior has separate catalogue tests.
 // At NO point may a failure invoke a fallback adapter, queue, endpoint, or
 // region. Enforcement references: the BQC-4.3 architecture guards
 // (src/shared/architecture/provider-target-selection.test.ts,
-// adr-0048-presence.test.ts) and the BQC-4.2 wrong-cell/blocked quarantine in
+// adr-0048-presence.test.ts, which follows ADR 0054 through ADR 0057) and the
+// BQC-4.2 wrong-cell/blocked quarantine in
 // src/shared/jobs/delayed-execution-gate.ts.
 //
 // Conditions (one describe each):
@@ -43,12 +45,14 @@
 //       with a fresh attempt budget + redriveMetadata; with healthy
 //       dependencies the dispatch succeeds and the handler runs EXACTLY ONCE
 //       across the whole saga.
-//   (f) DENIED REGION PROPERTY (the §4.6 repeat) — a property whose
-//       processing_region has no target in CELL_TARGETS dispatches a sync job;
+//   (f) UNAPPROVED CELL FACT (the §4.6 repeat) — a property whose persisted
+//       compatibility region has no accepting target in the Data Cell catalogue
+//       dispatches a sync job;
 //       the 4.2 gate quarantines it with policyReason
 //       'routing_blocked:region_denied' and the handler NEVER runs; a redrive
-//       (as after a region approval) re-queues it, but with the region
-//       unchanged the SECOND dispatch blocks again — no silent override.
+//       (as after an explicit catalogue revision and data reconciliation)
+//       re-queues it, but with the persisted fact unchanged the SECOND
+//       dispatch blocks again — no silent override.
 //
 // Determinism: relay polls and dispatch closures are invoked directly (never
 // interval-driven); lease expiry is simulated by backdating lease_expires_at
@@ -77,6 +81,8 @@ import {
   type RedisTestLease,
 } from '#/shared/testing/redis-test-lease'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
 import { createOutboxRepository } from '#/shared/outbox/infrastructure/outbox-repository'
 import { createOutboxRelay } from '#/shared/outbox/relay'
@@ -578,7 +584,7 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
     await db.execute(sql`DELETE FROM reviews WHERE organization_id = ${ORG_C}`)
     await db.execute(sql`DELETE FROM google_connections WHERE organization_id = ${ORG_C}`)
     await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG_C}`)
-    await db.execute(sql`DELETE FROM organization WHERE id = ${ORG_C}`)
+    await deleteTestOrganizations(db, [ORG_C])
   }
 
   beforeAll(async () => {
@@ -632,8 +638,8 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
 
   it('ambiguous 5xx retries only after targeted absence; the final ambiguity is durable and never falls back', async () => {
     if (!redisAvailable) return
-    const reviewRepo = createReviewRepository(db)
-    const replyRepo = createReplyRepository(db)
+    const reviewRepo = createReviewRepository(db, () => new Date())
+    const replyRepo = createReplyRepository(db, () => new Date())
     const savedReview = await reviewRepo.upsert(makeReviewC(), NOW_C)
     expect(savedReview).toMatchObject({ sourceEpoch: 0, sourceRevision: 1 })
     const pendingReply = await replyRepo.upsert(makeReplyC(), NOW_C)
@@ -643,6 +649,7 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
     const replyCommandStore = createAtomicReplyCommandStore(
       db,
       silentEvents,
+      () => new Date(),
       async () => true,
     )
     const authorizedReply = await replyCommandStore.markPublicationAuthorized(
@@ -703,6 +710,7 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       listReviewsPage: async () => ({
         reviews: [],
         totalReviewCount: 0,
+        averageRating: null,
         nextCursorRef: null,
       }),
       getReview: async () => ({
@@ -734,6 +742,7 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
       googleReplyObservationStore: createGoogleReplyObservationStore(db, silentEvents),
       replyCommandStore,
       clock: () => PROVIDER_OBSERVED_AT_C,
+      logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
       idGen: () => replyId('4d000000-0000-0000-0000-000000000099'),
       staffPublicApi: {} as unknown as StaffPublicApi,
     })
@@ -785,7 +794,9 @@ describe('(c) provider (GBP) down (BQC-4.6)', () => {
     // Every call hit the cell's ONE provider binding — no alternate provider,
     // endpoint, or region was ever invoked (4.3: nothing to fall back to).
     expect(replyToReview).toHaveBeenCalledTimes(3)
-    const bindings = new Set(replyToReview.mock.calls.map((call) => call[1] as string))
+    const bindings = new Set(
+      replyToReview.mock.calls.map((call) => call[0].connectionId as string),
+    )
     expect(bindings).toEqual(new Set([CONN_C as string]))
 
     // The 3.6 dead-letter envelope holds the exhausted job: no policyReason
@@ -866,7 +877,10 @@ describe('(e) resume/reconcile in-cell (BQC-4.6)', () => {
       loadPropertyRouting: async () => {
         if (!dbUp)
           throw new Error('connect ECONNREFUSED 127.0.0.1:5432 — database unreachable')
-        return { processingRegion: 'us', routingPolicyVersion: 2 }
+        return {
+          processingRegion: 'us',
+          routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
+        }
       },
     })
     const { dispatch, handler } = gatedSyncDispatch(QUEUE_E, QUAR_E, router)
@@ -924,42 +938,41 @@ describe('(e) resume/reconcile in-cell (BQC-4.6)', () => {
   })
 })
 
-// ── (f) Denied (unrouted) region property (the §4.6 repeat) ──────────
+// ── (f) Unapproved persisted cell fact (the §4.6 repeat) ────────────
 
 const ORG_F = 'org-bqc46-faults-ff000001'
-const PROP_EU = '4e000000-0000-0000-0000-000000000001'
+const PROP_UNAPPROVED = '4e000000-0000-0000-0000-000000000001'
 
-describe('(f) denied region property (BQC-4.6 repeat)', () => {
+describe('(f) unapproved persisted cell fact (BQC-4.6 repeat)', () => {
   beforeAll(async () => {
     await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG_F}`)
-    await db.execute(sql`DELETE FROM organization WHERE id = ${ORG_F}`)
+    await deleteTestOrganizations(db, [ORG_F])
     await db.execute(sql`
       INSERT INTO organization (id, name, slug, "createdAt")
       VALUES (${ORG_F}, 'BQC46 Faults F', 'bqc46-faults-f', NOW())
     `)
     await db.execute(sql`
       INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
-      VALUES (${PROP_EU}, ${ORG_F}, 'BQC46 Unrouted Property', 'bqc46-prop-eu', 'UTC', NOW(), NOW())
+      VALUES (${PROP_UNAPPROVED}, ${ORG_F}, 'BQC46 Unrouted Property', 'bqc46-prop-unapproved', 'UTC', NOW(), NOW())
     `)
-    // The approved cell serves us/europe/global; a region with no target in
-    // CELL_TARGETS is what must fail closed.
+    // An unknown compatibility value has no catalogue target and must fail closed.
     await db.execute(sql`
       UPDATE properties
       SET processing_region = 'ap-southeast-2', processing_region_source = 'country_default',
           routing_policy_version = 1, processing_region_resolved_at = NOW(),
           country_code = 'AU', country_source = 'google_address'
-      WHERE id = ${PROP_EU}
+      WHERE id = ${PROP_UNAPPROVED}
     `)
   })
 
   afterAll(async () => {
     await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG_F}`)
-    await db.execute(sql`DELETE FROM organization WHERE id = ${ORG_F}`)
+    await deleteTestOrganizations(db, [ORG_F])
   })
 
   stubPolicyAllow()
 
-  it('the 4.2 gate quarantines with routing_blocked:region_denied, the handler never runs, and a redrive without a region approval blocks again', async () => {
+  it('the 4.2 gate quarantines with routing_blocked:region_denied, the handler never runs, and a redrive without an approved catalogue target blocks again', async () => {
     if (!redisAvailable) return
     // The REAL production wiring: drizzle adapter → ProcessingRouter.
     const router = createProcessingRouter({
@@ -969,7 +982,7 @@ describe('(f) denied region property (BQC-4.6 repeat)', () => {
 
     await q(QUEUE_F).add(
       'sync-property-reviews',
-      { propertyId: PROP_EU, organizationId: ORG_F },
+      { propertyId: PROP_UNAPPROVED, organizationId: ORG_F },
       { jobId: 'bqc46-f-1' },
     )
     const [job] = await q(QUEUE_F).getJobs(['waiting'])
@@ -987,13 +1000,14 @@ describe('(f) denied region property (BQC-4.6 repeat)', () => {
     )
     expect(entries[0]!.envelope.originalQueue).toBe(QUEUE_F)
     expect(entries[0]!.envelope.data).toMatchObject({
-      propertyId: PROP_EU,
+      propertyId: PROP_UNAPPROVED,
       organizationId: ORG_F,
     })
     expect(handler).not.toHaveBeenCalled()
 
-    // Redrivable in principle (an operator would do this after a region
-    // approval): the job moves back onto its original queue with metadata.
+    // Redrivable in principle (an operator would do this after an accepted
+    // catalogue revision and row reconciliation): the job returns to its
+    // original queue with metadata.
     const redrive = createRedriveJob(q(QUAR_F), (name) =>
       name === QUEUE_F ? q(QUEUE_F) : undefined,
     )
@@ -1001,8 +1015,8 @@ describe('(f) denied region property (BQC-4.6 repeat)', () => {
     expect(redriven.redriven).toBe(true)
     expect(await listQuarantinedJobs(q(QUAR_F))).toHaveLength(0)
 
-    // The region was NOT approved (unchanged in the database): the second
-    // dispatch blocks again — no silent override, no fallback to the US cell.
+    // The persisted fact is unchanged: the second dispatch blocks again — no
+    // silent rewrite and no implicit selection of the accepting US cell.
     const waiting = await q(QUEUE_F).getJobs(['waiting'])
     const reJob = waiting.find(
       (candidate) =>

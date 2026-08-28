@@ -7,6 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { Pool } from 'pg'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   planScaleDataset,
   loadScaleDataset,
@@ -14,6 +15,7 @@ import {
   cleanScaleDataset,
   createManifest,
 } from '#/shared/testing/scale-dataset'
+import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 
 const SEED = 'bqc81-integration'
 const SHAPE = { orgs: 2, properties: 20, reviews: 500 }
@@ -36,8 +38,11 @@ async function insertSentinel(): Promise<void> {
     [SENTINEL_ORG, 'Sentinel Org', 'sentinel-org-bqc81', BASE_TIME],
   )
   await pool.query(
-    `INSERT INTO properties (id, organization_id, name, slug, timezone, country_code, processing_region)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING`,
+    `INSERT INTO properties (
+       id, organization_id, name, slug, timezone, country_code,
+       processing_region, data_cell_id, routing_policy_version
+     )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $8) ON CONFLICT DO NOTHING`,
     [
       SENTINEL_PROPERTY,
       SENTINEL_ORG,
@@ -46,6 +51,7 @@ async function insertSentinel(): Promise<void> {
       'America/New_York',
       'US',
       'us',
+      DATA_CELL_CATALOGUE_POLICY_VERSION,
     ],
   )
   await pool.query(
@@ -71,7 +77,7 @@ async function insertSentinel(): Promise<void> {
 async function removeSentinel(): Promise<void> {
   await pool.query(`DELETE FROM reviews WHERE id = $1`, [SENTINEL_REVIEW])
   await pool.query(`DELETE FROM properties WHERE id = $1`, [SENTINEL_PROPERTY])
-  await pool.query(`DELETE FROM organization WHERE id = $1`, [SENTINEL_ORG])
+  await deleteTestOrganizations(pool, [SENTINEL_ORG])
 }
 
 async function sentinelCounts(): Promise<{

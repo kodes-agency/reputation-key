@@ -69,7 +69,9 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await dbLease.pool.query('DELETE FROM outbox_events WHERE id = $1', [FACT_ID])
-  await dbLease.pool.query('DELETE FROM activity_log WHERE id = $1', [ACTIVITY_ID])
+  await dbLease.pool.query('DELETE FROM recent_activity_entries WHERE id = $1', [
+    ACTIVITY_ID,
+  ])
   await dbLease.pool.query(`
     UPDATE identity_invitation_fact_contract
     SET issuance_version = 1, generation = generation + 1,
@@ -112,7 +114,7 @@ describe('identity invitation fact cutover against real retained stores', () => 
       [FACT_ID],
     )
     await dbLease.pool.query(
-      `INSERT INTO activity_log (
+      `INSERT INTO recent_activity_entries (
          id, actor_id, actor_name, actor_role, action, resource_type,
          resource_id, organization_id, payload, source
        ) VALUES (
@@ -141,7 +143,7 @@ describe('identity invitation fact cutover against real retained stores', () => 
       sourceContext: 'identity',
       sourceAggregateId: 'invitation-1',
     }
-    await defaultQueue.add('insert-activity-log', activityData, {
+    await defaultQueue.add('project-recent-activity', activityData, {
       jobId: 'activity-live',
     })
     const liveEvent = await domainQueue.add('identity.member.invited', eventData, {
@@ -164,11 +166,11 @@ describe('identity invitation fact cutover against real retained stores', () => 
     })
     await liveEvent.log(`processor retained ${SECRET}`)
     await quarantineQueue.add(
-      'insert-activity-log',
+      'project-recent-activity',
       {
         originalQueue: 'default',
         originalJobId: 'activity-failed',
-        jobName: 'insert-activity-log',
+        jobName: 'project-recent-activity',
         data: activityData,
         failedReason: `SyntheticFailure: ${SECRET}`,
         attemptsMade: 3,
@@ -243,7 +245,7 @@ describe('identity invitation fact cutover against real retained stores', () => 
       payload: Record<string, unknown>
     }>('SELECT event_version, payload FROM outbox_events WHERE id = $1', [FACT_ID])
     const activity = await dbLease.pool.query<{ payload: Record<string, unknown> }>(
-      'SELECT payload FROM activity_log WHERE id = $1',
+      'SELECT payload FROM recent_activity_entries WHERE id = $1',
       [ACTIVITY_ID],
     )
     expect(fact.rows[0]!.event_version).toBe(2)

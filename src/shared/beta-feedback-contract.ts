@@ -19,6 +19,57 @@ const optionalDetailSchema = z
 const routePathSchema = z.string().min(1).max(2_048)
 const viewportSchema = z.enum(['compact', 'regular', 'wide'])
 
+export const BETA_FEEDBACK_ATTACHMENT_RETENTION_DAYS = 30
+export const MASKED_LAYOUT_GRID_WIDTH = 64
+export const MASKED_LAYOUT_MAX_BLOCKS = 96
+
+const maskedLayoutBlockSchema = z
+  .object({
+    kind: z.enum(['surface', 'text', 'input', 'image', 'media']),
+    x: z
+      .int()
+      .min(0)
+      .max(MASKED_LAYOUT_GRID_WIDTH - 1),
+    y: z
+      .int()
+      .min(0)
+      .max(MASKED_LAYOUT_GRID_WIDTH - 1),
+    width: z.int().min(1).max(MASKED_LAYOUT_GRID_WIDTH),
+    height: z.int().min(1).max(MASKED_LAYOUT_GRID_WIDTH),
+  })
+  .strict()
+
+/**
+ * A visual wireframe, never a pixel screenshot. The browser reports only
+ * quantized rectangle geometry and a closed semantic kind; the server owns
+ * rendering, so text, input values, images, and media cannot be smuggled in.
+ */
+export const maskedLayoutSnapshotSchema = z
+  .object({
+    profile: z.literal('masked-layout-v1'),
+    consented: z.literal(true),
+    gridWidth: z.literal(MASKED_LAYOUT_GRID_WIDTH),
+    gridHeight: z.int().min(24).max(MASKED_LAYOUT_GRID_WIDTH),
+    blocks: z.array(maskedLayoutBlockSchema).min(1).max(MASKED_LAYOUT_MAX_BLOCKS),
+  })
+  .strict()
+  .superRefine((snapshot, ctx) => {
+    for (const [index, block] of snapshot.blocks.entries()) {
+      if (
+        block.x + block.width > snapshot.gridWidth ||
+        block.y + block.height > snapshot.gridHeight
+      ) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Masked layout block must fit inside the declared grid.',
+          path: ['blocks', index],
+        })
+      }
+    }
+  })
+
+export type MaskedLayoutSnapshot = z.infer<typeof maskedLayoutSnapshotSchema>
+
 const sharedFields = {
   title: titleSchema,
   routePath: routePathSchema,
@@ -33,8 +84,18 @@ export const bugBetaFeedbackInputSchema = z
     actual: detailSchema,
     steps: optionalDetailSchema,
     impact: z.enum(['cannot_complete', 'workaround_available', 'small_issue']),
+    attachment: maskedLayoutSnapshotSchema.optional(),
   })
   .strict()
+  .superRefine((input, ctx) => {
+    if (input.attachment && !isBetaFeedbackAttachmentAllowed(input.routePath)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'A masked layout preview is unavailable on this page.',
+        path: ['attachment'],
+      })
+    }
+  })
 
 export const suggestionBetaFeedbackInputSchema = z
   .object({
@@ -145,6 +206,35 @@ export function classifyBetaFeedbackViewport(width: number): BetaFeedbackViewpor
   if (width < 640) return 'compact'
   if (width < 1_280) return 'regular'
   return 'wide'
+}
+
+const ATTACHMENT_ALLOWED_ROUTES: ReadonlySet<BetaFeedbackRouteKey> = new Set([
+  'home',
+  'dashboard',
+  'leaderboard',
+  'progress',
+  'properties.list',
+  'properties.property.overview',
+  'properties.property.goals.list',
+  'properties.property.goals.new',
+  'properties.property.goals.detail',
+  'properties.property.portals.list',
+  'settings.overview',
+  'settings.ai',
+  'settings.members',
+  'settings.notifications',
+  'settings.organization',
+  'settings.preferences',
+  'settings.recognition',
+])
+
+/**
+ * Defence in depth around the content-free renderer. Provider content,
+ * inbox/private feedback, credentials, uploads, and unknown routes remain
+ * ineligible even though the snapshot itself contains no pixels or text.
+ */
+export function isBetaFeedbackAttachmentAllowed(path: string): boolean {
+  return ATTACHMENT_ALLOWED_ROUTES.has(classifyBetaFeedbackRoute(path))
 }
 
 /** Build the sole free-text payload sent to the feedback provider. */

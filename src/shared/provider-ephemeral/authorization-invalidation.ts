@@ -6,6 +6,8 @@ const DEDUPE_TTL_SECONDS = 86_400
 const PROCESSING_LEASE_MS = 30_000
 const OWNER = /^[A-Za-z0-9_-]{43}$/
 const HANDLER_ID = /^[a-z][a-z0-9_-]{0,63}$/
+export const PROVIDER_AUTHORIZATION_INVALIDATION_HANDLER_SET_VERSION =
+  'provider-authorization-invalidation-v1' as const
 
 const invalidationSchema = z
   .object({
@@ -25,7 +27,9 @@ const invalidationSchema = z
 
 const markerSchema = z
   .object({
-    schemaVersion: z.literal(1),
+    schemaVersion: z.literal(2),
+    handlerSetVersion: z.literal(PROVIDER_AUTHORIZATION_INVALIDATION_HANDLER_SET_VERSION),
+    handlerSetSha256: z.string().regex(/^[a-f0-9]{64}$/),
     payloadSha256: z.string().regex(/^[a-f0-9]{64}$/),
     state: z.enum(['ready', 'processing', 'complete']),
     owner: z.string().regex(OWNER).nullable(),
@@ -40,14 +44,29 @@ export type ProviderAuthorizationInvalidation = Readonly<
 
 export type ProviderAuthorizationInvalidationHandler = Readonly<{
   id: string
+  /** Must be idempotent across a crash between effect and durable receipt. */
   invalidate: (event: ProviderAuthorizationInvalidation) => Promise<void>
+}>
+
+export type ProviderAuthorizationInvalidationReceipts = Readonly<{
+  hasReceipt: (eventId: string, consumerName: string) => Promise<boolean>
+  insertReceipt: (
+    eventId: string,
+    consumerName: string,
+    status: 'applied',
+  ) => Promise<void>
 }>
 
 export type ProviderAuthorizationInvalidationResult =
   | Readonly<{ ok: true; status: 'delivered' | 'duplicate' }>
   | Readonly<{
       ok: false
-      code: 'malformed' | 'payload_mismatch' | 'in_progress' | 'runtime_unavailable'
+      code:
+        | 'malformed'
+        | 'payload_mismatch'
+        | 'handler_set_mismatch'
+        | 'in_progress'
+        | 'runtime_unavailable'
     }>
 
 export type ProviderAuthorizationInvalidationFanout = Readonly<{
@@ -73,12 +92,22 @@ function sha256(value: string): string {
 }
 
 function dedupeKey(eventId: string): string {
-  return createHash('sha256').update(eventId, 'utf8').digest('base64url')
+  return createHash('sha256')
+    .update(PROVIDER_AUTHORIZATION_INVALIDATION_HANDLER_SET_VERSION, 'utf8')
+    .update('\0', 'utf8')
+    .update(eventId, 'utf8')
+    .digest('base64url')
+}
+
+function handlerReceiptName(handlerId: string): string {
+  return `${PROVIDER_AUTHORIZATION_INVALIDATION_HANDLER_SET_VERSION}.${handlerId}`
 }
 
 export function createProviderAuthorizationInvalidationFanout(
   deps: Readonly<{
     store: ProviderEphemeralStore
+    /** Durable authority; eventId must identify the source outbox row. */
+    receipts: ProviderAuthorizationInvalidationReceipts
     handlers: readonly ProviderAuthorizationInvalidationHandler[]
     randomOwner: () => string
     ensureRuntimeReady?: () => Promise<void>
@@ -86,12 +115,14 @@ export function createProviderAuthorizationInvalidationFanout(
 ): ProviderAuthorizationInvalidationFanout {
   const ids = deps.handlers.map((handler) => handler.id)
   if (
+    ids.length === 0 ||
     ids.length > 32 ||
     ids.some((id) => !HANDLER_ID.test(id)) ||
     new Set(ids).size !== ids.length
   ) {
     throw new Error('provider authorization invalidation handlers are invalid')
   }
+  const handlerSetSha256 = sha256(JSON.stringify([...ids].sort()))
 
   return Object.freeze({
     dispatch: async (candidate, nowMs) => {
@@ -117,7 +148,9 @@ export function createProviderAuthorizationInvalidationFanout(
       let observed: string
       try {
         const initial = markerSchema.parse({
-          schemaVersion: 1,
+          schemaVersion: 2,
+          handlerSetVersion: PROVIDER_AUTHORIZATION_INVALIDATION_HANDLER_SET_VERSION,
+          handlerSetSha256,
           payloadSha256,
           state: 'ready',
           owner: null,
@@ -153,6 +186,9 @@ export function createProviderAuthorizationInvalidationFanout(
       if (marker.payloadSha256 !== payloadSha256) {
         return { ok: false, code: 'payload_mismatch' }
       }
+      if (marker.handlerSetSha256 !== handlerSetSha256) {
+        return { ok: false, code: 'handler_set_mismatch' }
+      }
       if (marker.state === 'complete') return { ok: true, status: 'duplicate' }
       if (
         marker.state === 'processing' &&
@@ -179,10 +215,20 @@ export function createProviderAuthorizationInvalidationFanout(
         )
         if (acquired !== 'replaced') return { ok: false, code: 'in_progress' }
 
+        let deliveredHandler = false
         for (const handler of deps.handlers) {
           if (owned.completedHandlerIds.includes(handler.id)) continue
+          const consumerName = handlerReceiptName(handler.id)
           try {
-            await handler.invalidate(event)
+            const alreadyDelivered = await deps.receipts.hasReceipt(
+              event.eventId,
+              consumerName,
+            )
+            if (!alreadyDelivered) {
+              await handler.invalidate(event)
+              await deps.receipts.insertReceipt(event.eventId, consumerName, 'applied')
+              deliveredHandler = true
+            }
           } catch {
             const released = markerSchema.parse({
               ...owned,
@@ -232,7 +278,10 @@ export function createProviderAuthorizationInvalidationFanout(
           DEDUPE_TTL_SECONDS,
         )
         return finalized === 'replaced'
-          ? { ok: true, status: 'delivered' }
+          ? {
+              ok: true,
+              status: deliveredHandler ? 'delivered' : 'duplicate',
+            }
           : { ok: false, code: 'in_progress' }
       } catch {
         return { ok: false, code: 'runtime_unavailable' }

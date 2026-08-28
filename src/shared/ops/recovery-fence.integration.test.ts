@@ -189,8 +189,14 @@ describe('restore recovery fence (REG-04, integration)', () => {
         const before = await inspectRecoveryFence(transaction)
         expect(before.outboxEventsFenced).toBeGreaterThanOrEqual(1)
 
+        const generationResult = await transaction.execute(sql`
+          SELECT COALESCE(MAX(generation), 0)::int + 1 AS generation
+          FROM recovery_runs WHERE data_cell_id = 'us'
+        `)
         const input = {
           dataCellId: 'us' as const,
+          runId: '10000000-0000-4000-8000-000000000901',
+          generation: Number(generationResult.rows[0]?.generation),
           sourceReleaseSha: 'a'.repeat(40),
           sourceManifestSha256: 'b'.repeat(64),
           restorePointAt: new Date(Date.now() - 60_000),
@@ -326,7 +332,19 @@ describe('restore recovery fence (REG-04, integration)', () => {
             ...input,
             sourceReleaseSha: 'c'.repeat(40),
           }),
-        ).rejects.toThrow(/source release conflicts/)
+        ).rejects.toThrow(/identity, generation, or source binding conflicts/)
+        await expect(
+          applyRecoveryFence(transaction, {
+            ...input,
+            operatorId: 'different-operator@example.com',
+          }),
+        ).rejects.toThrow(/identity, generation, or source binding conflicts/)
+        await expect(
+          applyRecoveryFence(transaction, {
+            ...input,
+            dataCellId: 'global',
+          }),
+        ).rejects.toThrow(/identity, generation, or source binding conflicts/)
 
         proofCompleted = true
         throw ROLLBACK
@@ -363,6 +381,15 @@ describe('restore recovery fence (REG-04, integration)', () => {
         await expect(
           applyRecoveryFence(transaction, {
             dataCellId: 'us',
+            runId: '10000000-0000-4000-8000-000000000902',
+            generation: Number(
+              (
+                await transaction.execute(sql`
+                  SELECT COALESCE(MAX(generation), 0)::int + 1 AS generation
+                  FROM recovery_runs WHERE data_cell_id = 'us'
+                `)
+              ).rows[0]?.generation,
+            ),
             sourceReleaseSha: 'e'.repeat(40),
             sourceManifestSha256: 'f'.repeat(64),
             restorePointAt: new Date(Date.now() - 60_000),

@@ -1,8 +1,13 @@
 import { GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION } from '#/shared/google-provider-control/contracts'
+import { GOOGLE_CONTENT_EXECUTION_POLICY_VERSION } from '#/shared/domain/google-content-authorization-vector'
+
+export { GOOGLE_CONTENT_EXECUTION_POLICY_VERSION }
 
 export const GOOGLE_CONTENT_CAPABILITIES = [
   'property.import_gbp_v2',
   'property.read_gbp_performance',
+  'property.connect_gbp',
+  'property.publish_reply',
 ] as const
 export type GoogleContentCapability = (typeof GOOGLE_CONTENT_CAPABILITIES)[number]
 export function isGoogleContentCapability(
@@ -12,7 +17,6 @@ export function isGoogleContentCapability(
 }
 
 export const GOOGLE_CONTENT_CAPABILITY_POLICY_VERSION = 'beta-local-2' as const
-export const GOOGLE_CONTENT_EXECUTION_POLICY_VERSION = 'beta-local-2' as const
 export const GOOGLE_CONTENT_POLICY_VERSION = 'google-content-live-1' as const
 export const GOOGLE_OAUTH_CONTRACT_VERSION = 'google-oauth-oidc-1' as const
 export const GOOGLE_CONTENT_RUNTIME_ISOLATION_PROFILE_VERSION =

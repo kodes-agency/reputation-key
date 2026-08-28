@@ -9,6 +9,10 @@ import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import type { OrganizationId } from '#/shared/domain/ids'
 import {
+  deleteTestOrganizationsWithExecutor,
+  type TestOrganizationCleanupExecutor,
+} from '#/shared/db/testing/test-organization-cleanup'
+import {
   acquireTestLease,
   validateTestDatabaseUrl,
   TestEnvironmentError,
@@ -28,6 +32,22 @@ export async function truncateTables(
   for (const table of tables) {
     await pool.query(`DELETE FROM ${table} WHERE organization_id = ANY($1)`, [orgIds])
   }
+}
+
+/**
+ * Delete disposable Organization fixtures after their context-owned children.
+ *
+ * Production deliberately retains lifecycle authority and evidence after a
+ * physical Better Auth Organization deletion, so the provisioning trigger
+ * rejects identifier resurrection. Integration fixtures are the one place
+ * where reusing a known Organization id is valid. Keeping this exception in
+ * shared testing code prevents ad-hoc production-like tombstone deletion.
+ */
+export async function deleteTestOrganizations(
+  executor: TestOrganizationCleanupExecutor,
+  organizationIds: readonly string[],
+): Promise<void> {
+  await deleteTestOrganizationsWithExecutor(executor, organizationIds)
 }
 
 export async function seedOrgs(pool: Pool, ids: string[]): Promise<void> {
@@ -62,7 +82,13 @@ export function setupIntegrationDb(options: {
   })
 
   afterAll(async () => {
-    await lease?.release()
+    try {
+      if (lease) {
+        await truncateTables(lease.pool, tables, [orgA, orgB])
+      }
+    } finally {
+      await lease?.release()
+    }
   })
 
   beforeEach(async () => {

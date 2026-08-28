@@ -41,7 +41,7 @@ const bindingBase = (): Omit<GoogleContentApprovalBinding, 'evidenceIndexSha256'
   railwayClosedBetaCohortSha256: null,
   railwayClosedBetaResidualRiskSha256: null,
   performanceCatalogVersion: '2026-08-05',
-  routeCatalogueVersion: '2026-08-16',
+  routeCatalogueVersion: GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION,
   capabilityPolicyVersion: 'beta-local-2',
   executionPolicyVersion: 'beta-local-2',
   migrationHead: '0029_google-content-control',

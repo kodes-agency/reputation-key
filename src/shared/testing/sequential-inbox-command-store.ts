@@ -18,6 +18,12 @@ import type {
   ApplyReceiptStatus,
   InboxCommandStore,
 } from '#/contexts/inbox/application/ports/inbox-command-store.port'
+import {
+  inboxBulkAssignmentCompleted,
+  inboxItemAssigned,
+  inboxItemStatusChanged,
+  inboxItemUnassigned,
+} from '#/contexts/inbox/domain/events'
 
 /** Post-commit emit, failure-isolated — same contract as the atomic store. */
 async function emitAfterCommit(events: EventBus, event: DomainEvent): Promise<void> {
@@ -57,6 +63,7 @@ export function createSequentialInboxCommandStore(deps: {
 
   return {
     releaseAssignmentsForUser: async () => ({ released: 0 }),
+    releaseIneligibleAssignmentsForUser: async () => ({ released: 0 }),
     createItem: async (item, event) => {
       const existing = await deps.repo.findBySource(
         item.sourceType,
@@ -81,18 +88,97 @@ export function createSequentialInboxCommandStore(deps: {
       return saved
     },
 
-    bulkUpdateStatus: async (items, perItemEvents) => {
-      const first = perItemEvents[0]
-      if (!first || items.length === 0) return { updated: 0 }
-      const result = await deps.repo.bulkUpdateStatus(
-        items.map((item) => item.id),
-        items[0]!.organizationId,
-        first.newStatus,
-        timestampFieldsForStatus(first.newStatus, first.occurredAt),
-        first.occurredAt,
+    reopenReviewCycle: async (command) => {
+      const saved = await deps.repo.updateStatus(
+        command.item.id,
+        command.item.organizationId,
+        'open',
+        { closedAt: null },
+        command.now,
       )
-      for (const event of perItemEvents) await recordAndEmit(event)
-      return result
+      await recordAndEmit(command.fact)
+      return saved
+    },
+
+    bulkUpdateStatus: async (items, perItemEvents, _governance) => {
+      const first = perItemEvents[0]
+      if (!first || items.length === 0) return { updated: 0, results: [] }
+      const results = []
+      for (const [index, item] of items.entries()) {
+        const event = perItemEvents[index]
+        if (!event) continue
+        await deps.repo.updateStatus(
+          item.id,
+          item.organizationId,
+          event.newStatus,
+          timestampFieldsForStatus(event.newStatus, event.occurredAt),
+          event.occurredAt,
+        )
+        await recordAndEmit(event)
+        results.push({ inboxItemId: item.id, outcome: 'reopened' as const })
+      }
+      return { updated: results.length, results }
+    },
+
+    bulkAssign: async (command) => {
+      const results = []
+      const transitions = []
+      for (const item of command.items) {
+        if (item.assignedTo === command.assignedTo) {
+          results.push({ inboxItemId: item.id, outcome: 'unchanged' as const })
+          continue
+        }
+        await deps.repo.updateAssignment(
+          item.id,
+          item.organizationId,
+          command.assignedTo,
+          command.occurredAt,
+        )
+        const fact = command.assignedTo
+          ? inboxItemAssigned({
+              inboxItemId: item.id,
+              organizationId: item.organizationId,
+              propertyId: item.propertyId,
+              userId: command.actorId,
+              assignedTo: command.assignedTo,
+              bulkId: command.bulkId,
+              occurredAt: command.occurredAt,
+            })
+          : inboxItemUnassigned({
+              inboxItemId: item.id,
+              organizationId: item.organizationId,
+              propertyId: item.propertyId,
+              userId: command.actorId,
+              previousAssignee: item.assignedTo!,
+              bulkId: command.bulkId,
+              occurredAt: command.occurredAt,
+            })
+        await recordAndEmit(fact)
+        const outcome =
+          command.assignedTo === null
+            ? ('released' as const)
+            : item.assignedTo === null
+              ? ('assigned' as const)
+              : ('reassigned' as const)
+        results.push({ inboxItemId: item.id, outcome })
+        transitions.push({
+          inboxItemId: item.id,
+          propertyId: item.propertyId,
+          previousAssignee: item.assignedTo,
+          nextAssignee: command.assignedTo,
+        })
+      }
+      if (transitions.length > 0) {
+        const completed = inboxBulkAssignmentCompleted({
+          organizationId: command.items[0]!.organizationId,
+          userId: command.actorId,
+          bulkId: command.bulkId,
+          transitions,
+          occurredAt: command.occurredAt,
+        })
+        await recordAndEmit(completed)
+      }
+      return { updated: transitions.length, results }
     },
 
     assign: async (item, updates, event, now) => {
@@ -128,8 +214,17 @@ export function createSequentialInboxCommandStore(deps: {
       return saved
     },
 
-    addNote: async (note, event) => {
+    addNote: async (item, note, event) => {
       if (!deps.noteRepo) throw new Error('noteRepo is required for addNote')
+      // The production transaction advances the item's optimistic-concurrency
+      // fence before inserting the note. Reuse the repository's assignment
+      // update as a browser-safe touch while preserving the assignee value.
+      await deps.repo.updateAssignment(
+        item.id,
+        item.organizationId,
+        item.assignedTo,
+        note.createdAt,
+      )
       const saved = await deps.noteRepo.create(note, note.organizationId)
       await recordAndEmit(event)
       return saved
@@ -151,23 +246,53 @@ export function createSequentialInboxCommandStore(deps: {
       return 'applied'
     },
 
-    applyReviewExpiredOnce: async (command) => {
-      const current = await deps.repo.findById(
-        command.item.id,
+    applyReviewProjectionOnce: async (command) => {
+      let current = await deps.repo.findBySource(
+        'review',
+        command.item.sourceId as string,
         command.item.organizationId,
       )
-      if (current && current.status === command.item.status) {
-        await deps.repo.updateStatus(
-          command.item.id,
-          command.item.organizationId,
-          command.fact.newStatus,
-          { closedAt: command.now },
-          command.now,
-        )
+      const created = current === null
+      if (!current) {
+        current = await deps.repo.create(command.item, command.item.organizationId)
         await recordAndEmit(command.fact)
       }
-      await receipt(command.eventId, command.consumerName, 'applied')
-      return 'applied'
+      await deps.repo.updateSourceMeta(
+        current.id,
+        current.organizationId,
+        {
+          sourceDate: command.projection.sourceDate,
+          platform: command.projection.platform,
+        },
+        command.now,
+      )
+      if (
+        command.projection.sourceContentState !== 'active' &&
+        current.status === 'open' &&
+        command.projection.sourceContentErasedAt instanceof Date
+      ) {
+        await deps.repo.updateStatus(
+          current.id,
+          current.organizationId,
+          'closed',
+          { closedAt: command.projection.sourceContentErasedAt },
+          command.now,
+        )
+        await recordAndEmit(
+          inboxItemStatusChanged({
+            inboxItemId: current.id,
+            organizationId: current.organizationId,
+            propertyId: current.propertyId,
+            oldStatus: 'open',
+            newStatus: 'closed',
+            occurredAt: command.projection.sourceContentErasedAt,
+          }),
+        )
+      }
+      const outcome =
+        command.eventKind === 'created' && !created ? 'duplicate' : 'applied'
+      await receipt(command.eventId, command.consumerName, outcome)
+      return outcome
     },
 
     applySourceWithdrawnOnce: async (command) => {
@@ -196,6 +321,32 @@ export function createSequentialInboxCommandStore(deps: {
         { sourceDate: command.sourceDate, platform: command.platform },
         command.now,
       )
+      await receipt(command.eventId, command.consumerName, 'applied')
+      return 'applied'
+    },
+
+    applyReviewSourceTransitionedOnce: async (command) => {
+      const current = await deps.repo.findById(
+        command.item.id,
+        command.item.organizationId,
+      )
+      if (current?.sourceType === 'review') {
+        if (command.closeIfOpen && current.status === 'open') {
+          await deps.repo.updateStatus(
+            current.id,
+            current.organizationId,
+            'closed',
+            { closedAt: command.transitionedAt },
+            command.transitionedAt,
+          )
+          await recordAndEmit(command.closeFact)
+        }
+        await deps.repo.clearReviewSourceContent(
+          current.id,
+          current.organizationId,
+          command.transitionedAt,
+        )
+      }
       await receipt(command.eventId, command.consumerName, 'applied')
       return 'applied'
     },

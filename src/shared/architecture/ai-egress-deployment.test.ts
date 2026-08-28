@@ -132,7 +132,10 @@ describe('PR5 AI egress deployment isolation', () => {
         }),
       }),
     )
-    expect(railway.deploy).not.toHaveProperty('healthcheckPath')
+    expect(railway.deploy).toMatchObject({
+      healthcheckPath: '/health/ready',
+      healthcheckTimeout: 30,
+    })
     expect(AI_GATEWAY_BUILD_ATTESTATION_V1.image).toMatchObject({
       initialReplicas: 1,
       postDrillReplicas: 2,

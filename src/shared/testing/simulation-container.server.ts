@@ -11,8 +11,12 @@
 // identityPort/email plus providers { googleOAuth, gbpApi, storage } (the
 // in-memory fakes in this directory) for a network-free simulation.
 
-import { createContainer, type Container, type ProviderOverrides } from '#/composition'
-import { bootstrap } from '#/bootstrap'
+import {
+  createContainer,
+  type ProviderOverrides,
+  type SimulationContainer,
+} from '#/composition'
+import { bootstrap, createBootstrapRuntimeConfig } from '#/bootstrap'
 import { createInMemoryQueue, type InMemoryQueue } from './in-memory-queue'
 import type { Clock } from '#/shared/domain/clock'
 import type { Database } from '#/shared/db'
@@ -20,13 +24,14 @@ import type { Redis } from 'ioredis'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { IdentityPort } from '#/contexts/identity/application/ports/identity.port'
 import type { sendInvitationEmail as SendInvitationEmail } from '#/shared/auth/emails'
+import { getEnv, type Env } from '#/shared/config/env'
 
 export type SimulationContainerOptions = {
   /** Controllable clock — advance it to trigger time-dependent jobs. */
   clock?: Clock
   /** Override the DB (ephemeral isolation). Defaults to the prod singleton. */
   db?: Database
-  /** Override Redis. Pass undefined to skip Redis entirely. */
+  /** Override Redis. Omit the option to use ambient Redis; pass undefined to skip it. */
   redis?: Redis
   /** Override the event bus. Defaults to a fresh real bus (handlers fire). */
   eventBus?: EventBus
@@ -37,10 +42,12 @@ export type SimulationContainerOptions = {
   /** Override external provider adapters (BQC-6.1: in-memory googleOAuth /
    * gbpApi / storage for a network-free simulation). */
   providers?: ProviderOverrides
+  /** Validated process configuration override for deterministic simulations. */
+  env?: Env
 }
 
 export type SimulationHandle = Readonly<{
-  container: Container
+  container: SimulationContainer
   /** The in-memory queue — inspect enqueuedJobs / processedJobs for assertions. */
   queue: InMemoryQueue
   /** Advance the simulation clock and trigger time-dependent jobs. */
@@ -52,6 +59,7 @@ export async function createSimulationContainer(
 ): Promise<SimulationHandle> {
   let currentTime = options?.clock ? options.clock() : new Date()
   const clock: Clock = () => currentTime
+  const env = options?.env ?? getEnv()
 
   // 1. Create in-memory queue (registry connected after bootstrap)
   const queue = createInMemoryQueue({ clock })
@@ -65,18 +73,27 @@ export async function createSimulationContainer(
     identityPort: options?.identityPort,
     email: options?.email,
     providers: options?.providers,
+    env,
     queue,
     enableJobs: true,
+    exposeSimulationRuntime: true,
   })
+  if (!container.simulationRuntime) {
+    throw new Error('Simulation mutation capabilities were not composed')
+  }
+  const simulationContainer = container as SimulationContainer
 
   // 3. Register all event handlers + job handlers
-  await bootstrap(container, { allowUnavailableGoogleImportV2Processor: true })
+  await bootstrap(simulationContainer, {
+    runtime: createBootstrapRuntimeConfig(env),
+    allowUnavailableGoogleImportV2Processor: true,
+  })
 
   // 4. Connect the queue to the registry so jobs process inline
-  queue.connectRegistry(container.jobRegistry)
+  queue.connectRegistry(simulationContainer.jobRegistry)
 
   return {
-    container,
+    container: simulationContainer,
     queue,
     advanceClock(ms: number) {
       currentTime = new Date(currentTime.getTime() + ms)

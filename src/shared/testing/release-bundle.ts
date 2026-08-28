@@ -38,9 +38,11 @@ export const REQUIRED_APPROVAL_ROLES = [
 ] as const
 
 /**
- * Local controlled-beta evidence is the executable BQC contract. Hosted
- * capacity/PITR/region/pilot checks remain explicitly post-beta until they
- * are run in their own environment.
+ * Local controlled-beta evidence is the executable historical BQC contract.
+ * It is candidate evidence only. Hosted capacity/PITR/region/provider/pilot
+ * checks are outside this local schema and remain mandatory, unproved REL-01
+ * gates until they run against the immutable candidate in their real
+ * environment.
  *
  * These two constants used to be maintained here AND in `#/shared/bqc/status-schema`
  * under permuted names -- `REQUIRED_BETA_LOCAL_GATE_IDS` here against

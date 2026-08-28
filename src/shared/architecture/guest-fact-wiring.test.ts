@@ -14,7 +14,10 @@ const responseLifecycle = readFileSync(
 describe('Guest durable fact wiring', () => {
   it('routes scan and link observations through the atomic observation store', () => {
     expect(build).toContain('createAtomicGuestObservationStore')
-    expect(build.match(/observationStore:\s*guestObservationStore/g)).toHaveLength(3)
+    expect(build.match(/observationStore:\s*guestObservationStore/g)).toHaveLength(2)
+    expect(build).toMatch(
+      /const trackClick = trackReviewLinkClick\([\s\S]*?resolveLinkAndTrack\(\{[\s\S]*?trackClick,/,
+    )
   })
 
   it('commits response state and facts through the atomic Guest command store', () => {

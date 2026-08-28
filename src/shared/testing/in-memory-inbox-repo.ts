@@ -15,6 +15,14 @@ const matchesSourceScopes = (
       (scope.propertyIds === undefined || scope.propertyIds.includes(item.propertyId)),
   )
 
+const nextCommandRevision = (item: InboxItem): number => {
+  const next = item.commandRevision + 1
+  if (!Number.isSafeInteger(next)) {
+    throw new Error('Inbox command revision is exhausted')
+  }
+  return next
+}
+
 export function createInMemoryInboxRepo(): InboxRepository & {
   items: InboxItem[]
   categories: Map<string, ReviewCategory>
@@ -114,35 +122,47 @@ export function createInMemoryInboxRepo(): InboxRepository & {
       items.push(item)
       return item
     },
-    updateStatus: async (id, orgId, status, timestampFields) => {
+    updateStatus: async (id, orgId, status, timestampFields, now) => {
       const item = items.find((i) => i.id === id && i.organizationId === orgId)
       if (!item) throw new Error('not found')
       const idx = items.indexOf(item)
       items[idx] = {
         ...item,
         status,
-        updatedAt: new Date(),
+        commandRevision: nextCommandRevision(item),
+        updatedAt: now ?? new Date(),
         ...timestampFields,
       }
       return items[idx]
     },
-    bulkUpdateStatus: async (ids, orgId, status, timestampFields) => {
+    bulkUpdateStatus: async (ids, orgId, status, timestampFields, now) => {
       let updated = 0
       for (const id of ids) {
         const item = items.find((i) => i.id === id && i.organizationId === orgId)
         if (item) {
           const idx = items.indexOf(item)
-          items[idx] = { ...item, status, updatedAt: new Date(), ...timestampFields }
+          items[idx] = {
+            ...item,
+            status,
+            commandRevision: nextCommandRevision(item),
+            updatedAt: now ?? new Date(),
+            ...timestampFields,
+          }
           updated++
         }
       }
       return { updated }
     },
-    updateAssignment: async (id, orgId, assignedTo) => {
+    updateAssignment: async (id, orgId, assignedTo, now) => {
       const item = items.find((i) => i.id === id && i.organizationId === orgId)
       if (!item) throw new Error('not found')
       const idx = items.indexOf(item)
-      items[idx] = { ...item, assignedTo, updatedAt: new Date() }
+      items[idx] = {
+        ...item,
+        assignedTo,
+        commandRevision: nextCommandRevision(item),
+        updatedAt: now ?? new Date(),
+      }
       return items[idx]
     },
     countByStatus: async (orgId, status, propertyIds, sourceScopes) =>
@@ -165,6 +185,7 @@ export function createInMemoryInboxRepo(): InboxRepository & {
         escalatedBy,
         escalationResolvedAt: null,
         escalationResolvedBy: null,
+        commandRevision: nextCommandRevision(item),
         updatedAt: stamp,
       }
       return items[idx]
@@ -179,6 +200,7 @@ export function createInMemoryInboxRepo(): InboxRepository & {
         isEscalated: false,
         escalationResolvedAt: stamp,
         escalationResolvedBy: resolvedBy,
+        commandRevision: nextCommandRevision(item),
         updatedAt: stamp,
       }
       return items[idx]
@@ -209,6 +231,23 @@ export function createInMemoryInboxRepo(): InboxRepository & {
         ...item,
         sourceDate: fields.sourceDate,
         platform: fields.platform,
+        commandRevision: nextCommandRevision(item),
+        updatedAt: now ?? new Date(),
+      }
+      return items[idx]
+    },
+    clearReviewSourceContent: async (id, orgId, now) => {
+      const item = items.find(
+        (i) => i.id === id && i.organizationId === orgId && i.sourceType === 'review',
+      )
+      if (!item) return null
+      const idx = items.indexOf(item)
+      items[idx] = {
+        ...item,
+        rating: null,
+        snippet: null,
+        reviewerName: null,
+        commandRevision: nextCommandRevision(item),
         updatedAt: now ?? new Date(),
       }
       return items[idx]

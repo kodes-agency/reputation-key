@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto'
-import { z } from 'zod/v4'
 import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 import {
   AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
@@ -8,39 +7,21 @@ import {
 } from './ai-reply-output-leakage'
 import { AI_STRUCTURED_MARKER_DETECTORS_DIGEST } from './ai-structured-marker-detectors'
 import { parseCanonicalReplyLanguageTag } from './ai-review-language-catalogue'
+import {
+  AI_PERSONALIZED_REPLY_LANGUAGES,
+  AI_PERSONALIZED_REPLY_PROFILE_VERSION,
+  personalizedReplyDraftOutputSchema,
+  type PersonalizedReplyDraft,
+  type PersonalizedReplyTone,
+} from './ai-personalized-reply-profile'
 
-/**
- * The first genuine-draft contract. It is deliberately separate from the
- * legacy template-selection profile: changing the meaning of that profile in
- * place would make old provenance indistinguishable from personalized output.
- */
-export const AI_PERSONALIZED_REPLY_PROFILE_VERSION = 'reply-draft-v1' as const
-
-export const AI_PERSONALIZED_REPLY_LANGUAGES = Object.freeze([
-  'en-Latn',
-  'bg-Cyrl',
-] as const)
-
-export type PersonalizedReplyTone = 'professional' | 'friendly' | 'casual'
-
-const groundingSchema = z
-  .object({
-    /** Exact excerpt from the current, redacted Review text. */
-    sourceExcerpt: z.string().trim().min(2).max(160),
-    /** Exact excerpt from the generated reply that the source supports. */
-    replyExcerpt: z.string().trim().min(2).max(160),
-  })
-  .strict()
-
-export const personalizedReplyDraftOutputSchema = z
-  .object({
-    languageCode: z.string().min(1).max(35),
-    replyText: z.string().trim().min(24).max(1_200),
-    grounding: z.array(groundingSchema).min(1).max(3),
-  })
-  .strict()
-
-export type PersonalizedReplyDraft = z.infer<typeof personalizedReplyDraftOutputSchema>
+export {
+  AI_PERSONALIZED_REPLY_LANGUAGES,
+  AI_PERSONALIZED_REPLY_PROFILE_VERSION,
+  personalizedReplyDraftOutputSchema,
+  type PersonalizedReplyDraft,
+  type PersonalizedReplyTone,
+} from './ai-personalized-reply-profile'
 
 export type PersonalizedReplyDraftInput = Readonly<{
   reviewText: string
@@ -48,6 +29,7 @@ export type PersonalizedReplyDraftInput = Readonly<{
   targetLanguageTag: string
   tone: PersonalizedReplyTone
   countryCode: string
+  brandDisplayName: string
   output: unknown
 }>
 
@@ -59,7 +41,7 @@ export type PersonalizedReplyDraftResult =
     }>
   | Readonly<{
       status: 'rejected'
-      reason: 'shape' | 'language' | 'grounding' | 'prohibited_content'
+      reason: 'shape' | 'language' | 'grounding' | 'brand' | 'prohibited_content'
     }>
 
 const PROHIBITED_REPLY_PATTERNS = Object.freeze([
@@ -76,6 +58,7 @@ const PROFILE_MANIFEST = Object.freeze({
   languages: AI_PERSONALIZED_REPLY_LANGUAGES,
   tones: Object.freeze(['professional', 'friendly', 'casual'] as const),
   grounding: Object.freeze({ min: 1, max: 3, exactSourceExcerpt: true }),
+  brandGrounding: Object.freeze({ exactPublicDisplayNameRequired: true }),
   replyText: Object.freeze({ min: 24, max: 1_200 }),
   outputLeakageProfileVersion: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
   outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
@@ -119,6 +102,15 @@ function hasValidGrounding(reviewText: string, draft: PersonalizedReplyDraft): b
   return true
 }
 
+function usesExactPublicDisplayNameOnce(
+  replyText: string,
+  brandDisplayName: string,
+): boolean {
+  if (brandDisplayName.length === 0) return false
+  const first = replyText.indexOf(brandDisplayName)
+  return first >= 0 && replyText.indexOf(brandDisplayName, first + 1) === -1
+}
+
 function containsProhibitedContent(replyText: string, countryCode: string): boolean {
   if (PROHIBITED_REPLY_PATTERNS.some((pattern) => pattern.test(replyText))) return true
   return (
@@ -151,6 +143,9 @@ export function parsePersonalizedReplyDraft(
   }
   if (!hasValidGrounding(input.reviewText, parsed.data)) {
     return { status: 'rejected', reason: 'grounding' }
+  }
+  if (!usesExactPublicDisplayNameOnce(parsed.data.replyText, input.brandDisplayName)) {
+    return { status: 'rejected', reason: 'brand' }
   }
   if (containsProhibitedContent(parsed.data.replyText, input.countryCode)) {
     return { status: 'rejected', reason: 'prohibited_content' }

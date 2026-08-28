@@ -7,6 +7,7 @@ import {
   boolean,
   check,
   customType,
+  doublePrecision,
   foreignKey,
   index,
   integer,
@@ -150,6 +151,10 @@ export const reviews = pgTable(
       t.sourceCreatedAt.desc(),
       t.id.desc(),
     ),
+    // REV-01: global stable-identity lifecycle pages freeze by created_at and
+    // resume by UUID. Without this exact keyset index, every bounded page
+    // re-sorts the indefinitely retained Review identity table.
+    index('reviews_lifecycle_cursor_idx').on(t.createdAt, t.id),
     index('reviews_content_expires_idx')
       .on(t.contentExpiresAt, t.id)
       .where(sql`content_expires_at IS NOT NULL`),
@@ -308,6 +313,19 @@ export const materialReviewRevisions = pgTable(
     normalizedDigest: varchar('normalized_digest', { length: 64 }),
     rating: integer('rating'),
     normalizedText: text('normalized_text'),
+    /**
+     * Content-free provenance for Inbox's Google Review Response Target.
+     * Existing rows intentionally remain `legacy_unknown`; target eligibility
+     * is never reconstructed from fetch or migration timestamps.
+     */
+    responseTargetEligibility: varchar('response_target_eligibility', {
+      length: 32,
+    })
+      .notNull()
+      .default('legacy_unknown'),
+    responseTargetStartAt: timestamp('response_target_start_at', {
+      withTimezone: true,
+    }),
     contentState: varchar('content_state', { length: 24 }).notNull().default('active'),
     contentErasedAt: timestamp('content_erased_at', { withTimezone: true }),
     createdAt: createdAtColumn(),
@@ -368,6 +386,15 @@ export const materialReviewRevisions = pgTable(
         AND ${t.rating} IS NULL
         AND ${t.normalizedText} IS NULL
       )`,
+    ),
+    check(
+      'material_review_revisions_response_target_valid',
+      sql`${t.responseTargetEligibility} IN ('measured', 'legacy_unknown', 'historical_onboarding')
+        AND (
+          (${t.responseTargetEligibility} = 'measured' AND ${t.responseTargetStartAt} IS NOT NULL)
+          OR
+          (${t.responseTargetEligibility} <> 'measured' AND ${t.responseTargetStartAt} IS NULL)
+        )`,
     ),
   ],
 )
@@ -596,9 +623,14 @@ export const reviewProviderSnapshotRuns = pgTable(
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     propertyId: uuid('property_id').notNull(),
     sourceEpoch: integer('source_epoch').notNull(),
+    /** Governs target eligibility for material revisions first seen by this run. */
+    observationOrigin: varchar('observation_origin', { length: 32 })
+      .notNull()
+      .default('legacy_unknown'),
     state: varchar('state', { length: 16 }).notNull(),
     phase: varchar('phase', { length: 16 }).notNull(),
     expectedTotal: integer('expected_total'),
+    expectedAverageRating: doublePrecision('expected_average_rating'),
     mainCursorRef: varchar('main_cursor_ref', { length: 76 }),
     confirmationCursorRef: varchar('confirmation_cursor_ref', { length: 76 }),
     mainPageCount: integer('main_page_count').notNull().default(0),
@@ -629,6 +661,10 @@ export const reviewProviderSnapshotRuns = pgTable(
       sql`${t.state} IN ('scanning', 'confirming', 'deleting', 'completed', 'failed')`,
     ),
     check(
+      'review_provider_snapshot_runs_observation_origin_valid',
+      sql`${t.observationOrigin} IN ('ongoing', 'historical_onboarding', 'legacy_unknown')`,
+    ),
+    check(
       'review_provider_snapshot_runs_phase_valid',
       sql`${t.phase} IN ('main', 'confirmation', 'apply', 'terminal')`,
     ),
@@ -636,6 +672,12 @@ export const reviewProviderSnapshotRuns = pgTable(
       'review_provider_snapshot_runs_counts_valid',
       sql`${t.sourceEpoch} BETWEEN 0 AND 2147483647
         AND (${t.expectedTotal} IS NULL OR ${t.expectedTotal} BETWEEN 0 AND 10000)
+        AND (${t.expectedAverageRating} IS NULL OR ${t.expectedAverageRating} BETWEEN 0 AND 5)
+        AND (
+          (${t.expectedTotal} IS NULL AND ${t.expectedAverageRating} IS NULL)
+          OR (${t.expectedTotal} = 0 AND ${t.expectedAverageRating} IS NULL)
+          OR (${t.expectedTotal} > 0 AND ${t.expectedAverageRating} IS NOT NULL)
+        )
         AND ${t.mainPageCount} BETWEEN 0 AND 200
         AND ${t.confirmationPageCount} BETWEEN 0 AND 200
         AND ${t.mainUniqueCount} BETWEEN 0 AND 10000
@@ -652,6 +694,47 @@ export const reviewProviderSnapshotRuns = pgTable(
           AND ${t.terminalAt} IS NULL
           AND ${t.recordExpiresAt} IS NULL)
       )`,
+    ),
+  ],
+)
+
+/** Append-only, content-minimal proof emitted only when one Google provider
+ * snapshot has completed both scans and its bounded deletion reconciliation. */
+export const reviewGoogleReputationSnapshotFacts = pgTable(
+  'review_google_reputation_snapshot_facts',
+  {
+    runId: uuid('run_id').primaryKey(),
+    eventId: uuid('event_id').notNull(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    sourceEpoch: integer('source_epoch').notNull(),
+    reviewCount: integer('review_count').notNull(),
+    averageRating: doublePrecision('average_rating'),
+    evaluatedAt: timestamp('evaluated_at', { withTimezone: true }).notNull(),
+    createdAt: createdAtColumn(),
+  },
+  (t) => [
+    uniqueIndex('review_google_reputation_snapshot_event_unique').on(t.eventId),
+    index('review_google_reputation_snapshot_scope_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.sourceEpoch,
+      t.evaluatedAt.desc(),
+    ),
+    foreignKey({
+      name: 'review_google_reputation_snapshot_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('cascade'),
+    check(
+      'review_google_reputation_snapshot_source_epoch_valid',
+      sql`${t.sourceEpoch} BETWEEN 0 AND 2147483647`,
+    ),
+    check(
+      'review_google_reputation_snapshot_value_valid',
+      sql`(${t.reviewCount} = 0 AND ${t.averageRating} IS NULL)
+        OR (${t.reviewCount} BETWEEN 1 AND 10000
+          AND ${t.averageRating} BETWEEN 0 AND 5)`,
     ),
   ],
 )
@@ -914,15 +997,26 @@ export const replies = pgTable(
           AND ${t.originBaseReplyStateRevision} BETWEEN 0 AND '9007199254740991'::bigint
           AND ${t.originReplyDraftingEpoch} >= 1
           AND ${t.originPropertyProfileVersion} >= 1
-          AND ${t.originAiProfileVersion} = 'reply-suggestion-v1'
-          AND ${t.originReplyTemplateId} IN (
-            'appreciation_positive',
-            'appreciation_neutral',
-            'recovery_service',
-            'acknowledge_concern'
+          AND (
+            (
+              ${t.originAiProfileVersion} = 'reply-suggestion-v1'
+              AND ${t.originReplyTemplateId} IN (
+                'appreciation_positive',
+                'appreciation_neutral',
+                'recovery_service',
+                'acknowledge_concern'
+              )
+              AND ${t.originReplyTemplateCatalogueVersion} = 'gbp-reply-template-catalogue-v1'
+              AND ${t.originReplyTemplateCatalogueDigest} = 'ff5f572e9c8ce06fc384bdc4cdd911457510fdd0daed571a53d2348faa8bd89f'
+            )
+            OR (
+              ${t.originAiProfileVersion} IN ('reply-draft-v1', 'reply-draft-v2')
+              AND ${t.originReplyTemplateId} IS NULL
+              AND ${t.originReplyTemplateCatalogueVersion} IS NULL
+              AND ${t.originReplyTemplateCatalogueDigest} IS NULL
+              AND ${t.originTemplateGroup} IN ('en-Latn', 'bg-Cyrl')
+            )
           )
-          AND ${t.originReplyTemplateCatalogueVersion} = 'gbp-reply-template-catalogue-v1'
-          AND ${t.originReplyTemplateCatalogueDigest} = 'ff5f572e9c8ce06fc384bdc4cdd911457510fdd0daed571a53d2348faa8bd89f'
           AND ${t.originTemplateGroup} IN (
             'en-Latn', 'es-Latn', 'fr-Latn', 'de-Latn', 'pt-Latn',
             'it-Latn', 'nl-Latn', 'pl-Latn', 'tr-Latn', 'uk-Cyrl',

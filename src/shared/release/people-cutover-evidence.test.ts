@@ -18,8 +18,6 @@ function evidence() {
       legacyAssignments: 4,
       expectedParticipations: 3,
       matchedParticipations: 3,
-      expectedMemberships: 2,
-      matchedMemberships: 2,
       expectedResponsibilities: 3,
       matchedResponsibilities: 3,
       expectedGroupMemberships: 1,
@@ -62,6 +60,24 @@ describe('people cutover evidence', () => {
         counts: { ...value.counts, missingMappings: 1 },
       }),
     ).toThrow(/exact parity/i)
+  })
+
+  it('rejects v1 artifacts so retired Team parity cannot be silently trusted', () => {
+    const value = evidence()
+    const legacy = {
+      ...value,
+      version: 'repkey-people-cutover-1',
+      counts: {
+        ...value.counts,
+        expectedMemberships: 2,
+        matchedMemberships: 2,
+      },
+    }
+
+    const parsed = parsePeopleCutoverEvidence(`${JSON.stringify(legacy)}\n`)
+
+    expect(parsed).toMatchObject({ ok: false })
+    if (!parsed.ok) expect(parsed.errors.join('\n')).toMatch(/version|unrecognized key/i)
   })
 
   it('normalizes organization-scoped evidence deterministically', () => {

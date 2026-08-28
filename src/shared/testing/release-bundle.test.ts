@@ -9,6 +9,7 @@ import {
   type ReleaseGate,
   type ReleaseIdentity,
 } from './release-bundle'
+import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 
 const identity: ReleaseIdentity = {
   releaseId: 'beta-rc-2026-08-08.1',
@@ -18,9 +19,9 @@ const identity: ReleaseIdentity = {
   migrationVersion: '0016_region_move_workflow',
   capabilityPolicyVersion: 'bqc-0.3',
   sourceContentPolicyVersion: 2,
-  routingPolicyVersion: 1,
+  routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
   datasetHash: 'd'.repeat(64),
-  environment: 'staging-us',
+  environment: 'cell-us',
   generatedAt: '2026-08-08T10:00:00.000Z',
 }
 
@@ -106,7 +107,7 @@ function validBundle(overrides: Partial<Record<string, string>> = {}) {
     'scale-dataset.json',
     JSON.stringify({
       seed: 'perf-scale-v1',
-      version: 1,
+      version: 3,
       shape: { orgs: 100, properties: 5000, reviews: 500000 },
       hash: identity.datasetHash,
       createdAt: '2026-08-08T10:00:00.000Z',

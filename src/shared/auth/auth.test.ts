@@ -116,6 +116,38 @@ describe('Auth configuration', () => {
     expect(auth.options.emailAndPassword?.requireEmailVerification).toBe(true)
     expect(organizationPlugin?.options?.requireEmailVerificationOnInvitation).toBe(true)
   })
+
+  it('fails closed before raw Better Auth membership and invitation lifecycle writes', async () => {
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+    const { createAuth } = await import('#/shared/auth/auth')
+    const auth = createAuth()
+    const organizationPlugin = auth.options.plugins?.find(
+      (plugin) => plugin.id === 'organization',
+    ) as
+      | Readonly<{
+          options?: Readonly<{
+            organizationHooks?: Readonly<{
+              beforeAcceptInvitation?: (input: unknown) => Promise<void>
+              beforeRemoveMember?: (input: unknown) => Promise<void>
+              beforeUpdateMemberRole?: (input: unknown) => Promise<void>
+              beforeDeleteOrganization?: (input: unknown) => Promise<void>
+            }>
+          }>
+        }>
+      | undefined
+    const hooks = organizationPlugin?.options?.organizationHooks
+
+    for (const hook of [
+      hooks?.beforeAcceptInvitation,
+      hooks?.beforeRemoveMember,
+      hooks?.beforeUpdateMemberRole,
+      hooks?.beforeDeleteOrganization,
+    ]) {
+      expect(hook).toEqual(expect.any(Function))
+      await expect(hook?.({})).rejects.toThrow(/app-owned Identity command/i)
+    }
+  })
 })
 
 describe('Auth context and role helpers', () => {

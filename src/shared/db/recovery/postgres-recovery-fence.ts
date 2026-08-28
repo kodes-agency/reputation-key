@@ -123,8 +123,11 @@ export async function inspectRecoveryFence(
 
 type RecoveryRunDriverRow = Readonly<{
   id: string
+  data_cell_id: string
   generation: number
   source_release_sha: string
+  operator_id: string
+  correlation_id: string
   counts: RecoveryFenceCounts
   completed_at: Date | string
 }>
@@ -160,21 +163,38 @@ export async function applyRecoveryFence(
     )
 
     const existing = await tx.execute(sql`
-      SELECT id, generation, source_release_sha, counts, completed_at
+      SELECT id, data_cell_id, generation, source_release_sha,
+             source_manifest_sha256, restore_point_at, operator_id,
+             correlation_id, counts, completed_at
       FROM recovery_runs
-      WHERE data_cell_id = ${input.dataCellId}
-        AND source_manifest_sha256 = ${input.sourceManifestSha256}
-        AND restore_point_at = ${input.restorePointAt}
-      LIMIT 1
+      WHERE id = ${input.runId}::uuid
+         OR (data_cell_id = ${input.dataCellId} AND generation = ${input.generation})
+         OR (
+           data_cell_id = ${input.dataCellId}
+           AND source_manifest_sha256 = ${input.sourceManifestSha256}
+           AND restore_point_at = ${input.restorePointAt}
+         )
+      FOR UPDATE
     `)
-    const existingRow = existing.rows[0] as RecoveryRunDriverRow | undefined
-    if (
-      existingRow?.source_release_sha !== undefined &&
-      existingRow.source_release_sha !== input.sourceReleaseSha
-    ) {
-      throw new Error(
-        'recovery source release conflicts with the existing manifest/restore-point evidence',
-      )
+    const existingRows = existing.rows as Array<
+      RecoveryRunDriverRow & {
+        source_manifest_sha256: string
+        restore_point_at: Date | string
+      }
+    >
+    const existingRow = existingRows.find(
+      (row) =>
+        row.id === input.runId &&
+        row.data_cell_id === input.dataCellId &&
+        row.generation === input.generation &&
+        row.source_release_sha === input.sourceReleaseSha &&
+        row.source_manifest_sha256 === input.sourceManifestSha256 &&
+        new Date(row.restore_point_at).getTime() === input.restorePointAt.getTime() &&
+        row.operator_id === input.operatorId &&
+        row.correlation_id === input.correlationId,
+    )
+    if (existingRows.length > 0 && (!existingRow || existingRows.length > 1)) {
+      throw new Error('recovery run identity, generation, or source binding conflicts')
     }
 
     const activeMoves = await tx.execute(sql`
@@ -196,9 +216,10 @@ export async function applyRecoveryFence(
       (activeAiOperations.rows[0] as { count?: number | string } | undefined)?.count ?? 0,
     )
 
-    let runId: string
+    const runId = input.runId
     if (existingRow) {
-      runId = existingRow.id
+      // Exact post-commit retry: re-scan and accumulate newly resurrected
+      // authority under the same reviewed run; callers surface `replayed`.
     } else {
       const generationResult = await tx.execute(sql`
         SELECT COALESCE(MAX(generation), 0)::int + 1 AS generation
@@ -209,24 +230,20 @@ export async function applyRecoveryFence(
         (generationResult.rows[0] as { generation?: number | string } | undefined)
           ?.generation,
       )
-      if (!Number.isSafeInteger(generation) || generation < 1) {
-        throw new Error('could not allocate recovery generation')
+      if (generation !== input.generation) {
+        throw new Error('reviewed recovery generation is stale')
       }
 
-      const inserted = await tx.execute(sql`
+      await tx.execute(sql`
         INSERT INTO recovery_runs (
-          data_cell_id, generation, source_release_sha, source_manifest_sha256,
+          id, data_cell_id, generation, source_release_sha, source_manifest_sha256,
           restore_point_at, operator_id, correlation_id, counts, completed_at
         ) VALUES (
-          ${input.dataCellId}, ${generation}, ${input.sourceReleaseSha},
+          ${input.runId}::uuid, ${input.dataCellId}, ${input.generation}, ${input.sourceReleaseSha},
           ${input.sourceManifestSha256}, ${input.restorePointAt}, ${input.operatorId},
           ${input.correlationId}, ${JSON.stringify(ZERO_COUNTS)}::jsonb, clock_timestamp()
         )
-        RETURNING id
       `)
-      const insertedRunId = (inserted.rows[0] as { id?: string } | undefined)?.id
-      if (!insertedRunId) throw new Error('could not create recovery run')
-      runId = insertedRunId
     }
 
     const sessions = await tx.execute(sql`DELETE FROM session RETURNING id`)

@@ -72,7 +72,12 @@ export const CONTEXT_STANDARDS_AUTHORITY = Object.freeze([
     name: 'Identity',
     directory: 'identity',
     documentationMode: 'active',
-    capabilities: ['identity.invite', 'identity.register', 'organization.create'],
+    capabilities: [
+      'identity.invite',
+      'identity.custom_roles',
+      'identity.register',
+      'organization.create',
+    ],
   },
   {
     name: 'Inbox',

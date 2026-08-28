@@ -9,6 +9,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createRegionDiagnostic } from './policy-diagnostic'
 import { createProcessingRouter } from '#/shared/routing/processing-router'
+import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 
 const ORG = 'org-region-diag'
 const PROP = 'd4000000-0000-4000-8000-000000000099'
@@ -53,7 +54,7 @@ describe('createRegionDiagnostic (BQC-4.4)', () => {
       [PROP]: {
         processingRegion: 'us',
         processingRegionSource: 'country_default',
-        routingPolicyVersion: 2,
+        routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
       },
     })
 
@@ -63,7 +64,7 @@ describe('createRegionDiagnostic (BQC-4.4)', () => {
       propertyId: PROP,
       processingRegion: 'us',
       processingRegionSource: 'country_default',
-      routingPolicyVersion: 2,
+      routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
       processable: true,
       blockedReason: null,
       cell: 'us',
@@ -91,7 +92,7 @@ describe('createRegionDiagnostic (BQC-4.4)', () => {
       [PROP]: {
         processingRegion: 'us',
         processingRegionSource: 'google_address',
-        routingPolicyVersion: 2,
+        routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
       },
     })
 
@@ -101,23 +102,20 @@ describe('createRegionDiagnostic (BQC-4.4)', () => {
     expect(result.blockedReason).toBeNull()
   })
 
-  it.each(['europe', 'global'])(
-    'reports provisioning %s as region_denied',
-    async (region) => {
-      const { getRegionDiagnostic } = setup({
-        [PROP]: {
-          processingRegion: region,
-          processingRegionSource: 'google_address',
-          routingPolicyVersion: 2,
-        },
-      })
+  it.each(['europe', 'global'])('reports dormant %s as region_denied', async (region) => {
+    const { getRegionDiagnostic } = setup({
+      [PROP]: {
+        processingRegion: region,
+        processingRegionSource: 'google_address',
+        routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
+      },
+    })
 
-      const result = await getRegionDiagnostic({ organizationId: ORG, propertyId: PROP })
+    const result = await getRegionDiagnostic({ organizationId: ORG, propertyId: PROP })
 
-      expect(result.processable).toBe(false)
-      expect(result.blockedReason).toBe('region_denied')
-    },
-  )
+    expect(result.processable).toBe(false)
+    expect(result.blockedReason).toBe('region_denied')
+  })
 
   it.each(['ap-southeast-2', 'eu'])('reports %s as region_denied', async (region) => {
     const { getRegionDiagnostic } = setup({

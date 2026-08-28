@@ -32,6 +32,7 @@
 import type { Capability } from '#/shared/auth/beta-capabilities'
 import { isCoreCapability, isBlockedCapability } from '#/shared/auth/beta-capabilities'
 import type { Permission } from '#/shared/domain/permissions'
+import { classifyOperatorCommandMutation } from './operator-command-mutation-classifier'
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -118,7 +119,8 @@ export type SystemAction =
   | 'system:identity.accept_invitation'
   | 'system:identity.create_organization'
   | 'system:identity.auth_api'
-  | 'system:identity.beta_feedback'
+  | 'system:identity.organization_lifecycle'
+  | 'system:identity.organization_export'
   // guest / public surface (dark — portal.read gated)
   | 'system:guest.portal_read'
   | 'system:guest.rating'
@@ -146,6 +148,9 @@ export type SystemAction =
   // delayed/system execution
   | 'system:health.check'
   | 'system:image.process'
+  | 'system:image.cleanup'
+  | 'system:portal.health_reconcile'
+  | 'system:portal.destination_revalidate'
   | 'system:property.import'
   | 'system:property.import_v2'
   | 'system:review.sync'
@@ -157,11 +162,14 @@ export type SystemAction =
   | 'system:metric.refresh'
   | 'system:metric.record'
   | 'system:metric.record_guest_analytics'
+  | 'system:metric.record_public_reputation'
   | 'system:metric.record_portal_workflow'
   | 'system:retention.sweep'
   | 'system:quarantine.ttl'
   | 'system:ai.execution_reap'
+  | 'system:ai.authorization_erasure'
   | 'system:ai.review_analysis_backfill_advance'
+  | 'system:ai.review_analysis_enrollment_sweep'
   | 'system:permit.start_deadline_fence'
   | 'system:property.import_claim_reap'
   | 'system:goal.reconcile'
@@ -174,6 +182,8 @@ export type SystemAction =
   | 'system:leaderboard.refresh'
   | 'system:activity.record'
   | 'system:notification.insert'
+  | 'system:notification.insert_goal'
+  | 'system:notification.insert_portal'
   | 'system:notification.insert_property_responsibility'
   | 'system:notification.email_urgent'
   | 'system:notification.email_digest'
@@ -245,6 +255,97 @@ const MUTATING_QUERY_NAMES = new Set([
   'listImportAccounts',
   'listImportCandidates',
   'getPropertyGooglePerformance',
+  'getRegionDiagnosticFn',
+  'getSetupChecklistFn',
+])
+const READ_ONLY_NO_EFFECT_ENTRIES = new Set([
+  'server_function:deleteProperty',
+  // These POST declarations are retained only so stale beta links fail
+  // predictably. `organization.create` is a hard-blocked capability, and both
+  // handlers reach that fail-closed gate before any provider or database call.
+  'server_function:registerUserAndOrg',
+  'server_function:createOrganizationFn',
+  'route_api:/api/public/p/$token/click/$linkId',
+])
+const ATOMIC_IDENTITY_MUTATIONS = new Set([
+  'inviteMember',
+  'registerMember',
+  'updateMemberRole',
+  'removeMember',
+  'acceptInvitation',
+  'cancelInvitation',
+  'enableMerchantAiFn',
+  'changeMerchantAiCapabilitiesFn',
+  'revokeMerchantAiFn',
+  'setOrgCapabilityFn',
+  'setPropertyCapabilityFn',
+  'setOrgSuspensionFn',
+  'setPropertySuspensionFn',
+  'grantPropertyAccessFn',
+  'revokePropertyAccessFn',
+])
+const LOCAL_ONLY_IDENTITY_MUTATIONS = new Set([
+  'submitBetaFeedbackHandler',
+  'submitBetaFeedbackFn',
+  'resendInvitation',
+  'signInUser',
+  'setActiveOrganization',
+  'updateOrgResponseSlaFn',
+  'createCustomRole',
+  'updateCustomRole',
+  'deleteCustomRole',
+  'changePasswordFn',
+  'updateProfileFn',
+  'updateUserImageFn',
+  'updateOrganization',
+  'requestOrgLogoUpload',
+  'finalizeOrgLogoUpload',
+  'requestAvatarUpload',
+  'finalizeAvatarUpload',
+  'getRegionDiagnosticFn',
+])
+const ATOMIC_PROPERTY_MUTATIONS = new Set([
+  'createProperty',
+  'updateProperty',
+  'updatePropertyResponsibleManagers',
+  'requestRegionMoveFn',
+])
+const ATOMIC_INTEGRATION_MUTATIONS = new Set([
+  'disconnectGoogle',
+  'updateConnectionVisibility',
+  'startPropertyImportV2',
+  'retryPropertyImportItem',
+  'cancelPropertyImportV2',
+  'recoverPropertyImportV2',
+])
+const LOCAL_ONLY_INTEGRATION_MUTATIONS = new Set([
+  'getGoogleAuthUrl',
+  'listImportAccounts',
+  'listImportCandidates',
+  'renewImportAuthorizationLease',
+  'getPropertyGooglePerformance',
+  'renewPropertyGooglePerformanceLease',
+])
+const ATOMIC_GOAL_MUTATIONS = new Set([
+  'createGoalProgram',
+  'reviseGoalProgram',
+  'changeGoalProgramAssignments',
+  'changeGoalProgramStatus',
+])
+const LOCAL_ONLY_STAFF_MUTATIONS = new Set([
+  'createStaffParticipation',
+  'archiveStaffParticipation',
+  'updatePortalResponsibilities',
+])
+const LOCAL_ONLY_SHARED_MUTATIONS = new Set(['ensureActiveOrg'])
+const LOCAL_ONLY_AI_MUTATIONS = new Set(['generateReplySuggestionFn'])
+const LOCAL_ONLY_DASHBOARD_MUTATIONS = new Set(['getSetupChecklistFn'])
+const ATOMIC_ROUTE_MUTATIONS = new Set(['/api/auth/google/callback'])
+const LOCAL_ONLY_ROUTE_MUTATIONS = new Set([
+  '/api/auth/$',
+  '/api/notifications/unsubscribe',
+  '/api/webhooks/gbp/notifications',
+  '/api/webhooks/resend/events',
 ])
 const ATOMIC_PORTAL_MUTATIONS = new Set([
   'createPortal',
@@ -264,6 +365,13 @@ const ATOMIC_PORTAL_MUTATIONS = new Set([
   'issuePortalToken',
   'rotatePortalToken',
   'revokePortalTokens',
+  'updatePortalResponsibleManagers',
+  'savePropertyPortalBrandProfile',
+  'savePropertyPortalBrandContent',
+  'savePortalLocalizedOverride',
+  'requestPortalApprovedDestination',
+  'approvePortalApprovedDestination',
+  'disablePortalApprovedDestination',
 ])
 const LOCAL_ONLY_PORTAL_MUTATIONS = new Set([
   'requestUploadUrl',
@@ -282,6 +390,121 @@ const ATOMIC_GUEST_MUTATIONS = new Set([
   'withdrawGuestResponseFn',
   'moderateGuestResponseFn',
   'recordScanFn',
+])
+const ATOMIC_REVIEW_MUTATIONS = new Set([
+  'submitReplyFn',
+  'approveReplyFn',
+  'editPublishedReplyFn',
+  'rejectReplyFn',
+  'retryPublishFn',
+])
+const LOCAL_ONLY_REVIEW_MUTATIONS = new Set(['draftReplyFn', 'deleteReplyFn'])
+const ATOMIC_INBOX_MUTATIONS = new Set([
+  'assignInboxItemFn',
+  'bulkAssignInboxItemsFn',
+  'addInboxNoteFn',
+  'markFeedbackHandledFn',
+  'correctFeedbackHandlingOutcomeFn',
+  'setResponseTargetPolicyFn',
+  'updateInboxStatusFn',
+  'bulkUpdateInboxStatusFn',
+  'escalateInboxItemFn',
+])
+const LOCAL_ONLY_INBOX_MUTATIONS = new Set(['stampLastInboxViewFn'])
+const LOCAL_ONLY_NOTIFICATION_MUTATIONS = new Set([
+  'markNotificationReadFn',
+  'markNotificationUnreadFn',
+  'markAllNotificationsReadFn',
+  'dismissAllNotificationsFn',
+  'dismissNotificationFn',
+  'updateNotificationPreferenceFn',
+  'muteNotificationCategoryFn',
+  'updateNotificationUserSettingsFn',
+])
+/**
+ * Exact delayed-entry classifications. These are deliberately enumerated
+ * rather than inferred from a filename or kind: adding a new job/consumer must
+ * make an explicit state/fact decision before the governance gate accepts it.
+ */
+const ATOMIC_JOB_MUTATIONS = new Set([
+  'portal-approved-destination-revalidation',
+  'process-image',
+  'portal-upload-source-cleanup',
+  'import-gbp-property-item-v2',
+  'sync-property-reviews',
+  'generate-property-ai-trend',
+  'schedule-property-ai-trends',
+  'publish-reply',
+  'reconcile-ambiguous-publications',
+  'goal-program.maintain',
+  'ai-review-analysis-backfill-advance',
+  'ai-review-analysis-enrollment-sweep',
+  'recover-invited-registrations',
+  'advance-organization-lifecycle',
+  'release-response-target-reminders',
+])
+const LOCAL_ONLY_JOB_MUTATIONS = new Set([
+  'health-check',
+  'refresh-expiring-reviews',
+  'reconcile-missing-notifications',
+  'discover-new-reviews',
+  'expire-review-provider-source',
+  'sweep-review-provider-tombstones',
+  'refresh-daily-metrics',
+  'refresh-weekly-metrics',
+  'refresh-daily-inbox-metrics',
+  'retention-sweep',
+  'quarantine-ttl-sweep',
+  'ai-operation-execution-reaper',
+  'ai-authorization-derivative-erasure',
+  'permit-start-deadline-sweep',
+  'google-import-claim-reaper',
+  'project-recent-activity',
+  'insert-activity-log',
+  'insert-notification',
+  'urgent-email',
+  'digest-notification',
+  'generate-organization-export',
+  'purge-expired-organization-exports',
+])
+const ATOMIC_CONSUMER_MUTATIONS = new Set([
+  'activity.outbox-consumers',
+  'inbox.outbox-consumers',
+  'inbox.guest-feedback',
+  'ai.outbox-consumers',
+  'metric.event-handlers',
+  'metric.public-reputation',
+  'metric.current-google-reputation',
+  'metric.portal-workflow',
+  'metric.guest-analytics',
+  'goal.metric-correction-reconciliation',
+  'review.event-handlers',
+  'inbox.event-handlers',
+  'portal.health-outbox-consumers',
+])
+const LOCAL_ONLY_CONSUMER_MUTATIONS = new Set([
+  'review.outbox-consumers',
+  'portal.outbox-consumers',
+  'notification.outbox-consumers',
+  'notification.workflow-outbox-consumers',
+  'notification.bulk-assignment-outbox-consumers',
+  'notification.escalation-resolution-outbox-consumers',
+  'notification.handling-cycle-outbox-consumers',
+  'notification.response-target-outbox-consumers',
+  'notification.goal-outbox-consumers',
+  'notification.on-google-reauthorization-required',
+  'notification.portal-outbox-consumers',
+  'notification.portal-health-outbox-consumers',
+  'notification.property-outbox-consumers',
+  'notification.identity-account-outbox-consumers',
+  'integration.property-import-dispatch',
+  'integration.google-review-push-dispatch',
+  'property.import-retention-release',
+  'activity.event-handlers',
+  'metric.correction-reconciliation',
+  'notification.event-handlers',
+  'notification.portal-event-handlers',
+  'notification.property-event-handlers',
 ])
 const MUTATION_DEBT_EXPIRY = '2026-10-31'
 const ENTRY_POINT_OWNERS = new Set<EntryPointOwner>([
@@ -328,7 +551,12 @@ function mutationForEntry(
   name: string,
   owner: EntryPointOwner,
 ): EntryPointMutation {
+  if (kind === 'operator_command') {
+    const classification = classifyOperatorCommandMutation(name)
+    if (classification) return classification
+  }
   if (
+    READ_ONLY_NO_EFFECT_ENTRIES.has(`${kind}:${name}`) ||
     kind === 'route_ui' ||
     (kind === 'route_api' && name.startsWith('/api/health')) ||
     (kind === 'server_function' &&
@@ -344,6 +572,158 @@ function mutationForEntry(
       disposition: 'local_only_with_reason',
       reason:
         'Owns BullMQ repeatable-schedule metadata; domain mutation occurs only in the separately catalogued job.',
+    }
+  }
+  if (kind === 'job' && ATOMIC_JOB_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: owner,
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The job delegates authoritative writes to its fenced command store, which co-commits each state transition and every required durable fact; provider or queue effects are separately claimed and reconciled.',
+    }
+  }
+  if (kind === 'job' && LOCAL_ONLY_JOB_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: owner,
+      disposition: 'local_only_with_reason',
+      reason:
+        'This job owns bounded operational, projection, delivery, retention, or queue state only; its source fact remains authoritative and no additional cross-context domain fact is required for the local effect.',
+    }
+  }
+  if (kind === 'consumer' && ATOMIC_CONSUMER_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: owner,
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'Authoritative consumer paths delegate to the owning command store, which co-commits context state and every required durable fact; identifier-only dispatch branches own only idempotent queue/receipt state.',
+    }
+  }
+  if (kind === 'consumer' && LOCAL_ONLY_CONSUMER_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: owner,
+      disposition: 'local_only_with_reason',
+      reason:
+        'The source durable fact remains authoritative; this handler owns only an idempotent projection, queue admission, delivery, compatibility no-op, or consumer receipt and requires no new cross-context domain fact.',
+    }
+  }
+  if (ATOMIC_IDENTITY_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'identity',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The Identity command store locks and changes the authoritative Better Auth/Identity or policy rows and co-commits every required versioned lifecycle fact or content-free decision audit; post-commit email, cache refresh, or reconciliation is independently retryable.',
+    }
+  }
+  if (LOCAL_ONLY_IDENTITY_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'identity',
+      disposition: 'local_only_with_reason',
+      reason:
+        'This boundary changes only Identity-owned session/profile/configuration, scoped upload, custom-role, audit, rate-limit, or explicit email/Sentry state; no cross-context durable domain fact is part of its contract.',
+    }
+  }
+  if (ATOMIC_PROPERTY_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'property',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        name === 'requestRegionMoveFn'
+          ? 'The accepted region-move request authority co-commits the Property move machine row and its required content-free operator decision; denied requests change no Property state and remain audit-only.'
+          : 'The Property command or responsibility store commits the revision-fenced state, audit metadata, and every required Property/responsibility fact in one PostgreSQL transaction.',
+    }
+  }
+  if (ATOMIC_INTEGRATION_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'integration',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The Integration command/lifecycle store fences current tenant, connection, authorization generation, and revision then co-commits state and every required identifier-only outbox fact.',
+    }
+  }
+  if (LOCAL_ONLY_INTEGRATION_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'integration',
+      disposition: 'local_only_with_reason',
+      reason:
+        'This boundary issues or renews a short-lived OAuth/import/performance authorization or cache lease; it is Integration-local admission state and requires no cross-context domain fact.',
+    }
+  }
+  if (ATOMIC_GOAL_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'goal',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The Goal Program repository commits the aggregate/version/assignment/result change, audit row, and its versioned outbox fact under one revision-fenced PostgreSQL transaction.',
+    }
+  }
+  if (LOCAL_ONLY_STAFF_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'staff',
+      disposition: 'local_only_with_reason',
+      reason:
+        'Staff Participant, Participation, and Portal Responsibility intervals are Staff-owned attribution state consumed by event-time lookup; no cross-context durable fact is required, and eligibility repair is idempotent.',
+    }
+  }
+  if (LOCAL_ONLY_SHARED_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'shared',
+      disposition: 'local_only_with_reason',
+      reason:
+        "This compatibility boundary only repairs the authenticated session's active-Organization pointer from durable membership authority; it creates no domain transition.",
+    }
+  }
+  if (LOCAL_ONLY_AI_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'ai',
+      disposition: 'local_only_with_reason',
+      reason:
+        'The request owns bounded AI admission/operation/outcome state and returns a draft to the caller; it cannot publish or mutate Review workflow and requires no downstream domain fact.',
+    }
+  }
+  if (LOCAL_ONLY_DASHBOARD_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'dashboard',
+      disposition: 'local_only_with_reason',
+      reason:
+        'Reads canonical, tenant-scoped setup facts and only inserts missing content-free first-completion milestones; source state remains authoritative in its owning context.',
+    }
+  }
+  if (ATOMIC_ROUTE_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'integration',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The OAuth route consumes one opaque ceremony then delegates connection authority to the Integration command store, which co-commits connection state and its lifecycle fact.',
+    }
+  }
+  if (LOCAL_ONLY_ROUTE_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner:
+        name === '/api/notifications/unsubscribe' ||
+        name === '/api/webhooks/resend/events'
+          ? 'notification'
+          : name === '/api/webhooks/gbp/notifications'
+            ? 'integration'
+            : 'identity',
+      disposition: 'local_only_with_reason',
+      reason:
+        'This authenticated/provider boundary owns only context-local session, preference, delivery-state, replay, or deterministic queue-admission effects; the source authority remains external or already durable and no new cross-context fact is required.',
     }
   }
   if (name === 'softDeletePortalGroup' || ATOMIC_PORTAL_MUTATIONS.has(name)) {
@@ -384,6 +764,53 @@ function mutationForEntry(
         'Issues a fresh signed response-integrity session without changing the prior Guest Response or requiring a durable domain fact.',
     }
   }
+  if (ATOMIC_REVIEW_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'review',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The Review command store commits the revision-fenced Reply transition and every required versioned lifecycle/publication fact in one PostgreSQL transaction.',
+    }
+  }
+  if (LOCAL_ONLY_REVIEW_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'review',
+      disposition: 'local_only_with_reason',
+      reason:
+        name === 'draftReplyFn'
+          ? 'Draft text is private Review-owned working state; durable workflow facts begin only when the manager submits it.'
+          : 'Deleting an unpublished draft/rejected Reply is Review-local state and has no downstream lifecycle fact contract.',
+    }
+  }
+  if (ATOMIC_INBOX_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'inbox',
+      disposition: 'atomic_state_and_fact',
+      reason:
+        'The Inbox command store locks and revalidates the exact tenant/source/cycle head, commits the optimistic state transition/history, and records every required content-free fact atomically.',
+    }
+  }
+  if (LOCAL_ONLY_INBOX_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'inbox',
+      disposition: 'local_only_with_reason',
+      reason:
+        "Advances the current user's private Inbox visit watermark; it is not a shared workflow transition and requires no domain fact.",
+    }
+  }
+  if (LOCAL_ONLY_NOTIFICATION_MUTATIONS.has(name)) {
+    return {
+      kind: 'mutation',
+      stateOwner: 'notification',
+      disposition: 'local_only_with_reason',
+      reason:
+        "Mutates only the current recipient's Notification read/dismiss/preference projection; it is not an authoritative cross-context domain transition.",
+    }
+  }
   return {
     kind: 'mutation',
     stateOwner: owner,
@@ -397,7 +824,6 @@ function mutationForEntry(
 
 function registrationForEntry(
   kind: EntryPointKind,
-  name: string,
   file: string,
 ): EntryPointRegistration {
   if (kind === 'job') {
@@ -407,9 +833,6 @@ function registrationForEntry(
     return { ownerFile: 'src/worker/index.ts', reachability: 'source_composed' }
   }
   if (kind === 'consumer') {
-    if (name === 'badge.event-handlers' || name === 'goal.event-handlers') {
-      return { ownerFile: file, reachability: 'declared_only' }
-    }
     const context = CONTEXT_OWNER_RE.exec(file)?.[1]
     return {
       ownerFile: context ? `src/contexts/${context}/build.ts` : file,
@@ -497,7 +920,7 @@ function row(
     file,
     owner,
     mutation: opts.mutation ?? mutationForEntry(kind, name, owner),
-    registration: opts.registration ?? registrationForEntry(kind, name, file),
+    registration: opts.registration ?? registrationForEntry(kind, file),
     action: base.action,
     capability: base.capability,
     resourceScope: base.resourceScope,
@@ -657,9 +1080,6 @@ const DASHBOARD = 'src/contexts/dashboard/server'
 const NOTIFICATION = 'src/contexts/notification/server'
 const ACTIVITY = 'src/contexts/activity/server'
 const GOAL = 'src/contexts/goal/server'
-const TEAM = 'src/contexts/team/server'
-const LEADERBOARD = 'src/contexts/leaderboard/server'
-const BADGE = 'src/contexts/badge/server'
 const STAFF = 'src/contexts/staff/server'
 const PORTAL = 'src/contexts/portal/server'
 const GUEST = 'src/contexts/guest/server'
@@ -673,22 +1093,21 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     sf(
       'submitBetaFeedbackHandler',
       `${IDENTITY}/beta-feedback.ts`,
-      'system:identity.beta_feedback',
-      'none',
+      'feedback.respond',
+      'portal.guest_response',
       'organization',
       {
-        canonicalOnly: true,
         externalEffect: true,
         purpose: 'beta_product_feedback',
         notes:
-          'Server-only implementation behind submitBetaFeedbackFn; resolves tenant authority and applies the same bounded feedback contract',
+          'Server-only implementation behind submitBetaFeedbackFn; resolves tenant authority through the central execution policy before applying the bounded feedback contract',
       },
     ),
     sf(
       'submitBetaFeedbackFn',
       `${IDENTITY}/beta-feedback.ts`,
-      'system:identity.beta_feedback',
-      'none',
+      'feedback.respond',
+      'portal.guest_response',
       'organization',
       {
         canonicalOnly: true,
@@ -772,7 +1191,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       {
         canonicalOnly: true,
         notes:
-          'public; IP rate-limited; exact pending manager invitation preflight + atomic acceptance + failed-signup compensation',
+          'public; IP rate-limited; content-free pre-provider recovery fence + exact pending manager invitation acceptance; interrupted provider commits are durably resumed, safely compensated, or stopped for manual review',
       },
     ),
     sfPublic(
@@ -857,22 +1276,22 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'createCustomRole',
       `${IDENTITY}/organizations.roles.ts`,
       'member.update',
-      'identity.invite',
+      'identity.custom_roles',
       'organization',
-      { notes: 'use case re-checks + escalation guard' },
+      { notes: 'beta-disabled capability; dormant use case also re-checks escalation' },
     ),
     sf(
       'updateCustomRole',
       `${IDENTITY}/organizations.roles.ts`,
       'member.update',
-      'identity.invite',
+      'identity.custom_roles',
       'organization',
     ),
     sf(
       'deleteCustomRole',
       `${IDENTITY}/organizations.roles.ts`,
       'member.update',
-      'identity.invite',
+      'identity.custom_roles',
       'organization',
     ),
     sf(
@@ -1112,6 +1531,105 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
 
   // ── property ──────────────────────────────────────────────────────
   ...[
+    sf(
+      'archivePropertyHandler',
+      `${PROPERTY}/property-lifecycle.ts`,
+      'property.archive',
+      'property.create',
+      'property',
+      {
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'property',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'The Property lifecycle command store locks and CAS-fences the stable Property row, co-committing lifecycle/source-epoch/destination-readiness state and the required property.archived outbox fact in one PostgreSQL transaction; no deletion occurs.',
+        },
+      },
+    ),
+    sf(
+      'archiveProperty',
+      `${PROPERTY}/property-lifecycle.ts`,
+      'property.archive',
+      'property.create',
+      'property',
+      {
+        canonicalOnly: true,
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'property',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'The Property lifecycle command store locks and CAS-fences the stable Property row, co-committing lifecycle/source-epoch/destination-readiness state and the required property.archived outbox fact in one PostgreSQL transaction; no deletion occurs.',
+        },
+      },
+    ),
+    sf(
+      'restorePropertyHandler',
+      `${PROPERTY}/property-lifecycle.ts`,
+      'property.restore',
+      'property.create',
+      'property',
+      {
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'property',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'The Property lifecycle command store locks and CAS-fences the stable Property row, co-committing lifecycle/source-epoch/destination-readiness state and the required property.restored outbox fact in one PostgreSQL transaction; readiness prerequisites are checked before transition.',
+        },
+      },
+    ),
+    sf(
+      'restoreProperty',
+      `${PROPERTY}/property-lifecycle.ts`,
+      'property.restore',
+      'property.create',
+      'property',
+      {
+        canonicalOnly: true,
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'property',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'The Property lifecycle command store locks and CAS-fences the stable Property row, co-committing lifecycle/source-epoch/destination-readiness state and the required property.restored outbox fact in one PostgreSQL transaction; readiness prerequisites are checked before transition.',
+        },
+      },
+    ),
+    sf(
+      'disconnectPropertyGoogleBindingHandler',
+      `${PROPERTY}/property-lifecycle.ts`,
+      'property.disconnect',
+      'property.create',
+      'property',
+      {
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'property',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'The Property Google binding store locks/fences the exact Property binding, atomically commits disconnected binding state, source-epoch and destination-readiness changes with its required identifier-only property.google_binding.changed fact; the Organization Google connection and Property row/history remain intact.',
+        },
+      },
+    ),
+    sf(
+      'disconnectPropertyGoogleBinding',
+      `${PROPERTY}/property-lifecycle.ts`,
+      'property.disconnect',
+      'property.create',
+      'property',
+      {
+        canonicalOnly: true,
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'property',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'The Property Google binding store locks/fences the exact Property binding, atomically commits disconnected binding state, source-epoch and destination-readiness changes with its required identifier-only property.google_binding.changed fact; the Organization Google connection and Property row/history remain intact.',
+        },
+      },
+    ),
     sf(
       'createProperty',
       `${PROPERTY}/properties.ts`,
@@ -1441,6 +1959,52 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'scoped via inboxItemId' },
     ),
     sf(
+      'getResponseTargetPolicySettingsFn',
+      `${INBOX}/inbox-response-targets.ts`,
+      'organization.update',
+      'identity.invite',
+      'organization',
+      {
+        notes:
+          'AccountAdmin-only current policy/version read for compare-and-set Organization and optional Property settings',
+      },
+    ),
+    sf(
+      'getPrivateFeedbackTargetAnalyticsFn',
+      `${INBOX}/inbox-response-targets.ts`,
+      'inbox.read',
+      'inbox.use',
+      'organization',
+      {
+        alsoActions: ['feedback.read'],
+        notes:
+          'intersects the caller current private-feedback Property scope; only measured, non-withdrawn target cycles contribute',
+      },
+    ),
+    sf(
+      'getGoogleReviewTargetAnalyticsFn',
+      `${INBOX}/inbox-response-targets.ts`,
+      'inbox.read',
+      'inbox.use',
+      'organization',
+      {
+        alsoActions: ['review.read'],
+        notes:
+          'intersects the caller current Google-review Property scope; only measured target cycles contribute',
+      },
+    ),
+    sf(
+      'setResponseTargetPolicyFn',
+      `${INBOX}/inbox-response-targets.ts`,
+      'organization.update',
+      'identity.invite',
+      'organization',
+      {
+        notes:
+          'version-fenced Organization target or Private Feedback Property override; commits an identifier-only policy-changed fact',
+      },
+    ),
+    sf(
       'getInboxNotesFn',
       `${INBOX}/inbox-item-queries.ts`,
       'inbox.read',
@@ -1457,12 +2021,48 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       { notes: 'scoped via inboxItemId' },
     ),
     sf(
+      'bulkAssignInboxItemsFn',
+      `${INBOX}/inbox-item-actions.ts`,
+      'inbox.write',
+      'inbox.use',
+      'property',
+      {
+        alsoActions: ['inbox.manage'],
+        notes:
+          'bounded all-or-nothing assignment/reassignment/release; scoped via inboxItemIds and transactionally reauthorizes every actor/assignee/property/source tuple',
+      },
+    ),
+    sf(
       'addInboxNoteFn',
       `${INBOX}/inbox-item-actions.ts`,
       'inbox.write',
       'inbox.use',
       'property',
       { notes: 'scoped via inboxItemId' },
+    ),
+    sf(
+      'markFeedbackHandledFn',
+      `${INBOX}/inbox-feedback-handling.ts`,
+      'inbox.write',
+      'inbox.use',
+      'property',
+      {
+        alsoActions: ['feedback.handle'],
+        notes:
+          'private-feedback source only; exact Property authority and revision/cycle/source/state fences are rechecked transactionally',
+      },
+    ),
+    sf(
+      'correctFeedbackHandlingOutcomeFn',
+      `${INBOX}/inbox-feedback-handling.ts`,
+      'inbox.write',
+      'inbox.use',
+      'property',
+      {
+        alsoActions: ['feedback.handle'],
+        notes:
+          'append-only private-feedback outcome correction; exact Property authority and prior-outcome revision are rechecked transactionally',
+      },
     ),
     sf(
       'updateInboxStatusFn',
@@ -1538,6 +2138,18 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       },
     ),
     sf(
+      'getSetupChecklistFn',
+      `${DASHBOARD}/setup-checklist.ts`,
+      'dashboard.read',
+      'dashboard.use',
+      'organization',
+      {
+        alsoActions: ['dashboard.fleet_read'],
+        notes:
+          'role-aware exact Property scope; content-free monotonic setup milestones only',
+      },
+    ),
+    sf(
       'getPortalAnalyticsFn',
       `${DASHBOARD}/portal-analytics.ts`,
       'dashboard.read',
@@ -1545,29 +2157,10 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property',
       { notes: '+ isPropertyAccessibleForPermission check (D6-001)' },
     ),
-    sf(
-      'getAttentionSignalsFn',
-      `${DASHBOARD}/attention-signals.ts`,
-      'dashboard.read',
-      'dashboard.use',
-      'property',
-      {
-        alsoActions: ['dashboard.fleet_read'],
-        notes: '+ property-access check (D6-001)',
-      },
-    ),
   ],
 
   // ── notification ──────────────────────────────────────────────────
   ...[
-    sf(
-      'getUnreadNotificationCountFn',
-      `${NOTIFICATION}/notifications.ts`,
-      'notification.read',
-      'notification.in_app',
-      'organization',
-      { notes: 'tolerates no-active-org (returns 0)' },
-    ),
     sf(
       'getNotificationsFn',
       `${NOTIFICATION}/notifications.ts`,
@@ -1575,6 +2168,17 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'notification.in_app',
       'organization',
       { notes: 'tolerates no-active-org' },
+    ),
+    sf(
+      'getNotificationFeedHeadFn',
+      `${NOTIFICATION}/notifications.ts`,
+      'notification.read',
+      'notification.in_app',
+      'organization',
+      {
+        notes:
+          'snapshot-consistent offset-zero page + exact unread count + shared watermark; tolerates no-active-org',
+      },
     ),
     sf(
       'markNotificationReadFn',
@@ -1668,7 +2272,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       },
     ),
     sf(
-      'getOrgActivityFn',
+      'listRecentActivityFn',
       `${ACTIVITY}/activity.ts`,
       'inbox.read',
       'inbox.use',
@@ -1676,6 +2280,42 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       {
         notes:
           'activity surface gated via inbox.read → inbox.use today; remap to activity.use in BQC-2.4',
+      },
+    ),
+    sf(
+      'listOperationalActionHistoryFn',
+      `${ACTIVITY}/activity.ts`,
+      'policy.admin',
+      'identity.invite',
+      'organization',
+      {
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'activity',
+          disposition: 'local_only_with_reason',
+          reason:
+            'The restricted read atomically appends its content-free access outcome to Activity-owned Operational Action History before returning a tenant-forced bounded page; it creates no cross-context domain transition.',
+        },
+        notes:
+          'Current AccountAdmin authority is revalidated inside the Activity application seam; the context build remains default-deny until Identity composition injects that authority.',
+      },
+    ),
+    sf(
+      'exportOperationalActionHistoryFn',
+      `${ACTIVITY}/activity.ts`,
+      'policy.admin',
+      'identity.invite',
+      'organization',
+      {
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'activity',
+          disposition: 'local_only_with_reason',
+          reason:
+            'The restricted export atomically appends its content-free access outcome and returns only an identifier/code canonical page with a reproducibility fingerprint; it creates no cross-context domain transition.',
+        },
+        notes:
+          'Current AccountAdmin authority is revalidated inside the Activity application seam; the context build remains default-deny until Identity composition injects that authority.',
       },
     ),
   ],
@@ -1704,6 +2344,18 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
         canonicalOnly: true,
         notes:
           'canonical next-full-month revision; policy is injected through the application service',
+      },
+    ),
+    sf(
+      'changeGoalProgramAssignments',
+      `${GOAL}/goal-programs.ts`,
+      'goal.update',
+      'goal.use',
+      'property',
+      {
+        canonicalOnly: true,
+        notes:
+          'point-in-time Goal Program assignment replacement; the application service reauthorizes every selected Property before the command store commits the new assignment revision',
       },
     ),
     sf(
@@ -1743,126 +2395,8 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
     ),
     sf('listStaffGoals', `${GOAL}/staff-goals.ts`, 'goal.read', 'goal.use', 'property', {
       notes:
-        'temporary staff-home compatibility read from the pre-beta model; no legacy Goal writer remains network-reachable',
+        'retained compatibility declaration fails closed with HTTP 410 before container or historical-row access; no Staff Home consumer is routed',
     }),
-  ],
-
-  // ── team (dark) ───────────────────────────────────────────────────
-  ...[
-    sf('createTeam', `${TEAM}/teams.ts`, 'team.create', 'team.use', 'property'),
-    sf('updateTeam', `${TEAM}/teams.ts`, 'team.update', 'team.use', 'property', {
-      notes: 'scoped via teamId',
-    }),
-    sf('listTeams', `${TEAM}/teams.ts`, 'team.read', 'team.use', 'property'),
-    sf('deleteTeam', `${TEAM}/teams.ts`, 'team.delete', 'team.use', 'property', {
-      notes: 'soft-delete; scoped via teamId',
-    }),
-    sf('listTeamMemberships', `${TEAM}/teams.ts`, 'team.read', 'team.use', 'property', {
-      notes: 'scoped via teamId',
-    }),
-    sf(
-      'addTeamMember',
-      `${TEAM}/teams.ts`,
-      'team.membership.manage',
-      'team.use',
-      'property',
-      { notes: 'scoped via teamId and participationId' },
-    ),
-    sf(
-      'removeTeamMember',
-      `${TEAM}/teams.ts`,
-      'team.membership.manage',
-      'team.use',
-      'property',
-      { notes: 'scoped via teamId and participationId' },
-    ),
-    sf('setTeamLead', `${TEAM}/teams.ts`, 'team.update', 'team.use', 'property', {
-      notes: 'one lead per team; scoped via teamId and participationId',
-    }),
-    sf('clearTeamLead', `${TEAM}/teams.ts`, 'team.update', 'team.use', 'property', {
-      notes: 'scoped via teamId',
-    }),
-    sf('listMyTeam', `${TEAM}/teams.ts`, 'team.read', 'team.use', 'property', {
-      notes:
-        'hard-denied by team.use before scope discovery; per-scope authorization remains for any future deliberate reactivation',
-    }),
-  ],
-
-  // ── property-scoped recognition ───────────────────────────────────
-  ...[
-    sf(
-      'getRecognitionBoard',
-      `${LEADERBOARD}/leaderboards.ts`,
-      'leaderboard.read',
-      'leaderboard.use',
-      'property',
-    ),
-    sf(
-      'getRecognitionSettings',
-      `${LEADERBOARD}/leaderboards.ts`,
-      'badge.manage',
-      'badge.use',
-      'property',
-      {
-        alsoActions: ['leaderboard.read'],
-        notes: 'also requires leaderboard.read through ExecutionPolicy',
-      },
-    ),
-    sf(
-      'activateRecognition',
-      `${LEADERBOARD}/leaderboards.ts`,
-      'badge.manage',
-      'badge.use',
-      'property',
-      {
-        alsoActions: ['leaderboard.read'],
-        notes: 'also requires leaderboard.read through ExecutionPolicy',
-      },
-    ),
-    sf(
-      'deactivateRecognition',
-      `${LEADERBOARD}/leaderboards.ts`,
-      'badge.manage',
-      'badge.use',
-      'property',
-      {
-        alsoActions: ['leaderboard.read'],
-        notes: 'also requires leaderboard.read through ExecutionPolicy',
-      },
-    ),
-  ],
-
-  // ── badge (dark) ──────────────────────────────────────────────────
-  ...[
-    sf(
-      'getStaffVisibleBadges',
-      `${BADGE}/badges.ts`,
-      'badge.read',
-      'badge.use',
-      'property',
-    ),
-    sf(
-      'getVisibleTargetBadges',
-      `${BADGE}/badges.ts`,
-      'badge.read',
-      'badge.use',
-      'property',
-      { notes: '+ role-filtered visibility check (Staff/PM)' },
-    ),
-    sf(
-      'setOrganizationBadgeEnablement',
-      `${BADGE}/badges.ts`,
-      'badge.manage',
-      'badge.use',
-      'organization',
-    ),
-    sf(
-      'getOrganizationBadgeDefinitionsFn',
-      `${BADGE}/badges.ts`,
-      'badge.read',
-      'badge.use',
-      'organization',
-    ),
   ],
 
   // ── staff ─────────────────────────────────────────────────────────
@@ -1921,7 +2455,10 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'portal.update',
       'portal.write',
       'property',
-      { notes: 'scoped via portalId' },
+      {
+        notes:
+          'scoped via portalId; publish, archive, and restore commit a dedicated content-minimal semantic fact with state and any immutable publication mutation',
+      },
     ),
     sf(
       'rollbackPortalPublication',
@@ -1931,7 +2468,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       'property',
       {
         notes:
-          'appends a new activation for an earlier immutable snapshot; scoped via portalId',
+          'appends a new activation for an earlier immutable snapshot and co-commits the exact target version/digest rollback fact; scoped via portalId',
       },
     ),
     sf(
@@ -1974,6 +2511,93 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
       {
         notes:
           'scoped via authoritative portalId; read model queries the exact organization/property/portal tuple',
+      },
+    ),
+    sf(
+      'getPropertyPortalExperience',
+      `${PORTAL}/portals.ts`,
+      'portal.read',
+      'portal.read',
+      'property',
+      { notes: 'Property scope is resolved from the requested Property id' },
+    ),
+    sf(
+      'savePropertyPortalBrandProfile',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      {
+        notes:
+          'serializes the Property publication source and atomically records pending publication state plus an identifier-only version fact',
+      },
+    ),
+    sf(
+      'savePropertyPortalBrandContent',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      {
+        notes:
+          'serializes localized Property content and atomically records pending publication state plus an identifier-only locale/version fact',
+      },
+    ),
+    sf(
+      'savePortalLocalizedOverride',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      {
+        notes:
+          'locks the exact Portal working copy and atomically records pending publication state plus an identifier-only locale/version fact',
+      },
+    ),
+    sf(
+      'listPortalApprovedDestinations',
+      `${PORTAL}/portals.ts`,
+      'portal.read',
+      'portal.read',
+      'property',
+      {
+        notes:
+          'scoped via authoritative Portal id; returns manager-only Property destination state',
+      },
+    ),
+    sf(
+      'requestPortalApprovedDestination',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      {
+        externalEffect: true,
+        notes:
+          'scoped via authoritative Portal id; every DNS answer and pinned redirect hop is validated before the atomic Property registry write/fact',
+      },
+    ),
+    sf(
+      'approvePortalApprovedDestination',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      {
+        externalEffect: true,
+        notes:
+          'AccountAdmin-only approval; network policy is revalidated before the atomic approval/pending/fact transaction',
+      },
+    ),
+    sf(
+      'disablePortalApprovedDestination',
+      `${PORTAL}/portals.ts`,
+      'portal.update',
+      'portal.write',
+      'property',
+      {
+        notes:
+          'AccountAdmin-only terminal disable; serializes with publication and records pending state plus identifier-only fact',
       },
     ),
     sf(
@@ -2411,14 +3035,10 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       'organization',
       { notes: 'staff surface; loader via staff server fns' },
     ),
-    ui(
-      '/progress',
-      `${AUTHED}/progress.tsx`,
-      'system:ui.render',
-      'goal.use',
-      'organization',
-      { notes: 'staff goals surface (dark)' },
-    ),
+    ui('/progress', `${AUTHED}/progress.tsx`, 'system:ui.render', 'none', 'none', {
+      notes:
+        'retained URL compatibility only; Staff returns home and authorized managers move to the canonical Property Goal Program surface',
+    }),
     ui(
       '/leaderboard',
       `${AUTHED}/leaderboard.tsx`,
@@ -2716,7 +3336,7 @@ const ROUTE_API_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     {
       notes:
-        'startup probe: container built + migrations match + policy readable; platform activation gate (railway.json healthcheckPath; activation ≠ liveness)',
+        'startup diagnostic: container built + migrations match + policy readable; retained for local/staging orchestration while Railway activation uses /api/health/ready',
     },
   ),
   api(
@@ -2784,6 +3404,18 @@ const ROUTE_API_ROWS: ReadonlyArray<EntryPointRow> = [
 
 const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
   job(
+    'portal-approved-destination-revalidation',
+    'src/contexts/portal/infrastructure/jobs/revalidate-approved-destinations.job.ts',
+    'system:portal.destination_revalidate',
+    'portal.write',
+    'tenant_cross',
+    {
+      externalEffect: true,
+      notes:
+        'bounded tenant-cross discovery; each Property is independently authorized before pinned DNS/redirect validation and any exact-fenced quarantine transaction',
+    },
+  ),
+  job(
     'health-check',
     'src/shared/jobs/health-check.job.ts',
     'system:health.check',
@@ -2801,6 +3433,18 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
       externalEffect: true,
       notes:
         'issuance-only private read + derived writes (sharp re-encode); stale-fenced; registration-gated; no-op when dark',
+    },
+  ),
+  job(
+    'portal-upload-source-cleanup',
+    'src/contexts/portal/infrastructure/jobs/cleanup-upload-sources.job.ts',
+    'system:image.cleanup',
+    'none',
+    'tenant_cross',
+    {
+      externalEffect: true,
+      notes:
+        'bounded oldest-first cleanup of issuance-derived private source objects; DeleteObject is idempotent and a durable source-deleted marker makes crash replay convergent; stays active while portal.upload is dark',
     },
   ),
   job(
@@ -2872,6 +3516,17 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
+    'release-response-target-reminders',
+    'src/contexts/inbox/infrastructure/jobs/release-response-target-reminders.job.ts',
+    'system:inbox.update',
+    'inbox.use',
+    'tenant_cross',
+    {
+      notes:
+        'bounded 100-slot timing sweep; each reminder release and its identifier-only durable fact commit atomically, and the exact target is revalidated downstream before delivery',
+    },
+  ),
+  job(
     'discover-new-reviews',
     'src/contexts/review/infrastructure/jobs/discover-new-reviews.job.ts',
     'system:review.discovery_sweep',
@@ -2889,8 +3544,9 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'none',
     'tenant_cross',
     {
+      mutation: { kind: 'read_only' },
       notes:
-        'SAFE-03 quarantine handler; drains legacy jobs without reads/mutations/facts until REV-01 stable-identity cutover',
+        'SAFE-03/REV-01 content-free checkpointed report/shadow authority; no Review/source/Reply/Inbox mutation and no destructive apply authority',
     },
   ),
   job(
@@ -2981,7 +3637,7 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        '17 static rules plus Google import lifecycle (incl. per-entry cache expiry, 24h/7d guest pseudonym redaction, and 365d audit evidence); separate deletion/redaction counts in retention_runs; throws on any subject failure',
+        'Guest-owned Contact Request encrypted-material expiry, registered static rules, and Google import lifecycle (incl. per-entry cache expiry, 24h/7d guest pseudonym redaction, settled invitation-registration fences, and 365d audit evidence); separate deletion/redaction counts in retention_runs; throws on any subject failure',
     },
   ),
   job(
@@ -3007,6 +3663,17 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
+    'ai-authorization-derivative-erasure',
+    'src/shared/jobs/ai-authorization-erasure.job.ts',
+    'system:ai.authorization_erasure',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'Immediately eligible, PostgreSQL-leased exact retired-generation deletion for Review Analysis, Property aggregate, and Property Trend rows; eight persisted attempts, current-Identity safety fence, class-separated content-free evidence, no provider effect; remains active while AI is dark.',
+    },
+  ),
+  job(
     'ai-review-analysis-backfill-advance',
     'src/shared/jobs/ai-review-analysis-backfill-advance.job.ts',
     'system:ai.review_analysis_backfill_advance',
@@ -3015,6 +3682,17 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'Drives an open ops:ai-reanalyze run one review further: allocates and emits the next item only once its predecessor settled, terminal-settles an item whose redelivery has stopped, and closes a run whose epoch/watermark fence moved',
+    },
+  ),
+  job(
+    'ai-review-analysis-enrollment-sweep',
+    'src/shared/jobs/ai-review-analysis-enrollment-sweep.job.ts',
+    'system:ai.review_analysis_enrollment_sweep',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'Unconditional, bounded recovery for durable first-enablement enrollment intents. The owning AI use case rechecks each exact authorization lineage/source/capability fence and current global/provider/capability controls before it can open a replay; a full 50-head batch waits for the next recurrence rather than recursively enqueueing.',
     },
   ),
   job(
@@ -3029,6 +3707,52 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
+    'advance-organization-lifecycle',
+    'src/contexts/identity/infrastructure/jobs/advance-organization-lifecycle.job.ts',
+    'system:identity.organization_lifecycle',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'bounded 50-Organization lifecycle pass; current boot registration is a no-mutation safety handler and the recurring schedule remains reconciled away until every context-owned contributor plus independent support authorization is composed',
+    },
+  ),
+  job(
+    'generate-organization-export',
+    'src/contexts/identity/infrastructure/jobs/generate-organization-export.job.ts',
+    'system:identity.organization_export',
+    'none',
+    'tenant_cross',
+    {
+      externalEffect: true,
+      notes:
+        'one renewable generation claim and one deterministic private encrypted object write; currently a no-mutation safety handler with its schedule reconciled away pending all 17 reviewed contributors and storage binding',
+    },
+  ),
+  job(
+    'purge-expired-organization-exports',
+    'src/contexts/identity/infrastructure/jobs/purge-expired-organization-exports.job.ts',
+    'system:identity.organization_export',
+    'none',
+    'tenant_cross',
+    {
+      externalEffect: true,
+      notes:
+        'one expired export claim and verified encrypted-object deletion; currently a no-mutation safety handler with its schedule reconciled away pending storage binding and a live absence drill',
+    },
+  ),
+  job(
+    'recover-invited-registrations',
+    'src/contexts/identity/infrastructure/jobs/recover-invited-registrations.job.ts',
+    'system:identity.accept_invitation',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'bounded recovery of content-free invitation registration fences; exact preallocated provider identities only, with safe compensation or manual-review terminal state',
+    },
+  ),
+  job(
     'google-import-claim-reaper',
     'src/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job.ts',
     'system:property.import_claim_reap',
@@ -3040,12 +3764,23 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   job(
-    'insert-activity-log',
-    'src/contexts/activity/infrastructure/jobs/insert-activity-log.job.ts',
+    'project-recent-activity',
+    'src/contexts/activity/infrastructure/jobs/project-recent-activity.job.ts',
     'system:activity.record',
     'none',
     'organization',
     { notes: 'enqueued by 29 activity event handlers' },
+  ),
+  job(
+    'insert-activity-log',
+    'src/contexts/activity/infrastructure/jobs/project-recent-activity.job.ts',
+    'system:activity.record',
+    'none',
+    'organization',
+    {
+      notes:
+        'registered solely to drain pre-migration-0160 queued work; all current producers use project-recent-activity',
+    },
   ),
   job(
     'insert-notification',
@@ -3079,14 +3814,6 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
         'hourly fanout re-enqueues immediate orphans per authorized property; ADR 0046 r.4 digest batches are per USER in the user timezone, grouped by property inside one email',
     },
   ),
-  job(
-    'leaderboard.reconcile',
-    'src/bootstrap.ts',
-    'system:leaderboard.reconcile',
-    'leaderboard.use',
-    'tenant_cross',
-    { notes: 'inline literal (no *.job.ts); registration-gated; dark' },
-  ),
 ]
 
 const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
@@ -3116,6 +3843,25 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   consumer(
+    'portal.health-outbox-consumers',
+    'src/contexts/portal/infrastructure/portal-health-outbox-consumers.ts',
+    'system:portal.health_reconcile',
+    'portal.write',
+    'property',
+    [
+      'property.archived',
+      'property.restored',
+      'property.updated',
+      'property.deleted',
+      'property.google_binding.changed',
+      'portal.responsible_managers.updated',
+    ],
+    {
+      notes:
+        'recomputes derived Portal Health from committed dependencies and atomically settles the receipt, effective-dated interval, and identifier-only change fact',
+    },
+  ),
+  consumer(
     'inbox.outbox-consumers',
     'src/contexts/inbox/infrastructure/outbox-consumers.ts',
     'system:inbox.update',
@@ -3124,13 +3870,14 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     [
       'review.created',
       'review.expired',
+      'review.source_transitioned',
       'review.updated',
       'review.reply.published',
       'review.reply.observed',
     ],
     {
       notes:
-        'durable outbox consumers: publication is receipt-only; exact current reply observation applyOnce co-commits close/reopen state, facts, and receipt',
+        'durable outbox consumers: source transition co-commits legacy-content scrub/close/receipt; publication is receipt-only; exact current reply observation applyOnce co-commits close/reopen state, facts, and receipt',
     },
   ),
   consumer(
@@ -3158,6 +3905,22 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   consumer(
+    'notification.identity-account-outbox-consumers',
+    'src/contexts/notification/infrastructure/identity-account-outbox-consumers.ts',
+    'system:notification.insert',
+    'none',
+    'organization',
+    [
+      'identity.invitation.accepted',
+      'identity.member.role_changed',
+      'identity.member.removed',
+    ],
+    {
+      notes:
+        'durable affected-account access notices; exact schema-validated Identity fact is re-read at delivery, so role-change actor and target cannot be confused and a removed user still receives their own notice',
+    },
+  ),
+  consumer(
     'notification.workflow-outbox-consumers',
     'src/contexts/notification/infrastructure/workflow-outbox-consumers.ts',
     'system:notification.insert',
@@ -3179,15 +3942,99 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   consumer(
+    'notification.bulk-assignment-outbox-consumers',
+    'src/contexts/notification/infrastructure/bulk-assignment-outbox-consumers.ts',
+    'system:notification.insert',
+    'none',
+    'organization',
+    ['inbox.inbox_items.bulk_assignment_completed'],
+    {
+      notes:
+        'one durable identifier-only notification per next-assignee and Property; exact current assignment and Property eligibility are rechecked at delivery, while deterministic jobs converge before the completion receipt is acknowledged',
+    },
+  ),
+  consumer(
+    'notification.escalation-resolution-outbox-consumers',
+    'src/contexts/notification/infrastructure/escalation-resolution-outbox-consumers.ts',
+    'system:notification.insert',
+    'none',
+    'organization',
+    ['inbox.inbox_item.escalation_resolved'],
+    {
+      notes:
+        'durable identifier-only resolution fan-out to the current assignee or current responsible managers; actor suppression and deterministic per-recipient jobs make stale delivery safe',
+    },
+  ),
+  consumer(
+    'notification.handling-cycle-outbox-consumers',
+    'src/contexts/notification/infrastructure/handling-cycle-outbox-consumers.ts',
+    'system:notification.insert',
+    'none',
+    'organization',
+    ['inbox.handling_cycle.opened', 'inbox.handling_cycle.reopened'],
+    {
+      notes:
+        'durable identifier-only material-revision and reopen fan-out; initial item cycles are receipt-only, while exact current cycle/head, source-specific responsibility, and actor suppression are revalidated at delivery',
+    },
+  ),
+  consumer(
+    'notification.response-target-outbox-consumers',
+    'src/contexts/notification/infrastructure/response-target-outbox-consumers.ts',
+    'system:notification.insert',
+    'none',
+    'organization',
+    ['inbox.response_target.reminder_due'],
+    {
+      notes:
+        'durable one-shot target reminder fan-out; the exact active target and current source-specific responsibility are revalidated both before enqueue and at notification materialization',
+    },
+  ),
+  consumer(
+    'notification.goal-outbox-consumers',
+    'src/contexts/notification/infrastructure/goal-outbox-consumers.ts',
+    'system:notification.insert_goal',
+    'goal.use',
+    'property',
+    ['goal.monthly_result.closed', 'goal.monthly_result.revised'],
+    {
+      notes:
+        'achieved-close and neutral result-revision fan-out; exact current result/revision fence and responsibility are reloaded before deterministic recipient jobs are acknowledged',
+    },
+  ),
+  consumer(
+    'notification.on-google-reauthorization-required',
+    'src/contexts/notification/infrastructure/integration-outbox-consumers.ts',
+    'system:notification.insert',
+    'none',
+    'organization',
+    ['integration.google_account.reauthorization_required'],
+    {
+      notes:
+        'durable identifier-only AccountAdmin recovery fan-out for connector departure; recipient jobs converge by event and user before the receipt is acknowledged',
+    },
+  ),
+  consumer(
     'notification.portal-outbox-consumers',
     'src/contexts/notification/infrastructure/portal-outbox-consumers.ts',
-    'system:notification.insert',
+    'system:notification.insert_portal',
     'portal.write',
     'property',
     ['portal.responsibility_became_needed'],
     {
       notes:
         'portal-gated durable AccountAdmin recovery fan-out; identifier-only payload, receipt fencing, deterministic per-recipient job ids',
+    },
+  ),
+  consumer(
+    'notification.portal-health-outbox-consumers',
+    'src/contexts/notification/infrastructure/portal-health-outbox-consumers.ts',
+    'system:notification.insert_portal',
+    'portal.write',
+    'property',
+    ['portal.health.changed'],
+    {
+      notes:
+        'durable serious Portal Health fan-out; expected states and recovery settle receipt-only, while recipient jobs revalidate the exact enum/fence state before delivery',
     },
   ),
   consumer(
@@ -3208,10 +4055,23 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:property.import_v2',
     'property.import_gbp_v2',
     'organization',
-    ['integration.property_import.requested'],
+    ['integration.property_import.requested', 'property.google_binding.changed'],
     {
       notes:
-        'durable identifier-only intent consumer; deterministic item job IDs converge ambiguous relay delivery',
+        'durable identifier-only import dispatch plus provider-authorization invalidation; deterministic item jobs and versioned invalidation delivery converge ambiguous relay delivery',
+    },
+  ),
+  consumer(
+    'integration.google-review-push-dispatch',
+    'src/contexts/integration/infrastructure/google-review-push-outbox-consumers.ts',
+    'system:review.sync',
+    'property.connect_gbp',
+    'property',
+    ['integration.google_review_push.accepted'],
+    {
+      externalEffect: true,
+      notes:
+        'durable identifier-only GBP push dispatch; deterministic existing review-sync job admission re-resolves current Property routing and credential home before provider access',
     },
   ),
   consumer(
@@ -3236,6 +4096,7 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'review.created',
       'review.updated',
       'review.source_transitioned',
+      'identity.merchant_ai.changed',
       'ai.review_analysis.backfill_requested',
       'ai.property_trend.generation_requested',
     ],
@@ -3278,34 +4139,71 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'property.updated',
       'property.deleted',
     ],
-    { notes: 'each handler enqueues insert-activity-log' },
+    { notes: 'each handler enqueues project-recent-activity' },
   ),
   consumer(
-    'badge.event-handlers',
-    'src/contexts/badge/infrastructure/event-handlers/index.ts',
-    'system:badge.evaluate',
-    'badge.use',
+    'activity.outbox-consumers',
+    'src/contexts/activity/infrastructure/outbox-consumers.ts',
+    'system:activity.record',
+    'none',
     'organization',
-    ['metric.recorded'],
-    { notes: 'BQC-3.2: emit-time gate denies via ExecutionPolicy' },
+    [
+      'goal.monthly_result.closed',
+      'goal.monthly_result.reconciled',
+      'goal.monthly_result.revised',
+      'identity.invitation.accepted',
+      'identity.invitation.canceled',
+      'identity.member.invited',
+      'identity.member.removed',
+      'identity.member.role_changed',
+      'identity.merchant_ai.changed',
+      'identity.organization.created',
+      'inbox.inbox_item.assigned',
+      'inbox.inbox_item.bulk_status_changed',
+      'inbox.inbox_item.created',
+      'inbox.inbox_item.escalated',
+      'inbox.inbox_item.escalation_resolved',
+      'inbox.inbox_item.status_changed',
+      'inbox.inbox_item.unassigned',
+      'inbox.inbox_note.added',
+      'integration.google_account.connected',
+      'integration.google_account.disconnected',
+      'integration.google_connection.visibility_changed',
+      'portal.archived',
+      'portal.approved_destination.updated',
+      'portal.health.changed',
+      'portal.hero_image.published',
+      'portal.publication.published',
+      'portal.publication.rolled_back',
+      'portal.restored',
+      'property.created',
+      'property.deleted',
+      'property.archived',
+      'property.restored',
+      'property.updated',
+      'review.reply.approved',
+      'review.reply.publication_cancelled',
+      'review.reply.published',
+      'review.reply.rejected',
+      'review.reply.submitted',
+      'review.reply.updated',
+    ],
+    {
+      notes:
+        'durable Recent Activity projection plus the explicit Operational Action History source-fact subset; Recent Activity settles each content-free replay fact, projected row, and receipt atomically, while restricted history settles its identifier-only record and receipt through its separate append authority',
+    },
   ),
   consumer(
-    'goal.event-handlers',
-    'src/contexts/goal/infrastructure/event-handlers/index.ts',
-    'system:goal.progress',
+    'goal.metric-correction-reconciliation',
+    'src/contexts/goal/infrastructure/metric-correction-outbox-consumers.ts',
+    'system:goal.maintain',
     'goal.use',
-    'organization',
-    ['metric.recorded', 'portal.deleted', 'portal_group.deleted'],
-    { notes: 'BQC-3.2: emit-time gate denies via ExecutionPolicy' },
-  ),
-  consumer(
-    'leaderboard.event-handlers',
-    'src/contexts/leaderboard/infrastructure/event-handlers/index.ts',
-    'system:leaderboard.refresh',
-    'leaderboard.use',
-    'organization',
-    ['metric.recorded'],
-    { notes: 'BQC-3.2: emit-time gate denies via ExecutionPolicy' },
+    'property',
+    ['metric.corrected'],
+    {
+      notes:
+        'durable exact-scope Metric correction impact reconciliation; appends serialized closed-result revisions and their identifier-only facts atomically',
+    },
   ),
   consumer(
     'metric.event-handlers',
@@ -3315,6 +4213,8 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'organization',
     [
       'guest.scan.recorded',
+      'guest.qualified_scan.recorded',
+      'guest.qualified_scan.retracted',
       'guest.rating.submitted',
       'guest.rating.retracted',
       'guest.feedback.submitted',
@@ -3341,6 +4241,30 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     { notes: 'durable governed Portal workflow metric ingestion' },
   ),
   consumer(
+    'metric.public-reputation',
+    'src/contexts/metric/infrastructure/public-reputation-outbox-consumers.ts',
+    'system:metric.record_public_reputation',
+    'none',
+    'organization',
+    ['review.created'],
+    {
+      notes:
+        'durable bounded-period Google Review activity ingestion; reloads the eligible rating from Review authority and settles the Metric write with its consumer receipt',
+    },
+  ),
+  consumer(
+    'metric.current-google-reputation',
+    'src/contexts/metric/infrastructure/current-google-reputation-outbox-consumers.ts',
+    'system:metric.record_public_reputation',
+    'none',
+    'organization',
+    ['review.google_reputation_snapshot.verified'],
+    {
+      notes:
+        'durable Review-verified provider aggregate projected into Metric current state with atomic receipt and source-epoch/evaluated-time fencing; never a bounded-period metric reading',
+    },
+  ),
+  consumer(
     'metric.guest-analytics',
     'src/contexts/metric/infrastructure/guest-outbox-consumers.ts',
     'system:metric.record_guest_analytics',
@@ -3348,6 +4272,8 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'organization',
     [
       'guest.scan.recorded',
+      'guest.qualified_scan.recorded',
+      'guest.qualified_scan.retracted',
       'guest.rating.submitted',
       'guest.rating.retracted',
       'guest.feedback.submitted',
@@ -3381,15 +4307,14 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'review.reply.rejected',
       'review.reply.published',
       'review.reply.publish_failed',
-      'goal.completed',
-      'badge.awarded',
+      'integration.google_account.reauthorization_required',
     ],
-    { notes: 'each handler enqueues insert-notification' },
+    { notes: 'each active handler enqueues insert-notification' },
   ),
   consumer(
     'notification.portal-event-handlers',
     'src/contexts/notification/infrastructure/event-handlers/portal-event-handlers.ts',
-    'system:notification.insert',
+    'system:notification.insert_portal',
     'portal.write',
     'property',
     ['portal.responsibility_became_needed'],
@@ -3436,6 +4361,23 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
 ]
 
 const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
+  schedule(
+    'portal-approved-destination-revalidation-recurring',
+    'system:portal.destination_revalidate',
+    'portal.write',
+    'tenant_cross',
+    { notes: 'every 15 min; oldest validation timestamp first, bounded at 100' },
+  ),
+  schedule(
+    'portal-upload-source-cleanup-recurring',
+    'system:image.cleanup',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'hourly bounded private-source cleanup; intentionally active when portal.upload is disabled',
+    },
+  ),
   schedule('health-check-recurring', 'system:health.check', 'none', 'none', {
     notes: 'every 5 min',
   }),
@@ -3474,13 +4416,13 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   schedule(
-    'purge-expired-reviews-recurring',
-    'system:review.purge',
-    'none',
+    'release-response-target-reminders-recurring',
+    'system:inbox.update',
+    'inbox.use',
     'tenant_cross',
     {
       notes:
-        'managed but disabled by SAFE-03; reconciles the former daily scheduler away',
+        'every 5 min; releases at most 100 exact one-shot halfway or target-passed slots and leaves any remainder for the next tick',
     },
   ),
   schedule(
@@ -3517,6 +4459,16 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   schedule(
+    'ai-authorization-derivative-erasure-recurring',
+    'system:ai.authorization_erasure',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'every 5 min; deletion starts immediately after containment and the lifecycle deadline is an exact 24-hour maximum, not a wait-until time',
+    },
+  ),
+  schedule(
     'ai-review-analysis-backfill-advance-recurring',
     'system:ai.review_analysis_backfill_advance',
     'none',
@@ -3527,11 +4479,63 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   schedule(
+    'ai-review-analysis-enrollment-sweep-recurring',
+    'system:ai.review_analysis_enrollment_sweep',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'every 5 min; one tick visits at most 50 enrollment heads and a full batch waits for the next recurrence, preventing continuation fan-out',
+    },
+  ),
+  schedule(
     'permit-start-deadline-sweep-recurring',
     'system:permit.start_deadline_fence',
     'none',
     'tenant_cross',
     { notes: 'every 5 min (execution-permit start-deadline fence)' },
+  ),
+  schedule(
+    'advance-organization-lifecycle-recurring',
+    'system:identity.organization_lifecycle',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'intended every 5 minutes, but operational posture is quarantined and reconciliation removes it until all 17 lifecycle contributors plus independent support authorization are bound',
+    },
+  ),
+  schedule(
+    'generate-organization-export-recurring',
+    'system:identity.organization_export',
+    'none',
+    'tenant_cross',
+    {
+      externalEffect: true,
+      notes:
+        'intended every minute, but operational posture is quarantined and reconciliation removes it until reviewed contributors and encrypted storage are bound',
+    },
+  ),
+  schedule(
+    'purge-expired-organization-exports-recurring',
+    'system:identity.organization_export',
+    'none',
+    'tenant_cross',
+    {
+      externalEffect: true,
+      notes:
+        'intended hourly, but operational posture is quarantined and reconciliation removes it until encrypted storage plus live deletion verification are bound',
+    },
+  ),
+  schedule(
+    'recover-invited-registrations-recurring',
+    'system:identity.accept_invitation',
+    'none',
+    'tenant_cross',
+    {
+      notes:
+        'every 60s; the database lease prevents duplicate workers and the five-minute due time avoids racing an active foreground provider request',
+    },
   ),
   schedule(
     'google-import-claim-reaper-recurring',
@@ -3575,13 +4579,6 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   schedule(
-    'leaderboard.reconcile-recurring',
-    'system:leaderboard.reconcile',
-    'leaderboard.use',
-    'tenant_cross',
-    { notes: 'cron 30 * * * *; NOT scheduled while leaderboard.use dark' },
-  ),
-  schedule(
     'digest-notification-recurring',
     'system:notification.email_digest',
     'notification.send_email',
@@ -3612,6 +4609,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ops/manage-dormant-billing-data.ts',
+    'scripts/ops/manage-dormant-billing-data.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:manage-dormant-billing-data — EXP-01 content-free report plus destructive exact-fingerprint apply for all five dormant Better Auth Billing compatibility fields; serializable row locks, typed confirmation, ticket/reason audit, atomic nulling, and empty-state verification; columns remain intact',
+    },
+  ),
+  ops(
     'scripts/ops/quarantine-redrive.ts',
     'scripts/ops/quarantine-redrive.ts',
     'tenant_cross',
@@ -3639,12 +4645,21 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ops/cutover-single-us-data-cell.ts',
+    'scripts/ops/cutover-single-us-data-cell.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:cutover-single-us-data-cell — audited report/fence/bounded-backfill/verify transition to the single US policy-v3 Data Cell; apply is digest-bound and completion emits target-bound release evidence',
+    },
+  ),
+  ops(
     'scripts/ops/reconcile-people-team.ts',
     'scripts/ops/reconcile-people-team.ts',
     'tenant_cross',
     {
       notes:
-        'ops:reconcile-people-team — report/apply legacy assignment reconciliation; --apply verifies canonical participation/membership/responsibility parity and writes one immutable audited evidence artifact; anomalies remain blocking findings',
+        'ops:reconcile-people-team — report/apply legacy assignment reconciliation; --apply verifies canonical participation/responsibility/Portal Group parity, leaves Team membership opaque and untouched, and writes one immutable audited version-2 evidence artifact; version-1 evidence and anomalies remain blocking findings',
     },
   ),
   ops(
@@ -3657,6 +4672,96 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ops/report-portal-access-artifacts.ts',
+    'scripts/ops/report-portal-access-artifacts.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-portal-artifacts — read-only, explicit-time inventory of reachable legacy QR/NFC addresses that lack a published Qualified Scan Access Artifact; stable content-free replacement list',
+    },
+  ),
+  ops(
+    'scripts/ops/report-portal-beta-readiness.ts',
+    'scripts/ops/report-portal-beta-readiness.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-portal-beta-readiness — read-only POR-01 legacy Portal inventory with an explicit cutoff and optional Organization set; canonical identifier/reason/count output only, with no apply or provenance-inference path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-guest-response-readiness.ts',
+    'scripts/ops/report-guest-response-readiness.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-guest-response-readiness — read-only GST-01 legacy Rating/Feedback and canonical Guest Response reconciliation at an explicit observation time; identifier-only classifications, star distributions, and source/correction/retraction identities; no apply or inferred-provenance path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-organization-lifecycle.ts',
+    'scripts/ops/report-organization-lifecycle.ts',
+    'organization',
+    {
+      notes:
+        'ops:report-organization-lifecycle — read-only exact lifecycle authority and contributor/storage composition readiness; it cannot waive recovery, cancel pending purge, cross the irreversible boundary, reactivate, generate an export, or delete storage',
+    },
+  ),
+  ops(
+    'scripts/ops/triage-beta-feedback.ts',
+    'scripts/ops/triage-beta-feedback.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:triage-beta-feedback — content-free support queue report by default; apply changes exactly one delivered feedback receipt with optimistic concurrency, a named pseudonymous owner, ticketed reason, and an append-only transition in the same transaction; report text and masked attachments remain restricted provider content and engineering issues are linked only by an explicit later operator decision',
+    },
+  ),
+  ops(
+    'scripts/ops/recover-recent-activity.ts',
+    'scripts/ops/recover-recent-activity.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:recover-recent-activity — explicit-time readiness plus audited, bounded, cursor-resumable repair from Activity-owned replay facts; dry-run is read-only and --apply requires a reason',
+    },
+  ),
+  ops(
+    'scripts/ops/reconcile-recent-activity-vocabulary.ts',
+    'scripts/ops/reconcile-recent-activity-vocabulary.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:reconcile-recent-activity-vocabulary — Organization-scoped content-free report and one-pair exact-fingerprint compatibility repair; apply is ticketed, operation-idempotent, typed-confirmed, transactionally receipted, and never infers unmappable vocabulary',
+    },
+  ),
+  ops(
+    'scripts/ops/report-legacy-goals.ts',
+    'scripts/ops/report-legacy-goals.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-legacy-goals — read-only, explicit-time GOA-01/CNV-01 inventory of the two retained pre-beta Goal tables, exact row counts, all-schema foreign-key dependencies, fixed data-fate classifications, and a content-free fingerprint; no record identifiers or apply path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-legacy-people-team.ts',
+    'scripts/ops/report-legacy-people-team.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-legacy-people-team — read-only, explicit-time PPL-01/CNV-01 inventory of all five mixed-owner contraction tables: the Identity-owned plural PropertyAccessGrant plus retained StaffAssignment, Team, TeamMembership, and Team-to-Portal-Group rows and foreign-key dependencies; content-free counts and fingerprints only, with no apply path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-legacy-recognition.ts',
+    'scripts/ops/report-legacy-recognition.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-legacy-recognition — read-only REC-01 inventory of all 13 retained Badge/Leaderboard/Recognition tables, exact row counts, foreign-key dependencies, data-fate classifications, and a content-free fingerprint; no record identifiers or apply path',
+    },
+  ),
+  ops(
     'scripts/ops/rebuild-projection.ts',
     'scripts/ops/rebuild-projection.ts',
     'organization',
@@ -3664,6 +4769,16 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
       notes:
         'ops:rebuild-projection — repair/rebuild the inbox projection via the rebuildInboxProjection use case (bounded, dry-run default); metric-rollup watermark reset deliberately NOT built (BQC-7.5)',
     },
+  ),
+  ops(
+    'scripts/ops/rebuild-metric-projection.ts',
+    'scripts/ops/rebuild-metric-projection.ts',
+    'property',
+    {
+      notes:
+        'ops:rebuild-metric-projection — report-first parity inspection and non-destructive repair for one anonymous Portal lifetime projection; exact Organization/Property/Portal scope, governed Metric facts, and the retained sealed checkpoint remain authoritative',
+    },
+    'metric.internal',
   ),
   ops(
     'scripts/ops/reconcile-publication.ts',
@@ -4013,6 +5128,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ci/check-typescript-project-coverage.ts',
+    'scripts/ci/check-typescript-project-coverage.ts',
+    'none',
+    {
+      notes:
+        'check:typescript-project-coverage — read-only OPS-03 gate proving every TypeScript module is owned by an invoked project',
+    },
+  ),
+  ops(
     'scripts/ci/check-product-state-consistency.ts',
     'scripts/ci/check-product-state-consistency.ts',
     'none',
@@ -4099,7 +5223,8 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   }),
   ops('scripts/simulate.ts', 'scripts/simulate.ts', 'tenant_cross', {
     externalEffect: true,
-    notes: 'Neon branch lifecycle (Neon API) + seed + invariants',
+    notes:
+      'local disposable PostgreSQL database lifecycle + deploy-equivalent migrations + seed + invariants; ignores the application DATABASE_URL and reads no inherited/customer data',
   }),
   ops(
     'scripts/simulation-invocation.ts',
@@ -4150,7 +5275,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'ops:google-content-approval — signature-verified global content-treatment approval installation; ticketed and audited',
+        'ops:google-content-approval — signature-verifies private content-treatment bundles; direct apply is fail-closed until the atomic exact-target cell-us activation controller exists',
     },
   ),
   ops(
@@ -4159,7 +5284,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'ops:google-content-approval-sign — operator-held role keystore; re-signs the existing evidence for a moved approval-bound version and installs it through ops:google-content-approval',
+        'ops:google-content-approval-sign — operator-held role keystore; prepares and validates private re-signing bundles, while database/Railway activation stays fail-closed until the atomic exact-target controller exists',
     },
   ),
   ops(
@@ -4178,6 +5303,24 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:google-import-lifecycle — tenant-scoped import backlog inspection and guarded cancellation',
+    },
+  ),
+  ops(
+    'scripts/ops/google-credential-home-backfill.ts',
+    'scripts/ops/google-credential-home-backfill.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:google-credential-home-backfill — report-first, drift-digest-bound installation of one explicitly reviewed Organization credential home; never infers placement',
+    },
+  ),
+  ops(
+    'scripts/ops/google-credential-routing-publish.ts',
+    'scripts/ops/google-credential-routing-publish.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:google-credential-routing-publish — ticketed publication of one signed, identifier-only, monotonically versioned Google credential routing directory revision',
     },
   ),
   ops(
@@ -4227,6 +5370,16 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'ai.analyze',
   ),
   ops(
+    'scripts/ops/ai-approve-enrollment.ts',
+    'scripts/ops/ai-approve-enrollment.ts',
+    'property',
+    {
+      notes:
+        'ops:ai-approve-enrollment — ticketed, typed-confirmation approval of one exact, complete first-enablement snapshot above the fixed 10,000-revision safety ceiling; records content-free immutable approval evidence but never changes consent, selects a subset, starts replay, or activates provider execution',
+    },
+    'ai.analyze',
+  ),
+  ops(
     'scripts/ops/permit-start-deadline-backfill.ts',
     'scripts/ops/permit-start-deadline-backfill.ts',
     'tenant_cross',
@@ -4251,6 +5404,28 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
         'release:validate-evidence — validates the named, path-contained BQC-8.8 reviewer evidence bundle; read-only',
     },
   ),
+  ops('scripts/release/iac-digest.ts', 'scripts/release/iac-digest.ts', 'none', {
+    notes:
+      'Shared read-only digest helper for binding Railway plan evidence and promotion manifests to the exact reviewed infrastructure source tree',
+  }),
+  ops(
+    'scripts/release/release-authority-digest.ts',
+    'scripts/release/release-authority-digest.ts',
+    'none',
+    {
+      notes:
+        'Shared read-only digest helper that binds signed manifests to the complete local release-controller authority surface',
+    },
+  ),
+  ops(
+    'scripts/release/staged-railway-sources.ts',
+    'scripts/release/staged-railway-sources.ts',
+    'none',
+    {
+      notes:
+        'Shared pure validation helper for exact-digest staged source maps and pinned Railway plan/apply evidence; it has no standalone mutation entry point',
+    },
+  ),
   ops(
     'scripts/release/railway-data-cell-plan.ts',
     'scripts/release/railway-data-cell-plan.ts',
@@ -4260,7 +5435,37 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
         'release:railway-data-cell-plan — fail-closed read-only Railway infrastructure plan wrapper bound to the requested project and data-cell environment',
     },
   ),
+  ops(
+    'scripts/release/railway-data-cell-domain.ts',
+    'scripts/release/railway-data-cell-domain.ts',
+    'none',
+    {
+      externalEffect: true,
+      notes:
+        'infra:railway:domain — one-time exact-target production custom-domain registration; applies only a reviewed canonical intent after source-less foundation proof and verifies readback',
+    },
+  ),
+  ops(
+    'scripts/release/railway-data-cell-foundation.ts',
+    'scripts/release/railway-data-cell-foundation.ts',
+    'none',
+    {
+      externalEffect: true,
+      notes:
+        'infra:railway:foundation — fail-closed one-time Railway foundation planner/apply controller; requires an empty exact-project cell-us target and applies only the unchanged reviewed source-less plan',
+    },
+  ),
   // ── bqc ───────────────────────────────────────────────────────────
+  ops(
+    'scripts/release/railway-google-content-approval-activation.ts',
+    'scripts/release/railway-google-content-approval-activation.ts',
+    'tenant_cross',
+    {
+      externalEffect: true,
+      notes:
+        'infra:railway:google-content-approval — exact-target cell-us activation controller; requires all four capabilities killed and drained, installs retained database approvals from one private reviewed intent, changes only the two approved shared variables, and verifies the complete unrelated Railway configuration',
+    },
+  ),
   ops('scripts/bqc/run-baseline.ts', 'scripts/bqc/run-baseline.ts', 'tenant_cross', {
     notes: 'bqc:run-baseline — full gate run incl. migrations/seed/e2e; writes evidence',
   }),
@@ -4277,7 +5482,7 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     {
       notes:
-        'DIRECT-DB (psql): db:bootstrap-auth — provisions 8 better-auth baseline tables',
+        'RECOVERY-ONLY DIRECT-DB (psql): db:bootstrap-auth — compatibility provisioning for 8 Better Auth baseline tables; normal deploy uses db:migrate-deploy',
     },
   ),
   ops(
@@ -4479,6 +5684,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/release/bootstrap-schema-migrator.ts',
+    'scripts/release/bootstrap-schema-migrator.ts',
+    'tenant_cross',
+    {
+      notes:
+        'release:migrate-cell — audited first-rollout schema bootstrap: verifies the signed manifest and fresh exact-target no-drift Railway plan, attaches only the manifest web-image digest to the one-shot schema-migrator, and requires SUCCESS at that digest',
+    },
+  ),
+  ops(
     'scripts/release/deploy-beta.ts',
     'scripts/release/deploy-beta.ts',
     'tenant_cross',
@@ -4499,9 +5713,6 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
   }),
   ops('db:pull', 'package.json', 'tenant_cross', {
     notes: 'drizzle-kit pull — introspects DB to files',
-  }),
-  ops('db:studio', 'package.json', 'tenant_cross', {
-    notes: 'drizzle-kit studio — browser DB inspector',
   }),
 ]
 

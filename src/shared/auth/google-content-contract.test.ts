@@ -17,6 +17,8 @@ describe('Google Content approval contract', () => {
     expect(GOOGLE_CONTENT_CAPABILITIES).toEqual([
       'property.import_gbp_v2',
       'property.read_gbp_performance',
+      'property.connect_gbp',
+      'property.publish_reply',
     ])
     expect(GOOGLE_CONTENT_POLICY_VERSION).toBe('google-content-live-1')
     expect(GOOGLE_OAUTH_CONTRACT_VERSION).toBe('google-oauth-oidc-1')

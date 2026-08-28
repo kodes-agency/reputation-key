@@ -55,6 +55,7 @@ export function createInMemoryPortalCommandStore(deps: {
         command.patch,
       )
       await deps.events.emit(command.event)
+      if (command.lifecycleEvent) await deps.events.emit(command.lifecycleEvent)
     },
     deletePortal: async (command) => {
       const current = await deps.portalRepo.findById(
@@ -283,6 +284,7 @@ export function createInMemoryPortalCommandStore(deps: {
       )
       await deps.portalTokenRepo.insert(command.token)
       await deps.events.emit(command.event)
+      for (const event of command.accessArtifactEvents) await deps.events.emit(event)
     },
     rotatePortalToken: async (command) => {
       if (!deps.portalTokenRepo) {
@@ -299,6 +301,7 @@ export function createInMemoryPortalCommandStore(deps: {
         newToken: command.newToken,
       })
       await deps.events.emit(command.event)
+      for (const event of command.accessArtifactEvents) await deps.events.emit(event)
     },
     revokePortalTokens: async (command) => {
       if (!deps.portalTokenRepo) {

@@ -47,4 +47,26 @@ describe('shared rate limiter across replicas', () => {
       secondConnection.disconnect()
     }
   })
+
+  it('repairs a pre-existing counter with no expiry', async () => {
+    if (!lease.available) return
+    const prefix = `test:shared-rate-limit:${randomUUID()}`
+    const redisKey = `${prefix}:legacy-subject`
+    await lease.redis?.set(redisKey, '2')
+    try {
+      const limiter = createRateLimiter(lease.redis, {
+        keyPrefix: prefix,
+        maxRequests: 5,
+        windowSeconds: 60,
+        failClosed: true,
+      })
+
+      const result = await limiter.check('legacy-subject')
+
+      expect(result.allowed).toBe(true)
+      expect(await lease.redis?.ttl(redisKey)).toBeGreaterThan(0)
+    } finally {
+      await lease.redis?.del(redisKey)
+    }
+  })
 })

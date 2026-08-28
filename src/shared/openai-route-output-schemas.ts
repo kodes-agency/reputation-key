@@ -1,4 +1,5 @@
 import { z } from 'zod/v4'
+import { personalizedReplyDraftOutputSchema } from './ai-personalized-reply-profile'
 
 export const AI_SENTIMENTS = Object.freeze([
   'positive',
@@ -82,6 +83,14 @@ export const AI_REPLY_SELECTION_OUTPUT_SCHEMA = z
   })
   .strict()
 
+/**
+ * The live drafting route no longer asks the provider to choose a stock
+ * template. Keep the legacy selection schema exported for historical profile
+ * verification, while new invocations use the separately versioned grounded
+ * draft contract.
+ */
+export const AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA = personalizedReplyDraftOutputSchema
+
 export const AI_TREND_SELECTION_OUTPUT_SCHEMA = z
   .object({
     selectedSignalIds: z.array(z.string().regex(TREND_SIGNAL_PATTERN)).min(1).max(4),
@@ -120,12 +129,15 @@ export function deriveAiRouteOutputJsonSchema(
 
 export const AI_ROUTE_OUTPUT_JSON_SCHEMAS = Object.freeze({
   'review-analysis': deriveAiRouteOutputJsonSchema(AI_ANALYSIS_OUTPUT_SCHEMA),
-  'reply-suggestion': deriveAiRouteOutputJsonSchema(AI_REPLY_SELECTION_OUTPUT_SCHEMA),
+  'reply-suggestion': deriveAiRouteOutputJsonSchema(AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA),
   'property-trend': deriveAiRouteOutputJsonSchema(AI_TREND_SELECTION_OUTPUT_SCHEMA),
   'synthetic-canary': deriveAiRouteOutputJsonSchema(AI_SYNTHETIC_CANARY_OUTPUT_SCHEMA),
 })
 
 export type AiAnalysisOutput = z.infer<typeof AI_ANALYSIS_OUTPUT_SCHEMA>
 export type AiReplySelectionOutput = z.infer<typeof AI_REPLY_SELECTION_OUTPUT_SCHEMA>
+export type AiPersonalizedReplyOutput = z.infer<
+  typeof AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA
+>
 export type AiTrendSelectionOutput = z.infer<typeof AI_TREND_SELECTION_OUTPUT_SCHEMA>
 export type AiSyntheticCanaryOutput = z.infer<typeof AI_SYNTHETIC_CANARY_OUTPUT_SCHEMA>

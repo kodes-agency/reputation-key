@@ -317,10 +317,10 @@ describe('dispatcher corrections (BQC-3.6)', () => {
   })
 
   it('genuinely bus-only event type completes with a debug log', async () => {
-    // 'identity.member.invited' is catalogued with bus consumers only — no
-    // durable dispatch is expected, so the job completes (and the old
-    // "will be retried" lie is gone).
-    const BUS_ONLY_TYPE = 'identity.member.invited'
+    // `metric.recorded` is the retained bus-only delivery family. Identity
+    // membership facts now also feed durable Recent Activity, so they are no
+    // longer valid fixtures for this branch.
+    const BUS_ONLY_TYPE = 'metric.recorded'
     registerEventSchema({
       type: BUS_ONLY_TYPE,
       version: 1,
@@ -371,6 +371,26 @@ describe('dispatcher corrections (BQC-3.6)', () => {
       expect.objectContaining({ localCell: 'us', targetCell: 'europe' }),
       expect.stringMatching(/wrong Data Cell/i),
     )
+  })
+
+  it('rejects a Property-less fact whose source Data Cell differs from the worker', async () => {
+    const repo = makeRepo()
+    const handler = vi.fn(async () => ({ status: 'applied' as const }))
+    registerConsumer({
+      eventType: TEST_EVENT_TYPE,
+      consumerName: 'c-wrong-source-cell',
+      module: TEST_MODULE,
+      handler,
+    })
+
+    await expect(
+      createDispatcherHandler(repo, { localCell: 'us' })(
+        fakeJob(makeEnvelope({ sourceCellId: 'europe', region: 'europe' })),
+      ),
+    ).rejects.toThrow(UnrecoverableError)
+
+    expect(handler).not.toHaveBeenCalled()
+    expect(repo.hasReceipt).not.toHaveBeenCalled()
   })
 
   it('schema validation failure throws UnrecoverableError with a content-free reason', async () => {

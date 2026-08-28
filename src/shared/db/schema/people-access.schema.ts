@@ -186,6 +186,12 @@ export const staffParticipations = pgTable(
       .on(t.organizationId, t.propertyId, t.staffParticipantId)
       .where(sql`status = 'active' AND staff_participant_id IS NOT NULL`),
     uniqueIndex('sp_org_property_id_key').on(t.organizationId, t.propertyId, t.id),
+    uniqueIndex('sp_org_property_id_participant_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.id,
+      t.staffParticipantId,
+    ),
     foreignKey({
       name: 'sp_property_tenant_fk',
       columns: [t.organizationId, t.propertyId],
@@ -283,6 +289,13 @@ export const portalResponsibilities = pgTable(
   },
   (t) => [
     index('pr_org_portal_idx').on(t.organizationId, t.portalId),
+    uniqueIndex('pr_scope_id_participation_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.portalId,
+      t.id,
+      t.staffParticipationId,
+    ),
     // At most one active primary per portal
     uniqueIndex('pr_unique_active_primary')
       .on(t.organizationId, t.portalId)
@@ -291,6 +304,11 @@ export const portalResponsibilities = pgTable(
       'pr_interval_valid',
       sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`,
     ),
+    foreignKey({
+      name: 'pr_portal_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
+    }).onDelete('restrict'),
     foreignKey({
       name: 'pr_participation_tenant_fk',
       columns: [t.organizationId, t.propertyId, t.staffParticipationId],

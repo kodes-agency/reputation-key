@@ -53,6 +53,9 @@ const DISABLED = (authority: string) =>
  */
 export const CAPABILITY_FATE = Object.freeze({
   'identity.invite': CORE('Invite-only manager onboarding is a beta core flow.'),
+  'identity.custom_roles': DISABLED(
+    'Runtime custom-role mutation and assignment are excluded from beta; retained definitions are reconciliation input only.',
+  ),
   'identity.register': DISABLED('Public self-registration is excluded from beta.'),
   'organization.create': DISABLED(
     'Self-service secondary Organization creation is excluded from beta.',

@@ -13,8 +13,11 @@ import type { Database } from '#/shared/db'
  *   3: + separately counted, seven-day guest abuse-pseudonym redaction.
  *   4: + 90-day terminal notification-digest batch evidence.
  *   5: + class-separated Guest recovery, private-text, and 24-month fact expiry.
+ *   6: + canonical seven-day Guest network-pressure record deletion.
+ *   7: + exact retired-generation local AI derivative erasure evidence.
+ *   8: + scheduled, bounded Contact Request encrypted-material expiry evidence.
  */
-const RETENTION_POLICY_VERSION = 5
+const RETENTION_POLICY_VERSION = 8
 
 export async function openRetentionRun(
   db: Database,

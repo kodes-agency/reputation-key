@@ -105,6 +105,109 @@ describe('Google provider route catalogue', () => {
     expect(revoke.admission.requestClass).toBe('credential_cleanup')
   })
 
+  it('compiles notification desired-state writes and authoritative readback as frozen routes', () => {
+    const subscribe = compileGoogleProviderRequest(
+      {
+        routeKey: 'notifications.subscribe',
+        accessToken: 'access-token',
+        accountId: 'account-1',
+        pubsubTopic: 'projects/repkey-project/topics/gbp-reviews',
+        notificationTypes: ['NEW_REVIEW', 'UPDATED_REVIEW'],
+      },
+      bindCredential,
+    )
+    expect(subscribe.method).toBe('PATCH')
+    expect(subscribe.url).toBe(
+      'https://mybusinessnotifications.googleapis.com/v1/accounts/account-1/notificationSetting?updateMask=pubsubTopic%2CnotificationTypes',
+    )
+    expect(subscribe.headers).toEqual({
+      authorization: 'Bearer access-token',
+      'content-type': 'application/json',
+    })
+    expect(JSON.parse(new TextDecoder().decode(subscribe.body!))).toEqual({
+      name: 'accounts/account-1/notificationSetting',
+      pubsubTopic: 'projects/repkey-project/topics/gbp-reviews',
+      notificationTypes: ['NEW_REVIEW', 'UPDATED_REVIEW'],
+    })
+    expect(subscribe.admission).toMatchObject({
+      endpointClass: 'notifications',
+      requestClass: 'notifications',
+      quotaPolicyId: 'google-notifications-write-v1',
+      inFlightPolicyId: 'google-notifications-write-v1',
+    })
+
+    const unsubscribe = compileGoogleProviderRequest(
+      {
+        routeKey: 'notifications.unsubscribe',
+        accessToken: 'access-token',
+        accountId: 'account-1',
+      },
+      bindCredential,
+    )
+    expect(unsubscribe.method).toBe('PATCH')
+    expect(unsubscribe.url).toBe(
+      'https://mybusinessnotifications.googleapis.com/v1/accounts/account-1/notificationSetting?updateMask=pubsubTopic',
+    )
+    expect(JSON.parse(new TextDecoder().decode(unsubscribe.body!))).toEqual({
+      name: 'accounts/account-1/notificationSetting',
+      pubsubTopic: '',
+    })
+
+    const readback = compileGoogleProviderRequest(
+      {
+        routeKey: 'notifications.get',
+        accessToken: 'access-token',
+        accountId: 'account-1',
+      },
+      bindCredential,
+    )
+    expect(readback.method).toBe('GET')
+    expect(readback.url).toBe(
+      'https://mybusinessnotifications.googleapis.com/v1/accounts/account-1/notificationSetting',
+    )
+    expect(readback.body).toBeNull()
+    expect(readback.admission.quotaPolicyId).toBe('google-notifications-read-v1')
+  })
+
+  it('rejects unsupported notification types and caller-shaped account/topic paths', () => {
+    expect(() =>
+      compileGoogleProviderRequest(
+        {
+          routeKey: 'notifications.subscribe',
+          accessToken: 'access-token',
+          accountId: '../account-1',
+          pubsubTopic: 'projects/repkey-project/topics/gbp-reviews',
+          notificationTypes: ['NEW_REVIEW'],
+        },
+        bindCredential,
+      ),
+    ).toThrow('provider route input is invalid')
+    expect(() =>
+      compileGoogleProviderRequest(
+        {
+          routeKey: 'notifications.subscribe',
+          accessToken: 'access-token',
+          accountId: 'account-1',
+          pubsubTopic: 'https://attacker.invalid/topic',
+          notificationTypes: ['NEW_REVIEW'],
+        },
+        bindCredential,
+      ),
+    ).toThrow('provider route input is invalid')
+    expect(() =>
+      compileGoogleProviderRequest(
+        {
+          routeKey: 'notifications.subscribe',
+          accessToken: 'access-token',
+          accountId: 'account-1',
+          pubsubTopic: 'projects/repkey-project/topics/gbp-reviews',
+          notificationTypes: ['LOCATION_STATE_CHANGE' as 'NEW_REVIEW'],
+        },
+        bindCredential,
+      ),
+    ).toThrow('provider route input is invalid')
+  })
+
   it('rejects malformed route fields before constructing an upstream request', () => {
     expect(() =>
       compileGoogleProviderRequest(

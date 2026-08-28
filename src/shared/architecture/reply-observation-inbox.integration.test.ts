@@ -1,20 +1,32 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Pool } from 'pg'
-import { getDb } from '#/shared/db'
+import { getDb, type Database } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { EventBus } from '#/shared/events/event-bus'
-import { inboxItemId, organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import {
+  inboxItemId,
+  organizationId,
+  propertyId,
+  reviewId,
+  userId,
+} from '#/shared/domain/ids'
 import type { InboxItem } from '#/contexts/inbox/domain/types'
 import { inboxItemStatusChanged } from '#/contexts/inbox/domain/events'
-import { createAtomicInboxCommandStore } from '#/contexts/inbox/infrastructure/inbox-command-store'
+import {
+  createAtomicInboxCommandStore as createProductionInboxCommandStore,
+  type InboxCommandAuthority,
+} from '#/contexts/inbox/infrastructure/inbox-command-store'
 import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
+import { createReviewSourceTransitionAuthority } from '#/contexts/review/infrastructure/source-transition-authority'
 import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
 import { eraseReviewSourceContent } from '#/contexts/review/infrastructure/review-source-content-store'
 import { createReplyObservationAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-observation-authority.adapter'
+import { createSourceTransitionAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/source-transition-authority.adapter'
 import type { CurrentReplyObservationPermit } from '#/contexts/inbox/application/ports/reply-observation-authority.port'
 import {
   handleInboxReplyObserved,
@@ -25,23 +37,53 @@ import type { ConsumerEvent } from '#/shared/outbox'
 import type { ReviewLookupPort } from '#/contexts/inbox/application/ports/review-lookup.port'
 import type { FeedbackLookupPort } from '#/contexts/inbox/application/ports/feedback-lookup.port'
 import type { PropertyLookupPort } from '#/contexts/inbox/application/ports/property-lookup.port'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 
 const ORG = organizationId('org-inbox-reply-observation')
 const PROPERTY = propertyId('b2000000-0000-0000-0000-000000000001')
 const REVIEW = reviewId('b2000000-0000-0000-0000-000000000010')
 const ITEM = inboxItemId('b2000000-0000-0000-0000-000000000020')
+const MANUAL_REOPEN_ACTOR = userId('user-inbox-reply-observation-manager')
 const OPENED_AT = new Date('2026-08-20T10:00:00.000Z')
 const OBSERVED_AT = new Date('2026-08-20T12:00:00.000Z')
 const EXPIRES_AT = new Date('2026-09-20T12:00:00.000Z')
 const EVENT_LIVE = 'b2000000-0000-0000-0000-000000000101'
 const EVENT_DELETED = 'b2000000-0000-0000-0000-000000000102'
 const EVENT_EXTERNAL_EDITED = 'b2000000-0000-0000-0000-000000000103'
+
+const responseTargetPermit = (materialReviewRevision: number) => ({
+  reviewAuthority: {
+    authority: 'review.current-response-target.v1' as const,
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    reviewId: REVIEW,
+    sourceEpoch: 0,
+    materialReviewRevision,
+    eligibility: 'legacy_unknown' as const,
+    responseTargetStartAt: null,
+  },
+  targetStart: { basis: 'review_provenance' as const },
+})
+
+const allowAllCommandAuthority: InboxCommandAuthority = async () => ({
+  allowed: true,
+})
+const logger = createMockLogger()
+
+const createAtomicInboxCommandStore = (database: Database, events: EventBus) =>
+  createProductionInboxCommandStore(
+    database,
+    events,
+    allowAllCommandAuthority,
+    () => OBSERVED_AT,
+  )
 const EVENT_STALE = 'b2000000-0000-0000-0000-000000000104'
 const EVENT_AHEAD = 'b2000000-0000-0000-0000-000000000105'
 const EVENT_OLDER = 'b2000000-0000-0000-0000-000000000106'
 const EVENT_REVIEW_ADVANCED = 'b2000000-0000-0000-0000-000000000107'
 const EVENT_LEGACY_DIVERGED = 'b2000000-0000-0000-0000-000000000108'
 const EVENT_LOCK_ORDER = 'b2000000-0000-0000-0000-000000000109'
+const EVENT_INACTIVE_DELETED = 'b2000000-0000-0000-0000-000000000110'
 
 let pool: Pool
 let lease: TestLease
@@ -75,6 +117,7 @@ function makeItem(): InboxItem {
     closedAt: null,
     firstReplySubmittedAt: null,
     firstReplyPublishedAt: null,
+    commandRevision: 1,
     createdAt: OPENED_AT,
     updatedAt: OPENED_AT,
   }
@@ -91,7 +134,7 @@ async function clean(): Promise<void> {
   await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
-  await pool.query('DELETE FROM organization WHERE id = $1', [ORG])
+  await deleteTestOrganizations(pool, [ORG])
 }
 
 async function seed(): Promise<InboxItem> {
@@ -297,32 +340,46 @@ function consumerDeps(): InboxConsumerDeps {
     getReviewSnippetsByIds: async () => new Map(),
     findEligibleReviewIds: async () => [],
   } satisfies ReviewLookupPort
-  const inboxRepo = createInboxRepository(getDb(), {
-    reviewLookup,
-    feedbackLookup: {
-      getFeedbackSnippetById: async () => null,
-      getFeedbackSnippetsByIds: async () => new Map(),
-      findEligibleFeedbackIds: async () => [],
-    } satisfies FeedbackLookupPort,
-    propertyLookup: {
-      getPropertyNameById: async () => null,
-      getPropertyNamesByIds: async () => new Map(),
-    } satisfies PropertyLookupPort,
-  })
+  const inboxRepo = createInboxRepository(
+    getDb(),
+    {
+      reviewLookup,
+      feedbackLookup: {
+        getFeedbackSnippetById: async () => null,
+        getFeedbackSnippetsByIds: async () => new Map(),
+        findEligibleFeedbackIds: async () => [],
+      } satisfies FeedbackLookupPort,
+      propertyLookup: {
+        getPropertyNameById: async () => null,
+        getPropertyNamesByIds: async () => new Map(),
+      } satisfies PropertyLookupPort,
+    },
+    { clock: () => OBSERVED_AT, logger },
+  )
   return {
     commandStore,
     handlingCycleStore: createReviewHandlingCycleStore(getDb()),
     replyObservationAuthority: createReplyObservationAuthorityAdapter(
       createReviewReplyObservationAuthority(getDb()),
     ),
+    responseTargetAuthority: {
+      withExactCurrent: async () => ({ status: 'obsolete' as const }),
+      withExactCurrentBatch: async () => ({ status: 'obsolete' as const }),
+      withInboxProjection: async () => ({ status: 'obsolete' as const }),
+    },
+    sourceTransitionAuthority: createSourceTransitionAuthorityAdapter(
+      createReviewSourceTransitionAuthority(getDb()),
+    ),
     reviewLookup,
     reviewSourceLookup: {
       getReviewSourceMetaById: async () => null,
+      getReviewSourceMetaByIds: async () => [],
       listReviewSources: async () => [],
     },
     inboxRepo,
     idGen: () => ITEM,
     clock: () => OBSERVED_AT,
+    logger,
   }
 }
 
@@ -578,8 +635,11 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
         },
         materialReviewRevision: 1,
         openedReason: 'manual_reopen',
-        openedBy: null,
+        manualReopenReason: 'internal_follow_up_still_needed',
+        manualReopenExplanation: null,
+        openedBy: MANUAL_REOPEN_ACTOR,
         openedAt: OBSERVED_AT,
+        responseTarget: responseTargetPermit(1),
       })
       await vi.waitFor(
         async () => {
@@ -627,7 +687,8 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
 
     const current = await pool.query(
       `SELECT i.status, h.current_cycle_number, h.status AS head_status,
-              h.state_revision, c.opened_reason, r.status AS receipt_status
+              h.state_revision, c.opened_reason, c.manual_reopen_reason,
+              c.opened_by, r.status AS receipt_status
        FROM inbox_items i
        JOIN inbox_handling_cycle_heads h ON h.inbox_item_id = i.id
        JOIN inbox_handling_cycles c
@@ -644,6 +705,8 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
       head_status: 'closed',
       state_revision: '4',
       opened_reason: 'manual_reopen',
+      manual_reopen_reason: 'internal_follow_up_still_needed',
+      opened_by: MANUAL_REOPEN_ACTOR,
       receipt_status: 'applied',
     })
   })
@@ -814,6 +877,47 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
     },
   )
 
+  it('does not reopen a closed item from a deleted-reply observation after the Review source becomes ineligible', async () => {
+    const item = await seed()
+    await insertObservation(live)
+    await seedDeliveryEvent(EVENT_LIVE)
+    expect(await applyObservation(item, EVENT_LIVE, live)).toBe('applied')
+
+    const deleted: Observation = {
+      revision: 2,
+      state: 'absent',
+      change: 'deleted',
+      resolution: 'absent',
+      provenance: 'none',
+    }
+    await insertObservation(deleted)
+    await getDb().transaction(async (tx) => {
+      expect(
+        await eraseReviewSourceContent(tx, {
+          reviewId: REVIEW,
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          sourceEpoch: 0,
+          expectedSourceRevision: 1,
+          state: 'provider_deleted',
+        }),
+      ).toBe(true)
+    })
+    await seedDeliveryEvent(EVENT_INACTIVE_DELETED)
+
+    expect(await applyObservation(item, EVENT_INACTIVE_DELETED, deleted)).toBe('applied')
+    const inbox = await pool.query(
+      `SELECT status, closed_at FROM inbox_items WHERE id = $1`,
+      [ITEM],
+    )
+    expect(inbox.rows[0]).toMatchObject({ status: 'closed', closed_at: OBSERVED_AT })
+    const cycles = await pool.query(
+      `SELECT count(*)::int AS n FROM inbox_handling_cycles WHERE inbox_item_id = $1`,
+      [ITEM],
+    )
+    expect(cycles.rows[0].n).toBe(1)
+  })
+
   it('retries an exact current observation until its earlier review.created is projected', async () => {
     const item = await seed()
     await insertObservation(live)
@@ -889,6 +993,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
       openedReason: 'material_revision_changed',
       openedBy: null,
       openedAt: OBSERVED_AT,
+      responseTarget: responseTargetPermit(2),
     })
 
     await expect(handleInboxReplyObserved(deps, event)).resolves.toEqual({
@@ -927,6 +1032,7 @@ describe.sequential('Inbox provider-observation authority (real PostgreSQL)', ()
       openedReason: 'material_revision_changed',
       openedBy: null,
       openedAt: OBSERVED_AT,
+      responseTarget: responseTargetPermit(2),
     })
     await seedDeliveryEvent(EVENT_OLDER)
 

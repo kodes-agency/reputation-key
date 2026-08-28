@@ -287,6 +287,28 @@ describe('health checker content safety (BQC-4.3)', () => {
         oldestPendingOverdueAgeMs: 3_600_000,
         attemptedStuckCount: 1,
         missingForInboxItemCount: 0,
+        deliveryLag: {
+          sourceReceiptPending: 0,
+          materializationPending: 0,
+          oldestSourceRecordedAt: null,
+          oldestSourceAgeMs: null,
+          oldestMaterializationSourceRecordedAt: null,
+          oldestMaterializationSourceAgeMs: null,
+          oldestMaterializationEnqueuedAt: null,
+          oldestMaterializationEnqueuedAgeMs: null,
+          sourceSaturated: false,
+          materializationSaturated: false,
+          immediateEmailAcceptance: {
+            awaitingProviderAcceptance: 0,
+            attemptedAwaitingProviderAcceptance: 0,
+            oldestAwaitingSourceRecordedAt: null,
+            oldestAwaitingSourceAgeMs: null,
+            acceptedLatencyP99Ms: null,
+            acceptedSampleCount: 0,
+            sourceUnlinked: 0,
+            saturated: false,
+          },
+        },
       },
       replyPublication: {
         counts: {
@@ -396,6 +418,67 @@ describe('health checker notification delivery metrics', () => {
       readMissingNotificationCount: async () => 7,
     }).check()
     expect(wired.notifications.missingForInboxItemCount).toBe(7)
+  })
+
+  it('surfaces bounded content-free delivery lag clocks, ages, and saturation', async () => {
+    const db = fakeDb([REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW, NOTIFICATION_ROW])
+    const source = new Date(Date.now() - 61_000)
+    const enqueued = new Date(Date.now() - 30_000)
+
+    const snapshot = await createHealthChecker(db, undefined, {
+      readNotificationDeliveryLag: async () => ({
+        sourceReceiptPending: 2,
+        materializationPending: 3,
+        oldestSourceRecordedAt: source,
+        oldestMaterializationSourceRecordedAt: source,
+        oldestMaterializationEnqueuedAt: enqueued,
+        sourceSaturated: true,
+        materializationSaturated: false,
+        immediateEmailAcceptance: {
+          awaitingProviderAcceptance: 4,
+          attemptedAwaitingProviderAcceptance: 2,
+          oldestAwaitingSourceRecordedAt: source,
+          acceptedLatencyP99Ms: 301_000,
+          acceptedSampleCount: 19,
+          sourceUnlinked: 1,
+          saturated: false,
+          private: 'SECRET_EMAIL_CONTENT',
+        },
+        private: 'SECRET_REVIEW_TEXT',
+      }),
+    }).check()
+
+    expect(snapshot.notifications.deliveryLag).toEqual({
+      sourceReceiptPending: 2,
+      materializationPending: 3,
+      oldestSourceRecordedAt: source.toISOString(),
+      oldestSourceAgeMs: expect.any(Number),
+      oldestMaterializationSourceRecordedAt: source.toISOString(),
+      oldestMaterializationSourceAgeMs: expect.any(Number),
+      oldestMaterializationEnqueuedAt: enqueued.toISOString(),
+      oldestMaterializationEnqueuedAgeMs: expect.any(Number),
+      sourceSaturated: true,
+      materializationSaturated: false,
+      immediateEmailAcceptance: {
+        awaitingProviderAcceptance: 4,
+        attemptedAwaitingProviderAcceptance: 2,
+        oldestAwaitingSourceRecordedAt: source.toISOString(),
+        oldestAwaitingSourceAgeMs: expect.any(Number),
+        acceptedLatencyP99Ms: 301_000,
+        acceptedSampleCount: 19,
+        sourceUnlinked: 1,
+        saturated: false,
+      },
+    })
+    expect(snapshot.notifications.deliveryLag.oldestSourceAgeMs).toBeGreaterThanOrEqual(
+      61_000,
+    )
+    expect(JSON.stringify(snapshot.notifications.deliveryLag)).not.toContain(
+      'SECRET_REVIEW_TEXT',
+    )
+    expect(JSON.stringify(snapshot.notifications.deliveryLag)).not.toContain(
+      'SECRET_EMAIL_CONTENT',
+    )
   })
 
   it('surfaces the email-delivery readiness fact from the composition root', async () => {

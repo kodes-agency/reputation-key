@@ -218,4 +218,71 @@ describe('worker observability', () => {
       jobName: 'sync-property-reviews',
     })
   })
+
+  it('persists started, successful, terminal-failure, and stalled runtime heads', async () => {
+    const observationSink = {
+      recordStarted: vi.fn(async () => undefined),
+      recordSucceeded: vi.fn(async () => undefined),
+      recordTerminalFailure: vi.fn(async () => undefined),
+      recordStalled: vi.fn(async () => undefined),
+    }
+    createJobWorker(
+      'background',
+      vi.fn(async () => undefined),
+      1,
+      undefined,
+      observationSink,
+    )
+    const listeners = fakeWorkers().at(-1)!.listeners
+    const job = {
+      id: 'job-1',
+      name: 'health-check',
+      attemptsMade: 3,
+      opts: { attempts: 3 },
+    }
+
+    listeners.get('active')?.(job, 'waiting')
+    listeners.get('completed')?.(job, undefined, 'active')
+    listeners.get('completed')?.(
+      {
+        ...job,
+        id: 'redrive-1',
+        data: {
+          redriveMetadata: {
+            redrivenFrom: 'quarantine',
+          },
+        },
+      },
+      undefined,
+      'active',
+    )
+    listeners.get('failed')?.(job, new Error('terminal'), 'active')
+    listeners.get('stalled')?.('job-1', 'active')
+
+    await vi.waitFor(() => {
+      expect(observationSink.recordStarted).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queue: 'background',
+          jobName: 'health-check',
+          jobId: 'job-1',
+          at: expect.any(Date),
+        }),
+      )
+      expect(observationSink.recordSucceeded).toHaveBeenCalledTimes(2)
+      expect(observationSink.recordSucceeded).toHaveBeenCalledWith(
+        expect.objectContaining({ repair: false }),
+      )
+      expect(observationSink.recordSucceeded).toHaveBeenCalledWith(
+        expect.objectContaining({ jobId: 'redrive-1', repair: true }),
+      )
+      expect(observationSink.recordTerminalFailure).toHaveBeenCalledTimes(1)
+      expect(observationSink.recordStalled).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queue: 'background',
+          jobId: 'job-1',
+          at: expect.any(Date),
+        }),
+      )
+    })
+  })
 })

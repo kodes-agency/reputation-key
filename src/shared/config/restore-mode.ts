@@ -29,7 +29,10 @@
 // RESTORE_MODE is parsed by the env schema (src/shared/config/env.ts): the
 // only accepted non-empty value is 'isolated' — anything else fails boot.
 
-import { dataCellById } from '#/shared/domain/data-cell-catalogue'
+import {
+  DATA_CELL_CATALOGUE,
+  isBetaDeploymentDataCellId,
+} from '#/shared/domain/data-cell-catalogue'
 
 /** Structural env shape the restore-mode checks read (parsed Env fits). */
 export type RestoreModeEnv = Readonly<{
@@ -154,6 +157,15 @@ export function isIsolatedRestoreTarget(
     if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
       return false
     }
+    // A loopback tunnel is not a separate deployment identity. Bind local and
+    // Railway restore verification to the same deployable beta-cell allowlist
+    // before either hostname shape is considered.
+    if (
+      !nonEmpty(env.PROCESSING_CELL) ||
+      !isBetaDeploymentDataCellId(env.PROCESSING_CELL)
+    ) {
+      return false
+    }
     const host = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase()
     if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
       // Loopback proves only where the TCP tunnel terminates, not which
@@ -166,13 +178,12 @@ export function isIsolatedRestoreTarget(
       !nonEmpty(env.RAILWAY_PROJECT_ID) ||
       !nonEmpty(env.RAILWAY_ENVIRONMENT_ID) ||
       !nonEmpty(env.RAILWAY_ENVIRONMENT_NAME) ||
-      !nonEmpty(env.PROCESSING_CELL) ||
       !nonEmpty(env.RESTORE_DATABASE_SERVICE_NAME)
     ) {
       return false
     }
-    const cell = dataCellById(env.PROCESSING_CELL)
-    if (!cell || env.RAILWAY_ENVIRONMENT_NAME !== cell.railway.environment) {
+    const placement = DATA_CELL_CATALOGUE[env.PROCESSING_CELL].railway
+    if (env.RAILWAY_ENVIRONMENT_NAME !== placement.environment) {
       return false
     }
     if (!isRailwayPitrServiceName(env.RESTORE_DATABASE_SERVICE_NAME)) {

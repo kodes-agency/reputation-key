@@ -581,7 +581,10 @@ export const goalProgramVersions = pgTable(
     ),
     check(
       'goal_program_versions_effective_check',
-      sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`,
+      // A scheduled Program ended before its first month retains an immutable
+      // but empty [from, from) definition interval. PostgreSQL range semantics
+      // then release the subject immediately without deleting history.
+      sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} >= ${t.effectiveFrom}`,
     ),
     check(
       'goal_program_versions_timezone_check',
@@ -689,7 +692,7 @@ export const goalSubjectAssignments = pgTable(
     ),
     check(
       'goal_subject_assignments_effective_check',
-      sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`,
+      sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} >= ${t.effectiveFrom}`,
     ),
   ],
 )

@@ -35,6 +35,15 @@ const REGISTER: Readonly<Record<string, string>> = {
   'TeamUpdated.name': 'by-design non-sensitive display name',
   // 1–5 star rating value — a numeric fact, not content.
   'GuestRatingSubmitted.value': '1-5 numeric fact',
+  // Closed Portal Health vocabulary — enum codes, never operator/guest prose.
+  'PortalHealthChanged.previousReason': 'closed PortalHealthReason enum fact',
+  'PortalHealthChanged.reason': 'closed PortalHealthReason enum fact',
+  // Closed Inbox handling-cycle vocabularies — lifecycle facts, never prose.
+  'InboxHandlingCycleOpened.openReason': 'closed HandlingCycleOpenReason enum fact',
+  'InboxHandlingCycleClosed.closeReason': 'closed HandlingCycleCloseReason enum fact',
+  'InboxHandlingCycleReopened.reopenReason': 'closed ManualReopenReason enum fact',
+  // Monotonic numeric working-copy version, not the localized brand content.
+  'PortalPropertyBrandContentUpdated.contentVersion': 'positive numeric version fact',
 }
 
 const ENVELOPE_FIELDS = new Set(['_tag', 'eventId', 'occurredAt', 'correlationId'])

@@ -30,53 +30,19 @@ import {
   isE2ERateLimitBypassAuthorized,
 } from './beta-capabilities'
 import { createBetterAuthRateLimitStorage } from './better-auth-rate-limit-storage'
+import { generateBetterAuthDatabaseId } from './registration-user-id'
 
-// ── Post-acceptance property-access hook ───────────────────────────
-// Property IDs selected explicitly during invitation become access grants.
-// Because auth.ts cannot import the composition root, the grant provisioner
-// is injected via setOnAcceptInvitation(). Staff participation is independent.
-
-type AcceptInvitationContext = Readonly<{
-  userId: string
-  organizationId: string
-  propertyIds: ReadonlyArray<string>
-}>
-
-type AcceptInvitationHandler = (ctx: AcceptInvitationContext) => Promise<void>
-
-let _onAcceptInvitation: AcceptInvitationHandler | undefined
-
-/** Set the handler called after an invitation is accepted.
- * Called from composition.ts at startup. Injects the access-grant
- * provisioner so auth.ts does not import from the composition root. */
-export function setOnAcceptInvitation(handler: AcceptInvitationHandler): void {
-  _onAcceptInvitation = handler
-}
-
-/** The currently-registered post-acceptance handler (or undefined). The app-owned
- * acceptInvitation txn calls this directly since it bypasses BA's afterAcceptInvitation hook. */
-export function getOnAcceptInvitation(): AcceptInvitationHandler | undefined {
-  return _onAcceptInvitation
-}
-
-type MembershipRemovalLifecycle = Readonly<{
-  beforeRemoveMember: (organizationId: string, userId: string) => Promise<void>
-  beforeDeleteOrganization: (organizationId: string) => Promise<void>
-}>
-
-let _membershipRemovalLifecycle: MembershipRemovalLifecycle | undefined
-
-export function setMembershipRemovalLifecycle(
-  lifecycle: MembershipRemovalLifecycle,
-): void {
-  _membershipRemovalLifecycle = lifecycle
-}
-
-function membershipRemovalLifecycle(): MembershipRemovalLifecycle {
-  if (!_membershipRemovalLifecycle) {
-    throw new Error('membership removal lifecycle is not initialized')
-  }
-  return _membershipRemovalLifecycle
+/**
+ * Better Auth remains the authentication provider, not the application write
+ * authority for Organization membership. The HTTP adapter blocks these raw
+ * routes; these provider hooks are the second, in-process fence for accidental
+ * direct `auth.api` calls. App-owned Identity commands bind every required
+ * lifecycle collaborator explicitly through the application container.
+ */
+async function denyRawOrganizationLifecycleWrite(): Promise<never> {
+  throw new Error(
+    'Raw Better Auth organization lifecycle write denied; use an app-owned Identity command',
+  )
 }
 
 export function createAuth() {
@@ -143,6 +109,12 @@ export function createAuth() {
       },
     },
     advanced: {
+      database: {
+        // Registration recovery preallocates the exact auth user ID before
+        // Better Auth commits. Outside that request-scoped override this
+        // preserves Better Auth's normal alphanumeric ID generation.
+        generateId: generateBetterAuthDatabaseId,
+      },
       defaultCookieAttributes: {
         secure: new URL(env.BETTER_AUTH_URL).protocol === 'https:',
         sameSite: 'lax',
@@ -227,42 +199,14 @@ export function createAuth() {
             inviteLink,
           })
         },
-        // After an invitation is accepted, auto-create staff assignments
-        // for the properties specified in the invitation.
+        // Membership and invitation lifecycle writes are app-owned. Keep the
+        // provider hooks fail-closed as defense in depth behind the raw-route
+        // HTTP refusal; no mutable composition callback lives in this module.
         organizationHooks: {
-          beforeRemoveMember: ({ member, organization }) =>
-            membershipRemovalLifecycle().beforeRemoveMember(
-              organization.id,
-              member.userId,
-            ),
-          beforeDeleteOrganization: ({ organization }) =>
-            membershipRemovalLifecycle().beforeDeleteOrganization(organization.id),
-          afterAcceptInvitation: async ({ invitation, member, organization }) => {
-            if (!_onAcceptInvitation) return
-
-            // propertyIds is stored as a JSON string in the invitation
-            const raw = (invitation as Record<string, unknown>).propertyIds
-            if (!raw || typeof raw !== 'string') return
-
-            let propertyIds: string[]
-            try {
-              propertyIds = JSON.parse(raw)
-            } catch (err) {
-              // F168 FIX: Log parse failure instead of silently returning
-              getLogger().error(
-                { err },
-                '[auth] Failed to parse propertyIds from invitation',
-              )
-              return
-            }
-            if (!Array.isArray(propertyIds) || propertyIds.length === 0) return
-
-            await _onAcceptInvitation({
-              userId: member.userId,
-              organizationId: organization.id,
-              propertyIds,
-            })
-          },
+          beforeAcceptInvitation: denyRawOrganizationLifecycleWrite,
+          beforeRemoveMember: denyRawOrganizationLifecycleWrite,
+          beforeUpdateMemberRole: denyRawOrganizationLifecycleWrite,
+          beforeDeleteOrganization: denyRawOrganizationLifecycleWrite,
         },
       }),
     ],

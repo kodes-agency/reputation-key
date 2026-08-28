@@ -16,6 +16,10 @@ import {
   PORTAL_DARK_CAPABILITIES,
   isCoreCapability,
 } from './beta-capabilities'
+import {
+  JOB_OPERATIONAL_CONTRACTS,
+  createOperationalSchedulerPlan,
+} from '#/shared/jobs/operational-catalogue'
 
 const SERVER_DIR = join(process.cwd(), 'src', 'contexts')
 const WORKER_PATH = join(process.cwd(), 'src', 'worker', 'index.ts')
@@ -98,18 +102,41 @@ describe('BQR-0: Dark job / schedule containment', () => {
   const workerSrc = readFileSync(WORKER_PATH, 'utf-8')
   const bootstrapSrc = readFileSync(BOOTSTRAP_PATH, 'utf-8')
 
-  it('worker imports isCapabilityJobEnabled for schedule gating', () => {
-    expect(workerSrc).toContain('isCapabilityJobEnabled')
+  it('worker delegates recurring schedules to the governed operational authority', () => {
+    expect(workerSrc).toContain('createOperationalSchedulerPlan()')
+    expect(workerSrc).toContain('schedulerPlan.desired')
   })
 
-  it('worker schedules controlled jobs only after capability check', () => {
-    expect(workerSrc).toContain("capability: 'leaderboard.use'")
-    expect(workerSrc).toContain("capability: 'notification.send_email'")
-    expect(workerSrc).toContain('isCapabilityJobEnabled(capability)')
+  it('operational authority omits retired Recognition work and retains active gates', () => {
+    expect(
+      JOB_OPERATIONAL_CONTRACTS.find((row) => row.jobName === 'leaderboard.reconcile'),
+    ).toBeUndefined()
+    expect(
+      JOB_OPERATIONAL_CONTRACTS.find((row) => row.jobName === 'digest-notification'),
+    ).toMatchObject({ capability: 'notification.send_email', posture: 'active' })
+    expect(
+      JOB_OPERATIONAL_CONTRACTS.find(
+        (row) => row.jobName === 'portal-approved-destination-revalidation',
+      ),
+    ).toMatchObject({ capability: 'portal.write', posture: 'active' })
+    expect(
+      JOB_OPERATIONAL_CONTRACTS.find(
+        (row) => row.jobName === 'portal-upload-source-cleanup',
+      ),
+    ).toMatchObject({ capability: 'none', posture: 'active' })
+    const desired = createOperationalSchedulerPlan().desired.map(
+      (schedule) => schedule.jobName,
+    )
+    expect(desired).not.toContain('leaderboard.reconcile')
+    expect(desired).toContain('digest-notification')
+    expect(desired).toContain('portal-approved-destination-revalidation')
+    expect(desired).toContain('portal-upload-source-cleanup')
   })
 
-  it('bootstrap registers dark jobs via registerCapabilityGatedJob', () => {
+  it('bootstrap routes controlled jobs through a registration gate', () => {
     expect(bootstrapSrc).toContain('registerCapabilityGatedJob')
+    expect(bootstrapSrc).toContain('job handler not registered (capability dark/blocked)')
+    expect(bootstrapSrc).not.toContain('registered no-op job handler')
     // Match job name + capability even if prettier wraps arguments across lines
     const gated = (job: string, cap: string) => {
       const re = new RegExp(
@@ -118,10 +145,14 @@ describe('BQR-0: Dark job / schedule containment', () => {
       )
       expect(bootstrapSrc, `expected gated job ${job} / ${cap}`).toMatch(re)
     }
-    gated("'leaderboard.reconcile'", 'leaderboard.use')
+    expect(bootstrapSrc).not.toContain("'leaderboard.reconcile'")
+    gated('PORTAL_DESTINATION_REVALIDATION_JOB', 'portal.write')
     gated('PROCESS_IMAGE_JOB_NAME', 'portal.upload')
     gated('URGENT_EMAIL_JOB_NAME', 'notification.send_email')
     gated('DIGEST_JOB_NAME', 'notification.send_email')
+    expect(bootstrapSrc).toContain(
+      'container.jobRegistry.register(\n    PORTAL_UPLOAD_SOURCE_CLEANUP_JOB',
+    )
   })
 
   it('outbox dispatcher remains opt-in', () => {

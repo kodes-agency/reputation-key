@@ -16,7 +16,13 @@ import {
   foreignKey,
   check,
 } from 'drizzle-orm/pg-core'
-import { portalPublicationSnapshots, portals } from './portal.schema'
+import {
+  portalAccessArtifacts,
+  portalPublicationSnapshots,
+  portals,
+} from './portal.schema'
+import { portalGroups } from './portal-group.schema'
+import { portalResponsibilities, staffParticipations } from './people-access.schema'
 import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'
 
 export const scanEvents = pgTable(
@@ -36,6 +42,209 @@ export const scanEvents = pgTable(
   (t) => [
     index('scan_events_session_idx').on(t.sessionId),
     index('scan_events_portal_idx').on(t.portalId),
+  ],
+)
+
+/**
+ * De-identified, identifier-only Qualified Scan truth retained independently
+ * of the short-lived signed-session receipt used to enforce 24-hour dedupe.
+ */
+export const guestQualifiedScans = pgTable(
+  'guest_qualified_scans',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    portalGroupId: uuid('portal_group_id'),
+    accessArtifactId: uuid('access_artifact_id').notNull(),
+    sourceEventId: uuid('source_event_id').notNull(),
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    retractedAt: timestamp('retracted_at', { withTimezone: true }),
+    attributedStaffParticipantId: uuid('attributed_staff_participant_id'),
+    attributedStaffParticipationId: uuid('attributed_staff_participation_id'),
+    attributionResponsibilityId: uuid('attribution_responsibility_id'),
+    staffAttributionEffectiveFrom: timestamp('staff_attribution_effective_from', {
+      withTimezone: true,
+    }),
+    staffAttributionEffectiveTo: timestamp('staff_attribution_effective_to', {
+      withTimezone: true,
+    }),
+  },
+  (t) => [
+    uniqueIndex('guest_qualified_scans_source_event_key').on(t.sourceEventId),
+    uniqueIndex('guest_qualified_scans_scope_id_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.portalId,
+      t.id,
+    ),
+    index('guest_qualified_scans_scope_time_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.portalId,
+      t.occurredAt,
+    ),
+    foreignKey({
+      name: 'guest_qualified_scans_participant_scope_fk',
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.attributedStaffParticipationId,
+        t.attributedStaffParticipantId,
+      ],
+      foreignColumns: [
+        staffParticipations.organizationId,
+        staffParticipations.propertyId,
+        staffParticipations.id,
+        staffParticipations.staffParticipantId,
+      ],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'guest_qualified_scans_responsibility_scope_fk',
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.portalId,
+        t.attributionResponsibilityId,
+        t.attributedStaffParticipationId,
+      ],
+      foreignColumns: [
+        portalResponsibilities.organizationId,
+        portalResponsibilities.propertyId,
+        portalResponsibilities.portalId,
+        portalResponsibilities.id,
+        portalResponsibilities.staffParticipationId,
+      ],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'guest_qualified_scans_portal_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'guest_qualified_scans_group_fk',
+      columns: [t.organizationId, t.propertyId, t.portalGroupId],
+      foreignColumns: [
+        portalGroups.organizationId,
+        portalGroups.propertyId,
+        portalGroups.id,
+      ],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'guest_qualified_scans_artifact_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId, t.accessArtifactId],
+      foreignColumns: [
+        portalAccessArtifacts.organizationId,
+        portalAccessArtifacts.propertyId,
+        portalAccessArtifacts.portalId,
+        portalAccessArtifacts.id,
+      ],
+    }).onDelete('restrict'),
+    check(
+      'guest_qualified_scans_retraction_valid',
+      sql`${t.retractedAt} IS NULL OR ${t.retractedAt} >= ${t.occurredAt}`,
+    ),
+    check(
+      'guest_qualified_scans_staff_attribution_complete',
+      sql`(${t.attributedStaffParticipantId} IS NULL AND ${t.attributedStaffParticipationId} IS NULL AND ${t.attributionResponsibilityId} IS NULL AND ${t.staffAttributionEffectiveFrom} IS NULL AND ${t.staffAttributionEffectiveTo} IS NULL) OR (${t.attributedStaffParticipantId} IS NOT NULL AND ${t.attributedStaffParticipationId} IS NOT NULL AND ${t.attributionResponsibilityId} IS NOT NULL AND ${t.staffAttributionEffectiveFrom} IS NOT NULL AND (${t.staffAttributionEffectiveTo} IS NULL OR ${t.staffAttributionEffectiveTo} > ${t.staffAttributionEffectiveFrom}) AND ${t.occurredAt} >= ${t.staffAttributionEffectiveFrom} AND (${t.staffAttributionEffectiveTo} IS NULL OR ${t.occurredAt} < ${t.staffAttributionEffectiveTo}))`,
+    ),
+  ],
+)
+
+/** Short-lived session pseudonym used only for rolling 24-hour dedupe. */
+export const guestQualifiedScanReceipts = pgTable(
+  'guest_qualified_scan_receipts',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    sessionId: uuid('session_id').notNull(),
+    qualifiedScanId: uuid('qualified_scan_id').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('guest_qualified_scan_receipts_anchor_key').on(
+      t.organizationId,
+      t.portalId,
+      t.sessionId,
+    ),
+    index('guest_qualified_scan_receipts_lookup_idx').on(
+      t.organizationId,
+      t.portalId,
+      t.sessionId,
+      t.expiresAt,
+    ),
+    index('guest_qualified_scan_receipts_expiry_idx').on(t.expiresAt),
+    foreignKey({
+      name: 'guest_qualified_scan_receipts_qualified_scan_scope_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId, t.qualifiedScanId],
+      foreignColumns: [
+        guestQualifiedScans.organizationId,
+        guestQualifiedScans.propertyId,
+        guestQualifiedScans.portalId,
+        guestQualifiedScans.id,
+      ],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'guest_qualified_scan_receipts_portal_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
+    }).onDelete('restrict'),
+    check(
+      'guest_qualified_scan_receipts_window_valid',
+      sql`${t.expiresAt} = ${t.createdAt} + interval '24 hours'`,
+    ),
+  ],
+)
+
+/**
+ * Canonical short-lived network-pressure authority for public Guest actions.
+ * The keyed digest is scoped at derivation time to one
+ * Organization/Portal/action class; no session, source fact, destination,
+ * content, or Staff identity is stored.
+ */
+export const guestNetworkPressureRecords = pgTable(
+  'guest_network_pressure_records',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    pseudonym: varchar('pseudonym', { length: 64 }).notNull(),
+    action: varchar('action', { length: 24 }).notNull(),
+    observedAt: timestamp('observed_at', { withTimezone: true }).notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index('guest_network_pressure_lookup_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.portalId,
+      t.pseudonym,
+      t.action,
+      t.observedAt,
+    ),
+    index('guest_network_pressure_expiry_idx').on(t.expiresAt),
+    foreignKey({
+      name: 'guest_network_pressure_portal_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
+    }).onDelete('cascade'),
+    check(
+      'guest_network_pressure_pseudonym_valid',
+      sql`${t.pseudonym} ~ '^[a-f0-9]{64}$'`,
+    ),
+    check(
+      'guest_network_pressure_action_valid',
+      sql`${t.action} IN ('rating', 'private_feedback', 'destination_action', 'qualified_scan')`,
+    ),
+    check(
+      'guest_network_pressure_retention_valid',
+      sql`${t.expiresAt} = ${t.observedAt} + interval '7 days'`,
+    ),
   ],
 )
 
@@ -119,12 +328,22 @@ export const guestResponses = pgTable(
     submittedAt: timestamp('submitted_at', { withTimezone: true }),
     correctedAt: timestamp('corrected_at', { withTimezone: true }),
     feedbackSubmittedAt: timestamp('feedback_submitted_at', { withTimezone: true }),
+    feedbackSubmissionRevision: integer('feedback_submission_revision'),
     feedbackWithdrawnAt: timestamp('feedback_withdrawn_at', { withTimezone: true }),
     moderatedAt: timestamp('moderated_at', { withTimezone: true }),
     retentionDeadline: timestamp('retention_deadline', { withTimezone: true }).notNull(),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),
+    attributedStaffParticipantId: uuid('attributed_staff_participant_id'),
+    attributedStaffParticipationId: uuid('attributed_staff_participation_id'),
+    attributionResponsibilityId: uuid('attribution_responsibility_id'),
+    staffAttributionEffectiveFrom: timestamp('staff_attribution_effective_from', {
+      withTimezone: true,
+    }),
+    staffAttributionEffectiveTo: timestamp('staff_attribution_effective_to', {
+      withTimezone: true,
+    }),
   },
   (t) => [
     uniqueIndex('guest_responses_org_id_key').on(t.organizationId, t.id),
@@ -146,6 +365,38 @@ export const guestResponses = pgTable(
       t.portalId,
       t.integrityOutcome,
     ),
+    foreignKey({
+      name: 'guest_responses_participant_scope_fk',
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.attributedStaffParticipationId,
+        t.attributedStaffParticipantId,
+      ],
+      foreignColumns: [
+        staffParticipations.organizationId,
+        staffParticipations.propertyId,
+        staffParticipations.id,
+        staffParticipations.staffParticipantId,
+      ],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'guest_responses_responsibility_scope_fk',
+      columns: [
+        t.organizationId,
+        t.propertyId,
+        t.portalId,
+        t.attributionResponsibilityId,
+        t.attributedStaffParticipationId,
+      ],
+      foreignColumns: [
+        portalResponsibilities.organizationId,
+        portalResponsibilities.propertyId,
+        portalResponsibilities.portalId,
+        portalResponsibilities.id,
+        portalResponsibilities.staffParticipationId,
+      ],
+    }).onDelete('restrict'),
     foreignKey({
       name: 'guest_responses_portal_tenant_fk',
       columns: [t.organizationId, t.portalId],
@@ -184,6 +435,14 @@ export const guestResponses = pgTable(
     check(
       'guest_responses_feedback_withdrawal_valid',
       sql`${t.feedbackWithdrawnAt} IS NULL OR (${t.feedbackSubmittedAt} IS NOT NULL AND ${t.textConsent} = false AND ${t.feedbackSourceEventId} IS NULL)`,
+    ),
+    check(
+      'guest_responses_feedback_submission_revision_valid',
+      sql`(${t.feedbackSubmittedAt} IS NULL AND ${t.feedbackSubmissionRevision} IS NULL) OR (${t.feedbackSubmittedAt} IS NOT NULL AND ${t.feedbackSubmissionRevision} BETWEEN 1 AND ${t.correctionCount} + 1)`,
+    ),
+    check(
+      'guest_responses_staff_attribution_complete',
+      sql`(${t.attributedStaffParticipantId} IS NULL AND ${t.attributedStaffParticipationId} IS NULL AND ${t.attributionResponsibilityId} IS NULL AND ${t.staffAttributionEffectiveFrom} IS NULL AND ${t.staffAttributionEffectiveTo} IS NULL) OR (${t.attributedStaffParticipantId} IS NOT NULL AND ${t.attributedStaffParticipationId} IS NOT NULL AND ${t.attributionResponsibilityId} IS NOT NULL AND ${t.staffAttributionEffectiveFrom} IS NOT NULL AND ${t.submittedAt} IS NOT NULL AND ${t.submittedAt} >= ${t.staffAttributionEffectiveFrom} AND (${t.staffAttributionEffectiveTo} IS NULL OR ${t.staffAttributionEffectiveTo} > ${t.staffAttributionEffectiveFrom}) AND (${t.staffAttributionEffectiveTo} IS NULL OR ${t.submittedAt} < ${t.staffAttributionEffectiveTo}))`,
     ),
   ],
 )

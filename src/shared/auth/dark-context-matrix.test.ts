@@ -151,10 +151,10 @@ describe('BQC-2.6 controlled-feature containment matrix', () => {
   })
 
   describe('delayed contract: dark job/schedule actions deny (BQC-2.5 contract)', () => {
-    it('blocked leaderboard reconcile + promotable email digest deny with stable reasons', async () => {
+    it('retired leaderboard work is unknown while promotable email remains gated', async () => {
       const policy = createDelayedExecutionPolicy({ refreshPolicy: async () => {} })
       const cases: ReadonlyArray<readonly [string, string]> = [
-        ['system:leaderboard.reconcile', 'capability_blocked'],
+        ['system:leaderboard.reconcile', 'unknown_action'],
         ['system:notification.email_digest', 'org_not_allowlisted'],
       ]
       for (const [action, reason] of cases) {

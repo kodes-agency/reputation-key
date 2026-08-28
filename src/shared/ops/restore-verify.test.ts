@@ -83,9 +83,22 @@ function ctxFor(dryRun: boolean): OperatorContext {
   }
 }
 
+const inspectionPlan = () => ({
+  requestContent: '{"kind":"review-lifecycle-recovery"}\n',
+  requestSha256: 'e'.repeat(64),
+  reportContent: '{"lifecycle":{"expired":4}}\n',
+  reportSha256: 'f'.repeat(64),
+  expired: 4,
+})
+
 function depsFor(overrides: Partial<RestoreVerifyDeps> = {}): RestoreVerifyDeps & {
+  reviewLifecycle: {
+    kind: 'reviewed_apply'
+    admit: ReturnType<typeof vi.fn>
+  }
+  reviewApply: ReturnType<typeof vi.fn>
+  reviewComplete: ReturnType<typeof vi.fn>
   countExpired: ReturnType<typeof vi.fn>
-  purgeExpired: ReturnType<typeof vi.fn>
   purgeEvidence: ReturnType<typeof vi.fn>
   inspectGoogleImportLifecycle: ReturnType<typeof vi.fn>
   sweepGoogleImportLifecycle: ReturnType<typeof vi.fn>
@@ -94,10 +107,34 @@ function depsFor(overrides: Partial<RestoreVerifyDeps> = {}): RestoreVerifyDeps 
   inspectRecoveryFence: ReturnType<typeof vi.fn>
   applyRecoveryFence: ReturnType<typeof vi.fn>
 } {
+  const reviewApply = vi.fn(async () => {})
+  const reviewComplete = vi.fn(async () => {})
   return {
     env: ISOLATED_ENV,
+    reviewLifecycle: {
+      kind: 'reviewed_apply',
+      admit: vi.fn(async () => ({
+        recoveryInput: {
+          dataCellId: 'us',
+          runId: '10000000-0000-4000-8000-000000000001',
+          generation: 1,
+          sourceReleaseSha: ISOLATED_ENV.RELEASE_SHA,
+          sourceManifestSha256: ISOLATED_ENV.RELEASE_MANIFEST_SHA256,
+          restorePointAt: new Date(ISOLATED_ENV.RESTORE_POINT_AT),
+          operatorId: 'op@example.com',
+          correlationId: 'corr-1',
+        },
+        expired: 0,
+        approvalId: 'REV-01-restore-approval',
+        approvalBundleSha256: 'c'.repeat(64),
+        reportSha256: 'd'.repeat(64),
+        applyReviewLifecycle: reviewApply,
+        complete: reviewComplete,
+      })),
+    },
+    reviewApply,
+    reviewComplete,
     countExpired: vi.fn(async () => 0),
-    purgeExpired: vi.fn(async () => {}),
     purgeEvidence: vi.fn(async () => [
       {
         subject: 'reviews.purge',
@@ -124,8 +161,13 @@ function depsFor(overrides: Partial<RestoreVerifyDeps> = {}): RestoreVerifyDeps 
     })),
     ...overrides,
   } as RestoreVerifyDeps & {
+    reviewLifecycle: {
+      kind: 'reviewed_apply'
+      admit: ReturnType<typeof vi.fn>
+    }
+    reviewApply: ReturnType<typeof vi.fn>
+    reviewComplete: ReturnType<typeof vi.fn>
     countExpired: ReturnType<typeof vi.fn>
-    purgeExpired: ReturnType<typeof vi.fn>
     purgeEvidence: ReturnType<typeof vi.fn>
     inspectGoogleImportLifecycle: ReturnType<typeof vi.fn>
     sweepGoogleImportLifecycle: ReturnType<typeof vi.fn>
@@ -177,7 +219,7 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     const code = await runRestoreVerifyAction(ctxFor(false), deps, io)
     expect(code).toBe(1)
     expect(io.errLines.join('\n')).toMatch(/RESTORE_MODE=isolated/)
-    expect(deps.purgeExpired).not.toHaveBeenCalled()
+    expect(deps.reviewLifecycle.admit).not.toHaveBeenCalled()
     expect(deps.applyRecoveryFence).not.toHaveBeenCalled()
   })
 
@@ -194,7 +236,7 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     const code = await runRestoreVerifyAction(ctxFor(false), deps, io)
     expect(code).toBe(1)
     expect(io.errLines.join('\n')).toMatch(/not an admitted restore target/)
-    expect(deps.purgeExpired).not.toHaveBeenCalled()
+    expect(deps.reviewLifecycle.admit).not.toHaveBeenCalled()
     expect(deps.applyRecoveryFence).not.toHaveBeenCalled()
   })
 
@@ -210,7 +252,7 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     expect(code).toBe(1)
     expect(io.errLines.join('\n')).toMatch(/exactly match PROCESSING_CELL/)
     expect(deps.countExpired).not.toHaveBeenCalled()
-    expect(deps.purgeExpired).not.toHaveBeenCalled()
+    expect(deps.reviewLifecycle.admit).not.toHaveBeenCalled()
     expect(deps.applyRecoveryFence).not.toHaveBeenCalled()
   })
 
@@ -219,12 +261,53 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     const deps = depsFor({ countExpired: vi.fn(async () => 7) })
     const code = await runRestoreVerifyAction(ctxFor(true), deps, io)
     expect(code).toBe(0)
-    expect(deps.purgeExpired).not.toHaveBeenCalled()
+    expect(deps.reviewLifecycle.admit).not.toHaveBeenCalled()
     expect(deps.applyRecoveryFence).not.toHaveBeenCalled()
     const out = io.outLines.join('\n')
     expect(out).toMatch(/RESTORE MODE ISOLATED/)
     expect(out).toMatch(/7 expired-content row\(s\)/)
     expect(out).toMatch(/--apply --yes ops:restore-verify/)
+  })
+
+  it('inspection-only dry-run reports that apply authority is unavailable', async () => {
+    const io = memoryIO()
+    const deps = depsFor({
+      reviewLifecycle: {
+        kind: 'inspection_only',
+        reason: 'reviewed_cutover_authority_required',
+        prepare: vi.fn(async () => inspectionPlan()),
+      },
+    })
+
+    const code = await runRestoreVerifyAction(ctxFor(true), deps, io)
+
+    expect(code).toBe(0)
+    expect(io.outLines.join('\n')).toMatch(/apply remains unavailable/i)
+    expect(io.outLines.join('\n')).not.toMatch(/re-run with --apply/)
+    expect(io.outLines.join('\n')).toContain('e'.repeat(64))
+    expect(io.outLines.join('\n')).toContain('f'.repeat(64))
+    expect(io.outLines.join('\n')).toMatch(/independent approver/i)
+    expect(deps.countExpired).not.toHaveBeenCalled()
+  })
+
+  it('inspection-only apply refuses before any lifecycle or recovery mutation', async () => {
+    const io = memoryIO()
+    const deps = depsFor({
+      reviewLifecycle: {
+        kind: 'inspection_only',
+        reason: 'reviewed_cutover_authority_required',
+        prepare: vi.fn(async () => inspectionPlan()),
+      },
+    })
+
+    const code = await runRestoreVerifyAction(ctxFor(false), deps, io)
+
+    expect(code).toBe(1)
+    expect(deps.countExpired).not.toHaveBeenCalled()
+    expect(deps.sweepGoogleImportLifecycle).not.toHaveBeenCalled()
+    expect(deps.sweepRetentionBacklog).not.toHaveBeenCalled()
+    expect(deps.applyRecoveryFence).not.toHaveBeenCalled()
+    expect(io.errLines.join('\n')).toMatch(/no reviewed cutover authority/i)
   })
 
   it('apply runs the purge in-process, prints evidence, and exits 0 when nothing remains', async () => {
@@ -234,7 +317,9 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     })
     const code = await runRestoreVerifyAction(ctxFor(false), deps, io)
     expect(code).toBe(0)
-    expect(deps.purgeExpired).toHaveBeenCalledTimes(1)
+    expect(deps.reviewLifecycle.admit).toHaveBeenCalledTimes(1)
+    expect(deps.reviewApply).toHaveBeenCalledTimes(1)
+    expect(deps.reviewComplete).toHaveBeenCalledTimes(1)
     expect(deps.sweepRetentionBacklog).toHaveBeenCalledTimes(1)
     expect(deps.purgeEvidence).toHaveBeenCalledTimes(1)
     expect(deps.applyRecoveryFence).toHaveBeenCalledTimes(1)
@@ -259,7 +344,7 @@ describe('runRestoreVerifyAction (BQC-7.8)', () => {
     const code = await runRestoreVerifyAction(ctxFor(false), deps, io)
 
     expect(code).toBe(1)
-    expect(deps.purgeExpired).not.toHaveBeenCalled()
+    expect(deps.reviewLifecycle.admit).not.toHaveBeenCalled()
     expect(deps.sweepRetentionBacklog).not.toHaveBeenCalled()
     expect(deps.applyRecoveryFence).not.toHaveBeenCalled()
     expect(io.errLines.join('\n')).toMatch(/Data Cell move/)

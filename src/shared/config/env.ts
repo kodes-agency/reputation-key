@@ -1,5 +1,8 @@
 import { z } from 'zod/v4'
-import { DATA_CELL_IDS } from '#/shared/domain/data-cell-catalogue'
+import {
+  DATA_CELL_IDS,
+  isBetaDeploymentDataCellId,
+} from '#/shared/domain/data-cell-catalogue'
 import { isRailwayPitrDatabaseUrl } from '#/shared/config/restore-mode'
 
 const baseEnvSchema = z.object({
@@ -114,7 +117,8 @@ const baseEnvSchema = z.object({
   // Logging
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 
-  // Storage — AWS S3
+  // S3-compatible object storage. Beta uses a private Railway bucket; the
+  // AWS_S3_* names are retained because the adapter speaks the S3 protocol.
   AWS_S3_ACCESS_KEY: z.string().min(1).optional(),
   AWS_S3_SECRET_ACCESS_KEY: z.string().min(1).optional(),
   AWS_S3_BUCKET_NAME: z.string().min(1).optional(),
@@ -201,6 +205,22 @@ const baseEnvSchema = z.object({
   GOOGLE_INTERNAL_MTLS_CERT_B64: z.string().min(1).optional(),
   GOOGLE_INTERNAL_MTLS_KEY_B64: z.string().min(1).optional(),
   GOOGLE_CREDENTIAL_BINDING_HMAC_KEYS: z.string().optional(),
+  // Cross-environment credential broker Phase B. Railway exposes this through
+  // a public TCP proxy, so validate-only mode requires self-TLS/mTLS and exact
+  // cryptographic peer identities. No live-execution mode exists yet.
+  GOOGLE_CREDENTIAL_BROKER_MODE: z
+    .enum(['disabled', 'validate_only'])
+    .default('disabled'),
+  GOOGLE_CREDENTIAL_BROKER_PUBLIC_ORIGIN: z.string().min(1).optional(),
+  GOOGLE_CREDENTIAL_BROKER_SERVER_NAME: z.string().min(1).optional(),
+  GOOGLE_CREDENTIAL_BROKER_SERVICE_IDENTITY: z.string().min(1).optional(),
+  GOOGLE_CREDENTIAL_BROKER_PEER_IDENTITIES: z.string().min(1).optional(),
+  GOOGLE_CREDENTIAL_BROKER_MTLS_CA_B64: z.string().min(1).optional(),
+  GOOGLE_CREDENTIAL_BROKER_MTLS_CERT_B64: z.string().min(1).optional(),
+  GOOGLE_CREDENTIAL_BROKER_MTLS_KEY_B64: z.string().min(1).optional(),
+  GOOGLE_CREDENTIAL_BROKER_SIGNATURE_HMAC_KEYS: z.string().max(195).optional(),
+  GOOGLE_CREDENTIAL_BROKER_REPLAY_HMAC_KEYS: z.string().max(195).optional(),
+  GOOGLE_CREDENTIAL_ROUTING_HMAC_KEYS: z.string().max(195).optional(),
 
   // Web/worker -> AI egress gateway. All transport and settlement-verification
   // values are configured together; composition rejects partial configuration.
@@ -295,6 +315,13 @@ const baseEnvSchema = z.object({
     .string()
     .optional()
     .transform((v) => v?.toLowerCase() === 'true'),
+  // BQC-3.9: durable Inbox consumer cutover. Values are parsed by the shared
+  // cutover resolver at composition so invalid states fail startup closed.
+  DURABLE_CUTOVER_INBOX: z.string().optional(),
+  DURABLE_CUTOVER_INBOX_REVIEW_CREATED: z.string().optional(),
+  DURABLE_CUTOVER_INBOX_REVIEW_UPDATED: z.string().optional(),
+  DURABLE_CUTOVER_INBOX_REVIEW_EXPIRED: z.string().optional(),
+  DURABLE_CUTOVER_INBOX_REVIEW_REPLY_PUBLISHED: z.string().optional(),
   // Org slugs/IDs suspended from the beta (B0.5 operator controls).
   BETA_SUSPENDED_ORGS: z.string().optional(),
   // Deployed request-edge contract. Production defaults to Railway's documented
@@ -341,6 +368,22 @@ const baseEnvSchema = z.object({
   // name to DATABASE_URL's private Railway hostname and refuse public/source
   // targets. Loopback drills must also name their explicit disposable target.
   RESTORE_DATABASE_SERVICE_NAME: z.string().min(1).optional(),
+  // Restore-only, one-shot Review lifecycle recovery authority. These three
+  // values are all-or-none and are refused outside RESTORE_MODE=isolated.
+  REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON: z
+    .string()
+    .min(1)
+    .max(128 * 1024)
+    .optional(),
+  REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .optional(),
+  REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON: z
+    .string()
+    .min(1)
+    .max(64 * 1024)
+    .optional(),
   // REG-04: permanent serving attestation for a Railway PITR sibling. The
   // isolated verifier prints this exact recovery run/generation pair. Once
   // RESTORE_MODE is removed, web and worker boot query the sibling database
@@ -389,6 +432,16 @@ const envSchema = baseEnvSchema
         path: ['PROCESSING_CELL'],
         message: 'Production deployments require an explicit PROCESSING_CELL',
       })
+    } else if (
+      env.NODE_ENV === 'production' &&
+      env.PROCESSING_CELL !== undefined &&
+      !isBetaDeploymentDataCellId(env.PROCESSING_CELL)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['PROCESSING_CELL'],
+        message: 'Production deployments require a beta-deployable PROCESSING_CELL (us)',
+      })
     }
     // A production auth origin controls trusted-origin checks, callback URLs,
     // and the Secure attribute on session cookies. Refuse the deployment before
@@ -430,6 +483,32 @@ const envSchema = baseEnvSchema
         message: 'Recovery cutover run ID and generation must be configured together',
       })
     }
+    const reviewRecoveryApprovalConfigured = [
+      env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON,
+      env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256,
+      env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON,
+    ].filter((value) => value !== undefined).length
+    if (
+      reviewRecoveryApprovalConfigured !== 0 &&
+      reviewRecoveryApprovalConfigured !== 3
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON'],
+        message:
+          'Review lifecycle recovery approval bundle, digest, and public keys must be configured together',
+      })
+    } else if (
+      reviewRecoveryApprovalConfigured === 3 &&
+      env.RESTORE_MODE !== 'isolated'
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON'],
+        message:
+          'Review lifecycle recovery approval authority is allowed only in restore-isolated mode',
+      })
+    }
     if (
       env.RESTORE_MODE !== 'isolated' &&
       isRailwayPitrDatabaseUrl(env.DATABASE_URL) &&
@@ -448,7 +527,7 @@ const envSchema = baseEnvSchema
     ...env,
     // A single-cell local/test stack deliberately behaves as the US cell. A
     // production process may reach this transform only after the refinement
-    // above has established an explicit, catalogue-valid identity.
+    // above has established the explicit beta-deployable US identity.
     PROCESSING_CELL: env.PROCESSING_CELL ?? 'us',
   }))
 

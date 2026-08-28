@@ -15,6 +15,7 @@ export type {
   IdentityMemberRemoved,
   IdentityMemberRoleChanged,
   IdentityMerchantAiChanged,
+  IdentityOrganizationLifecycleChanged,
 } from '#/contexts/identity/domain/events'
 
 // Property context events
@@ -23,6 +24,8 @@ export type {
   PropertyCreated,
   PropertyUpdated,
   PropertyDeleted,
+  PropertyArchived,
+  PropertyRestored,
 } from '#/contexts/property/domain/events'
 
 // Team context events
@@ -45,8 +48,18 @@ export type {
   PortalEvent,
   PortalCreated,
   PortalUpdated,
+  PortalPublicationPublished,
+  PortalPublicationRolledBack,
+  PortalArchived,
+  PortalRestored,
   PortalDeleted,
   PortalResponsibilityNeeded,
+  PortalHealthChanged,
+  PortalPropertyBrandProfileUpdated,
+  PortalPropertyBrandContentUpdated,
+  PortalLocalizedOverrideUpdated,
+  PortalLocaleSetUpdated,
+  PortalApprovedDestinationUpdated,
   PortalHeroImageProcessingRequested,
   PortalGroupCreated,
   PortalGroupUpdated,
@@ -56,6 +69,8 @@ export type {
 // Guest context events
 export type {
   GuestEvent,
+  GuestQualifiedScanRecorded,
+  GuestQualifiedScanRetracted,
   GuestScanRecorded,
   GuestRatingSubmitted,
   GuestFeedbackSubmitted,
@@ -68,7 +83,9 @@ export type {
   IntegrationEvent,
   IntegrationGoogleAccountConnected,
   IntegrationGoogleAccountDisconnected,
+  IntegrationGoogleAccountReauthorizationRequired,
   IntegrationGoogleConnectionVisibilityChanged,
+  IntegrationGoogleReviewPushAccepted,
   IntegrationPropertyImportRequested,
 } from '#/contexts/integration/domain/events'
 
@@ -85,6 +102,7 @@ export type {
   ReviewReplyPublicationCancelled,
   ReviewReplyUpdated,
   ReviewReplyObserved,
+  ReviewGoogleReputationSnapshotVerified,
 } from '#/contexts/review/domain/events'
 
 // Inbox context events
@@ -93,10 +111,21 @@ export type {
   InboxItemCreated,
   InboxItemStatusChanged,
   InboxItemAssigned,
+  InboxBulkAssignmentCompleted,
+  InboxHandlingCycleOpened,
+  InboxHandlingCycleClosed,
+  InboxHandlingCycleReopened,
+  InboxResponseTargetReminderDue,
+  InboxResponseTargetPolicyChanged,
 } from '#/contexts/inbox/domain/events'
 
 // Goal context events
-export type { GoalEvent, GoalCompleted } from '#/contexts/goal/domain/events'
+export type {
+  GoalEvent,
+  GoalCompleted,
+  GoalMonthlyResultClosed,
+  GoalMonthlyResultReconciled,
+} from '#/contexts/goal/domain/events'
 
 // Metric context events
 export type {

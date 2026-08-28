@@ -193,25 +193,27 @@ export function createDispatcherHandler(
       const eventId = event.eventId || jobId
       const eventType = event.eventType
 
-      // REG-01: newly relayed envelopes carry their source cell. A job
-      // injected or delivered to another cell is terminally quarantined
+      // REG-01 / ARC-02: newly relayed envelopes carry their source cell and,
+      // for Property work, the freshly resolved target cell. A job injected
+      // or delivered to another cell is terminally quarantined
       // before schema reads, receipts, or consumer effects. Missing is
       // accepted only for the documented pre-REG-01 in-flight shape.
+      const targetCell = event.dataCellId ?? event.sourceCellId
       if (
         options.localCell &&
-        event.dataCellId !== undefined &&
-        event.dataCellId !== options.localCell
+        targetCell !== undefined &&
+        targetCell !== options.localCell
       ) {
         logger.error(
           {
             eventType,
             localCell: options.localCell,
-            targetCell: event.dataCellId,
+            targetCell,
           },
           'Outbox envelope delivered to the wrong Data Cell — unrecoverable',
         )
         throw new UnrecoverableError(
-          `outbox wrong_cell (${eventType}): target=${event.dataCellId}, local=${options.localCell}`,
+          `outbox wrong_cell (${eventType}): target=${targetCell}, local=${options.localCell}`,
         )
       }
 

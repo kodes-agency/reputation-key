@@ -13,7 +13,11 @@
 
 import * as Sentry from '@sentry/node'
 import { z } from 'zod/v4'
-import { getLogger } from '#/shared/observability/logger'
+import {
+  BETA_FEEDBACK_ATTACHMENT_RETENTION_DAYS,
+  type MaskedLayoutSnapshot,
+} from '#/shared/beta-feedback-contract'
+import { renderMaskedLayoutSvg } from '#/shared/masked-layout-snapshot'
 import { isSensitiveObservabilityField } from '#/shared/observability/sensitive-field-policy'
 
 const REDACTED = '[REDACTED]'
@@ -34,6 +38,17 @@ const ALLOWED_EVENT_TAGS = new Set([
   'feedback_organization',
   'feedback_viewport',
   'feedback_role',
+  'feedback_reference',
+  'feedback_attachment',
+  'feedback_attachment_retention',
+  'feedback_triage_state',
+  'feedback_triage_owner',
+  'feedback_triage_severity',
+  'feedback_triage_privacy',
+  'feedback_triage_security',
+  'feedback_triage_reproduction',
+  'feedback_triage_dedupe',
+  'feedback_customer_response',
 ])
 
 const ALLOWED_CONTEXT_FIELDS: Readonly<Record<string, ReadonlySet<string>>> = {
@@ -45,7 +60,22 @@ const ALLOWED_CONTEXT_FIELDS: Readonly<Record<string, ReadonlySet<string>>> = {
   trace: new Set(['trace_id', 'span_id', 'parent_span_id', 'op', 'origin', 'status']),
 }
 
-export type ObservabilityService = 'web' | 'worker'
+const OPERATIONAL_TRANSACTION_EXCLUSIONS = new Set([
+  '/health/live',
+  '/health/ready',
+  '/api/health/started',
+  '/api/health/live',
+  '/api/health/ready',
+  '/api/health/metrics',
+])
+
+export type ObservabilityService =
+  | 'web'
+  | 'worker'
+  | 'google-execution-admission'
+  | 'google-egress-gateway'
+  | 'ai-execution-admission'
+  | 'ai-egress-gateway'
 export type ObservabilityInitResult = 'enabled' | 'disabled' | 'failed'
 
 export interface ObservabilityConfig {
@@ -93,7 +123,7 @@ export interface ErrorMonitoringSdk {
   ): unknown
   captureFeedback(
     params: FeedbackCaptureParams,
-    hint?: Readonly<{ includeReplay?: false }>,
+    hint?: FeedbackCaptureHint,
     scope?: FeedbackCaptureScope,
   ): string
   withScope(callback: (scope: FeedbackCaptureScope) => unknown): unknown
@@ -114,7 +144,14 @@ interface ErrorMonitoringLogger {
 
 export interface ErrorCaptureContext {
   readonly source:
-    'nitro' | 'worker-process' | 'worker-startup' | 'bullmq-worker' | 'bullmq-job'
+    | 'nitro'
+    | 'worker-process'
+    | 'worker-startup'
+    | 'bullmq-worker'
+    | 'bullmq-job'
+    | 'sidecar-process'
+    | 'sidecar-startup'
+    | 'sidecar-dependency'
   readonly trigger?:
     | 'SIGTERM'
     | 'SIGINT'
@@ -130,6 +167,20 @@ export interface FeedbackCaptureParams {
   readonly message: string
   readonly source: 'repkey-native-beta-feedback'
   readonly tags: Readonly<Record<string, string>>
+  readonly maskedLayoutAttachment?: Readonly<{
+    readonly capturedAt: string
+    readonly expiresAt: string
+    readonly snapshot: MaskedLayoutSnapshot
+  }>
+}
+
+export interface FeedbackCaptureHint {
+  readonly includeReplay: false
+  readonly attachments?: ReadonlyArray<{
+    readonly data: Uint8Array
+    readonly filename: 'repkey-masked-layout.svg'
+    readonly contentType: 'image/svg+xml'
+  }>
 }
 
 export interface ErrorMonitor {
@@ -234,6 +285,36 @@ export function scrubSentryEvent(event: unknown): unknown {
   }
 
   return scrubbed
+}
+
+function transactionPath(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const withoutMethod = value.replace(
+    /^(?:GET|HEAD|POST|PUT|PATCH|DELETE|OPTIONS)\s+/u,
+    '',
+  )
+  try {
+    return new URL(withoutMethod, 'https://observability.invalid').pathname
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Health and private metrics polling are operational control traffic rather
+ * than product transactions. Drop those exact routes before sampling while
+ * retaining ordinary application errors/transactions through the same strict
+ * scrubber. Exact matching prevents an attacker-controlled lookalike route
+ * from suppressing useful error evidence.
+ */
+export function filterAndScrubSentryTransaction(event: unknown): unknown {
+  const record = asRecord(event)
+  const request = asRecord(record?.request)
+  const paths = [transactionPath(record?.transaction), transactionPath(request?.url)]
+  if (paths.some((path) => path && OPERATIONAL_TRANSACTION_EXCLUSIONS.has(path))) {
+    return null
+  }
+  return scrubSentryEvent(event)
 }
 
 function scrubSentryFeedbackRecord(
@@ -429,6 +510,39 @@ function machineTag(value: string | undefined): string | undefined {
   return MACHINE_TAG_VALUE.test(value) ? value : 'unknown'
 }
 
+const ATTACHMENT_RETENTION_MS =
+  BETA_FEEDBACK_ATTACHMENT_RETENTION_DAYS * 24 * 60 * 60 * 1_000
+
+function maskedLayoutHint(
+  attachment: FeedbackCaptureParams['maskedLayoutAttachment'],
+): FeedbackCaptureHint {
+  if (!attachment) return { includeReplay: false }
+  const capturedAt = Date.parse(attachment.capturedAt)
+  const expiresAt = Date.parse(attachment.expiresAt)
+  if (
+    !Number.isFinite(capturedAt) ||
+    !Number.isFinite(expiresAt) ||
+    expiresAt <= capturedAt ||
+    expiresAt - capturedAt > ATTACHMENT_RETENTION_MS
+  ) {
+    throw new Error('Masked layout attachment has an invalid retention window')
+  }
+  const data = new TextEncoder().encode(renderMaskedLayoutSvg(attachment.snapshot))
+  if (data.byteLength > 32_000) {
+    throw new Error('Masked layout attachment exceeds the fixed byte budget')
+  }
+  return {
+    includeReplay: false,
+    attachments: [
+      {
+        data,
+        filename: 'repkey-masked-layout.svg',
+        contentType: 'image/svg+xml',
+      },
+    ],
+  }
+}
+
 export function createErrorMonitor(deps: {
   readonly sentry: ErrorMonitoringSdk
   readonly logger: ErrorMonitoringLogger | (() => ErrorMonitoringLogger)
@@ -480,21 +594,25 @@ export function createErrorMonitor(deps: {
             sendDefaultPii: false,
             includeLocalVariables: false,
             serverName: `repkey-${config.service}`,
-            // RepKey owns worker process-fatal drain/exit semantics. Sentry's
-            // default handlers would duplicate captures and race that owner;
-            // web retains them because it has no equivalent fatal owner. Local
+            // RepKey owns worker and sidecar process-fatal drain/exit
+            // semantics. Sentry's default handlers would duplicate captures
+            // and race that owner; web retains them because it has no
+            // equivalent fatal owner. Replay stays globally absent. A
+            // consented Bug may carry only the separately validated masked
+            // layout SVG; it never enables an SDK Replay integration. Local
             // variables/source context are excluded for data minimization.
             integrations: (defaults) =>
               defaults.filter(
                 (integration) =>
-                  (config.service !== 'worker' ||
+                  (config.service === 'web' ||
                     (integration.name !== 'OnUncaughtException' &&
                       integration.name !== 'OnUnhandledRejection')) &&
+                  !integration.name?.startsWith('Replay') &&
                   integration.name !== 'LocalVariablesAsync' &&
                   integration.name !== 'ContextLines',
               ),
             beforeSend: scrubSentryEvent,
-            beforeSendTransaction: scrubSentryEvent,
+            beforeSendTransaction: filterAndScrubSentryTransaction,
             beforeBreadcrumb: scrubSentryBreadcrumb,
           })
         }
@@ -567,6 +685,7 @@ export function createErrorMonitor(deps: {
           source: 'repkey-native-beta-feedback',
           tags: safeTags,
         }
+        const safeHint = maskedLayoutHint(params.maskedLayoutAttachment)
 
         // Sentry 10.71 does not pass `type: "feedback"` events through the
         // ordinary `beforeSend` callback. Clear both inherited scopes so
@@ -578,7 +697,7 @@ export function createErrorMonitor(deps: {
           return sdk.withScope((scope) => {
             scope.clear()
             scope.addEventProcessor(scrubSentryEvent)
-            return sdk.captureFeedback(safeParams, {}, scope)
+            return sdk.captureFeedback(safeParams, safeHint, scope)
           })
         })
         return typeof reference === 'string' ? reference : undefined
@@ -608,9 +727,31 @@ export function createErrorMonitor(deps: {
   }
 }
 
+const preloadSafeLogger: ErrorMonitoringLogger = Object.freeze({
+  info: (_object: Record<string, unknown>, message: string) => {
+    process.stderr.write(
+      `${JSON.stringify({ level: 'info', event: 'observability_diagnostic', message })}\n`,
+    )
+  },
+  warn: (_object: Record<string, unknown>, message: string) => {
+    process.stderr.write(
+      `${JSON.stringify({ level: 'warn', event: 'observability_diagnostic', message })}\n`,
+    )
+  },
+  error: (_object: Record<string, unknown>, message: string) => {
+    process.stderr.write(
+      `${JSON.stringify({ level: 'error', event: 'observability_diagnostic', message })}\n`,
+    )
+  },
+})
+
 const processMonitor = createErrorMonitor({
   sentry: Sentry as unknown as ErrorMonitoringSdk,
-  logger: getLogger,
+  // Monitoring is preloaded before the application environment parser and is
+  // bundled into least-privileged sidecars. Keep this diagnostic sink
+  // dependency-free and content-free; createErrorMonitor's public seam still
+  // accepts the normal structured logger in unit tests and other embeddings.
+  logger: preloadSafeLogger,
 })
 
 export function initObservability(

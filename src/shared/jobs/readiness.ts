@@ -7,8 +7,8 @@
 // FAILS rather than starting half-wired:
 //
 //   (a) every JOB_FAMILY_ROWS entry with registration 'enabled' has a handler
-//       (denied_dark/blocked_capability rows carry no-op handlers by design —
-//       they pass the same way);
+//       quarantined rows may retain an explicit safety/report handler;
+//       denied_dark/blocked_capability rows MUST NOT retain a handler;
 //   (b) every registered handler name exists in JOB_FAMILY_ROWS — a stale or
 //       typo'd handler fails the boot. The 'domain-events' dispatcher is NOT
 //       a registered handler: it is a queue-level worker created with its own
@@ -28,6 +28,7 @@ import {
   type ActiveCutoverFamily,
 } from '#/shared/outbox/cutover-flags'
 import type { JobRegistry } from './registry'
+import { validateOperationalCatalogueCoverage } from './operational-catalogue'
 
 export type JobReadinessOptions = Readonly<{
   /** Validate durable consumer registration (only when the dispatcher runs). */
@@ -50,18 +51,25 @@ export type ReadinessLogger = {
 
 function assertHandlersRegistered(registry: JobRegistry): void {
   const registered = new Set(registry.getAll().keys())
-  const catalogued = new Set(JOB_FAMILY_ROWS.map((r) => r.jobName))
+  const rowsByName = new Map(JOB_FAMILY_ROWS.map((row) => [row.jobName, row]))
 
   const missing = JOB_FAMILY_ROWS.filter(
     (r) => r.registration === 'enabled' && !registered.has(r.jobName),
   ).map((r) => r.jobName)
-  const extra = [...registered].filter((name) => !catalogued.has(name))
+  const extra = [...registered].filter((name) => {
+    const row = rowsByName.get(name)
+    return (
+      row === undefined ||
+      row.registration === 'blocked_capability' ||
+      row.registration === 'denied_dark'
+    )
+  })
 
   if (missing.length > 0 || extra.length > 0) {
     throw new Error(
       'job readiness failed (deployment/config mismatch): ' +
         `${missing.length} enabled catalogue job(s) without a handler [${missing.join(', ')}], ` +
-        `${extra.length} registered handler(s) missing from the catalogue [${extra.join(', ')}]`,
+        `${extra.length} registered handler(s) absent or forbidden by the catalogue [${extra.join(', ')}]`,
     )
   }
 }
@@ -114,6 +122,7 @@ export function assertJobReadiness(
   logger: ReadinessLogger,
   options: JobReadinessOptions = {},
 ): void {
+  validateOperationalCatalogueCoverage()
   assertCutoverDispatcher(
     (options.activeCutoverFamilies ?? listActiveCutoverFamilies)(),
     options.dispatcherEnabled === true,

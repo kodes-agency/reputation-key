@@ -10,6 +10,12 @@
 const IDENTITY_MEMBER_INVITED_EVENT_TYPE = 'identity.member.invited'
 const REDACTED_INVITEE_EMAIL = '[redacted]'
 const EMAIL_LIKE = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/giu
+const RECENT_ACTIVITY_PROJECTION_JOB = 'project-recent-activity'
+const LEGACY_RECENT_ACTIVITY_PROJECTION_JOB = 'insert-activity-log'
+
+const isRecentActivityProjectionJob = (jobName: string): boolean =>
+  jobName === RECENT_ACTIVITY_PROJECTION_JOB ||
+  jobName === LEGACY_RECENT_ACTIVITY_PROJECTION_JOB
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -46,7 +52,7 @@ export function sanitizeIdentityInvitationRedriveData(
   if (!isRecord(data)) return data
 
   if (
-    jobName === 'insert-activity-log' &&
+    isRecentActivityProjectionJob(jobName) &&
     data.action === 'invited' &&
     data.resourceType === 'member' &&
     isRecord(data.payload) &&
@@ -81,7 +87,7 @@ export function sanitizeIdentityInvitationRedriveData(
 function isIdentityInvitationWork(jobName: string, data: unknown): boolean {
   if (!isRecord(data)) return false
   return (
-    (jobName === 'insert-activity-log' &&
+    (isRecentActivityProjectionJob(jobName) &&
       data.action === 'invited' &&
       data.resourceType === 'member') ||
     jobName === IDENTITY_MEMBER_INVITED_EVENT_TYPE
@@ -91,7 +97,7 @@ function isIdentityInvitationWork(jobName: string, data: unknown): boolean {
 function invitationPrivateValues(jobName: string, data: unknown): readonly string[] {
   if (!isRecord(data)) return []
   if (
-    jobName === 'insert-activity-log' &&
+    isRecentActivityProjectionJob(jobName) &&
     isRecord(data.payload) &&
     typeof data.payload.detail === 'string'
   ) {

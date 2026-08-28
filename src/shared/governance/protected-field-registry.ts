@@ -479,19 +479,89 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
 
   // ── activity / notifications ────────────────────────────────────────
   {
-    relation: 'activity_log',
+    relation: 'recent_activity_entries',
     kind: 'table',
     field: 'payload',
     classification: 'local_operational_fact',
     owner: 'activity',
     purpose:
-      'Audit facts {subject, from, to, detail}; provider contact and note-text vectors are excluded (BQC-1.2), with only minimal rejection reasons retained (ADR 0045 r.4)',
-    creationPath: 'insert-activity-log job from event handlers',
+      'Recent Activity convenience-feed identifiers and allowlisted transition codes; never Review/private-feedback/contact/note/reply text or moderation reasons',
+    creationPath: 'Activity durable outbox consumer with EventBus-to-BullMQ acceleration',
     readPath: 'activity UI',
     refreshRule: 'content-free facts only (ADR 0045/0046)',
     deletionMechanism: 'retention-sweep daily (BQC-1.6, 90d) + retention_runs evidence',
     mustEliminate: false,
   },
+  {
+    relation: 'recent_activity_replay_facts',
+    kind: 'table',
+    field: 'transition_payload',
+    classification: 'local_operational_fact',
+    owner: 'activity',
+    purpose:
+      'Content-free 90-day reconstruction authority containing only identifiers and allowlisted transition codes',
+    creationPath:
+      'atomic Activity durable consumer settlement with recent_activity_entries and event_consumer_receipts',
+    readPath: 'bounded Recent Activity recovery and readiness only',
+    refreshRule:
+      'idempotent source-event capture; legacy rows remain explicitly labelled',
+    deletionMechanism:
+      'retention-sweep daily at source_occurred_at + 90d with retention_runs evidence',
+    mustEliminate: false,
+  },
+  {
+    relation: 'recent_activity_actor_label_redactions',
+    kind: 'table',
+    field: 'actor_subject_id',
+    classification: 'local_operational_fact',
+    owner: 'activity',
+    purpose:
+      'Content-free 90-day privacy fence preventing delayed delivery or rebuild from restoring an anonymized actor label',
+    creationPath:
+      'restricted Recent Activity actor-label redaction use case after the owning identity lifecycle decision',
+    readPath: 'Activity durable delivery and recovery stores only',
+    refreshRule:
+      'same-tenant subject redaction extends the fence from the latest lifecycle application',
+    deletionMechanism:
+      'retention-sweep deletes the fence at expires_at after source facts and replay authority have aged out',
+    mustEliminate: false,
+  },
+  ...[
+    ['actor_id', 'Account or operator subject attribution'],
+    ['resource_id', 'Affected resource attribution'],
+  ].map(([field, purpose]): ProtectedFieldRule => ({
+    relation: 'operational_action_history_records',
+    kind: 'table',
+    field,
+    classification: 'local_operational_fact',
+    owner: 'activity',
+    purpose,
+    creationPath: 'Operational Action History append transaction',
+    readPath: 'current AccountAdmin restricted history query/export',
+    refreshRule: 'append-oriented; no source-content refresh',
+    deletionMechanism:
+      'one-way identifier redaction in bounded batches; active legal holds fail closed; destructive retention is report-only pending counsel',
+    mustEliminate: false,
+  })),
+  ...[
+    ['reason_code', 'Legal-hold placement reason code'],
+    ['placed_by_actor_id', 'Legal-hold placement operator attribution'],
+    ['released_by_actor_id', 'Legal-hold release operator attribution'],
+    ['release_reason_code', 'Legal-hold release reason code'],
+  ].map(([field, purpose]): ProtectedFieldRule => ({
+    relation: 'operational_action_history_legal_holds',
+    kind: 'table',
+    field,
+    classification: 'local_operational_fact',
+    owner: 'activity',
+    purpose,
+    creationPath: 'Operational Action History legal-hold transaction',
+    readPath: 'restricted lifecycle/readiness operation only',
+    refreshRule: 'append-oriented placement with one-time explicit release',
+    deletionMechanism:
+      'none while policy is pending counsel; records protected by an active hold cannot be redacted',
+    mustEliminate: false,
+  })),
   {
     relation: 'notifications',
     kind: 'table',
@@ -527,11 +597,12 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     classification: 'local_operational_fact',
     owner: 'notification',
     purpose:
-      'Content-free render metadata (ADR 0046 r.8). Allowlisted keys ONLY, enforced by parseNotificationPayload which drops everything else: propertyName, rating (1-5 numeric fact), platform enum, waitingHours, actorRole (ROLE, never a person), moderationReason (staff-authored), goalName, badgeName, recipientName (portal/portal-group display name), targetKind, occurrences. FORBIDDEN and never written: review text, reply text, guest/reviewer name, media URLs, sentiment or any derived score, and any other employee name or email.',
+      'Content-free render metadata (ADR 0046 r.8). Allowlisted keys ONLY, enforced by parseNotificationPayload which drops everything else: propertyName, guestRating (locally collected Portal rating only), platform enum, waitingHours, actorRole (ROLE, never a person), moderationReason (staff-authored), goalName, badgeName, recipientName (portal/portal-group display name), targetKind, occurrences, itemCount. FORBIDDEN and never written: Google/provider review rating or text, reply text, guest/reviewer name, media URLs, sentiment or any derived score, and any other employee name or email.',
     creationPath: 'notification event handlers -> insert-notification job',
     readPath: 'notification UI; email rendering (renderNotification)',
     refreshRule: 'content-free facts only (ADR 0046 r.8); re-parsed on every read',
-    deletionMechanism: 'none (notifications row retention)',
+    deletionMechanism:
+      'migration 0128 and database normalization trigger remove legacy provider rating copies before persistence; notifications row retention remains content-free',
     mustEliminate: false,
   },
 
@@ -613,6 +684,24 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     mustEliminate: false,
   },
   {
+    relation: 'guest_network_pressure_records',
+    kind: 'table',
+    field: 'pseudonym',
+    classification: 'local_operational_fact',
+    owner: 'guest',
+    purpose:
+      'Portal- and action-class-scoped, daily-rotating network-pressure pseudonym for public Guest action limits',
+    creationPath:
+      'origin/CSRF/signed-session rating, private-feedback, destination-action, or qualified-scan admission',
+    readPath:
+      'Guest rate-limit and integrity admission only; never analytics, staff attribution, Inbox, or UI',
+    refreshRule:
+      'immutable row with database-enforced expiry exactly seven days after observation; Organization/Portal/action/day HMAC separation prevents cross-purpose or durable identity',
+    deletionMechanism:
+      'reads deny at expires_at; bounded retention-sweep guest_network_pressure_records.expired deletes expired rows with content-free retention_runs evidence',
+    mustEliminate: false,
+  },
+  {
     relation: 'feedback',
     kind: 'table',
     field: 'comment',
@@ -658,12 +747,13 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     field: 'ip_hash',
     classification: 'local_operational_fact',
     owner: 'guest',
-    purpose: 'Pseudonymized submitter IP (abuse control)',
-    creationPath: 'legacy guest submission (read-only migration source)',
-    readPath: 'seven-day abuse dedupe window only',
-    refreshRule: 'daily rotating keyed hash; maximum seven-day lifetime',
+    purpose: 'Nullable legacy compatibility slot; no longer Guest abuse authority',
+    creationPath:
+      'no active writer; migration 0142 clears this column without importing globally derived v1 values',
+    readPath: 'legacy compatibility diagnostics only; not an active rate-limit input',
+    refreshRule: 'must remain null for canonical writes',
     deletionMechanism:
-      'retention-sweep feedback.abuse_pseudonym redacts ip_hash after 7 days',
+      'migration 0142 clears all values; legacy retention rule remains as restore/backfill defence',
     mustEliminate: false,
   },
   {
@@ -686,12 +776,13 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     field: 'ip_hash',
     classification: 'local_operational_fact',
     owner: 'guest',
-    purpose: 'Pseudonymized rater IP (abuse control)',
-    creationPath: 'legacy guest rating (read-only migration source)',
-    readPath: 'seven-day abuse dedupe window only',
-    refreshRule: 'daily rotating keyed hash; maximum seven-day lifetime',
+    purpose: 'Nullable legacy compatibility slot; no longer Guest abuse authority',
+    creationPath:
+      'no active writer; migration 0142 clears this column without importing globally derived v1 values',
+    readPath: 'legacy compatibility diagnostics only; not an active rate-limit input',
+    refreshRule: 'must remain null for canonical writes',
     deletionMechanism:
-      'retention-sweep ratings.abuse_pseudonym redacts ip_hash after 7 days',
+      'migration 0142 clears all values; legacy retention rule remains as restore/backfill defence',
     mustEliminate: false,
   },
   {
@@ -714,12 +805,13 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     field: 'ip_hash',
     classification: 'local_operational_fact',
     owner: 'guest',
-    purpose: 'Pseudonymized scanner IP (abuse control)',
-    creationPath: 'qualified core portal visit',
-    readPath: 'seven-day abuse and duplicate-activity window only',
-    refreshRule: 'daily rotating keyed hash; maximum seven-day lifetime',
+    purpose: 'Nullable legacy compatibility slot; no longer Guest abuse authority',
+    creationPath:
+      'no active writer; migration 0142 clears this column without importing globally derived v1 values',
+    readPath: 'legacy compatibility diagnostics only; not an active rate-limit input',
+    refreshRule: 'must remain null for canonical writes',
     deletionMechanism:
-      'retention-sweep scan_events.abuse_pseudonym redacts ip_hash after 7 days',
+      'migration 0142 clears all values; legacy retention rule remains as restore/backfill defence',
     mustEliminate: false,
   },
   {
@@ -734,6 +826,20 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     refreshRule: 'fixed to the signed session expiry; never extended',
     deletionMechanism:
       'retention-sweep guest_destination_action_receipts.expired deletes the row at expiry',
+    mustEliminate: false,
+  },
+  {
+    relation: 'guest_qualified_scan_receipts',
+    kind: 'table',
+    field: 'session_id',
+    classification: 'local_operational_fact',
+    owner: 'guest',
+    purpose: 'Signed-session pseudonym for rolling Qualified Scan dedupe',
+    creationPath: 'server-verified Access Artifact observation mutation',
+    readPath: '24-hour uniqueness check only; never exposed to facts or product UI',
+    refreshRule: 'fixed 24-hour lifetime from accepted observation; never extended',
+    deletionMechanism:
+      'retention-sweep guest_qualified_scan_receipts.expired deletes the row at expiry',
     mustEliminate: false,
   },
 
@@ -807,17 +913,31 @@ export const PROTECTED_FIELD_REGISTRY: ReadonlyArray<ProtectedFieldRule> = [
     mustEliminate: false,
   },
   {
+    relation: 'job:project-recent-activity',
+    kind: 'job',
+    field: 'payload',
+    classification: 'local_operational_fact',
+    owner: 'activity',
+    purpose: 'Content-minimal Recent Activity projection input',
+    creationPath: 'activity event handlers enqueue',
+    readPath: 'project-recent-activity handler',
+    refreshRule: 'content-free target (BQC-1.2)',
+    deletionMechanism: 'BullMQ retention (bounded 100/50)',
+    mustEliminate: false,
+  },
+  {
     relation: 'job:insert-activity-log',
     kind: 'job',
     field: 'payload',
     classification: 'local_operational_fact',
     owner: 'activity',
-    purpose: 'Activity fact payload (may embed display metadata or note text ≤100 chars)',
-    creationPath: 'activity event handlers enqueue',
-    readPath: 'insert-activity-log handler',
-    refreshRule: 'content-free target (BQC-1.2)',
-    deletionMechanism: 'BullMQ retention (bounded 100/50)',
-    mustEliminate: false,
+    purpose:
+      'Rolling-deployment drain copy of the content-minimal Recent Activity projection input',
+    creationPath: 'none after migration 0160; retained queued jobs only',
+    readPath: 'project-recent-activity compatibility handler',
+    refreshRule: 'never enqueue; preserve invitation redaction while draining',
+    deletionMechanism: 'BullMQ retention after verified zero legacy queue depth',
+    mustEliminate: true,
   },
 
   // ── artifacts (logs / operator output) ──────────────────────────────

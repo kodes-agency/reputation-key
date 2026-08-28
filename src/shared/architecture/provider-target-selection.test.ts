@@ -1,7 +1,7 @@
 // BQC-4.3 — provider target selection + control-plane content-safety guards.
 //
 // Phase BQC-4 §4.3 + ADR 0048/0031: region-specific provider adapters are
-// selected only by ProcessingTarget (the router's CELL_TARGETS carry a logical
+// selected only by ProcessingTarget (accepting catalogue targets carry a logical
 // provider REFERENCE; the composition root maps it to construction config).
 // These static scans prove the two no-fallback properties the runtime tests
 // cannot see:
@@ -16,7 +16,7 @@
 //   4. The global observability surface (health routes + health-metrics +
 //      queue-depth + worker-heartbeat) never touches content columns.
 //   5. The activity context never reads content-bearing event fields
-//      (activity_log stays identifier/subject refs — ADR 0045).
+//      (recent_activity_entries stays identifier/subject refs — ADR 0045).
 //
 // Runtime halves of these proofs live in:
 //   - src/composition.test.ts (providerConfigFor fails closed)
@@ -70,7 +70,7 @@ describe('BQC-4.3: Google endpoint URLs live only in the composition provider ma
   it('no source file outside the approved exceptions contains a Google endpoint URL', () => {
     const APPROVED_EXCEPTIONS = new Set([
       // The providerConfigFor mapping itself — the ONE place endpoint URLs exist.
-      'src/composition.ts',
+      'src/composition/provider-runtime.ts',
       // OAuth SCOPE identifiers (https://www.googleapis.com/auth/...) — permission
       // grant names, not endpoints an adapter could fall back to.
       'src/contexts/integration/application/use-cases/get-google-auth-url.ts',
@@ -80,6 +80,9 @@ describe('BQC-4.3: Google endpoint URLs live only in the composition provider ma
       // The egress gateway's frozen route compiler owns the exact approved
       // methods, origins, paths, and queries for every provider route key.
       'src/shared/google-provider-control/route-catalogue.ts',
+      // Exact executable provider-egress inventory: it independently checks
+      // every credential-bearing route against the authorized gateway path.
+      'src/shared/google-provider-control/egress-inventory.ts',
       // JWKS URI for INBOUND Pub/Sub webhook signature verification — not
       // outbound provider execution; shared/auth cannot import the composition
       // root (zone boundary), documented in the data-flow map.
@@ -98,13 +101,16 @@ describe('BQC-4.3: Google endpoint URLs live only in the composition provider ma
   })
 
   it('the composition mapping really contains the GBP/Google endpoint URLs (guard is not vacuous)', () => {
-    const composition = readFileSync(join(SRC, 'composition.ts'), 'utf-8')
-    expect(composition).toContain(
+    const providerRuntime = readFileSync(
+      join(SRC, 'composition/provider-runtime.ts'),
+      'utf-8',
+    )
+    expect(providerRuntime).toContain(
       'https://mybusinessbusinessinformation.googleapis.com/v1',
     )
-    expect(composition).toContain('https://mybusiness.googleapis.com/v4')
-    expect(composition).toContain('https://mybusinessnotifications.googleapis.com/v1')
-    expect(composition).toContain('https://oauth2.googleapis.com/token')
+    expect(providerRuntime).toContain('https://mybusiness.googleapis.com/v4')
+    expect(providerRuntime).toContain('https://mybusinessnotifications.googleapis.com/v1')
+    expect(providerRuntime).toContain('https://oauth2.googleapis.com/token')
   })
 })
 
@@ -162,23 +168,31 @@ describe('BQC-4.3: provider adapters carry no hardcoded URL and no fallback path
 })
 
 describe('BQC-4.3: exactly one provider construction site per adapter factory', () => {
-  const FACTORIES: ReadonlyArray<readonly [string, string]> = [
-    ['createGbpApiAdapter', 'src/contexts/integration/build.ts'],
+  const FACTORIES: ReadonlyArray<readonly [string, readonly string[]]> = [
+    // The legacy direct adapter is retained only for explicit local tooling;
+    // production source must never construct it.
+    ['createGbpApiAdapter', []],
     // BQC-5.2: the integration build module owns the adapter (was composition).
-    ['createGoogleReviewApiAdapter', 'src/contexts/integration/build.ts'],
-    ['createMyBusinessNotificationsAdapter', 'src/contexts/integration/build.ts'],
-    ['createGoogleOAuthAdapter', 'src/contexts/integration/build.ts'],
+    ['createGoogleReviewApiAdapter', ['src/contexts/integration/build.ts']],
+    ['createMyBusinessNotificationsAdapter', ['src/contexts/integration/build.ts']],
+    ['createGoogleOAuthAdapter', ['src/contexts/integration/build.ts']],
   ]
 
-  it.each(FACTORIES)('%s is constructed exactly once, in %s', (factory, expectedFile) => {
-    // `factory(` — matches call sites only: the definition is `factory = (` and
-    // imports carry no paren.
-    const callPattern = new RegExp(`\\b${factory}\\(`, 'g')
-    const callSites = ALL_SOURCE.filter((f) =>
-      callPattern.test(readFileSync(f, 'utf-8')),
-    ).map(rel)
-    expect(callSites).toEqual([expectedFile])
-  })
+  it.each(FACTORIES)(
+    '%s has only its approved construction sites',
+    (factory, expected) => {
+      const callPattern = new RegExp(`\\b${factory}\\(`, 'u')
+      const declarationPattern = new RegExp(`\\bfunction\\s+${factory}\\s*\\(`, 'gu')
+      const callSites = ALL_SOURCE.filter((file) => {
+        const sourceWithoutDeclaration = readFileSync(file, 'utf-8').replace(
+          declarationPattern,
+          'function __providerFactoryDefinition__(',
+        )
+        return callPattern.test(sourceWithoutDeclaration)
+      }).map(rel)
+      expect(callSites).toEqual(expected)
+    },
+  )
 })
 
 describe('BQC-4.3: the global observability surface never touches content columns', () => {

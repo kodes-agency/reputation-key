@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   isBetaInteractiveMemberRoleToken,
   isBetaInteractiveRole,
+  requiresStaffParticipation,
 } from './beta-interactive-role'
 
 describe('closed-beta interactive roles', () => {
@@ -12,6 +13,16 @@ describe('closed-beta interactive roles', () => {
   it('keeps Staff as a non-interactive business role', () => {
     expect(isBetaInteractiveRole('Staff')).toBe(false)
   })
+
+  it.each([
+    ['AccountAdmin', false],
+    ['PropertyManager', true],
+  ] as const)(
+    'reports whether %s needs current Staff participation for Property work',
+    (role, expected) => {
+      expect(requiresStaffParticipation(role)).toBe(expected)
+    },
+  )
 
   it.each(['owner', 'OWNER', ' admin '])('allows Better Auth token %j', (role) => {
     expect(isBetaInteractiveMemberRoleToken(role)).toBe(true)

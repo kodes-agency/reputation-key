@@ -94,6 +94,8 @@ export const SNAPSHOT_SECTIONS = [
   'queues',
   'workers.heartbeat',
   'runtime',
+  'jobs',
+  'guest.observationLoss',
 ] as const
 
 /** Route-class label: dotted server-fn / use-case names (e.g. review.syncReviews). */
@@ -136,6 +138,56 @@ function def(d: MetricDefinition): MetricDefinition {
 }
 
 export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
+  // ── guest observation loss — bounded, global, content-free ──
+  def({
+    name: 'guest.observation_loss.monitor_available',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['guestObservationLoss.monitorAvailable'],
+    emitted: true,
+    description:
+      '1 when the cross-replica Guest best-effort observation-loss aggregate proves a complete trailing window.',
+  }),
+  def({
+    name: 'guest.observation_loss.scan',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['guestObservationLoss.scanLossCount'],
+    emitted: true,
+    description: 'Suppressed scan observations in the bounded trailing window.',
+  }),
+  def({
+    name: 'guest.observation_loss.review_link',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['guestObservationLoss.reviewLinkLossCount'],
+    emitted: true,
+    description:
+      'Suppressed qualified Google or secondary-link observations in the bounded trailing window.',
+  }),
+  def({
+    name: 'guest.observation_loss.rating',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['guestObservationLoss.ratingLossCount'],
+    emitted: true,
+    description:
+      'Always zero: private ratings use atomic durable fact/outbox persistence and are not best-effort analytics.',
+  }),
+  def({
+    name: 'guest.observation_loss.total',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['guestObservationLoss.totalLossCount'],
+    emitted: true,
+    description: 'Suppressed scan plus review-link observations in the bounded window.',
+  }),
+
   // ── request.* — route-class rate/error/latency (7.4 wires emission) ──
   def({
     name: 'request.rate',
@@ -328,6 +380,51 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     description: 'Job handlers registered at worker boot (boot log field).',
   }),
   def({
+    name: 'worker.job_runtime.ready',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['jobs.ready'],
+    emitted: true,
+    description: '1 when every governed job family satisfies its runtime contract.',
+  }),
+  def({
+    name: 'worker.job_runtime.families',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: [
+      'jobs.total',
+      'jobs.active',
+      'jobs.dark',
+      'jobs.quarantined',
+      'jobs.failing',
+    ],
+    emitted: true,
+    description: 'Governed job families by operational posture and readiness.',
+  }),
+  def({
+    name: 'worker.job_runtime.failures',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: [
+      'jobs.missingObservations',
+      'jobs.handlerMissing',
+      'jobs.schedulerMissing',
+      'jobs.forbiddenDarkWork',
+      'jobs.quarantinedSchedulers',
+      'jobs.missedObjectives',
+      'jobs.queueAgeMissed',
+      'jobs.stalled',
+      'jobs.repairRequired',
+      'jobs.deadLetters',
+    ],
+    emitted: true,
+    description:
+      'Job runtime contract failures, including missed work and repair ownership.',
+  }),
+  def({
     name: 'worker.runtime.version',
     kind: 'gauge',
     unit: 'info',
@@ -443,6 +540,86 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
       'Overdue pending emails the delivery path ALREADY attempted (attempted_at set). Non-zero cannot be explained by a dark capability — the sweep reached the row, tried, and left it pending.',
   }),
   def({
+    name: 'notification.email.immediate_acceptance_pending',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: [
+      'notifications.deliveryLag.immediateEmailAcceptance.awaitingProviderAcceptance',
+    ],
+    emitted: true,
+    description:
+      'Sendable immediate notification emails that have not received provider acceptance inside the bounded source-clock window.',
+  }),
+  def({
+    name: 'notification.email.immediate_acceptance_attempted_pending',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: [
+      'notifications.deliveryLag.immediateEmailAcceptance.attemptedAwaitingProviderAcceptance',
+    ],
+    emitted: true,
+    description:
+      'Immediate notification emails still awaiting acceptance after a provider attempt began; also proves per-Organization delivery activation.',
+  }),
+  def({
+    name: 'notification.email.immediate_acceptance_oldest_source_age_ms',
+    kind: 'gauge',
+    unit: 'ms',
+    labels: {},
+    snapshotPath: [
+      'notifications.deliveryLag.immediateEmailAcceptance.oldestAwaitingSourceAgeMs',
+    ],
+    emitted: true,
+    description:
+      'Age from the durable source fact for the oldest immediate notification email still awaiting provider acceptance.',
+  }),
+  def({
+    name: 'notification.email.immediate_acceptance_p99_ms',
+    kind: 'gauge',
+    unit: 'ms',
+    labels: {},
+    snapshotPath: [
+      'notifications.deliveryLag.immediateEmailAcceptance.acceptedLatencyP99Ms',
+    ],
+    emitted: true,
+    description:
+      'Exact source-to-provider-acceptance p99 for the bounded window; absent when the sample saturated.',
+  }),
+  def({
+    name: 'notification.email.immediate_acceptance_sample_count',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: [
+      'notifications.deliveryLag.immediateEmailAcceptance.acceptedSampleCount',
+    ],
+    emitted: true,
+    description:
+      'Accepted immediate notification email rows included in the source-clock p99 calculation.',
+  }),
+  def({
+    name: 'notification.email.immediate_acceptance_source_unlinked',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['notifications.deliveryLag.immediateEmailAcceptance.sourceUnlinked'],
+    emitted: true,
+    description:
+      'Active immediate notification email rows without a matching durable source fact; non-zero makes the latency target unevaluable.',
+  }),
+  def({
+    name: 'notification.email.immediate_acceptance_saturated',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['notifications.deliveryLag.immediateEmailAcceptance.saturated'],
+    emitted: true,
+    description:
+      '1 when immediate notification email acceptance evidence exceeded the bounded scan cap and full-window p99 is unavailable.',
+  }),
+  def({
     name: 'notification.missing_for_inbox_item',
     kind: 'gauge',
     unit: 'count',
@@ -451,6 +628,75 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     emitted: true,
     description:
       'Inbox items past the reconciliation grace edge with NO notification row for anybody — "a review arrived and nobody was told". Above zero means the in-process fan-out dropped it AND reconcile-missing-notifications has not healed it yet, or that sweep is not running. Saturates at its scan cap (1000); the alert fires on above-zero, so the cap is immaterial.',
+  }),
+  def({
+    name: 'notification.delivery.source_receipt_pending',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['notifications.deliveryLag.sourceReceiptPending'],
+    emitted: true,
+    description:
+      'Active Notification source events past the grace edge without their durable consumer receipt. Bounded; read sourceSaturated with it.',
+  }),
+  def({
+    name: 'notification.delivery.materialization_pending',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['notifications.deliveryLag.materializationPending'],
+    emitted: true,
+    description:
+      'Redis-accepted Notification deliveries without an atomic PostgreSQL materialization receipt. Bounded; read materializationSaturated with it.',
+  }),
+  def({
+    name: 'notification.delivery.oldest_source_age_ms',
+    kind: 'gauge',
+    unit: 'ms',
+    labels: {},
+    snapshotPath: ['notifications.deliveryLag.oldestSourceAgeMs'],
+    emitted: true,
+    description:
+      'Age from the oldest active durable source missing its base Notification consumer receipt.',
+  }),
+  def({
+    name: 'notification.delivery.oldest_materialization_source_age_ms',
+    kind: 'gauge',
+    unit: 'ms',
+    labels: {},
+    snapshotPath: ['notifications.deliveryLag.oldestMaterializationSourceAgeMs'],
+    emitted: true,
+    description:
+      'End-to-end age from durable source for the oldest Redis-accepted delivery still missing PostgreSQL materialization.',
+  }),
+  def({
+    name: 'notification.delivery.oldest_materialization_enqueue_age_ms',
+    kind: 'gauge',
+    unit: 'ms',
+    labels: {},
+    snapshotPath: ['notifications.deliveryLag.oldestMaterializationEnqueuedAgeMs'],
+    emitted: true,
+    description:
+      'Redis→PostgreSQL stage age for the oldest accepted delivery still missing materialization.',
+  }),
+  def({
+    name: 'notification.delivery.source_saturated',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['notifications.deliveryLag.sourceSaturated'],
+    emitted: true,
+    description: '1 when the bounded missing-source-receipt scan reached its cap.',
+  }),
+  def({
+    name: 'notification.delivery.materialization_saturated',
+    kind: 'gauge',
+    unit: 'count',
+    labels: {},
+    snapshotPath: ['notifications.deliveryLag.materializationSaturated'],
+    emitted: true,
+    description:
+      '1 when the bounded accepted-but-unmaterialized delivery scan reached its cap.',
   }),
 
   // ── source.* — refresh-due / expiry / purge lifecycle ──

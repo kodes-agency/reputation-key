@@ -10,11 +10,19 @@ const mutationSource = readFileSync(
   join(process.cwd(), 'src/contexts/guest/server/public.ts'),
   'utf8',
 )
+const privacySource = readFileSync(
+  join(process.cwd(), 'src/contexts/guest/server/public-response-privacy.server.ts'),
+  'utf8',
+)
 
 describe('guest public response security', () => {
   it('marks the nonce-bearing public Portal response private and non-cacheable', () => {
-    expect(source).toContain("setResponseHeader('Cache-Control', 'private, no-store')")
-    expect(source).toContain("setResponseHeader('Vary', 'Cookie')")
+    expect(source).toContain('applyGuestPublicResponsePrivacy()')
+    expect(privacySource).toContain(
+      "setResponseHeader('Cache-Control', 'private, no-store')",
+    )
+    expect(privacySource).toContain("setResponseHeader('Vary', 'Cookie')")
+    expect(privacySource).toContain("setResponseHeader('Referrer-Policy', 'no-referrer')")
   })
 
   it('uses the shared layered limiter for scan recording', () => {
@@ -24,7 +32,7 @@ describe('guest public response security', () => {
 
   it('requires the configured origin and signed-session CSRF before public mutations', () => {
     const originAdmission = mutationSource.indexOf(
-      'if (origin !== new URL(getEnv().BETTER_AUTH_URL).origin)',
+      'if (origin !== useCases.guestPublicRuntime.expectedOrigin)',
     )
     const signedSessionAdmission = mutationSource.indexOf(
       "useCases.guestSessions.verify(requestHeaders.get('cookie') ?? '', scope)",

@@ -86,6 +86,16 @@ describe('canary: the OperationsSnapshot carries no tenant identifiers (BQC-7.3)
         releaseSha: () => 'abc1234',
         tenantCache: () => ({ hits: 0, misses: 0, evictions: 0, size: 0 }),
       },
+      readGuestObservationLoss: async () => ({
+        monitorAvailable: true,
+        windowMs: 24 * 60 * 60 * 1000,
+        precisionMs: 5 * 60 * 1000,
+        scanLossCount: 1,
+        reviewLinkLossCount: 1,
+        ratingLossCount: 0,
+        totalLossCount: 2,
+        ratingDisposition: 'not_applicable_durable' as const,
+      }),
     })
 
     const snapshot = await reader.read()

@@ -9,22 +9,25 @@ import {
 const SECRET = 'synthetic-secret@example.test'
 
 describe('identity invitation retained-job redaction', () => {
-  it('redacts the exact activity job without changing its identifiers', () => {
-    const data = {
-      action: 'invited',
-      resourceType: 'member',
-      resourceId: 'invitation-1',
-      organizationId: 'org-1',
-      payload: { subject: 'member', from: null, to: 'PropertyManager', detail: SECRET },
-    }
-    const clean = redactIdentityInvitationJobData('default', 'insert-activity-log', data)
-    expect(clean).toMatchObject({
-      resourceId: 'invitation-1',
-      organizationId: 'org-1',
-      payload: { detail: null },
-    })
-    expect(JSON.stringify(clean)).not.toContain(SECRET)
-  })
+  it.each(['project-recent-activity', 'insert-activity-log'])(
+    'redacts the exact %s Activity job without changing its identifiers',
+    (jobName) => {
+      const data = {
+        action: 'invited',
+        resourceType: 'member',
+        resourceId: 'invitation-1',
+        organizationId: 'org-1',
+        payload: { subject: 'member', from: null, to: 'PropertyManager', detail: SECRET },
+      }
+      const clean = redactIdentityInvitationJobData('default', jobName, data)
+      expect(clean).toMatchObject({
+        resourceId: 'invitation-1',
+        organizationId: 'org-1',
+        payload: { detail: null },
+      })
+      expect(JSON.stringify(clean)).not.toContain(SECRET)
+    },
+  )
 
   it('promotes a retained domain envelope to clean v2', () => {
     const data = {
@@ -68,7 +71,7 @@ describe('identity invitation retained-job redaction', () => {
   it('redacts both retained shapes inside quarantine envelopes', () => {
     const activity = redactIdentityInvitationJobData(
       'quarantine',
-      'insert-activity-log',
+      'project-recent-activity',
       {
         originalQueue: 'default',
         failedReason: `SyntheticFailure: ${SECRET}`,
@@ -125,7 +128,7 @@ describe('identity invitation retained-job redaction', () => {
     const updateFailure = Object.assign(new Error(SECRET), { name: 'RedisWriteError' })
     const failingJob = {
       id: 'job-1',
-      name: 'insert-activity-log',
+      name: 'project-recent-activity',
       data: {
         action: 'invited',
         resourceType: 'member',

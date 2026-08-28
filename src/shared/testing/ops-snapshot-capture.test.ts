@@ -49,6 +49,28 @@ function fakeSnapshot(overrides: Partial<OperationsSnapshot> = {}): OperationsSn
       oldestPendingOverdueAgeMs: null,
       attemptedStuckCount: 0,
       missingForInboxItemCount: 0,
+      deliveryLag: {
+        sourceReceiptPending: 0,
+        materializationPending: 0,
+        oldestSourceRecordedAt: null,
+        oldestSourceAgeMs: null,
+        oldestMaterializationSourceRecordedAt: null,
+        oldestMaterializationSourceAgeMs: null,
+        oldestMaterializationEnqueuedAt: null,
+        oldestMaterializationEnqueuedAgeMs: null,
+        sourceSaturated: false,
+        materializationSaturated: false,
+        immediateEmailAcceptance: {
+          awaitingProviderAcceptance: 0,
+          attemptedAwaitingProviderAcceptance: 0,
+          oldestAwaitingSourceRecordedAt: null,
+          oldestAwaitingSourceAgeMs: null,
+          acceptedLatencyP99Ms: null,
+          acceptedSampleCount: 0,
+          sourceUnlinked: 0,
+          saturated: false,
+        },
+      },
     },
     replyPublication: {
       counts: {

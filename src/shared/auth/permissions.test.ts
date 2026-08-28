@@ -43,6 +43,7 @@ describe('permissions statement', () => {
     expect(statement.team).toContain('membership.manage')
     expect(statement.staff).toContain('manage')
     expect(statement.staff).toContain('read')
+    expect(statement.portal).toContain('admin')
     expect(statement.review).toContain('read')
     expect(statement.feedback).toContain('read')
     expect(statement.feedback).toContain('respond')
@@ -87,6 +88,7 @@ describe('owner role (AccountAdmin)', () => {
     'ac.update',
     'ac.delete',
     'portal.create',
+    'portal.admin',
     'portal.update',
     'portal.delete',
     'portal.read',
@@ -142,7 +144,6 @@ describe('admin role (PropertyManager)', () => {
     'property.update',
     'property.read',
     'property.admin',
-    'property.import_gbp_v2',
     'property.read_gbp_performance',
     'staff.manage',
     'staff.read',
@@ -159,7 +160,6 @@ describe('admin role (PropertyManager)', () => {
     'inbox.write',
     'inbox.manage',
     'organization.update',
-    'integration.manage',
     'ai.reply.generate',
     'ai.trends.read',
     'ai.manage',
@@ -186,6 +186,9 @@ describe('admin role (PropertyManager)', () => {
     'ac.update',
     'ac.delete',
     'portal.delete',
+    'portal.admin',
+    'property.import_gbp_v2',
+    'integration.manage',
   ]
 
   it('has all expected permissions', () => {
@@ -206,8 +209,8 @@ describe('memberRole (Staff)', () => {
     expect(can('Staff', 'review.read')).toBe(true)
   })
 
-  it('can read goals', () => {
-    expect(can('Staff', 'goal.read')).toBe(true)
+  it('does not expose manager-facing Goal metrics before a Staff dashboard exists', () => {
+    expect(can('Staff', 'goal.read')).toBe(false)
   })
 
   it('cannot create goals', () => {
@@ -234,8 +237,8 @@ describe('memberRole (Staff)', () => {
     expect(can('Staff', 'property.delete')).toBe(false)
   })
 
-  it('can read live GBP Performance but cannot import properties', () => {
-    expect(can('Staff', 'property.read_gbp_performance')).toBe(true)
+  it('cannot read live GBP Performance or import properties', () => {
+    expect(can('Staff', 'property.read_gbp_performance')).toBe(false)
     expect(can('Staff', 'property.import_gbp_v2')).toBe(false)
   })
 

@@ -64,6 +64,8 @@ const runtimeBindingsSchema = z
   .object({
     'property.import_gbp_v2': bindingSchema.optional(),
     'property.read_gbp_performance': bindingSchema.optional(),
+    'property.connect_gbp': bindingSchema.optional(),
+    'property.publish_reply': bindingSchema.optional(),
   })
   .strict()
   .superRefine((value, context) => {

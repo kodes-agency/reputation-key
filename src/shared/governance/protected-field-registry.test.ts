@@ -39,6 +39,7 @@ const PROTECTED_COLUMN_PATTERNS: ReadonlyArray<RegExp> = [
   /^body$/,
   /^comment$/,
   /ip_hash/,
+  /^pseudonym$/,
   /source_name/,
   /message_id/,
 ]
@@ -54,7 +55,9 @@ const GOVERNED_TABLES: ReadonlyArray<string> = [
   'properties',
   'inbox_items',
   'inbox_notes',
-  'activity_log',
+  'recent_activity_entries',
+  'recent_activity_actor_label_redactions',
+  'recent_activity_replay_facts',
   'notifications',
   'outbox_events',
   'event_consumer_receipts',
@@ -63,6 +66,7 @@ const GOVERNED_TABLES: ReadonlyArray<string> = [
   'feedback',
   'ratings',
   'scan_events',
+  'guest_network_pressure_records',
 ]
 
 // Event payload fields that must be classified (residual identifiers/raw

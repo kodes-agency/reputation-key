@@ -14,6 +14,7 @@ import {
   jsonb,
   integer,
   boolean,
+  text,
   timestamp,
   index,
   uniqueIndex,
@@ -49,6 +50,10 @@ export const portals = pgTable(
     responsibilityNeededSince: timestamp('responsibility_needed_since', {
       withTimezone: true,
     }),
+    primaryGuestLocale: varchar('primary_guest_locale', { length: 35 })
+      .notNull()
+      .default('en'),
+    additionalGuestLocales: jsonb('additional_guest_locales').notNull().default([]),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),
@@ -76,6 +81,224 @@ export const portals = pgTable(
     check(
       'portals_responsible_manager_revision_positive',
       sql`${t.responsibleManagerRevision} >= 1`,
+    ),
+    check(
+      'portals_primary_guest_locale_active',
+      sql`${t.primaryGuestLocale} IN ('en', 'bg')`,
+    ),
+    check(
+      'portals_additional_guest_locales_array',
+      sql`jsonb_typeof(${t.additionalGuestLocales}) = 'array' AND ${t.additionalGuestLocales} <@ '["en", "bg"]'::jsonb`,
+    ),
+  ],
+)
+
+// ── Property Brand Profile and localized guest content ────────────
+
+export const propertyPortalBrandProfiles = pgTable(
+  'property_portal_brand_profiles',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    displayName: varchar('display_name', { length: 120 }).notNull(),
+    logoUrl: varchar('logo_url', { length: 500 }),
+    defaultHeroImageUrl: varchar('default_hero_image_url', { length: 500 }),
+    primaryColor: varchar('primary_color', { length: 7 }).notNull(),
+    backgroundColor: varchar('background_color', { length: 7 }).notNull(),
+    textColor: varchar('text_color', { length: 7 }).notNull(),
+    version: integer('version').notNull().default(1),
+    updatedBy: varchar('updated_by', { length: 255 }).notNull(),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    uniqueIndex('property_portal_brand_profiles_property_unique').on(
+      t.organizationId,
+      t.propertyId,
+    ),
+    uniqueIndex('property_portal_brand_profiles_scope_id_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.id,
+    ),
+    foreignKey({
+      name: 'property_portal_brand_profiles_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('restrict'),
+    check(
+      'property_portal_brand_profiles_palette_valid',
+      sql`${t.primaryColor} ~ '^#[0-9A-Fa-f]{6}$' AND ${t.backgroundColor} ~ '^#[0-9A-Fa-f]{6}$' AND ${t.textColor} ~ '^#[0-9A-Fa-f]{6}$'`,
+    ),
+    check('property_portal_brand_profiles_version_positive', sql`${t.version} >= 1`),
+  ],
+)
+
+export const propertyPortalBrandContents = pgTable(
+  'property_portal_brand_contents',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    locale: varchar('locale', { length: 35 }).notNull(),
+    title: varchar('title', { length: 120 }).notNull(),
+    shortDescription: varchar('short_description', { length: 500 }).notNull(),
+    version: integer('version').notNull().default(1),
+    updatedBy: varchar('updated_by', { length: 255 }).notNull(),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    uniqueIndex('property_portal_brand_contents_locale_unique').on(
+      t.organizationId,
+      t.propertyId,
+      t.locale,
+    ),
+    foreignKey({
+      name: 'property_portal_brand_contents_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('restrict'),
+    check(
+      'property_portal_brand_contents_locale_active',
+      sql`${t.locale} IN ('en', 'bg')`,
+    ),
+    check('property_portal_brand_contents_version_positive', sql`${t.version} >= 1`),
+  ],
+)
+
+export const portalLocalizedOverrides = pgTable(
+  'portal_localized_overrides',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    locale: varchar('locale', { length: 35 }).notNull(),
+    title: varchar('title', { length: 120 }),
+    shortDescription: varchar('short_description', { length: 500 }),
+    heroImageUrl: varchar('hero_image_url', { length: 500 }),
+    version: integer('version').notNull().default(1),
+    updatedBy: varchar('updated_by', { length: 255 }).notNull(),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    uniqueIndex('portal_localized_overrides_locale_unique').on(
+      t.organizationId,
+      t.portalId,
+      t.locale,
+    ),
+    foreignKey({
+      name: 'portal_localized_overrides_portal_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
+    }).onDelete('restrict'),
+    check('portal_localized_overrides_locale_active', sql`${t.locale} IN ('en', 'bg')`),
+    check('portal_localized_overrides_version_positive', sql`${t.version} >= 1`),
+    check(
+      'portal_localized_overrides_has_value',
+      sql`${t.title} IS NOT NULL OR ${t.shortDescription} IS NOT NULL OR ${t.heroImageUrl} IS NOT NULL`,
+    ),
+  ],
+)
+
+// ── Effective-dated derived Portal Health ─────────────────────────
+
+export const portalHealthIntervals = pgTable(
+  'portal_health_intervals',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    status: varchar('status', { length: 20 }).notNull(),
+    reason: varchar('reason', { length: 80 }).notNull(),
+    sourceVersion: varchar('source_version', { length: 160 }).notNull(),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull(),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }),
+    observedAt: timestamp('observed_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    uniqueIndex('portal_health_intervals_one_current')
+      .on(t.organizationId, t.portalId)
+      .where(sql`${t.effectiveTo} IS NULL`),
+    index('portal_health_intervals_history_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.portalId,
+      t.effectiveFrom,
+    ),
+    foreignKey({
+      name: 'portal_health_intervals_portal_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
+    }).onDelete('restrict'),
+    check(
+      'portal_health_intervals_status_valid',
+      sql`${t.status} IN ('healthy', 'degraded', 'unavailable')`,
+    ),
+    check(
+      'portal_health_intervals_interval_valid',
+      sql`${t.effectiveTo} IS NULL OR ${t.effectiveTo} > ${t.effectiveFrom}`,
+    ),
+    check(
+      'portal_health_intervals_observation_valid',
+      sql`${t.observedAt} >= ${t.effectiveFrom}`,
+    ),
+  ],
+)
+
+// ── Property-owned Approved Destinations ──────────────────────────
+
+export const portalApprovedDestinations = pgTable(
+  'portal_approved_destinations',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    normalizedUri: varchar('normalized_uri', { length: 500 }).notNull(),
+    hostname: varchar('hostname', { length: 255 }).notNull(),
+    sourceType: varchar('source_type', { length: 20 }).notNull(),
+    approvalState: varchar('approval_state', { length: 20 }).notNull(),
+    validationVersion: varchar('validation_version', { length: 80 }).notNull(),
+    requestedBy: varchar('requested_by', { length: 255 }).notNull(),
+    approvedBy: varchar('approved_by', { length: 255 }),
+    approvedAt: timestamp('approved_at', { withTimezone: true }),
+    disabledAt: timestamp('disabled_at', { withTimezone: true }),
+    disabledReason: varchar('disabled_reason', { length: 500 }),
+    lastValidatedAt: timestamp('last_validated_at', { withTimezone: true }).notNull(),
+    createdAt: createdAtColumn(),
+    updatedAt: updatedAtColumn(),
+  },
+  (t) => [
+    uniqueIndex('portal_approved_destinations_uri_unique').on(
+      t.organizationId,
+      t.propertyId,
+      t.normalizedUri,
+    ),
+    uniqueIndex('portal_approved_destinations_scope_id_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.id,
+    ),
+    foreignKey({
+      name: 'portal_approved_destinations_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('restrict'),
+    check(
+      'portal_approved_destinations_source_valid',
+      sql`${t.sourceType} IN ('recognized', 'custom', 'provider')`,
+    ),
+    check(
+      'portal_approved_destinations_state_valid',
+      sql`${t.approvalState} IN ('pending', 'approved', 'disabled', 'quarantined')`,
+    ),
+    check(
+      'portal_approved_destinations_approval_valid',
+      sql`(${t.approvalState} = 'approved' AND ${t.approvedBy} IS NOT NULL AND ${t.approvedAt} IS NOT NULL AND ${t.disabledAt} IS NULL) OR (${t.approvalState} <> 'approved')`,
     ),
   ],
 )
@@ -125,6 +348,8 @@ export const portalTokens = pgTable(
     tokenIdentifier: varchar('token_identifier', { length: 24 }).notNull(),
     tokenHash: varchar('token_hash', { length: 64 }).notNull(),
     tokenKeyVersion: integer('token_key_version').notNull().default(1),
+    encryptedRawToken: text('encrypted_raw_token'),
+    addressEncryptionKeyVersion: integer('address_encryption_key_version'),
     version: integer('version').notNull(),
     printBatch: varchar('print_batch', { length: 100 }),
     status: varchar('status', { length: 20 }).notNull().default('active'),
@@ -144,6 +369,12 @@ export const portalTokens = pgTable(
       t.portalId,
       t.version,
     ),
+    uniqueIndex('portal_tokens_scope_id_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.portalId,
+      t.id,
+    ),
     index('portal_tokens_active_lookup_idx').on(
       t.tokenIdentifier,
       t.status,
@@ -162,6 +393,68 @@ export const portalTokens = pgTable(
     check(
       'portal_tokens_status_valid',
       sql`${t.status} IN ('active', 'rotating', 'revoked')`,
+    ),
+    check(
+      'portal_tokens_encrypted_address_pair_valid',
+      sql`(${t.encryptedRawToken} IS NULL) = (${t.addressEncryptionKeyVersion} IS NULL)`,
+    ),
+  ],
+)
+
+// Public, high-entropy channel marker bound to one stable Portal address.
+// It is not an alternate Portal identity: public resolution still requires
+// the bound address token and the exact active publication.
+export const portalAccessArtifacts = pgTable(
+  'portal_access_artifacts',
+  {
+    id: uuid('id').primaryKey(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    portalTokenId: uuid('portal_token_id').notNull(),
+    channel: varchar('channel', { length: 16 }).notNull(),
+    status: varchar('status', { length: 16 }).notNull().default('published'),
+    publishedAt: timestamp('published_at', { withTimezone: true }).notNull(),
+    retiredAt: timestamp('retired_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('portal_access_artifacts_portal_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.portalId,
+    ),
+    uniqueIndex('portal_access_artifacts_token_channel_key')
+      .on(t.portalTokenId, t.channel)
+      .where(sql`${t.status} = 'published'`),
+    uniqueIndex('portal_access_artifacts_scope_id_key').on(
+      t.organizationId,
+      t.propertyId,
+      t.portalId,
+      t.id,
+    ),
+    foreignKey({
+      name: 'portal_access_artifacts_token_scope_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId, t.portalTokenId],
+      foreignColumns: [
+        portalTokens.organizationId,
+        portalTokens.propertyId,
+        portalTokens.portalId,
+        portalTokens.id,
+      ],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'portal_access_artifacts_portal_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
+    }).onDelete('restrict'),
+    check('portal_access_artifacts_channel_valid', sql`${t.channel} IN ('qr', 'nfc')`),
+    check(
+      'portal_access_artifacts_status_valid',
+      sql`${t.status} IN ('published', 'retiring', 'retired', 'revoked')`,
+    ),
+    check(
+      'portal_access_artifacts_retirement_valid',
+      sql`(${t.status} = 'published' AND ${t.retiredAt} IS NULL) OR (${t.status} <> 'published' AND ${t.retiredAt} IS NOT NULL AND ${t.retiredAt} >= ${t.publishedAt})`,
     ),
   ],
 )
@@ -186,6 +479,12 @@ export const portalPublicationSnapshots = pgTable(
     configuration: jsonb('configuration').notNull(),
     guestLocale: varchar('guest_locale', { length: 35 }).notNull(),
     languagePackVersion: varchar('language_pack_version', { length: 100 }).notNull(),
+    localeSet: jsonb('locale_set').notNull().default(['en']),
+    languagePackVersions: jsonb('language_pack_versions')
+      .notNull()
+      .default(sql`'{"en": "guest-ui-en-v1"}'::jsonb`),
+    localizedContent: jsonb('localized_content').notNull().default({}),
+    brandProfileVersion: integer('brand_profile_version'),
     privateFeedbackThreshold: integer('private_feedback_threshold').notNull(),
     contactRequestEnabled: boolean('contact_request_enabled').notNull().default(false),
     contactNoticeId: varchar('contact_notice_id', { length: 100 }),
@@ -263,10 +562,29 @@ export const portalPublicationSnapshots = pgTable(
       'portal_publication_snapshots_configuration_object',
       sql`jsonb_typeof(${t.configuration}) = 'object'`,
     ),
-    check('portal_publication_snapshots_locale_valid', sql`${t.guestLocale} = 'en'`),
+    check(
+      'portal_publication_snapshots_locale_valid',
+      sql`${t.guestLocale} IN ('en', 'bg')`,
+    ),
     check(
       'portal_publication_snapshots_language_pack_valid',
-      sql`${t.languagePackVersion} = 'guest-ui-en-v1'`,
+      sql`${t.languagePackVersion} IN ('guest-ui-en-v1', 'guest-ui-bg-v1')`,
+    ),
+    check(
+      'portal_publication_snapshots_locale_set_valid',
+      sql`jsonb_typeof(${t.localeSet}) = 'array' AND ${t.localeSet} <@ '["en", "bg"]'::jsonb AND ${t.localeSet} @> jsonb_build_array(${t.guestLocale})`,
+    ),
+    check(
+      'portal_publication_snapshots_language_packs_object',
+      sql`jsonb_typeof(${t.languagePackVersions}) = 'object'`,
+    ),
+    check(
+      'portal_publication_snapshots_localized_content_object',
+      sql`jsonb_typeof(${t.localizedContent}) = 'object'`,
+    ),
+    check(
+      'portal_publication_snapshots_brand_version_positive',
+      sql`${t.brandProfileVersion} IS NULL OR ${t.brandProfileVersion} >= 1`,
     ),
     check(
       'portal_publication_snapshots_threshold_valid',
@@ -361,6 +679,68 @@ export const portalPublicationActivations = pgTable(
   ],
 )
 
+// ── durable unpublished working-copy changes ─────────────────────
+
+/**
+ * An append-only record that a resolved publication input changed after at
+ * least one snapshot existed. Successful publication resolves every open row
+ * to the exact immutable snapshot; rollback never claims unpublished work.
+ */
+export const portalPendingContentChanges = pgTable(
+  'portal_pending_content_changes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    changeKind: varchar('change_kind', { length: 40 }).notNull(),
+    changeKey: varchar('change_key', { length: 160 }).notNull().default('all'),
+    sourceVersion: varchar('source_version', { length: 160 }).notNull(),
+    changedAt: timestamp('changed_at', { withTimezone: true }).notNull(),
+    resolvedSnapshotId: uuid('resolved_snapshot_id'),
+    resolvedAt: timestamp('resolved_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('portal_pending_content_changes_source_unique').on(
+      t.organizationId,
+      t.portalId,
+      t.changeKind,
+      t.changeKey,
+      t.sourceVersion,
+    ),
+    index('portal_pending_content_changes_open_idx')
+      .on(t.organizationId, t.propertyId, t.portalId, t.changedAt)
+      .where(sql`${t.resolvedAt} IS NULL`),
+    foreignKey({
+      name: 'portal_pending_content_changes_portal_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'portal_pending_content_changes_snapshot_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId, t.resolvedSnapshotId],
+      foreignColumns: [
+        portalPublicationSnapshots.organizationId,
+        portalPublicationSnapshots.propertyId,
+        portalPublicationSnapshots.portalId,
+        portalPublicationSnapshots.id,
+      ],
+    }).onDelete('restrict'),
+    check(
+      'portal_pending_content_changes_kind_valid',
+      sql`${t.changeKind} IN ('portal_configuration', 'portal_links', 'property_brand_profile', 'property_brand_content', 'portal_localized_override', 'approved_destination')`,
+    ),
+    check(
+      'portal_pending_content_changes_resolution_pair',
+      sql`(${t.resolvedSnapshotId} IS NULL) = (${t.resolvedAt} IS NULL)`,
+    ),
+    check(
+      'portal_pending_content_changes_resolution_time',
+      sql`${t.resolvedAt} IS NULL OR ${t.resolvedAt} >= ${t.changedAt}`,
+    ),
+  ],
+)
+
 // ── portal_link_categories ─────────────────────────────────────────
 
 /**
@@ -391,6 +771,10 @@ export const portalUploadIssuances = pgTable(
     heroDerivativeKey: varchar('hero_derivative_key', { length: 500 }),
     thumbnailDerivativeKey: varchar('thumbnail_derivative_key', { length: 500 }),
     heroImageUrl: varchar('hero_image_url', { length: 500 }),
+    sourceDeletedAt: timestamp('source_deleted_at', { withTimezone: true }),
+    orphanDerivativesDeletedAt: timestamp('orphan_derivatives_deleted_at', {
+      withTimezone: true,
+    }),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
@@ -406,6 +790,11 @@ export const portalUploadIssuances = pgTable(
       t.id,
     ),
     index('portal_upload_issuances_expiry_idx').on(t.state, t.expiresAt),
+    index('portal_upload_issuances_source_cleanup_idx')
+      .on(t.expiresAt, t.id)
+      .where(
+        sql`${t.sourceDeletedAt} IS NULL OR (${t.orphanDerivativesDeletedAt} IS NULL AND ${t.state} IN ('superseded', 'rejected', 'expired'))`,
+      ),
     foreignKey({
       name: 'portal_upload_issuances_portal_tenant_fk',
       columns: [t.organizationId, t.propertyId, t.portalId],
@@ -459,6 +848,14 @@ export const portalUploadIssuances = pgTable(
         OR (${t.state} <> 'finalized' AND ${t.heroDerivativeKey} IS NULL AND ${t.thumbnailDerivativeKey} IS NULL AND ${t.heroImageUrl} IS NULL)
       )`,
     ),
+    check(
+      'portal_upload_issuances_source_cleanup_valid',
+      sql`${t.sourceDeletedAt} IS NULL OR ${t.state} IN ('finalized', 'superseded', 'rejected', 'expired')`,
+    ),
+    check(
+      'portal_upload_issuances_orphan_derivative_cleanup_valid',
+      sql`${t.orphanDerivativesDeletedAt} IS NULL OR ${t.state} IN ('superseded', 'rejected', 'expired')`,
+    ),
   ],
 )
 
@@ -505,8 +902,13 @@ export const portalLinks = pgTable(
       .notNull()
       .references(() => portals.id, { onDelete: 'cascade' }),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
     label: varchar('label', { length: 100 }).notNull(),
-    url: varchar('url', { length: 500 }).notNull(),
+    destinationId: uuid('destination_id'),
+    url: varchar('url', { length: 500 }),
+    legacyDestinationState: varchar('legacy_destination_state', { length: 20 })
+      .notNull()
+      .default('unclassified'),
     iconKey: varchar('icon_key', { length: 50 }),
     sortKey: varchar('sort_key', { length: 50 }).notNull(),
     createdAt: createdAtColumn(),
@@ -530,6 +932,24 @@ export const portalLinks = pgTable(
       columns: [t.organizationId, t.portalId],
       foreignColumns: [portals.organizationId, portals.id],
     }).onDelete('cascade'),
+    foreignKey({
+      name: 'portal_links_destination_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.destinationId],
+      foreignColumns: [
+        portalApprovedDestinations.organizationId,
+        portalApprovedDestinations.propertyId,
+        portalApprovedDestinations.id,
+      ],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'portal_links_property_portal_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
+    }).onDelete('cascade'),
+    check(
+      'portal_links_destination_authority_valid',
+      sql`(${t.destinationId} IS NOT NULL AND ${t.url} IS NULL AND ${t.legacyDestinationState} = 'migrated') OR (${t.destinationId} IS NULL AND ${t.url} IS NOT NULL AND ${t.legacyDestinationState} IN ('unclassified', 'quarantined'))`,
+    ),
   ],
 )
 

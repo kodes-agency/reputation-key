@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 
 const ORG_A = 'org-staff-participant-constraints-a'
 const ORG_B = 'org-staff-participant-constraints-b'
@@ -49,7 +50,7 @@ afterAll(async () => {
     PROPERTY_A,
     PROPERTY_B,
   ])
-  await pool.query('DELETE FROM organization WHERE id IN ($1, $2)', [ORG_A, ORG_B])
+  await deleteTestOrganizations(pool, [ORG_A, ORG_B])
   await pool.end()
 })
 

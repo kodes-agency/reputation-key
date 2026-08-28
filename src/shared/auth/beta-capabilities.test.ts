@@ -373,6 +373,7 @@ describe('BetaCapabilities', () => {
       expect(isBlockedCapability('gbp.review_solicitation_gamification')).toBe(true)
       expect(isBlockedCapability('portal.write')).toBe(false)
       expect(isBlockedCapability('portal.upload')).toBe(true)
+      expect(isBlockedCapability('identity.custom_roles')).toBe(true)
       expect(isBlockedCapability('identity.register')).toBe(true)
       expect(isBlockedCapability('organization.create')).toBe(true)
       expect(isBlockedCapability('team.use')).toBe(true)

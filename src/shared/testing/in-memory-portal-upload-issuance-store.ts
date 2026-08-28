@@ -120,5 +120,56 @@ export function createInMemoryPortalUploadIssuanceStore(
       }
       return { outcome: 'published', heroImageUrl: derivative.heroImageUrl }
     },
+    listSourceCleanupCandidates: async (before, limit) => {
+      const boundedLimit = Math.min(500, Math.max(1, Math.trunc(limit)))
+      rows = rows.map((row) =>
+        row.state === 'issued' && row.sourceDeletedAt === null && row.expiresAt <= before
+          ? { ...row, state: 'expired' as const, expiredAt: before }
+          : row,
+      )
+      return rows
+        .filter(
+          (row) =>
+            ['finalized', 'superseded', 'rejected', 'expired'].includes(row.state) &&
+            (row.sourceDeletedAt === null ||
+              (row.state !== 'finalized' && row.orphanDerivativesDeletedAt === null)),
+        )
+        .sort(
+          (left, right) =>
+            left.expiresAt.getTime() - right.expiresAt.getTime() ||
+            left.id.localeCompare(right.id),
+        )
+        .slice(0, boundedLimit)
+        .map((row) => ({ ...row }))
+    },
+    markSourceDeleted: async (scope, expectedState, at) => {
+      const index = findIndex(scope)
+      if (
+        index < 0 ||
+        expectedState === 'issued' ||
+        expectedState === 'consumed' ||
+        rows[index].state !== expectedState ||
+        rows[index].sourceDeletedAt !== null
+      ) {
+        return false
+      }
+      rows[index] = { ...rows[index], sourceDeletedAt: at }
+      return true
+    },
+    markOrphanDerivativesDeleted: async (scope, expectedState, at) => {
+      const index = findIndex(scope)
+      if (
+        index < 0 ||
+        expectedState === 'issued' ||
+        expectedState === 'consumed' ||
+        expectedState === 'finalized' ||
+        rows[index].state !== expectedState ||
+        rows[index].orphanDerivativesDeletedAt !== null
+      ) {
+        return false
+      }
+      rows[index] = { ...rows[index], orphanDerivativesDeletedAt: at }
+      return true
+    },
   }
 }

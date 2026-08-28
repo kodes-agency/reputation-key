@@ -10,7 +10,11 @@ describe('getSecurityHeaders', () => {
   it('returns restrictive CSP', () => {
     const headers = getSecurityHeaders({ isProduction: false })
     const csp = headers['Content-Security-Policy']
+    expect(csp).toContain("default-src 'none'")
     expect(csp).toContain("script-src 'self'")
+    expect(csp).toContain("object-src 'none'")
+    expect(csp).toContain("frame-src 'none'")
+    expect(csp).toContain("manifest-src 'self'")
     expect(csp).toContain("frame-ancestors 'none'")
     expect(csp).toContain("base-uri 'self'")
     expect(csp).toContain("form-action 'self'")

@@ -8,9 +8,11 @@
 up the deployed schema:
 
 1. **Drizzle journal track** — `drizzle/0000_init.sql` …
-   `0082_user_organization_binding.sql` with
-   `drizzle/meta/_journal.json` (84 entries). Creates all 139 app-owned
-   tables. Managed by `pnpm db:generate` / `pnpm db:migrate`.
+   `0140_single_us_beta_data_cell.sql` with
+   `drizzle/meta/_journal.json` (141 entries). The migratable barrel currently
+   owns 195 application tables. Managed by `pnpm db:generate` /
+   `pnpm db:migrate`; the count is derived from that barrel, never maintained
+   as a second allowlist.
 2. **Better Auth schema track** — `pnpm auth:migrate`
    (`scripts/better-auth-schema.ts` using the exact pinned `better-auth`
    runtime and `src/shared/auth/auth-cli.ts` config). Owns the 8 auth tables
@@ -23,8 +25,9 @@ up the deployed schema:
    `properties_org_gbp_location_id_unique`; and
    `scripts/migrations/2026-07-06-permission-version-triggers.sql` owns the
    idempotent DAC functions/triggers plus the `organizationRole` expression
-   index. Everything else in `scripts/migrations/` is a historical one-off —
-   do not apply it.
+   index. `scripts/migrations/0000-auth-tables-bootstrap.sql` is a
+   parity-tested recovery-only compatibility path; every other file in
+   `scripts/migrations/` is a historical one-off — do not apply it.
 
 The Drizzle model (`schema/*.ts`) is the application-side model of track 1 (+2
 as a mirror). It is **verified semantically** against the actually-migrated
@@ -42,11 +45,15 @@ commits, autocommits the `cleanup_required` enum label, then applies 0034 onward
 PostgreSQL otherwise rejects 0034 for using a new enum label in the transaction
 that added it. The stages are idempotent on fresh, partial, and already-current
 databases. CI applies the same order, so the tested DB matches deploy state.
-BQC-7.1: production deploys run the sequence via the Railway
-`preDeployCommand` (`node dist-worker/migrate-deploy.js`, source
-`scripts/migrate-deploy.ts`). A deployment advisory lock serializes the full
-sequence; the Property index sidecar takes its own session lock and runs its
-concurrent DDL outside the Drizzle transactions. Recovery is
+BQC-7.1: the first single-US rollout runs the sequence from the signed web
+image in Railway's one-shot `schema-migrator`; later web deployments rerun it
+via `preDeployCommand` (`node dist-worker/migrate-deploy.js`, source
+`scripts/migrate-deploy.ts`). Railway runs prove their exact `cell-us`
+project/environment/service identity before opening the database, and migration
+0140's control row is bound to the platform-provided opaque IDs. A deployment
+advisory lock serializes the full sequence; the Property index sidecar takes
+its own session lock and runs its concurrent DDL outside the Drizzle
+transactions. Recovery is
 fix-forward-and-rerun (never hand-roll partial schema). CI's “Predeploy migration
 parity” step proves the manual and production runners converge to the same end
 state on every PR.
@@ -100,8 +107,8 @@ phantom `invitation.teamId` and missing `organization.metadata`).
 - `columns.ts` — standard `created_at` / `updated_at` / `deleted_at` columns.
 - `schema-drift.ts` — model ↔ pg_catalog comparator (test + script consume).
 - `migration-verification.test.ts` — integration gate (presence + semantic parity).
-- `schema/index.ts` — barrel of ALL 68 tables (60 app + 8 auth mirror).
-- `schema/migratable.ts` — barrel of the 60 drizzle-managed tables;
+- `schema/index.ts` — barrel of all 203 modeled tables (195 app + 8 auth mirror).
+- `schema/migratable.ts` — barrel of the 195 Drizzle-managed tables;
   `drizzle.config.ts` points here. No `tablesFilter` whitelist.
 - `schema/db-only-constructs.ts` — the DB-only register (see above).
 - `retention/` — retention sweep subjects.

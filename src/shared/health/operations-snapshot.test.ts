@@ -60,6 +60,53 @@ const RUNTIME = {
   releaseSha: () => 'abc1234',
   tenantCache: () => ({ hits: 5, misses: 2, evictions: 1, size: 3 }),
 } as const
+const JOB_RUNTIME = {
+  ready: false,
+  total: 2,
+  active: 1,
+  dark: 1,
+  quarantined: 0,
+  failing: 1,
+  missingObservations: 0,
+  handlerMissing: 0,
+  schedulerMissing: 1,
+  forbiddenDarkWork: 0,
+  quarantinedSchedulers: 0,
+  missedObjectives: 0,
+  queueAgeMissed: 0,
+  stalled: 0,
+  repairRequired: 0,
+  deadLetters: 0,
+  rows: [
+    {
+      jobName: 'health-check',
+      owner: 'platform',
+      cell: 'us',
+      processor: 'src/shared/jobs/health-check.job.ts',
+      action: 'system:health.check',
+      routing: 'cell_local' as const,
+      capability: 'none',
+      posture: 'active' as const,
+      queue: 'background' as const,
+      schedule: 'every:300000',
+      retryAttempts: 3,
+      retryBackoff: 'exponential:30000',
+      timeoutMs: 30_000,
+      workerConcurrency: 3,
+      retention: 'completed:100,failed:50',
+      lastSuccessObjectiveMs: 630_000,
+      maximumQueueAgeMs: 900_000,
+      ready: false,
+      reasons: ['scheduler_missing' as const],
+      lastSucceededAt: null,
+      oldestWaitingAt: null,
+      deadLetterCount: 0,
+      repairCommand:
+        'pnpm ops:quarantine redrive <quarantineJobId> --operator <registered-operator> --reason <incident-reason> --apply',
+      runbook: 'docs/operations/runbooks.md',
+    },
+  ],
+}
 
 function fakeOutboxRepo(): OutboxRepository {
   return { findExpiredLeases: vi.fn(async () => []) } as unknown as OutboxRepository
@@ -124,6 +171,35 @@ describe('createOperationsSnapshot', () => {
       clock,
       versions: VERSIONS,
       runtime: RUNTIME,
+      jobRuntime: { read: async () => JOB_RUNTIME },
+      readGuestObservationLoss: async () => ({
+        monitorAvailable: true,
+        windowMs: 24 * 60 * 60 * 1000,
+        precisionMs: 5 * 60 * 1000,
+        scanLossCount: 2,
+        reviewLinkLossCount: 1,
+        ratingLossCount: 0,
+        totalLossCount: 3,
+        ratingDisposition: 'not_applicable_durable' as const,
+      }),
+      readNotificationDeliveryLag: async () => ({
+        sourceReceiptPending: 1,
+        materializationPending: 2,
+        oldestSourceRecordedAt: new Date('2026-01-15T11:58:00.000Z'),
+        oldestMaterializationSourceRecordedAt: new Date('2026-01-15T11:57:00.000Z'),
+        oldestMaterializationEnqueuedAt: new Date('2026-01-15T11:59:30.000Z'),
+        sourceSaturated: false,
+        materializationSaturated: true,
+        immediateEmailAcceptance: {
+          awaitingProviderAcceptance: 1,
+          attemptedAwaitingProviderAcceptance: 1,
+          oldestAwaitingSourceRecordedAt: new Date('2026-01-15T11:56:00.000Z'),
+          acceptedLatencyP99Ms: 301_000,
+          acceptedSampleCount: 20,
+          sourceUnlinked: 0,
+          saturated: false,
+        },
+      }),
     })
 
     const snapshot = await reader.read()
@@ -158,6 +234,24 @@ describe('createOperationsSnapshot', () => {
       ageMs: 0,
       stale: false,
     })
+    expect(snapshot.notifications.deliveryLag).toMatchObject({
+      sourceReceiptPending: 1,
+      materializationPending: 2,
+      oldestSourceRecordedAt: '2026-01-15T11:58:00.000Z',
+      oldestMaterializationSourceRecordedAt: '2026-01-15T11:57:00.000Z',
+      oldestMaterializationEnqueuedAt: '2026-01-15T11:59:30.000Z',
+      sourceSaturated: false,
+      materializationSaturated: true,
+      immediateEmailAcceptance: {
+        awaitingProviderAcceptance: 1,
+        attemptedAwaitingProviderAcceptance: 1,
+        oldestAwaitingSourceRecordedAt: '2026-01-15T11:56:00.000Z',
+        acceptedLatencyP99Ms: 301_000,
+        acceptedSampleCount: 20,
+        sourceUnlinked: 0,
+        saturated: false,
+      },
+    })
     // BQC-7.3 runtime section: pool gauges, migration version, cache
     // counters, release + policy identity.
     expect(snapshot.db).toEqual({
@@ -166,6 +260,17 @@ describe('createOperationsSnapshot', () => {
     })
     expect(snapshot.cache.tenant).toEqual({ hits: 5, misses: 2, evictions: 1, size: 3 })
     expect(snapshot.release).toEqual({ sha: 'abc1234' })
+    expect(snapshot.jobs).toEqual(JOB_RUNTIME)
+    expect(snapshot.guestObservationLoss).toEqual({
+      monitorAvailable: true,
+      windowMs: 24 * 60 * 60 * 1000,
+      precisionMs: 5 * 60 * 1000,
+      scanLossCount: 2,
+      reviewLinkLossCount: 1,
+      ratingLossCount: 0,
+      totalLossCount: 3,
+      ratingDisposition: 'not_applicable_durable',
+    })
     expect(snapshot.versions).toEqual({
       capabilityPolicy: 'test-cap',
       executionPolicy: 'test-exec',
@@ -275,6 +380,56 @@ describe('createOperationsSnapshot', () => {
       runtime: process.version,
     })
     expect(snapshot.outbox.unpublishedCount).toBe(3)
+  })
+
+  it('degrades only the jobs section when the durable runtime report fails', async () => {
+    const reader = createOperationsSnapshot({
+      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+      outboxRepo: fakeOutboxRepo(),
+      queues: { default: null, background: null, domainEvents: null, quarantine: null },
+      redis: null,
+      clock,
+      versions: VERSIONS,
+      runtime: RUNTIME,
+      jobRuntime: {
+        read: async () => {
+          throw new Error('queue redis down')
+        },
+      },
+    })
+
+    const snapshot = await reader.read()
+    expect(snapshot.jobs).toBeUndefined()
+    expect(snapshot.degraded).toEqual(['jobs'])
+    expect(snapshot.outbox.unpublishedCount).toBe(3)
+  })
+
+  it('marks Guest observation-loss visibility degraded without inventing durable-rating loss', async () => {
+    const reader = createOperationsSnapshot({
+      db: fakeDb([UNPUBLISHED_ROW, CLAIMED_ROW, REVIEW_ROW, SYNC_ROW, PUBLICATION_ROW]),
+      outboxRepo: fakeOutboxRepo(),
+      queues: { default: null, background: null, domainEvents: null, quarantine: null },
+      redis: null,
+      clock,
+      versions: VERSIONS,
+      runtime: RUNTIME,
+      readGuestObservationLoss: async () => {
+        throw new Error('cache redis down')
+      },
+    })
+
+    const snapshot = await reader.read()
+    expect(snapshot.guestObservationLoss).toEqual({
+      monitorAvailable: false,
+      windowMs: 24 * 60 * 60 * 1000,
+      precisionMs: 5 * 60 * 1000,
+      scanLossCount: 0,
+      reviewLinkLossCount: 0,
+      ratingLossCount: 0,
+      totalLossCount: 0,
+      ratingDisposition: 'not_applicable_durable',
+    })
+    expect(snapshot.degraded).toContain('guest.observationLoss')
   })
 
   it('uses a 5s default section budget', () => {

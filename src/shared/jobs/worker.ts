@@ -20,6 +20,8 @@ import {
 import type { JobHandler } from './registry'
 import { Redis } from 'ioredis'
 import { getJobRedisUrl } from './redis-topology'
+import type { JobRuntimeObservationSink } from './runtime-observations'
+import { JOB_OPERATIONAL_QUEUE_CONCURRENCY } from './operational-catalogue'
 
 export type { Job }
 export type { JobHandler }
@@ -70,10 +72,21 @@ export const WORST_CASE_POOL_CLIENTS_PER_JOB = 2
  * out `connectionTimeoutMillis`, and the items are reported as spurious
  * `temporarily_unavailable`. The invariant is pinned by worker.test.ts.
  */
-export const DEFAULT_QUEUE_CONCURRENCY = 4
+export const DEFAULT_QUEUE_CONCURRENCY = JOB_OPERATIONAL_QUEUE_CONCURRENCY.default
 
 /** Background queue concurrency — single-client maintenance sweeps. */
-export const BACKGROUND_QUEUE_CONCURRENCY = 3
+export const BACKGROUND_QUEUE_CONCURRENCY = JOB_OPERATIONAL_QUEUE_CONCURRENCY.background
+
+function isQuarantineRedrive(data: unknown): boolean {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) return false
+  const metadata = (data as Record<string, unknown>).redriveMetadata
+  return (
+    typeof metadata === 'object' &&
+    metadata !== null &&
+    !Array.isArray(metadata) &&
+    (metadata as Record<string, unknown>).redrivenFrom === 'quarantine'
+  )
+}
 
 /**
  * Create a BullMQ worker for the given queue name.
@@ -95,6 +108,8 @@ export function createJobWorker<T>(
   handler: JobHandler<T>,
   concurrency?: number,
   quarantineQueue?: Queue,
+  runtimeObservations?: JobRuntimeObservationSink,
+  clock: () => Date = () => new Date(),
 ): Worker<T> | undefined {
   const env = getEnv()
   const redisUrl = getJobRedisUrl(env)
@@ -161,8 +176,42 @@ export function createJobWorker<T>(
     captureObservabilityException(err, { source: 'bullmq-worker', queue: name })
   })
 
+  const recordRuntime = (jobName: string | undefined, operation: Promise<void>): void => {
+    void operation.catch((err: unknown) => {
+      logger.error(
+        { err, queue: name, jobName },
+        'failed to persist job runtime observation',
+      )
+    })
+  }
+
+  worker.on('active', (job: Job<T>) => {
+    if (!runtimeObservations) return
+    recordRuntime(
+      job.name,
+      runtimeObservations.recordStarted({
+        queue: name,
+        jobName: job.name,
+        jobId: job.id ?? 'unknown',
+        at: clock(),
+      }),
+    )
+  })
+
   worker.on('completed', (job: Job<T>) => {
     logger.info({ queue: name, jobName: job.name }, 'job completed')
+    if (runtimeObservations) {
+      recordRuntime(
+        job.name,
+        runtimeObservations.recordSucceeded({
+          queue: name,
+          jobName: job.name,
+          jobId: job.id ?? 'unknown',
+          at: clock(),
+          repair: isQuarantineRedrive(job.data),
+        }),
+      )
+    }
   })
 
   worker.on('failed', (job: Job<T> | undefined, err: Error) => {
@@ -182,6 +231,17 @@ export function createJobWorker<T>(
         queue: name,
         jobName: job.name,
       })
+      if (runtimeObservations) {
+        recordRuntime(
+          job.name,
+          runtimeObservations.recordTerminalFailure({
+            queue: name,
+            jobName: job.name,
+            jobId: job.id ?? 'unknown',
+            at: clock(),
+          }),
+        )
+      }
     }
     // The payload copy was staged while this job was still active. Confirm it
     // only after BullMQ has completed moveToFailed; redrive refuses a
@@ -196,6 +256,14 @@ export function createJobWorker<T>(
         },
       )
     }
+  })
+
+  worker.on('stalled', (jobId: string) => {
+    if (!runtimeObservations) return
+    recordRuntime(
+      undefined,
+      runtimeObservations.recordStalled({ queue: name, jobId, at: clock() }),
+    )
   })
 
   return worker

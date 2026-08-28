@@ -3,8 +3,8 @@
 // fallow-ignore-file boundary-violation
 // Cross-zone proof (BQC-7.8) — deliberate, no expiry. This end-to-end proof
 // BY DESIGN wires the identity-owned policy boot (initPersistedCapability-
-// PolicyStore) + audit table against the review context's purge machinery
-// (review repository + atomic command store) and the shared operator-command
+// PolicyStore) + audit table against the review context's report authority
+// and the shared operator-command
 // harness (the same wiring scripts/ops/restore-verify.ts performs); no
 // single context's zone can own it, and the integration project discovers it
 // via the infrastructure/repositories glob. Same posture as
@@ -13,9 +13,9 @@
 // Proves the restore-verify chain end to end:
 //   1. --apply --reason --yes ops:restore-verify — evaluated through the REAL
 //      ExecutionPolicy operator branch and audited in policy_decision_audit;
-//      SAFE-03 quarantine makes the legacy in-process purge a no-op, so the
-//      re-scan fails closed, every Review survives, and no false expiry fact or
-//      retention evidence is written;
+//      SAFE-03 inspection-only authority refuses before any lifecycle is
+//      invoked, so every Review survives and no false expiry fact or retention
+//      evidence is written;
 //   2. dry-run (no --apply) — reports eligibility, purges nothing, audits
 //      'dry-run';
 //   3. RESTORE_MODE not isolated in the command env — the action REFUSES
@@ -32,9 +32,7 @@ import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/goog
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
-import { createEventBus } from '#/shared/events/event-bus'
-import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { createBusAuthorizer } from '#/shared/jobs/delayed-execution-gate'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   getExecutionPolicy,
   resetExecutionPolicy,
@@ -44,8 +42,6 @@ import { resetCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
 import { resetDelayedExecutionPolicy } from '#/shared/auth/system-execution-policy'
 import { initPersistedCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
-import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/reply-command-store'
-import { createPurgeExpiredReviewsHandler } from '#/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
 import {
   runOperatorCommand,
   type OperatorIO,
@@ -147,22 +143,22 @@ async function reviewCount(): Promise<number> {
 
 /** The real deps — the same construction scripts/ops/restore-verify.ts wires. */
 function realDeps(env: RestoreVerifyDeps['env']): RestoreVerifyDeps {
-  const reviewRepo = createReviewRepository(db)
-  const eventBus = createEventBus({ authorizeConsumer: createBusAuthorizer() })
-  const commandStore = createAtomicReplyCommandStore(db, eventBus)
+  const reviewRepo = createReviewRepository(db, () => new Date())
   const clock = () => new Date()
-  const purgeHandler = createPurgeExpiredReviewsHandler({
-    reviewRepo,
-    commandStore,
-    clock,
-    db,
-  })
   return {
     env,
-    countExpired: async () => reviewRepo.countExpiredBeforeAcrossTenants(clock()),
-    purgeExpired: async () => {
-      await purgeHandler({} as never)
+    reviewLifecycle: {
+      kind: 'inspection_only',
+      reason: 'reviewed_cutover_authority_required',
+      prepare: async () => ({
+        requestContent: '{"kind":"review-lifecycle-recovery"}\n',
+        requestSha256: 'a'.repeat(64),
+        reportContent: '{"version":"integration-report"}\n',
+        reportSha256: 'b'.repeat(64),
+        expired: await reviewRepo.countExpiredBeforeAcrossTenants(clock()),
+      }),
     },
+    countExpired: async () => reviewRepo.countExpiredBeforeAcrossTenants(clock()),
     inspectGoogleImportLifecycle: async () => ({
       expiredItems: 0,
       purgeCandidates: 0,
@@ -231,16 +227,14 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     const handle = initPersistedCapabilityPolicyStore({
       db,
       env: { NODE_ENV: 'test', OPS_OPERATOR_IDENTITIES: OPERATOR },
+      clock: () => new Date(),
+      logger: { warn: () => {} },
     })
     await handle.refresh()
     stopPolicyPolling = handle.stopPolling
     runtime = {
       decide: (request: DecisionRequest) => getExecutionPolicy().decide(request),
     }
-    // Outbox payload registry — createContainer runs this in production; the
-    // purge commits review.expired facts through the same adapter.
-    registerAllEventSchemas()
-
     await db.execute(
       sql`INSERT INTO organization (id, name, slug, "createdAt") VALUES (${ORG}, 'Restore Verify Org', 'restore-verify-org', NOW()) ON CONFLICT (id) DO NOTHING`,
     )
@@ -264,7 +258,7 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     )
     await db.execute(sql`DELETE FROM policy_decision_audit WHERE actor_id = ${OPERATOR}`)
     await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
-    await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+    await deleteTestOrganizations(db, [ORG])
   })
 
   it('apply: fails closed while Review erasure is quarantined and preserves every row', async () => {
@@ -324,7 +318,7 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
     const out = io.outLines.join('\n')
     const err = io.errLines.join('\n')
     expect(out).toMatch(/RESTORE MODE ISOLATED/)
-    expect(err).toMatch(/expired-content row\(s\) remain eligible after the purge/)
+    expect(err).toMatch(/no reviewed cutover authority/i)
     expect(out).not.toMatch(/UNSET RESTORE_MODE/)
   })
 

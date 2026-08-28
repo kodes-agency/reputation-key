@@ -134,6 +134,50 @@ describe('raw built-in-role decision catalogue', () => {
     }
   })
 
+  it('pins every legacy-dark raw-role decision to its fail-closed capability seam', () => {
+    expect(
+      RAW_ROLE_DECISION_CATALOGUE.filter((row) => row.disposition === 'legacy_dark').map(
+        (row) => ({
+          path: row.path,
+          capability: row.capability,
+          enforcement: row.enforcement,
+          publicSeam: row.publicSeam,
+        }),
+      ),
+    ).toEqual([
+      {
+        path: 'src/contexts/team/application/use-cases/team-memberships.ts',
+        capability: 'team.use',
+        enforcement: 'inert_context_build',
+        publicSeam: 'src/contexts/team/build.ts',
+      },
+    ])
+  })
+
+  it('keeps the contracted Leaderboard and catalogued Team builds inert', () => {
+    const leaderboardBuild = readFileSync(
+      join(ROOT, 'src/contexts/leaderboard/build.ts'),
+      'utf8',
+    )
+    const composition = readFileSync(join(ROOT, 'src/composition.ts'), 'utf8')
+    const teamBuild = readFileSync(join(ROOT, 'src/contexts/team/build.ts'), 'utf8')
+
+    expect(leaderboardBuild).toContain('publicApi: {}')
+    expect(leaderboardBuild).toContain('useCases: {}')
+    expect(composition).not.toContain('buildLeaderboardContext')
+    expect(teamBuild).toContain('publicApi: {}')
+    expect(teamBuild).toContain('useCases: {}')
+    expect(composition).not.toContain('buildTeamContext')
+
+    expect(
+      sourceFiles(SRC)
+        .filter((path) =>
+          readFileSync(path, 'utf8').includes("use-cases/team-memberships'"),
+        )
+        .map((path) => relative(ROOT, path)),
+    ).toEqual([])
+  })
+
   it('detects executable comparisons but ignores comments and unrelated state', () => {
     expect(
       discoverRawRoleDecisions(

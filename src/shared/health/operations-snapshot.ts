@@ -22,6 +22,7 @@ import type { Clock } from '#/shared/domain/clock'
 import {
   createHealthChecker,
   type HealthSnapshot,
+  type NotificationDeliveryLagRead,
   type QuarantineMetricsPort,
 } from '#/shared/observability/health-metrics'
 import { readAllQueueDepths, type QueueCountsPort, type QueueDepth } from './queue-depth'
@@ -38,6 +39,7 @@ import {
 } from '#/shared/auth/tenant-cache-stats'
 import { checkGlobalCapability } from '#/shared/auth/beta-capabilities'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
+import type { JobRuntimeReport } from '#/shared/jobs/runtime-observations'
 
 /** Hard per-section read budget. A section slower than this degrades. */
 export const OPS_SECTION_BUDGET_MS = 5000
@@ -80,6 +82,16 @@ export type OperationsSnapshotDeps = Readonly<{
    * `src/contexts/**`. Absent = the gauge reads 0.
    */
   readMissingNotificationCount?: () => Promise<number>
+  /** Notification-owned bounded source→Redis→PostgreSQL delivery evidence. */
+  readNotificationDeliveryLag?: () => Promise<NotificationDeliveryLagRead>
+  /** ARC-02: durable worker/runtime authority assembled from Queue Redis. */
+  jobRuntime?: Readonly<{ read: () => Promise<JobRuntimeReport> }>
+  /**
+   * SAFE-01: global, content-free Guest best-effort observation-loss
+   * aggregate. The context owns the Redis adapter; composition injects its
+   * read so shared observability never imports a context module.
+   */
+  readGuestObservationLoss?: () => Promise<OperationsGuestObservationLoss>
   /**
    * BQC-7.3 runtime-section readers. Optional — production defaults read the
    * real pool / migration table / env / cache stats; tests inject hermetic
@@ -117,6 +129,22 @@ export type OperationsVersions = Readonly<{
   runtime: string
 }>
 
+/**
+ * Content-free rolling aggregate only. No tenant, Portal, destination,
+ * session, network pseudonym, or payload value is representable here.
+ */
+export type OperationsGuestObservationLoss = Readonly<{
+  monitorAvailable: boolean
+  windowMs: number
+  precisionMs: number
+  scanLossCount: number
+  reviewLinkLossCount: number
+  /** Canonically zero because rating fact/outbox persistence is atomic. */
+  ratingLossCount: 0
+  totalLossCount: number
+  ratingDisposition: 'not_applicable_durable'
+}>
+
 export type OperationsSnapshot = Readonly<
   Omit<HealthSnapshot, 'workers'> & {
     queues: readonly QueueDepth[]
@@ -125,6 +153,10 @@ export type OperationsSnapshot = Readonly<
     cache: Readonly<{ tenant: TenantCacheStats }>
     release: Readonly<{ sha: string }>
     versions: OperationsVersions
+    /** Detailed identifier-only ownership/report rows; absent without Queue Redis. */
+    jobs?: JobRuntimeReport
+    /** Present in production; optional only for isolated legacy/test readers. */
+    guestObservationLoss?: OperationsGuestObservationLoss
     /** Sections whose read failed or exceeded the budget (fallback values). */
     degraded: readonly string[]
   }
@@ -195,6 +227,28 @@ function zeroHealthSnapshot(now: Date): HealthSnapshot {
       // 0, not a guess: an unreadable section must not fabricate a
       // notification gap either. `degraded` is what says "unknown".
       missingForInboxItemCount: 0,
+      deliveryLag: {
+        sourceReceiptPending: 0,
+        materializationPending: 0,
+        oldestSourceRecordedAt: null,
+        oldestSourceAgeMs: null,
+        oldestMaterializationSourceRecordedAt: null,
+        oldestMaterializationSourceAgeMs: null,
+        oldestMaterializationEnqueuedAt: null,
+        oldestMaterializationEnqueuedAgeMs: null,
+        sourceSaturated: false,
+        materializationSaturated: false,
+        immediateEmailAcceptance: {
+          awaitingProviderAcceptance: 0,
+          attemptedAwaitingProviderAcceptance: 0,
+          oldestAwaitingSourceRecordedAt: null,
+          oldestAwaitingSourceAgeMs: null,
+          acceptedLatencyP99Ms: null,
+          acceptedSampleCount: 0,
+          sourceUnlinked: 0,
+          saturated: false,
+        },
+      },
     },
     replyPublication: {
       counts: {
@@ -264,6 +318,17 @@ function zeroRuntimeSection(
 
 const STALE_HEARTBEAT: WorkerHeartbeat = { at: null, ageMs: null, stale: true }
 
+const UNAVAILABLE_GUEST_OBSERVATION_LOSS: OperationsGuestObservationLoss = {
+  monitorAvailable: false,
+  windowMs: 24 * 60 * 60 * 1000,
+  precisionMs: 5 * 60 * 1000,
+  scanLossCount: 0,
+  reviewLinkLossCount: 0,
+  ratingLossCount: 0,
+  totalLossCount: 0,
+  ratingDisposition: 'not_applicable_durable',
+}
+
 export function createOperationsSnapshot(
   deps: OperationsSnapshotDeps,
 ): OperationsSnapshotReader {
@@ -283,50 +348,85 @@ export function createOperationsSnapshot(
     // Forwarded, not computed here: the notification-gap query is owned by the
     // notification context.
     readMissingNotificationCount: deps.readMissingNotificationCount,
+    readNotificationDeliveryLag: deps.readNotificationDeliveryLag,
   })
 
   return {
     read: async () => {
       // Flags (not push order) so `degraded` is deterministic regardless of
       // which section settles first.
-      const flags = { health: false, queues: false, heartbeat: false, runtime: false }
-      const [health, queues, heartbeat, runtime] = await Promise.all([
-        withBudget(checker.check(), OPS_SECTION_BUDGET_MS, () => {
-          flags.health = true
-          return zeroHealthSnapshot(deps.clock())
-        }),
-        withBudget(
-          readAllQueueDepths([
-            { name: 'default', queue: deps.queues.default },
-            { name: 'background', queue: deps.queues.background },
-            { name: 'domain-events', queue: deps.queues.domainEvents },
-            { name: 'quarantine', queue: deps.queues.quarantine },
-          ]),
-          OPS_SECTION_BUDGET_MS,
-          () => {
-            flags.queues = true
-            return [] as readonly QueueDepth[]
-          },
-        ),
-        withBudget(
-          readWorkerHeartbeat(deps.redis, deps.clock),
-          OPS_SECTION_BUDGET_MS,
-          () => {
-            flags.heartbeat = true
-            return STALE_HEARTBEAT
-          },
-        ),
-        withBudget(readRuntimeSection(deps), OPS_SECTION_BUDGET_MS, () => {
-          flags.runtime = true
-          return zeroRuntimeSection(deps.versions)
-        }),
-      ])
+      const flags = {
+        health: false,
+        queues: false,
+        heartbeat: false,
+        runtime: false,
+        jobs: false,
+        guestObservationLoss: false,
+      }
+      const [health, queues, heartbeat, runtime, jobs, guestObservationLoss] =
+        await Promise.all([
+          withBudget(checker.check(), OPS_SECTION_BUDGET_MS, () => {
+            flags.health = true
+            return zeroHealthSnapshot(deps.clock())
+          }),
+          withBudget(
+            readAllQueueDepths([
+              { name: 'default', queue: deps.queues.default },
+              { name: 'background', queue: deps.queues.background },
+              { name: 'domain-events', queue: deps.queues.domainEvents },
+              { name: 'quarantine', queue: deps.queues.quarantine },
+            ]),
+            OPS_SECTION_BUDGET_MS,
+            () => {
+              flags.queues = true
+              return [] as readonly QueueDepth[]
+            },
+          ),
+          withBudget(
+            readWorkerHeartbeat(deps.redis, deps.clock),
+            OPS_SECTION_BUDGET_MS,
+            () => {
+              flags.heartbeat = true
+              return STALE_HEARTBEAT
+            },
+          ),
+          withBudget(readRuntimeSection(deps), OPS_SECTION_BUDGET_MS, () => {
+            flags.runtime = true
+            return zeroRuntimeSection(deps.versions)
+          }),
+          deps.jobRuntime
+            ? withBudget<JobRuntimeReport | undefined>(
+                deps.jobRuntime.read(),
+                OPS_SECTION_BUDGET_MS,
+                () => {
+                  flags.jobs = true
+                  return undefined
+                },
+              )
+            : Promise.resolve(undefined),
+          deps.readGuestObservationLoss
+            ? withBudget<OperationsGuestObservationLoss | undefined>(
+                deps.readGuestObservationLoss(),
+                OPS_SECTION_BUDGET_MS,
+                () => {
+                  flags.guestObservationLoss = true
+                  return UNAVAILABLE_GUEST_OBSERVATION_LOSS
+                },
+              )
+            : Promise.resolve(undefined),
+        ])
+
+      if (guestObservationLoss && !guestObservationLoss.monitorAvailable) {
+        flags.guestObservationLoss = true
+      }
 
       const degraded: string[] = []
       if (flags.health) degraded.push('health')
       if (flags.queues) degraded.push('queues')
       if (flags.heartbeat) degraded.push('workers.heartbeat')
       if (flags.runtime) degraded.push('runtime')
+      if (flags.jobs) degraded.push('jobs')
+      if (flags.guestObservationLoss) degraded.push('guest.observationLoss')
 
       return {
         ...health,
@@ -336,6 +436,8 @@ export function createOperationsSnapshot(
         cache: runtime.cache,
         release: runtime.release,
         versions: runtime.versions,
+        ...(jobs === undefined ? {} : { jobs }),
+        ...(guestObservationLoss === undefined ? {} : { guestObservationLoss }),
         degraded,
       }
     },

@@ -1,12 +1,12 @@
 // Retention sweep job — BQC-1.6: production-scheduled bounded retention
 // with content-free evidence for every subject.
 //
-// Runs the static rule registry (outbox, receipts, sync runs, webhook
-// receipts, notifications, activity, cache) through the bounded CTE
-// executor. Per rule: an evidence row is opened before deletion starts and
-// closed with counts + outcome + error code (retention_runs, migration
-// 0013). A failing rule does not block the others; the job throws after
-// the sweep when any rule failed (queue retry + operator visibility).
+// Runs Guest-owned Contact Request material expiry, Google import lifecycle,
+// and the static rule registry through bounded owning seams. Per subject: an
+// evidence row is opened before cleanup starts and closed with counts + outcome
+// + error code (retention_runs, migration 0013). A failing subject does not
+// block the others; the job throws after the sweep when any subject failed
+// (queue retry + operator visibility).
 
 import type { Job } from 'bullmq'
 import type { Database } from '#/shared/db'
@@ -21,6 +21,8 @@ import { trace } from '#/shared/observability/trace'
 export const JOB_NAME = 'retention-sweep' as const
 export const GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT =
   'integration.google_import_v2.lifecycle' as const
+export const GUEST_CONTACT_REQUEST_RETENTION_SUBJECT =
+  'guest_contact_requests.expired_material' as const
 const GOOGLE_IMPORT_LIFECYCLE_BATCH_SIZE = 100
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -75,6 +77,24 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     // pseudonym used to enforce first-action semantics does not.
     subject: 'guest_destination_action_receipts.expired',
     table: 'guest_destination_action_receipts',
+    keyColumns: ['id'],
+    tsColumn: 'expires_at',
+    olderThanMs: 0,
+  },
+  {
+    // The identifier-only Qualified Scan survives independently of the
+    // signed-session pseudonym used to enforce the rolling 24-hour window.
+    subject: 'guest_qualified_scan_receipts.expired',
+    table: 'guest_qualified_scan_receipts',
+    keyColumns: ['id'],
+    tsColumn: 'expires_at',
+    olderThanMs: 0,
+  },
+  {
+    // One content-free, Portal-scoped authority replaces per-fact network
+    // hashes. Its database check fixes every row to exactly seven days.
+    subject: 'guest_network_pressure_records.expired',
+    table: 'guest_network_pressure_records',
     keyColumns: ['id'],
     tsColumn: 'expires_at',
     olderThanMs: 0,
@@ -141,6 +161,30 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
     olderThanMs: 30 * DAY_MS,
   },
   {
+    subject: 'google_import_discovery_records.expired',
+    table: 'google_import_discovery_records',
+    keyColumns: ['reference_key'],
+    tsColumn: 'expires_at',
+    olderThanMs: 0,
+  },
+  {
+    subject: 'google_import_discovery_invalidations.expired',
+    table: 'google_import_discovery_invalidations',
+    keyColumns: ['invalidation_key'],
+    tsColumn: 'expires_at',
+    olderThanMs: 0,
+  },
+  {
+    // Prepared rows remain recoverable and manual-review rows remain visible
+    // to support. Only settled, content-free saga fences age out.
+    subject: 'invited_registration_attempts.settled',
+    table: 'invited_registration_attempts',
+    keyColumns: ['id'],
+    tsColumn: 'updated_at',
+    olderThanMs: 90 * DAY_MS,
+    extraWhere: "state IN ('accepted', 'compensated')",
+  },
+  {
     subject: 'gbp_cache.expired',
     table: 'gbp_cache',
     keyColumns: ['id'],
@@ -172,8 +216,22 @@ export const RETENTION_RULES: ReadonlyArray<RetentionRule> = [
       "status IN ('accepted', 'delivered', 'bounced', 'complained', 'failed', 'suppressed')",
   },
   {
-    subject: 'activity_log',
-    table: 'activity_log',
+    subject: 'recent_activity_replay_facts',
+    table: 'recent_activity_replay_facts',
+    keyColumns: ['replay_key'],
+    tsColumn: 'source_occurred_at',
+    olderThanMs: 90 * DAY_MS,
+  },
+  {
+    subject: 'recent_activity_actor_label_redactions.expired',
+    table: 'recent_activity_actor_label_redactions',
+    keyColumns: ['organization_id', 'actor_subject_id'],
+    tsColumn: 'expires_at',
+    olderThanMs: 0,
+  },
+  {
+    subject: 'recent_activity_entries',
+    table: 'recent_activity_entries',
     keyColumns: ['id'],
     tsColumn: 'created_at',
     olderThanMs: 90 * DAY_MS,
@@ -202,6 +260,14 @@ type RetentionSweepDeps = Readonly<{
   clock: () => Date
   rules?: ReadonlyArray<RetentionRule>
   batchSize?: number
+  guestContactRequestRetentionSweep?: (input: { batchSize: number }) => Promise<
+    Readonly<{
+      batches: number
+      processed: number
+      capped: boolean
+      completedThrough: Date | null
+    }>
+  >
   googleImportLifecycleSweep?: () => Promise<
     Readonly<{
       expiredItemsVisited: number
@@ -222,6 +288,37 @@ export const createRetentionSweepHandler = (deps: RetentionSweepDeps) => {
     return trace('job.retentionSweep', async () => {
       const logger = getLogger()
       const failures: Array<{ subject: string; error: string }> = []
+
+      if (deps.guestContactRequestRetentionSweep) {
+        const subject = GUEST_CONTACT_REQUEST_RETENTION_SUBJECT
+        const startedAt = deps.clock()
+        const runId = await openRetentionRun(deps.db, subject, batchSize, startedAt)
+        try {
+          const result = await deps.guestContactRequestRetentionSweep({ batchSize })
+          await closeRetentionRun(deps.db, runId, {
+            finishedAt: deps.clock(),
+            batches: result.batches,
+            rowsDeleted: 0,
+            rowsRedacted: result.processed,
+            outcome: 'completed',
+          })
+          logger.info(
+            { subject, ...result },
+            result.capped
+              ? 'Contact Request retention sweep reached its batch cap'
+              : 'Contact Request retention sweep completed',
+          )
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          failures.push({ subject, error: message })
+          await closeRetentionRun(deps.db, runId, {
+            finishedAt: deps.clock(),
+            outcome: 'failed',
+            errorCode: message.slice(0, 200),
+          }).catch(() => {})
+          logger.warn({ err, subject }, 'Contact Request retention sweep failed')
+        }
+      }
 
       if (deps.googleImportLifecycleSweep) {
         const subject = GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT

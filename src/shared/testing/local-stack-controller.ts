@@ -114,7 +114,7 @@ export function deterministicFixtureHash(
 ): string {
   return sha256(
     JSON.stringify({
-      version: 'fleet-local-1',
+      version: 'fleet-local-2',
       seed: input.seed,
       properties: input.properties,
       p1Properties: input.p1Properties,

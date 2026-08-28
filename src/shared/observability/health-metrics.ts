@@ -71,6 +71,54 @@ export type HealthMetricsDeps = Readonly<{
    * inventing one.
    */
   readMissingNotificationCount?: () => Promise<number>
+  /**
+   * Bounded, identifier-only Notification source→Redis→PostgreSQL lag read.
+   * The owning context supplies it through composition; shared observability
+   * receives only counts, clocks, and saturation evidence.
+   */
+  readNotificationDeliveryLag?: () => Promise<NotificationDeliveryLagRead>
+}>
+
+export type NotificationDeliveryLagRead = Readonly<{
+  sourceReceiptPending: number
+  materializationPending: number
+  oldestSourceRecordedAt: Date | null
+  oldestMaterializationSourceRecordedAt: Date | null
+  oldestMaterializationEnqueuedAt: Date | null
+  sourceSaturated: boolean
+  materializationSaturated: boolean
+  immediateEmailAcceptance: Readonly<{
+    awaitingProviderAcceptance: number
+    attemptedAwaitingProviderAcceptance: number
+    oldestAwaitingSourceRecordedAt: Date | null
+    acceptedLatencyP99Ms: number | null
+    acceptedSampleCount: number
+    sourceUnlinked: number
+    saturated: boolean
+  }>
+}>
+
+export type NotificationDeliveryLagMetrics = Readonly<{
+  sourceReceiptPending: number
+  materializationPending: number
+  oldestSourceRecordedAt: string | null
+  oldestSourceAgeMs: number | null
+  oldestMaterializationSourceRecordedAt: string | null
+  oldestMaterializationSourceAgeMs: number | null
+  oldestMaterializationEnqueuedAt: string | null
+  oldestMaterializationEnqueuedAgeMs: number | null
+  sourceSaturated: boolean
+  materializationSaturated: boolean
+  immediateEmailAcceptance: Readonly<{
+    awaitingProviderAcceptance: number
+    attemptedAwaitingProviderAcceptance: number
+    oldestAwaitingSourceRecordedAt: string | null
+    oldestAwaitingSourceAgeMs: number | null
+    acceptedLatencyP99Ms: number | null
+    acceptedSampleCount: number
+    sourceUnlinked: number
+    saturated: boolean
+  }>
 }>
 
 export type QuarantineMetrics = Readonly<{
@@ -152,6 +200,8 @@ export type HealthSnapshot = Readonly<{
      * cap; the alert on it fires on "above zero", so the cap costs nothing.
      */
     missingForInboxItemCount: number
+    /** Bounded end-to-end delivery evidence for every active beta family. */
+    deliveryLag: NotificationDeliveryLagMetrics
   }>
   /**
    * BQC-7.3 (reply.publication.*): durable publication-state counts (the
@@ -350,7 +400,7 @@ async function readReplyPublicationMetrics(
  */
 type NotificationEmailMetrics = Omit<
   HealthSnapshot['notifications'],
-  'missingForInboxItemCount'
+  'missingForInboxItemCount' | 'deliveryLag'
 >
 
 /**
@@ -396,6 +446,84 @@ async function readNotificationEmailMetrics(
         ? Math.round(Number(row.oldest_overdue_age_ms))
         : null,
     attemptedStuckCount: row?.attempted ?? 0,
+  }
+}
+
+const EMPTY_NOTIFICATION_DELIVERY_LAG: NotificationDeliveryLagRead = {
+  sourceReceiptPending: 0,
+  materializationPending: 0,
+  oldestSourceRecordedAt: null,
+  oldestMaterializationSourceRecordedAt: null,
+  oldestMaterializationEnqueuedAt: null,
+  sourceSaturated: false,
+  materializationSaturated: false,
+  immediateEmailAcceptance: {
+    awaitingProviderAcceptance: 0,
+    attemptedAwaitingProviderAcceptance: 0,
+    oldestAwaitingSourceRecordedAt: null,
+    acceptedLatencyP99Ms: null,
+    acceptedSampleCount: 0,
+    sourceUnlinked: 0,
+    saturated: false,
+  },
+}
+
+const lagClock = (
+  value: Date | null,
+  now: Date,
+): Readonly<{ at: string | null; ageMs: number | null }> => {
+  if (value === null || !Number.isFinite(value.getTime())) {
+    return { at: null, ageMs: null }
+  }
+  return {
+    at: value.toISOString(),
+    ageMs: Math.max(0, now.getTime() - value.getTime()),
+  }
+}
+
+/** Select only the allowlisted operational fields from the injected report. */
+const readNotificationDeliveryLagMetrics = async (
+  read: (() => Promise<NotificationDeliveryLagRead>) | undefined,
+  now: Date,
+): Promise<NotificationDeliveryLagMetrics> => {
+  const report = read ? await read() : EMPTY_NOTIFICATION_DELIVERY_LAG
+  const source = lagClock(report.oldestSourceRecordedAt, now)
+  const materializationSource = lagClock(
+    report.oldestMaterializationSourceRecordedAt,
+    now,
+  )
+  const materializationEnqueued = lagClock(report.oldestMaterializationEnqueuedAt, now)
+  const oldestAwaitingEmailSource = lagClock(
+    report.immediateEmailAcceptance.oldestAwaitingSourceRecordedAt,
+    now,
+  )
+  return {
+    sourceReceiptPending: report.sourceReceiptPending,
+    materializationPending: report.materializationPending,
+    oldestSourceRecordedAt: source.at,
+    oldestSourceAgeMs: source.ageMs,
+    oldestMaterializationSourceRecordedAt: materializationSource.at,
+    oldestMaterializationSourceAgeMs: materializationSource.ageMs,
+    oldestMaterializationEnqueuedAt: materializationEnqueued.at,
+    oldestMaterializationEnqueuedAgeMs: materializationEnqueued.ageMs,
+    sourceSaturated: report.sourceSaturated,
+    materializationSaturated: report.materializationSaturated,
+    immediateEmailAcceptance: {
+      awaitingProviderAcceptance:
+        report.immediateEmailAcceptance.awaitingProviderAcceptance,
+      attemptedAwaitingProviderAcceptance:
+        report.immediateEmailAcceptance.attemptedAwaitingProviderAcceptance,
+      oldestAwaitingSourceRecordedAt: oldestAwaitingEmailSource.at,
+      oldestAwaitingSourceAgeMs: oldestAwaitingEmailSource.ageMs,
+      acceptedLatencyP99Ms:
+        report.immediateEmailAcceptance.acceptedLatencyP99Ms === null ||
+        !Number.isFinite(report.immediateEmailAcceptance.acceptedLatencyP99Ms)
+          ? null
+          : Math.max(0, report.immediateEmailAcceptance.acceptedLatencyP99Ms),
+      acceptedSampleCount: report.immediateEmailAcceptance.acceptedSampleCount,
+      sourceUnlinked: report.immediateEmailAcceptance.sourceUnlinked,
+      saturated: report.immediateEmailAcceptance.saturated,
+    },
   }
 }
 
@@ -553,12 +681,16 @@ export function createHealthChecker(
         // Notification EXISTENCE health: did the in-app notification get
         // written at all? Injected because the query lives in the
         // notification context (see readMissingNotificationCount).
-        const missingForInboxItemCount = deps?.readMissingNotificationCount
-          ? await deps.readMissingNotificationCount()
-          : 0
+        const [missingForInboxItemCount, deliveryLag] = await Promise.all([
+          deps?.readMissingNotificationCount
+            ? deps.readMissingNotificationCount()
+            : Promise.resolve(0),
+          readNotificationDeliveryLagMetrics(deps?.readNotificationDeliveryLag, now),
+        ])
         const notifications = {
           ...notificationEmail,
           missingForInboxItemCount,
+          deliveryLag,
         }
 
         return {

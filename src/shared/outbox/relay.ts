@@ -50,6 +50,12 @@ export type RelayConfig = Readonly<{
   /** Identifier for this relay instance (for lease ownership). */
   relayId: string
   /**
+   * Cell owning the database/process that committed the claimed fact. The
+   * production worker always supplies it; optional only for isolated tests and
+   * rolling compatibility with the pre-source-cell envelope.
+   */
+  sourceCell?: DataCellId
+  /**
    * Optional lifecycle fence evaluated immediately before queue publication.
    * Property-scoped facts return freshly resolved routing evidence; a boolean
    * is retained for propertyless/legacy lifecycle fences.
@@ -134,6 +140,7 @@ export function createOutboxRelay(
       const envelope = buildConsumerEvent(
         event,
         typeof admission === 'object' ? admission : undefined,
+        cfg.sourceCell,
       )
 
       // Use the event UUID as the BullMQ job ID for deduplication.

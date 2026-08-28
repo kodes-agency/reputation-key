@@ -36,7 +36,7 @@ describe('identity invitation PII scrub migration', () => {
          )`,
       )
       await client.query(
-        `INSERT INTO activity_log (
+        `INSERT INTO recent_activity_entries (
            id, actor_id, actor_name, actor_role, action, resource_type,
            resource_id, organization_id, payload, source
          ) VALUES (
@@ -55,7 +55,7 @@ describe('identity invitation PII scrub migration', () => {
          WHERE id = '86000000-0000-4000-8000-000000000001'`,
       )
       const activity = await client.query<{ payload: Record<string, unknown> }>(
-        `SELECT payload FROM activity_log
+        `SELECT payload FROM recent_activity_entries
          WHERE id = '86000000-0000-4000-8000-000000000002'`,
       )
 

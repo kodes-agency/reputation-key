@@ -160,7 +160,8 @@ export const ROUTED_REGIONS: ReadonlySet<string> = new Set(DATA_CELL_IDS)
  * config — a cell with no approved provider has nothing to fall back to.
  */
 export function providerRefForCell(cell: string): string | undefined {
-  return dataCellById(cell)?.providerRef
+  const definition = dataCellById(cell)
+  return definition?.state === 'accepting' ? definition.providerRef : undefined
 }
 
 /**

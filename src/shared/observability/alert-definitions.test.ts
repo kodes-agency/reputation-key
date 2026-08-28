@@ -11,6 +11,9 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import {
   ALERT_DEFINITIONS,
+  BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
+  NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
+  NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
   NOTIFICATION_EMAIL_STALLED_ALERT_MS,
   QUARANTINE_NONEMPTY_ALERT_MS,
   QUARANTINE_REDRIVE_SLA_ALERT_MS,
@@ -58,6 +61,28 @@ function healthy(): MutableSnapshot {
       oldestPendingOverdueAgeMs: null,
       attemptedStuckCount: 0,
       missingForInboxItemCount: 0,
+      deliveryLag: {
+        sourceReceiptPending: 0,
+        materializationPending: 0,
+        oldestSourceRecordedAt: null,
+        oldestSourceAgeMs: null,
+        oldestMaterializationSourceRecordedAt: null,
+        oldestMaterializationSourceAgeMs: null,
+        oldestMaterializationEnqueuedAt: null,
+        oldestMaterializationEnqueuedAgeMs: null,
+        sourceSaturated: false,
+        materializationSaturated: false,
+        immediateEmailAcceptance: {
+          awaitingProviderAcceptance: 0,
+          attemptedAwaitingProviderAcceptance: 0,
+          oldestAwaitingSourceRecordedAt: null,
+          oldestAwaitingSourceAgeMs: null,
+          acceptedLatencyP99Ms: null,
+          acceptedSampleCount: 0,
+          sourceUnlinked: 0,
+          saturated: false,
+        },
+      },
     },
     replyPublication: {
       counts: {
@@ -92,6 +117,35 @@ function healthy(): MutableSnapshot {
       sourceContentPolicy: 1,
       runtime: 'v22.0.0',
     },
+    jobs: {
+      ready: true,
+      total: 0,
+      active: 0,
+      dark: 0,
+      quarantined: 0,
+      failing: 0,
+      missingObservations: 0,
+      handlerMissing: 0,
+      schedulerMissing: 0,
+      forbiddenDarkWork: 0,
+      quarantinedSchedulers: 0,
+      missedObjectives: 0,
+      queueAgeMissed: 0,
+      stalled: 0,
+      repairRequired: 0,
+      deadLetters: 0,
+      rows: [],
+    },
+    guestObservationLoss: {
+      monitorAvailable: true,
+      windowMs: 24 * 60 * 60 * 1000,
+      precisionMs: 5 * 60 * 1000,
+      scanLossCount: 0,
+      reviewLinkLossCount: 0,
+      ratingLossCount: 0,
+      totalLossCount: 0,
+      ratingDisposition: 'not_applicable_durable',
+    },
     degraded: [],
   }
 }
@@ -100,13 +154,18 @@ const AUX: AlertAuxReads = {
   retentionFailedSubjects: [],
   policyDenialsByReason: {},
   routingBlockedByReason: {},
+  betaFeedbackTriage: {
+    monitorAvailable: true,
+    deliveredUnresolvedCount: 0,
+    oldestDeliveredUnresolvedAgeMs: null,
+  },
 }
 
-function evaluateOne(name: string, snapshot: MutableSnapshot) {
+function evaluateOne(name: string, snapshot: MutableSnapshot, aux: AlertAuxReads = AUX) {
   const def = ALERT_DEFINITIONS.find((d) => d.name === name)
   expect(def, `${name} must be registered`).toBeDefined()
   expect(def!.evaluate, `${name} must be implemented`).not.toBeNull()
-  return def!.evaluate!(snapshot, AUX)
+  return def!.evaluate!(snapshot, aux)
 }
 
 // ── runbook anchors ────────────────────────────────────────────────
@@ -126,6 +185,75 @@ describe('runbook anchors resolve', () => {
       'these alerts link to a runbook section that does not exist:\n' +
         dangling.join('\n'),
     ).toEqual([])
+  })
+})
+
+// ── governed job runtime ──────────────────────────────────────────
+
+describe('worker.job-runtime-unready', () => {
+  it('fires when any governed family misses registration, freshness, or repair', () => {
+    const s = healthy()
+    s.jobs = {
+      ready: false,
+      total: 1,
+      active: 1,
+      dark: 0,
+      quarantined: 0,
+      failing: 1,
+      missingObservations: 0,
+      handlerMissing: 0,
+      schedulerMissing: 1,
+      forbiddenDarkWork: 0,
+      quarantinedSchedulers: 0,
+      missedObjectives: 1,
+      queueAgeMissed: 0,
+      stalled: 0,
+      repairRequired: 0,
+      deadLetters: 0,
+      rows: [],
+    }
+
+    const event = evaluateOne('worker.job-runtime-unready', s)
+
+    expect(event).toMatchObject({
+      name: 'worker.job-runtime-unready',
+      severity: 'P1',
+      value: 1,
+      threshold: 0,
+    })
+    expect(event!.detail).toContain('schedulerMissing=1')
+    expect(event!.detail).toContain('missedObjectives=1')
+  })
+
+  it('stays silent when ready and fails visible when the authority is unavailable', () => {
+    const ready = healthy()
+    ready.jobs = {
+      ready: true,
+      total: 0,
+      active: 0,
+      dark: 0,
+      quarantined: 0,
+      failing: 0,
+      missingObservations: 0,
+      handlerMissing: 0,
+      schedulerMissing: 0,
+      forbiddenDarkWork: 0,
+      quarantinedSchedulers: 0,
+      missedObjectives: 0,
+      queueAgeMissed: 0,
+      stalled: 0,
+      repairRequired: 0,
+      deadLetters: 0,
+      rows: [],
+    }
+    expect(evaluateOne('worker.job-runtime-unready', ready)).toBeNull()
+
+    const unavailable = healthy()
+    delete unavailable.jobs
+    unavailable.degraded = ['jobs']
+    const unavailableEvent = evaluateOne('worker.job-runtime-unready', unavailable)
+    expect(unavailableEvent).toMatchObject({ value: 1, threshold: 0 })
+    expect(unavailableEvent!.detail).toContain('unavailable')
   })
 })
 
@@ -250,6 +378,148 @@ describe('notification.missing-for-inbox-item', () => {
   })
 })
 
+describe('notification.in-app-delivery-lag', () => {
+  it('fires from durable source age when either delivery stage exceeds 60 seconds', () => {
+    const source = healthy()
+    source.notifications.deliveryLag = {
+      ...source.notifications.deliveryLag,
+      sourceReceiptPending: 2,
+      oldestSourceRecordedAt: '2026-08-20T23:58:59.999Z',
+      oldestSourceAgeMs: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS + 1,
+      sourceSaturated: true,
+    }
+    const sourceEvent = evaluateOne('notification.in-app-delivery-lag', source)
+    expect(sourceEvent).toMatchObject({
+      severity: 'P1',
+      value: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS + 1,
+      threshold: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
+    })
+    expect(sourceEvent!.detail).toContain('source receipts=2+')
+
+    const materialization = healthy()
+    materialization.notifications.deliveryLag = {
+      ...materialization.notifications.deliveryLag,
+      materializationPending: 1,
+      oldestMaterializationSourceRecordedAt: '2026-08-20T23:58:59.999Z',
+      oldestMaterializationSourceAgeMs: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS + 1,
+      oldestMaterializationEnqueuedAt: '2026-08-20T23:59:30.000Z',
+      oldestMaterializationEnqueuedAgeMs: 30_000,
+    }
+    expect(
+      evaluateOne('notification.in-app-delivery-lag', materialization),
+    ).toMatchObject({
+      value: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS + 1,
+    })
+  })
+
+  it('stays silent at 60 seconds and when no delivery is pending', () => {
+    const boundary = healthy()
+    boundary.notifications.deliveryLag = {
+      ...boundary.notifications.deliveryLag,
+      sourceReceiptPending: 1,
+      oldestSourceRecordedAt: '2026-08-20T23:59:00.000Z',
+      oldestSourceAgeMs: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
+    }
+    expect(evaluateOne('notification.in-app-delivery-lag', boundary)).toBeNull()
+    expect(evaluateOne('notification.in-app-delivery-lag', healthy())).toBeNull()
+  })
+})
+
+describe('notification.immediate-email-acceptance-lag', () => {
+  it('fires when source-clock p99 or the oldest awaiting attempt exceeds five minutes', () => {
+    const accepted = healthy()
+    accepted.notifications.deliveryLag.immediateEmailAcceptance = {
+      ...accepted.notifications.deliveryLag.immediateEmailAcceptance,
+      acceptedLatencyP99Ms: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS + 1,
+      acceptedSampleCount: 100,
+    }
+    expect(
+      evaluateOne('notification.immediate-email-acceptance-lag', accepted),
+    ).toMatchObject({
+      severity: 'P2',
+      value: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS + 1,
+      threshold: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
+    })
+
+    const awaiting = healthy()
+    awaiting.notifications.emailDeliveryEnabled = true
+    awaiting.notifications.deliveryLag.immediateEmailAcceptance = {
+      ...awaiting.notifications.deliveryLag.immediateEmailAcceptance,
+      awaitingProviderAcceptance: 2,
+      oldestAwaitingSourceRecordedAt: '2026-08-20T23:54:59.999Z',
+      oldestAwaitingSourceAgeMs: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS + 1,
+    }
+    expect(
+      evaluateOne('notification.immediate-email-acceptance-lag', awaiting),
+    ).toMatchObject({
+      value: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS + 1,
+    })
+  })
+
+  it('uses attempted work as per-Organization activation evidence and stays quiet at the boundary', () => {
+    const perOrganization = healthy()
+    perOrganization.notifications.deliveryLag.immediateEmailAcceptance = {
+      ...perOrganization.notifications.deliveryLag.immediateEmailAcceptance,
+      awaitingProviderAcceptance: 1,
+      attemptedAwaitingProviderAcceptance: 1,
+      oldestAwaitingSourceRecordedAt: '2026-08-20T23:54:59.999Z',
+      oldestAwaitingSourceAgeMs: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS + 1,
+    }
+    expect(
+      evaluateOne('notification.immediate-email-acceptance-lag', perOrganization),
+    ).not.toBeNull()
+
+    const boundary = healthy()
+    boundary.notifications.emailDeliveryEnabled = true
+    boundary.notifications.deliveryLag.immediateEmailAcceptance = {
+      ...boundary.notifications.deliveryLag.immediateEmailAcceptance,
+      awaitingProviderAcceptance: 1,
+      oldestAwaitingSourceRecordedAt: '2026-08-20T23:55:00.000Z',
+      oldestAwaitingSourceAgeMs: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
+    }
+    expect(
+      evaluateOne('notification.immediate-email-acceptance-lag', boundary),
+    ).toBeNull()
+
+    const intentionallyDark = healthy()
+    intentionallyDark.notifications.deliveryLag.immediateEmailAcceptance = {
+      ...intentionallyDark.notifications.deliveryLag.immediateEmailAcceptance,
+      awaitingProviderAcceptance: 5,
+      oldestAwaitingSourceRecordedAt: '2026-08-20T20:00:00.000Z',
+      oldestAwaitingSourceAgeMs: 4 * 60 * 60 * 1000,
+    }
+    expect(
+      evaluateOne('notification.immediate-email-acceptance-lag', intentionallyDark),
+    ).toBeNull()
+  })
+
+  it('fails honestly when active evidence is unlinked or the bounded sample saturates', () => {
+    const unlinked = healthy()
+    unlinked.notifications.emailDeliveryEnabled = true
+    unlinked.notifications.deliveryLag.immediateEmailAcceptance = {
+      ...unlinked.notifications.deliveryLag.immediateEmailAcceptance,
+      sourceUnlinked: 1,
+    }
+    const unlinkedEvent = evaluateOne(
+      'notification.immediate-email-acceptance-lag',
+      unlinked,
+    )
+    expect(unlinkedEvent?.detail).toContain('durable source')
+
+    const saturated = healthy()
+    saturated.notifications.deliveryLag.immediateEmailAcceptance = {
+      ...saturated.notifications.deliveryLag.immediateEmailAcceptance,
+      acceptedSampleCount: 1_000,
+      saturated: true,
+    }
+    const saturatedEvent = evaluateOne(
+      'notification.immediate-email-acceptance-lag',
+      saturated,
+    )
+    expect(saturatedEvent?.detail).toContain('saturated')
+  })
+})
+
 describe('notification.email-stalled', () => {
   /** An overdue email backlog older than the stall threshold. */
   function overdue(s: MutableSnapshot, extra: Partial<MutableSnapshot['notifications']>) {
@@ -322,5 +592,96 @@ describe('notification.email-stalled', () => {
     s.notifications = { ...s.notifications, emailDeliveryEnabled: true }
 
     expect(evaluateOne('notification.email-stalled', s)).toBeNull()
+  })
+})
+
+describe('guest.observation-loss', () => {
+  it('fires on a true suppressed scan or review-link loss', () => {
+    const s = healthy()
+    s.guestObservationLoss = {
+      ...s.guestObservationLoss!,
+      scanLossCount: 2,
+      reviewLinkLossCount: 1,
+      totalLossCount: 3,
+    }
+
+    const event = evaluateOne('guest.observation-loss', s)
+    expect(event).toMatchObject({
+      name: 'guest.observation-loss',
+      severity: 'P1',
+      value: 3,
+      threshold: 0,
+      windowMs: 24 * 60 * 60 * 1000,
+    })
+    expect(event!.detail).toContain('scans=2')
+    expect(event!.detail).toContain('reviewLinks=1')
+    expect(event!.detail).toContain('ratings=not_applicable_durable')
+  })
+
+  it('fails visible when the monitor is unavailable and stays quiet for durable ratings', () => {
+    const unavailable = healthy()
+    unavailable.guestObservationLoss = {
+      ...unavailable.guestObservationLoss!,
+      monitorAvailable: false,
+    }
+    const event = evaluateOne('guest.observation-loss', unavailable)
+    expect(event).toMatchObject({ value: 1, threshold: 0 })
+    expect(event!.detail).toContain('unavailable')
+
+    expect(evaluateOne('guest.observation-loss', healthy())).toBeNull()
+    expect(healthy().guestObservationLoss).toMatchObject({
+      ratingLossCount: 0,
+      ratingDisposition: 'not_applicable_durable',
+    })
+  })
+})
+
+describe('beta-feedback.triage-backlog', () => {
+  it('fires on a delivered unresolved report older than the bounded backlog window', () => {
+    const event = evaluateOne('beta-feedback.triage-backlog', healthy(), {
+      ...AUX,
+      betaFeedbackTriage: {
+        monitorAvailable: true,
+        deliveredUnresolvedCount: 3,
+        oldestDeliveredUnresolvedAgeMs: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS + 1,
+      },
+    })
+
+    expect(event).toMatchObject({
+      name: 'beta-feedback.triage-backlog',
+      severity: 'P2',
+      value: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS + 1,
+      threshold: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
+      runbook: 'runbooks.md §16',
+    })
+    expect(event!.detail).toContain('3 delivered unresolved')
+  })
+
+  it('stays quiet for an empty queue and at the exact age boundary', () => {
+    expect(evaluateOne('beta-feedback.triage-backlog', healthy())).toBeNull()
+    expect(
+      evaluateOne('beta-feedback.triage-backlog', healthy(), {
+        ...AUX,
+        betaFeedbackTriage: {
+          monitorAvailable: true,
+          deliveredUnresolvedCount: 1,
+          oldestDeliveredUnresolvedAgeMs: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
+        },
+      }),
+    ).toBeNull()
+  })
+
+  it('fails visible without exposing report or tenant content when its DB read fails', () => {
+    const event = evaluateOne('beta-feedback.triage-backlog', healthy(), {
+      ...AUX,
+      betaFeedbackTriage: {
+        monitorAvailable: false,
+        deliveredUnresolvedCount: 0,
+        oldestDeliveredUnresolvedAgeMs: null,
+      },
+    })
+
+    expect(event).toMatchObject({ value: -1 })
+    expect(event!.detail).toBe('beta-feedback triage backlog monitor unavailable')
   })
 })

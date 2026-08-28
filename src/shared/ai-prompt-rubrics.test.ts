@@ -8,6 +8,7 @@ import {
   AI_SENTIMENTS,
   CONCRETE_REPLY_LANGUAGE_PATTERN,
 } from './openai-route-output-schemas'
+import { AI_PERSONALIZED_REPLY_PROFILE_VERSION } from './ai-personalized-reply-contract'
 
 type Vector = Readonly<{
   vectorId: string
@@ -84,33 +85,26 @@ describe('analysis prompt states the bands its validator enforces', () => {
   })
 })
 
-describe('reply prompt states a rubric over the real template vocabulary', () => {
+describe('reply prompt states the grounded personalized-draft contract', () => {
   const prompt = promptFor('reply-suggestion-v1')
 
-  // The defect this pins: the model received four bare identifiers with no
-  // description of what any template says, no rating or sentiment mapping and
-  // no precedence rule. Everything downstream guaranteed the output was safe;
-  // nothing guaranteed it was right.
-  it('names every selectable template id', () => {
+  it('requires exact evidence and prohibits invented operational commitments', () => {
+    expect(AI_PERSONALIZED_REPLY_PROFILE_VERSION).toBe('reply-draft-v2')
+    expect(prompt.toLowerCase()).toContain('exact source excerpts')
+    expect(prompt.toLowerCase()).toContain('exact reply excerpts')
+    expect(prompt.toLowerCase()).toContain('do not invent')
+    expect(prompt.toLowerCase()).toContain('compensation')
+    expect(prompt.toLowerCase()).toContain('admissions')
+    expect(prompt.toLowerCase()).toContain('untrusted data')
+    expect(prompt).toContain('exact Property display name')
+    expect(prompt).toContain('approved public Brand Profile data')
+  })
+
+  it('does not ask the provider to select or render a stock template', () => {
     for (const templateId of AI_REPLY_TEMPLATE_IDS) {
-      expect(prompt).toContain(templateId)
+      expect(prompt).not.toContain(templateId)
     }
-  })
-
-  it('names no identifier that is not selectable', () => {
-    const mentioned = prompt.match(/\b[a-z]+_[a-z_]+\b/gu) ?? []
-    expect(mentioned.length).toBeGreaterThan(0)
-    for (const token of new Set(mentioned)) {
-      expect(AI_REPLY_TEMPLATE_IDS).toContain(token)
-    }
-  })
-
-  it('states a precedence rule, because several conditions can co-apply', () => {
-    expect(prompt.toLowerCase()).toContain('first rule that matches')
-  })
-
-  it('tells the model to ignore tone, which is applied after selection', () => {
-    expect(prompt.toLowerCase()).toContain('ignore tone')
+    expect(prompt.toLowerCase()).not.toContain('select exactly one listed')
   })
 })
 

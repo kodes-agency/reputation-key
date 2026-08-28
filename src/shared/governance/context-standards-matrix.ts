@@ -3,8 +3,10 @@ import { CONTEXT_STANDARDS_AUTHORITY } from './context-standards-authority'
 /**
  * Current-tree successor to the frozen 17-context x 11-rule audit. “Evidenced”
  * is deliberately narrow: it names a repository fact enforced by the focused
- * test, not blanket package or release closure. “Unresolved” means the broad
- * standard still needs a complete checker or package-by-package remediation.
+ * test, not blanket package or release closure. “Accepted exception” binds an
+ * exact current-tree variance to the owned, expiring exception register;
+ * “unresolved” remains reserved for a newly discovered rule gap that has neither
+ * proof nor approved exception authority.
  */
 export const CONTEXT_STANDARD_DIMENSIONS = Object.freeze([
   { id: 'tags', authority: 'docs/standards.md §1.1', claim: 'event tag shape' },
@@ -74,6 +76,13 @@ export type ContextStandardCell =
       evidence: readonly ContextStandardEvidence[]
     }>
   | Readonly<{
+      applicability: 'applicable'
+      resolution: 'accepted_exception'
+      exceptionId: string
+      rationale: string
+      evidence: readonly ContextStandardEvidence[]
+    }>
+  | Readonly<{
       applicability: 'not_applicable'
       resolution: null
       rationale: string
@@ -86,48 +95,145 @@ export type ContextStandardsMatrixRow = Readonly<{
 }>
 
 const EVENTLESS = new Set(['activity', 'dashboard', 'leaderboard', 'notification'])
+const CONTRACTED_RUNTIME_CONTEXTS = new Set(['badge', 'leaderboard'])
 const EVENTFUL = CONTEXT_STANDARDS_AUTHORITY.map(({ directory }) => directory).filter(
   (directory) => !EVENTLESS.has(directory),
 )
 const EVIDENCED = {
   tags: EVENTFUL.filter((directory) => directory !== 'portal'),
-  envelope: [],
-  assert: [],
-  union: EVENTFUL,
-  triple: [],
-  errors: [],
-  build: CONTEXT_STANDARDS_AUTHORITY.map(({ directory }) => directory).filter(
-    (directory) => !['activity', 'ai', 'property'].includes(directory),
-  ),
-  docs: [
-    'activity',
+  envelope: [
     'ai',
-    'dashboard',
+    'badge',
     'goal',
+    'guest',
     'identity',
     'inbox',
-    'leaderboard',
-    'notification',
+    'integration',
+    'metric',
+    'portal',
+    'property',
+    'review',
     'staff',
     'team',
   ],
-  repositories: [],
-  files: [],
-  factories: ['activity', 'badge', 'dashboard', 'team'],
+  assert: EVENTFUL,
+  union: EVENTFUL,
+  triple: [],
+  errors: CONTEXT_STANDARDS_AUTHORITY.map(({ directory }) => directory)
+    .filter((directory) => !CONTRACTED_RUNTIME_CONTEXTS.has(directory))
+    .filter(
+      (directory) =>
+        ![
+          'activity',
+          'goal',
+          'guest',
+          'identity',
+          'metric',
+          'notification',
+          'review',
+        ].includes(directory),
+    ),
+  build: CONTEXT_STANDARDS_AUTHORITY.map(({ directory }) => directory),
+  docs: CONTEXT_STANDARDS_AUTHORITY.map(({ directory }) => directory),
+  repositories: [
+    'dashboard',
+    'goal',
+    'guest',
+    'inbox',
+    'integration',
+    'notification',
+    'portal',
+    'property',
+    'staff',
+    'team',
+  ],
+  files: ['badge', 'leaderboard'],
+  factories: [
+    'activity',
+    'ai',
+    'badge',
+    'dashboard',
+    'goal',
+    'guest',
+    'identity',
+    'inbox',
+    'integration',
+    'leaderboard',
+    'metric',
+    'notification',
+    'portal',
+    'property',
+    'review',
+    'staff',
+    'team',
+  ],
 } as const satisfies Record<ContextStandardDimension, readonly string[]>
 const NOT_APPLICABLE = {
   tags: [...EVENTLESS],
   envelope: [...EVENTLESS],
   assert: [...EVENTLESS],
   union: [...EVENTLESS],
-  triple: [],
-  errors: [],
+  triple: [...CONTRACTED_RUNTIME_CONTEXTS],
+  errors: [...CONTRACTED_RUNTIME_CONTEXTS],
   build: [],
   docs: [],
-  repositories: ['ai'],
+  repositories: ['ai', 'identity', ...CONTRACTED_RUNTIME_CONTEXTS],
   files: [],
   factories: [],
 } as const satisfies Record<ContextStandardDimension, readonly string[]>
+const ACCEPTED_EXCEPTIONS: Partial<
+  Record<ContextStandardDimension, Readonly<Record<string, string>>>
+> = {
+  tags: { portal: 'STD-MAINT-001' },
+  triple: {
+    activity: 'STD-MAINT-004',
+    ai: 'STD-MAINT-005',
+    dashboard: 'STD-MAINT-006',
+    goal: 'STD-MAINT-007',
+    guest: 'STD-MAINT-008',
+    identity: 'STD-MAINT-009',
+    inbox: 'STD-MAINT-010',
+    integration: 'STD-MAINT-011',
+    metric: 'STD-MAINT-012',
+    notification: 'STD-MAINT-013',
+    portal: 'STD-MAINT-014',
+    property: 'STD-MAINT-015',
+    review: 'STD-MAINT-016',
+    staff: 'STD-MAINT-017',
+    team: 'STD-MAINT-018',
+  },
+  errors: {
+    activity: 'STD-INV-037',
+    goal: 'STD-INV-002',
+    guest: 'STD-INV-038',
+    identity: 'STD-INV-039',
+    metric: 'STD-INV-040',
+    notification: 'STD-INV-041',
+    review: 'STD-INV-003',
+  },
+  files: {
+    activity: 'STD-MAINT-019',
+    ai: 'STD-MAINT-020',
+    dashboard: 'STD-MAINT-021',
+    goal: 'STD-MAINT-022',
+    guest: 'STD-MAINT-023',
+    identity: 'STD-MAINT-024',
+    inbox: 'STD-MAINT-025',
+    integration: 'STD-MAINT-026',
+    metric: 'STD-MAINT-027',
+    notification: 'STD-MAINT-028',
+    portal: 'STD-MAINT-029',
+    property: 'STD-MAINT-030',
+    review: 'STD-MAINT-031',
+    staff: 'STD-MAINT-032',
+    team: 'STD-MAINT-033',
+  },
+  repositories: {
+    activity: 'STD-MAINT-034',
+    metric: 'STD-MAINT-035',
+    review: 'STD-MAINT-036',
+  },
+}
 
 const unresolvedRationale: Record<ContextStandardDimension, string> = {
   tags: 'Portal retains tags without the portal context prefix.',
@@ -141,7 +247,7 @@ const unresolvedRationale: Record<ContextStandardDimension, string> = {
     'Mixed legacy error flows remain; narrow tagged-error gates do not prove all paths.',
   build:
     'The build return shape differs from the publicApi/internal/repositories/useCases contract.',
-  docs: 'The eventful Events produced section uses bullets rather than the required table.',
+  docs: 'The Events produced section is not exhaustively tabulated or explicitly absent.',
   repositories:
     'Repository names and tenant-scoped signatures lack an exhaustive context gate.',
   files:
@@ -151,9 +257,14 @@ const unresolvedRationale: Record<ContextStandardDimension, string> = {
 }
 const evidencedRationale: Partial<Record<ContextStandardDimension, string>> = {
   tags: 'Every literal event tag has the context prefix and two or three snake-case segments.',
+  envelope:
+    'Every exported event-union member and constructor passes the exhaustive envelope, flat-payload, field-vocabulary, ordering, and source-semantics proof.',
+  assert:
+    'Every exported event constructor reaches an explicit assertion or validation helper before constructing its fact.',
   union:
     'The context event union exists and is a member of the shared master event union.',
-  build: 'The build source exposes publicApi and internal repositories/useCases groups.',
+  build:
+    'The build source exposes publicApi, internal repositories, and an explicitly owned request or worker execution surface.',
   docs: 'Required headings are ordered and events are tabulated or explicitly absent.',
   factories:
     'No legacy export-function create factory exists in production infrastructure.',
@@ -177,16 +288,36 @@ function evidenceFor(
     return evidence
   }
   if (dimension === 'triple')
-    return [{ path: `${context}/application/use-cases`, kind: 'directory' }]
+    return CONTRACTED_RUNTIME_CONTEXTS.has(directory)
+      ? [{ path: `${context}/build.ts`, kind: 'file', contains: ['useCases: {}'] }]
+      : [{ path: `${context}/application/use-cases`, kind: 'directory' }]
   if (dimension === 'errors')
-    return [{ path: `${context}/domain/errors.ts`, kind: 'file' }]
+    return CONTRACTED_RUNTIME_CONTEXTS.has(directory)
+      ? [{ path: `${context}/build.ts`, kind: 'file', contains: ['publicApi: {}'] }]
+      : [{ path: `${context}/domain/errors.ts`, kind: 'file' }]
   if (dimension === 'build') return [{ path: `${context}/build.ts`, kind: 'file' }]
   if (dimension === 'docs')
     return [
       { path: `${context}/CONTEXT.md`, kind: 'file', contains: ['## Events produced'] },
     ]
   if (dimension === 'repositories') {
+    if (CONTRACTED_RUNTIME_CONTEXTS.has(directory)) {
+      return [{ path: `${context}/build.ts`, kind: 'file', contains: ['repos: {}'] }]
+    }
+    if (directory === 'activity') {
+      return [
+        {
+          path: `${context}/ports/recent-activity-repository.port.ts`,
+          kind: 'file',
+        },
+        { path: `${context}/infrastructure/repositories`, kind: 'directory' },
+      ]
+    }
+    if (directory === 'identity') {
+      return [{ path: `${context}/application/ports`, kind: 'directory' }]
+    }
     return [
+      { path: `${context}/application/ports`, kind: 'directory' },
       {
         path: `${context}/infrastructure/repositories`,
         kind: directory === 'ai' ? 'absent' : 'directory',
@@ -194,6 +325,9 @@ function evidenceFor(
     ]
   }
   if (dimension === 'files') return [{ path: context, kind: 'directory' }]
+  if (dimension === 'factories' && directory === 'badge') {
+    return [{ path: `${context}/build.ts`, kind: 'file', contains: ['repos: {}'] }]
+  }
   return [{ path: `${context}/infrastructure`, kind: 'directory' }]
 }
 
@@ -206,30 +340,59 @@ function cellFor(
     return {
       applicability: 'not_applicable',
       resolution: null,
-      rationale:
-        dimension === 'repositories'
-          ? 'AI owns store and adapter ports rather than entity repository ports.'
+      rationale: CONTRACTED_RUNTIME_CONTEXTS.has(directory)
+        ? 'REC-01 retains no product use case, error flow, or entity repository in this context; its inert build and content-free compatibility boundary are governed separately.'
+        : dimension === 'repositories'
+          ? directory === 'ai'
+            ? 'AI owns store and adapter ports rather than entity repository ports.'
+            : 'Identity owns authorization, command-store, and lifecycle-authority ports rather than an entity repository contract.'
           : 'This context produces no domain events.',
       evidence,
+    }
+  }
+  const exceptionId = ACCEPTED_EXCEPTIONS[dimension]?.[directory]
+  if (exceptionId !== undefined) {
+    const rationale =
+      dimension === 'tags'
+        ? 'Portal retains its published legacy tag vocabulary until every durable consumer can migrate through a versioned compatibility window.'
+        : dimension === 'triple'
+          ? 'The exact legacy use-case export variance is pinned by the exhaustive checker and migrates only when each public caller is changed with it.'
+          : dimension === 'files'
+            ? 'The exact legacy layer filename and mirrored-test variance is pinned by the exhaustive checker; renames occur only with bounded ownership-aware changes.'
+            : dimension === 'repositories'
+              ? 'The exact legacy repository-port placement is pinned while its imports and implementing adapters await an owner-scoped rename.'
+              : 'The exact legacy application Result or native domain-error variance is pinned; changing its caller-visible failure contract requires a bounded behavioral migration.'
+    return {
+      applicability: 'applicable',
+      resolution: 'accepted_exception',
+      exceptionId,
+      rationale,
+      evidence: [
+        ...evidence,
+        {
+          path: 'docs/governance/standards-exceptions.json',
+          kind: 'file',
+        },
+        {
+          path:
+            dimension === 'tags'
+              ? 'src/shared/governance/context-standards-matrix.test.ts'
+              : 'src/shared/governance/context-standards-matrix.application.test.ts',
+          kind: 'file',
+        },
+      ],
     }
   }
   const resolution = (EVIDENCED[dimension] as readonly string[]).includes(directory)
     ? 'evidenced'
     : 'unresolved'
-  const buildVariance = {
-    activity: 'Activity internal lacks the required useCases group.',
-    ai: 'AI internal exposes individual capabilities without repos/useCases groups.',
-    property: 'Property exposes bindingApi beside publicApi and internal.',
-  }[directory]
   return {
     applicability: 'applicable',
     resolution,
     rationale:
       resolution === 'evidenced'
         ? evidencedRationale[dimension]!
-        : dimension === 'build' && buildVariance
-          ? buildVariance
-          : unresolvedRationale[dimension],
+        : unresolvedRationale[dimension],
     evidence,
   }
 }
@@ -247,13 +410,21 @@ export const CONTEXT_STANDARDS_MATRIX = Object.freeze(
 export function summarizeContextStandardsMatrix(
   rows: readonly ContextStandardsMatrixRow[],
 ) {
-  const summary = { evidenced: 0, notApplicable: 0, unresolved: 0, total: 0 }
+  const summary = {
+    acceptedExceptions: 0,
+    evidenced: 0,
+    notApplicable: 0,
+    unresolved: 0,
+    total: 0,
+  }
   for (const row of rows) {
     for (const { id } of CONTEXT_STANDARD_DIMENSIONS) {
       const cell = row.standards[id]
       summary.total += 1
       if (cell.applicability === 'not_applicable') summary.notApplicable += 1
-      else summary[cell.resolution] += 1
+      else if (cell.resolution === 'accepted_exception') {
+        summary.acceptedExceptions += 1
+      } else summary[cell.resolution] += 1
     }
   }
   return summary
@@ -295,8 +466,20 @@ export function validateContextStandardsMatrixStructure(
         issues.push(`${row.directory}/${id}: not-applicable cell has a resolution`)
       } else if (
         value.applicability === 'applicable' &&
+        value.resolution === 'accepted_exception'
+      ) {
+        const exceptionId = 'exceptionId' in value ? value.exceptionId : undefined
+        if (
+          typeof exceptionId !== 'string' ||
+          !/^STD-(?:INV|MAINT)-\d{3}$/u.test(exceptionId)
+        ) {
+          issues.push(`${row.directory}/${id}: accepted exception lacks an id`)
+        }
+      } else if (
+        value.applicability === 'applicable' &&
         value.resolution !== 'evidenced' &&
-        value.resolution !== 'unresolved'
+        value.resolution !== 'unresolved' &&
+        value.resolution !== 'accepted_exception'
       ) {
         issues.push(`${row.directory}/${id}: applicable cell lacks a resolution`)
       } else if (

@@ -32,12 +32,19 @@ describe('ADR 0052 beta people model authority', () => {
 
   it('keeps invitation access provisioning independent from Staff participation', () => {
     const composition = readFileSync(join(process.cwd(), 'src/composition.ts'), 'utf8')
+    const identityBuild = readFileSync(
+      join(process.cwd(), 'src/contexts/identity/build.ts'),
+      'utf8',
+    )
     const staffBuild = readFileSync(
       join(process.cwd(), 'src/contexts/staff/build.ts'),
       'utf8',
     )
 
-    expect(composition).toContain('grantInvitationPropertyAccess')
+    expect(identityBuild).toContain('createInvitationPropertyAccessProvisioner')
+    expect(composition).toContain(
+      'onAcceptInvitation: invitationPropertyAccessProvisioner',
+    )
     expect(composition).not.toContain('systemStaffParticipation')
     expect(staffBuild).not.toContain('systemStaffParticipation')
   })

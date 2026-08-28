@@ -21,11 +21,14 @@ import { describe, it, expect, vi } from 'vitest'
 import pino from 'pino'
 import {
   ALERT_DEFINITIONS,
+  BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
   evaluateAlerts,
   OUTBOX_OLDEST_UNPUBLISHED_ALERT_MS,
   QUARANTINE_REDRIVE_SLA_ALERT_MS,
   QUARANTINE_NONEMPTY_ALERT_MS,
   SYNC_SWEEP_LAG_ALERT_MS,
+  NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
+  NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
   NOTIFICATION_EMAIL_STALLED_ALERT_MS,
   WORKER_HEARTBEAT_STALE_ALERT_MS,
   SOURCE_FRESHNESS_DEADLINE_ALERT_SECONDS,
@@ -37,6 +40,7 @@ import {
 } from '#/shared/observability/alert-definitions'
 import {
   createAlertDispatcher,
+  type AlertDispatcher,
   type AlertFetchFn,
 } from '#/shared/observability/alert-dispatcher'
 import {
@@ -105,6 +109,28 @@ function healthySnapshot(): MutableSnapshot {
       oldestPendingOverdueAgeMs: null,
       attemptedStuckCount: 0,
       missingForInboxItemCount: 0,
+      deliveryLag: {
+        sourceReceiptPending: 0,
+        materializationPending: 0,
+        oldestSourceRecordedAt: null,
+        oldestSourceAgeMs: null,
+        oldestMaterializationSourceRecordedAt: null,
+        oldestMaterializationSourceAgeMs: null,
+        oldestMaterializationEnqueuedAt: null,
+        oldestMaterializationEnqueuedAgeMs: null,
+        sourceSaturated: false,
+        materializationSaturated: false,
+        immediateEmailAcceptance: {
+          awaitingProviderAcceptance: 0,
+          attemptedAwaitingProviderAcceptance: 0,
+          oldestAwaitingSourceRecordedAt: null,
+          oldestAwaitingSourceAgeMs: null,
+          acceptedLatencyP99Ms: null,
+          acceptedSampleCount: 0,
+          sourceUnlinked: 0,
+          saturated: false,
+        },
+      },
     },
     replyPublication: {
       counts: {
@@ -139,6 +165,35 @@ function healthySnapshot(): MutableSnapshot {
       sourceContentPolicy: 1,
       runtime: 'v22.0.0',
     },
+    jobs: {
+      ready: true,
+      total: 0,
+      active: 0,
+      dark: 0,
+      quarantined: 0,
+      failing: 0,
+      missingObservations: 0,
+      handlerMissing: 0,
+      schedulerMissing: 0,
+      forbiddenDarkWork: 0,
+      quarantinedSchedulers: 0,
+      missedObjectives: 0,
+      queueAgeMissed: 0,
+      stalled: 0,
+      repairRequired: 0,
+      deadLetters: 0,
+      rows: [],
+    },
+    guestObservationLoss: {
+      monitorAvailable: true,
+      windowMs: 24 * 60 * 60 * 1000,
+      precisionMs: 5 * 60 * 1000,
+      scanLossCount: 0,
+      reviewLinkLossCount: 0,
+      ratingLossCount: 0,
+      totalLossCount: 0,
+      ratingDisposition: 'not_applicable_durable',
+    },
     degraded: [],
   }
 }
@@ -148,6 +203,11 @@ function healthyAux(): MutableAux {
     retentionFailedSubjects: [],
     policyDenialsByReason: {},
     routingBlockedByReason: {},
+    betaFeedbackTriage: {
+      monitorAvailable: true,
+      deliveredUnresolvedCount: 0,
+      oldestDeliveredUnresolvedAgeMs: null,
+    },
   }
 }
 
@@ -157,8 +217,12 @@ describe('alert registry contract (BQC-7.4)', () => {
   it('registers exactly the phase-doc alert set', () => {
     expect(ALERT_DEFINITIONS.map((d) => d.name).sort()).toEqual([
       'backup.pitr',
+      'beta-feedback.triage-backlog',
       'db.pool-exhaustion',
+      'guest.observation-loss',
       'notification.email-stalled',
+      'notification.immediate-email-acceptance-lag',
+      'notification.in-app-delivery-lag',
       'notification.missing-for-inbox-item',
       'policy.denial-drift',
       'queue.oldest-age',
@@ -173,6 +237,7 @@ describe('alert registry contract (BQC-7.4)', () => {
       'sync.sweep-lag',
       'web.availability',
       'worker.heartbeat.stale',
+      'worker.job-runtime-unready',
     ])
   })
 
@@ -226,6 +291,21 @@ const OWNER = 'Bozhidar Denev'
 /** The injection table — one breaching mutation per implemented alert. */
 const BREACHES: readonly Breach[] = [
   {
+    name: 'guest.observation-loss',
+    severity: 'P1',
+    runbook: 'runbooks.md §18',
+    threshold: 0,
+    windowMs: 24 * 60 * 60 * 1000,
+    value: 1,
+    apply: (s) => {
+      s.guestObservationLoss = {
+        ...s.guestObservationLoss!,
+        reviewLinkLossCount: 1,
+        totalLossCount: 1,
+      }
+    },
+  },
+  {
     name: 'worker.heartbeat.stale',
     severity: 'P1',
     runbook: 'runbooks.md §7',
@@ -234,6 +314,25 @@ const BREACHES: readonly Breach[] = [
     value: -1, // heartbeat missing entirely
     apply: (s) => {
       s.workers.heartbeat = { at: null, ageMs: null, stale: true }
+    },
+  },
+  {
+    name: 'worker.job-runtime-unready',
+    severity: 'P1',
+    runbook: 'runbooks.md §17',
+    threshold: 0,
+    windowMs: 5 * 60 * 1000,
+    value: 2,
+    apply: (s) => {
+      s.jobs = {
+        ...s.jobs!,
+        ready: false,
+        total: 2,
+        active: 2,
+        failing: 2,
+        handlerMissing: 1,
+        repairRequired: 1,
+      }
     },
   },
   {
@@ -313,6 +412,46 @@ const BREACHES: readonly Breach[] = [
     },
   },
   {
+    name: 'notification.in-app-delivery-lag',
+    severity: 'P1',
+    runbook: 'runbooks.md §15',
+    threshold: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
+    windowMs: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS,
+    value: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS + 1,
+    apply: (s) => {
+      s.notifications = {
+        ...s.notifications,
+        deliveryLag: {
+          ...s.notifications.deliveryLag,
+          sourceReceiptPending: 1,
+          oldestSourceRecordedAt: '2026-07-30T23:58:59.999Z',
+          oldestSourceAgeMs: NOTIFICATION_IN_APP_DELIVERY_LAG_ALERT_MS + 1,
+        },
+      }
+    },
+  },
+  {
+    name: 'notification.immediate-email-acceptance-lag',
+    severity: 'P2',
+    runbook: 'runbooks.md §15',
+    threshold: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
+    windowMs: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS,
+    value: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS + 1,
+    apply: (s) => {
+      s.notifications = {
+        ...s.notifications,
+        deliveryLag: {
+          ...s.notifications.deliveryLag,
+          immediateEmailAcceptance: {
+            ...s.notifications.deliveryLag.immediateEmailAcceptance,
+            acceptedLatencyP99Ms: NOTIFICATION_IMMEDIATE_EMAIL_ACCEPTANCE_ALERT_MS + 1,
+            acceptedSampleCount: 100,
+          },
+        },
+      }
+    },
+  },
+  {
     name: 'notification.email-stalled',
     severity: 'P2',
     runbook: 'runbooks.md §15',
@@ -337,6 +476,21 @@ const BREACHES: readonly Breach[] = [
     value: 100_000, // seconds until the nearest hard expiry — below the 2d mark
     apply: (s) => {
       s.reviews = { ...s.reviews, refreshDueCount: 3, oldestDueAgeSeconds: 100_000 }
+    },
+  },
+  {
+    name: 'beta-feedback.triage-backlog',
+    severity: 'P2',
+    runbook: 'runbooks.md §16',
+    threshold: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
+    windowMs: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS,
+    value: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS + 1,
+    apply: (_s, aux) => {
+      aux.betaFeedbackTriage = {
+        monitorAvailable: true,
+        deliveredUnresolvedCount: 2,
+        oldestDeliveredUnresolvedAgeMs: BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS + 1,
+      }
     },
   },
   {
@@ -907,5 +1061,67 @@ describe('health-check job alert wiring', () => {
     const handler = createHealthCheckHandler(deps)
     const result = await handler({ id: '1', data: {} } as never)
     expect(result.db).toBe(true)
+  })
+
+  it('still dispatches Guest monitor degradation when Redis hysteresis state is unavailable', async () => {
+    const snapshot = healthySnapshot()
+    snapshot.guestObservationLoss = {
+      ...snapshot.guestObservationLoss!,
+      monitorAvailable: false,
+    }
+    const { deps } = wiredDeps(snapshot)
+    const dispatch = vi.fn<AlertDispatcher['dispatch']>(async () => {})
+    const unavailableState: AlertStateStore = {
+      currentlyFiring: async () => {
+        throw new Error('cache redis unavailable with connection details')
+      },
+      markFiring: async () => {
+        throw new Error('cache redis unavailable with connection details')
+      },
+      clearFiring: async () => {
+        throw new Error('cache redis unavailable with connection details')
+      },
+    }
+    const handler = createHealthCheckHandler({
+      ...deps,
+      alertState: unavailableState,
+      alertDispatcher: { dispatch },
+    })
+
+    const result = await handler({ id: 'guest-monitor-degraded', data: {} } as never)
+
+    expect(dispatch).toHaveBeenCalledOnce()
+    expect(dispatch.mock.calls[0]![0]).toMatchObject({
+      name: 'guest.observation-loss',
+      value: 1,
+    })
+    expect(result.alerts).toEqual({
+      firing: ['guest.observation-loss'],
+      dispatched: ['guest.observation-loss'],
+    })
+  })
+
+  it('does not disable Guest degradation alerts when Cache Redis is absent at boot', async () => {
+    const snapshot = healthySnapshot()
+    snapshot.guestObservationLoss = {
+      ...snapshot.guestObservationLoss!,
+      monitorAvailable: false,
+    }
+    const { deps } = wiredDeps(snapshot)
+    const dispatch = vi.fn<AlertDispatcher['dispatch']>(async () => {})
+    const handler = createHealthCheckHandler({
+      ...deps,
+      alertState: undefined,
+      alertDispatcher: { dispatch },
+    })
+
+    const result = await handler({ id: 'guest-monitor-absent', data: {} } as never)
+
+    expect(dispatch).toHaveBeenCalledOnce()
+    expect(dispatch.mock.calls[0]![0]).toMatchObject({
+      name: 'guest.observation-loss',
+      value: 1,
+    })
+    expect(result.alerts?.firing).toEqual(['guest.observation-loss'])
   })
 })

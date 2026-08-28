@@ -28,6 +28,9 @@ export const statement = {
     'create',
     'update',
     'delete',
+    'archive',
+    'restore',
+    'disconnect',
     'admin',
     'import_gbp_v2',
     'read_gbp_performance',
@@ -35,7 +38,9 @@ export const statement = {
   team: ['read', 'create', 'update', 'delete', 'membership.manage'],
   staff: ['read', 'manage'],
   ac: ['create', 'read', 'update', 'delete'],
-  portal: ['read', 'create', 'update', 'delete'],
+  // `admin` is Property-wide Portal authority (brand and custom destination
+  // approval). It is narrower than ordinary Portal mutation permission.
+  portal: ['read', 'create', 'update', 'delete', 'admin'],
   review: ['read'],
   reply: ['manage'],
   feedback: ['read', 'handle', 'respond', 'contact_read'],
@@ -75,14 +80,7 @@ export const admin = ac.newRole({
   member: ['create', 'list'],
   dashboard: ['read', 'fleet_read'],
   invitation: ['create', 'list', 'cancel', 'resend'],
-  property: [
-    'read',
-    'create',
-    'update',
-    'admin',
-    'import_gbp_v2',
-    'read_gbp_performance',
-  ],
+  property: ['read', 'create', 'update', 'admin', 'read_gbp_performance'],
   staff: ['read', 'manage'],
   portal: ['read', 'create', 'update'],
   review: ['read'],
@@ -94,7 +92,6 @@ export const admin = ac.newRole({
   notification: ['read', 'update'],
   organization: ['update'],
   goal: ['read', 'create', 'update', 'cancel'],
-  integration: ['manage'],
   ai: ['reply.generate', 'trends.read', 'manage'],
   identity: [
     'avatar_upload',
@@ -107,10 +104,9 @@ export const admin = ac.newRole({
 })
 
 export const memberRole = ac.newRole({
-  property: ['read', 'read_gbp_performance'],
+  property: ['read'],
   review: ['read'],
   dashboard: ['read'],
-  goal: ['read'],
   badge: ['read'],
   leaderboard: ['read'],
   portal: ['read'],

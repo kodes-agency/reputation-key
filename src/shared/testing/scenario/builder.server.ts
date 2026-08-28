@@ -4,7 +4,7 @@
 // Reviews and guest interactions carry explicit timestamps (not DB defaults)
 // so the simulation controls the time dimension (ADR 0017).
 
-import type { Container } from '#/composition'
+import type { SimulationContainer } from '#/composition'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
   reviewId,
@@ -83,8 +83,8 @@ export type ScenarioResult = Readonly<{
 // ── Shared context for all helpers ──────────────────────────────────
 
 type Ctx = Readonly<{
-  db: Container['db']
-  container: Container
+  db: SimulationContainer['db']
+  container: SimulationContainer
   orgId: ReturnType<typeof organizationId>
   simUserId: ReturnType<typeof userId>
   now: Date
@@ -222,7 +222,7 @@ async function createReviews(
       aiSourceDigest: '0'.repeat(64),
     }
     try {
-      await ctx.container.reviewRepo.upsert(review, ctx.now)
+      await ctx.container.simulationRuntime.review.upsert(review, ctx.now)
       await ctx.container.eventBus.emit(
         reviewCreated({
           reviewId: rId,
@@ -258,12 +258,12 @@ async function createReviews(
           userId: ctx.simUserId,
           role: 'AccountAdmin',
         } as AuthContext
-        await ctx.container.useCases.draftReply(
+        await ctx.container.reviewPublicApi.reply.draft(
           { reviewId: rId, text: 'Thank you!' },
           replyCtx,
         )
-        await ctx.container.useCases.submitReply({ reviewId: rId }, replyCtx)
-        await ctx.container.useCases.approveReply({ reviewId: rId }, replyCtx)
+        await ctx.container.reviewPublicApi.reply.submit({ reviewId: rId }, replyCtx)
+        await ctx.container.reviewPublicApi.reply.approve({ reviewId: rId }, replyCtx)
         replies++
       } catch (err) {
         ctx.container.logger.warn(
@@ -305,7 +305,7 @@ async function createGuestData(
           organizationId: ctx.orgId,
           portalId: pId,
           propertyId: propId,
-          source: 'qr',
+          scanSource: 'qr',
           occurredAt: new Date(ctx.now.getTime() - daysAgo * MS_PER_DAY),
         }),
       )
@@ -489,7 +489,7 @@ async function createMetricHistory(
 // ── Main entry point ────────────────────────────────────────────────
 
 export async function buildScenario(
-  container: Container,
+  container: SimulationContainer,
   spec: ScenarioSpec,
 ): Promise<ScenarioResult> {
   const ctx: Ctx = {

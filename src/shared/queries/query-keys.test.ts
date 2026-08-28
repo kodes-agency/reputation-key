@@ -75,6 +75,10 @@ describe('volatile provider query keys', () => {
 })
 
 describe('dashboard query keys', () => {
+  it('keeps the active-organization setup checklist below the dashboard root', () => {
+    expect(dashboardKeys.setup()).toEqual(['dashboard', 'setup-checklist'])
+  })
+
   it('provides a real fleet prefix above range-specific cache entries', () => {
     expect(dashboardKeys.fleets()).toEqual(['dashboard', 'fleet'])
     expect(dashboardKeys.fleet()).toEqual(['dashboard', 'fleet', '30d'])

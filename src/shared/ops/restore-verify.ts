@@ -15,9 +15,11 @@
 //        against the live source database or a public proxy.
 //   2. Dry-run (default): reports retention/import backlog and every restored
 //      authentication/external-effect authority class.
-//   3. --apply: runs review purge, Google-import lifecycle, and the static
+//   3. --apply: only when a separately reviewed Review cutover executor is
+//      injected, runs review purge, Google-import lifecycle, and the static
 //      retention registry IN-PROCESS (never BullMQ), then atomically rotates
 //      the cell recovery generation and fences restored authority/outbox work.
+//      Normal composition is inspection-only and refuses before mutation.
 //   4. Re-scans and proves every bounded backlog/authority count is zero.
 //   5. Prints retention + recovery evidence and the controlled cutover rules.
 //
@@ -66,6 +68,49 @@ export type RestoreVerifyEvidenceRow = Readonly<{
   startedAt: string
 }>
 
+export type RestoreReviewLifecycleAuthority =
+  | Readonly<{
+      kind: 'inspection_only'
+      reason: 'reviewed_cutover_authority_required'
+      /** Produce the immutable aggregate-only request for independent review. */
+      prepare: (target: RestoreReviewLifecycleRuntimeTarget) => Promise<
+        Readonly<{
+          requestContent: string
+          requestSha256: string
+          reportContent: string
+          reportSha256: string
+          expired: number
+        }>
+      >
+    }>
+  | Readonly<{
+      kind: 'reviewed_apply'
+      /** Authenticate, re-report, and reserve the immutable one-shot authority. */
+      admit: (target: RestoreReviewLifecycleRuntimeTarget) => Promise<
+        Readonly<{
+          recoveryInput: RecoveryFenceInput
+          expired: number
+          approvalId: string
+          approvalBundleSha256: string
+          reportSha256: string
+          applyReviewLifecycle: () => Promise<void>
+          complete: (result: RecoveryFenceResult) => Promise<void>
+        }>
+      >
+    }>
+
+export type RestoreReviewLifecycleRuntimeTarget = Readonly<{
+  releaseSha: string
+  releaseManifestSha256: string
+  dataCellId: 'us' | 'europe' | 'global'
+  restorePointAt: Date
+  restoreDatabaseServiceName: string
+  railwayProjectId: string | null
+  railwayEnvironmentId: string | null
+  operatorId: string
+  correlationId: string
+}>
+
 export type RestoreVerifyDeps = Readonly<{
   /** The command's own env (RESTORE_MODE + DATABASE_URL are gate-checked). */
   env: Readonly<{
@@ -81,10 +126,10 @@ export type RestoreVerifyDeps = Readonly<{
     RAILWAY_ENVIRONMENT_ID?: string
     RAILWAY_ENVIRONMENT_NAME?: string
   }>
-  /** Count of expired-content rows currently eligible for review purge. */
+  /** Normal composition injects inspection_only; it can never masquerade as apply. */
+  reviewLifecycle: RestoreReviewLifecycleAuthority
+  /** Review-owned report count of active source-content rows due for expiry. */
   countExpired: () => Promise<number>
-  /** Run the source-policy purge in-process (bounded, evidence-writing). */
-  purgeExpired: () => Promise<void>
   /** The latest purge evidence rows (retention_runs, newest first). */
   purgeEvidence: () => Promise<ReadonlyArray<RestoreVerifyEvidenceRow>>
   /** Bounded Google import lifecycle backlog in the restored database. */
@@ -110,7 +155,7 @@ export type RestoreVerifyDeps = Readonly<{
 function recoveryInput(
   ctx: OperatorContext,
   env: RestoreVerifyDeps['env'],
-): RecoveryFenceInput | string {
+): RestoreReviewLifecycleRuntimeTarget | string {
   if (!/^[0-9a-f]{40}$/u.test(env.RELEASE_SHA ?? '')) {
     return 'REFUSED: RELEASE_SHA must identify the 40-character source revision restored.'
   }
@@ -131,11 +176,17 @@ function recoveryInput(
   ) {
     return 'REFUSED: PROCESSING_CELL must be a known Data Cell.'
   }
+  if (!env.RESTORE_DATABASE_SERVICE_NAME) {
+    return 'REFUSED: RESTORE_DATABASE_SERVICE_NAME must identify the exact PITR sibling.'
+  }
   return {
     dataCellId: env.PROCESSING_CELL,
-    sourceReleaseSha: env.RELEASE_SHA as string,
-    sourceManifestSha256: env.RELEASE_MANIFEST_SHA256 as string,
+    releaseSha: env.RELEASE_SHA as string,
+    releaseManifestSha256: env.RELEASE_MANIFEST_SHA256 as string,
     restorePointAt,
+    restoreDatabaseServiceName: env.RESTORE_DATABASE_SERVICE_NAME,
+    railwayProjectId: env.RAILWAY_PROJECT_ID ?? null,
+    railwayEnvironmentId: env.RAILWAY_ENVIRONMENT_ID ?? null,
     operatorId: ctx.operatorId,
     correlationId: ctx.correlationId,
   }
@@ -179,15 +230,28 @@ export async function runRestoreVerifyAction(
     return 1
   }
 
-  const recovery = recoveryInput(ctx, deps.env)
-  if (typeof recovery === 'string') {
-    io.err(recovery)
+  const recoveryTarget = recoveryInput(ctx, deps.env)
+  if (typeof recoveryTarget === 'string') {
+    io.err(recoveryTarget)
     return 1
   }
 
   io.out(`✓ ${RESTORE_ISOLATED_LOG_LINE} — restore mode active, target admitted`)
 
-  const eligible = await deps.countExpired()
+  if (!ctx.dryRun && deps.reviewLifecycle.kind !== 'reviewed_apply') {
+    io.err(
+      'REFUSED: Review source-content apply has no reviewed cutover authority. ' +
+        'The ordinary restore composition is inspection-only; no Review purge, ' +
+        'import lifecycle, retention sweep, or recovery fence was applied.',
+    )
+    return 1
+  }
+
+  const approvalPlan =
+    ctx.dryRun && deps.reviewLifecycle.kind === 'inspection_only'
+      ? await deps.reviewLifecycle.prepare(recoveryTarget)
+      : null
+  const eligible = approvalPlan == null ? await deps.countExpired() : approvalPlan.expired
   const importLifecycleBefore = await deps.inspectGoogleImportLifecycle()
   const retentionBefore = await deps.inspectRetentionBacklog()
   const recoveryBefore = await deps.inspectRecoveryFence()
@@ -197,8 +261,21 @@ export async function runRestoreVerifyAction(
         `purge; Google import lifecycle backlog=${JSON.stringify(importLifecycleBefore)} ` +
         `retention backlog=${JSON.stringify(retentionBefore)} ` +
         `recovery authority=${JSON.stringify(recoveryBefore)} ` +
-        '— re-run with --apply --yes ops:restore-verify',
+        (deps.reviewLifecycle.kind === 'reviewed_apply'
+          ? '— re-run with --apply --yes ops:restore-verify'
+          : '— Review apply remains unavailable until a reviewed cutover authority is injected'),
     )
+    if (approvalPlan != null) {
+      io.out(
+        `Review lifecycle recovery report SHA-256=${approvalPlan.reportSha256}: ${approvalPlan.reportContent.trimEnd()}`,
+      )
+      io.out(
+        `Review lifecycle recovery request SHA-256=${approvalPlan.requestSha256}: ${approvalPlan.requestContent.trimEnd()}`,
+      )
+      io.out(
+        'Give those exact aggregate-only artifacts to the independent approver; do not infer or self-approve an apply decision.',
+      )
+    }
     return 0
   }
   if (recoveryBefore.regionMovesBlocking > 0) {
@@ -208,9 +285,14 @@ export async function runRestoreVerifyAction(
     return 1
   }
 
-  // The in-process purge — the same execution path as the scheduled
-  // purge-expired-reviews job (bounded, evidence in retention_runs).
-  await deps.purgeExpired()
+  if (deps.reviewLifecycle.kind !== 'reviewed_apply') {
+    io.err('REFUSED: reviewed Review lifecycle apply authority is unavailable.')
+    return 1
+  }
+  // Admission authenticates the signature, re-collects the exact frozen
+  // report, and reserves the one-shot receipt before any destructive work.
+  const reviewedApply = await deps.reviewLifecycle.admit(recoveryTarget)
+  await reviewedApply.applyReviewLifecycle()
   await deps.sweepGoogleImportLifecycle()
   await deps.sweepRetentionBacklog()
 
@@ -246,7 +328,7 @@ export async function runRestoreVerifyAction(
     return 1
   }
 
-  const recoveryResult = await deps.applyRecoveryFence(recovery)
+  const recoveryResult = await deps.applyRecoveryFence(reviewedApply.recoveryInput)
   const unfencedAuthority = await deps.inspectRecoveryFence()
   const unfencedTotal = Object.values(unfencedAuthority).reduce(
     (total, count) => total + count,
@@ -258,6 +340,7 @@ export async function runRestoreVerifyAction(
     )
     return 1
   }
+  await reviewedApply.complete(recoveryResult)
 
   const evidence = await deps.purgeEvidence()
   io.out('purge evidence (retention_runs, newest first):')
@@ -268,6 +351,9 @@ export async function runRestoreVerifyAction(
   }
   io.out(
     `✓ recovery generation ${String(recoveryResult.generation)} ${recoveryResult.replayed ? 'replayed' : 'completed'} — run=${recoveryResult.id} counts=${JSON.stringify(recoveryResult.counts)}`,
+  )
+  io.out(
+    `✓ Review lifecycle approval ${reviewedApply.approvalId} consumed — bundle=${reviewedApply.approvalBundleSha256} report=${reviewedApply.reportSha256}`,
   )
 
   io.out('✓ zero expired-content row(s) remain eligible — source policy verified')

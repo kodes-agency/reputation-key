@@ -89,6 +89,12 @@ export const merchantAiConsentEvidence = pgTable(
       columns: [t.authorizationLineageId, t.stateVersion],
       name: 'merchant_ai_consent_evidence_pk',
     }),
+    uniqueIndex('merchant_ai_consent_evidence_scope_unique').on(
+      t.authorizationLineageId,
+      t.stateVersion,
+      t.organizationId,
+      t.propertyId,
+    ),
     foreignKey({
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],

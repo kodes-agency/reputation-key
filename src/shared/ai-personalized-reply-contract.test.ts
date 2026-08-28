@@ -11,10 +11,11 @@ const ENGLISH = {
   targetLanguageTag: 'en-Latn',
   tone: 'friendly',
   countryCode: 'GB',
+  brandDisplayName: 'Example Hotel',
   output: {
     languageCode: 'en-Latn',
     replyText:
-      'Thank you for sharing this. We are delighted that the quiet room and the kindness of our breakfast team made your stay enjoyable.',
+      'Thank you for sharing this. We are delighted that the quiet room and the kindness of our breakfast team made your stay at Example Hotel enjoyable.',
     grounding: [
       {
         sourceExcerpt: 'room was quiet',
@@ -44,10 +45,11 @@ describe('personalized reply draft contract', () => {
       targetLanguageTag: 'bg-Cyrl-BG',
       tone: 'professional',
       countryCode: 'BG',
+      brandDisplayName: 'Хотел Пример',
       output: {
         languageCode: 'bg-Cyrl-BG',
         replyText:
-          'Благодарим ви за отзива. Радваме се, че тихата стая и любезният екип на закуска са допринесли за приятния ви престой.',
+          'Благодарим ви за отзива за Хотел Пример. Радваме се, че тихата стая и любезният екип на закуска са допринесли за приятния ви престой.',
         grounding: [
           {
             sourceExcerpt: 'Стаята беше тиха',
@@ -93,6 +95,36 @@ describe('personalized reply draft contract', () => {
     ],
     ['ungrounded output', { output: { ...ENGLISH.output, grounding: [] } }, 'shape'],
     [
+      'missing exact public Brand display name',
+      {
+        output: {
+          ...ENGLISH.output,
+          replyText: ENGLISH.output.replyText.replace('Example Hotel', 'our hotel'),
+        },
+      },
+      'brand',
+    ],
+    [
+      'case-changed public Brand display name',
+      {
+        output: {
+          ...ENGLISH.output,
+          replyText: ENGLISH.output.replyText.replace('Example Hotel', 'example hotel'),
+        },
+      },
+      'brand',
+    ],
+    [
+      'public Brand display name repeated twice',
+      {
+        output: {
+          ...ENGLISH.output,
+          replyText: `${ENGLISH.output.replyText} Thank you from Example Hotel.`,
+        },
+      },
+      'brand',
+    ],
+    [
       'compensation promise',
       {
         output: {
@@ -111,7 +143,7 @@ describe('personalized reply draft contract', () => {
         output: {
           languageCode: 'bg-Cyrl-BG',
           replyText:
-            'Благодарим ви за обратната връзка. Признаваме вина и обещаваме обезщетение за бавното обслужване.',
+            'Example Hotel ви благодари за обратната връзка. Признаваме вина и обещаваме обезщетение за бавното обслужване.',
           grounding: [
             {
               sourceExcerpt: 'Обслужването беше бавно',

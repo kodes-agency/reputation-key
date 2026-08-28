@@ -3,6 +3,12 @@ import type { Job, Queue } from 'bullmq'
 
 const EVENT_TYPE = 'identity.member.invited'
 const QUEUE_PAGE_SIZE = 100
+const RECENT_ACTIVITY_PROJECTION_JOB = 'project-recent-activity'
+const LEGACY_RECENT_ACTIVITY_PROJECTION_JOB = 'insert-activity-log'
+
+const isRecentActivityProjectionJob = (jobName: string): boolean =>
+  jobName === RECENT_ACTIVITY_PROJECTION_JOB ||
+  jobName === LEGACY_RECENT_ACTIVITY_PROJECTION_JOB
 
 const INVITATION_FACT_BULL_STATES = [
   'waiting',
@@ -214,7 +220,7 @@ function redactSensitiveText(text: string, secrets: readonly string[]): string {
 function privateValuesFromTarget(jobName: string, data: unknown): readonly string[] {
   if (!isRecord(data)) return []
   if (
-    jobName === 'insert-activity-log' &&
+    isRecentActivityProjectionJob(jobName) &&
     data.action === 'invited' &&
     data.resourceType === 'member' &&
     isRecord(data.payload) &&
@@ -247,7 +253,7 @@ function privateValuesFromTarget(jobName: string, data: unknown): readonly strin
 function isInvitationTarget(jobName: string, data: unknown): boolean {
   if (!isRecord(data)) return false
   return (
-    (jobName === 'insert-activity-log' &&
+    (isRecentActivityProjectionJob(jobName) &&
       data.action === 'invited' &&
       data.resourceType === 'member') ||
     jobName === EVENT_TYPE
@@ -257,7 +263,7 @@ function isInvitationTarget(jobName: string, data: unknown): boolean {
 function hasPrivateTargetData(jobName: string, data: unknown): boolean {
   if (!isRecord(data)) return false
   if (
-    jobName === 'insert-activity-log' &&
+    isRecentActivityProjectionJob(jobName) &&
     data.action === 'invited' &&
     data.resourceType === 'member' &&
     isRecord(data.payload)
@@ -301,19 +307,18 @@ export function redactIdentityInvitationJobData(
   data: unknown,
 ): unknown {
   if (queueRole === 'default') {
-    return jobName === 'insert-activity-log' ? redactActivityData(data) : data
+    return isRecentActivityProjectionJob(jobName) ? redactActivityData(data) : data
   }
   if (queueRole === 'domain-events') {
     return jobName === EVENT_TYPE ? redactEventData(data) : data
   }
   if (!isRecord(data) || !('data' in data)) return data
   const secrets = privateValuesFromTarget(jobName, data.data)
-  const nested =
-    jobName === 'insert-activity-log'
-      ? redactActivityData(data.data)
-      : jobName === EVENT_TYPE
-        ? redactEventData(data.data)
-        : data.data
+  const nested = isRecentActivityProjectionJob(jobName)
+    ? redactActivityData(data.data)
+    : jobName === EVENT_TYPE
+      ? redactEventData(data.data)
+      : data.data
   const failedReason =
     typeof data.failedReason === 'string'
       ? redactSensitiveText(data.failedReason, secrets)
@@ -506,7 +511,7 @@ async function postgresDirtyCounts(pool: Pool): Promise<{
        WHERE event_type = '${EVENT_TYPE}'
          AND (event_version <> 2 OR payload ? 'email')) AS outbox,
       (SELECT count(*)::bigint
-       FROM activity_log
+       FROM recent_activity_entries
        WHERE action = 'invited' AND resource_type = 'member'
          AND payload ->> 'detail' IS NOT NULL) AS activity,
       ((SELECT count(*)::bigint
@@ -516,7 +521,7 @@ async function postgresDirtyCounts(pool: Pool): Promise<{
           AND payload ->> 'email' IS DISTINCT FROM '[redacted]')
        +
        (SELECT count(*)::bigint
-        FROM activity_log
+        FROM recent_activity_entries
         WHERE action = 'invited' AND resource_type = 'member'
           AND payload ->> 'detail' IS NOT NULL
           AND payload ->> 'detail' IS DISTINCT FROM '[redacted]')) AS privacy_dirty,
@@ -641,7 +646,7 @@ async function scrubActivity(pool: Pool, limit: number, apply: boolean): Promise
   if (!apply) {
     const result = await pool.query<{ count: string }>(
       `SELECT count(*)::bigint AS count FROM (
-         SELECT id FROM activity_log
+         SELECT id FROM recent_activity_entries
          WHERE action = 'invited' AND resource_type = 'member'
            AND payload ->> 'detail' IS NOT NULL
          ORDER BY id LIMIT $1
@@ -652,12 +657,12 @@ async function scrubActivity(pool: Pool, limit: number, apply: boolean): Promise
   }
   const result = await pool.query(
     `WITH candidates AS (
-       SELECT id FROM activity_log
+       SELECT id FROM recent_activity_entries
        WHERE action = 'invited' AND resource_type = 'member'
          AND payload ->> 'detail' IS NOT NULL
        ORDER BY id LIMIT $1 FOR UPDATE SKIP LOCKED
      )
-     UPDATE activity_log activity
+     UPDATE recent_activity_entries activity
      SET payload = jsonb_set(activity.payload, '{detail}', 'null'::jsonb, true)
      FROM candidates WHERE activity.id = candidates.id`,
     [limit],
@@ -804,7 +809,6 @@ export const switchIdentityInvitationFactToV2 = (
   input: Readonly<{ operatorId: string; reason: string }>,
 ) => updateContract(deps, input, 'v2')
 
-// fallow-ignore-next-line unused-export -- production consumer is the scripts/ops entry point (outside Fallow's src graph)
 export const rollbackIdentityInvitationFactToV1 = (
   deps: InvitationFactContractDeps,
   input: Readonly<{ operatorId: string; reason: string }>,

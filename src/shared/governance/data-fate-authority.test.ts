@@ -37,8 +37,14 @@ describe('persisted-model lifecycle authority', () => {
     )
 
     expect(byKey.get('review.schema.ts#reviews')).toBe('active_authority')
+    expect(byKey.get('dashboard.schema.ts#setupChecklistMilestones')).toBe(
+      'active_authority',
+    )
     expect(byKey.get('review.schema.ts#reviewSourceContents')).toBe(
       'erasable_source_content',
+    )
+    expect(byKey.get('recovery.schema.ts#reviewLifecycleRecoveryExecutions')).toBe(
+      'recoverable_archive',
     )
     expect(byKey.get('review.schema.ts#replyPublicationAuthorizations')).toBe(
       'active_authority',
@@ -55,14 +61,66 @@ describe('persisted-model lifecycle authority', () => {
     expect(byKey.get('guest.schema.ts#guestResponsePrivateFeedback')).toBe(
       'erasable_source_content',
     )
+    expect(byKey.get('guest.schema.ts#guestNetworkPressureRecords')).toBe(
+      'active_authority',
+    )
     expect(byKey.get('metric.schema.ts#metricQuarantine')).toBe(
       'quarantined_reconciliation_input',
+    )
+    expect(byKey.get('metric.schema.ts#portalMetricLifetimeAggregates')).toBe(
+      'active_authority',
+    )
+    expect(
+      byKey.get('google-import-discovery.schema.ts#googleImportDiscoveryRecords'),
+    ).toBe('erasable_source_content')
+    expect(byKey.get('portal.schema.ts#propertyPortalBrandContents')).toBe(
+      'erasable_source_content',
+    )
+    expect(byKey.get('portal.schema.ts#portalHealthIntervals')).toBe(
+      'recoverable_archive',
     )
     expect(byKey.get('badge.schema.ts#badgeAwards')).toBe('bounded_contraction')
     expect(byKey.get('leaderboard.schema.ts#leaderboardEntries')).toBe(
       'bounded_contraction',
     )
     expect(byKey.get('team.schema.ts#teams')).toBe('bounded_contraction')
+    expect(byKey.get('people-access.schema.ts#propertyAccessGrants')).toBe(
+      'bounded_contraction',
+    )
+    expect(byKey.get('policy.schema.ts#propertyAccessGrant')).toBe('active_authority')
+    expect(
+      byKey.get('organization-lifecycle.schema.ts#organizationLifecycleAuthority'),
+    ).toBe('active_authority')
+    expect(
+      byKey.get('organization-lifecycle.schema.ts#organizationLifecycleCommandReceipts'),
+    ).toBe('recoverable_archive')
+    expect(byKey.get('activity.schema.ts#recentActivityVocabularyReconciliations')).toBe(
+      'recoverable_archive',
+    )
+  })
+
+  it('keeps lifecycle and vocabulary receipts content-free, recovery-bounded facts', () => {
+    const byKey = new Map(
+      DATA_FATE_AUTHORITY.map((row) => [
+        dataFateKey(row.schemaFile, row.exportName),
+        row,
+      ]),
+    )
+
+    expect(
+      byKey.get('organization-lifecycle.schema.ts#organizationLifecycleCommandReceipts'),
+    ).toMatchObject({ owner: 'identity', authority: 'LIF-01' })
+    expect(
+      byKey.get('activity.schema.ts#recentActivityVocabularyReconciliations'),
+    ).toMatchObject({ owner: 'activity', authority: 'ACT-01' })
+    for (const key of [
+      'organization-lifecycle.schema.ts#organizationLifecycleCommandReceipts',
+      'activity.schema.ts#recentActivityVocabularyReconciliations',
+    ]) {
+      expect(byKey.get(key)?.exitCriteria, key).toMatch(
+        /content-(?:free|minimal)[\s\S]*(?:retry|recovery)[\s\S]*(?:export|restore)/iu,
+      )
+    }
   })
 
   it('requires non-authoritative rows to state how they leave or remain bounded', () => {

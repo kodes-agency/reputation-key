@@ -40,6 +40,24 @@ function eventsSection(body: string): string {
   return body.split('## Events produced')[1]?.split(/^## /mu)[0] ?? ''
 }
 
+function uniqueSorted(values: readonly string[]): readonly string[] {
+  return [...new Set(values)].sort()
+}
+
+function sourceEventTags(body: string): readonly string[] {
+  return uniqueSorted([...body.matchAll(/_tag:\s*'([^']+)'/gu)].map((match) => match[1]!))
+}
+
+function documentedEventTags(section: string): readonly string[] {
+  return uniqueSorted(
+    section
+      .split('\n')
+      .filter((line) => line.startsWith('|'))
+      .flatMap((line) => [...line.matchAll(/`([^`]+)`/gu)].map((match) => match[1]!))
+      .filter((value) => /^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*){1,2}$/u.test(value)),
+  )
+}
+
 describe('17-context by 11-rule standards matrix', () => {
   it('has the exact authority rows, dimensions, and conservative outcomes', () => {
     expect(CONTEXT_STANDARD_DIMENSIONS.map(({ id }) => id)).toEqual(DIMENSIONS)
@@ -56,10 +74,20 @@ describe('17-context by 11-rule standards matrix', () => {
       ),
     ).toEqual([])
     expect(summarizeContextStandardsMatrix(CONTEXT_STANDARDS_MATRIX)).toEqual({
-      evidenced: 53,
-      notApplicable: 17,
-      unresolved: 117,
+      acceptedExceptions: 41,
+      evidenced: 122,
+      notApplicable: 24,
+      unresolved: 0,
       total: 187,
+    })
+
+    expect(
+      CONTEXT_STANDARDS_MATRIX.find(({ directory }) => directory === 'portal')?.standards
+        .tags,
+    ).toMatchObject({
+      applicability: 'applicable',
+      resolution: 'accepted_exception',
+      exceptionId: 'STD-MAINT-001',
     })
   })
 
@@ -92,6 +120,29 @@ describe('17-context by 11-rule standards matrix', () => {
     }
   })
 
+  it('binds every accepted exception to the owned register and its exhaustive checker', () => {
+    for (const row of CONTEXT_STANDARDS_MATRIX) {
+      for (const dimension of DIMENSIONS) {
+        const cell = row.standards[dimension]
+        if (
+          cell.applicability !== 'applicable' ||
+          cell.resolution !== 'accepted_exception'
+        ) {
+          continue
+        }
+        const paths = cell.evidence.map(({ path }) => path)
+        expect(paths, `${row.directory}/${dimension}`).toContain(
+          'docs/governance/standards-exceptions.json',
+        )
+        expect(paths, `${row.directory}/${dimension}`).toContain(
+          dimension === 'tags'
+            ? 'src/shared/governance/context-standards-matrix.test.ts'
+            : 'src/shared/governance/context-standards-matrix.application.test.ts',
+        )
+      }
+    }
+  })
+
   it('proves the narrow event tag and union claims without blessing other rules', () => {
     const masterUnion = readFileSync(join(ROOT, 'src/shared/events/events.ts'), 'utf8')
     for (const row of CONTEXT_STANDARDS_MATRIX) {
@@ -115,6 +166,7 @@ describe('17-context by 11-rule standards matrix', () => {
           row.directory,
         ).toBe(true)
       } else if (row.directory === 'portal') {
+        expect(tagsCell.resolution).toBe('accepted_exception')
         expect(tags.some((tag) => !tagPattern.test(tag))).toBe(true)
       }
 
@@ -133,7 +185,14 @@ describe('17-context by 11-rule standards matrix', () => {
         expect(buildSource, row.directory).toMatch(/\bpublicApi\b/u)
         expect(buildSource, row.directory).toMatch(/\binternal\s*:/u)
         expect(buildSource, row.directory).toMatch(/\brepos\s*:/u)
-        expect(buildSource, row.directory).toMatch(/\buseCases\b/u)
+        if (row.directory === 'goal') {
+          expect(buildSource).toMatch(/\bworker\s*:/u)
+          expect(buildSource).toContain('registerOutboxConsumers')
+          expect(buildSource).toContain('programMaintenance')
+          expect(buildSource).not.toMatch(/internal\s*:\s*\{[^}]*\buseCases\b/su)
+        } else {
+          expect(buildSource, row.directory).toMatch(/\buseCases\b/u)
+        }
       }
 
       const document = readFileSync(join(contextRoot, 'CONTEXT.md'), 'utf8')
@@ -157,6 +216,41 @@ describe('17-context by 11-rule standards matrix', () => {
       } else {
         expect(legacyFactories.length, row.directory).toBeGreaterThan(0)
       }
+    }
+  })
+
+  it('proves every retained context documents produced events in the standard table form', () => {
+    for (const row of CONTEXT_STANDARDS_MATRIX) {
+      const document = readFileSync(
+        join(ROOT, 'src', 'contexts', row.directory, 'CONTEXT.md'),
+        'utf8',
+      )
+      const section = eventsSection(document)
+
+      expect(row.standards.docs.resolution, row.directory).toBe('evidenced')
+      expect(
+        /^\|/mu.test(section) ||
+          /(?:no .*domain events|does not emit domain events)/iu.test(section),
+        row.directory,
+      ).toBe(true)
+    }
+  })
+
+  it('keeps every event-producing context table exhaustive against its event union source', () => {
+    for (const row of CONTEXT_STANDARDS_MATRIX) {
+      if (row.standards.tags.applicability === 'not_applicable') continue
+      const eventSource = readFileSync(
+        join(ROOT, 'src', 'contexts', row.directory, 'domain', 'events.ts'),
+        'utf8',
+      )
+      const document = readFileSync(
+        join(ROOT, 'src', 'contexts', row.directory, 'CONTEXT.md'),
+        'utf8',
+      )
+
+      expect(documentedEventTags(eventsSection(document)), row.directory).toEqual(
+        sourceEventTags(eventSource),
+      )
     }
   })
 

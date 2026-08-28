@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createHash } from 'node:crypto'
 import { getCountries } from 'libphonenumber-js'
 import {
@@ -7,16 +7,18 @@ import {
   DATA_CELL_SUPPORTED_COUNTRY_COUNT,
   DATA_CELL_SUPPORTED_COUNTRY_POLICY_SHA256,
   DATA_CELL_IDS,
+  BETA_DEPLOYMENT_DATA_CELL_IDS,
   ACCEPTING_DATA_CELL_IDS,
   dataCellById,
   dataCellIdForCountry,
+  isBetaDeploymentDataCellId,
   isDataCellAccepting,
   resolvePersistedDataCellId,
   resolveDataCellTarget,
 } from './data-cell-catalogue'
 
 describe('Data Cell catalogue', () => {
-  it('partitions every supported country exactly once', () => {
+  it('allocates every supported country to the single US beta cell exactly once', () => {
     const countries = Object.values(DATA_CELL_CATALOGUE).flatMap(
       (cell) => cell.allowedCountryCodes,
     )
@@ -28,17 +30,18 @@ describe('Data Cell catalogue', () => {
         .update([...countries].sort().join(','))
         .digest('hex'),
     ).toBe(DATA_CELL_SUPPORTED_COUNTRY_POLICY_SHA256)
+    expect(DATA_CELL_CATALOGUE.us.allowedCountryCodes).toEqual([...getCountries()].sort())
   })
 
   it.each([
     ['US', 'us'],
     ['pr', 'us'],
-    ['DE', 'europe'],
-    ['GB', 'europe'],
-    ['CH', 'europe'],
-    ['JP', 'global'],
-    ['AU', 'global'],
-    ['XK', 'global'],
+    ['DE', 'us'],
+    ['BG', 'us'],
+    ['GB', 'us'],
+    ['JP', 'us'],
+    ['AU', 'us'],
+    ['XK', 'us'],
   ] as const)('allocates country %s to %s without a default cell', (country, cell) => {
     expect(dataCellIdForCountry(country)).toBe(cell)
   })
@@ -54,6 +57,9 @@ describe('Data Cell catalogue', () => {
     expect(DATA_CELL_IDS.map((id) => dataCellById(id)?.id)).toEqual(DATA_CELL_IDS)
     expect(dataCellById('eu')).toBeNull()
     expect(dataCellById('')).toBeNull()
+    expect(dataCellById('constructor')).toBeNull()
+    expect(dataCellById('toString')).toBeNull()
+    expect(dataCellById('__proto__')).toBeNull()
     expect(DATA_CELL_CATALOGUE.us.resources).toMatchObject({
       cacheRedis: 'Cache Redis',
       queueRedis: 'Queue Redis',
@@ -62,6 +68,8 @@ describe('Data Cell catalogue', () => {
 
   it('reads expand-phase assignments without masking invalid or conflicting facts', () => {
     expect(resolvePersistedDataCellId('us', 'us')).toBe('us')
+    expect(resolvePersistedDataCellId('us', null)).toBe('us')
+    expect(resolvePersistedDataCellId(null, null)).toBeNull()
     expect(resolvePersistedDataCellId(null, 'europe')).toBe('europe')
     expect(resolvePersistedDataCellId(null, 'unresolved')).toBeNull()
     expect(resolvePersistedDataCellId('unknown', 'us')).toBeNull()
@@ -93,10 +101,57 @@ describe('Data Cell catalogue', () => {
   })
 
   it('reports activation state without treating known provisioning cells as live', () => {
+    expect(BETA_DEPLOYMENT_DATA_CELL_IDS).toEqual(['us'])
+    expect(isBetaDeploymentDataCellId('us')).toBe(true)
+    expect(isBetaDeploymentDataCellId('europe')).toBe(false)
+    expect(isBetaDeploymentDataCellId('global')).toBe(false)
+    expect(isBetaDeploymentDataCellId('unknown')).toBe(false)
     expect(ACCEPTING_DATA_CELL_IDS).toEqual(['us'])
     expect(isDataCellAccepting('us')).toBe(true)
     expect(isDataCellAccepting('europe')).toBe(false)
     expect(isDataCellAccepting('global')).toBe(false)
     expect(isDataCellAccepting('unknown')).toBe(false)
+    expect(isDataCellAccepting(null)).toBe(false)
+  })
+
+  it('denies workload names outside the governed catalogue at the runtime boundary', () => {
+    expect(
+      Reflect.apply(resolveDataCellTarget, undefined, ['us', 'future.unsupported']),
+    ).toEqual({
+      kind: 'blocked',
+      reason: 'workload_denied',
+    })
+  })
+
+  it('keeps future cells known but dormant and unable to receive beta work', () => {
+    for (const cellId of ['europe', 'global'] as const) {
+      expect(DATA_CELL_CATALOGUE[cellId]).toMatchObject({
+        state: 'denied',
+        allowedCountryCodes: [],
+        allowedWorkloads: [],
+        railway: null,
+      })
+    }
+  })
+
+  it('rejects an ambiguous country policy if the upstream country set contains a duplicate', async () => {
+    vi.resetModules()
+    vi.doMock('libphonenumber-js', async () => {
+      const actual =
+        await vi.importActual<typeof import('libphonenumber-js')>('libphonenumber-js')
+      return {
+        ...actual,
+        getCountries: () => ['US', 'US'],
+      }
+    })
+
+    try {
+      await expect(import('./data-cell-catalogue')).rejects.toThrow(
+        'Data Cell country policy is ambiguous: US',
+      )
+    } finally {
+      vi.doUnmock('libphonenumber-js')
+      vi.resetModules()
+    }
   })
 })

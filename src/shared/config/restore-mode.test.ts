@@ -128,6 +128,7 @@ describe('restore Data Cell binding (REG-01)', () => {
 describe('isIsolatedRestoreTarget (BQC-7.8)', () => {
   it('accepts exact loopback targets only when bound to a PITR sibling name', () => {
     const pitr = {
+      PROCESSING_CELL: 'us',
       RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',
     }
     expect(isIsolatedRestoreTarget('postgresql://u:p@localhost:5432/db')).toBe(false)
@@ -136,12 +137,29 @@ describe('isIsolatedRestoreTarget (BQC-7.8)', () => {
     expect(isIsolatedRestoreTarget('postgresql://u:p@[::1]:5432/db', pitr)).toBe(true)
     expect(
       isIsolatedRestoreTarget('postgresql://u:p@localhost:5432/db', {
+        PROCESSING_CELL: 'us',
         RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',
       }),
     ).toBe(true)
     expect(
       isIsolatedRestoreTarget('postgresql://u:p@localhost:5432/db', {
+        PROCESSING_CELL: 'us',
         RESTORE_DATABASE_SERVICE_NAME: 'Postgres',
+      }),
+    ).toBe(false)
+  })
+
+  it('refuses a loopback restore for a dormant logical Data Cell', () => {
+    expect(
+      isIsolatedRestoreTarget('postgresql://u:p@localhost:5432/db', {
+        PROCESSING_CELL: 'europe',
+        RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',
+      }),
+    ).toBe(false)
+    expect(
+      isIsolatedRestoreTarget('postgresql://u:p@127.0.0.1:5432/db', {
+        PROCESSING_CELL: 'global',
+        RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',
       }),
     ).toBe(false)
   })
@@ -159,6 +177,21 @@ describe('isIsolatedRestoreTarget (BQC-7.8)', () => {
         },
       ),
     ).toBe(true)
+  })
+
+  it('refuses a restore attestation for a known but non-deployable beta cell', () => {
+    expect(
+      isIsolatedRestoreTarget(
+        'postgresql://u:p@postgres-restored-20260825-1015.railway.internal:5432/railway',
+        {
+          PROCESSING_CELL: 'europe',
+          RESTORE_DATABASE_SERVICE_NAME: 'Postgres-restored-20260825-1015',
+          RAILWAY_PROJECT_ID: 'project-id',
+          RAILWAY_ENVIRONMENT_ID: 'environment-id',
+          RAILWAY_ENVIRONMENT_NAME: 'cell-europe',
+        },
+      ),
+    ).toBe(false)
   })
 
   it('refuses source, public, wrong-cell, and partially attested Railway targets', () => {

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
 
-export const PEOPLE_CUTOVER_EVIDENCE_VERSION = 'repkey-people-cutover-1' as const
+export const PEOPLE_CUTOVER_EVIDENCE_VERSION = 'repkey-people-cutover-2' as const
 
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/u)
 const nonNegativeCount = z.number().int().min(0)
@@ -11,8 +11,6 @@ const countsSchema = z
     legacyAssignments: nonNegativeCount,
     expectedParticipations: nonNegativeCount,
     matchedParticipations: nonNegativeCount,
-    expectedMemberships: nonNegativeCount,
-    matchedMemberships: nonNegativeCount,
     expectedResponsibilities: nonNegativeCount,
     matchedResponsibilities: nonNegativeCount,
     expectedGroupMemberships: nonNegativeCount,
@@ -75,11 +73,6 @@ const peopleCutoverEvidenceSchema = z
         'participations',
         evidence.counts.expectedParticipations,
         evidence.counts.matchedParticipations,
-      ],
-      [
-        'memberships',
-        evidence.counts.expectedMemberships,
-        evidence.counts.matchedMemberships,
       ],
       [
         'responsibilities',

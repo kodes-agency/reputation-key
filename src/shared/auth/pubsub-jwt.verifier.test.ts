@@ -36,6 +36,7 @@ describe('verifyPubSubJwt', () => {
       payload: {
         sub: '123456789',
         email: 'pubsub-notifications@google.com',
+        email_verified: true,
         aud: AUDIENCE,
         iat: 1700000000,
         exp: 1700003600,
@@ -47,6 +48,7 @@ describe('verifyPubSubJwt', () => {
     expect(result).toEqual({
       sub: '123456789',
       email: 'pubsub-notifications@google.com',
+      emailVerified: true,
       aud: AUDIENCE,
       iat: 1700000000,
       exp: 1700003600,
@@ -89,6 +91,7 @@ describe('verifyPubSubJwt', () => {
     expect(result).toEqual({
       sub: '',
       email: '',
+      emailVerified: false,
       aud: '',
       iat: 0,
       exp: 0,

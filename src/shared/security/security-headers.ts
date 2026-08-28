@@ -83,11 +83,15 @@ export function getSecurityHeaders(
 
   const headers: Record<string, string> = {
     'Content-Security-Policy': [
+      "default-src 'none'",
       `script-src ${scriptSource}`,
       "style-src 'self' 'unsafe-inline' https://api.fontshare.com https://fonts.googleapis.com",
       "img-src 'self' data: https:",
       `connect-src ${connectSource}`,
       "font-src 'self' https://cdn.fontshare.com https://fonts.gstatic.com",
+      "object-src 'none'",
+      "frame-src 'none'",
+      "manifest-src 'self'",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",

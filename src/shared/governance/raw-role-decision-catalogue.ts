@@ -1,11 +1,31 @@
+import type { Capability } from '#/shared/auth/beta-capabilities'
+
 export type RawRoleDecisionDisposition =
   'central_product_vocabulary' | 'presentation_only' | 'legacy_dark'
 
-export type RawRoleDecisionRow = Readonly<{
+type RawRoleDecisionBase = Readonly<{
   path: string
-  disposition: RawRoleDecisionDisposition
   authority: string
 }>
+
+type NonAuthorizingRawRoleDecisionRow = RawRoleDecisionBase &
+  Readonly<{
+    disposition: Exclude<RawRoleDecisionDisposition, 'legacy_dark'>
+  }>
+
+export type LegacyDarkRawRoleDecisionRow = RawRoleDecisionBase &
+  Readonly<{
+    disposition: 'legacy_dark'
+    capability: Extract<Capability, 'badge.use' | 'leaderboard.use' | 'team.use'>
+    enforcement:
+      | 'execution_policy_in_file'
+      | 'execution_policy_at_public_seam'
+      | 'inert_context_build'
+    publicSeam: string
+  }>
+
+export type RawRoleDecisionRow =
+  NonAuthorizingRawRoleDecisionRow | LegacyDarkRawRoleDecisionRow
 
 /**
  * Exhaustive ownership for direct comparisons against RepKey's built-in role
@@ -43,27 +63,12 @@ export const RAW_ROLE_DECISION_CATALOGUE = Object.freeze([
     authority: 'Maps an already-authorized role value to short or full display copy.',
   },
   {
-    path: 'src/contexts/badge/server/badges.ts',
-    disposition: 'legacy_dark',
-    authority:
-      'Retained legacy Badge read logic sits behind the blocked badge.use capability and has no active beta route.',
-  },
-  {
-    path: 'src/contexts/leaderboard/application/use-cases/governed-recognition.ts',
-    disposition: 'legacy_dark',
-    authority:
-      'Retained competitive Recognition code is beta-dark and scheduled for contraction under REC-01.',
-  },
-  {
-    path: 'src/contexts/leaderboard/infrastructure/repositories/recognition.repository.ts',
-    disposition: 'legacy_dark',
-    authority:
-      'Retained competitive Recognition visibility code is beta-dark and scheduled for contraction under REC-01.',
-  },
-  {
     path: 'src/contexts/team/application/use-cases/team-memberships.ts',
     disposition: 'legacy_dark',
+    capability: 'team.use',
+    enforcement: 'inert_context_build',
+    publicSeam: 'src/contexts/team/build.ts',
     authority:
-      'Retained Team membership logic is quarantined behind team.use; Portal Groups are the supported grouping model.',
+      'The Team build is inert and production composition has no Team import, so this retained membership source has no tenant-facing or runtime public seam.',
   },
 ] as const satisfies ReadonlyArray<RawRoleDecisionRow>)

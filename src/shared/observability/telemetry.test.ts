@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import {
   buildObservabilityConfig,
   createErrorMonitor,
+  filterAndScrubSentryTransaction,
   scrubSentryBreadcrumb,
   scrubSentryEvent,
   type ErrorMonitoringSdk,
@@ -35,6 +36,37 @@ function logger() {
 }
 
 describe('telemetry PII scrubbing (B3.5)', () => {
+  it.each([
+    '/health/live',
+    '/health/ready',
+    '/api/health/started',
+    '/api/health/live',
+    '/api/health/ready',
+    '/api/health/metrics',
+  ])('drops the operational probe transaction %s before Sentry delivery', (path) => {
+    expect(
+      filterAndScrubSentryTransaction({
+        transaction: `GET ${path}`,
+        request: { method: 'GET', url: `https://service.invalid${path}` },
+      }),
+    ).toBeNull()
+  })
+
+  it('retains and scrubs a non-health transaction', () => {
+    expect(
+      filterAndScrubSentryTransaction({
+        transaction: 'GET /api/properties/tenant-secret',
+        request: {
+          method: 'GET',
+          url: 'https://service.invalid/api/properties/tenant-secret?token=secret',
+        },
+      }),
+    ).toEqual({
+      transaction: '[REDACTED]',
+      request: { method: 'GET' },
+    })
+  })
+
   it('redacts known PII fields', () => {
     const event = {
       message: 'Something happened',
@@ -244,9 +276,9 @@ describe('error monitoring runtime', () => {
   const baseConfig = {
     service: 'worker' as const,
     dsn: 'https://public@o1.ingest.de.sentry.io/1',
-    environment: 'cell-europe',
+    environment: 'cell-us',
     release: 'a'.repeat(40),
-    processingCell: 'europe',
+    processingCell: 'us',
     tracesSampleRate: 0.1,
   }
 
@@ -262,7 +294,7 @@ describe('error monitoring runtime', () => {
     expect(sentry.init).toHaveBeenCalledWith(
       expect.objectContaining({
         dsn: baseConfig.dsn,
-        environment: 'cell-europe',
+        environment: 'cell-us',
         release: baseConfig.release,
         tracesSampleRate: 0.1,
         sendDefaultPii: false,
@@ -276,7 +308,7 @@ describe('error monitoring runtime', () => {
     )
     expect(sentry.setTags).toHaveBeenCalledWith({
       service: 'worker',
-      processing_cell: 'europe',
+      processing_cell: 'us',
       release_sha: baseConfig.release,
     })
     const options = sentry.init.mock.calls[0]![0]
@@ -287,6 +319,8 @@ describe('error monitoring runtime', () => {
         { name: 'OnUnhandledRejection' },
         { name: 'LocalVariablesAsync' },
         { name: 'ContextLines' },
+        { name: 'Replay' },
+        { name: 'ReplayCanvas' },
       ]),
     ).toEqual([{ name: 'Http' }])
   })
@@ -340,17 +374,86 @@ describe('error monitoring runtime', () => {
         source: 'repkey-native-beta-feedback',
         tags: {
           service: 'worker',
-          processing_cell: 'europe',
+          processing_cell: 'us',
           release_sha: 'a'.repeat(40),
           feedback_type: 'bug',
         },
       },
-      {},
+      { includeReplay: false },
       expect.objectContaining({
         clear: expect.any(Function),
         addEventProcessor: expect.any(Function),
       }),
     )
+  })
+
+  it('attaches only the server-rendered masked wireframe with a bounded expiry', () => {
+    const sentry = sdk()
+    const monitor = createErrorMonitor({ sentry, logger: logger() })
+    monitor.initialize(baseConfig)
+
+    expect(
+      monitor.captureFeedback({
+        message: 'The layout shifted.',
+        source: 'repkey-native-beta-feedback',
+        tags: {
+          feedback_type: 'bug',
+          feedback_attachment: 'masked_layout_v1',
+          feedback_attachment_retention: '30d_max',
+        },
+        maskedLayoutAttachment: {
+          capturedAt: '2026-08-28T08:00:00.000Z',
+          expiresAt: '2026-09-27T08:00:00.000Z',
+          snapshot: {
+            profile: 'masked-layout-v1',
+            consented: true,
+            gridWidth: 64,
+            gridHeight: 40,
+            blocks: [{ kind: 'text', x: 4, y: 5, width: 20, height: 2 }],
+          },
+        },
+      }),
+    ).toBe('a'.repeat(32))
+
+    const hint = sentry.captureFeedback.mock.calls[0]?.[1]
+    expect(hint).toMatchObject({ includeReplay: false })
+    expect(hint?.attachments).toHaveLength(1)
+    const attachment = hint?.attachments?.[0]
+    expect(attachment).toMatchObject({
+      filename: 'repkey-masked-layout.svg',
+      contentType: 'image/svg+xml',
+    })
+    const svg = new TextDecoder().decode(attachment?.data as Uint8Array)
+    expect(svg).toContain('data-mask-kind="text"')
+    expect(svg).not.toContain('The layout shifted')
+    expect(svg).not.toContain('<text')
+    expect(svg).not.toContain('<image')
+  })
+
+  it('refuses an attachment whose declared lifetime exceeds 30 days', () => {
+    const sentry = sdk()
+    const monitor = createErrorMonitor({ sentry, logger: logger() })
+    monitor.initialize(baseConfig)
+
+    expect(
+      monitor.captureFeedback({
+        message: 'The layout shifted.',
+        source: 'repkey-native-beta-feedback',
+        tags: { feedback_type: 'bug' },
+        maskedLayoutAttachment: {
+          capturedAt: '2026-08-28T08:00:00.000Z',
+          expiresAt: '2026-09-27T08:00:00.001Z',
+          snapshot: {
+            profile: 'masked-layout-v1',
+            consented: true,
+            gridWidth: 64,
+            gridHeight: 40,
+            blocks: [{ kind: 'surface', x: 0, y: 0, width: 64, height: 40 }],
+          },
+        },
+      }),
+    ).toBeUndefined()
+    expect(sentry.captureFeedback).not.toHaveBeenCalled()
   })
 
   it('binds to a preload-initialized SDK without initializing it twice', () => {
@@ -393,9 +496,50 @@ describe('error monitoring runtime', () => {
         { name: 'OnUnhandledRejection' },
         { name: 'LocalVariablesAsync' },
         { name: 'ContextLines' },
+        { name: 'Replay' },
+        { name: 'ReplayCanvas' },
       ]),
     ).toEqual([{ name: 'OnUncaughtException' }, { name: 'OnUnhandledRejection' }])
   })
+
+  it.each([
+    'google-execution-admission',
+    'google-egress-gateway',
+    'ai-execution-admission',
+    'ai-egress-gateway',
+  ] as const)(
+    'supports Germany error monitoring for the %s process without competing fatal handlers',
+    (service) => {
+      const sentry = sdk()
+      const monitor = createErrorMonitor({ sentry, logger: logger() })
+
+      monitor.initialize({ ...baseConfig, service })
+      monitor.captureException(new Error('provider payload must not be logged'), {
+        source: 'sidecar-process',
+        trigger: 'uncaughtException',
+      })
+
+      const options = sentry.init.mock.calls[0]![0]
+      expect(options.serverName).toBe(`repkey-${service}`)
+      expect(
+        options.integrations([
+          { name: 'Http' },
+          { name: 'OnUncaughtException' },
+          { name: 'OnUnhandledRejection' },
+          { name: 'LocalVariablesAsync' },
+          { name: 'ContextLines' },
+          { name: 'Replay' },
+          { name: 'ReplayCanvas' },
+        ]),
+      ).toEqual([{ name: 'Http' }])
+      expect(sentry.captureException).toHaveBeenCalledWith(expect.any(Error), {
+        tags: {
+          runtime_source: 'sidecar-process',
+          termination_trigger: 'uncaughtException',
+        },
+      })
+    },
+  )
 
   it('is disabled without a DSN and never loads or captures data', async () => {
     const sentry = sdk()
@@ -506,8 +650,8 @@ describe('error monitoring runtime', () => {
   it('requires the Germany ingestion host and a DSN in a deployed production cell', () => {
     const deployed = {
       NODE_ENV: 'production' as const,
-      PROCESSING_CELL: 'europe',
-      RAILWAY_ENVIRONMENT_NAME: 'cell-europe',
+      PROCESSING_CELL: 'us',
+      RAILWAY_ENVIRONMENT_NAME: 'cell-us',
       RELEASE_SHA: 'b'.repeat(40),
       RAILWAY_GIT_COMMIT_SHA: undefined,
       SENTRY_TRACES_SAMPLE_RATE: 0.1,
@@ -523,15 +667,15 @@ describe('error monitoring runtime', () => {
       }),
     ).toThrow('Germany ingestion host')
     expect(
-      buildObservabilityConfig('web', {
+      buildObservabilityConfig('ai-egress-gateway', {
         ...deployed,
         SENTRY_DSN: 'https://public@o1.ingest.de.sentry.io/1',
       }),
     ).toMatchObject({
-      environment: 'cell-europe',
-      processingCell: 'europe',
+      environment: 'cell-us',
+      processingCell: 'us',
       release: 'b'.repeat(40),
-      service: 'web',
+      service: 'ai-egress-gateway',
     })
   })
 })

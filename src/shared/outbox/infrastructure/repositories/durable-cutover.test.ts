@@ -43,6 +43,7 @@ import { Pool } from 'pg'
 import { Queue, Worker, type Job } from 'bullmq'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   acquireRedisTestLease,
   type RedisTestLease,
@@ -89,15 +90,22 @@ import { createAtomicReplyCommandStore } from '#/contexts/review/infrastructure/
 import { createGoogleReplyObservationStore } from '#/contexts/review/infrastructure/google-reply-observation-store'
 import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
 import { createReviewReplyObservationAuthority } from '#/contexts/review/infrastructure/reply-observation-authority'
+import { createReviewSourceTransitionAuthority } from '#/contexts/review/infrastructure/source-transition-authority'
+import { createReviewResponseTargetAuthority } from '#/contexts/review/infrastructure/response-target-authority'
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
 import { createInboxRepository } from '#/contexts/inbox/infrastructure/repositories/inbox.repository'
-import { createAtomicInboxCommandStore } from '#/contexts/inbox/infrastructure/inbox-command-store'
+import {
+  createAtomicInboxCommandStore,
+  type InboxCommandAuthority,
+} from '#/contexts/inbox/infrastructure/inbox-command-store'
 import { createReviewHandlingCycleStore } from '#/contexts/inbox/infrastructure/review-handling-cycle.store'
 import { createReviewSourceLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/review-source-lookup.adapter'
 import { createReplyLookupAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-lookup.adapter'
 import { registerInboxConsumers } from '#/contexts/inbox/infrastructure/outbox-consumers'
 import { createReplyObservationAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/reply-observation-authority.adapter'
+import { createSourceTransitionAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/source-transition-authority.adapter'
+import { createReviewResponseTargetAuthorityAdapter } from '#/contexts/inbox/infrastructure/adapters/review-response-target-authority.adapter'
 import { registerInboxHandlers } from '#/contexts/inbox/infrastructure/event-handlers/index'
 import { createInboxItem } from '#/contexts/inbox/application/use-cases/create-inbox-item'
 import { rebuildInboxProjection } from '#/contexts/inbox/application/use-cases/rebuild-inbox-projection'
@@ -159,6 +167,9 @@ const idGen = (): InboxItemId =>
 let consumerNow = T1
 
 const silentEvents: EventBus = { on: () => {}, emit: async () => {}, clear: () => {} }
+const allowAllInboxCommandAuthority: InboxCommandAuthority = async () => ({
+  allowed: true,
+})
 
 const noopLogger: LoggerPort = {
   info: () => {},
@@ -215,7 +226,7 @@ function makeReview(id: string, reviewedAt: Date, externalId: string): Review {
 
 /** Real existence-check adapter (the durable consumer only reads .status). */
 function makeReviewLookup(): ReviewLookupPort {
-  const reviewRepo = createReviewRepository(db)
+  const reviewRepo = createReviewRepository(db, () => new Date())
   return {
     getReviewSnippetById: async (id, orgId): Promise<ReviewSnippetResult> => {
       const row = await reviewRepo.findById(id, orgId)
@@ -258,16 +269,17 @@ const stubEnrichmentPorts = {
 }
 
 function makeReviewSourceLookup(): ReviewSourceLookupPort {
-  const reviewRepo = createReviewRepository(db)
+  const reviewRepo = createReviewRepository(db, () => new Date())
   return createReviewSourceLookupAdapter({
     findById: (id, orgId) => reviewRepo.findById(id, orgId),
+    findByIds: (ids, orgId) => reviewRepo.findByIds(ids, orgId),
     findByOrganizationId: (orgId) => reviewRepo.findByOrganizationId(orgId),
     findByPropertyId: (pid, orgId) => reviewRepo.findByPropertyId(pid, orgId),
   })
 }
 
 function makeReplyLookup() {
-  const replyRepo = createReplyRepository(db)
+  const replyRepo = createReplyRepository(db, () => new Date())
   return createReplyLookupAdapter({
     findByReviewId: (id, orgId) => replyRepo.findByReviewId(id, orgId),
     findMilestonesByReviewIds: (ids, orgId) =>
@@ -405,7 +417,12 @@ async function createdFactsFor(
 
 /** Seed an open inbox item for a review without emitting any fact. */
 async function seedOpenItem(source: string, sourceDate: Date): Promise<void> {
-  const store = createAtomicInboxCommandStore(db, silentEvents)
+  const store = createAtomicInboxCommandStore(
+    db,
+    silentEvents,
+    allowAllInboxCommandAuthority,
+    () => sourceDate,
+  )
   const built = buildInboxItem({
     id: idGen(),
     organizationId: ORG,
@@ -491,21 +508,38 @@ beforeAll(async () => {
   policyHandle = initPersistedCapabilityPolicyStore({
     db,
     env: {} as CapabilityPolicyEnv,
+    clock: () => new Date(),
+    logger: { warn: () => {} },
   })
 
   // Durable consumers (module-global registry — clear first for isolation).
   clearConsumers()
   registerInboxConsumers({
-    commandStore: createAtomicInboxCommandStore(db, silentEvents),
+    commandStore: createAtomicInboxCommandStore(
+      db,
+      silentEvents,
+      allowAllInboxCommandAuthority,
+      () => consumerNow,
+    ),
     handlingCycleStore: createReviewHandlingCycleStore(db),
     replyObservationAuthority: createReplyObservationAuthorityAdapter(
       createReviewReplyObservationAuthority(db),
     ),
+    responseTargetAuthority: createReviewResponseTargetAuthorityAdapter(
+      createReviewResponseTargetAuthority(db),
+    ),
+    sourceTransitionAuthority: createSourceTransitionAuthorityAdapter(
+      createReviewSourceTransitionAuthority(db),
+    ),
     reviewLookup: makeReviewLookup(),
     reviewSourceLookup: makeReviewSourceLookup(),
-    inboxRepo: createInboxRepository(db, stubEnrichmentPorts),
+    inboxRepo: createInboxRepository(db, stubEnrichmentPorts, {
+      clock: () => consumerNow,
+      logger: noopLogger,
+    }),
     idGen,
     clock: () => consumerNow,
+    logger: noopLogger,
   })
 
   // The REAL dispatcher on a REAL BullMQ worker (the worker/index.ts wiring).
@@ -517,9 +551,14 @@ beforeAll(async () => {
   relay = createOutboxRelay(outboxRepo, eventsQueue)
 
   // Org + property fixtures.
-  await pool.query(`DELETE FROM organization WHERE slug = 'bqc39-cutover' AND id <> $1`, [
-    ORG,
-  ])
+  const conflictingOrganizations = await pool.query<{ id: string }>(
+    `SELECT id FROM organization WHERE slug = 'bqc39-cutover' AND id <> $1`,
+    [ORG],
+  )
+  await deleteTestOrganizations(
+    pool,
+    conflictingOrganizations.rows.map(({ id }) => id),
+  )
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, 'BQC39 Cutover Org', 'bqc39-cutover', NOW())
@@ -577,7 +616,7 @@ afterAll(async () => {
       ORG,
     ])
     await pool.query('DELETE FROM properties WHERE id = $1', [PROP])
-    await pool.query('DELETE FROM organization WHERE id = $1', [ORG])
+    await deleteTestOrganizations(pool, [ORG])
     await pool.end()
   }
   clearEventSchemas()
@@ -591,10 +630,19 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
     // The bus path: REAL inbox bus handlers on a dedicated bus, wired through
     // the REAL use case + repositories (record-only registration posture).
     const busBus = createEventBus()
-    const busRepo = createInboxRepository(db, stubEnrichmentPorts)
+    const busRepo = createInboxRepository(db, stubEnrichmentPorts, {
+      clock: () => T1,
+      logger: noopLogger,
+    })
+    const busCommandStore = createAtomicInboxCommandStore(
+      db,
+      busBus,
+      allowAllInboxCommandAuthority,
+      () => T1,
+    )
     const busCreateInboxItem = createInboxItem({
       repo: busRepo,
-      commandStore: createAtomicInboxCommandStore(db, busBus),
+      commandStore: busCommandStore,
       idGen,
       clock: () => T1,
     })
@@ -602,6 +650,9 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
       events: busBus,
       createInboxItem: busCreateInboxItem,
       repo: busRepo,
+      commandStore: busCommandStore,
+      logger: noopLogger,
+      cutoverState: () => 'record-only',
     })
 
     /**
@@ -636,7 +687,7 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
     }
 
     // ── review.created (bus + durable both project) ──────────────────
-    const reviewStore = createAtomicReviewCommandStore(db, silentEvents)
+    const reviewStore = createAtomicReviewCommandStore(db, silentEvents, () => new Date())
     const e1 = reviewCreated({
       reviewId: R1,
       propertyId: PROP,
@@ -680,10 +731,10 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
     expect(durableOutcomeUpdated.sourceDate).toBe(T2.toISOString()) // refreshed
 
     // ── destructive Review lifecycle is quarantined ──────────────────
-    const reviewRepo = createReviewRepository(db)
+    const reviewRepo = createReviewRepository(db, () => new Date())
     await reviewRepo.upsert(makeReview(R2, T1, 'bqc39-r2'))
     await seedOpenItem(R2, T1)
-    const replyStore = createAtomicReplyCommandStore(db, silentEvents)
+    const replyStore = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
     const e3 = reviewExpired({
       reviewId: R2,
       propertyId: PROP,
@@ -846,7 +897,7 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
 
     // N facts committed by the REAL atomic producer BEFORE any relay poll —
     // the pre-dispatcher backlog (bus silent: no projection happened).
-    const reviewStore = createAtomicReviewCommandStore(db, silentEvents)
+    const reviewStore = createAtomicReviewCommandStore(db, silentEvents, () => new Date())
     const backlogEventIds: string[] = []
     for (let i = 0; i < BACKLOG; i++) {
       const rid = backlogReviewIds[i]!
@@ -897,8 +948,16 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
     // destructive lifecycle facts are quarantined, R3 is closed by exact
     // observed provider truth, and the 12 backlog items are open.
     const rebuild = rebuildInboxProjection({
-      repo: createInboxRepository(db, stubEnrichmentPorts),
-      commandStore: createAtomicInboxCommandStore(db, silentEvents),
+      repo: createInboxRepository(db, stubEnrichmentPorts, {
+        clock: () => T5,
+        logger: noopLogger,
+      }),
+      commandStore: createAtomicInboxCommandStore(
+        db,
+        silentEvents,
+        allowAllInboxCommandAuthority,
+        () => T5,
+      ),
       reviewSourceLookup: makeReviewSourceLookup(),
       replyLookup: makeReplyLookup(),
       idGen,
@@ -977,15 +1036,29 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
       emit: async () => {},
       clear: () => {},
     }
+    const switchCommandStore = createAtomicInboxCommandStore(
+      db,
+      silentEvents,
+      allowAllInboxCommandAuthority,
+      () => T5,
+    )
     registerInboxHandlers({
       events: recordingBus,
       createInboxItem: createInboxItem({
-        repo: createInboxRepository(db, stubEnrichmentPorts),
-        commandStore: createAtomicInboxCommandStore(db, silentEvents),
+        repo: createInboxRepository(db, stubEnrichmentPorts, {
+          clock: () => T5,
+          logger: noopLogger,
+        }),
+        commandStore: switchCommandStore,
         idGen,
         clock: () => T5,
       }),
-      repo: createInboxRepository(db, stubEnrichmentPorts),
+      repo: createInboxRepository(db, stubEnrichmentPorts, {
+        clock: () => T5,
+        logger: noopLogger,
+      }),
+      commandStore: switchCommandStore,
+      logger: noopLogger,
       cutoverState: (family) => (family === 'review.created' ? 'switch' : 'record-only'),
     })
     expect(registrations).toEqual([
@@ -997,7 +1070,7 @@ describe.sequential('durable cutover synthetic proof (BQC-3.9)', () => {
 
     // Durable-primary: the fact is produced on a bus with NO inbox handlers —
     // only the durable path can project it.
-    const reviewStore = createAtomicReviewCommandStore(db, silentEvents)
+    const reviewStore = createAtomicReviewCommandStore(db, silentEvents, () => new Date())
     const e5 = reviewCreated({
       reviewId: R4,
       propertyId: PROP,

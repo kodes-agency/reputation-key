@@ -10,11 +10,11 @@ describe('invitation email rate-limit wiring', () => {
   it.each([
     [
       'src/contexts/identity/server/organizations.members.ts',
-      'await useCases.inviteMember',
+      'await identityPublicApi.requests.inviteMember',
     ],
     [
       'src/contexts/identity/server/organizations.invitations.ts',
-      'await useCases.resendInvitation',
+      'await identityPublicApi.requests.resendInvitation',
     ],
   ])('guards %s before the email-sending use case', (path, useCaseCall) => {
     const contents = source(path)

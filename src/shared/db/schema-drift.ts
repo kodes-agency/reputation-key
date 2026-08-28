@@ -856,7 +856,10 @@ function compareForeignKeys(model: ModelTable, dbFks: readonly DbConstraint[]): 
   return drifts
 }
 
-function compareChecks(model: ModelTable, dbChecks: readonly DbConstraint[]): Drift[] {
+export function compareChecks(
+  model: ModelTable,
+  dbChecks: readonly DbConstraint[],
+): Drift[] {
   const drifts: Drift[] = []
   const dbByName = new Map(dbChecks.map((c) => [c.name, c]))
   const modelNames = new Set(model.checks.map((c) => c.name))
@@ -870,7 +873,7 @@ function compareChecks(model: ModelTable, dbChecks: readonly DbConstraint[]): Dr
           'declared in model, absent in db',
         ),
       )
-    } else if (found.definition !== chk.expr) {
+    } else if (found.definition !== chk.expr && !isRegisteredAs(chk.name, 'check')) {
       drifts.push(
         drift(
           'mismatch',
@@ -881,7 +884,7 @@ function compareChecks(model: ModelTable, dbChecks: readonly DbConstraint[]): Dr
     }
   }
   for (const c of dbChecks) {
-    if (!modelNames.has(c.name) && !isRegistered(c.name)) {
+    if (!modelNames.has(c.name) && !isRegisteredAs(c.name, 'check')) {
       drifts.push(
         drift(
           'unregistered-db-object',
@@ -988,6 +991,15 @@ function compareEnumColumns(model: ModelTable, catalog: Catalog): Drift[] {
 
 function isRegistered(name: string): boolean {
   return DB_ONLY_CONSTRUCTS.some((c) => c.name === name)
+}
+
+function isRegisteredAs(
+  name: string,
+  kind: (typeof DB_ONLY_CONSTRUCTS)[number]['kind'],
+): boolean {
+  return DB_ONLY_CONSTRUCTS.some(
+    (construct) => construct.name === name && construct.kind === kind,
+  )
 }
 
 function compareTable(model: ModelTable, catalog: Catalog): Drift[] {

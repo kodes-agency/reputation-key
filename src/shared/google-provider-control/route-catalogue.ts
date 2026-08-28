@@ -64,6 +64,32 @@ const routeDescriptorSchema = z.discriminatedUnion('routeKey', [
     .strict(),
   z
     .object({
+      routeKey: z.literal('notifications.get'),
+      accessToken: boundedRouteString,
+      accountId: z.string().min(1).max(255),
+    })
+    .strict(),
+  z
+    .object({
+      routeKey: z.literal('notifications.subscribe'),
+      accessToken: boundedRouteString,
+      accountId: z.string().min(1).max(255),
+      pubsubTopic: z.string().min(1).max(1_024),
+      notificationTypes: z
+        .array(z.enum(['NEW_REVIEW', 'UPDATED_REVIEW']))
+        .min(1)
+        .max(2),
+    })
+    .strict(),
+  z
+    .object({
+      routeKey: z.literal('notifications.unsubscribe'),
+      accessToken: boundedRouteString,
+      accountId: z.string().min(1).max(255),
+    })
+    .strict(),
+  z
+    .object({
       routeKey: z.literal('reviews.list'),
       accessToken: boundedRouteString,
       locationName: z.string().min(1).max(1_024),
@@ -122,6 +148,23 @@ export type GoogleProviderRouteDescriptor =
   | Readonly<{ routeKey: 'oauth.jwks' }>
   | Readonly<{ routeKey: 'oauth.revoke'; token: string }>
   | Readonly<{
+      routeKey: 'notifications.get'
+      accessToken: string
+      accountId: string
+    }>
+  | Readonly<{
+      routeKey: 'notifications.subscribe'
+      accessToken: string
+      accountId: string
+      pubsubTopic: string
+      notificationTypes: ReadonlyArray<'NEW_REVIEW' | 'UPDATED_REVIEW'>
+    }>
+  | Readonly<{
+      routeKey: 'notifications.unsubscribe'
+      accessToken: string
+      accountId: string
+    }>
+  | Readonly<{
       routeKey: 'reviews.list'
       accessToken: string
       locationName: string
@@ -157,7 +200,7 @@ export type GoogleProviderAdmissionMetadata = Readonly<{
 export type CompiledGoogleProviderRequest = Readonly<{
   routeKey: GoogleProviderRouteKey
   catalogueVersion: typeof GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION
-  method: 'GET' | 'POST' | 'PUT'
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH'
   url: string
   headers: Readonly<Record<string, string>>
   body: Uint8Array | null
@@ -238,6 +281,30 @@ export const GOOGLE_PROVIDER_ROUTE_POLICIES = Object.freeze({
     quotaPolicyId: 'google-credential-cleanup-v1',
     inFlightPolicyId: 'google-credential-cleanup-v1',
   }),
+  'notifications.get': Object.freeze({
+    endpointClass: 'notifications' as const,
+    requestClass: 'notifications' as const,
+    maxRequestBytes: 0,
+    maxResponseBytes: 64 * 1024,
+    quotaPolicyId: 'google-notifications-read-v1',
+    inFlightPolicyId: 'google-notifications-read-v1',
+  }),
+  'notifications.subscribe': Object.freeze({
+    endpointClass: 'notifications' as const,
+    requestClass: 'notifications' as const,
+    maxRequestBytes: 64 * 1024,
+    maxResponseBytes: 64 * 1024,
+    quotaPolicyId: 'google-notifications-write-v1',
+    inFlightPolicyId: 'google-notifications-write-v1',
+  }),
+  'notifications.unsubscribe': Object.freeze({
+    endpointClass: 'notifications' as const,
+    requestClass: 'notifications' as const,
+    maxRequestBytes: 64 * 1024,
+    maxResponseBytes: 64 * 1024,
+    quotaPolicyId: 'google-notifications-write-v1',
+    inFlightPolicyId: 'google-notifications-write-v1',
+  }),
   'reviews.list': Object.freeze({
     ...REVIEWS_POLICY,
     endpointClass: 'reviews' as const,
@@ -261,7 +328,7 @@ type CredentialBinder = (credential: string) => string
 type CompiledParts = Readonly<{
   endpointClass: GoogleEndpointClass
   requestClass: GoogleRequestClass
-  method: 'GET' | 'POST' | 'PUT'
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH'
   url: string
   headers: Readonly<Record<string, string>>
   body: Uint8Array | null
@@ -282,6 +349,10 @@ const MAX_FORM_BYTES = 64 * 1024
 const MAX_REVIEW_BODY_BYTES = 64 * 1024
 const CONTENT_TYPE_FORM = 'application/x-www-form-urlencoded'
 const CONTENT_TYPE_JSON = 'application/json'
+const PROVIDER_ACCOUNT_ID = /^[A-Za-z0-9_-]{1,255}$/
+const PUBSUB_TOPIC =
+  /^projects\/[A-Za-z0-9._:-]{1,255}\/topics\/[A-Za-z0-9._~+%-]{1,255}$/
+const NOTIFICATION_TYPES = new Set(['NEW_REVIEW', 'UPDATED_REVIEW'])
 
 function invalidInput(): never {
   throw new Error('provider route input is invalid')
@@ -330,7 +401,7 @@ function formBody(entries: ReadonlyArray<readonly [string, string]>): Uint8Array
   return bytes
 }
 
-function jsonBody(value: Readonly<Record<string, string>>): Uint8Array {
+function jsonBody(value: unknown): Uint8Array {
   const bytes = textEncoder.encode(JSON.stringify(value))
   if (bytes.byteLength > MAX_REVIEW_BODY_BYTES) return invalidInput()
   return bytes
@@ -508,6 +579,88 @@ function compileParts(descriptor: GoogleProviderRouteDescriptor): CompiledParts 
         inFlightPolicyId: 'google-credential-cleanup-v1',
       }
     }
+    case 'notifications.get': {
+      const accessToken = requireBounded(descriptor.accessToken)
+      if (!PROVIDER_ACCOUNT_ID.test(descriptor.accountId)) return invalidInput()
+      return {
+        endpointClass: 'notifications',
+        requestClass: 'notifications',
+        method: 'GET',
+        url: `https://mybusinessnotifications.googleapis.com/v1/accounts/${descriptor.accountId}/notificationSetting`,
+        headers: bearerHeaders(accessToken),
+        body: null,
+        credential: accessToken,
+        maxRequestBytes: 0,
+        maxResponseBytes: MAX_FORM_BYTES,
+        quotaPolicyId: 'google-notifications-read-v1',
+        inFlightPolicyId: 'google-notifications-read-v1',
+      }
+    }
+    case 'notifications.subscribe': {
+      const accessToken = requireBounded(descriptor.accessToken)
+      if (
+        !PROVIDER_ACCOUNT_ID.test(descriptor.accountId) ||
+        !PUBSUB_TOPIC.test(descriptor.pubsubTopic) ||
+        descriptor.notificationTypes.length < 1 ||
+        descriptor.notificationTypes.length > 2 ||
+        new Set(descriptor.notificationTypes).size !==
+          descriptor.notificationTypes.length ||
+        descriptor.notificationTypes.some((type) => !NOTIFICATION_TYPES.has(type))
+      ) {
+        return invalidInput()
+      }
+      const body = jsonBody({
+        name: `accounts/${descriptor.accountId}/notificationSetting`,
+        pubsubTopic: descriptor.pubsubTopic,
+        notificationTypes: [...descriptor.notificationTypes],
+      })
+      return {
+        endpointClass: 'notifications',
+        requestClass: 'notifications',
+        method: 'PATCH',
+        url: queryUrl(
+          `https://mybusinessnotifications.googleapis.com/v1/accounts/${descriptor.accountId}/notificationSetting`,
+          [['updateMask', 'pubsubTopic,notificationTypes']],
+        ),
+        headers: Object.freeze({
+          ...bearerHeaders(accessToken),
+          'content-type': CONTENT_TYPE_JSON,
+        }),
+        body,
+        credential: accessToken,
+        maxRequestBytes: MAX_FORM_BYTES,
+        maxResponseBytes: MAX_FORM_BYTES,
+        quotaPolicyId: 'google-notifications-write-v1',
+        inFlightPolicyId: 'google-notifications-write-v1',
+      }
+    }
+    case 'notifications.unsubscribe': {
+      const accessToken = requireBounded(descriptor.accessToken)
+      if (!PROVIDER_ACCOUNT_ID.test(descriptor.accountId)) return invalidInput()
+      const body = jsonBody({
+        name: `accounts/${descriptor.accountId}/notificationSetting`,
+        pubsubTopic: '',
+      })
+      return {
+        endpointClass: 'notifications',
+        requestClass: 'notifications',
+        method: 'PATCH',
+        url: queryUrl(
+          `https://mybusinessnotifications.googleapis.com/v1/accounts/${descriptor.accountId}/notificationSetting`,
+          [['updateMask', 'pubsubTopic']],
+        ),
+        headers: Object.freeze({
+          ...bearerHeaders(accessToken),
+          'content-type': CONTENT_TYPE_JSON,
+        }),
+        body,
+        credential: accessToken,
+        maxRequestBytes: MAX_FORM_BYTES,
+        maxResponseBytes: MAX_FORM_BYTES,
+        quotaPolicyId: 'google-notifications-write-v1',
+        inFlightPolicyId: 'google-notifications-write-v1',
+      }
+    }
     case 'reviews.list': {
       const accessToken = requireBounded(descriptor.accessToken)
       if (!PROVIDER_RESOURCE_NAME.test(descriptor.locationName)) return invalidInput()
@@ -581,6 +734,7 @@ export const GOOGLE_PROVIDER_PRODUCTION_ORIGINS = Object.freeze([
   'https://businessprofileperformance.googleapis.com',
   'https://oauth2.googleapis.com',
   'https://www.googleapis.com',
+  'https://mybusinessnotifications.googleapis.com',
 ] as const)
 
 export type GoogleProviderRouteTarget =

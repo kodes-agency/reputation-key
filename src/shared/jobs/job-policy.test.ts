@@ -114,10 +114,10 @@ describe('withCatalogueJobOptions (BQC-3.6)', () => {
     const queue = fakeQueue()
     const wrapped = withCatalogueJobOptions(queue)
 
-    await wrapped.add('insert-activity-log', { resourceId: 'r1' })
+    await wrapped.add('project-recent-activity', { resourceId: 'r1' })
 
     expect(queue.add).toHaveBeenCalledWith(
-      'insert-activity-log',
+      'project-recent-activity',
       { resourceId: 'r1' },
       expect.objectContaining({
         attempts: 3,
@@ -141,8 +141,8 @@ describe('withCatalogueJobOptions (BQC-3.6)', () => {
     const queue = fakeQueue()
     withCatalogueJobOptions(queue)
 
-    await queue.add('insert-activity-log', {})
+    await queue.add('project-recent-activity', {})
 
-    expect(queue.add).toHaveBeenCalledWith('insert-activity-log', {})
+    expect(queue.add).toHaveBeenCalledWith('project-recent-activity', {})
   })
 })

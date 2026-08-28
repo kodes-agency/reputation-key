@@ -150,7 +150,12 @@ describe('gateJob — request building (stubbed policy)', () => {
       decision({ reason: 'missing_scope', action: 'system:activity.record' }),
     )
 
-    const outcome = await gateJob('insert-activity-log', {}, 'worker:default', 'worker')
+    const outcome = await gateJob(
+      'project-recent-activity',
+      {},
+      'worker:default',
+      'worker',
+    )
 
     expect(lastRequest().organizationId).toBe('')
     expect(outcome.kind).toBe('deny_terminal')

@@ -26,7 +26,10 @@ import type { ScanEvent, Rating, Feedback } from '#/contexts/guest/domain/types'
 import { scanEventId, ratingId, feedbackId } from '#/shared/domain/ids'
 import type { GoogleConnection } from '#/contexts/integration/domain/types'
 import { googleConnectionId } from '#/shared/domain/ids'
-import { resolvePersistedDataCellId } from '#/shared/domain/data-cell-catalogue'
+import {
+  DATA_CELL_CATALOGUE_POLICY_VERSION,
+  resolvePersistedDataCellId,
+} from '#/shared/domain/data-cell-catalogue'
 
 /** Build a deterministic AuthContext for tests. */
 export function buildTestAuthContext(overrides: Partial<AuthContext> = {}): AuthContext {
@@ -175,6 +178,8 @@ export function buildTestPortal(
     createdBy: userId('user-00000000-0000-0000-0000-000000000001'),
     responsibleManagerRevision: 1,
     responsibilityNeededSince: null,
+    primaryGuestLocale: 'en',
+    additionalGuestLocales: [],
     createdAt: new Date('2026-04-10T12:00:00Z'),
     updatedAt: new Date('2026-04-10T12:00:00Z'),
     deletedAt: null,
@@ -205,6 +210,9 @@ export function buildTestPortalLink(overrides: Partial<PortalLink> = {}): Portal
     categoryId: portalLinkCategoryId('c0000000-0000-0000-0000-000000000001'),
     portalId: portalId('d0000000-0000-0000-0000-000000000001'),
     organizationId: organizationId('org-00000000-0000-0000-0000-000000000001'),
+    propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
+    destinationId: null,
+    legacyDestinationState: 'unclassified',
     label: 'Test Link',
     url: 'https://example.com',
     iconKey: null,
@@ -280,14 +288,18 @@ export function buildTestGoogleConnection(
     encryptedRefreshToken: 'enc:refresh-token',
     tokenExpiresAt: new Date('2026-12-31T23:59:59Z'),
     scopes: ['https://www.googleapis.com/auth/business.manage'],
+    credentialAuthorizedBy: userId('user-00000000-0000-0000-0000-000000000001'),
     connectedBy: userId('user-00000000-0000-0000-0000-000000000001'),
-    visibility: 'private',
+    visibility: 'organization',
     status: 'active',
     credentialUseState: 'active',
     cleanupMaterialDeadlineAt: null,
     lifecycleVersion: 1,
     accessVersion: 1,
     credentialGeneration: 1,
+    credentialHomeCellId: 'us',
+    credentialHomePolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
+    credentialHomeAuthorityGeneration: 1,
     encryptionKeyId: 'v1',
     lastSuccessfulSyncAt: null,
     statusReason: null,

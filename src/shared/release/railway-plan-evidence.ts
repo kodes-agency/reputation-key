@@ -12,8 +12,20 @@
 
 import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
+import {
+  BETA_DEPLOYMENT_DATA_CELL_IDS,
+  type BetaDeploymentDataCellId,
+} from '#/shared/domain/data-cell-catalogue'
+import {
+  PRODUCTION_RAILWAY_PROJECT_NAME,
+  RAILWAY_DEPLOYMENT_PROFILES,
+  REHEARSAL_RAILWAY_PROJECT_NAME,
+  type RailwayDeploymentProfile,
+} from '#/shared/release/railway-deployment-profile'
 
-export const RAILWAY_PLAN_EVIDENCE_VERSION = 'repkey-railway-plan-1' as const
+export const RAILWAY_PLAN_EVIDENCE_VERSION = 'repkey-railway-plan-5' as const
+/** Retained review remains authority only long enough for one deliberate apply. */
+export const RAILWAY_PLAN_EVIDENCE_MAX_AGE_MS = 60 * 60 * 1000
 
 /** Exit contract of `railway config plan --detailed-exit-code`. */
 export const RAILWAY_PLAN_EXIT_NO_DRIFT = 0
@@ -28,10 +40,13 @@ export type RailwayPlanOutcome = 'no-drift' | 'pending-changes'
  */
 export const RAILWAY_PLAN_STRUCTURAL_KEYS: ReadonlySet<string> = new Set([
   'action',
+  'domain',
   'environment',
   'environmentId',
   'environmentName',
   'field',
+  'fqdn',
+  'hostname',
   'id',
   'kind',
   'name',
@@ -78,15 +93,18 @@ const railwayPlanEvidenceSchema = z
     version: z.literal(RAILWAY_PLAN_EVIDENCE_VERSION),
     evidenceKind: z.literal('railway-data-cell-plan'),
     capturedAt: z.iso.datetime({ offset: false }),
-    cell: z.string().min(1).max(64),
+    cell: z.literal(BETA_DEPLOYMENT_DATA_CELL_IDS[0]),
+    deploymentProfile: z.enum(RAILWAY_DEPLOYMENT_PROFILES),
     target: z
       .object({
+        projectName: z.string().min(1).max(255),
         projectId: z.string().min(1).max(255),
-        environment: z.string().min(1).max(255),
+        environment: z.literal('cell-us'),
         environmentId: z.string().min(1).max(255),
       })
       .strict(),
     iac: z.object({ sha256 }).strict(),
+    release: z.object({ manifestSha256: sha256, controllerSha256: sha256 }).strict(),
     plan: z
       .object({
         exitCode: z.union([
@@ -109,9 +127,51 @@ const railwayPlanEvidenceSchema = z
         message: `outcome ${evidence.plan.outcome} does not match exit code ${evidence.plan.exitCode}`,
       })
     }
+    if (
+      evidence.deploymentProfile === 'production' &&
+      evidence.target.projectName !== PRODUCTION_RAILWAY_PROJECT_NAME
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['target', 'projectName'],
+        message: `production evidence must name project ${PRODUCTION_RAILWAY_PROJECT_NAME}`,
+      })
+    }
+    if (
+      evidence.deploymentProfile === 'rehearsal' &&
+      evidence.target.projectName !== REHEARSAL_RAILWAY_PROJECT_NAME
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['target', 'projectName'],
+        message: `rehearsal evidence must name project ${REHEARSAL_RAILWAY_PROJECT_NAME}`,
+      })
+    }
   })
 
 export type RailwayPlanEvidence = z.infer<typeof railwayPlanEvidenceSchema>
+
+/**
+ * Enforce the short review-to-apply window independently of artifact parsing.
+ * Parsing preserves old evidence for audit; promotion decides whether it is
+ * still current enough to authorize a live operation.
+ */
+export function assertRailwayPlanEvidenceFresh(
+  evidence: Pick<RailwayPlanEvidence, 'capturedAt'>,
+  now: Date,
+): void {
+  const capturedAt = Date.parse(evidence.capturedAt)
+  const nowMs = now.getTime()
+  if (capturedAt > nowMs) {
+    throw new Error('Railway plan evidence capturedAt is in the future')
+  }
+  const age = nowMs - capturedAt
+  if (age > RAILWAY_PLAN_EVIDENCE_MAX_AGE_MS) {
+    throw new Error(
+      `Railway plan evidence is stale (${String(age)}ms old; maximum ${String(RAILWAY_PLAN_EVIDENCE_MAX_AGE_MS)}ms)`,
+    )
+  }
+}
 
 /**
  * Map a `--detailed-exit-code` result. Any code other than the two documented
@@ -206,9 +266,17 @@ export function railwayPlanEvidenceSha256(content: string | Uint8Array): string 
 export function createRailwayPlanEvidence(
   input: Readonly<{
     capturedAt: Date
-    cell: string
-    target: Readonly<{ projectId: string; environment: string; environmentId: string }>
+    cell: BetaDeploymentDataCellId
+    deploymentProfile: RailwayDeploymentProfile
+    target: Readonly<{
+      projectName: string
+      projectId: string
+      environment: `cell-${BetaDeploymentDataCellId}`
+      environmentId: string
+    }>
     iacSha256: string
+    releaseManifestSha256: string
+    releaseControllerSha256: string
     exitCode: number
     rawPlan: string
   }>,
@@ -224,8 +292,13 @@ export function createRailwayPlanEvidence(
     evidenceKind: 'railway-data-cell-plan',
     capturedAt: input.capturedAt.toISOString(),
     cell: input.cell,
+    deploymentProfile: input.deploymentProfile,
     target: input.target,
     iac: { sha256: input.iacSha256 },
+    release: {
+      manifestSha256: input.releaseManifestSha256,
+      controllerSha256: input.releaseControllerSha256,
+    },
     plan: {
       exitCode: input.exitCode,
       outcome: classifyRailwayPlanExit(input.exitCode),

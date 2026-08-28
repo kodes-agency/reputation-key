@@ -3,6 +3,9 @@ import { sha256Hex } from './sha256'
 
 type AuthorizationVector = Readonly<Record<string, string | number | boolean | null>>
 
+/** Version of the cross-layer authorization vector contract. */
+export const GOOGLE_CONTENT_EXECUTION_POLICY_VERSION = 'beta-local-2' as const
+
 export function googleAuthorizationPermissionDigest(actor: AuthContext): string {
   const permissions = [...(actor.effectivePermissions ?? [])].sort((left, right) =>
     left.localeCompare(right),
