@@ -1,8 +1,8 @@
+import type { OrganizationExportBundle } from '../organization-export-contract'
 import type {
-  OrganizationExportBundle,
   OrganizationExportContributor,
   OrganizationExportEntry,
-} from '../organization-export-contract'
+} from './organization-export-contributor.port'
 
 export type OrganizationExportState =
   | 'requested'

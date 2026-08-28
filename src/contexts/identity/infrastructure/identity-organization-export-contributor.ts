@@ -1,10 +1,12 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
+// Identity's own contributor implements the same port the sixteen foreign
+// contributors implement, so this file stays the reference shape for them.
 import type {
   OrganizationExportContributor,
   OrganizationExportEntry,
-} from '../application/organization-export-contract'
+} from '../application/ports/organization-export-contributor.port'
 
 type ExportScalar = string | number | boolean | null
 type ExportRecord = Readonly<Record<string, ExportScalar>>

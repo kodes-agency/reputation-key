@@ -4,46 +4,32 @@ import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import {
   ORGANIZATION_LIFECYCLE_CONTEXTS,
   validateLifecycleEvidenceRef,
-  type OrganizationLifecycleContext,
 } from '../domain/organization-lifecycle'
+// The contributor half of this contract lives in ports/ so that foreign
+// contexts' infrastructure/adapters/** may legally implement it — see the header
+// of organization-export-contributor.port.ts. Re-exported here so Identity's own
+// callers keep importing one Organization Export vocabulary.
+import {
+  CLASSIFICATIONS_BY_CONTEXT,
+  ORGANIZATION_EXPORT_CLASSIFICATIONS,
+  type OrganizationExportClassification,
+  type OrganizationExportContribution,
+  type OrganizationExportContributor,
+  type OrganizationExportEntry,
+} from './ports/organization-export-contributor.port'
+
+export {
+  CLASSIFICATIONS_BY_CONTEXT,
+  ORGANIZATION_EXPORT_CLASSIFICATIONS,
+  type OrganizationExportClassification,
+  type OrganizationExportContribution,
+  type OrganizationExportContributor,
+  type OrganizationExportEntry,
+}
 
 export const ORGANIZATION_EXPORT_FORMAT_VERSION = 'organization-export/v1' as const
 export const ORGANIZATION_EXPORT_LINK_TTL_MS = 24 * 60 * 60 * 1000
 export const ORGANIZATION_EXPORT_OBJECT_TTL_MS = 7 * 24 * 60 * 60 * 1000
-
-export const ORGANIZATION_EXPORT_CLASSIFICATIONS = [
-  'tenant_visible',
-  'permitted_guest_content',
-  'manager_authored',
-  'retained_ai_derivative',
-  'content_free_lifecycle',
-] as const
-
-export type OrganizationExportClassification =
-  (typeof ORGANIZATION_EXPORT_CLASSIFICATIONS)[number]
-
-export type OrganizationExportEntry = Readonly<{
-  path: string
-  mediaType: 'text/csv' | 'application/json' | 'text/markdown'
-  classification: OrganizationExportClassification
-  bytes: Uint8Array
-}>
-
-export type OrganizationExportContribution = Readonly<{
-  context: OrganizationLifecycleContext
-  coverage: 'complete' | 'no_data' | 'omitted'
-  omissionCodes: readonly string[]
-  entries: readonly OrganizationExportEntry[]
-}>
-
-export type OrganizationExportContributor = Readonly<{
-  context: OrganizationLifecycleContext
-  contribute(input: {
-    organizationId: string
-    requestId: string
-    asOf: Date
-  }): Promise<OrganizationExportContribution>
-}>
 
 export type OrganizationExportManifestEntry = Readonly<{
   path: string
@@ -69,28 +55,6 @@ export type OrganizationExportBundle = Readonly<{
 const SAFE_PATH = /^[a-z0-9][a-z0-9._/-]{0,199}$/
 const FORBIDDEN_PATH_COMPONENT =
   /(?:^|[/_.-])(?:oauth|secrets?|sessions?|cookies?|passwords?|hash(?:es)?|credentials?|tokens?|keys?|queues?|outbox(?:es)?|receipts?|rate.?limits?|fraud|security|prompts?|inferences?|operational.?actions?)(?=$|[/_.-])/iu
-
-const CLASSIFICATIONS_BY_CONTEXT: Readonly<
-  Record<OrganizationLifecycleContext, readonly OrganizationExportClassification[]>
-> = {
-  activity: ['tenant_visible'],
-  ai: ['retained_ai_derivative'],
-  badge: ['tenant_visible'],
-  dashboard: ['tenant_visible'],
-  goal: ['tenant_visible'],
-  guest: ['tenant_visible', 'permitted_guest_content'],
-  identity: ['tenant_visible'],
-  inbox: ['tenant_visible', 'manager_authored'],
-  integration: ['content_free_lifecycle'],
-  leaderboard: ['tenant_visible'],
-  metric: ['tenant_visible'],
-  notification: ['tenant_visible'],
-  portal: ['tenant_visible'],
-  property: ['tenant_visible'],
-  review: ['manager_authored'],
-  staff: ['tenant_visible'],
-  team: ['tenant_visible'],
-}
 
 const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true })
 

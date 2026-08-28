@@ -60,6 +60,7 @@ Dependencies point inward: `server` → `application` → `domain`. Infrastructu
 - `server/` imports from `application/` (use cases, DTOs), `shared/`, TanStack Start. May import error type guards (`isXxxError`) and error code types from its own `domain/errors.ts` — the only permitted server-to-domain path.
 - Cross-context: import from `application/public-api.ts` only. Never from `domain/`, `infrastructure/`, `server/`, or non-public-api `application/`.
 - **Exception:** Cross-context adapter implementations (e.g., `integration/infrastructure/adapters/google-review-api.adapter.ts` implementing `review/application/ports/google-review-api.port.ts`) may import the port they implement. The port IS the public interface for adapter contracts.
+- **Port completeness (LIF-01):** that exception is the implementer's _only_ legal path, so a port written for foreign adapters must publish every name its own signatures use — re-export the owning context's domain types instead of leaving an implementer unable to spell them. `identity/application/ports/organization-export-contributor.port.ts` and `organization-lifecycle-contributor.port.ts` carry the Organization Export and lifecycle contributor contracts for this reason. Re-export, never copy: `CLASSIFICATIONS_BY_CONTEXT` is declared once in the port and re-exported by `application/organization-export-contract.ts`, because a second copy would drift away from the rule the bundle builder actually enforces.
 
 ### Mechanical enforcement (BQC-5.1)
 

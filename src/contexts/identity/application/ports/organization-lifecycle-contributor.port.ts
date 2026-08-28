@@ -5,6 +5,18 @@ import type {
   OrganizationLifecycleStatus,
 } from '../../domain/organization-lifecycle'
 
+// A contributor for a foreign context is a cross-context adapter, and
+// src/contexts/CONTEXT.md lets those reach only into application/ports/**. Every
+// type named in this port's own signatures is therefore re-exported here:
+// otherwise an implementer could not spell its own method signatures without
+// importing Identity's domain/, which the boundary rule forbids.
+export type {
+  OrganizationLifecycleContext,
+  OrganizationLifecycleReceipt,
+  OrganizationLifecycleReceiptPhase,
+  OrganizationLifecycleStatus,
+}
+
 export type OrganizationLifecycleContributionInput = Readonly<{
   organizationId: string
   closureLineageId: string

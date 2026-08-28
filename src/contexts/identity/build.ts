@@ -89,7 +89,7 @@ import type {
   OrganizationExportArchiveWriter,
   OrganizationExportStorage,
 } from './application/ports/organization-export.port'
-import type { OrganizationExportContributor } from './application/organization-export-contract'
+import type { OrganizationExportContributor } from './application/ports/organization-export-contributor.port'
 import {
   ORGANIZATION_LIFECYCLE_CONTEXTS,
   type OrganizationLifecycleContext,
