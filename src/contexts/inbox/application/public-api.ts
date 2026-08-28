@@ -49,6 +49,30 @@ export {
   type PrivateFeedbackHandlingOutcome,
 } from '../domain/feedback-handling'
 
+// IBX-01 cutover classification. Pure and read-only: it reports what the legacy
+// rows prove and never infers an outcome or an on-time result from `closedAt`.
+export {
+  INBOX_HANDLING_CUTOVER_REPORT_VERSION,
+  INBOX_LEGACY_CLASSIFICATIONS,
+  INBOX_LEGACY_REASON_CODES,
+  canonicalInboxHandlingCutoverReport,
+  classifyInboxLegacyRelationship,
+  type InboxHandlingCutoverReport,
+  type InboxHandlingCutoverReportInput,
+  type InboxHandlingCutoverReportPayload,
+  type InboxLegacyClassification,
+  type InboxLegacyCycleRow,
+  type InboxLegacyHeadRow,
+  type InboxLegacyItemRow,
+  type InboxLegacyNoteRow,
+  type InboxLegacyOutcomeRow,
+  type InboxLegacyReasonCode,
+  type InboxLegacyRelationship,
+  type InboxLegacyRelationshipInput,
+  type InboxLegacySourceAnchorRow,
+  type InboxLegacyTransitionRow,
+} from './inbox-handling-cutover'
+
 // Application-layer detail result (includes the review reply) — used by the
 // client detail state. See get-inbox-item-detail use case.
 export type { InboxItemDetailResult } from './use-cases/get-inbox-item-detail'
