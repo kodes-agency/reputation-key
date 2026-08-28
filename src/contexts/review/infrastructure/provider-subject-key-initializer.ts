@@ -11,7 +11,11 @@ export type ReviewProviderSubjectMigratorEnvironment = Readonly<{
   REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS?: string
 }>
 
-async function hasInitializedInventory(db: Database): Promise<boolean> {
+type ReviewProviderSubjectInventoryDatabase = Pick<Database, 'execute'>
+
+async function hasInitializedInventory(
+  db: ReviewProviderSubjectInventoryDatabase,
+): Promise<boolean> {
   const result = await db.execute(sql`
     SELECT 1 AS present
     FROM public."review_provider_subject_hmac_key_versions"
@@ -26,7 +30,7 @@ async function hasInitializedInventory(db: Database): Promise<boolean> {
  */
 export async function initializeReviewProviderSubjectKeyInventory(
   input: Readonly<{
-    db: Database
+    db: ReviewProviderSubjectInventoryDatabase
     sealedMigratorKeys: string
   }>,
 ): Promise<InitializedReviewProviderSubjectKey> {
@@ -68,7 +72,7 @@ export async function initializeReviewProviderSubjectKeyInventory(
  */
 export async function initializeReviewProviderSubjectKeyInventoryFromEnvironment(
   input: Readonly<{
-    db: Database
+    db: ReviewProviderSubjectInventoryDatabase
     env: ReviewProviderSubjectMigratorEnvironment
   }>,
 ): Promise<InitializedReviewProviderSubjectKey | null> {

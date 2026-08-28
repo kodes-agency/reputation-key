@@ -1,9 +1,9 @@
 import { and, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { POOL_MAX_CONNECTIONS } from '#/shared/db/pool'
 import {
   googleReplyObservationHeads,
   googleReplyObservations,
+  materialReviewRevisions,
   reviews,
 } from '#/shared/db/schema/review.schema'
 import { organizationId, reviewId } from '#/shared/domain/ids'
@@ -13,77 +13,30 @@ import type {
   ReviewReplyObservationExpectation,
 } from '../application/ports/reply-observation-authority.port'
 import { lockReplyTruthScope } from './reply-truth-serialization'
+import {
+  REVIEW_EXACT_CURRENT_APPLY_CLIENTS,
+  REVIEW_EXACT_CURRENT_MAX_CONCURRENT_APPLIES,
+  runWithReviewExactCurrentApplyAdmission,
+} from './exact-current-apply-admission'
 
 const sameInstant = (left: Date, right: Date): boolean =>
   left.getTime() === right.getTime()
+
+const REVIEW_SOURCE_CONTENT_STATES = new Set<
+  ReviewCurrentReplyObservationPermit['reviewSourceContentState']
+>(['active', 'source_expired', 'provider_deleted'])
+
+const RESPONSE_TARGET_ELIGIBILITIES = new Set<
+  ReviewCurrentReplyObservationPermit['responseTargetEligibility']
+>(['measured', 'historical_onboarding', 'legacy_unknown'])
 
 /** One exact-current apply holds the Review transaction while its Inbox
  * callback opens the consumer-owned transaction, so it can require two pool
  * clients at the same time. Keep process-wide admission below pool capacity;
  * queued callers hold no database client. */
-export const REPLY_OBSERVATION_APPLY_CLIENTS = 2
-const REPLY_OBSERVATION_POOL_HEADROOM = 2
-export const REPLY_OBSERVATION_MAX_CONCURRENT_APPLIES = Math.max(
-  1,
-  Math.floor(
-    (POOL_MAX_CONNECTIONS - REPLY_OBSERVATION_POOL_HEADROOM) /
-      REPLY_OBSERVATION_APPLY_CLIENTS,
-  ),
-)
-
-type ApplyAdmission = Readonly<{
-  run<T>(apply: () => Promise<T>): Promise<T>
-}>
-
-const REPLY_OBSERVATION_APPLY_ADMISSION_KEY = Symbol.for(
-  'repkey.review.reply-observation-apply-admission',
-)
-
-// Deliberately process-lifetime, matching the process-owned DB pool. Symbol.for
-// plus globalThis makes duplicate module instances share one admission budget;
-// the gate owns no external resource and every run releases its slot in finally.
-
-const createBoundedApplyAdmission = (limit: number): ApplyAdmission => {
-  let active = 0
-  const waiters: Array<() => void> = []
-  const acquire = (): Promise<void> => {
-    if (active < limit) {
-      active += 1
-      return Promise.resolve()
-    }
-    return new Promise<void>((resolve) => {
-      waiters.push(() => {
-        active += 1
-        resolve()
-      })
-    })
-  }
-  const release = (): void => {
-    active -= 1
-    waiters.shift()?.()
-  }
-  return {
-    run: async <T>(apply: () => Promise<T>): Promise<T> => {
-      await acquire()
-      try {
-        return await apply()
-      } finally {
-        release()
-      }
-    },
-  }
-}
-
-const getReplyObservationApplyAdmission = (): ApplyAdmission => {
-  const processStore = globalThis as unknown as {
-    [key: symbol]: ApplyAdmission | undefined
-  }
-  const existing = processStore[REPLY_OBSERVATION_APPLY_ADMISSION_KEY]
-  if (existing) return existing
-  const created = createBoundedApplyAdmission(REPLY_OBSERVATION_MAX_CONCURRENT_APPLIES)
-  processStore[REPLY_OBSERVATION_APPLY_ADMISSION_KEY] = created
-  return created
-}
+export const REPLY_OBSERVATION_APPLY_CLIENTS = REVIEW_EXACT_CURRENT_APPLY_CLIENTS
+export const REPLY_OBSERVATION_MAX_CONCURRENT_APPLIES =
+  REVIEW_EXACT_CURRENT_MAX_CONCURRENT_APPLIES
 
 /**
  * Review-owned exact-current authority.
@@ -103,7 +56,7 @@ export const createReviewReplyObservationAuthority = (
     expectation: ReviewReplyObservationExpectation,
     apply: (permit: ReviewCurrentReplyObservationPermit) => Promise<T>,
   ) =>
-    getReplyObservationApplyAdmission().run(() =>
+    runWithReviewExactCurrentApplyAdmission(() =>
       db.transaction(async (tx) => {
         await lockReplyTruthScope(
           tx,
@@ -121,6 +74,7 @@ export const createReviewReplyObservationAuthority = (
             materialReviewRevision: googleReplyObservationHeads.materialReviewRevision,
             currentReviewSourceEpoch: reviews.sourceEpoch,
             currentReviewMaterialReviewRevision: reviews.sourceRevision,
+            reviewSourceContentState: reviews.sourceContentState,
             headState: googleReplyObservationHeads.state,
             headProvenance: googleReplyObservationHeads.provenance,
             state: googleReplyObservations.state,
@@ -130,6 +84,8 @@ export const createReviewReplyObservationAuthority = (
             matchedReplyId: googleReplyObservations.matchedReplyId,
             matchedPublicationCycle: googleReplyObservations.matchedPublicationCycle,
             observedAt: googleReplyObservations.observedAt,
+            responseTargetEligibility: materialReviewRevisions.responseTargetEligibility,
+            responseTargetStartAt: materialReviewRevisions.responseTargetStartAt,
           })
           .from(googleReplyObservationHeads)
           .innerJoin(
@@ -142,6 +98,16 @@ export const createReviewReplyObservationAuthority = (
               eq(reviews.id, googleReplyObservationHeads.reviewId),
               eq(reviews.organizationId, googleReplyObservationHeads.organizationId),
               eq(reviews.propertyId, googleReplyObservationHeads.propertyId),
+            ),
+          )
+          .innerJoin(
+            materialReviewRevisions,
+            and(
+              eq(materialReviewRevisions.reviewId, reviews.id),
+              eq(materialReviewRevisions.organizationId, reviews.organizationId),
+              eq(materialReviewRevisions.propertyId, reviews.propertyId),
+              eq(materialReviewRevisions.sourceEpoch, reviews.sourceEpoch),
+              eq(materialReviewRevisions.revision, reviews.sourceRevision),
             ),
           )
           .where(
@@ -172,6 +138,16 @@ export const createReviewReplyObservationAuthority = (
           current.matchedReplyId === expectation.matchedReplyId &&
           current.matchedPublicationCycle === expectation.matchedPublicationCycle &&
           (current.state === 'live' || current.state === 'absent') &&
+          REVIEW_SOURCE_CONTENT_STATES.has(
+            current.reviewSourceContentState as ReviewCurrentReplyObservationPermit['reviewSourceContentState'],
+          ) &&
+          RESPONSE_TARGET_ELIGIBILITIES.has(
+            current.responseTargetEligibility as ReviewCurrentReplyObservationPermit['responseTargetEligibility'],
+          ) &&
+          ((current.responseTargetEligibility === 'measured' &&
+            current.responseTargetStartAt instanceof Date) ||
+            (current.responseTargetEligibility !== 'measured' &&
+              current.responseTargetStartAt === null)) &&
           sameInstant(current.observedAt, expectation.occurredAt)
 
         if (!exact) return { status: 'obsolete' as const }
@@ -191,6 +167,11 @@ export const createReviewReplyObservationAuthority = (
           matchedReplyId: current.matchedReplyId,
           matchedPublicationCycle: current.matchedPublicationCycle,
           observedAt: current.observedAt,
+          reviewSourceContentState:
+            current.reviewSourceContentState as ReviewCurrentReplyObservationPermit['reviewSourceContentState'],
+          responseTargetEligibility:
+            current.responseTargetEligibility as ReviewCurrentReplyObservationPermit['responseTargetEligibility'],
+          responseTargetStartAt: current.responseTargetStartAt,
         }
         return { status: 'current' as const, value: await apply(permit) }
       }),

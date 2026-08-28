@@ -9,6 +9,7 @@ import {
 import {
   reviewCreated,
   reviewExpired,
+  reviewGoogleReputationSnapshotVerified,
   reviewReplyApproved,
   reviewReplyPublicationRequested,
   reviewReplyPublicationCancelled,
@@ -107,6 +108,61 @@ describe('review domain events', () => {
     expectEnvelope(expired)
     expect(transitioned._tag).toBe('review.source_transitioned')
     expectEnvelope(transitioned)
+  })
+
+  it('builds a content-minimal verified Google reputation snapshot fact', () => {
+    const event = reviewGoogleReputationSnapshotVerified({
+      organizationId: organizationId('organization-1'),
+      propertyId: OBSERVED_PROPERTY_ID,
+      sourceEpoch: 3,
+      runId: '44444444-4444-4444-8444-444444444444',
+      reviewCount: 42,
+      averageRating: 4.6,
+      evaluatedAt: occurredAt,
+      occurredAt,
+    })
+
+    expect(event).toMatchObject({
+      _tag: 'review.google_reputation_snapshot.verified',
+      reviewCount: 42,
+      averageRating: 4.6,
+      sourceAggregateVersion: occurredAt.toISOString(),
+    })
+    expectEnvelope(event)
+    expect(JSON.stringify(event)).not.toMatch(/reviewText|reviewerName|replyText/u)
+  })
+
+  it.each([
+    { reviewCount: 0, averageRating: 4 },
+    { reviewCount: 1, averageRating: null },
+    { reviewCount: 1, averageRating: 5.1 },
+  ])('rejects invalid verified aggregate semantics: %o', (aggregate) => {
+    expect(() =>
+      reviewGoogleReputationSnapshotVerified({
+        organizationId: organizationId('organization-1'),
+        propertyId: OBSERVED_PROPERTY_ID,
+        sourceEpoch: 3,
+        runId: '44444444-4444-4444-8444-444444444444',
+        evaluatedAt: occurredAt,
+        occurredAt,
+        ...aggregate,
+      }),
+    ).toThrow('averageRating must match')
+  })
+
+  it('requires the verified event clock to match its provider evaluation clock', () => {
+    expect(() =>
+      reviewGoogleReputationSnapshotVerified({
+        organizationId: organizationId('organization-1'),
+        propertyId: OBSERVED_PROPERTY_ID,
+        sourceEpoch: 3,
+        runId: '44444444-4444-4444-8444-444444444444',
+        reviewCount: 1,
+        averageRating: 5,
+        evaluatedAt: occurredAt,
+        occurredAt: new Date(occurredAt.getTime() + 1),
+      }),
+    ).toThrow('occurredAt must equal evaluatedAt')
   })
 
   it('builds every reply lifecycle envelope with explicit and default sources', () => {

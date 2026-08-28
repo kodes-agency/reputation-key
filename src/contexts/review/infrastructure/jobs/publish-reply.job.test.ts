@@ -27,14 +27,6 @@ import {
 import { describe, it, expect, vi } from 'vitest'
 import { createPublishReplyHandler } from './publish-reply.job'
 
-vi.mock('#/shared/observability/logger', () => ({
-  getLogger: vi.fn(() => ({
-    warn: vi.fn(),
-    info: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  })),
-}))
 vi.mock('#/shared/observability/trace', () => ({
   trace: vi.fn((_name: string, fn: () => unknown) => fn()),
 }))
@@ -209,6 +201,7 @@ function makeDeps() {
     },
     replyCommandStore,
     clock: () => NOW,
+    logger: { error: vi.fn(), info: vi.fn(), warn: vi.fn() },
     idGen: () => 'reply-1',
     staffPublicApi: {},
   }
@@ -238,12 +231,19 @@ describe('publish-reply job handler', () => {
     await handler(makeJob())
 
     expect(deps.replyCommandStore.markPublicationSending).toHaveBeenCalledTimes(1)
-    expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledWith(
-      'org-1',
-      'conn-1',
-      GOOGLE_REVIEW_PRIMARY_RESOURCE,
-      'Thanks!',
-    )
+    expect(deps.googleReviewApi.replyToReview).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      propertyId: 'prop-1',
+      connectionId: 'conn-1',
+      sourceEpoch: 0,
+      reviewId: 'rev-1',
+      materialReviewRevision: 1,
+      replyId: 'reply-1',
+      publicationCycle: 1,
+      attemptNumber: 1,
+      reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+      text: 'Thanks!',
+    })
     expect(
       deps.replyCommandStore.markProviderOutcomePendingObservation,
     ).toHaveBeenCalledWith(

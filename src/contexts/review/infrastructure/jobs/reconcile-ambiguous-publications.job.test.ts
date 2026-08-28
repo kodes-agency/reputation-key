@@ -16,14 +16,6 @@ import type { ReconcileReplyPublicationInput } from '../../application/use-cases
 import type { Reply } from '../../domain/types'
 import { organizationId, replyId, reviewId, userId } from '#/shared/domain/ids'
 
-vi.mock('#/shared/observability/logger', () => ({
-  getLogger: vi.fn(() => ({
-    warn: vi.fn(),
-    info: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  })),
-}))
 vi.mock('#/shared/observability/trace', () => ({
   trace: vi.fn((_name: string, fn: () => unknown) => fn()),
 }))
@@ -80,6 +72,7 @@ function makeDeps(opts: {
     replyRepo,
     reconcileReplyPublication: opts.reconcile,
     clock: () => NOW,
+    logger: { info: vi.fn(), warn: vi.fn() },
     runLease: {
       tryAcquire: vi.fn(async () => ({ release: leaseRelease })),
     },
@@ -363,6 +356,7 @@ describe('reconcile-ambiguous-publications sweep', () => {
       replyRepo,
       reconcileReplyPublication: reconcile as never,
       clock: () => NOW,
+      logger: { info: vi.fn(), warn: vi.fn() },
       runLease: {
         tryAcquire: async () => ({ release: async () => {} }),
       },

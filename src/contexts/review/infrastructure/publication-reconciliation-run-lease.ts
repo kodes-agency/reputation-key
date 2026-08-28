@@ -1,4 +1,4 @@
-import { getPool } from '#/shared/db/pool'
+import type { Pool } from 'pg'
 import type {
   PublicationReconciliationRunLease,
   PublicationReconciliationRunLeaseHandle,
@@ -12,10 +12,12 @@ const RECONCILIATION_RUN_LOCK = 'repkey:review:publication-reconciliation-sweep:
  * this makes exclusion global across Railway replicas that share the database.
  * A dropped session releases PostgreSQL advisory locks automatically.
  */
-export function createPublicationReconciliationRunLease(): PublicationReconciliationRunLease {
+export const createPublicationReconciliationRunLease = (
+  pool: Pick<Pool, 'connect'>,
+): PublicationReconciliationRunLease => {
   return {
     tryAcquire: async (): Promise<PublicationReconciliationRunLeaseHandle | null> => {
-      const client = await getPool().connect()
+      const client = await pool.connect()
       try {
         const result = await client.query<{ acquired: boolean }>(
           'SELECT pg_try_advisory_lock(hashtextextended($1, 0)) AS acquired',

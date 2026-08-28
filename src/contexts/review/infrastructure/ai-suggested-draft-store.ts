@@ -19,6 +19,7 @@ import type {
   AiReplyProvenancePublicKeyring,
   AiSuggestedDraftStore,
 } from '../application/ports/ai-suggested-draft-store.port'
+import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
 import { replyFromRow } from './mappers/reply.mapper'
 
 const REPLY_DRAFTING_RUNTIME_PROFILE = 'reply-drafting-runtime-v1'
@@ -58,10 +59,14 @@ function replyFenceMatches(
  * signature is checked before acquiring locks; every mutable authorization,
  * source, profile, and reply fence is rechecked inside the write transaction.
  */
-export function createAiSuggestedDraftStore(
+export const createAiSuggestedDraftStore = (
   db: Database,
   publicKeys: AiReplyProvenancePublicKeyring,
-): AiSuggestedDraftStore {
+  replyBrandProfiles: Pick<
+    PortalAiReplyBrandProfilePublicApi,
+    'isCurrentAiReplyBrandProfile'
+  >,
+): AiSuggestedDraftStore => {
   return {
     async accept(input) {
       const provenance = verifyAiReplyProvenance(input.provenanceToken, publicKeys)
@@ -75,6 +80,22 @@ export function createAiSuggestedDraftStore(
       ) {
         return { status: 'rejected', reason: 'invalid' }
       }
+      const personalized = provenance.version !== 'ai-reply-provenance-v1'
+      const grounded = provenance.version === 'ai-reply-provenance-v3'
+      const replyProfileVersion = personalized
+        ? provenance.replyProfileVersion
+        : provenance.operationProfileVersion
+      const replyTemplateProvenance = personalized
+        ? {
+            templateId: null,
+            catalogueVersion: null,
+            catalogueDigest: null,
+          }
+        : {
+            templateId: provenance.templateId,
+            catalogueVersion: provenance.replyTemplateCatalogueVersion,
+            catalogueDigest: provenance.replyTemplateCatalogueDigest,
+          }
 
       return db.transaction(async (tx) => {
         const clockResult = await tx.execute(sql`SELECT transaction_timestamp() AS "now"`)
@@ -220,10 +241,18 @@ export function createAiSuggestedDraftStore(
             provenance.outputLeakageProfileVersion ||
           operation.outputLeakageProfileDigest !==
             provenance.outputLeakageProfileDigest ||
-          operation.replyTemplateCatalogueVersion !==
-            provenance.replyTemplateCatalogueVersion ||
-          operation.replyTemplateCatalogueDigest !==
-            provenance.replyTemplateCatalogueDigest ||
+          (grounded
+            ? operation.replyBrandProfileVersion !==
+                provenance.replyBrandProfileVersion ||
+              operation.replyBrandDisplayNameDigest !==
+                provenance.replyBrandDisplayNameDigest
+            : operation.replyBrandProfileVersion !== null ||
+              operation.replyBrandDisplayNameDigest !== null) ||
+          (!personalized &&
+            (operation.replyTemplateCatalogueVersion !==
+              provenance.replyTemplateCatalogueVersion ||
+              operation.replyTemplateCatalogueDigest !==
+                provenance.replyTemplateCatalogueDigest)) ||
           operation.concreteReplyLanguageTag !== provenance.concreteLanguageTag ||
           operation.concreteReplyTemplateGroup !== provenance.templateGroup ||
           !replyFenceMatches(
@@ -251,6 +280,36 @@ export function createAiSuggestedDraftStore(
         }
 
         if (operation.replyAdoptionDisposition === 'invalidated') {
+          return { status: 'rejected', reason: 'invalidated' } as const
+        }
+
+        if (
+          grounded &&
+          operation.replyAdoptionDisposition === 'none' &&
+          !(await replyBrandProfiles.isCurrentAiReplyBrandProfile(tx, {
+            organizationId: input.organizationId,
+            propertyId: input.propertyId,
+            version: provenance.replyBrandProfileVersion,
+            displayNameDigest: provenance.replyBrandDisplayNameDigest,
+          }))
+        ) {
+          const invalidatedRows = await tx
+            .update(aiOperations)
+            .set({
+              replyAdoptionDisposition: 'invalidated',
+              updatedAt: databaseNow,
+            })
+            .where(
+              and(
+                eq(aiOperations.id, operation.id),
+                eq(aiOperations.state, 'succeeded'),
+                eq(aiOperations.replyAdoptionDisposition, 'none'),
+              ),
+            )
+            .returning({ id: aiOperations.id })
+          if (invalidatedRows.length !== 1) {
+            throw new Error('AI reply Brand Profile invalidation commit conflict')
+          }
           return { status: 'rejected', reason: 'invalidated' } as const
         }
 
@@ -305,12 +364,12 @@ export function createAiSuggestedDraftStore(
             existing.originBaseReplyStateRevision === provenance.baseReplyStateRevision &&
             existing.originReplyDraftingEpoch === provenance.replyDraftingEpoch &&
             existing.originPropertyProfileVersion === provenance.propertyProfileVersion &&
-            existing.originAiProfileVersion === provenance.operationProfileVersion &&
-            existing.originReplyTemplateId === provenance.templateId &&
+            existing.originAiProfileVersion === replyProfileVersion &&
+            existing.originReplyTemplateId === replyTemplateProvenance.templateId &&
             existing.originReplyTemplateCatalogueVersion ===
-              provenance.replyTemplateCatalogueVersion &&
+              replyTemplateProvenance.catalogueVersion &&
             existing.originReplyTemplateCatalogueDigest ===
-              provenance.replyTemplateCatalogueDigest &&
+              replyTemplateProvenance.catalogueDigest &&
             existing.originConcreteLanguageTag === provenance.concreteLanguageTag &&
             existing.originTemplateGroup === provenance.templateGroup &&
             existing.aiDraftExpiresAt?.getTime() === provenance.draftExpiresAtEpochMillis
@@ -344,11 +403,11 @@ export function createAiSuggestedDraftStore(
               originBaseReplyStateRevision: provenance.baseReplyStateRevision,
               originReplyDraftingEpoch: provenance.replyDraftingEpoch,
               originPropertyProfileVersion: provenance.propertyProfileVersion,
-              originAiProfileVersion: provenance.operationProfileVersion,
-              originReplyTemplateId: provenance.templateId,
+              originAiProfileVersion: replyProfileVersion,
+              originReplyTemplateId: replyTemplateProvenance.templateId,
               originReplyTemplateCatalogueVersion:
-                provenance.replyTemplateCatalogueVersion,
-              originReplyTemplateCatalogueDigest: provenance.replyTemplateCatalogueDigest,
+                replyTemplateProvenance.catalogueVersion,
+              originReplyTemplateCatalogueDigest: replyTemplateProvenance.catalogueDigest,
               originConcreteLanguageTag: provenance.concreteLanguageTag,
               originTemplateGroup: provenance.templateGroup,
               aiDraftExpiresAt: new Date(provenance.draftExpiresAtEpochMillis),
@@ -385,11 +444,11 @@ export function createAiSuggestedDraftStore(
               originBaseReplyStateRevision: provenance.baseReplyStateRevision,
               originReplyDraftingEpoch: provenance.replyDraftingEpoch,
               originPropertyProfileVersion: provenance.propertyProfileVersion,
-              originAiProfileVersion: provenance.operationProfileVersion,
-              originReplyTemplateId: provenance.templateId,
+              originAiProfileVersion: replyProfileVersion,
+              originReplyTemplateId: replyTemplateProvenance.templateId,
               originReplyTemplateCatalogueVersion:
-                provenance.replyTemplateCatalogueVersion,
-              originReplyTemplateCatalogueDigest: provenance.replyTemplateCatalogueDigest,
+                replyTemplateProvenance.catalogueVersion,
+              originReplyTemplateCatalogueDigest: replyTemplateProvenance.catalogueDigest,
               originConcreteLanguageTag: provenance.concreteLanguageTag,
               originTemplateGroup: provenance.templateGroup,
               aiDraftExpiresAt: new Date(provenance.draftExpiresAtEpochMillis),

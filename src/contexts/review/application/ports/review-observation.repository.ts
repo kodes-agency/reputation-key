@@ -35,6 +35,8 @@ export type MaterialReviewRevision = Readonly<{
   normalizedDigest: string | null
   rating: StarRating | null
   normalizedText: string | null
+  responseTargetEligibility: 'measured' | 'historical_onboarding' | 'legacy_unknown'
+  responseTargetStartAt: Date | null
   contentState: 'active' | 'source_expired' | 'provider_deleted'
   contentErasedAt: Date | null
   createdAt: Date

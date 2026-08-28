@@ -25,8 +25,8 @@ export type ReviewCreated = Readonly<{
   _tag: 'review.created'
   eventId: string
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   platform: ReviewPlatform
   sourceEpoch: number
   sourceRevision: number
@@ -66,8 +66,8 @@ export type ReviewUpdated = Readonly<{
   _tag: 'review.updated'
   eventId: string
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   platform: ReviewPlatform
   sourceEpoch: number
   sourceRevision: number
@@ -107,8 +107,8 @@ export type ReviewExpired = Readonly<{
   _tag: 'review.expired'
   eventId: string
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   occurredAt: Date
   correlationId: string | null
 }>
@@ -130,8 +130,8 @@ export type ReviewSourceTransitioned = Readonly<{
   _tag: 'review.source_transitioned'
   eventId: string
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   sourceEpoch: number
   sourceRevision: number
   analysisSequence: number
@@ -170,8 +170,8 @@ export type ReviewReplyPublished = Readonly<{
   eventId: string
   replyId: ReplyId
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   userId: UserId | null
   authorId: UserId | null
   source: 'web' | 'import'
@@ -199,8 +199,8 @@ export type ReviewReplySubmitted = Readonly<{
   eventId: string
   replyId: ReplyId
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   userId: UserId
   source: 'web' | 'import'
   occurredAt: Date
@@ -227,8 +227,8 @@ export type ReviewReplyApproved = Readonly<{
   eventId: string
   replyId: ReplyId
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   userId: UserId
   authorId: UserId | null
   source: 'web' | 'import'
@@ -262,8 +262,8 @@ export type ReviewReplyPublicationRequested = Readonly<{
   eventId: string
   replyId: ReplyId
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   userId: UserId
   publicationCycle: number
   sourceEpoch: number
@@ -325,8 +325,8 @@ export type ReviewReplyRejected = Readonly<{
   eventId: string
   replyId: ReplyId
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   userId: UserId
   authorId: UserId | null
   reason: string | null
@@ -355,8 +355,8 @@ export type ReviewReplyPublishFailed = Readonly<{
   eventId: string
   replyId: ReplyId
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   authorId: UserId | null
   occurredAt: Date
   correlationId: string | null
@@ -383,8 +383,8 @@ export type ReviewReplyUpdated = Readonly<{
   eventId: string
   replyId: ReplyId
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   /** The user who edited the published reply text. */
   userId: UserId | null
   occurredAt: Date
@@ -409,8 +409,8 @@ export type ReviewReplyPublicationCancelled = Readonly<{
   eventId: string
   replyId: ReplyId
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   cause: 'disconnect' | 'policy' | 'source_changed' | 'provider_truth'
   occurredAt: Date
   correlationId: string | null
@@ -449,8 +449,8 @@ export type ReviewReplyObserved = Readonly<{
   _tag: 'review.reply.observed'
   eventId: string
   reviewId: ReviewId
-  propertyId: PropertyId
   organizationId: OrganizationId
+  propertyId: PropertyId
   observationRevision: number
   sourceEpoch: number
   materialReviewRevision: number
@@ -558,6 +558,71 @@ export const reviewReplyObserved = (
   }
 }
 
+/** Content-minimal provider aggregate proven by a completed main scan,
+ * confirmation scan, and bounded Review reconciliation. */
+export type ReviewGoogleReputationSnapshotVerified = Readonly<{
+  _tag: 'review.google_reputation_snapshot.verified'
+  eventId: string
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  sourceEpoch: number
+  runId: string
+  reviewCount: number
+  averageRating: number | null
+  evaluatedAt: Date
+  sourceAggregateVersion: string
+  occurredAt: Date
+  correlationId: string | null
+}>
+
+export const reviewGoogleReputationSnapshotVerified = (
+  args: Omit<
+    ReviewGoogleReputationSnapshotVerified,
+    '_tag' | 'eventId' | 'sourceAggregateVersion' | 'correlationId'
+  > & { correlationId?: string | null },
+): ReviewGoogleReputationSnapshotVerified => {
+  assert(DATABASE_UUID_PATTERN.test(args.runId), 'runId must be a UUID')
+  assert(
+    Number.isSafeInteger(args.sourceEpoch) && args.sourceEpoch >= 0,
+    'sourceEpoch must be a nonnegative safe integer',
+  )
+  assert(
+    Number.isSafeInteger(args.reviewCount) &&
+      args.reviewCount >= 0 &&
+      args.reviewCount <= 10_000,
+    'reviewCount must be a bounded nonnegative safe integer',
+  )
+  assert(
+    (args.reviewCount === 0 && args.averageRating === null) ||
+      (args.reviewCount > 0 &&
+        args.averageRating !== null &&
+        Number.isFinite(args.averageRating) &&
+        args.averageRating >= 0 &&
+        args.averageRating <= 5),
+    'averageRating must match the provider review count',
+  )
+  assert(
+    args.evaluatedAt instanceof Date && Number.isFinite(args.evaluatedAt.getTime()),
+    'evaluatedAt must be a valid Date',
+  )
+  assert(
+    args.occurredAt instanceof Date && Number.isFinite(args.occurredAt.getTime()),
+    'occurredAt must be a valid Date',
+  )
+  assert(
+    args.occurredAt.getTime() === args.evaluatedAt.getTime(),
+    'occurredAt must equal evaluatedAt',
+  )
+  return {
+    ...args,
+    _tag: 'review.google_reputation_snapshot.verified',
+    eventId: newEventId(),
+    sourceAggregateVersion: args.evaluatedAt.toISOString(),
+    occurredAt: args.occurredAt,
+    correlationId: args.correlationId ?? null,
+  }
+}
+
 export type ReviewEvent =
   | ReviewCreated
   | ReviewUpdated
@@ -572,3 +637,4 @@ export type ReviewEvent =
   | ReviewReplyUpdated
   | ReviewReplyPublicationCancelled
   | ReviewReplyObserved
+  | ReviewGoogleReputationSnapshotVerified

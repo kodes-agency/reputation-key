@@ -33,7 +33,7 @@ import {
   AMBIGUOUS_RECONCILE_DELAY_MS,
   PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
 } from '../../domain/reply-publication-workflow'
-import { getLogger } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 import { performance } from 'node:perf_hooks'
 import type { PublicationReconciliationRunLease } from '../../application/ports/publication-reconciliation-run-lease.port'
@@ -46,6 +46,7 @@ type ReconcileSweepDeps = Readonly<{
   replyRepo: ReplyRepository
   reconcileReplyPublication: ReconcileReplyPublication
   clock: () => Date
+  logger: Pick<LoggerPort, 'info' | 'warn'>
   /** Cross-process lease; a busy result makes this firing a clean no-op. */
   runLease: PublicationReconciliationRunLease
   /** Monotonic clock for deadline accounting; wall-clock changes are irrelevant. */
@@ -66,7 +67,7 @@ type SweepCounts = {
 
 type Cursor = Readonly<{ reconcileDueAt: Date; id: string }>
 
-type Logger = ReturnType<typeof getLogger>
+type Logger = ReconcileSweepDeps['logger']
 
 type RowOutcome = 'healed' | 'deferred' | 'superseded' | 'failed'
 
@@ -178,20 +179,20 @@ export const createReconcileAmbiguousPublicationsHandler = (deps: ReconcileSweep
     const reachedDeadline = () => monotonicNowMs() >= runDeadline
     const lease = await deps.runLease.tryAcquire()
     if (!lease) {
-      getLogger().info(
+      deps.logger.info(
         'Reconcile provider publication observations skipped: another run is active',
       )
       return
     }
     try {
       if (reachedDeadline()) {
-        getLogger().info(
+        deps.logger.info(
           'Reconcile provider publication observations skipped: run deadline closed during lease acquisition',
         )
         return
       }
       return await trace('job.reconcileAmbiguousPublications', async () => {
-        const logger = getLogger()
+        const logger = deps.logger
         const now = deps.clock()
         const counts: SweepCounts = {
           batches: 0,

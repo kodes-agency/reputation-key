@@ -117,7 +117,6 @@ function makeReply(overrides: Partial<Reply> = {}): Reply {
 const makeStaffApi = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
   getAccessiblePropertyIds: async () => accessible,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 })
 
 const replyRepoWith = (reply: Reply | null): ReplyRepository => ({

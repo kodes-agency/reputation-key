@@ -47,6 +47,18 @@ export function computeAiReviewSourceProvenance(
 }
 
 export type AiReviewSourceDependencies = Readonly<{
+  findById(
+    reviewId: Parameters<ReviewRepository['findById']>[0],
+    organizationId: Parameters<ReviewRepository['findById']>[1],
+  ): Promise<Pick<
+    NonNullable<Awaited<ReturnType<ReviewRepository['findById']>>>,
+    | 'id'
+    | 'organizationId'
+    | 'propertyId'
+    | 'sourceEpoch'
+    | 'sourceRevision'
+    | 'analysisSequence'
+  > | null>
   readForAi: ReviewRepository['readForAi']
   readTrendPopulation: ReviewRepository['readTrendPopulation']
   assertCurrentForAi: ReviewRepository['assertCurrentForAi']
@@ -59,6 +71,21 @@ export type AiReviewSourceDependencies = Readonly<{
 export const createAiReviewSource = (
   dependencies: AiReviewSourceDependencies,
 ): AiReviewSourcePort => ({
+  readCurrentSource: async (input) => {
+    const review = await dependencies.findById(input.reviewId, input.organizationId)
+    if (!review) return { status: 'not_found' }
+    return {
+      status: 'available',
+      source: {
+        organizationId: review.organizationId,
+        propertyId: review.propertyId,
+        reviewId: review.id,
+        sourceEpoch: review.sourceEpoch,
+        sourceRevision: review.sourceRevision,
+        analysisSequence: review.analysisSequence,
+      },
+    }
+  },
   readForAi: (input) => dependencies.readForAi(input),
   readTrendPopulation: (input) => dependencies.readTrendPopulation(input),
   assertCurrent: (input) => dependencies.assertCurrentForAi(input),

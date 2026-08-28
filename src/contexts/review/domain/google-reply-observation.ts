@@ -1,23 +1,22 @@
 import { sha256Hex } from '#/shared/domain/sha256'
+import {
+  GOOGLE_REPLY_NORMALIZATION_VERSION,
+  googleReplyTextDigest,
+  normalizeGoogleReplyText,
+} from '#/shared/domain/google-reply-text'
 import type { ReplyId } from '#/shared/domain/ids'
+
+export {
+  GOOGLE_REPLY_NORMALIZATION_VERSION,
+  googleReplyTextDigest,
+  normalizeGoogleReplyText,
+} from '#/shared/domain/google-reply-text'
 
 /**
  * Frozen normalization used to compare manager-authorized text with the
  * provider's current reply. Changing these rules requires a new version; old
  * attempt and observation evidence must remain interpretable.
  */
-export const GOOGLE_REPLY_NORMALIZATION_VERSION = 'google-reply-v1' as const
-
-export function normalizeGoogleReplyText(text: string): string {
-  return text.normalize('NFC').replace(/\r\n?/gu, '\n').trim()
-}
-
-export function googleReplyTextDigest(text: string): string {
-  return sha256Hex(
-    `${GOOGLE_REPLY_NORMALIZATION_VERSION}\0${normalizeGoogleReplyText(text)}`,
-  )
-}
-
 export type GoogleReplyObservationInputIdentity = Readonly<{
   organizationId: string
   propertyId: string

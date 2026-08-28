@@ -150,9 +150,11 @@ export async function eraseReviewSourceContent(
   if (!rows[0]) return false
 
   // Historical identities and comparison controls remain, but provider-owned
-  // values are removed from every retained observation/revision. Manager-owned
-  // Replies, Inbox items, and their audit history are separate records and are
-  // intentionally outside this lifecycle operation.
+  // values are removed from every retained observation/revision across all
+  // historical source epochs. The Review update above fences the current epoch
+  // first, so a stale old-epoch command cannot erase a newly rebound Review.
+  // Manager-owned Replies, Inbox items, and their audit history are separate
+  // records and are intentionally outside this lifecycle operation.
   await tx
     .update(reviewSourceObservations)
     .set({
@@ -174,7 +176,6 @@ export async function eraseReviewSourceContent(
         eq(reviewSourceObservations.reviewId, input.reviewId),
         eq(reviewSourceObservations.organizationId, input.organizationId),
         eq(reviewSourceObservations.propertyId, input.propertyId),
-        eq(reviewSourceObservations.sourceEpoch, input.sourceEpoch),
         eq(reviewSourceObservations.contentState, 'active'),
       ),
     )
@@ -193,7 +194,6 @@ export async function eraseReviewSourceContent(
         eq(materialReviewRevisions.reviewId, input.reviewId),
         eq(materialReviewRevisions.organizationId, input.organizationId),
         eq(materialReviewRevisions.propertyId, input.propertyId),
-        eq(materialReviewRevisions.sourceEpoch, input.sourceEpoch),
         eq(materialReviewRevisions.contentState, 'active'),
       ),
     )
@@ -212,7 +212,6 @@ export async function eraseReviewSourceContent(
         eq(googleReplyObservations.reviewId, input.reviewId),
         eq(googleReplyObservations.organizationId, input.organizationId),
         eq(googleReplyObservations.propertyId, input.propertyId),
-        eq(googleReplyObservations.sourceEpoch, input.sourceEpoch),
         eq(googleReplyObservations.contentState, 'active'),
       ),
     )

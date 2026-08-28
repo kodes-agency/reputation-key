@@ -28,7 +28,7 @@ import type { Database } from '#/shared/db'
 import { reviews, reviewProviderSubjects } from '#/shared/db/schema/review.schema'
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { Review, ReviewPlatform } from '../../domain/types'
-import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
+import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { reviewFromRow, reviewToRow } from '../mappers/review.mapper'
 import { reviewError } from '../../domain/errors'
@@ -41,6 +41,7 @@ import type {
 import { computeAiReviewSourceProvenance } from '../../application/ai-review-source'
 import { upsertReviewSourceContent } from '../review-source-content-store'
 import { persistReviewObservation } from './review-observation.repository'
+import type { ReviewProviderObservationOrigin } from '../../application/ports/response-target-authority.port'
 
 const MAX_SAFE_INTEGER_BIGINT = BigInt(Number.MAX_SAFE_INTEGER)
 const MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1 = 16_384
@@ -167,7 +168,10 @@ function aiSourceLookupSql(input: AiReviewSourceRequest) {
     LIMIT 1
   `
 }
-export const createReviewRepository = (db: Database): ReviewRepository => ({
+export const createReviewRepository = (
+  db: Database,
+  clock: () => Date,
+): ReviewRepository => ({
   findById: async (id: ReviewId, organizationId: OrganizationId) => {
     return trace('review.findById', async () => {
       const rows = await db
@@ -595,15 +599,17 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
     review: Omit<Review, 'createdAt' | 'updatedAt'>,
     now?: Date,
     observationKey?: string,
+    observationOrigin?: ReviewProviderObservationOrigin,
   ) => {
     return trace('review.upsert', async () => {
-      const updatedAt = now ?? new Date()
+      const updatedAt = now ?? clock()
       if (review.lastFetchedAt != null && review.contentExpiresAt != null) {
         const observation = await db.transaction((tx) =>
           persistReviewObservation(tx, {
             review,
             observedAt: updatedAt,
             ...(observationKey == null ? {} : { observationKey }),
+            ...(observationOrigin == null ? {} : { observationOrigin }),
           }),
         )
         return observation.review
@@ -834,27 +840,6 @@ export const createReviewRepository = (db: Database): ReviewRepository => ({
           and(isNotNull(reviews.contentExpiresAt), lt(reviews.contentExpiresAt, date)),
         )
       return rows[0]?.count ?? 0
-    })
-  },
-
-  deleteById: async (id: ReviewId, organizationId: OrganizationId) => {
-    return trace('review.deleteById', async () => {
-      await db
-        .delete(reviews)
-        .where(and(eq(reviews.id, id), eq(reviews.organizationId, organizationId)))
-    })
-  },
-
-  deleteByPropertyId: async (propertyId: PropertyId, organizationId: OrganizationId) => {
-    return trace('review.deleteByPropertyId', async () => {
-      await db
-        .delete(reviews)
-        .where(
-          and(
-            eq(reviews.propertyId, propertyId),
-            eq(reviews.organizationId, organizationId),
-          ),
-        )
     })
   },
 })

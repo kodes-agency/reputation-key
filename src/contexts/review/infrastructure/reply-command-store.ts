@@ -103,11 +103,11 @@ async function guardedReplyUpdate(
   tx: Tx,
   reply: Reply,
   updates: ConditionalReplyUpdate,
-  now: Date | undefined,
+  occurredAt: Date,
 ): Promise<Reply | null> {
   const result = await tx
     .update(replies)
-    .set(buildReplySetClause(updates, now ?? new Date()))
+    .set(buildReplySetClause(updates, occurredAt))
     .where(
       and(
         eq(replies.id, reply.id),
@@ -303,11 +303,12 @@ function authorizationFenceIsCurrent(
   )
 }
 
-export function createAtomicReplyCommandStore(
+export const createAtomicReplyCommandStore = (
   db: Database,
   events: EventBus,
+  clock: () => Date,
   publicationActorAuthority: ReplyPublicationActorAuthority = missingPublicationActorAuthority,
-): ReplyCommandStore {
+): ReplyCommandStore => {
   /** Shared runner for the guarded-transition commands. */
   const transition = async (
     span: string,
@@ -317,9 +318,10 @@ export function createAtomicReplyCommandStore(
     now?: Date,
   ): Promise<Reply | null> => {
     return trace(span, async () => {
+      const occurredAt = now ?? clock()
       const saved = await db.transaction(async (tx) => {
         if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
-        const row = await guardedReplyUpdate(tx, reply, updates, now)
+        const row = await guardedReplyUpdate(tx, reply, updates, occurredAt)
         if (!row) return null
         if (event) await insertOutboxRow(tx, event)
         return row
@@ -343,7 +345,7 @@ export function createAtomicReplyCommandStore(
     return trace(span, async () => {
       const target = nextStateOrNull(reply, event)
       if (!target) return null
-      const at = now ?? new Date()
+      const at = now ?? clock()
       const saved = await db.transaction(async (tx) => {
         const row = await guardedPublicationUpdate(
           tx,
@@ -393,6 +395,7 @@ export function createAtomicReplyCommandStore(
     now?: Date,
   ) => {
     const row = replyToRow(replyToUpsert)
+    const updatedAt = now ?? clock()
     const result = await tx
       .insert(replies)
       .values(row)
@@ -411,7 +414,7 @@ export function createAtomicReplyCommandStore(
           publishedAt: row.publishedAt,
           // BQC-3.8: publication columns are deliberately NOT in the conflict
           // set — a mirror refresh never clobbers an in-flight publication.
-          updatedAt: now ?? new Date(),
+          updatedAt,
         },
       })
       .returning()
@@ -446,6 +449,7 @@ export function createAtomicReplyCommandStore(
     markPublicationAuthorized: (reply, updates, facts, now) => {
       if (!nextStateOrNull(reply, 'authorize')) return Promise.resolve(null)
       const publicationCycle = assertPublicationIntentMatchesCycle(reply, facts)
+      const occurredAt = now ?? clock()
       return trace('reply.commandStore.markPublicationAuthorized', async () => {
         const saved = await db.transaction(async (tx) => {
           const intent = facts.publicationIntent
@@ -459,7 +463,7 @@ export function createAtomicReplyCommandStore(
             organizationId: reply.organizationId,
             propertyId: intent.propertyId,
             userId: intent.userId,
-            at: now ?? new Date(),
+            at: occurredAt,
           })
           if (!actorAllowed) return null
           if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
@@ -474,7 +478,7 @@ export function createAtomicReplyCommandStore(
               publicationLastErrorClass: null,
               reconcileDueAt: null,
             },
-            now,
+            occurredAt,
           )
           if (!row) return null
           await tx.insert(replyPublicationAuthorizations).values({
@@ -490,8 +494,8 @@ export function createAtomicReplyCommandStore(
             replyStateRevision: row.stateRevision,
             normalizationVersion: 'google-reply-v1',
             expectedReplyDigest: googleReplyTextDigest(row.text),
-            authorizedAt: now ?? new Date(),
-            createdAt: now ?? new Date(),
+            authorizedAt: occurredAt,
+            createdAt: occurredAt,
           })
           if (facts.lifecycleEvent) await insertOutboxRow(tx, facts.lifecycleEvent)
           await insertOutboxRow(tx, facts.publicationIntent)
@@ -524,7 +528,7 @@ export function createAtomicReplyCommandStore(
         ) {
           throw reviewError('invalid_input', 'Invalid publication attempt fence')
         }
-        const at = now ?? new Date()
+        const at = now ?? clock()
         let authorityCancellation: DomainEvent | null = null
         const claimed = await db.transaction(async (tx) => {
           const scope = await lockCurrentReplyTruthScope(tx, {
@@ -796,6 +800,7 @@ export function createAtomicReplyCommandStore(
       return trace('reply.commandStore.markPublicationRetryQueued', async () => {
         const target = nextStateOrNull(reply, 'requeue')
         if (!target) return null
+        const occurredAt = now ?? clock()
         return db.transaction(async (tx) => {
           const saved = await guardedPublicationUpdate(
             tx,
@@ -804,13 +809,13 @@ export function createAtomicReplyCommandStore(
             ['sending'],
             {
               publicationState: target,
-              updatedAt: now ?? new Date(),
+              updatedAt: occurredAt,
             },
           )
           if (!saved) return null
           await updateCurrentAttempt(tx, saved, {
             outcome: 'retryable_failure',
-            updatedAt: now ?? new Date(),
+            updatedAt: occurredAt,
           })
           return saved
         })
@@ -825,6 +830,7 @@ export function createAtomicReplyCommandStore(
     editPublishedReply: (reply, command) => {
       if (reply.status !== 'published') return Promise.resolve(null)
       const publicationCycle = assertPublicationIntentMatchesCycle(reply, command)
+      const occurredAt = command.now ?? clock()
       return trace('reply.commandStore.editPublishedReply', async () => {
         const saved = await db.transaction(async (tx) => {
           const intent = command.publicationIntent
@@ -838,7 +844,7 @@ export function createAtomicReplyCommandStore(
             organizationId: reply.organizationId,
             propertyId: intent.propertyId,
             userId: intent.userId,
-            at: command.now ?? new Date(),
+            at: occurredAt,
           })
           if (!actorAllowed) return null
           if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
@@ -854,7 +860,7 @@ export function createAtomicReplyCommandStore(
               publicationLastErrorClass: null,
               reconcileDueAt: null,
             },
-            command.now,
+            occurredAt,
           )
           if (!row) return null
           await tx.insert(replyPublicationAuthorizations).values({
@@ -870,8 +876,8 @@ export function createAtomicReplyCommandStore(
             replyStateRevision: row.stateRevision,
             normalizationVersion: 'google-reply-v1',
             expectedReplyDigest: googleReplyTextDigest(row.text),
-            authorizedAt: command.now ?? new Date(),
-            createdAt: command.now ?? new Date(),
+            authorizedAt: occurredAt,
+            createdAt: occurredAt,
           })
           await insertOutboxRow(tx, command.lifecycleEvent)
           await insertOutboxRow(tx, command.publicationIntent)
@@ -892,6 +898,7 @@ export function createAtomicReplyCommandStore(
             // Rows whose state moved on (published/failed/cancelled/purged)
             // are skipped without a fact — the batch still commits.
             if (!nextStateOrNull(reply, 'cancel')) continue
+            const occurredAt = now ?? clock()
             const row = await guardedPublicationUpdate(
               tx,
               reply,
@@ -900,7 +907,7 @@ export function createAtomicReplyCommandStore(
               {
                 status: 'draft',
                 publicationState: 'cancelled',
-                updatedAt: now ?? new Date(),
+                updatedAt: occurredAt,
               },
             )
             if (!row) continue
@@ -908,7 +915,7 @@ export function createAtomicReplyCommandStore(
               await updateCurrentAttempt(tx, row, {
                 outcome: 'superseded',
                 confirmedObservationRevision: null,
-                updatedAt: now ?? new Date(),
+                updatedAt: occurredAt,
               })
             }
             await insertOutboxRow(tx, event)
@@ -967,13 +974,14 @@ export function createAtomicReplyCommandStore(
  * the legacy Review purge is denied before every dependency in both stores.
  * Not for production — production must use createAtomicReplyCommandStore.
  */
-export function createSequentialReplyCommandStore(deps: {
+export const createSequentialReplyCommandStore = (deps: {
   conditionalUpdate: ReplyRepository['conditionalUpdate']
   upsert: ReplyRepository['upsert']
   deleteByReviewIdAndSource: ReplyRepository['deleteByReviewIdAndSource']
   /** @deprecated SAFE-03 keeps this compatibility dependency unreachable. */
   deleteReviewById: (reviewId: ReviewId, organizationId: OrganizationId) => Promise<void>
   events: EventBus
+  clock: () => Date
   recordOutbox?: (event: DomainEvent) => Promise<void>
   /**
    * BQC-3.8: publication-state-guarded update for the claim/cancel/requeue
@@ -985,7 +993,7 @@ export function createSequentialReplyCommandStore(deps: {
     updates: ConditionalReplyUpdate,
     now?: Date,
   ) => Promise<Reply | null>
-}): ReplyCommandStore {
+}): ReplyCommandStore => {
   const recordAndEmit = async (event: DomainEvent): Promise<void> => {
     if (deps.recordOutbox) await deps.recordOutbox(event)
     await emitAfterCommit(deps.events, event)
@@ -1083,7 +1091,7 @@ export function createSequentialReplyCommandStore(deps: {
         {
           publicationState: 'pending_observation',
           reconcileDueAt: new Date(
-            (now ?? new Date()).getTime() + PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
+            (now ?? deps.clock()).getTime() + PROVIDER_OBSERVATION_RECONCILE_DELAY_MS,
           ),
         },
         null,
@@ -1114,7 +1122,7 @@ export function createSequentialReplyCommandStore(deps: {
           publicationState: 'ambiguous',
           publicationLastErrorClass: 'ambiguous',
           reconcileDueAt: new Date(
-            (now ?? new Date()).getTime() + AMBIGUOUS_RECONCILE_DELAY_MS,
+            (now ?? deps.clock()).getTime() + AMBIGUOUS_RECONCILE_DELAY_MS,
           ),
         },
         event,

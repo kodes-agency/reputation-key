@@ -13,6 +13,7 @@ import { Pool } from 'pg'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -56,7 +57,14 @@ let pool: Pool
 
 async function seedOrgAndProperty(p: Pool) {
   const slug = 't-' + ORG_A.replace(/-/g, '').slice(-12)
-  await p.query(`DELETE FROM organization WHERE slug = $1 AND id <> $2`, [slug, ORG_A])
+  const conflictingOrganizations = await p.query<{ id: string }>(
+    `SELECT id FROM organization WHERE slug = $1 AND id <> $2`,
+    [slug, ORG_A],
+  )
+  await deleteTestOrganizations(
+    p,
+    conflictingOrganizations.rows.map(({ id }) => id),
+  )
   await p.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, $2, $3, NOW())
@@ -189,9 +197,14 @@ beforeEach(async () => {
 describe.sequential('replyCommandStore (integration)', () => {
   it('recovers the committed authorization after interruption before direct queue admission', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db)
-    const replyRepo = createReplyRepository(db)
-    const store = createAtomicReplyCommandStore(db, silentEvents, async () => true)
+    const reviewRepo = createReviewRepository(db, () => new Date())
+    const replyRepo = createReplyRepository(db, () => new Date())
+    const store = createAtomicReplyCommandStore(
+      db,
+      silentEvents,
+      () => new Date(),
+      async () => true,
+    )
     const outboxRepo = createOutboxRepository(db)
     const queued: Array<Readonly<{ data: unknown; options: unknown }>> = []
 
@@ -288,9 +301,14 @@ describe.sequential('replyCommandStore (integration)', () => {
 
   it('keeps committed publication authority append-only at the database boundary', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db)
-    const replyRepo = createReplyRepository(db)
-    const store = createAtomicReplyCommandStore(db, silentEvents, async () => true)
+    const reviewRepo = createReviewRepository(db, () => new Date())
+    const replyRepo = createReplyRepository(db, () => new Date())
+    const store = createAtomicReplyCommandStore(
+      db,
+      silentEvents,
+      () => new Date(),
+      async () => true,
+    )
 
     await reviewRepo.upsert(makeReview())
     const pending = makeReply({ status: 'pending_approval', submittedAt: NOW })
@@ -351,8 +369,8 @@ describe.sequential('replyCommandStore (integration)', () => {
 
   it('cancels a queued cycle when its named PropertyManager grant is revoked before claim', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db)
-    const replyRepo = createReplyRepository(db)
+    const reviewRepo = createReviewRepository(db, () => new Date())
+    const replyRepo = createReplyRepository(db, () => new Date())
 
     await db.execute(sql`
       INSERT INTO "user" (id, name, email, "emailVerified")
@@ -388,7 +406,12 @@ describe.sequential('replyCommandStore (integration)', () => {
           permission: 'reply.manage',
         })
       ).allowed
-    const store = createAtomicReplyCommandStore(db, silentEvents, actorAuthority)
+    const store = createAtomicReplyCommandStore(
+      db,
+      silentEvents,
+      () => new Date(),
+      actorAuthority,
+    )
 
     await reviewRepo.upsert(makeReview())
     const pending = makeReply({ status: 'pending_approval', submittedAt: NOW })
@@ -470,9 +493,14 @@ describe.sequential('replyCommandStore (integration)', () => {
 
   it('rolls back authorization and its lifecycle fact when the publication-intent insert fails', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db)
-    const replyRepo = createReplyRepository(db)
-    const store = createAtomicReplyCommandStore(db, silentEvents, async () => true)
+    const reviewRepo = createReviewRepository(db, () => new Date())
+    const replyRepo = createReplyRepository(db, () => new Date())
+    const store = createAtomicReplyCommandStore(
+      db,
+      silentEvents,
+      () => new Date(),
+      async () => true,
+    )
 
     await reviewRepo.upsert(makeReview())
     const pending = makeReply({ status: 'pending_approval', submittedAt: NOW })
@@ -526,9 +554,9 @@ describe.sequential('replyCommandStore (integration)', () => {
 
   it('rolls back the state write when the outbox insert fails (no state/outbox split)', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db)
-    const replyRepo = createReplyRepository(db)
-    const store = createAtomicReplyCommandStore(db, silentEvents)
+    const reviewRepo = createReviewRepository(db, () => new Date())
+    const replyRepo = createReplyRepository(db, () => new Date())
+    const store = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
 
     await reviewRepo.upsert(makeReview())
     await replyRepo.upsert(makeReply({ status: 'draft' }))
@@ -567,8 +595,8 @@ describe.sequential('replyCommandStore (integration)', () => {
 
   it('rolls back a mirror upsert when its outbox insert fails (reply row absent)', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db)
-    const store = createAtomicReplyCommandStore(db, silentEvents)
+    const reviewRepo = createReviewRepository(db, () => new Date())
+    const store = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
 
     await reviewRepo.upsert(makeReview())
 
@@ -618,9 +646,9 @@ describe.sequential('replyCommandStore (integration)', () => {
 
   it('commits state row and outbox row with identical eventId (happy path)', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db)
-    const replyRepo = createReplyRepository(db)
-    const store = createAtomicReplyCommandStore(db, silentEvents)
+    const reviewRepo = createReviewRepository(db, () => new Date())
+    const replyRepo = createReplyRepository(db, () => new Date())
+    const store = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
 
     await reviewRepo.upsert(makeReview())
     await replyRepo.upsert(makeReply({ status: 'draft' }))
@@ -668,9 +696,9 @@ describe.sequential('replyCommandStore (integration)', () => {
 
   it('quarantines purgeExpiredReview without erasing the review, reply, or recording a false expiry fact', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db)
-    const replyRepo = createReplyRepository(db)
-    const store = createAtomicReplyCommandStore(db, silentEvents)
+    const reviewRepo = createReviewRepository(db, () => new Date())
+    const replyRepo = createReplyRepository(db, () => new Date())
+    const store = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
 
     await reviewRepo.upsert(makeReview())
     await replyRepo.upsert(makeReply())

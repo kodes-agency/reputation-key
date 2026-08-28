@@ -19,6 +19,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -64,7 +65,14 @@ const silentEvents: EventBus = {
 
 async function seedOrgAndProperty(p: Pool) {
   const slug = 't-' + ORG_A.replace(/-/g, '').slice(-12)
-  await p.query(`DELETE FROM organization WHERE slug = $1 AND id <> $2`, [slug, ORG_A])
+  const conflictingOrganizations = await p.query<{ id: string }>(
+    `SELECT id FROM organization WHERE slug = $1 AND id <> $2`,
+    [slug, ORG_A],
+  )
+  await deleteTestOrganizations(
+    p,
+    conflictingOrganizations.rows.map(({ id }) => id),
+  )
   await p.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
      VALUES ($1, $2, $3, NOW())
@@ -234,8 +242,8 @@ describe.sequential('publication state machine (integration, migration 0015)', (
 
   it('the CHECK constraint rejects a publication_state outside the domain union', async () => {
     const db = getDb()
-    await createReviewRepository(db).upsert(makeReview())
-    await createReplyRepository(db).upsert(makeReply())
+    await createReviewRepository(db, () => new Date()).upsert(makeReview())
+    await createReplyRepository(db, () => new Date()).upsert(makeReply())
 
     await expect(
       pool.query(`UPDATE replies SET publication_state = 'teleporting' WHERE id = $1`, [
@@ -253,9 +261,9 @@ describe.sequential('publication state machine (integration, migration 0015)', (
 
   it('cancelPublications commits state + one fact per row in the batch tx; published rows stay untouched', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db)
-    const replyRepo = createReplyRepository(db)
-    const store = createAtomicReplyCommandStore(db, silentEvents)
+    const reviewRepo = createReviewRepository(db, () => new Date())
+    const replyRepo = createReplyRepository(db, () => new Date())
+    const store = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
 
     await reviewRepo.upsert(makeReview())
     // One review, three replies is impossible (unique review+source+org) —
@@ -357,9 +365,9 @@ describe.sequential('publication state machine (integration, migration 0015)', (
 
   it('cancelPublications rolls the WHOLE batch back when one fact fails (no state/fact split)', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db)
-    const replyRepo = createReplyRepository(db)
-    const store = createAtomicReplyCommandStore(db, silentEvents)
+    const reviewRepo = createReviewRepository(db, () => new Date())
+    const replyRepo = createReplyRepository(db, () => new Date())
+    const store = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
 
     await reviewRepo.upsert(makeReview())
     await replyRepo.upsert(makeReply({ publicationState: 'authorized' }))
@@ -425,9 +433,14 @@ describe.sequential('publication state machine (integration, migration 0015)', (
 
   it('an ambiguous row written by the store is findable by the sweep query once due', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db)
-    const replyRepo = createReplyRepository(db)
-    const store = createAtomicReplyCommandStore(db, silentEvents, async () => true)
+    const reviewRepo = createReviewRepository(db, () => new Date())
+    const replyRepo = createReplyRepository(db, () => new Date())
+    const store = createAtomicReplyCommandStore(
+      db,
+      silentEvents,
+      () => new Date(),
+      async () => true,
+    )
 
     const review = await reviewRepo.upsert(makeReview())
     const pending = makeReply({
@@ -515,7 +528,7 @@ describe.sequential('publication state machine (integration, migration 0015)', (
 
   it('cancelPublications tolerates purge-deleted rows (guarded update matches nothing)', async () => {
     const db = getDb()
-    const store = createAtomicReplyCommandStore(db, silentEvents)
+    const store = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
 
     // No rows seeded at all — the disconnect purge already deleted them.
     const count = await store.cancelPublications([
@@ -536,9 +549,9 @@ describe.sequential('publication state machine (integration, migration 0015)', (
 
   it('a claimed row cannot be re-claimed after cancellation (race guard on real SQL)', async () => {
     const db = getDb()
-    const reviewRepo = createReviewRepository(db)
-    const replyRepo = createReplyRepository(db)
-    const store = createAtomicReplyCommandStore(db, silentEvents)
+    const reviewRepo = createReviewRepository(db, () => new Date())
+    const replyRepo = createReplyRepository(db, () => new Date())
+    const store = createAtomicReplyCommandStore(db, silentEvents, () => new Date())
 
     await reviewRepo.upsert(makeReview())
     await replyRepo.upsert(makeReply({ publicationState: 'authorized' }))

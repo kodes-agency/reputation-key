@@ -18,6 +18,7 @@ import {
   handleReplyPublicationRequested,
   ON_REPLY_PUBLICATION_REQUESTED_CONSUMER,
   registerReplyPublicationConsumers,
+  type ReviewOutboxLogger,
 } from './outbox-consumers'
 
 const NOW = new Date('2026-08-26T12:00:00.000Z')
@@ -84,10 +85,12 @@ function event(overrides: Partial<ConsumerEvent> = {}): ConsumerEvent {
 }
 
 function deps(current: Reply | null = reply()) {
+  const logger: ReviewOutboxLogger = { info: vi.fn() }
   return {
     replyRepo: { findById: vi.fn(async () => current) },
     queue: { addPublishJob: vi.fn(async () => {}) },
     receipts: { insertReceipt: vi.fn(async () => {}) },
+    logger,
   }
 }
 
@@ -104,12 +107,16 @@ afterEach(() => {
 
 describe('reply publication requested durable consumer', () => {
   it('registers the governed worker consumer under its exact identity', () => {
-    registerReplyPublicationConsumers(deps() as never)
+    const subject = deps()
+    registerReplyPublicationConsumers(subject as never)
 
     expect(listRegisteredConsumers()).toContainEqual({
       eventType: 'review.reply.publication_requested',
       consumerName: ON_REPLY_PUBLICATION_REQUESTED_CONSUMER,
     })
+    expect(subject.logger.info).toHaveBeenCalledWith(
+      'Review reply-publication recovery consumer registered',
+    )
   })
 
   it('delivers the committed cycle with a deterministic job identity', async () => {

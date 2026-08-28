@@ -28,6 +28,10 @@ import {
 } from '../../domain/material-review-revision'
 import { reviewError } from '../../domain/errors'
 import type { Review, StarRating } from '../../domain/types'
+import type {
+  ReviewProviderObservationOrigin,
+  ReviewResponseTargetEligibility,
+} from '../../application/ports/response-target-authority.port'
 import { reviewFromRow, reviewToRow } from '../mappers/review.mapper'
 import { upsertReviewSourceContent } from '../review-source-content-store'
 
@@ -125,8 +129,20 @@ async function insertOrRestoreMaterialRevision(
     normalizedDigest: string
     normalizedText: string | null
     observedAt: Date
+    observationOrigin: ReviewProviderObservationOrigin
+    isInitialRevision: boolean
   }>,
 ): Promise<void> {
+  const providerTargetStartAt = input.isInitialRevision
+    ? (input.review.sourceCreatedAt ?? input.review.reviewedAt)
+    : (input.review.sourceUpdatedAt ?? input.observedAt)
+  // A provider clock can be ahead of the observation clock. Preserve that
+  // timestamp in Review's source history, but do not turn it into a measured
+  // response target: a staff response recorded before a future target start
+  // would otherwise be impossible to classify honestly.
+  const hasUsableProviderTargetStart =
+    input.observationOrigin === 'ongoing' &&
+    providerTargetStartAt.getTime() <= input.observedAt.getTime()
   const values = {
     reviewId: input.review.id,
     revision: input.materialRevision,
@@ -138,6 +154,12 @@ async function insertOrRestoreMaterialRevision(
     normalizedDigest: input.normalizedDigest,
     rating: input.review.rating,
     normalizedText: input.normalizedText,
+    responseTargetEligibility: hasUsableProviderTargetStart
+      ? ('measured' as const)
+      : input.observationOrigin === 'ongoing'
+        ? ('legacy_unknown' as const)
+        : input.observationOrigin,
+    responseTargetStartAt: hasUsableProviderTargetStart ? providerTargetStartAt : null,
     contentState: 'active' as const,
     contentErasedAt: null,
     createdAt: input.observedAt,
@@ -190,6 +212,7 @@ export async function persistReviewObservation(
     review: Omit<Review, 'createdAt' | 'updatedAt'>
     observedAt: Date
     observationKey?: string
+    observationOrigin?: ReviewProviderObservationOrigin
   }>,
 ): Promise<PersistedReviewObservation> {
   if (input.review.lastFetchedAt == null || input.review.contentExpiresAt == null) {
@@ -429,6 +452,8 @@ export async function persistReviewObservation(
     normalizedDigest: material.normalizedDigest,
     normalizedText: material.normalizedText,
     observedAt: input.observedAt,
+    observationOrigin: input.observationOrigin ?? 'legacy_unknown',
+    isInitialRevision: existing == null,
   })
   await tx.insert(reviewSourceObservations).values(
     sourceObservationValues({
@@ -498,15 +523,18 @@ function mapMaterialRevision(
     normalizedDigest: row.normalizedDigest,
     rating: row.rating as StarRating | null,
     normalizedText: row.normalizedText,
+    responseTargetEligibility:
+      row.responseTargetEligibility as ReviewResponseTargetEligibility,
+    responseTargetStartAt: row.responseTargetStartAt,
     contentState: row.contentState as MaterialReviewRevision['contentState'],
     contentErasedAt: row.contentErasedAt,
     createdAt: row.createdAt,
   }
 }
 
-export function createReviewObservationRepository(
+export const createReviewObservationRepository = (
   db: Database,
-): ReviewObservationRepository {
+): ReviewObservationRepository => {
   return Object.freeze({
     findObservations: async (id: ReviewId, orgId: OrganizationId) => {
       const rows = await db

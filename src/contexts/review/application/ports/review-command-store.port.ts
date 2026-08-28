@@ -7,6 +7,7 @@
 
 import type { DomainEvent } from '#/shared/events/events'
 import type { Review } from '../../domain/types'
+import type { ReviewProviderObservationOrigin } from './response-target-authority.port'
 
 export type ReviewCommandStore = Readonly<{
   /**
@@ -18,6 +19,7 @@ export type ReviewCommandStore = Readonly<{
     event: DomainEvent | ((persisted: Review) => DomainEvent),
     now?: Date,
     observationKey?: string,
+    observationOrigin?: ReviewProviderObservationOrigin,
   ): Promise<Review>
   /**
    * At the database expiry equality boundary, atomically emit the old source
@@ -29,5 +31,6 @@ export type ReviewCommandStore = Readonly<{
     review: Omit<Review, 'createdAt' | 'updatedAt'>,
     now?: Date,
     observationKey?: string,
+    observationOrigin?: ReviewProviderObservationOrigin,
   ): Promise<Review>
 }>

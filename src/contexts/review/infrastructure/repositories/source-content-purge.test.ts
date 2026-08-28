@@ -4,6 +4,10 @@ import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/goog
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { sql } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION } from '../../application/use-cases/run-source-content-lifecycle'
 import { createSourceContentPurge } from '../source-content-purge'
 
 const db = getDb()
@@ -15,7 +19,24 @@ const PROP_B = 'bb000000-0000-4000-8000-0000000000b1'
 const NOW = new Date('2026-07-17T12:00:00Z')
 const CONTENT_EXPIRES_AT = new Date('2026-08-16T12:00:00Z')
 
+function approvedPurge(batchSize = 100) {
+  return createSourceContentPurge({
+    db,
+    clock: () => NOW,
+    batchSize,
+    applyAdmission: {
+      confirmation: REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
+      authorizeApply: async () => ({
+        approvalId: 'REV-01-test-approval',
+        evidenceSha256: 'a'.repeat(64),
+        approvedAt: '2026-07-17T10:00:00.000Z',
+      }),
+    },
+  })
+}
+
 async function reset(): Promise<void> {
+  await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM replies WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM review_source_contents WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM reviews WHERE organization_id = ${ORG}`)
@@ -23,7 +44,7 @@ async function reset(): Promise<void> {
   await db.execute(sql`DELETE FROM google_connections WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM retention_runs WHERE subject LIKE '%.purge.%'`)
-  await db.execute(sql`DELETE FROM organization WHERE id = ${ORG}`)
+  await deleteTestOrganizations(db, [ORG])
 }
 
 async function seedConnection(id: string, accountSuffix: string): Promise<void> {
@@ -52,12 +73,14 @@ async function seedReview(
       external_location_id, google_connection_id, reviewer_name, rating, text,
       reviewed_at, expires_at, first_fetched_at, last_fetched_at,
       content_expires_at, content_hash, source_epoch, source_revision,
-      analysis_sequence, ai_source_byte_length, ai_source_digest
+      analysis_sequence, ai_source_byte_length, ai_source_digest,
+      created_at, updated_at
     ) VALUES (
       ${id}, ${ORG}, ${property}, 'google', ${externalId},
       ${GOOGLE_LOCATION_PRIMARY_RESOURCE}, ${connectionId}, 'Provider guest', 5,
       'Provider-controlled text', ${NOW}, ${CONTENT_EXPIRES_AT}, ${NOW}, ${NOW},
-      ${CONTENT_EXPIRES_AT}, 'source-hash', 0, 1, 0, 32, ${'0'.repeat(64)}
+      ${CONTENT_EXPIRES_AT}, 'source-hash', 0, 1, 0, 32, ${'0'.repeat(64)},
+      ${NOW}, ${NOW}
     )
   `)
   await db.execute(sql`
@@ -127,13 +150,15 @@ async function count(table: string, where: string): Promise<number> {
 
 describe('source content purge (real PostgreSQL)', () => {
   beforeEach(async () => {
+    clearEventSchemas()
+    registerAllEventSchemas()
     await reset()
     await seed()
   })
 
   afterAll(reset)
 
-  it('scrubs one connection in bounded batches and preserves Reviews and Replies', async () => {
+  it('keeps ordinary connection cleanup report-only without an apply admission', async () => {
     const purge = createSourceContentPurge({ db, clock: () => NOW, batchSize: 2 })
 
     const result = await purge.forConnection(ORG as never, CONN_A)
@@ -142,7 +167,29 @@ describe('source content purge (real PostgreSQL)', () => {
       subject: 'reviews.purge.connection',
       batches: 2,
       rowsDeleted: 0,
+      rowsRedacted: 0,
+      nextCheckpoint: null,
+    })
+    expect(
+      await count(
+        'reviews',
+        `organization_id = '${ORG}' AND property_id = '${PROP_A}' AND source_content_state = 'active'`,
+      ),
+    ).toBe(3)
+    expect(await count('review_source_contents', `property_id = '${PROP_A}'`)).toBe(3)
+  })
+
+  it('scrubs one connection in bounded batches and preserves Reviews and Replies', async () => {
+    const purge = approvedPurge(2)
+
+    const result = await purge.forConnection(ORG as never, CONN_A)
+
+    expect(result).toEqual({
+      subject: 'reviews.purge.connection',
+      batches: 2,
+      rowsDeleted: 0,
       rowsRedacted: 3,
+      nextCheckpoint: null,
     })
     expect(await count('reviews', `organization_id = '${ORG}'`)).toBe(5)
     expect(await count('replies', `organization_id = '${ORG}'`)).toBe(2)
@@ -155,20 +202,23 @@ describe('source content purge (real PostgreSQL)', () => {
     expect(await count('review_source_contents', `organization_id = '${ORG}'`)).toBe(2)
 
     const evidence = await db.execute(sql`
-      SELECT rows_deleted, rows_redacted, outcome
+      SELECT sum(rows_deleted)::int AS rows_deleted,
+             sum(rows_redacted)::int AS rows_redacted,
+             bool_and(outcome = 'completed') AS completed,
+             count(*)::int AS batch_evidence_count
       FROM retention_runs
       WHERE subject = 'reviews.purge.connection'
-      ORDER BY started_at DESC LIMIT 1
     `)
     expect(evidence.rows[0]).toMatchObject({
       rows_deleted: 0,
       rows_redacted: 3,
-      outcome: 'completed',
+      completed: true,
+      batch_evidence_count: 2,
     })
   })
 
   it('scrubs a Property without deleting its stable Reviews or Replies', async () => {
-    const purge = createSourceContentPurge({ db, clock: () => NOW, batchSize: 2 })
+    const purge = approvedPurge(2)
 
     const result = await purge.forProperty(ORG as never, PROP_A as never)
 
@@ -179,13 +229,13 @@ describe('source content purge (real PostgreSQL)', () => {
   })
 
   it('scrubs every active Review in an Organization and is idempotent', async () => {
-    const purge = createSourceContentPurge({ db, clock: () => NOW, batchSize: 2 })
+    const purge = approvedPurge(2)
 
     const first = await purge.forOrganization(ORG as never)
     const replay = await purge.forOrganization(ORG as never)
 
     expect(first).toMatchObject({ rowsDeleted: 0, rowsRedacted: 5, batches: 3 })
-    expect(replay).toMatchObject({ rowsDeleted: 0, rowsRedacted: 0, batches: 0 })
+    expect(replay).toMatchObject({ rowsDeleted: 0, rowsRedacted: 0, batches: 3 })
     expect(await count('reviews', `organization_id = '${ORG}'`)).toBe(5)
     expect(await count('replies', `organization_id = '${ORG}'`)).toBe(2)
     expect(await count('review_source_contents', `organization_id = '${ORG}'`)).toBe(0)

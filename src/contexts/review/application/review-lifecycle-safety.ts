@@ -1,16 +1,16 @@
 /**
  * SAFE-03 containment for the legacy Review lifecycle.
  *
- * The current Review row still owns provider-controlled fields while Replies
- * reference it with `ON DELETE CASCADE`. Until REV-01 separates stable
- * RepKey-owned identity/history from expiring provider content, deleting that
- * row is never a safe lifecycle operation.
+ * The expand schema and repository now separate erasable provider content
+ * while preserving stable Review/Reply identity. Recurring apply still stays
+ * unavailable until production shadow parity and the reviewed cutover are
+ * recorded; local implementation proof cannot grant that authority.
  */
 export const REVIEW_DESTRUCTIVE_LIFECYCLE_QUARANTINE = Object.freeze({
   owner: 'review-context',
-  reason: 'stable Review identity and Reply history are not storage-separated',
+  reason: 'external Review lifecycle shadow parity and cutover are not approved',
   releaseCondition:
-    'REV-01 migration plus real-PostgreSQL expiry, provider-delete, and re-observation proof',
+    'REV-01 external zero-difference shadow window, restore evidence, and explicit activation approval',
   releaseDecision: 'explicit-reviewed-cutover',
 } as const)
 

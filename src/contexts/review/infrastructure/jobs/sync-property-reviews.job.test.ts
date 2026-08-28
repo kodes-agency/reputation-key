@@ -1,6 +1,9 @@
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
-import { GBP_PUSH_SYNC_INITIATOR_ID } from '../../application/ports/review-queue.port'
+import {
+  GBP_PUSH_SYNC_INITIATOR_ID,
+  GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
+} from '../../application/ports/review-queue.port'
 import type { ReviewSyncActivityRecorder } from '../../application/ports/review-sync-activity.port'
 import { createSyncPropertyReviewsHandler } from './sync-property-reviews.job'
 
@@ -54,6 +57,7 @@ describe('sync-property-reviews snapshot handler', () => {
       expect.objectContaining({
         sourceEpoch: 7,
         locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+        observationOrigin: 'ongoing',
       }),
     )
     expect(enqueueContinuation).toHaveBeenCalledWith({
@@ -62,6 +66,117 @@ describe('sync-property-reviews snapshot handler', () => {
       runId: '44444444-4444-4444-8444-444444444444',
     })
     expect(JSON.stringify(enqueueContinuation.mock.calls)).not.toContain('pageToken')
+  })
+
+  it('marks initial Google property import observations as historical onboarding', async () => {
+    const runSnapshot = vi.fn(async () => ({
+      status: 'completed' as const,
+      runId: '44444444-4444-4444-8444-444444444444',
+    }))
+    const handler = createSyncPropertyReviewsHandler({
+      runSnapshot,
+      propertyRouting,
+      enqueueContinuation: vi.fn(async () => undefined),
+      ...ladderDeps(makeSyncActivity()),
+    })
+
+    await handler({
+      id: 'job-property-import',
+      data: {
+        ...JOB_DATA,
+        initiator: {
+          kind: 'system',
+          id: GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID,
+        },
+      },
+    } as never)
+
+    expect(runSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({ observationOrigin: 'historical_onboarding' }),
+    )
+  })
+
+  it('runs identifier-only targeted push work without starting a full snapshot', async () => {
+    const syncActivity = makeSyncActivity()
+    const runSnapshot = vi.fn()
+    const runTargetedFetch = vi.fn(async () => ({
+      status: 'persisted' as const,
+      reviewId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' as never,
+      sourceRevision: 1,
+      isNew: true,
+    }))
+    const handler = createSyncPropertyReviewsHandler({
+      runSnapshot: runSnapshot as never,
+      runTargetedFetch,
+      propertyRouting,
+      enqueueContinuation: vi.fn(async () => undefined),
+      ...ladderDeps(syncActivity),
+    })
+    const targeted = {
+      mode: 'targeted' as const,
+      propertyId: JOB_DATA.propertyId,
+      organizationId: JOB_DATA.organizationId,
+      connectionId: JOB_DATA.connectionId,
+      sourceEpoch: 7,
+      referenceRef: `v1.${Buffer.alloc(32, 4).toString('base64url')}`,
+      deliveryId: '55555555-5555-4555-8555-555555555555',
+      initiator: { kind: 'system' as const, id: GBP_PUSH_SYNC_INITIATOR_ID },
+      correlationId: 'gbp-push-event',
+    }
+
+    await handler({ id: 'job-targeted', data: targeted } as never)
+
+    expect(runTargetedFetch).toHaveBeenCalledWith({
+      organizationId: JOB_DATA.organizationId,
+      propertyId: JOB_DATA.propertyId,
+      connectionId: JOB_DATA.connectionId,
+      sourceEpoch: 7,
+      referenceRef: targeted.referenceRef,
+      deliveryId: targeted.deliveryId,
+    })
+    expect(runSnapshot).not.toHaveBeenCalled()
+    expect(syncActivity.recordPushObserved).toHaveBeenCalledTimes(1)
+  })
+
+  it('enqueues one deterministic full reconciliation when a targeted reference expired', async () => {
+    const enqueueContinuation = vi.fn(async () => undefined)
+    const handler = createSyncPropertyReviewsHandler({
+      runSnapshot: vi.fn() as never,
+      runTargetedFetch: vi.fn(async () => ({
+        status: 'reconcile' as const,
+        locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+        reason: 'reference_expired' as const,
+      })),
+      propertyRouting,
+      enqueueContinuation,
+      ...ladderDeps(makeSyncActivity()),
+    })
+    const deliveryId = '66666666-6666-4666-8666-666666666666'
+
+    await handler({
+      id: 'job-targeted-reconcile',
+      data: {
+        mode: 'targeted',
+        propertyId: JOB_DATA.propertyId,
+        organizationId: JOB_DATA.organizationId,
+        connectionId: JOB_DATA.connectionId,
+        sourceEpoch: 7,
+        referenceRef: null,
+        deliveryId,
+        initiator: { kind: 'system', id: GBP_PUSH_SYNC_INITIATOR_ID },
+        correlationId: 'gbp-push-event',
+      },
+    } as never)
+
+    expect(enqueueContinuation).toHaveBeenCalledWith(
+      {
+        ...JOB_DATA,
+        sourceEpoch: 7,
+        initiator: { kind: 'system', id: GBP_PUSH_SYNC_INITIATOR_ID },
+        correlationId: 'gbp-push-event',
+      },
+      { jobId: `gbp-push-reconcile-${deliveryId}` },
+    )
   })
 
   // The rate-limited checkpoint does NOT advance the cursor, so the

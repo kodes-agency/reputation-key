@@ -10,6 +10,7 @@ import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { eraseReviewSourceContent } from './review-source-content-store'
 import { createReviewObservationRepository } from './repositories/review-observation.repository'
+import { createReviewResponseTargetAuthority } from './response-target-authority'
 
 const ORG = organizationId('review-reobserve-org-a')
 const OTHER_ORG = organizationId('review-reobserve-org-b')
@@ -95,8 +96,193 @@ beforeEach(async () => {
 })
 
 describe('atomic review re-observation', () => {
+  it('issues exact current target permits and orders a complete batch', async () => {
+    const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
+    const first = review(REFRESHED_UNTIL)
+    const second = {
+      ...first,
+      id: OTHER_REVIEW,
+      propertyId: OTHER_PROPERTY,
+      externalId: 'provider-review-2',
+    }
+    for (const [index, candidate] of [first, second].entries()) {
+      await store.upsertAndRecord(
+        candidate,
+        (persisted) =>
+          reviewCreated({
+            reviewId: persisted.id,
+            propertyId: persisted.propertyId,
+            organizationId: persisted.organizationId,
+            platform: persisted.platform,
+            sourceEpoch: persisted.sourceEpoch,
+            sourceRevision: persisted.sourceRevision,
+            analysisSequence: persisted.analysisSequence,
+            occurredAt: OBSERVED_AT,
+          }),
+        OBSERVED_AT,
+        String(index + 8).repeat(64),
+        'ongoing',
+      )
+    }
+
+    const authority = createReviewResponseTargetAuthority(getDb())
+    await expect(
+      authority.withExactCurrent(
+        {
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          reviewId: REVIEW,
+          sourceEpoch: 0,
+        },
+        async (permit) => permit,
+      ),
+    ).resolves.toMatchObject({
+      status: 'current',
+      value: {
+        materialReviewRevision: 1,
+        eligibility: 'measured',
+        responseTargetStartAt: first.sourceCreatedAt,
+      },
+    })
+    await expect(
+      authority.withExactCurrent(
+        {
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          reviewId: REVIEW,
+          sourceEpoch: 1,
+        },
+        async () => 'must-not-run',
+      ),
+    ).resolves.toEqual({ status: 'obsolete' })
+
+    const expectations = [
+      {
+        organizationId: ORG,
+        propertyId: OTHER_PROPERTY,
+        reviewId: OTHER_REVIEW,
+        sourceEpoch: 0,
+      },
+      {
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        reviewId: REVIEW,
+        sourceEpoch: 0,
+      },
+    ] as const
+    await expect(
+      authority.withExactCurrentBatch(expectations, async (permits) =>
+        permits.map((permit) => permit.reviewId),
+      ),
+    ).resolves.toEqual({ status: 'current', value: [REVIEW, OTHER_REVIEW] })
+    await expect(
+      authority.withExactCurrentBatch(
+        [expectations[0], expectations[0]],
+        async () => undefined,
+      ),
+    ).rejects.toThrow('contains duplicates')
+  })
+
+  it('excludes a material revision first seen during historical onboarding', async () => {
+    const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
+    const initial = review(REFRESHED_UNTIL)
+
+    await store.upsertAndRecord(
+      initial,
+      (persisted) =>
+        reviewCreated({
+          reviewId: persisted.id,
+          propertyId: persisted.propertyId,
+          organizationId: persisted.organizationId,
+          platform: persisted.platform,
+          sourceEpoch: persisted.sourceEpoch,
+          sourceRevision: persisted.sourceRevision,
+          analysisSequence: persisted.analysisSequence,
+          occurredAt: OBSERVED_AT,
+        }),
+      OBSERVED_AT,
+      '0'.repeat(64),
+      'historical_onboarding',
+    )
+
+    const revisions = await createReviewObservationRepository(
+      getDb(),
+    ).findMaterialRevisions(REVIEW, ORG)
+    expect(revisions).toEqual([
+      expect.objectContaining({
+        revision: 1,
+        responseTargetEligibility: 'historical_onboarding',
+        responseTargetStartAt: null,
+      }),
+    ])
+  })
+
+  it('keeps a future provider timestamp as source evidence but excludes it from measured targets', async () => {
+    const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
+    const futureProviderTime = new Date('2026-08-25T12:05:00.000Z')
+    const initial = {
+      ...review(REFRESHED_UNTIL),
+      sourceCreatedAt: futureProviderTime,
+    }
+
+    await store.upsertAndRecord(
+      initial,
+      (persisted) =>
+        reviewCreated({
+          reviewId: persisted.id,
+          propertyId: persisted.propertyId,
+          organizationId: persisted.organizationId,
+          platform: persisted.platform,
+          sourceEpoch: persisted.sourceEpoch,
+          sourceRevision: persisted.sourceRevision,
+          analysisSequence: persisted.analysisSequence,
+          occurredAt: OBSERVED_AT,
+        }),
+      OBSERVED_AT,
+      'f'.repeat(64),
+      'ongoing',
+    )
+
+    const observations = await createReviewObservationRepository(
+      getDb(),
+    ).findObservations(REVIEW, ORG)
+    const revisions = await createReviewObservationRepository(
+      getDb(),
+    ).findMaterialRevisions(REVIEW, ORG)
+    expect(observations[0]).toMatchObject({
+      sourceEpoch: 0,
+      materialRevision: 1,
+    })
+    expect(revisions).toEqual([
+      expect.objectContaining({
+        revision: 1,
+        responseTargetEligibility: 'legacy_unknown',
+        responseTargetStartAt: null,
+      }),
+    ])
+
+    const authority = createReviewResponseTargetAuthority(getDb())
+    await expect(
+      authority.withExactCurrent(
+        {
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          reviewId: REVIEW,
+          sourceEpoch: 0,
+        },
+        async (permit) => permit,
+      ),
+    ).resolves.toMatchObject({
+      status: 'current',
+      value: {
+        eligibility: 'legacy_unknown',
+        responseTargetStartAt: null,
+      },
+    })
+  })
+
   it('preserves staff-authored reply history while advancing the source lifecycle', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), events)
+    const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
     const initial = review(EXPIRED_AT)
     const created = await store.upsertAndRecord(
       initial,
@@ -238,7 +424,7 @@ describe('atomic review re-observation', () => {
   })
 
   it('versions every observation but advances material revision only for rating or normalized original text', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), events)
+    const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
     const initial = {
       ...review(REFRESHED_UNTIL),
       sourceUpdatedAt: new Date('2026-08-01T12:00:00.000Z'),
@@ -258,6 +444,7 @@ describe('atomic review re-observation', () => {
         }),
       OBSERVED_AT,
       '1'.repeat(64),
+      'ongoing',
     )
 
     const metadataOnly = await store.upsertAndRecord(
@@ -281,6 +468,7 @@ describe('atomic review re-observation', () => {
         }),
       OBSERVED_AT,
       '2'.repeat(64),
+      'historical_onboarding',
     )
 
     const materialChangeInput = {
@@ -305,6 +493,7 @@ describe('atomic review re-observation', () => {
         }),
       OBSERVED_AT,
       '3'.repeat(64),
+      'ongoing',
     )
 
     const duplicateEvent = vi.fn((persisted: Review) =>
@@ -378,7 +567,18 @@ describe('atomic review re-observation', () => {
       [3, 2, 'material_change'],
       [4, 2, 'out_of_order_ignored'],
     ])
-    expect(revisions.map((entry) => entry.revision)).toEqual([1, 2])
+    expect(revisions).toMatchObject([
+      {
+        revision: 1,
+        responseTargetEligibility: 'measured',
+        responseTargetStartAt: initial.sourceCreatedAt,
+      },
+      {
+        revision: 2,
+        responseTargetEligibility: 'measured',
+        responseTargetStartAt: materialChangeInput.sourceUpdatedAt,
+      },
+    ])
 
     const current = await getPool().query<{
       rating: number
@@ -405,7 +605,7 @@ describe('atomic review re-observation', () => {
   })
 
   it('restores erased content on the same identity without inventing a material edit', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), events)
+    const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
     const initial = review(REFRESHED_UNTIL)
     const created = await store.upsertAndRecord(
       initial,
@@ -469,7 +669,7 @@ describe('atomic review re-observation', () => {
   })
 
   it('fails closed when one provider identity is presented in another Property scope', async () => {
-    const store = createAtomicReviewCommandStore(getDb(), events)
+    const store = createAtomicReviewCommandStore(getDb(), events, () => new Date())
     const initial = review(REFRESHED_UNTIL)
     await store.upsertAndRecord(
       initial,

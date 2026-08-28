@@ -16,6 +16,7 @@ import type {
   AiTrendPopulationResult,
 } from './ai-review-source.port'
 import type { ReviewProviderSubject } from '#/shared/review-provider-subject-contract'
+import type { ReviewProviderObservationOrigin } from './response-target-authority.port'
 
 export type StableReviewSourceIdentity = Readonly<{
   id: ReviewId
@@ -73,6 +74,7 @@ export type ReviewRepository = Readonly<{
     review: Omit<Review, 'createdAt' | 'updatedAt'>,
     now?: Date,
     observationKey?: string,
+    observationOrigin?: ReviewProviderObservationOrigin,
   ): Promise<Review>
   findByPropertyId(
     propertyId: PropertyId,
@@ -146,9 +148,4 @@ export type ReviewRepository = Readonly<{
    * number stays honest at any scale.
    */
   countExpiredBeforeAcrossTenants(date: Date): Promise<number>
-  deleteById(id: ReviewId, organizationId: OrganizationId): Promise<void>
-  deleteByPropertyId(
-    propertyId: PropertyId,
-    organizationId: OrganizationId,
-  ): Promise<void>
 }>

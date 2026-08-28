@@ -58,9 +58,9 @@ function parseInventoryRow(row: InventoryRow): ReviewProviderSubjectKeyInventory
  * Rotation/removal are database-serialized security-definer operations; this
  * adapter never reads or writes key material.
  */
-export function createReviewProviderSubjectKeyInventoryRepository(
+export const createReviewProviderSubjectKeyInventoryRepository = (
   db: Database,
-): ReviewProviderSubjectKeyInventoryRepository {
+): ReviewProviderSubjectKeyInventoryRepository => {
   return Object.freeze({
     readInventory: async () => {
       const result = await db.execute(sql`

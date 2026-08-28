@@ -45,7 +45,10 @@ async function findDuePublicationBatch(
   return rows.map(replyFromRow)
 }
 
-export const createReplyRepository = (db: Database): ReplyRepository => ({
+export const createReplyRepository = (
+  db: Database,
+  clock: () => Date,
+): ReplyRepository => ({
   findById: async (id: ReplyId, organizationId: OrganizationId) => {
     return trace('reply.findById', async () => {
       const rows = await db
@@ -146,11 +149,6 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
       ),
     ),
 
-  findAmbiguousPublicationBatch: (now, cursor, limit) =>
-    trace('reply.findAmbiguousPublicationBatch', () =>
-      findDuePublicationBatch(db, ['ambiguous'], now, cursor, limit),
-    ),
-
   deferPublicationReconciliation: async (command) => {
     return trace('reply.deferPublicationReconciliation', async () => {
       const deferred = await db
@@ -195,7 +193,7 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
   upsert: async (reply: Omit<Reply, 'createdAt' | 'updatedAt'>, now?: Date) => {
     return trace('reply.upsert', async () => {
       const row = replyToRow(reply)
-      const updatedAt = now ?? new Date()
+      const updatedAt = now ?? clock()
       const result = await db
         .insert(replies)
         .values(row)
@@ -227,7 +225,7 @@ export const createReplyRepository = (db: Database): ReplyRepository => ({
 
   conditionalUpdate: async (id, organizationId, expectedStatuses, updates, now) => {
     return trace('reply.conditionalUpdate', async () => {
-      const updatedAt = now ?? new Date()
+      const updatedAt = now ?? clock()
       return db.transaction(async (tx) => {
         const assertion = await tx.execute(
           sql`SELECT assert_current_ai_draft_binding_v1(

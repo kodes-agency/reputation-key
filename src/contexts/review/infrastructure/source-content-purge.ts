@@ -1,13 +1,10 @@
-// Review context — source-content lifecycle erasure (BQC-1.7 / REV-01).
+// Review context — source-content lifecycle compatibility adapter (BQC-1.7 / REV-01).
 //
-// Disconnect and approved tenant/property erasure scrub provider-controlled
-// Review fields in bounded transactions. The stable Review, manager Replies,
-// Inbox history, and content-free evidence remain. The independently erasable
-// review_source_contents row is removed in the same transaction.
+// Ordinary composition reports connection/Property/Organization scopes through
+// the checkpointed Review authority. A separately constructed, approved
+// executor can apply bounded pages; stable identity and manager history remain.
 
-import { and, asc, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { reviews } from '#/shared/db/schema/review.schema'
 import {
   DEFAULT_MAX_BATCHES_PER_RUN,
   executeRetentionRule,
@@ -18,98 +15,96 @@ import {
   failRetentionRun,
   openRetentionRun,
 } from '#/shared/db/retention/evidence'
-import {
-  organizationId,
-  propertyId,
-  reviewId,
-  type OrganizationId,
-  type PropertyId,
-} from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type {
   SourceContentPurge,
+  SourcePurgeContinuation,
   SourcePurgeResult,
 } from '../application/ports/source-content-purge.port'
-import { eraseReviewSourceContent } from './review-source-content-store'
+import type { ReviewSourceContentLifecycleScope } from '../application/ports/source-content-lifecycle-store.port'
+import { createReviewSourceContentLifecycleStore } from './repositories/source-content-lifecycle-store.repository'
+import {
+  REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION,
+  createRunReviewSourceContentLifecycle,
+  type AuthorizeReviewSourceContentLifecycleApply,
+  type RunReviewSourceContentLifecycle,
+} from '../application/use-cases/run-source-content-lifecycle'
 
 type PurgeDeps = Readonly<{
   db: Database
   clock: () => Date
   batchSize?: number
+  maxBatches?: number
+  /** Test/adapter seam; normal wiring constructs the Review authority locally. */
+  runLifecycle?: RunReviewSourceContentLifecycle
+  /**
+   * Deliberately absent from ordinary composition. Both fields are required
+   * before the compatibility adapter can request apply from the authority.
+   */
+  applyAdmission?: Readonly<{
+    confirmation: typeof REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION
+    authorizeApply: AuthorizeReviewSourceContentLifecycleApply
+  }>
 }>
 
-type ReviewScrubScope =
-  | Readonly<{ kind: 'connection'; organizationId: string; connectionId: string }>
-  | Readonly<{ kind: 'property'; organizationId: string; propertyId: string }>
-  | Readonly<{ kind: 'organization'; organizationId: string }>
-
-function reviewScope(scope: ReviewScrubScope) {
-  const tenant = eq(reviews.organizationId, scope.organizationId)
-  switch (scope.kind) {
-    case 'connection':
-      return and(tenant, eq(reviews.googleConnectionId, scope.connectionId))
-    case 'property':
-      return and(tenant, eq(reviews.propertyId, scope.propertyId))
-    case 'organization':
-      return tenant
-  }
-}
-
 export const createSourceContentPurge = (deps: PurgeDeps): SourceContentPurge => {
-  const batchSize = deps.batchSize ?? 500
+  const batchSize = deps.batchSize ?? 100
+  if (!Number.isInteger(batchSize) || batchSize < 1 || batchSize > 100) {
+    throw new TypeError('Review source-content purge batchSize must be between 1 and 100')
+  }
+  const maxBatches = deps.maxBatches ?? DEFAULT_MAX_BATCHES_PER_RUN
+  if (
+    !Number.isInteger(maxBatches) ||
+    maxBatches < 1 ||
+    maxBatches > DEFAULT_MAX_BATCHES_PER_RUN
+  ) {
+    throw new TypeError(
+      `Review source-content purge maxBatches must be between 1 and ${DEFAULT_MAX_BATCHES_PER_RUN}`,
+    )
+  }
+  const runLifecycle =
+    deps.runLifecycle ??
+    createRunReviewSourceContentLifecycle({
+      store: createReviewSourceContentLifecycleStore(deps.db),
+      clock: deps.clock,
+      ...(deps.applyAdmission == null
+        ? {}
+        : { authorizeApply: deps.applyAdmission.authorizeApply }),
+    })
+  const mode = deps.applyAdmission == null ? ('report' as const) : ('apply' as const)
 
   async function scrubReviews(
     subject: string,
-    scope: ReviewScrubScope,
+    scope: ReviewSourceContentLifecycleScope,
+    continuation?: SourcePurgeContinuation,
   ): Promise<SourcePurgeResult> {
-    const runId = await openRetentionRun(deps.db, subject, batchSize, deps.clock())
-    try {
-      let batches = 0
-      let rowsRedacted = 0
-      while (batches < DEFAULT_MAX_BATCHES_PER_RUN) {
-        const count = await deps.db.transaction(async (tx) => {
-          const rows = await tx
-            .select({
-              id: reviews.id,
-              organizationId: reviews.organizationId,
-              propertyId: reviews.propertyId,
-              sourceEpoch: reviews.sourceEpoch,
-              sourceRevision: reviews.sourceRevision,
-            })
-            .from(reviews)
-            .where(and(eq(reviews.sourceContentState, 'active'), reviewScope(scope)))
-            .orderBy(asc(reviews.id))
-            .limit(batchSize)
-            .for('update', { skipLocked: true })
-
-          for (const row of rows) {
-            const erased = await eraseReviewSourceContent(tx, {
-              reviewId: reviewId(row.id),
-              organizationId: organizationId(row.organizationId),
-              propertyId: propertyId(row.propertyId),
-              sourceEpoch: row.sourceEpoch,
-              expectedSourceRevision: row.sourceRevision,
-              state: 'source_expired',
-            })
-            if (!erased) throw new Error('Review changed during source erasure')
-          }
-          return rows.length
-        })
-        if (count === 0) break
-        batches += 1
-        rowsRedacted += count
-        if (count < batchSize) break
-      }
-      await closeRetentionRun(deps.db, runId, {
-        finishedAt: deps.clock(),
-        batches,
-        rowsDeleted: 0,
-        rowsRedacted,
-        outcome: 'completed',
+    let checkpoint = continuation?.checkpoint
+    let batches = 0
+    let rowsRedacted = 0
+    do {
+      const result = await runLifecycle({
+        mode,
+        scope,
+        batchSize,
+        ...(checkpoint == null ? {} : { checkpoint }),
+        ...(deps.applyAdmission == null
+          ? {}
+          : { applyConfirmation: deps.applyAdmission.confirmation }),
       })
-      return { subject, batches, rowsDeleted: 0, rowsRedacted }
-    } catch (err) {
-      await failRetentionRun(deps.db, runId, deps.clock(), err)
-      throw err
+      if (result.scanned > 0) batches += 1
+      if (result.apply.enabled) rowsRedacted += result.apply.rowsRedacted
+      checkpoint = result.nextCheckpoint ?? undefined
+      if (checkpoint != null && result.scanned === 0) {
+        throw new Error('Review lifecycle returned a continuation without progress')
+      }
+    } while (checkpoint != null && batches < maxBatches)
+
+    return {
+      subject,
+      batches,
+      rowsDeleted: 0,
+      rowsRedacted,
+      nextCheckpoint: checkpoint ?? null,
     }
   }
 
@@ -143,25 +138,48 @@ export const createSourceContentPurge = (deps: PurgeDeps): SourceContentPurge =>
   }
 
   return {
-    forConnection: async (orgId: OrganizationId, connectionId: string) =>
-      scrubReviews('reviews.purge.connection', {
-        kind: 'connection',
-        organizationId: orgId as string,
-        connectionId,
-      }),
+    forConnection: async (
+      orgId: OrganizationId,
+      connectionId: string,
+      continuation?: SourcePurgeContinuation,
+    ) =>
+      scrubReviews(
+        'reviews.purge.connection',
+        {
+          kind: 'connection',
+          organizationId: orgId,
+          connectionId,
+        },
+        continuation,
+      ),
 
-    forProperty: async (orgId: OrganizationId, property: PropertyId) =>
-      scrubReviews('reviews.purge.property', {
-        kind: 'property',
-        organizationId: orgId as string,
-        propertyId: property as string,
-      }),
+    forProperty: async (
+      orgId: OrganizationId,
+      property: PropertyId,
+      continuation?: SourcePurgeContinuation,
+    ) =>
+      scrubReviews(
+        'reviews.purge.property',
+        {
+          kind: 'property',
+          organizationId: orgId,
+          propertyId: property,
+        },
+        continuation,
+      ),
 
-    forOrganization: async (orgId: OrganizationId) =>
-      scrubReviews('reviews.purge.organization', {
-        kind: 'organization',
-        organizationId: orgId as string,
-      }),
+    forOrganization: async (
+      orgId: OrganizationId,
+      continuation?: SourcePurgeContinuation,
+    ) =>
+      scrubReviews(
+        'reviews.purge.organization',
+        {
+          kind: 'organization',
+          organizationId: orgId,
+        },
+        continuation,
+      ),
 
     inboxForProperty: async (orgId: OrganizationId, property: PropertyId) =>
       deleteRows('inbox_items.purge.property', {

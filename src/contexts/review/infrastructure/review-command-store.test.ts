@@ -90,6 +90,7 @@ describe('createSequentialReviewCommandStore', () => {
     const saved = { ...review, createdAt: NOW, updatedAt: NOW }
 
     const store = createSequentialReviewCommandStore({
+      clock: () => NOW,
       upsert: async () => {
         order.push('upsert')
         return saved
@@ -172,7 +173,7 @@ describe('createAtomicReviewCommandStore', () => {
     }
 
     const persistObservation: NonNullable<
-      Parameters<typeof createAtomicReviewCommandStore>[2]
+      Parameters<typeof createAtomicReviewCommandStore>[3]
     > = vi.fn(async (_tx, input) => {
       order.push('tx.observation')
       return {
@@ -186,7 +187,12 @@ describe('createAtomicReviewCommandStore', () => {
       }
     })
     const db = { transaction } as unknown as Database
-    const store = createAtomicReviewCommandStore(db, events, persistObservation)
+    const store = createAtomicReviewCommandStore(
+      db,
+      events,
+      () => NOW,
+      persistObservation,
+    )
 
     const eventFactory = vi.fn(
       (persisted: Review) =>

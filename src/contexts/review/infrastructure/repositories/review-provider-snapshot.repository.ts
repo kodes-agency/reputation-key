@@ -7,6 +7,7 @@ import type { Tx } from '#/shared/outbox/commit'
 import { emitAfterCommit, insertOutboxRow } from '#/shared/outbox/commit'
 import {
   reviewProviderDeletionCandidates,
+  reviewGoogleReputationSnapshotFacts,
   reviewProviderSnapshotMembers,
   reviewProviderSnapshotRuns,
   reviewProviderSubjectHmacKeyVersions,
@@ -20,8 +21,17 @@ import type {
   ReviewProviderSnapshotRepository,
   ReviewProviderSnapshotRun,
 } from '../../application/ports/review-provider-snapshot.repository'
-import { reviewSourceTransitioned } from '../../domain/events'
+import {
+  reviewGoogleReputationSnapshotVerified,
+  reviewSourceTransitioned,
+} from '../../domain/events'
 import { eraseReviewSourceContent } from '../review-source-content-store'
+import { lockReviewSourceMutationScope } from '../review-source-mutation-serialization'
+import { createReviewSourceContentLifecycleStore } from './source-content-lifecycle-store.repository'
+import {
+  REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
+  createRunReviewSourceContentLifecycle,
+} from '../../application/use-cases/run-source-content-lifecycle'
 
 const ACTIVE_STATES = ['scanning', 'confirming', 'deleting'] as const
 const TERMINAL_RECORD_RETENTION = sql`interval '30 days'`
@@ -35,10 +45,13 @@ function fromRunRow(row: RunRow): ReviewProviderSnapshotRun {
     organizationId: organizationId(row.organizationId),
     propertyId: propertyId(row.propertyId),
     sourceEpoch: row.sourceEpoch,
+    observationOrigin:
+      row.observationOrigin as ReviewProviderSnapshotRun['observationOrigin'],
     state: row.state as ReviewProviderSnapshotRun['state'],
     phase: row.phase as ReviewProviderSnapshotRun['phase'],
     startedAt: row.startedAt,
     expectedProviderTotal: row.expectedTotal,
+    expectedProviderAverageRating: row.expectedAverageRating,
     mainPageIndex: row.mainPageCount,
     mainCursorRef: row.mainCursorRef,
     mainUniqueCount: row.mainUniqueCount,
@@ -74,6 +87,19 @@ class SnapshotConflict extends Error {
     this.code = code
   }
 }
+
+const providerAggregateIsValid = (
+  total: number | null,
+  averageRating: number | null,
+): boolean =>
+  (total === 0 && averageRating === null) ||
+  (total !== null &&
+    total > 0 &&
+    total <= 10_000 &&
+    averageRating !== null &&
+    Number.isFinite(averageRating) &&
+    averageRating >= 0 &&
+    averageRating <= 5)
 
 async function failLockedRun(
   tx: Tx,
@@ -281,6 +307,26 @@ async function recordSourceTransition(
   ) {
     throw new Error('Review analysis head transition returned invalid controls')
   }
+  const stamped = await tx
+    .update(reviews)
+    .set({
+      analysisSequence,
+      updatedAt: sql`transaction_timestamp()`,
+    })
+    .where(
+      and(
+        eq(reviews.id, mapping.reviewId),
+        eq(reviews.organizationId, mapping.organizationId),
+        eq(reviews.propertyId, mapping.propertyId),
+        eq(reviews.sourceEpoch, mapping.sourceEpoch),
+        eq(reviews.sourceRevision, mapping.lastSourceRevision),
+        eq(reviews.sourceContentState, change),
+      ),
+    )
+    .returning({ id: reviews.id })
+  if (!stamped[0]) {
+    throw new Error('Review source transition head changed before it was stamped')
+  }
   const event = reviewSourceTransitioned({
     reviewId: reviewId(mapping.reviewId),
     organizationId: organizationId(mapping.organizationId),
@@ -298,6 +344,7 @@ async function recordSourceTransition(
 export const createReviewProviderSnapshotRepository = (
   db: Database,
   events: EventBus,
+  idGen: () => string,
 ): ReviewProviderSnapshotRepository => ({
   startOrResume: async (input) =>
     db.transaction(async (tx) => {
@@ -317,10 +364,11 @@ export const createReviewProviderSnapshotRepository = (
       const rows = await tx
         .insert(reviewProviderSnapshotRuns)
         .values({
-          id: crypto.randomUUID(),
+          id: idGen(),
           organizationId: input.organizationId,
           propertyId: input.propertyId,
           sourceEpoch: input.sourceEpoch,
+          observationOrigin: input.observationOrigin,
           state: 'scanning',
           phase: 'main',
           startedAt: sql`transaction_timestamp()`,
@@ -418,14 +466,21 @@ export const createReviewProviderSnapshotRepository = (
           input.observations.length > 50 ||
           input.totalReviewCount < 0 ||
           input.totalReviewCount > 10_000 ||
-          (run.expectedTotal != null && run.expectedTotal !== input.totalReviewCount)
+          !providerAggregateIsValid(input.totalReviewCount, input.averageRating) ||
+          (run.expectedTotal != null && run.expectedTotal !== input.totalReviewCount) ||
+          (run.expectedTotal != null && run.expectedAverageRating !== input.averageRating)
         ) {
           throw new SnapshotConflict(
             run.expectedTotal != null && run.expectedTotal !== input.totalReviewCount
               ? 'total_changed'
-              : input.totalReviewCount > 10_000
-                ? 'review_cap_exceeded'
-                : 'page_cap_exceeded',
+              : run.expectedTotal != null &&
+                  run.expectedAverageRating !== input.averageRating
+                ? 'average_changed'
+                : !providerAggregateIsValid(input.totalReviewCount, input.averageRating)
+                  ? 'malformed_page'
+                  : input.totalReviewCount > 10_000
+                    ? 'review_cap_exceeded'
+                    : 'page_cap_exceeded',
           )
         }
         const pageIds = new Set<string>()
@@ -510,6 +565,10 @@ export const createReviewProviderSnapshotRepository = (
             input.phase === 'main'
               ? {
                   expectedTotal: run.expectedTotal ?? input.totalReviewCount,
+                  expectedAverageRating:
+                    run.expectedTotal == null
+                      ? input.averageRating
+                      : run.expectedAverageRating,
                   mainPageCount: nextCount,
                   mainUniqueCount: nextUnique,
                   mainCursorRef: input.nextCursorRef,
@@ -556,7 +615,7 @@ export const createReviewProviderSnapshotRepository = (
       if (
         run.mainCursorRef != null ||
         run.mainPageCount < 1 ||
-        run.expectedTotal == null ||
+        !providerAggregateIsValid(run.expectedTotal, run.expectedAverageRating) ||
         run.mainUniqueCount !== run.expectedTotal
       ) {
         const failed = await failLockedRun(tx, run, 'set_mismatch')
@@ -762,7 +821,7 @@ export const createReviewProviderSnapshotRepository = (
         run.state !== 'confirming' ||
         run.phase !== 'confirmation' ||
         run.confirmationCursorRef != null ||
-        run.expectedTotal == null ||
+        !providerAggregateIsValid(run.expectedTotal, run.expectedAverageRating) ||
         run.confirmationUniqueCount !== run.mainUniqueCount ||
         run.mainUniqueCount !== run.expectedTotal ||
         memberMismatch.rowCount !== 0 ||
@@ -860,9 +919,66 @@ export const createReviewProviderSnapshotRepository = (
         .orderBy(asc(reviewProviderDeletionCandidates.reviewId))
         .limit(limit)
         .for('update')
+
+      // The provider-deletion path shares the lifecycle mutation order. Lock
+      // every Reply scope before any Review row; mapping locks come last.
+      // This prevents Property -> Reply -> Review -> mapping from being
+      // inverted by a concurrent expiry or re-observation transaction.
+      for (const candidate of candidates) {
+        const current = await lockReviewSourceMutationScope(tx, {
+          organizationId: organizationId(run.organizationId),
+          propertyId: propertyId(run.propertyId),
+          reviewId: reviewId(candidate.reviewId),
+          sourceEpoch: run.sourceEpoch,
+        })
+        if (!current) {
+          throw new Error('Provider snapshot source epoch changed before deletion')
+        }
+      }
+      const lockedReviews =
+        candidates.length === 0
+          ? []
+          : await tx
+              .select({
+                id: reviews.id,
+                organizationId: reviews.organizationId,
+                propertyId: reviews.propertyId,
+                sourceEpoch: reviews.sourceEpoch,
+                sourceRevision: reviews.sourceRevision,
+              })
+              .from(reviews)
+              .where(
+                inArray(
+                  reviews.id,
+                  candidates.map((candidate) => candidate.reviewId),
+                ),
+              )
+              .orderBy(asc(reviews.id))
+              .for('update')
+      const lockedReviewsById = new Map(lockedReviews.map((row) => [row.id, row]))
       let applied = 0
       let observed = 0
       for (const candidate of candidates) {
+        const lockedReview = lockedReviewsById.get(candidate.reviewId)
+        if (
+          lockedReview == null ||
+          lockedReview.organizationId !== run.organizationId ||
+          lockedReview.propertyId !== run.propertyId ||
+          lockedReview.sourceEpoch !== run.sourceEpoch ||
+          lockedReview.sourceRevision !== candidate.expectedSourceRevision
+        ) {
+          await tx
+            .update(reviewProviderDeletionCandidates)
+            .set({ state: 'observed', updatedAt: sql`transaction_timestamp()` })
+            .where(
+              and(
+                eq(reviewProviderDeletionCandidates.runId, run.id),
+                eq(reviewProviderDeletionCandidates.reviewId, candidate.reviewId),
+              ),
+            )
+          observed += 1
+          continue
+        }
         const mappings = await tx
           .select()
           .from(reviewProviderSubjects)
@@ -956,6 +1072,43 @@ export const createReviewProviderSnapshotRepository = (
               .limit(1)
           : []
       const done = more.length === 0
+      if (done) {
+        if (
+          run.expectedTotal == null ||
+          !providerAggregateIsValid(run.expectedTotal, run.expectedAverageRating)
+        ) {
+          throw new Error('Verified provider aggregate is unavailable at completion')
+        }
+        const evaluatedRows = await tx.execute(
+          sql`SELECT transaction_timestamp() AS evaluated_at`,
+        )
+        const evaluatedValue = (evaluatedRows.rows[0] as { evaluated_at: Date | string })
+          .evaluated_at
+        const evaluatedAt =
+          evaluatedValue instanceof Date ? evaluatedValue : new Date(evaluatedValue)
+        const verified = reviewGoogleReputationSnapshotVerified({
+          organizationId: organizationId(run.organizationId),
+          propertyId: propertyId(run.propertyId),
+          sourceEpoch: run.sourceEpoch,
+          runId: run.id,
+          reviewCount: run.expectedTotal,
+          averageRating: run.expectedAverageRating,
+          evaluatedAt,
+          occurredAt: evaluatedAt,
+        })
+        await tx.insert(reviewGoogleReputationSnapshotFacts).values({
+          runId: run.id,
+          eventId: verified.eventId,
+          organizationId: run.organizationId,
+          propertyId: run.propertyId,
+          sourceEpoch: run.sourceEpoch,
+          reviewCount: run.expectedTotal,
+          averageRating: run.expectedAverageRating,
+          evaluatedAt,
+        })
+        await insertOutboxRow(tx, verified, { recordedAt: evaluatedAt })
+        emitted.push(verified)
+      }
       const updated = await tx
         .update(reviewProviderSnapshotRuns)
         .set(
@@ -984,73 +1137,48 @@ export const createReviewProviderSnapshotRepository = (
 
   expireRawSourceBatch: async ({ beforeOrAt, afterReviewId, limit }) => {
     if (limit < 1 || limit > 100) throw new TypeError('Raw expiry batch is out of bounds')
-    const emitted: DomainEvent[] = []
-    const result = await db.transaction(async (tx) => {
-      const rows = await tx
-        .select({ id: reviews.id })
+
+    // Compatibility report only. Translate the legacy Review-id cursor into
+    // the canonical frozen checkpoint, then delegate to the sole lifecycle
+    // application authority. No authorizer or apply confirmation is present.
+    let checkpoint = undefined
+    if (afterReviewId != null) {
+      const checkpointRows = await db
+        .select({ createdAt: reviews.createdAt })
         .from(reviews)
-        .where(
-          and(
-            lte(
-              reviews.contentExpiresAt,
-              sql`LEAST(${beforeOrAt}, transaction_timestamp())`,
-            ),
-            afterReviewId == null ? undefined : gt(reviews.id, afterReviewId),
-          ),
-        )
-        .orderBy(asc(reviews.id))
-        .limit(limit)
-        .for('update', { skipLocked: true })
-      let transitioned = 0
-      for (const row of rows) {
-        const mappings = await tx
-          .select()
-          .from(reviewProviderSubjects)
-          .where(
-            and(
-              eq(reviewProviderSubjects.reviewId, row.id),
-              eq(reviewProviderSubjects.state, 'linked'),
-            ),
-          )
-          .for('update')
-        const mapping = mappings[0]
-        if (!mapping) continue
-        emitted.push(await recordSourceTransition(tx, mapping, 'source_expired'))
-        await tx
-          .update(reviewProviderSubjects)
-          .set({
-            state: 'source_expired',
-            unlinkedAt: sql`transaction_timestamp()`,
-            unlinkExpiresAt: sql`transaction_timestamp() + interval '24 months'`,
-            updatedAt: sql`transaction_timestamp()`,
-          })
-          .where(
-            and(
-              eq(reviewProviderSubjects.organizationId, mapping.organizationId),
-              eq(reviewProviderSubjects.propertyId, mapping.propertyId),
-              eq(reviewProviderSubjects.sourceEpoch, mapping.sourceEpoch),
-              eq(reviewProviderSubjects.keyVersion, mapping.keyVersion),
-              eq(reviewProviderSubjects.locatorHmac, mapping.locatorHmac),
-            ),
-          )
-        const erased = await eraseReviewSourceContent(tx, {
-          reviewId: reviewId(row.id),
-          organizationId: organizationId(mapping.organizationId),
-          propertyId: propertyId(mapping.propertyId),
-          sourceEpoch: mapping.sourceEpoch,
-          expectedSourceRevision: mapping.lastSourceRevision,
-          state: 'source_expired',
-        })
-        if (!erased) throw new Error('Expired Review changed before transition')
-        transitioned += 1
+        .where(eq(reviews.id, afterReviewId))
+        .limit(1)
+      if (checkpointRows[0] == null) {
+        throw new Error('Raw expiry checkpoint Review no longer exists')
       }
-      return {
-        transitioned,
-        nextReviewId: rows.length === limit ? reviewId(rows.at(-1)!.id) : null,
+      checkpoint = {
+        contract: REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
+        mode: 'report' as const,
+        scope: { kind: 'expired' as const },
+        evaluatedAt: beforeOrAt.toISOString(),
+        after: {
+          createdAt: checkpointRows[0].createdAt.toISOString(),
+          reviewId: afterReviewId,
+        },
       }
+    }
+
+    const report = await createRunReviewSourceContentLifecycle({
+      store: createReviewSourceContentLifecycleStore(db),
+      clock: () => beforeOrAt,
+    })({
+      mode: 'report',
+      scope: { kind: 'expired' },
+      batchSize: limit,
+      ...(checkpoint == null ? {} : { checkpoint }),
     })
-    for (const event of emitted) await emitAfterCommit(events, event)
-    return result
+    return {
+      transitioned: 0,
+      nextReviewId:
+        report.nextCheckpoint == null
+          ? null
+          : reviewId(report.nextCheckpoint.after.reviewId),
+    }
   },
 
   sweepExpiredTombstones: async ({ beforeOrAt, afterReviewId, limit }) => {

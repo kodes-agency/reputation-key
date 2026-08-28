@@ -74,16 +74,10 @@ export type ReplyRepository = Readonly<{
    * Keyset-bounded batch of provider-pending or ambiguous replies whose
    * provider-read check is due, ordered (reconcileDueAt ASC, id ASC).
    * `cursor` resumes strictly AFTER (reconcileDueAt, id). This is the
-   * automatic recovery sweep; operator commands that explicitly request only
-   * ambiguous rows use `findAmbiguousPublicationBatch` instead.
+   * automatic recovery sweep. Operator commands use the separate,
+   * content-free PublicationReconciliationCandidateQuery.
    */
   findDuePublicationReconciliationBatch(
-    now: Date,
-    cursor: Readonly<{ reconcileDueAt: Date; id: string }> | null,
-    limit: number,
-  ): Promise<ReadonlyArray<Reply>>
-  /** One due, keyset-bounded batch restricted to ambiguous outcomes. */
-  findAmbiguousPublicationBatch(
     now: Date,
     cursor: Readonly<{ reconcileDueAt: Date; id: string }> | null,
     limit: number,

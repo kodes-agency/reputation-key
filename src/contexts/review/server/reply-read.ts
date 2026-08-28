@@ -79,9 +79,12 @@ export const getReplyFn = createServerFn({ method: 'GET' })
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
-        const { useCases } = getContainer()
+        const { reviewPublicApi } = getContainer()
         try {
-          return await useCases.getReply({ reviewId: reviewId(data.reviewId) }, ctx)
+          return await reviewPublicApi.reply.get(
+            { reviewId: reviewId(data.reviewId) },
+            ctx,
+          )
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))

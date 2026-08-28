@@ -7,6 +7,9 @@ import type { GoogleReview } from '../../domain/types'
 export type GoogleReviewPage = Readonly<{
   reviews: readonly GoogleReview[]
   totalReviewCount: number
+  /** Provider-owned aggregate for the exact page snapshot. Null is valid only
+   * when the provider reports zero reviews. */
+  averageRating: number | null
   nextCursorRef: string | null
 }>
 
@@ -58,6 +61,20 @@ export type GoogleReplyPublicationResult = Readonly<{
   providerCorrelationId: string | null
 }>
 
+export type GoogleReplyPublicationRequest = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  connectionId: GoogleConnectionId
+  sourceEpoch: number
+  reviewId: string
+  materialReviewRevision: number
+  replyId: string
+  publicationCycle: number
+  attemptNumber: number
+  reviewName: string
+  text: string
+}>
+
 export type GoogleReviewApiPort = Readonly<{
   listReviewsPage(input: GoogleReviewPageRequest): Promise<GoogleReviewPage>
   getReview(input: GoogleReviewGetRequest): Promise<GoogleReviewGetResult>
@@ -70,9 +87,6 @@ export type GoogleReviewApiPort = Readonly<{
     }>,
   ): Promise<void>
   replyToReview(
-    organizationId: OrganizationId,
-    connectionId: GoogleConnectionId,
-    reviewName: string,
-    text: string,
+    input: GoogleReplyPublicationRequest,
   ): Promise<GoogleReplyPublicationResult>
 }>

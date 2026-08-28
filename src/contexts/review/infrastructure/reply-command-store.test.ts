@@ -83,7 +83,12 @@ const REPLY_ID = replyId('41000000-0000-4000-8000-000000000020')
 const USER_ID = userId('user-1')
 
 function createAtomicReplyCommandStore(db: Database, events: EventBus) {
-  return createProductionReplyCommandStore(db, events, async () => true)
+  return createProductionReplyCommandStore(
+    db,
+    events,
+    () => NOW,
+    async () => true,
+  )
 }
 
 function makeReply(overrides: Partial<Reply> = {}): Reply {
@@ -778,7 +783,12 @@ describe('createAtomicReplyCommandStore', () => {
         setPayloads,
       })
       const events = makeEvents(order)
-      const store = createProductionReplyCommandStore(db, events, async () => false)
+      const store = createProductionReplyCommandStore(
+        db,
+        events,
+        () => NOW,
+        async () => false,
+      )
 
       const result = await store.markPublicationSending(
         makeReply({
@@ -1423,6 +1433,7 @@ describe('createSequentialReplyCommandStore', () => {
     const order: string[] = []
     const updated = makeReply({ status: 'pending_approval', submittedAt: NOW })
     const store = createSequentialReplyCommandStore({
+      clock: () => NOW,
       conditionalUpdate: vi.fn(async () => {
         order.push('state')
         return updated
@@ -1457,6 +1468,7 @@ describe('createSequentialReplyCommandStore', () => {
     const recordOutbox = vi.fn()
     const emit = vi.fn()
     const store = createSequentialReplyCommandStore({
+      clock: () => NOW,
       conditionalUpdate: vi.fn(async () => null),
       upsert: vi.fn(),
       deleteByReviewIdAndSource: vi.fn(),
@@ -1486,6 +1498,7 @@ describe('createSequentialReplyCommandStore', () => {
       publicationState: 'sending' as const,
     }))
     const store = createSequentialReplyCommandStore({
+      clock: () => NOW,
       conditionalUpdate: vi.fn(),
       upsert: vi.fn(),
       deleteByReviewIdAndSource: vi.fn(),
@@ -1511,6 +1524,7 @@ describe('createSequentialReplyCommandStore', () => {
 
   it('publication transitions fail closed when publicationUpdate is not wired', async () => {
     const store = createSequentialReplyCommandStore({
+      clock: () => NOW,
       conditionalUpdate: vi.fn(),
       upsert: vi.fn(),
       deleteByReviewIdAndSource: vi.fn(),
@@ -1543,6 +1557,7 @@ describe('createSequentialReplyCommandStore', () => {
         : { ...reply, status: 'draft' as const, publicationState: 'cancelled' as const }
     })
     const store = createSequentialReplyCommandStore({
+      clock: () => NOW,
       conditionalUpdate: vi.fn(),
       upsert: vi.fn(),
       deleteByReviewIdAndSource: vi.fn(),
@@ -1568,6 +1583,7 @@ describe('createSequentialReplyCommandStore', () => {
   it('sequential purgeExpiredReview is quarantined before delete, outbox, or emit', async () => {
     const order: string[] = []
     const store = createSequentialReplyCommandStore({
+      clock: () => NOW,
       conditionalUpdate: vi.fn(),
       upsert: vi.fn(),
       deleteByReviewIdAndSource: vi.fn(),

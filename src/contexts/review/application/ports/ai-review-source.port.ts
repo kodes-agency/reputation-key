@@ -49,6 +49,24 @@ export type AiReviewSourceResult =
   | Readonly<{ status: 'available'; observation: AiReviewObservation }>
   | Readonly<{ status: AiReviewSourceDenial }>
 
+/**
+ * Content-free current Review identity used by foreign contexts before they
+ * authorize or bind work to a source revision. Review remains the sole owner
+ * of the repository query and deliberately omits guest-authored content.
+ */
+export type AiReviewCurrentSource = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  reviewId: ReviewId
+  sourceEpoch: number
+  sourceRevision: number
+  analysisSequence: number
+}>
+
+export type AiReviewCurrentSourceResult =
+  | Readonly<{ status: 'available'; source: AiReviewCurrentSource }>
+  | Readonly<{ status: 'not_found' }>
+
 export type AiTrendPopulationReview = Readonly<{
   reviewId: ReviewId
   sourceRevision: number
@@ -77,6 +95,12 @@ export type AiTrendPopulationResult =
   | Readonly<{ status: 'limit_exceeded' | 'policy_unavailable' }>
 
 export type AiReviewSourcePort = Readonly<{
+  readCurrentSource(
+    input: Readonly<{
+      organizationId: OrganizationId
+      reviewId: ReviewId
+    }>,
+  ): Promise<AiReviewCurrentSourceResult>
   readForAi(input: AiReviewSourceRequest): Promise<AiReviewSourceResult>
   readTrendPopulation(input: AiTrendPopulationRequest): Promise<AiTrendPopulationResult>
   readReplyStateRevision(

@@ -43,7 +43,7 @@ import type { GoogleReplyObservationStore } from '../../application/ports/google
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { Reply, Review } from '../../domain/types'
 import { replyId, organizationId, propertyId } from '#/shared/domain/ids'
-import { getLogger } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 import { classifyPublicationFailure } from '../../domain/reply-publication-workflow'
 import { reviewReplyPublishFailed } from '../../domain/events'
@@ -60,6 +60,7 @@ type PublishHandlerDeps = Readonly<{
   /** BQC-3.3/3.8: atomic mark ops (guarded state + outbox fact in one tx). */
   replyCommandStore: ReplyCommandStore
   clock: () => Date
+  logger: Pick<LoggerPort, 'error' | 'info' | 'warn'>
   idGen: () => ReturnType<typeof replyId>
   // Job-only mark ops share ReplyDeps (which now carries staffPublicApi for the
   // user-facing reply ops). The mark ops don't perform access checks themselves
@@ -82,7 +83,7 @@ function buildPublishFailedEvent(review: Review, reply: Reply, occurredAt: Date)
 export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
   return async (job: Job<PublishReplyJobData>) => {
     return trace('job.publishReply', async () => {
-      const logger = getLogger()
+      const logger = deps.logger
 
       // BQC-3.2: capability authorization happens at dispatch in the delayed
       // execution gate — job handlers no longer re-check capabilities.
@@ -194,12 +195,19 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
       }
 
       try {
-        const providerOutcome = await deps.googleReviewApi.replyToReview(
-          orgId,
-          review.googleConnectionId,
+        const providerOutcome = await deps.googleReviewApi.replyToReview({
+          organizationId: orgId,
+          propertyId: review.propertyId,
+          connectionId: review.googleConnectionId,
+          sourceEpoch: review.sourceEpoch,
+          reviewId: review.id,
+          materialReviewRevision: review.sourceRevision,
+          replyId: claimed.id,
+          publicationCycle: claimed.publicationCycle,
+          attemptNumber: claimed.publicationAttempts,
           reviewName,
-          reply.text,
-        )
+          text: claimed.text,
+        })
 
         // BQC-3.8 POST-CALL RACE GUARD: the disconnect cascade (cancellation +
         // purge) may have run while the Google call was in flight.
@@ -323,7 +331,7 @@ async function handlePublishFailure(
   review: Review,
   err: unknown,
 ): Promise<void> {
-  const logger = getLogger()
+  const logger = deps.logger
   const failure = classifyPublicationFailure(err)
   const attempt = job.attemptsMade + 1
   const finalAttempt = attempt >= MAX_ATTEMPTS

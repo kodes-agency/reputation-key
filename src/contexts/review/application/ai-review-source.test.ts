@@ -40,11 +40,20 @@ describe('createAiReviewSource', () => {
       reviews: [],
     }))
     const assertCurrentForAi = vi.fn(async () => ({ status: 'current' as const }))
+    const findById = vi.fn(async () => ({
+      organizationId: REQUEST.organizationId,
+      propertyId: REQUEST.propertyId,
+      id: REQUEST.reviewId,
+      sourceEpoch: 4,
+      sourceRevision: 9,
+      analysisSequence: 12,
+    }))
     const readReplyStateRevision = vi.fn(async () => 7)
     const source = createAiReviewSource({
       readForAi,
       readTrendPopulation,
       assertCurrentForAi,
+      findById,
       readReplyStateRevision,
     })
 
@@ -68,6 +77,23 @@ describe('createAiReviewSource', () => {
     })
     expect(readTrendPopulation).toHaveBeenCalledWith(trendRequest)
     await expect(
+      source.readCurrentSource({
+        organizationId: REQUEST.organizationId,
+        reviewId: REQUEST.reviewId,
+      }),
+    ).resolves.toEqual({
+      status: 'available',
+      source: {
+        organizationId: REQUEST.organizationId,
+        propertyId: REQUEST.propertyId,
+        reviewId: REQUEST.reviewId,
+        sourceEpoch: 4,
+        sourceRevision: 9,
+        analysisSequence: 12,
+      },
+    })
+    expect(findById).toHaveBeenCalledWith(REQUEST.reviewId, REQUEST.organizationId)
+    await expect(
       source.readReplyStateRevision({
         organizationId: REQUEST.organizationId,
         reviewId: REQUEST.reviewId,
@@ -77,6 +103,23 @@ describe('createAiReviewSource', () => {
       REQUEST.organizationId,
       REQUEST.reviewId,
     )
+  })
+
+  it('returns a content-free not-found result without leaking repository shape', async () => {
+    const source = createAiReviewSource({
+      readForAi: vi.fn(),
+      readTrendPopulation: vi.fn(),
+      assertCurrentForAi: vi.fn(),
+      findById: vi.fn(async () => null),
+      readReplyStateRevision: vi.fn(),
+    })
+
+    await expect(
+      source.readCurrentSource({
+        organizationId: REQUEST.organizationId,
+        reviewId: REQUEST.reviewId,
+      }),
+    ).resolves.toEqual({ status: 'not_found' })
   })
 
   it('uses the shared raw canonicalizer for the persisted source digest and identity-minimized text', () => {

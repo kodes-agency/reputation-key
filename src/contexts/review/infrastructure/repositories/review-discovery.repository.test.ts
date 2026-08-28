@@ -11,6 +11,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createReviewDiscoveryRepository } from './review-discovery.repository'
 import { GOOGLE_PROVIDER_FIXTURES_V1 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 
@@ -191,7 +192,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await clearSeed()
-  await pool.query(`DELETE FROM organization WHERE id = $1`, [ORG])
+  await deleteTestOrganizations(pool, [ORG])
   await pool.end()
 })
 

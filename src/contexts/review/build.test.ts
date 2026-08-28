@@ -20,6 +20,7 @@ import type {
   RoutingEnvelope,
 } from '#/shared/routing/processing-router'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
+import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '#/shared/domain/data-cell-catalogue'
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => createMockLogger(),
@@ -35,13 +36,12 @@ const US_TARGET: RoutingDecision = {
   region: 'us',
   queue: 'default',
   provider: 'gbp-default',
-  routingPolicyVersion: 2,
+  routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
 }
 
 const stubStaffApi: StaffPublicApi = {
   getAccessiblePropertyIds: async () => null,
   getAssignedPortals: async () => [],
-  countAssignmentsByTeam: async () => 0,
 }
 
 /** Drizzle select chain for the publish-reply scope resolver (reply → property). */
@@ -84,12 +84,22 @@ function setup(
   } as unknown as Queue & { add: ReturnType<typeof vi.fn> }
   const api = buildReviewContext({
     publicationActorAuthority: async () => true,
+    replyBrandProfiles: {
+      isCurrentAiReplyBrandProfile: async () => true,
+    },
     db: (over.db ?? dbReturningProperty(null)) as never,
     events: createCapturingEventBus(),
     outboxRepo: { insertReceipt: vi.fn() } as never,
     clock: () => new Date('2026-07-18T00:00:00Z'),
+    idGen: () => 'review-build-id',
+    snapshotRunIdGen: () => 'review-build-snapshot-run-id',
     googleReviewApi: {} as never,
     jobQueue,
+    workerRuntime: {
+      pool: {} as never,
+      registry: { register: vi.fn() },
+      backgroundQueue: undefined,
+    },
     logger: createMockLogger(),
     staffPublicApi: stubStaffApi,
     propertyApi: {
@@ -114,11 +124,25 @@ const SYNC_EXECUTION = {
 } as const
 
 describe('sync enqueue routing stamp (BQC-4.2)', () => {
+  it('exposes the Review-owned source-content lifecycle authority', () => {
+    const { api } = setup()
+
+    expect(api.maintenance.runSourceContentLifecycle).toEqual(expect.any(Function))
+    expect(api.maintenance.publicationReconciliation).toEqual({
+      findCandidates: expect.any(Function),
+      reconcile: expect.any(Function),
+    })
+    expect(api.maintenance.recovery.createAuthority({})).toMatchObject({
+      kind: 'inspection_only',
+      reason: 'reviewed_cutover_authority_required',
+    })
+  })
+
   it('stamps the content-free routing envelope on a target decision', async () => {
     const resolve = vi.fn(async (): Promise<RoutingDecision> => US_TARGET)
     const { api, jobQueue } = setup({ router: { resolve } })
 
-    await api.internal.repos.queue.addSyncJob(SYNC_DATA)
+    await api.publicApi.syncAdmission.addSyncJob(SYNC_DATA)
 
     expect(resolve).toHaveBeenCalledWith(
       { kind: 'property', propertyId: 'prop-1' },
@@ -133,9 +157,41 @@ describe('sync enqueue routing stamp (BQC-4.2)', () => {
         cell: 'us',
         region: 'us',
         workloadClass: 'review.sync',
-        routingPolicyVersion: 2,
+        routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
       } satisfies RoutingEnvelope,
     })
+  })
+
+  it('enqueues an identifier-only targeted fetch through the same governed review-sync job', async () => {
+    const resolve = vi.fn(async (): Promise<RoutingDecision> => US_TARGET)
+    const { api, jobQueue } = setup({ router: { resolve } })
+    const data = {
+      mode: 'targeted' as const,
+      propertyId: 'prop-1',
+      organizationId: 'org-1',
+      connectionId: 'conn-1',
+      sourceEpoch: 3,
+      referenceRef: `v1.${Buffer.alloc(32, 5).toString('base64url')}`,
+      deliveryId: '00000000-0000-4000-8000-000000000099',
+      initiator: { kind: 'system' as const, id: 'webhook:gbp' },
+      correlationId: 'push-event',
+    }
+
+    await api.publicApi.syncAdmission.addTargetedFetchJob(data, {
+      jobId: 'gbp-push-00000000-0000-4000-8000-000000000099',
+    })
+
+    const [name, payload, options] = jobQueue.add.mock.calls[0]!
+    expect(name).toBe('sync-property-reviews')
+    expect(payload).toMatchObject({
+      ...data,
+      capability: 'property.connect_gbp',
+      routing: { workloadClass: 'review.sync' },
+    })
+    expect(options).toMatchObject({
+      jobId: 'gbp-push-00000000-0000-4000-8000-000000000099',
+    })
+    expect(JSON.stringify(payload)).not.toContain('accounts/')
   })
 
   it('enqueues WITHOUT the routing field when the decision is blocked (dispatch is the authority)', async () => {
@@ -229,7 +285,7 @@ describe('publish enqueue routing stamp (BQC-4.2)', () => {
         cell: 'us',
         region: 'us',
         workloadClass: 'reply.publish',
-        routingPolicyVersion: 2,
+        routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
       } satisfies RoutingEnvelope,
     })
   })

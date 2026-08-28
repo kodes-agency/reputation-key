@@ -13,7 +13,7 @@ import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
 import type { OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import { organizationId, replyId, userId } from '#/shared/domain/ids'
-import { getLogger } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { ReplyRepository } from '../application/ports/reply.repository'
 import type { ReplyQueuePort } from '../application/ports/reply-queue.port'
 import { buildIdempotencyKey } from '../domain/reply-publication-workflow'
@@ -22,11 +22,18 @@ const EVENT_TYPE = 'review.reply.publication_requested' as const
 export const ON_REPLY_PUBLICATION_REQUESTED_CONSUMER =
   'review.on-reply-publication-requested' as const
 
-export type ReplyPublicationConsumerDeps = Readonly<{
+export type ReviewOutboxLogger = Pick<LoggerPort, 'info'>
+
+export type ReplyPublicationDeliveryDeps = Readonly<{
   replyRepo: Pick<ReplyRepository, 'findById'>
   queue: ReplyQueuePort
   receipts: Pick<OutboxRepository, 'insertReceipt'>
 }>
+
+export type ReplyPublicationConsumerDeps = ReplyPublicationDeliveryDeps &
+  Readonly<{
+    logger: ReviewOutboxLogger
+  }>
 
 type PublicationRequestedPayload = Readonly<{
   replyId: string
@@ -54,7 +61,7 @@ function parsePublicationRequested(event: ConsumerEvent): PublicationRequestedPa
 }
 
 async function receipt(
-  deps: ReplyPublicationConsumerDeps,
+  deps: ReplyPublicationDeliveryDeps,
   eventId: string,
   status: 'applied' | 'obsolete',
 ): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
@@ -68,7 +75,7 @@ async function receipt(
 
 /** Deliver one committed publication cycle, or settle stale work as obsolete. */
 export async function handleReplyPublicationRequested(
-  deps: ReplyPublicationConsumerDeps,
+  deps: ReplyPublicationDeliveryDeps,
   event: ConsumerEvent,
 ): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
   const payload = parsePublicationRequested(event)
@@ -124,5 +131,5 @@ export function registerReplyPublicationConsumers(
     module: 'review.outbox-consumers',
     handler: (event) => handleReplyPublicationRequested(deps, event),
   })
-  getLogger().info('Review reply-publication recovery consumer registered')
+  deps.logger.info('Review reply-publication recovery consumer registered')
 }

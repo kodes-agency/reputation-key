@@ -23,12 +23,14 @@ import {
   type ReviewProviderSnapshotRun,
 } from '../ports/review-provider-snapshot.repository'
 import type { ReviewSyncActivityRecorder } from '../ports/review-sync-activity.port'
+import type { ReviewProviderObservationOrigin } from '../ports/response-target-authority.port'
 
 export type RunReviewProviderSnapshotInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   connectionId: GoogleConnectionId
   sourceEpoch: number
+  observationOrigin: ReviewProviderObservationOrigin
   locationName: string
   runId?: string
 }>
@@ -160,12 +162,21 @@ const validatePage = (
   run: ReviewProviderSnapshotRun,
   reviews: readonly { reviewName: string }[],
   totalReviewCount: number,
+  averageRating: number | null,
   locationName: string,
 ): ReviewProviderSnapshotFailureCode | null => {
   if (
     !Number.isSafeInteger(totalReviewCount) ||
     totalReviewCount < 0 ||
     totalReviewCount > REVIEW_PROVIDER_SNAPSHOT_MAX_REVIEWS ||
+    !(
+      (totalReviewCount === 0 && averageRating === null) ||
+      (totalReviewCount > 0 &&
+        typeof averageRating === 'number' &&
+        Number.isFinite(averageRating) &&
+        averageRating >= 0 &&
+        averageRating <= 5)
+    ) ||
     reviews.length > REVIEW_PROVIDER_SNAPSHOT_PAGE_SIZE
   ) {
     return totalReviewCount > REVIEW_PROVIDER_SNAPSHOT_MAX_REVIEWS
@@ -199,6 +210,7 @@ const persistPageObservations = async (
   deps: RunReviewProviderSnapshotDeps,
   deriver: ReviewProviderSubjectDeriver,
   input: RunReviewProviderSnapshotInput,
+  run: Pick<ReviewProviderSnapshotRun, 'id' | 'observationOrigin' | 'startedAt'>,
   reviews: readonly GoogleReview[],
   observationScope: string,
   replyReadGeneration: number,
@@ -219,6 +231,7 @@ const persistPageObservations = async (
       propertyId: input.propertyId,
       connectionId: input.connectionId,
       sourceEpoch: input.sourceEpoch,
+      observationOrigin: observationOriginForReview(run, review),
       observationKey: sha256Hex(
         `repkey-review-provider-observation-key-v1\0${observationScope}\0${review.reviewName}`,
       ),
@@ -241,6 +254,27 @@ const persistPageObservations = async (
     await deps.syncActivity.recordNewReviewObserved(input.propertyId, deps.clock())
   }
   return observations
+}
+
+/**
+ * An initial import is a baseline, not a licence to exclude reviews that were
+ * actually published while its bounded pages were still running. The run's
+ * durable start instant is the only stable cutoff across continuations and
+ * retries. Provider publication time is preferred because local arrival order
+ * changes under pagination; an unusable provider clock is excluded rather
+ * than converted into performance evidence.
+ */
+const observationOriginForReview = (
+  run: Pick<ReviewProviderSnapshotRun, 'observationOrigin' | 'startedAt'>,
+  review: GoogleReview,
+): ReviewProviderObservationOrigin => {
+  if (run.observationOrigin !== 'historical_onboarding') {
+    return run.observationOrigin
+  }
+  const publishedAt = review.sourceCreatedAt ?? review.reviewedAt
+  const publishedAtMs = publishedAt.getTime()
+  if (!Number.isFinite(publishedAtMs)) return 'legacy_unknown'
+  return publishedAtMs > run.startedAt.getTime() ? 'ongoing' : 'historical_onboarding'
 }
 
 const finishPhase = async (
@@ -374,6 +408,7 @@ const commitPageOutcome = async (
     expectedPageIndex: position.pageIndex,
     expectedCursorRef: position.cursorRef,
     totalReviewCount: page.totalReviewCount,
+    averageRating: page.averageRating,
     nextCursorRef: page.nextCursorRef,
     observations,
   })
@@ -438,6 +473,7 @@ const runListPage = async (
     run,
     page.reviews,
     page.totalReviewCount,
+    page.averageRating,
     input.locationName,
   )
   if (invalid) return failAndDiscard(deps, input, run.id, invalid)
@@ -451,6 +487,7 @@ const runListPage = async (
       deps,
       deriver,
       input,
+      run,
       page.reviews,
       `${run.id}\0${position.phase}\0${position.pageIndex}`,
       replyReadGeneration,
@@ -528,6 +565,7 @@ const confirmTargetedCandidate = async (
       deps,
       deriver,
       input,
+      run,
       [result.review],
       `${run.id}\0targeted\0${candidate.reviewId}\0${candidate.expectedSourceRevision}`,
       replyReadGeneration,
@@ -585,6 +623,7 @@ export const runReviewProviderSnapshot =
           organizationId: input.organizationId,
           propertyId: input.propertyId,
           sourceEpoch: input.sourceEpoch,
+          observationOrigin: input.observationOrigin,
         })
     if (!run) {
       return { status: 'failed', runId: input.runId ?? '', code: 'source_changed' }

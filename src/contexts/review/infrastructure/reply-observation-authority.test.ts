@@ -51,6 +51,9 @@ describe('Review reply-observation exact-current admission', () => {
       matchedReplyId: null,
       matchedPublicationCycle: null,
       observedAt: NOW,
+      reviewSourceContentState: 'active',
+      responseTargetEligibility: 'measured',
+      responseTargetStartAt: NOW,
     }
     const query = {
       from: () => query,
@@ -99,5 +102,75 @@ describe('Review reply-observation exact-current admission', () => {
     releaseCallbacks()
     await expect(Promise.all(calls)).resolves.toHaveLength(calls.length)
     expect(peakTransactions).toBe(maxConcurrent)
+  })
+
+  it.each([
+    {
+      label: 'unknown source state',
+      reviewSourceContentState: 'unknown',
+      responseTargetEligibility: 'measured',
+      responseTargetStartAt: NOW,
+    },
+    {
+      label: 'unknown target eligibility',
+      reviewSourceContentState: 'active',
+      responseTargetEligibility: 'unknown',
+      responseTargetStartAt: null,
+    },
+    {
+      label: 'measured target without a provider start',
+      reviewSourceContentState: 'active',
+      responseTargetEligibility: 'measured',
+      responseTargetStartAt: null,
+    },
+    {
+      label: 'excluded target with a provider start',
+      reviewSourceContentState: 'active',
+      responseTargetEligibility: 'historical_onboarding',
+      responseTargetStartAt: NOW,
+    },
+  ])('fails closed for $label', async (invalidMetadata) => {
+    const { createReviewReplyObservationAuthority } =
+      await import('./reply-observation-authority')
+    const currentRow = {
+      organizationId: expectation.organizationId,
+      propertyId: expectation.propertyId,
+      reviewId: expectation.reviewId,
+      observationRevision: expectation.observationRevision,
+      sourceEpoch: expectation.sourceEpoch,
+      materialReviewRevision: expectation.materialReviewRevision,
+      currentReviewSourceEpoch: expectation.sourceEpoch,
+      currentReviewMaterialReviewRevision: expectation.materialReviewRevision,
+      headState: 'live',
+      headProvenance: expectation.provenance,
+      state: 'live',
+      change: expectation.change,
+      resolution: expectation.resolution,
+      provenance: expectation.provenance,
+      matchedReplyId: null,
+      matchedPublicationCycle: null,
+      observedAt: NOW,
+      ...invalidMetadata,
+    }
+    const query = {
+      from: () => query,
+      innerJoin: () => query,
+      where: () => query,
+      for: () => query,
+      limit: async () => [currentRow],
+    }
+    const tx = {
+      execute: async () => undefined,
+      select: () => query,
+    }
+    const db = {
+      transaction: async (apply: (input: typeof tx) => Promise<unknown>) => apply(tx),
+    } as unknown as Database
+    const apply = vi.fn(async () => 'unexpected')
+
+    await expect(
+      createReviewReplyObservationAuthority(db).withExactCurrent(expectation, apply),
+    ).resolves.toEqual({ status: 'obsolete' })
+    expect(apply).not.toHaveBeenCalled()
   })
 })

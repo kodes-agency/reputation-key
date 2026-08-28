@@ -25,9 +25,9 @@ export const draftReplyFn = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
-        const { useCases } = getContainer()
+        const { reviewPublicApi } = getContainer()
         try {
-          return await useCases.draftReply(
+          return await reviewPublicApi.reply.draft(
             {
               reviewId: reviewId(data.reviewId),
               text: data.text,
@@ -57,9 +57,12 @@ export const submitReplyFn = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
-        const { useCases } = getContainer()
+        const { reviewPublicApi } = getContainer()
         try {
-          return await useCases.submitReply({ reviewId: reviewId(data.reviewId) }, ctx)
+          return await reviewPublicApi.reply.submit(
+            { reviewId: reviewId(data.reviewId) },
+            ctx,
+          )
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))
@@ -81,9 +84,12 @@ export const approveReplyFn = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
-        const { useCases } = getContainer()
+        const { reviewPublicApi } = getContainer()
         try {
-          return await useCases.approveReply({ reviewId: reviewId(data.reviewId) }, ctx)
+          return await reviewPublicApi.reply.approve(
+            { reviewId: reviewId(data.reviewId) },
+            ctx,
+          )
         } catch (e) {
           if (isReviewError(e))
             throwContextError('ReviewError', e, reviewErrorStatus(e.code))
@@ -108,9 +114,9 @@ export const editPublishedReplyFn = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
-        const { useCases } = getContainer()
+        const { reviewPublicApi } = getContainer()
         try {
-          return await useCases.editPublishedReply(
+          return await reviewPublicApi.reply.editPublished(
             { reviewId: reviewId(data.reviewId), text: data.text },
             ctx,
           )

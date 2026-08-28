@@ -28,7 +28,7 @@ import {
   classifyReviewsForRefresh,
   contentRefreshDueThreshold,
 } from '../../application/source-content-lifecycle'
-import { getLogger } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 
 const DEFAULT_BATCH_SIZE = 500
@@ -41,6 +41,7 @@ type RefreshHandlerDeps = Readonly<{
   queue: ReviewQueuePort
   refreshRunRepo: ReviewRefreshRunRepository
   clock: () => Date
+  logger: Pick<LoggerPort, 'info' | 'warn'>
   batchSize?: number
   maxBatches?: number
   alertLeadMs?: number
@@ -114,7 +115,7 @@ async function enqueueSyncGroups(
   deps: RefreshHandlerDeps,
   groups: ReadonlyMap<string, SyncGroup>,
   state: SweepState,
-  logger: ReturnType<typeof getLogger>,
+  logger: RefreshHandlerDeps['logger'],
 ): Promise<void> {
   for (const data of groups.values()) {
     try {
@@ -134,7 +135,7 @@ async function processSweepBatch(
   batchSize: number,
   threshold: Date,
   now: Date,
-  logger: ReturnType<typeof getLogger>,
+  logger: RefreshHandlerDeps['logger'],
 ): Promise<BatchOutcome> {
   const batch = await deps.reviewRepo.findExpiringBatchAcrossTenants(
     threshold,
@@ -194,7 +195,7 @@ async function runSweepLoop(
     maxBatches: number
     threshold: Date
     now: Date
-    logger: ReturnType<typeof getLogger>
+    logger: RefreshHandlerDeps['logger']
     persist: PersistFn
   }>,
 ): Promise<void> {
@@ -240,7 +241,7 @@ async function finalizeSweep(
     resumed: boolean
     now: Date
     alertLeadMs: number
-    logger: ReturnType<typeof getLogger>
+    logger: RefreshHandlerDeps['logger']
     persist: PersistFn
   }>,
 ): Promise<void> {
@@ -281,7 +282,7 @@ export const createRefreshExpiringReviewsHandler = (deps: RefreshHandlerDeps) =>
 
   return async (_job: Job) => {
     return trace('job.refreshExpiringReviews', async () => {
-      const logger = getLogger()
+      const logger = deps.logger
       const now = deps.clock()
       const threshold = contentRefreshDueThreshold(now)
 

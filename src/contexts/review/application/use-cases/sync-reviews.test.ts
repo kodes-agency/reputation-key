@@ -9,6 +9,11 @@ import type { ReviewRepository } from '../ports/review.repository'
 import type { ReviewCommandStore } from '../ports/review-command-store.port'
 import type { GoogleReplyObservationStore } from '../ports/google-reply-observation-store.port'
 import {
+  GOOGLE_LOCATION_PRIMARY_RESOURCE,
+  GOOGLE_REVIEW_PRIMARY_RESOURCE,
+  GOOGLE_REVIEW_PRIMARY_SEGMENTS,
+} from '#/test-fixtures/generated/google-provider-identifiers-v1'
+import {
   createReviewProviderObservationWriter,
   providerReplyObservationKey,
 } from './sync-reviews'
@@ -89,13 +94,14 @@ describe('Review provider observation identity', () => {
       propertyId: property,
       connectionId: connection,
       sourceEpoch: 4,
+      observationOrigin: 'ongoing',
       observationKey: 'f'.repeat(64),
       replyReadGeneration: 1,
       subjects: [subject],
       review: {
-        reviewName: 'accounts/a/locations/l/reviews/r',
-        externalId: 'r',
-        externalLocationId: 'accounts/a/locations/l',
+        reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+        externalId: GOOGLE_REVIEW_PRIMARY_SEGMENTS.reviewId,
+        externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
         reviewerName: 'Guest',
         reviewerProfilePhotoUrl: null,
         rating: 2,
@@ -117,6 +123,7 @@ describe('Review provider observation identity', () => {
       }),
       now,
       'f'.repeat(64),
+      'ongoing',
     )
     expect(result).toEqual({ reviewId: stableReview, sourceRevision: 8, isNew: false })
   })

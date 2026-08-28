@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { EventBus } from '#/shared/events/event-bus'
@@ -30,6 +31,7 @@ import { eraseReviewSourceContent } from './review-source-content-store'
 import type { RecordGoogleReplyObservation } from '../application/ports/google-reply-observation-store.port'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { withPublicationAuthorizationFixtureMutation } from '#/shared/testing/reply-publication-authorization-fixtures'
+import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 
 const ORG = organizationId('org-rpl-observation-integration')
 const PROP_A = propertyId('a1000000-0000-0000-0000-000000000001')
@@ -69,7 +71,12 @@ const createRecordingEvents = (): {
  * composition injects the real transaction-bound authority; these tests grant
  * their one explicitly seeded manager. */
 const createTestReplyCommandStore = () =>
-  createAtomicReplyCommandStore(getDb(), silentEvents, async () => true)
+  createAtomicReplyCommandStore(
+    getDb(),
+    silentEvents,
+    () => new Date(),
+    async () => true,
+  )
 
 let pool: Pool
 let lease: TestLease
@@ -86,7 +93,7 @@ function makeReview(
     propertyId: property,
     platform: 'google',
     externalId,
-    externalLocationId: 'accounts/12345678901234567890/locations/12345678901234567890',
+    externalLocationId: GOOGLE_LOCATION_PRIMARY_RESOURCE,
     googleConnectionId: null,
     reviewerName: 'Observation test guest',
     reviewerProfilePhotoUrl: null,
@@ -154,7 +161,7 @@ async function resetFixture(): Promise<void> {
   await pool.query('DELETE FROM replies WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
-  await pool.query('DELETE FROM organization WHERE id = $1', [ORG])
+  await deleteTestOrganizations(pool, [ORG])
   const slug = 'rpl-observation-integration'
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
@@ -186,13 +193,15 @@ async function seedReviewAndReply(input: {
   const rId = input.replyId ?? REPLY_A
   const property = input.propertyId ?? PROP_A
   const db = getDb()
-  const review = await createReviewRepository(db).upsert(
+  const review = await createReviewRepository(db, () => new Date()).upsert(
     makeReview(id, input.externalId ?? `external-${id}`, property),
     NOW,
     sha256Hex(`review-observation:${id}`),
   )
   const commandStore = createTestReplyCommandStore()
-  const originalReply = await createReplyRepository(db).upsert(makeReply(rId, id))
+  const originalReply = await createReplyRepository(db, () => new Date()).upsert(
+    makeReply(rId, id),
+  )
   const authorized = await commandStore.markPublicationAuthorized(
     originalReply,
     { status: 'approved', approvedBy: USER, approvedAt: NOW },
@@ -293,7 +302,10 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
       matchedReplyId: REPLY_A,
       matchedPublicationCycle: 1,
     })
-    const persisted = await createReplyRepository(getDb()).findById(REPLY_A, ORG)
+    const persisted = await createReplyRepository(getDb(), () => new Date()).findById(
+      REPLY_A,
+      ORG,
+    )
     expect(persisted).toMatchObject({
       status: 'published',
       publicationState: 'published',
@@ -339,7 +351,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     expect(await store.record(input)).toMatchObject({ duplicate: false })
 
     const later = new Date(NOW.getTime() + 1_000)
-    const advanced = await createReviewRepository(getDb()).upsert(
+    const advanced = await createReviewRepository(getDb(), () => new Date()).upsert(
       {
         ...makeReview(REVIEW_A, `external-${REVIEW_A}`),
         text: 'A materially changed review',
@@ -398,7 +410,10 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
       matchedReplyId: REPLY_A,
     })
 
-    const persisted = await createReplyRepository(getDb()).findById(REPLY_A, ORG)
+    const persisted = await createReplyRepository(getDb(), () => new Date()).findById(
+      REPLY_A,
+      ORG,
+    )
     expect(persisted).toMatchObject({
       status: 'published',
       publicationState: 'published',
@@ -419,7 +434,10 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
       matchedReplyId: null,
     })
     await expect(store.record(externalInput)).resolves.toMatchObject({ duplicate: true })
-    const persisted = await createReplyRepository(getDb()).findById(REPLY_A, ORG)
+    const persisted = await createReplyRepository(getDb(), () => new Date()).findById(
+      REPLY_A,
+      ORG,
+    )
     expect(persisted).toMatchObject({
       status: 'draft',
       publicationState: 'cancelled',
@@ -475,7 +493,10 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
       resolution: 'external_current_live',
     })
 
-    const cancelled = await createReplyRepository(getDb()).findById(REPLY_A, ORG)
+    const cancelled = await createReplyRepository(getDb(), () => new Date()).findById(
+      REPLY_A,
+      ORG,
+    )
     expect(cancelled).toMatchObject({ status: 'draft', publicationState: 'cancelled' })
 
     const commandStore = createTestReplyCommandStore()
@@ -532,7 +553,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
       duplicate: true,
     })
     await expect(
-      createReplyRepository(getDb()).findById(REPLY_A, ORG),
+      createReplyRepository(getDb(), () => new Date()).findById(REPLY_A, ORG),
     ).resolves.toMatchObject({ status: 'draft', publicationState: 'cancelled' })
     const attempt = await pool.query(
       `SELECT outcome, confirmed_observation_revision
@@ -651,7 +672,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     })
 
     await expect(
-      createReplyRepository(getDb()).findById(REPLY_A, ORG),
+      createReplyRepository(getDb(), () => new Date()).findById(REPLY_A, ORG),
     ).resolves.toMatchObject({
       status: 'draft',
       publicationState: 'cancelled',
@@ -720,7 +741,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     })
 
     await expect(
-      createReplyRepository(getDb()).findById(REPLY_A, ORG),
+      createReplyRepository(getDb(), () => new Date()).findById(REPLY_A, ORG),
     ).resolves.toMatchObject({
       status: 'draft',
       publicationState: 'cancelled',
@@ -785,7 +806,10 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
         }),
       ),
     ).rejects.toMatchObject({ code: 'invalid_transition' })
-    const current = await createReplyRepository(getDb()).findById(REPLY_A, ORG)
+    const current = await createReplyRepository(getDb(), () => new Date()).findById(
+      REPLY_A,
+      ORG,
+    )
     expect(current).toMatchObject({
       status: 'approved',
       publicationState: 'sending',
@@ -829,7 +853,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
   it('refuses a first provider claim after the Review material revision advances', async () => {
     const { review, reply } = await seedReviewAndReply({ claim: false })
     const later = new Date(NOW.getTime() + 1_000)
-    const advanced = await createReviewRepository(getDb()).upsert(
+    const advanced = await createReviewRepository(getDb(), () => new Date()).upsert(
       {
         ...makeReview(REVIEW_A, `external-${REVIEW_A}`),
         text: 'A materially changed review after manager authorization',
@@ -863,6 +887,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     const advanced = await createAtomicReviewCommandStore(
       getDb(),
       silentEvents,
+      () => new Date(),
     ).upsertAndRecord(
       {
         ...makeReview(REVIEW_A, `external-${REVIEW_A}`),
@@ -887,7 +912,10 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     )
     expect(advanced.sourceRevision).toBe(review.sourceRevision + 1)
 
-    const reply = await createReplyRepository(getDb()).findById(REPLY_A, ORG)
+    const reply = await createReplyRepository(getDb(), () => new Date()).findById(
+      REPLY_A,
+      ORG,
+    )
     expect(reply).toMatchObject({
       status: 'draft',
       publicationState: 'cancelled',
@@ -929,7 +957,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     await expect(store.record(absentInput)).resolves.toMatchObject({ duplicate: true })
 
     await expect(
-      createReplyRepository(getDb()).findById(REPLY_A, ORG),
+      createReplyRepository(getDb(), () => new Date()).findById(REPLY_A, ORG),
     ).resolves.toMatchObject({
       status: 'draft',
       publicationState: 'cancelled',
@@ -1020,7 +1048,7 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
       confirmed_observation_revision: null,
     })
     await expect(
-      createReplyRepository(getDb()).findById(REPLY_A, ORG),
+      createReplyRepository(getDb(), () => new Date()).findById(REPLY_A, ORG),
     ).resolves.toMatchObject({
       status: 'draft',
       publicationState: 'cancelled',

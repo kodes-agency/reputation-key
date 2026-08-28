@@ -22,19 +22,6 @@ import {
 } from '#/shared/domain/ids'
 import { createRefreshExpiringReviewsHandler } from './refresh-expiring-reviews.job'
 
-vi.mock('#/shared/observability/logger', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('#/shared/observability/logger')>()
-  return {
-    ...actual,
-    getLogger: vi.fn(() => ({
-      warn: vi.fn(),
-      info: vi.fn(),
-      error: vi.fn(),
-      debug: vi.fn(),
-    })),
-  }
-})
-
 const ORG_ID = organizationId('org-1')
 const PROP_A = propertyId('prop-a')
 const PROP_B = propertyId('prop-b')
@@ -162,15 +149,17 @@ function makeDeps(
   const queue = {
     addSyncJob: opts.addSyncJob ?? vi.fn(async () => {}),
   } as unknown as ReviewQueuePort
+  const logger = { info: vi.fn(), warn: vi.fn() }
   const handler = createRefreshExpiringReviewsHandler({
     reviewRepo,
     queue,
     refreshRunRepo: runRepo,
     clock: () => NOW,
+    logger,
     batchSize: opts.batchSize ?? 2,
     maxBatches: opts.maxBatches ?? 10,
   })
-  return { handler, reviewRepo, queue, runRepo, findExpiringBatchAcrossTenants }
+  return { handler, reviewRepo, queue, runRepo, logger, findExpiringBatchAcrossTenants }
 }
 
 describe('refresh sweep (BQC-1.5)', () => {
@@ -303,7 +292,7 @@ describe('refresh sweep (BQC-1.5)', () => {
 
   it('records oldest due expiry and warns when under the alert lead', async () => {
     const oldest = new Date(NOW.getTime() + 12 * 60 * 60 * 1000) // 12h < 2d lead
-    const { handler, runRepo } = makeDeps([
+    const { handler, runRepo, logger } = makeDeps([
       [
         makeRefreshDueReview({
           contentExpiresAt: oldest,
@@ -312,14 +301,9 @@ describe('refresh sweep (BQC-1.5)', () => {
       ],
     ])
 
-    const { getLogger } = await import('#/shared/observability/logger')
-    const loggerMock = getLogger as unknown as ReturnType<typeof vi.fn>
-    const callsBefore = loggerMock.mock.calls.length
     await handler({} as never)
 
     expect(runRepo.runs[0].oldestDueContentExpiresAt).toEqual(oldest)
-    // The handler's own getLogger() call is the first one after `callsBefore`.
-    const logger = loggerMock.mock.results[callsBefore].value
     expect(logger.warn).toHaveBeenCalledWith(
       expect.objectContaining({ oldestDueContentExpiresAt: oldest }),
       expect.stringContaining('policy deadline'),

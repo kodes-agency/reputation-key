@@ -31,7 +31,9 @@ import {
   type PersistedReviewObservation,
 } from './repositories/review-observation.repository'
 import { lockReplyTruthScope } from './reply-truth-serialization'
+import { lockReviewSourceMutationScope } from './review-source-mutation-serialization'
 import type { Tx } from '#/shared/outbox/commit'
+import type { ReviewProviderObservationOrigin } from '../application/ports/response-target-authority.port'
 
 const SOURCE_ACTIVE_PUBLICATION_STATES = [
   'requested',
@@ -146,16 +148,18 @@ type PersistObservation = (
     review: Omit<Review, 'createdAt' | 'updatedAt'>
     observedAt: Date
     observationKey?: string
+    observationOrigin?: ReviewProviderObservationOrigin
   }>,
 ) => Promise<PersistedReviewObservation>
 
-export function createAtomicReviewCommandStore(
+export const createAtomicReviewCommandStore = (
   db: Database,
   events: EventBus,
+  clock: () => Date,
   persistObservation: PersistObservation = persistReviewObservation,
-): ReviewCommandStore {
+): ReviewCommandStore => {
   return {
-    upsertAndRecord: async (review, event, now, observationKey) => {
+    upsertAndRecord: async (review, event, now, observationKey, observationOrigin) => {
       return trace('review.commandStore.upsertAndRecord', async () => {
         const committed = await db.transaction(async (tx) => {
           const sequenceResult = await tx.execute(sql`
@@ -173,12 +177,13 @@ export function createAtomicReviewCommandStore(
               'Review analysis sequence allocation failed',
             )
           }
-          const updatedAt = now ?? new Date()
+          const updatedAt = now ?? clock()
           await lockReplyTruthScope(tx, review.organizationId, review.id)
           const observation = await persistObservation(tx, {
             review: { ...review, analysisSequence },
             observedAt: updatedAt,
             ...(observationKey == null ? {} : { observationKey }),
+            ...(observationOrigin == null ? {} : { observationOrigin }),
           })
           const saved = observation.review
           if (observation.duplicate || observation.outOfOrder) {
@@ -211,10 +216,27 @@ export function createAtomicReviewCommandStore(
         return committed.saved
       })
     },
-    reobserveExpiredAndRecord: async (review, _now, observationKey) => {
+    reobserveExpiredAndRecord: async (
+      review,
+      _now,
+      observationKey,
+      observationOrigin,
+    ) => {
       return trace('review.commandStore.reobserveExpiredAndRecord', async () => {
         const committed = await db.transaction(async (tx) => {
-          await lockReplyTruthScope(tx, review.organizationId, review.id)
+          if (
+            !(await lockReviewSourceMutationScope(tx, {
+              organizationId: review.organizationId,
+              propertyId: review.propertyId,
+              reviewId: review.id,
+              sourceEpoch: review.sourceEpoch,
+            }))
+          ) {
+            throw reviewError(
+              'repo_upsert_failed',
+              'Review source epoch changed before re-observation',
+            )
+          }
           const existingRows = await tx
             .select()
             .from(reviews)
@@ -330,6 +352,7 @@ export function createAtomicReviewCommandStore(
             review: { ...review, analysisSequence: reobserveSequence },
             observedAt: occurredAt,
             ...(observationKey == null ? {} : { observationKey }),
+            ...(observationOrigin == null ? {} : { observationOrigin }),
           })
           if (observation.duplicate || observation.outOfOrder) {
             throw reviewError(
@@ -375,17 +398,18 @@ export function createAtomicReviewCommandStore(
  * Upserts via the repository, records outbox if provided, then emits.
  * Not for production — production must use createAtomicReviewCommandStore.
  */
-export function createSequentialReviewCommandStore(deps: {
+export const createSequentialReviewCommandStore = (deps: {
   upsert: (
     review: Omit<Review, 'createdAt' | 'updatedAt'>,
     now?: Date,
     observationKey?: string,
   ) => Promise<Review>
   events: EventBus
+  clock: () => Date
   recordOutbox?: (event: DomainEvent) => Promise<void>
-}): ReviewCommandStore {
+}): ReviewCommandStore => {
   return {
-    upsertAndRecord: async (review, event, now, observationKey) => {
+    upsertAndRecord: async (review, event, now, observationKey, _observationOrigin) => {
       const saved = await deps.upsert(review, now, observationKey)
       const recordedEvent = typeof event === 'function' ? event(saved) : event
       if (deps.recordOutbox) {
@@ -394,8 +418,13 @@ export function createSequentialReviewCommandStore(deps: {
       await emitAfterCommit(deps.events, recordedEvent)
       return saved
     },
-    reobserveExpiredAndRecord: async (review, now, observationKey) => {
-      const occurredAt = now ?? new Date()
+    reobserveExpiredAndRecord: async (
+      review,
+      now,
+      observationKey,
+      _observationOrigin,
+    ) => {
+      const occurredAt = now ?? deps.clock()
       const expiredEvent = reviewSourceTransitioned({
         reviewId: review.id,
         organizationId: review.organizationId,

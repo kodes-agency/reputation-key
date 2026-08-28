@@ -5,12 +5,14 @@
 import { GOOGLE_LOCATION_PRIMARY_RESOURCE } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
 import { createReplyRepository } from './reply.repository'
+import { createPublicationReconciliationCandidateQuery } from './publication-reconciliation-candidate.repository'
 import { createReviewRepository } from './review.repository'
 import { getDb } from '#/shared/db'
 import { organizationId, propertyId, reviewId, replyId } from '#/shared/domain/ids'
 import type { Review, Reply } from '../../domain/types'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 
 const ORG_A = organizationId('org-rpl-test-aaaa-3333333333333333')
 const ORG_B = organizationId('org-rpl-test-bbbb-4444444444444444')
@@ -32,9 +34,13 @@ async function truncateReplies(pool: Pool) {
 async function seedOrgs(pool: Pool, ids: string[]) {
   // Clean up stale rows that hold our target slugs (from previous test runs with different IDs)
   const slugs = ids.map((id) => 't-' + id.replace(/-/g, '').slice(-12))
-  await pool.query(
-    `DELETE FROM organization WHERE slug = ANY($1) AND NOT (id = ANY($2))`,
+  const conflictingOrganizations = await pool.query<{ id: string }>(
+    `SELECT id FROM organization WHERE slug = ANY($1) AND NOT (id = ANY($2))`,
     [slugs, ids],
+  )
+  await deleteTestOrganizations(
+    pool,
+    conflictingOrganizations.rows.map(({ id }) => id),
   )
   for (const id of ids) {
     const slug = 't-' + id.replace(/-/g, '').slice(-12)
@@ -80,7 +86,7 @@ async function seedReview(
   db: ReturnType<typeof getDb>,
   overrides: Partial<Review> = {},
 ): Promise<Review> {
-  const reviewRepo = createReviewRepository(db)
+  const reviewRepo = createReviewRepository(db, () => new Date())
   return reviewRepo.upsert({
     id: reviewId('3a000000-0000-0000-0000-000000000001'),
     organizationId: ORG_A,
@@ -145,7 +151,7 @@ describe.sequential('replyRepository (integration)', () => {
     it('inserts and retrieves a reply', async () => {
       const db = getDb()
       await seedReview(db)
-      const repo = createReplyRepository(db)
+      const repo = createReplyRepository(db, () => new Date())
       const reply = makeReply()
 
       const created = await repo.upsert(reply)
@@ -159,7 +165,7 @@ describe.sequential('replyRepository (integration)', () => {
     it('returns empty array for review with no replies', async () => {
       const db = getDb()
       await seedReview(db)
-      const repo = createReplyRepository(db)
+      const repo = createReplyRepository(db, () => new Date())
       const found = await repo.findByReviewId(
         reviewId('00000000-0000-0000-0000-000000000999'),
         ORG_A,
@@ -176,7 +182,7 @@ describe.sequential('replyRepository (integration)', () => {
         id: reviewId('3a000000-0000-0000-0000-000000000002'),
         externalId: 'rpl-ext-002',
       })
-      const repo = createReplyRepository(db)
+      const repo = createReplyRepository(db, () => new Date())
       const earlySubmission = new Date('2025-05-30T09:00:00Z')
       const laterSubmission = new Date('2025-05-31T09:00:00Z')
       const publication = new Date('2025-06-01T09:00:00Z')
@@ -222,7 +228,7 @@ describe.sequential('replyRepository (integration)', () => {
     })
 
     it('does not query for an empty review scope', async () => {
-      const repo = createReplyRepository(getDb())
+      const repo = createReplyRepository(getDb(), () => new Date())
 
       await expect(repo.findMilestonesByReviewIds([], ORG_A)).resolves.toEqual([])
     })
@@ -232,7 +238,7 @@ describe.sequential('replyRepository (integration)', () => {
     it('finds google_sync reply by review id', async () => {
       const db = getDb()
       await seedReview(db)
-      const repo = createReplyRepository(db)
+      const repo = createReplyRepository(db, () => new Date())
 
       await repo.upsert(makeReply({ source: 'google_sync' }))
       await repo.upsert(
@@ -255,7 +261,7 @@ describe.sequential('replyRepository (integration)', () => {
     it('returns null when no google_sync reply exists', async () => {
       const db = getDb()
       await seedReview(db)
-      const repo = createReplyRepository(db)
+      const repo = createReplyRepository(db, () => new Date())
 
       await repo.upsert(makeReply({ source: 'internal' }))
 
@@ -271,7 +277,7 @@ describe.sequential('replyRepository (integration)', () => {
     it('updates existing reply on conflict (reviewId + source + org)', async () => {
       const db = getDb()
       await seedReview(db)
-      const repo = createReplyRepository(db)
+      const repo = createReplyRepository(db, () => new Date())
 
       const reply = makeReply({ text: 'Original reply' })
       await repo.upsert(reply)
@@ -288,7 +294,7 @@ describe.sequential('replyRepository (integration)', () => {
     it('increments the durable state revision on every internal reply update', async () => {
       const db = getDb()
       await seedReview(db)
-      const repo = createReplyRepository(db)
+      const repo = createReplyRepository(db, () => new Date())
       const reply = makeReply({ text: 'Original reply', source: 'internal' })
 
       const created = await repo.upsert(reply)
@@ -303,7 +309,8 @@ describe.sequential('replyRepository (integration)', () => {
     it('finds pending observations and advances only the exact due cycle', async () => {
       const db = getDb()
       await seedReview(db)
-      const repo = createReplyRepository(db)
+      const repo = createReplyRepository(db, () => new Date())
+      const candidates = createPublicationReconciliationCandidateQuery(db)
       const currentDueAt = new Date(now.getTime() - 60 * 1000)
       const nextDueAt = new Date(now.getTime() + 60 * 1000)
       const pending = await repo.upsert(
@@ -330,7 +337,13 @@ describe.sequential('replyRepository (integration)', () => {
       ])
       // The operator's explicit --all-ambiguous contract must not be widened
       // by the automatic sweep's inclusion of provider-pending rows.
-      await expect(repo.findAmbiguousPublicationBatch(now, null, 10)).resolves.toEqual([])
+      await expect(
+        candidates.findAmbiguousCandidates({
+          dueThrough: now,
+          after: null,
+          limit: 10,
+        }),
+      ).resolves.toEqual([])
       await expect(
         repo.deferPublicationReconciliation({
           replyId: pending.id,
@@ -369,7 +382,8 @@ describe.sequential('replyRepository (integration)', () => {
         id: reviewId('3a000000-0000-0000-0000-000000000002'),
         externalId: 'rpl-ext-002',
       })
-      const repo = createReplyRepository(db)
+      const repo = createReplyRepository(db, () => new Date())
+      const candidates = createPublicationReconciliationCandidateQuery(db)
       const first = await repo.upsert(
         makeReply({
           id: '2a000000-0000-0000-0000-000000000011',
@@ -410,24 +424,29 @@ describe.sequential('replyRepository (integration)', () => {
         [first.id, ORG_A],
       )
 
-      const firstPage = await repo.findAmbiguousPublicationBatch(now, null, 1)
+      const firstPage = await candidates.findAmbiguousCandidates({
+        dueThrough: now,
+        after: null,
+        limit: 1,
+      })
       expect(firstPage).toHaveLength(1)
-      expect(firstPage[0]).toEqual(
-        expect.objectContaining({
-          id: first.id,
-          reconcileDueAt: new Date('2025-06-01T11:58:00.123Z'),
-        }),
-      )
+      expect(firstPage[0]).toEqual({
+        replyId: first.id,
+        organizationId: ORG_A,
+        publicationState: 'ambiguous',
+        reconcileDueAt: new Date('2025-06-01T11:58:00.123Z'),
+      })
+      expect(firstPage[0]).not.toHaveProperty('text')
 
-      const secondPage = await repo.findAmbiguousPublicationBatch(
-        now,
-        {
+      const secondPage = await candidates.findAmbiguousCandidates({
+        dueThrough: now,
+        after: {
           reconcileDueAt: firstPage[0]!.reconcileDueAt!,
-          id: firstPage[0]!.id,
+          replyId: firstPage[0]!.replyId,
         },
-        1,
-      )
-      expect(secondPage).toEqual([expect.objectContaining({ id: second.id })])
+        limit: 1,
+      })
+      expect(secondPage).toEqual([expect.objectContaining({ replyId: second.id })])
 
       const nextDueAt = new Date('2025-06-01T12:05:00.789Z')
       await expect(
@@ -451,7 +470,7 @@ describe.sequential('replyRepository (integration)', () => {
     it('same reviewId, different org → separate replies', async () => {
       const db = getDb()
       await seedReview(db)
-      const repo = createReplyRepository(db)
+      const repo = createReplyRepository(db, () => new Date())
 
       await repo.upsert(
         makeReply({
@@ -490,7 +509,7 @@ describe.sequential('replyRepository (integration)', () => {
     it('deletes only matching source', async () => {
       const db = getDb()
       await seedReview(db)
-      const repo = createReplyRepository(db)
+      const repo = createReplyRepository(db, () => new Date())
 
       await repo.upsert(makeReply({ source: 'google_sync' }))
       await repo.upsert(
@@ -520,7 +539,7 @@ describe.sequential('replyRepository (integration)', () => {
     it('deletes a reply by id', async () => {
       const db = getDb()
       await seedReview(db)
-      const repo = createReplyRepository(db)
+      const repo = createReplyRepository(db, () => new Date())
       const reply = makeReply()
 
       await repo.upsert(reply)
@@ -535,7 +554,7 @@ describe.sequential('replyRepository (integration)', () => {
     it('deleteById with wrong org does not delete the reply', async () => {
       const db = getDb()
       await seedReview(db)
-      const repo = createReplyRepository(db)
+      const repo = createReplyRepository(db, () => new Date())
       const reply = makeReply()
 
       await repo.upsert(reply)
@@ -552,7 +571,7 @@ describe.sequential('replyRepository (integration)', () => {
     it('deleteByReviewIdAndSource with wrong org does not delete the reply', async () => {
       const db = getDb()
       await seedReview(db)
-      const repo = createReplyRepository(db)
+      const repo = createReplyRepository(db, () => new Date())
 
       await repo.upsert(makeReply({ source: 'google_sync' }))
 

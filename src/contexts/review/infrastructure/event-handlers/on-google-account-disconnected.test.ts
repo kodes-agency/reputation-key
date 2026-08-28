@@ -8,21 +8,15 @@ import { describe, it, expect, vi } from 'vitest'
 import { onGoogleAccountDisconnected } from './on-google-account-disconnected'
 import type { IntegrationGoogleAccountDisconnected } from '#/contexts/integration/application/public-api'
 import { googleConnectionId, organizationId } from '#/shared/domain/ids'
+import type { ReviewEventLogger } from './on-google-account-disconnected'
 
-vi.mock('#/shared/observability/logger', () => ({
-  getLogger: vi.fn(() => ({
-    warn: vi.fn(),
-    info: vi.fn(),
-    error: vi.fn(),
-    debug: vi.fn(),
-  })),
-}))
 vi.mock('#/shared/observability/trace', () => ({
   trace: vi.fn((_name: string, fn: () => unknown) => fn()),
 }))
 
 const ORG_ID = organizationId('org-1')
 const CONN_ID = googleConnectionId('conn-1')
+const logger: ReviewEventLogger = { info: vi.fn() }
 
 const disconnectedEvent: IntegrationGoogleAccountDisconnected = {
   _tag: 'integration.google_account.disconnected',
@@ -40,7 +34,10 @@ describe('review onGoogleAccountDisconnected', () => {
       cancelled: 2,
       batches: 1,
     }))
-    const handler = onGoogleAccountDisconnected({ cancelPublicationsForConnection })
+    const handler = onGoogleAccountDisconnected({
+      cancelPublicationsForConnection,
+      logger,
+    })
 
     await handler(disconnectedEvent)
 
@@ -50,13 +47,17 @@ describe('review onGoogleAccountDisconnected', () => {
       connectionId: CONN_ID,
       cause: 'disconnect',
     })
+    expect(logger.info).toHaveBeenCalledTimes(2)
   })
 
   it('propagates a use-case failure (the bus isolates handler errors; cancellation is idempotent)', async () => {
     const cancelPublicationsForConnection = vi.fn(async () => {
       throw new Error('db down')
     })
-    const handler = onGoogleAccountDisconnected({ cancelPublicationsForConnection })
+    const handler = onGoogleAccountDisconnected({
+      cancelPublicationsForConnection,
+      logger,
+    })
 
     await expect(handler(disconnectedEvent)).rejects.toThrow('db down')
   })

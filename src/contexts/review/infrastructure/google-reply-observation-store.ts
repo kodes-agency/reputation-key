@@ -49,10 +49,10 @@ function resultFromRow(
 /** PostgreSQL observation authority. One review-scoped advisory lock serializes
  * history revision allocation, head replacement, reply confirmation, and
  * both durable facts. */
-export function createGoogleReplyObservationStore(
+export const createGoogleReplyObservationStore = (
   db: Database,
   events: EventBus,
-): GoogleReplyObservationStore {
+): GoogleReplyObservationStore => {
   return {
     allocateReadGeneration: () =>
       trace('review.googleReplyObservation.allocateReadGeneration', async () => {

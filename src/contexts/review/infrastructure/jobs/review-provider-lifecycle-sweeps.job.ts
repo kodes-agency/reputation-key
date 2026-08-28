@@ -41,9 +41,9 @@ export const createExpireReviewProviderSourceHandler =
   (dependencies: Dependencies) => async (job: Job<ReviewProviderLifecycleSweepJobData>) =>
     trace('job.expireReviewProviderSource', async () => {
       // Validate stale queue payloads, then drain them harmlessly. The legacy
-      // repository path hard-deletes the Review row and cascades Replies;
-      // SAFE-03 keeps it unreachable until REV-01 separates expiring provider
-      // content from stable RepKey identity/history.
+      // repository adapter now delegates to the Review-owned checkpointed
+      // report authority, while recurring apply remains unreachable until an
+      // explicit reviewed cutover supplies both confirmation and approval.
       parseSweepData(job.data)
       void dependencies
       return { status: 'quarantined' as const, transitioned: 0, nextReviewId: null }

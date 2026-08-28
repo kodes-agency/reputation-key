@@ -165,6 +165,7 @@ export const createReviewProviderObservationWriter = (
       contentUnchanged,
       expired,
       observationKey: input.observationKey,
+      observationOrigin: input.observationOrigin,
     })
     await deps.googleReplyObservationStore.record({
       organizationId: input.organizationId,
@@ -205,13 +206,24 @@ async function persistObservation(
     contentUnchanged: boolean
     expired: boolean
     observationKey: string
+    observationOrigin: Parameters<ReviewCommandStore['upsertAndRecord']>[4]
   }>,
 ): Promise<Review> {
   if (state.expired) {
-    return deps.commandStore.reobserveExpiredAndRecord(review, now, state.observationKey)
+    return deps.commandStore.reobserveExpiredAndRecord(
+      review,
+      now,
+      state.observationKey,
+      state.observationOrigin,
+    )
   }
   if (state.contentUnchanged) {
-    return deps.reviewRepo.upsert(review, now, state.observationKey)
+    return deps.reviewRepo.upsert(
+      review,
+      now,
+      state.observationKey,
+      state.observationOrigin,
+    )
   }
   const eventForReview = (persisted: Review) => {
     const payload = {
@@ -231,5 +243,6 @@ async function persistObservation(
     eventForReview,
     now,
     state.observationKey,
+    state.observationOrigin,
   )
 }
