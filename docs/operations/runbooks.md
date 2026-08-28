@@ -145,6 +145,35 @@ the `ops:*` harness until `--apply`:
   Railway target, post-apply no-drift plan, manifest/source/image identity,
   health, and AI heads without deploying. Any mismatch is blocking.
 
+REL-01 evidence producers, in the order a release uses them. Each fails closed
+rather than emitting a plausible artifact from absent input:
+
+- `pnpm release:freeze-candidate` — pins one SHA before any proof is collected.
+  Refuses a dirty worktree, a SHA that is not merged, generated-artifact drift,
+  or an existing freeze file.
+- `pnpm release:capture-readback` — writes the four typed promotion read-back
+  artifacts, including when a check failed, and exits non-zero if any artifact
+  failed or is schema-invalid, so a failed promotion cannot be quietly omitted.
+- `pnpm release:deployed-journeys` — runs the isolated read-only browser project
+  with zero retries against the production origin, after checking its
+  authorization window.
+- `pnpm release:observe-canary` — samples the production origin over GET only
+  against the ratified threshold profile. It currently exits non-zero because
+  the observation window duration in ADR 0059 is still an open decision for an
+  operating owner; ratify it there first.
+- `pnpm release:import-live-evidence` — normalizes an operator capture against
+  the schema for one gate. It never synthesizes a field and names any missing
+  one. `--list` prints the importable gate ids.
+- `pnpm release:rehearse-recovery` — report-first. `--plan` writes one plan and
+  stops; `--apply` proceeds only under an authorization whose digest equals that
+  exact plan, with a named operator, a reason, and an operator-supplied platform
+  receipt. Reverse DDL is rejected at plan build.
+- `pnpm release:create-legal-revision-set` — refuses while any counsel-owned
+  document is a draft, which is the current state.
+- `pnpm release:prepare-approval` — prints the canonical payload each of the six
+  roles signs offline. It holds no key material, so engineering cannot sign an
+  approval that belongs to another role.
+
 The authoritative procedure, prerequisites, rollback boundary, and evidence
 contract are in `immutable-release-promotion.md`. The dated
 `closed-beta-release-runbook-2026-08-19.md` records the superseded local-build
