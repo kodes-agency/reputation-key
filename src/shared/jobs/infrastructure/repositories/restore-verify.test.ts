@@ -40,6 +40,10 @@ import {
 } from '#/shared/auth/execution-policy'
 import { resetCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
 import { resetDelayedExecutionPolicy } from '#/shared/auth/system-execution-policy'
+import {
+  bindProcessPolicies,
+  releaseProcessPolicies,
+} from '#/shared/auth/process-policy-binding'
 import { initPersistedCapabilityPolicyStore } from '#/contexts/identity/infrastructure/policy-store-init'
 import { createReviewRepository } from '#/contexts/review/infrastructure/repositories/review.repository'
 import {
@@ -230,6 +234,9 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
       clock: () => new Date(),
       logger: { warn: () => {} },
     })
+    // ARC-03-T8: the real operator boot now binds the handle explicitly —
+    // building it installs nothing.
+    bindProcessPolicies(handle)
     await handle.refresh()
     stopPolicyPolling = handle.stopPolling
     runtime = {
@@ -251,6 +258,7 @@ describe('ops:restore-verify (BQC-7.8, integration)', () => {
 
   afterAll(async () => {
     stopPolicyPolling?.()
+    releaseProcessPolicies()
     await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`)
     await db.execute(sql`DELETE FROM reviews WHERE organization_id = ${ORG}`)
     await db.execute(

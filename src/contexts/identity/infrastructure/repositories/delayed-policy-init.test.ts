@@ -17,6 +17,10 @@ import {
   resetDelayedExecutionPolicy,
 } from '#/shared/auth/system-execution-policy'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
+import {
+  bindProcessPolicies,
+  releaseProcessPolicies,
+} from '#/shared/auth/process-policy-binding'
 import { initPersistedCapabilityPolicyStore } from '../policy-store-init'
 import { setOrganizationPolicy } from './policy-state.repository'
 
@@ -36,15 +40,20 @@ beforeAll(async () => {
   )
   resetCapabilityPolicyStore()
   resetDelayedExecutionPolicy()
-  initPersistedCapabilityPolicyStore({
-    db,
-    env: POLICY_ENV,
-    clock: () => new Date(),
-    logger: { warn: () => {} },
-  })
+  // ARC-03-T8: the handle no longer installs itself — the process
+  // installation is the explicit bind.
+  bindProcessPolicies(
+    initPersistedCapabilityPolicyStore({
+      db,
+      env: POLICY_ENV,
+      clock: () => new Date(),
+      logger: { warn: () => {} },
+    }),
+  )
 })
 
 afterAll(async () => {
+  releaseProcessPolicies()
   resetDelayedExecutionPolicy()
   resetCapabilityPolicyStore()
   await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)

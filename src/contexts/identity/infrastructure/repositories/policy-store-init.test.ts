@@ -18,6 +18,10 @@ import {
   checkBetaCapability,
   resetCapabilityPolicyStore,
 } from '#/shared/auth/beta-capabilities'
+import {
+  bindProcessPolicies,
+  releaseProcessPolicies,
+} from '#/shared/auth/process-policy-binding'
 import { initPersistedCapabilityPolicyStore } from '../policy-store-init'
 import {
   addOrganizationCapability,
@@ -61,6 +65,9 @@ describe('persisted policy store — end-to-end (BQC-2.2)', () => {
       clock: () => new Date(),
       logger: { warn: () => {} },
     })
+    // ARC-03-T8: the handle no longer installs itself — checkBetaCapability
+    // reads the process-bound store, so bind explicitly.
+    bindProcessPolicies(handle)
     try {
       await handle.refresh()
 
@@ -87,6 +94,7 @@ describe('persisted policy store — end-to-end (BQC-2.2)', () => {
       expect(decision.reason).toBe('org_suspended')
     } finally {
       handle.stopPolling()
+      releaseProcessPolicies()
       resetCapabilityPolicyStore()
     }
   })

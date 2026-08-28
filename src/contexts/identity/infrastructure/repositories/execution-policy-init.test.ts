@@ -17,6 +17,10 @@ import {
   EXECUTION_POLICY_VERSION,
 } from '#/shared/auth/execution-policy'
 import { resetCapabilityPolicyStore } from '#/shared/auth/beta-capabilities'
+import {
+  bindProcessPolicies,
+  releaseProcessPolicies,
+} from '#/shared/auth/process-policy-binding'
 import { initPersistedCapabilityPolicyStore } from '../policy-store-init'
 import { grantPropertyAccess } from './property-access-grant.repository'
 import { organizationId, userId, propertyId } from '#/shared/domain/ids'
@@ -65,15 +69,21 @@ beforeAll(async () => {
   `)
   resetCapabilityPolicyStore()
   resetExecutionPolicy()
-  initPersistedCapabilityPolicyStore({
-    db,
-    env: {} as CapabilityPolicyEnv,
-    clock: () => new Date(),
-    logger: { warn: () => {} },
-  })
+  // ARC-03-T8: the handle no longer installs itself — the process
+  // installation is the explicit bind, which is what production entry points
+  // now do too.
+  bindProcessPolicies(
+    initPersistedCapabilityPolicyStore({
+      db,
+      env: {} as CapabilityPolicyEnv,
+      clock: () => new Date(),
+      logger: { warn: () => {} },
+    }),
+  )
 })
 
 afterAll(async () => {
+  releaseProcessPolicies()
   resetExecutionPolicy()
   resetCapabilityPolicyStore()
   await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)

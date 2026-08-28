@@ -26,6 +26,10 @@ import {
 } from '#/shared/auth/system-execution-policy'
 import { gateJob } from '#/shared/jobs/delayed-execution-gate'
 import { EXECUTION_POLICY_VERSION } from '#/shared/auth/execution-policy'
+import {
+  bindProcessPolicies,
+  releaseProcessPolicies,
+} from '#/shared/auth/process-policy-binding'
 import { initPersistedCapabilityPolicyStore } from '../policy-store-init'
 import { setOrganizationPolicy } from './policy-state.repository'
 
@@ -49,15 +53,20 @@ beforeAll(async () => {
   )
   resetCapabilityPolicyStore()
   resetDelayedExecutionPolicy()
-  initPersistedCapabilityPolicyStore({
-    db,
-    env: POLICY_ENV,
-    clock: () => new Date(),
-    logger: { warn: () => {} },
-  })
+  // ARC-03-T8: the handle no longer installs itself — the dispatch gate reads
+  // the process-bound delayed policy, so bind explicitly.
+  bindProcessPolicies(
+    initPersistedCapabilityPolicyStore({
+      db,
+      env: POLICY_ENV,
+      clock: () => new Date(),
+      logger: { warn: () => {} },
+    }),
+  )
 })
 
 afterAll(async () => {
+  releaseProcessPolicies()
   resetDelayedExecutionPolicy()
   resetCapabilityPolicyStore()
   await db.execute(sql`DELETE FROM policy_decision_audit WHERE organization_id = ${ORG}`)
@@ -134,13 +143,16 @@ describe('delayed runtime gate (BQC-3.2, real PG)', () => {
     expect(outcome.decision.reason).toBe('policy_unavailable')
     expect(outcome.decision.allowed).toBe(false)
 
-    // Restore the composition-installed persisted policy for later tests.
-    initPersistedCapabilityPolicyStore({
-      db,
-      env: POLICY_ENV,
-      clock: () => new Date(),
-      logger: { warn: () => {} },
-    })
+    // Restore the process-bound persisted policy for later tests.
+    releaseProcessPolicies()
+    bindProcessPolicies(
+      initPersistedCapabilityPolicyStore({
+        db,
+        env: POLICY_ENV,
+        clock: () => new Date(),
+        logger: { warn: () => {} },
+      }),
+    )
   })
 
   it('(c) manual-enqueue initiator: stamped envelope decides; audit records principal + correlation', async () => {

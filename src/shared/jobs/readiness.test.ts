@@ -48,6 +48,7 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     expect(() =>
       assertJobReadiness(fullyRegisteredRegistry(), logger, {
         dispatcherEnabled: false,
+        listConsumers: () => [],
       }),
     ).not.toThrow()
 
@@ -65,7 +66,10 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     }
 
     expect(() =>
-      assertJobReadiness(registry, logger, { dispatcherEnabled: false }),
+      assertJobReadiness(registry, logger, {
+        dispatcherEnabled: false,
+        listConsumers: () => [],
+      }),
     ).toThrow(new RegExp(missing.jobName))
   })
 
@@ -75,7 +79,10 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     registry.register('health-chek', async () => {}) // typo'd stale handler
 
     expect(() =>
-      assertJobReadiness(registry, logger, { dispatcherEnabled: false }),
+      assertJobReadiness(registry, logger, {
+        dispatcherEnabled: false,
+        listConsumers: () => [],
+      }),
     ).toThrow(/health-chek/)
   })
 
@@ -90,7 +97,10 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     registry.register(blocked.jobName, async () => {})
 
     expect(() =>
-      assertJobReadiness(registry, logger, { dispatcherEnabled: false }),
+      assertJobReadiness(registry, logger, {
+        dispatcherEnabled: false,
+        listConsumers: () => [],
+      }),
     ).toThrow(new RegExp(blocked.jobName))
   })
 
@@ -178,6 +188,7 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     expect(() =>
       assertJobReadiness(fullyRegisteredRegistry(), logger, {
         dispatcherEnabled: false,
+        listConsumers: () => [],
         activeCutoverFamilies: () => [{ family: 'review.created', state: 'shadow' }],
       }),
     ).toThrow(/review\.created=shadow.*OUTBOX_DISPATCHER_ENABLED/)
@@ -185,6 +196,7 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     expect(() =>
       assertJobReadiness(fullyRegisteredRegistry(), logger, {
         dispatcherEnabled: false,
+        listConsumers: () => [],
         activeCutoverFamilies: () => [
           { family: 'review.created', state: 'switch' },
           { family: 'review.expired', state: 'shadow' },
@@ -214,6 +226,7 @@ describe('assertJobReadiness (BQC-3.6)', () => {
     expect(() =>
       assertJobReadiness(fullyRegisteredRegistry(), logger, {
         dispatcherEnabled: false,
+        listConsumers: () => [],
         activeCutoverFamilies: () => [],
       }),
     ).not.toThrow()
