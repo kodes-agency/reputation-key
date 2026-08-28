@@ -152,15 +152,10 @@ jobs:
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
         run: pnpm check:schema-drift
 
-      # On a PR: `pnpm test` (unit + integration).
-      #
-      # On main: the same coverage, minus one whole duplicate unit run.
-      # `check:coverage` runs the unit project itself under v8 coverage, so
-      # pairing it with the integration project covers exactly what `pnpm test`
-      # covers and adds the BQC-6.9 gate — 100% on pure domain rules plus the
-      # two-sided baseline ratchet (floor AND staleness ceiling). Running
-      # `pnpm test` and then `check:coverage` executed the unit suite twice
-      # (~201s + ~135s) for one result.
+      # Pull requests and main run the identical governed test pair.
+      # `check:coverage` owns the unit project under v8 coverage; pairing it
+      # with the integration project covers the complete suite once and applies
+      # the BQC-6.9 floor + staleness ratchet before merge and after promotion.
       - name: Test
         env:
           NODE_ENV: test
@@ -174,12 +169,8 @@ jobs:
           ENCRYPTION_KEY: aabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccddaabbccdd
           OAUTH_STATE_SECRET: aabbccddaabbccddaabbccddaabbccdd
         run: |
-          if [ "${{ github.event_name }}" = "push" ]; then
-            pnpm check:coverage
-            pnpm test:integration
-          else
-            pnpm test
-          fi
+          pnpm check:coverage
+          pnpm test:integration
 
       # BQC-6.9: changed-code budget — every src production file added by the
       # branch must carry a colocated test (diffs against origin/main; the

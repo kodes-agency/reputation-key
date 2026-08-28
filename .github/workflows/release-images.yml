@@ -26,10 +26,17 @@ permissions:
   packages: write
   id-token: write
 
+env:
+  RELEASE_RUNNER_LABEL: ubuntu-24.04
+  RELEASE_DOCKER_VERSION: 29.7.2
+  RELEASE_BUILDX_VERSION: 0.32.1
+  RELEASE_BUILDKIT_VERSION: 0.30.0
+  RELEASE_BUILDKIT_IMAGE: moby/buildkit:v0.30.0@sha256:0168606be2315b7c807a03b3d8aa79beefdb31c98740cebdffdfeebf31190c9f
+
 jobs:
   preflight:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       test_evidence_sha256: ${{ steps.ci-evidence.outputs.sha256 }}
     steps:
@@ -39,22 +46,46 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           CI_RUN_ID: ${{ inputs.ci_run_id }}
           EXPECTED_SHA: ${{ github.sha }}
+          BETA_EVIDENCE_MANIFEST_SHA256: ${{ inputs.beta_evidence_manifest_sha256 }}
         run: |
           set -euo pipefail
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          [[ "$BETA_EVIDENCE_MANIFEST_SHA256" =~ ^[0-9a-f]{64}$ ]]
           run_json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${CI_RUN_ID}")
           test "$(jq -r '.head_sha' <<<"$run_json")" = "$EXPECTED_SHA"
           test "$(jq -r '.conclusion' <<<"$run_json")" = "success"
           test "$(jq -r '.path' <<<"$run_json")" = ".github/workflows/ci.yml"
+          test "$(jq -r '.run_attempt' <<<"$run_json")" = "1"
           jobs_json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${CI_RUN_ID}/jobs?per_page=100")
           for required_job in check docker secrets storybook storybook-test e2e beta-acceptance; do
             jq -e --arg name "$required_job" \
               'any(.jobs[]; .name == $name and .conclusion == "success")' \
               <<<"$jobs_json" >/dev/null
           done
+          artifacts_json=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${CI_RUN_ID}/artifacts?per_page=100")
+          expected_beta_artifact="beta-local-smoke-${BETA_EVIDENCE_MANIFEST_SHA256}"
+          beta_artifacts=$(jq -c --arg name "$expected_beta_artifact" \
+            '[.artifacts[] | select(.name == $name and .expired == false) | {id,name,sizeInBytes:.size_in_bytes,createdAt:.created_at,expiresAt:.expires_at}] | sort_by(.id)' \
+            <<<"$artifacts_json")
+          test "$(jq 'length' <<<"$beta_artifacts")" -eq 1
+          beta_artifact_id=$(jq -r '.[0].id' <<<"$beta_artifacts")
+          gh api "repos/${GITHUB_REPOSITORY}/actions/artifacts/${beta_artifact_id}/zip" \
+            > beta-evidence.zip
+          mkdir beta-evidence
+          unzip -q beta-evidence.zip -d beta-evidence
+          mapfile -t manifest_checksums < <(find beta-evidence -type f -name manifest.sha256 -print)
+          test "${#manifest_checksums[@]}" -eq 1
+          manifest_checksum="${manifest_checksums[0]}"
+          manifest_dir=$(dirname "$manifest_checksum")
+          test "$(basename "$manifest_dir")" = "$BETA_EVIDENCE_MANIFEST_SHA256"
+          test "$(cat "$manifest_checksum")" = "${BETA_EVIDENCE_MANIFEST_SHA256}  manifest.json"
+          (cd "$manifest_dir" && sha256sum --check manifest.sha256)
           jq -S -n \
             --argjson run "$run_json" \
             --argjson jobs "$jobs_json" \
-            '{version:"repkey-ci-evidence-1",run:{id:($run.id|tostring),attempt:$run.run_attempt,headSha:$run.head_sha,conclusion:$run.conclusion,url:$run.html_url},jobs:[$jobs.jobs[]|{name,conclusion,startedAt:.started_at,completedAt:.completed_at}]}' \
+            --arg betaEvidenceManifestSha256 "$BETA_EVIDENCE_MANIFEST_SHA256" \
+            --argjson betaEvidenceArtifacts "$beta_artifacts" \
+            '{version:"repkey-ci-evidence-1",run:{id:($run.id|tostring),attempt:$run.run_attempt,headSha:$run.head_sha,conclusion:$run.conclusion,url:$run.html_url},jobs:[$jobs.jobs[]|{name,conclusion,startedAt:.started_at,completedAt:.completed_at}],betaEvidenceManifestSha256:$betaEvidenceManifestSha256,betaEvidenceArtifacts:$betaEvidenceArtifacts}' \
             > ci-evidence.json
           sha256=$(sha256sum ci-evidence.json | cut -d' ' -f1)
           echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
@@ -68,7 +99,7 @@ jobs:
 
   build:
     needs: preflight
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: release-signing
     strategy:
       fail-fast: false
@@ -103,6 +134,19 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install pinned Docker Engine
+        uses: docker/setup-docker-action@77e84dbf09b47d1e29270283c22f16145aa85ca1 # v5.4.0
+        with:
+          version: v29.7.2
+
+      - name: Install pinned Buildx and BuildKit
+        id: buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        with:
+          version: v0.32.1
+          driver: docker-container
+          driver-opts: image=${{ env.RELEASE_BUILDKIT_IMAGE }}
+
       # v3.1.3 is the first v3 release patched for GHSA-fx35-mq7g-6g98.
       - name: Install patched Cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
@@ -124,7 +168,6 @@ jobs:
           set -euo pipefail
           owner=$(tr '[:upper:]' '[:lower:]' <<<"$GITHUB_REPOSITORY_OWNER")
           image="ghcr.io/${owner}/repkey-${IMAGE_SLUG}"
-          docker buildx create --name repkey-release --driver docker-container --use
           docker buildx build \
             --file "$DOCKERFILE" \
             --build-arg "SOURCE_REVISION=$GITHUB_SHA" \
@@ -163,8 +206,19 @@ jobs:
           IMAGE_REFERENCE: ${{ steps.image.outputs.reference }}
           IMAGE_REPOSITORY: ${{ steps.image.outputs.repository }}
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+          BUILDER_NODES: ${{ steps.buildx.outputs.nodes }}
         run: |
           set -euo pipefail
+          test "${ImageOS:?GitHub runner ImageOS is unavailable}" = "ubuntu24"
+          test -n "${ImageVersion:?GitHub runner ImageVersion is unavailable}"
+          test "$RUNNER_ARCH" = "X64"
+          docker_version=$(docker version --format '{{.Client.Version}} {{.Server.Version}}')
+          test "$docker_version" = "$RELEASE_DOCKER_VERSION $RELEASE_DOCKER_VERSION"
+          buildx_version=$(docker buildx version | awk '{print $2}' | sed 's/^v//')
+          test "$buildx_version" = "$RELEASE_BUILDX_VERSION"
+          jq -e --arg version "v${RELEASE_BUILDKIT_VERSION}" \
+            'length == 1 and all(.[]; .buildkit == $version)' \
+            <<<"$BUILDER_NODES" >/dev/null
           docker buildx imagetools inspect "$IMAGE_REFERENCE" \
             --format '{{ json .Provenance.SLSA }}' \
             | jq -S . > provenance.json
@@ -178,7 +232,15 @@ jobs:
             --arg runId "$GITHUB_RUN_ID" \
             --arg runAttempt "$GITHUB_RUN_ATTEMPT" \
             --arg image "$IMAGE_REFERENCE" \
-            '{version:"repkey-image-provenance-1",role,sourceRevision,workflow,runId,runAttempt:(runAttempt|tonumber),image}' \
+            --arg runnerLabel "$RELEASE_RUNNER_LABEL" \
+            --arg runnerImageOS "$ImageOS" \
+            --arg runnerImageVersion "$ImageVersion" \
+            --arg runnerArchitecture "$RUNNER_ARCH" \
+            --arg dockerVersion "$RELEASE_DOCKER_VERSION" \
+            --arg buildxVersion "$RELEASE_BUILDX_VERSION" \
+            --arg buildkitVersion "$RELEASE_BUILDKIT_VERSION" \
+            --arg buildkitImage "$RELEASE_BUILDKIT_IMAGE" \
+            '{version:"repkey-image-provenance-2",role,sourceRevision,workflow,runId,runAttempt:(runAttempt|tonumber),image,toolchain:{runnerLabel,runnerImageOS,runnerImageVersion,runnerArchitecture,dockerVersion,buildxVersion,buildkitVersion,buildkitImage}}' \
             > release-metadata.json
           cosign sign --yes --bundle image.sigstore.json "$IMAGE_REFERENCE"
           cosign verify \
@@ -215,7 +277,7 @@ jobs:
 
   manifest:
     needs: [preflight, build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: release-signing
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
