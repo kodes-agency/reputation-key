@@ -1,4 +1,5 @@
-// Badge context — domain events
+// Badge context — historical envelope compatibility only.
+// No production call site imports this constructor.
 
 import { newEventId } from '#/shared/domain/event-id'
 import { assert } from '#/shared/domain/assert'
@@ -9,7 +10,8 @@ import type {
   PropertyId,
   OrganizationId,
 } from '#/shared/domain/ids'
-import type { BadgeTargetType } from './types'
+
+export type BadgeTargetType = 'portal' | 'portal_group'
 
 export type BadgeAwarded = Readonly<{
   _tag: 'badge.awarded'
@@ -28,7 +30,8 @@ export type BadgeAwarded = Readonly<{
 export type BadgeEvent = BadgeAwarded
 
 export const badgeAwarded = (
-  args: Omit<BadgeAwarded, '_tag' | 'eventId' | 'correlationId'>,
+  args: Omit<BadgeAwarded, '_tag' | 'eventId' | 'correlationId'> &
+    Readonly<{ correlationId?: string | null }>,
 ): BadgeAwarded => {
   assert(args.organizationId !== ('' satisfies string), 'organizationId required')
   assert(args.awardedAt instanceof Date, 'awardedAt must be a Date')
@@ -36,7 +39,7 @@ export const badgeAwarded = (
   return {
     _tag: 'badge.awarded',
     eventId: newEventId(),
-    correlationId: null,
     ...args,
+    correlationId: args.correlationId ?? null,
   }
 }
