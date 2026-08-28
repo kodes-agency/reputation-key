@@ -18,6 +18,8 @@
 
 import { randomUUID } from 'crypto'
 import { Pool } from 'pg'
+import { assertNotConfiguredDatabase } from './configured-database-fence'
+import { TestEnvironmentError } from './test-environment-error'
 
 const LEASE_TABLE = '_test_lease'
 
@@ -47,15 +49,7 @@ export type TestLease = Readonly<{
   release: () => Promise<void>
 }>
 
-export class TestEnvironmentError extends Error {
-  constructor(
-    public readonly code: string,
-    message: string,
-  ) {
-    super(message)
-    this.name = 'TestEnvironmentError'
-  }
-}
+export { TestEnvironmentError }
 
 function parseDatabaseUrl(url: string): { host: string; database: string } {
   try {
@@ -214,6 +208,9 @@ export function validateTestDatabaseTarget(databaseUrl: string): void {
   const { host, database } = parseDatabaseUrl(databaseUrl)
   checkDenylist(host, database)
   checkLocalTestHost(host)
+  // A developer database is local and unremarkably named, so the two checks
+  // above pass it. Refusing it by identity is the only structural control.
+  assertNotConfiguredDatabase(databaseUrl)
 }
 
 /**
