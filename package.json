@@ -117,6 +117,7 @@
     "check:product-state-consistency": "tsx scripts/ci/check-product-state-consistency.ts",
     "check:test-quality": "node scripts/check-test-quality.mjs",
     "check:zod-conformance": "tsx scripts/review/zod-v4-conformance.ts",
+    "check:legal-registry": "tsx scripts/review/legal-document-registry.ts",
     "ops:queue": "tsx scripts/ops/queue-quarantine.ts",
     "ops:quarantine": "tsx scripts/ops/quarantine-redrive.ts",
     "ops:reconcile-grants": "tsx scripts/ops/reconcile-staff-grants.ts",

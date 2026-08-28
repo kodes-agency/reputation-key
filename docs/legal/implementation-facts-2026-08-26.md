@@ -233,7 +233,17 @@ legal, provider, product, or live-release acceptance:
 An executable draft-consistency check prevents the previously identified stale
 provider, scope, capability, and deployment claims from silently returning.
 
+The addressable status of every document in this directory — id, version,
+status, byte digest, approver, and approval evidence — is recorded in
+[`legal-document-registry.json`](legal-document-registry.json). Engineering can
+change a draft's bytes, but the registry is validated so that no engineering
+identity can move a row to `approved`.
+
 ## 7. Acceptance checklist outside Engineering authority
+
+Every decision below is decomposed into an addressable, document-blocking item
+in [`counsel-decision-checklist.json`](counsel-decision-checklist.json), so that
+each open question names the exact draft it blocks.
 
 Before external beta or production, retain a dated record for each item:
 
