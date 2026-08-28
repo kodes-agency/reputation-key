@@ -38,10 +38,10 @@ export const getStaffDashboardDataFn = createServerFn({ method: 'GET' })
             action: 'dashboard.read',
             propertyId: data.propertyId,
           })
-          const { useCases, clock, propertyProcessingScopeApi } = getContainer()
+          const { dashboardPublicApi, clock, propertyPublicApi } = getContainer()
           const pid = propertyId(data.propertyId)
           const { startDate, endDate, propertyTimezone } = await resolvePropertyPeriod(
-            { propertyFacts: propertyProcessingScopeApi, clock },
+            { propertyFacts: propertyPublicApi, clock },
             {
               organizationId: ctx.organizationId,
               propertyId: pid,
@@ -49,7 +49,7 @@ export const getStaffDashboardDataFn = createServerFn({ method: 'GET' })
             },
           )
 
-          return await useCases.getStaffDashboardData(
+          return await dashboardPublicApi.getStaffDashboardData(
             {
               organizationId: ctx.organizationId,
               userId: userId(ctx.userId),

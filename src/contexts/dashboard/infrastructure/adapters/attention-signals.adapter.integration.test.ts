@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { randomUUID } from 'node:crypto'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { Pool } from 'pg'
 import type { Database } from '#/shared/db'
@@ -8,21 +9,28 @@ import { organizationId, propertyId } from '#/shared/domain/ids'
 import { createAttentionSignalsAdapter } from './attention-signals.adapter'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')
-const ORGANIZATION = organizationId('org-attention-union-test')
-const PROPERTY = propertyId('a1000000-0000-4000-8000-000000000001')
-const REVIEW_ONE = 'a2000000-0000-4000-8000-000000000001'
-const REVIEW_TWO = 'a2000000-0000-4000-8000-000000000002'
+const ORGANIZATION = organizationId(`org-attention-union-test-${randomUUID()}`)
+const PROPERTY = propertyId(randomUUID())
+const REVIEW_ONE = randomUUID()
+const REVIEW_TWO = randomUUID()
+const GOAL_PROGRAM = randomUUID()
+const GOAL_PROGRAM_VERSION = randomUUID()
+const GOAL_ASSIGNMENT = randomUUID()
+const GOAL_RESULT = randomUUID()
 let pool: Pool
 let db: Database
 
 beforeAll(async () => {
-  pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
+  // Canonical Goal results are intentionally undeletable. Keep the fixture in
+  // one pinned transaction and roll it back after the assertion.
+  pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 1 })
+  await pool.query('BEGIN')
   db = drizzle(pool, { schema }) as unknown as Database
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
-     VALUES ($1, 'Attention union test', 'attention-union-test', now())
+     VALUES ($1, 'Attention union test', $2, now())
      ON CONFLICT (id) DO NOTHING`,
-    [ORGANIZATION],
+    [ORGANIZATION, `attention-union-${randomUUID()}`],
   )
   await pool.query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone)
@@ -32,11 +40,7 @@ beforeAll(async () => {
   )
 })
 
-beforeEach(async () => {
-  await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [ORGANIZATION])
-  await pool.query('DELETE FROM replies WHERE organization_id = $1', [ORGANIZATION])
-  await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORGANIZATION])
-
+beforeAll(async () => {
   for (const [id, externalId] of [
     [REVIEW_ONE, 'attention-review-one'],
     [REVIEW_TWO, 'attention-review-two'],
@@ -58,30 +62,30 @@ beforeEach(async () => {
 
   for (const item of [
     {
-      id: 'a3000000-0000-4000-8000-000000000001',
+      id: randomUUID(),
       sourceType: 'review',
       sourceId: REVIEW_ONE,
       status: 'open',
       escalated: true,
     },
     {
-      id: 'a3000000-0000-4000-8000-000000000002',
+      id: randomUUID(),
       sourceType: 'feedback',
-      sourceId: 'a4000000-0000-4000-8000-000000000001',
+      sourceId: randomUUID(),
       status: 'open',
       escalated: true,
     },
     {
-      id: 'a3000000-0000-4000-8000-000000000003',
+      id: randomUUID(),
       sourceType: 'feedback',
-      sourceId: 'a4000000-0000-4000-8000-000000000002',
+      sourceId: randomUUID(),
       status: 'closed',
       escalated: true,
     },
     {
-      id: 'a3000000-0000-4000-8000-000000000004',
+      id: randomUUID(),
       sourceType: 'feedback',
-      sourceId: 'a4000000-0000-4000-8000-000000000003',
+      sourceId: randomUUID(),
       status: 'closed',
       escalated: false,
     },
@@ -103,14 +107,82 @@ beforeEach(async () => {
       ],
     )
   }
+
+  await pool.query(
+    `INSERT INTO goal_programs
+       (id, organization_id, property_id, name, status, current_version,
+        created_by, created_at, updated_at)
+     VALUES ($1, $2, $3, 'Canonical attention Goal', 'active', 1,
+             'manager-1', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z')`,
+    [GOAL_PROGRAM, ORGANIZATION, PROPERTY],
+  )
+  await pool.query(
+    `INSERT INTO goal_program_versions
+       (id, program_id, organization_id, property_id, version,
+        metric_definition_id, metric_definition_version_id, metric_key,
+        metric_minimum_sample, target_value, property_timezone, effective_from,
+        change_reason, created_by, created_at)
+     SELECT $1, $2, $3, $4, 1, definition_id, id, 'qualified_scans',
+       0, 100, 'UTC', '2026-08-01T00:00:00Z', 'created', 'manager-1',
+       '2026-08-01T00:00:00Z'
+     FROM metric_definition_versions
+     WHERE id = '11111111-1111-4111-8111-111111111301'`,
+    [GOAL_PROGRAM_VERSION, GOAL_PROGRAM, ORGANIZATION, PROPERTY],
+  )
+  await pool.query(
+    `INSERT INTO goal_subject_assignments
+       (id, program_id, program_version_id, organization_id, property_id,
+        metric_key, subject_kind, property_subject_id, effective_from,
+        created_by, created_at)
+     VALUES ($1, $2, $3, $4, $5, 'qualified_scans', 'property', $5,
+             '2026-08-01T00:00:00Z', 'manager-1', '2026-08-01T00:00:00Z')`,
+    [GOAL_ASSIGNMENT, GOAL_PROGRAM, GOAL_PROGRAM_VERSION, ORGANIZATION, PROPERTY],
+  )
+  await pool.query(
+    `INSERT INTO goal_monthly_results
+       (id, assignment_id, program_id, program_version_id, organization_id,
+        property_id, period_start, period_end, property_timezone, status,
+        evaluation_state, value, sample_count, achieved, source_complete_through,
+        evaluation_watermark, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, '2026-08-01T00:00:00Z',
+             '2026-09-01T00:00:00Z', 'UTC', 'open', 'eligible', 1, 1, false,
+             $7, $7, '2026-08-01T00:00:00Z', $7)`,
+    [
+      GOAL_RESULT,
+      GOAL_ASSIGNMENT,
+      GOAL_PROGRAM,
+      GOAL_PROGRAM_VERSION,
+      ORGANIZATION,
+      PROPERTY,
+      NOW,
+    ],
+  )
+
+  // Retained pre-beta rows deliberately disagree with the canonical result.
+  // The beta attention read must ignore them instead of creating dual truth.
+  for (const legacyGoalId of [randomUUID(), randomUUID()]) {
+    await pool.query(
+      `INSERT INTO goals
+         (id, organization_id, property_id, name, created_by, goal_type,
+          aggregation_function, metric_key, target_value, status,
+          period_start, period_end)
+       VALUES ($1, $2, $3, 'Retained legacy Goal', 'manager-1', 'one_shot',
+               'sum', 'portal.scan', 100, 'active',
+               '2026-08-01T00:00:00Z', '2026-09-01T00:00:00Z')`,
+      [legacyGoalId, ORGANIZATION, PROPERTY],
+    )
+    await pool.query(
+      `INSERT INTO goal_progress
+         (goal_id, organization_id, current_value, last_computed_at,
+          computed_source)
+       VALUES ($1, $2, 1, $3, 'event')`,
+      [legacyGoalId, ORGANIZATION, NOW],
+    )
+  }
 })
 
 afterAll(async () => {
-  await pool.query('DELETE FROM inbox_items WHERE organization_id = $1', [ORGANIZATION])
-  await pool.query('DELETE FROM replies WHERE organization_id = $1', [ORGANIZATION])
-  await pool.query('DELETE FROM reviews WHERE organization_id = $1', [ORGANIZATION])
-  await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORGANIZATION])
-  await pool.query('DELETE FROM organization WHERE id = $1', [ORGANIZATION])
+  await pool.query('ROLLBACK')
   await pool.end()
 })
 
@@ -123,8 +195,8 @@ describe('attention signal work-set union', () => {
         unanswered: 2,
         itemsToTriage: 2,
         escalated: 3,
-        goalsBehindPace: 0,
-        attentionWork: 4,
+        goalsBehindPace: 1,
+        attentionWork: 5,
       },
     )
   })

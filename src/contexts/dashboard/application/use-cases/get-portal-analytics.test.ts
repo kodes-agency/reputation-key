@@ -102,11 +102,48 @@ function createFakeResponseIntegrity() {
   }
 }
 
+function createUnusedPortalLifetime() {
+  return { get: vi.fn(async () => null) }
+}
+
+function emptyPortalLifetimeAggregate() {
+  const now = new Date('2025-06-15T12:00:00.000Z')
+  return {
+    organizationId: ORG,
+    propertyId: PROP,
+    portalId: PORT,
+    definitionVersionIds: {
+      qualifiedScans: 'qualified-scan-version',
+      privateRatings: 'private-rating-version',
+      privateFeedback: 'private-feedback-version',
+      destinationSelections: 'destination-selection-version',
+    },
+    values: {
+      qualifiedScanCount: 0,
+      privateRatingCount: 0,
+      privateRatingSum: 0,
+      privateRating1Count: 0,
+      privateRating2Count: 0,
+      privateRating3Count: 0,
+      privateRating4Count: 0,
+      privateRating5Count: 0,
+      privateFeedbackCount: 0,
+      googleReviewSelectionCount: 0,
+      secondaryLinkSelectionCount: 0,
+    },
+    sealedThroughLocalDate: null,
+    projectionRevision: 1,
+    lastRebuiltAt: now,
+    lastSealedAt: null,
+  } as const
+}
+
 describe('getPortalAnalytics (use case)', () => {
   it('composes portal KPI sums into PortalAnalyticsData', async () => {
     const metrics = createFakePortalMetrics()
     const analytics = getPortalAnalytics({
       portalMetrics: metrics,
+      portalLifetime: createUnusedPortalLifetime(),
       responseIntegrity: createFakeResponseIntegrity(),
     })
     const now = new Date()
@@ -168,6 +205,7 @@ describe('getPortalAnalytics (use case)', () => {
     })
     const analytics = getPortalAnalytics({
       portalMetrics: metrics,
+      portalLifetime: { get: vi.fn(async () => emptyPortalLifetimeAggregate()) },
       responseIntegrity: createFakeResponseIntegrity(),
     })
     const now = new Date()
@@ -217,6 +255,7 @@ describe('getPortalAnalytics (use case)', () => {
 
     const analytics = getPortalAnalytics({
       portalMetrics: dynamicMetrics,
+      portalLifetime: createUnusedPortalLifetime(),
       responseIntegrity: createFakeResponseIntegrity(),
     })
     const now = new Date()
@@ -250,6 +289,7 @@ describe('getPortalAnalytics (use case)', () => {
     const getPortalKpiSums = vi.fn(metrics.getPortalKpiSums)
     const analytics = getPortalAnalytics({
       portalMetrics: { ...metrics, getPortalKpiSums },
+      portalLifetime: createUnusedPortalLifetime(),
       responseIntegrity: createFakeResponseIntegrity(),
     })
     const startDate = new Date('2026-02-18T17:00:00.000Z')
@@ -275,10 +315,96 @@ describe('getPortalAnalytics (use case)', () => {
     )
   })
 
-  it('skips the prior-period query for "all" and reports no trend', async () => {
+  it('serves All Time from the anonymous lifetime aggregate without inventing a trend', async () => {
     const metrics = createFakePortalMetrics()
+    const lifetimeGet = vi.fn(async () => ({
+      organizationId: ORG,
+      propertyId: PROP,
+      portalId: PORT,
+      definitionVersionIds: {
+        qualifiedScans: 'qualified-scan-version',
+        privateRatings: 'private-rating-version',
+        privateFeedback: 'private-feedback-version',
+        destinationSelections: 'destination-selection-version',
+      },
+      values: {
+        qualifiedScanCount: 42,
+        privateRatingCount: 5,
+        privateRatingSum: 20,
+        privateRating1Count: 0,
+        privateRating2Count: 1,
+        privateRating3Count: 1,
+        privateRating4Count: 0,
+        privateRating5Count: 3,
+        privateFeedbackCount: 7,
+        googleReviewSelectionCount: 9,
+        secondaryLinkSelectionCount: 2,
+      },
+      sealedThroughLocalDate: '2026-07-01',
+      projectionRevision: 12,
+      lastRebuiltAt: new Date('2026-08-14T09:00:00.000Z'),
+      lastSealedAt: new Date('2026-08-01T08:00:00.000Z'),
+    }))
     const analytics = getPortalAnalytics({
       portalMetrics: metrics,
+      responseIntegrity: createFakeResponseIntegrity(),
+      portalLifetime: { get: lifetimeGet },
+    })
+
+    const result = await analytics({
+      organizationId: ORG,
+      propertyId: PROP,
+      portalId: PORT,
+      startDate: new Date(0),
+      endDate: new Date(),
+      timeRange: 'all',
+      propertyTimezone: 'UTC',
+    })
+
+    expect(lifetimeGet).toHaveBeenCalledWith({
+      organizationId: ORG,
+      propertyId: PROP,
+      portalId: PORT,
+    })
+    expect(metrics.calls).toEqual([])
+
+    expect(result.kpis.scans.value).toBe(42)
+    expect(result.kpis.avgRating.value).toBe(4)
+    expect(result.kpis.avgRating.sampleCount).toBe(5)
+    expect(result.kpis.feedback.value).toBe(7)
+    expect(result.kpis.reviewLinkClicks.value).toBe(11)
+    expect(result.ratingDistribution).toEqual([
+      { stars: 1, count: 0 },
+      { stars: 2, count: 1 },
+      { stars: 3, count: 1 },
+      { stars: 4, count: 0 },
+      { stars: 5, count: 3 },
+    ])
+
+    // Lifetime totals are absolute. They contain no date series and can never
+    // be treated as either side of a time-window comparison.
+    expect(result.kpis.scans.trend).toBeNull()
+    expect(result.kpis.avgRating.comparison).toBeNull()
+    expect(result.kpis.feedback.trend).toBeNull()
+    expect(result.kpis.reviewLinkClicks.trend).toBeNull()
+    expect(result.ratingTrend).toEqual([])
+
+    expect(result.kpis.scans.priorValue).toBeNull()
+    expect(result.lifetimeReconciliation).toEqual({
+      state: 'reconciled',
+      projectionRevision: 12,
+      sealedThroughLocalDate: '2026-07-01',
+      lastRebuiltAt: new Date('2026-08-14T09:00:00.000Z'),
+      lastSealedAt: new Date('2026-08-01T08:00:00.000Z'),
+    })
+  })
+
+  it('exposes an uninitialized lifetime projection without presenting missing totals as zero', async () => {
+    const metrics = createFakePortalMetrics()
+    const lifetimeGet = vi.fn(async () => null)
+    const analytics = getPortalAnalytics({
+      portalMetrics: metrics,
+      portalLifetime: { get: lifetimeGet },
       responseIntegrity: createFakeResponseIntegrity(),
     })
 
@@ -292,25 +418,23 @@ describe('getPortalAnalytics (use case)', () => {
       propertyTimezone: 'UTC',
     })
 
-    // ONE kpi-sums query: 'all' scans from epoch, and the prior call used to
-    // receive byte-identical arguments — a duplicate full scan per page load.
-    expect(metrics.calls.filter((call) => call === 'getPortalKpiSums')).toHaveLength(1)
-
-    // Every trend is null (an em dash in the cards), never a fabricated 0%.
-    expect(result.kpis.scans.trend).toBeNull()
-    expect(result.kpis.avgRating.comparison).toBeNull()
-    expect(result.kpis.feedback.trend).toBeNull()
-    expect(result.kpis.reviewLinkClicks.trend).toBeNull()
-
-    // Current-period values are unaffected by the skipped prior query.
-    expect(result.kpis.scans.value).toBe(100)
-    expect(result.kpis.scans.priorValue).toBeNull()
+    expect(metrics.calls).toEqual([])
+    expect(result.lifetimeReconciliation).toMatchObject({
+      state: 'not_initialized',
+      projectionRevision: null,
+    })
+    expect(result.kpis.scans.value).toBeNull()
+    expect(result.kpis.feedback.value).toBeNull()
+    expect(result.kpis.reviewLinkClicks.value).toBeNull()
+    expect(result.kpis.avgRating.value).toBeNull()
+    expect(result.ratingTrend).toEqual([])
   })
 
   it('derives one correction-aware engagement funnel from governed rows', async () => {
     const metrics = createFakePortalMetrics()
     const analytics = getPortalAnalytics({
       portalMetrics: metrics,
+      portalLifetime: createUnusedPortalLifetime(),
       responseIntegrity: createFakeResponseIntegrity(),
     })
     const now = new Date()
@@ -319,9 +443,9 @@ describe('getPortalAnalytics (use case)', () => {
       organizationId: ORG,
       propertyId: PROP,
       portalId: PORT,
-      startDate: new Date(0),
+      startDate: new Date(now.getTime() - 30 * 86_400_000),
       endDate: now,
-      timeRange: 'all',
+      timeRange: '30d',
       propertyTimezone: 'UTC',
     })
 
@@ -355,6 +479,7 @@ describe('getPortalAnalytics (use case)', () => {
     })
     const analytics = getPortalAnalytics({
       portalMetrics: metrics,
+      portalLifetime: createUnusedPortalLifetime(),
       responseIntegrity: createFakeResponseIntegrity(),
     })
 

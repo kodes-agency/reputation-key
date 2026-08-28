@@ -4,8 +4,29 @@ import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { AttentionSignalsPort } from '../ports/attention-signals.port'
 import { getDashboardData } from './get-dashboard-data'
 import { getPropertyOverview } from './get-property-overview'
+import type { MetricKPIValue } from '../../domain/types'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')
+
+const metricKpi = (value: number, priorValue: number, trend: number): MetricKPIValue => ({
+  value,
+  priorValue,
+  trend,
+  evidence: {
+    current: {
+      state: 'available',
+      definitionVersionId: 'overview-current',
+      sampleCount: value,
+      minimumSample: 1,
+    },
+    prior: {
+      state: 'available',
+      definitionVersionId: 'overview-prior',
+      sampleCount: priorValue,
+      minimumSample: 1,
+    },
+  },
+})
 
 describe('getPropertyOverview', () => {
   it('reuses the dashboard KPI snapshot when deriving attention signals', async () => {
@@ -13,8 +34,8 @@ describe('getPropertyOverview', () => {
     repo.kpisOverride = {
       reviews: { value: 12, priorValue: 10, trend: 20 },
       avgRating: { value: 4, priorValue: 4.4, trend: -9 },
-      scans: { value: 100, priorValue: 80, trend: 25 },
-      feedback: { value: 20, priorValue: 15, trend: 33 },
+      scans: metricKpi(100, 80, 25),
+      feedback: metricKpi(20, 15, 33),
     }
     const attention: AttentionSignalsPort = {
       getAttentionCounts: async () => ({

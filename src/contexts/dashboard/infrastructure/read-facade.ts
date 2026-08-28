@@ -1,7 +1,7 @@
 // Dashboard context — governed read facade (BQC-5.5).
 //
 // The ONE owner of read policy for dashboard's remaining direct SQL reads
-// (metric_readings, inbox_items, goals, and the attention-signals review
+// (metric_readings, inbox_items, and the attention-signals review
 // count):
 //
 // - Scope: tenant + property + date-range predicates live here as builders —
@@ -20,11 +20,19 @@
 //   second read model beside the authoritative query path (BQC-5.5
 //   remove-decision: shared/cache/dashboard-cache.ts deleted unwired).
 
-import { and, eq, gte, gt, lt, inArray, isNotNull, sql, sum, count } from 'drizzle-orm'
+import { and, eq, gte, gt, lt, inArray, isNotNull, sql, count } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { metricReadings, inboxItems, goals, reviews } from '#/shared/db/schema'
+import {
+  metricCorrections,
+  metricDefinitions,
+  metricDefinitionVersions,
+  metricReadings,
+  inboxItems,
+  reviews,
+} from '#/shared/db/schema'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
+import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
 
 /** Hard statement-level budget for one direct dashboard read. */
 export const DASHBOARD_READ_BUDGET_MS = 5000
@@ -100,11 +108,6 @@ export function inboxScopeWhere(organizationId: OrganizationId, propertyId: Prop
   )
 }
 
-/** goals scope: tenant + property. */
-export function goalScopeWhere(organizationId: OrganizationId, propertyId: PropertyId) {
-  return and(eq(goals.organizationId, organizationId), eq(goals.propertyId, propertyId))
-}
-
 /**
  * Attention-signals review scope: tenant + property + THE source-eligibility
  * predicate (ADR 0031 — mirrors review's isContentEligibleForRead with `now`
@@ -127,10 +130,21 @@ export function eligibleAttentionReviewWhere(
 // ── Shared direct reads (one query skeleton per table family) ───────
 
 export type MetricAggregateRow = Readonly<{
+  definitionVersionId: string
   metricKey: string
   total: number
   count: number
+  state: 'available' | 'updating' | 'unavailable'
+  sampleCount: number
+  minimumSample: number
 }>
+
+const DASHBOARD_PORTAL_ANALYTICS_VERSION_IDS = [
+  METRIC_VERSION_IDS.portalScanAnalytics,
+  METRIC_VERSION_IDS.portalRatingAnalytics,
+  METRIC_VERSION_IDS.portalFeedbackAnalytics,
+  METRIC_VERSION_IDS.portalDestinationClickAnalytics,
+] as const
 
 /**
  * THE aggregate skeleton over metric_readings: summed + counted values
@@ -141,33 +155,117 @@ export async function readMetricAggregates(
   db: Database,
   scope: SQL | undefined,
 ): Promise<readonly MetricAggregateRow[]> {
-  const rows = await withStatementTimeout(db, DASHBOARD_READ_BUDGET_MS, (tx) =>
-    tx
+  const rows = await withStatementTimeout(db, DASHBOARD_READ_BUDGET_MS, (tx) => {
+    const correctionTips = tx
       .select({
-        metricKey: metricReadings.metricKey,
-        total: sum(metricReadings.value),
-        count: count(metricReadings.value),
+        readingId: metricCorrections.readingId,
+        kind: metricCorrections.kind,
+        exactDelta: metricCorrections.exactDelta,
+        replacementValue: metricCorrections.replacementValue,
       })
-      .from(metricReadings)
-      .where(scope)
-      .groupBy(metricReadings.metricKey),
-  )
-  return rows.map((r) => ({
-    metricKey: r.metricKey,
-    total: Number(r.total ?? 0),
-    count: Number(r.count ?? 0),
-  }))
-}
+      .from(metricCorrections)
+      .where(
+        sql`NOT EXISTS (
+          SELECT 1
+          FROM metric_corrections AS successor
+          WHERE successor.supersedes_correction_id = ${metricCorrections.id}
+        )`,
+      )
+      .as('dashboard_metric_correction_tips')
+    const effectiveValue = sql<number>`CASE
+      WHEN ${correctionTips.kind} = 'retract' THEN NULL
+      WHEN ${correctionTips.kind} = 'replace' THEN ${correctionTips.replacementValue}
+      WHEN ${correctionTips.kind} = 'adjust'
+        THEN ${metricReadings.exactValue} + ${correctionTips.exactDelta}
+      ELSE ${metricReadings.exactValue}
+    END`
+    const effectiveSampleCount = sql<number>`CASE
+      WHEN ${correctionTips.kind} = 'retract' THEN 0
+      ELSE ${metricReadings.sampleCount}
+    END`
+    const governedSource = sql<boolean>`(
+      ${metricReadings.exactValue} IS NOT NULL
+      AND ${metricReadings.metricKey} = ${metricDefinitions.metricKey}
+      AND ${metricReadings.dataQuality} = 'exact'
+      AND ${metricReadings.attributionQuality} <> 'unresolved'
+      AND EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements_text(
+          ${metricDefinitionVersions.sourcePolicyAllowlist}
+        ) AS allowed_policy(value)
+        WHERE allowed_policy.value = ${metricReadings.sourcePolicy}
+      )
+    )`
+    const governedEffectiveValue = sql<number>`CASE
+      WHEN ${governedSource} THEN ${effectiveValue}
+      ELSE NULL
+    END`
+    const governedSampleCount = sql<number>`CASE
+      WHEN ${governedSource} THEN ${effectiveSampleCount}
+      ELSE 0
+    END`
 
-/** Inbox item count for a scope (open, escalated-unresolved, …). */
-export async function readInboxItemCount(
-  db: Database,
-  scope: SQL | undefined,
-): Promise<number> {
-  const rows = await withStatementTimeout(db, DASHBOARD_READ_BUDGET_MS, (tx) =>
-    tx.select({ count: count() }).from(inboxItems).where(scope),
-  )
-  return Number(rows[0]?.count ?? 0)
+    return tx
+      .select({
+        definitionVersionId: metricDefinitionVersions.id,
+        metricKey: metricDefinitions.metricKey,
+        total: sql<number>`COALESCE(SUM(${governedEffectiveValue}), 0)`,
+        count: count(governedEffectiveValue),
+        sampleCount: sql<number>`COALESCE(SUM(${governedSampleCount}), 0)`,
+        minimumSample: metricDefinitionVersions.minimumSample,
+        evidenceCount: count(metricReadings.id),
+        governedEvidenceCount: sql<number>`COUNT(${metricReadings.id}) FILTER (
+          WHERE ${governedSource}
+        )`,
+      })
+      .from(metricDefinitionVersions)
+      .innerJoin(
+        metricDefinitions,
+        eq(metricDefinitions.id, metricDefinitionVersions.definitionId),
+      )
+      .leftJoin(
+        metricReadings,
+        and(eq(metricReadings.definitionVersionId, metricDefinitionVersions.id), scope),
+      )
+      .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
+      .where(
+        and(
+          inArray(metricDefinitionVersions.id, [
+            ...DASHBOARD_PORTAL_ANALYTICS_VERSION_IDS,
+          ]),
+          sql`${metricDefinitionVersions.permittedConsumers} @> '["portal_analytics"]'::jsonb`,
+        ),
+      )
+      .groupBy(
+        metricDefinitionVersions.id,
+        metricDefinitions.metricKey,
+        metricDefinitionVersions.minimumSample,
+      )
+  })
+  return rows.map((r) => {
+    if (r.definitionVersionId === null) {
+      throw new Error('Dashboard metric projection returned an unversioned reading')
+    }
+    const sampleCount = Number(r.sampleCount ?? 0)
+    const minimumSample = Number(r.minimumSample ?? 1)
+    const evidenceCount = Number(r.evidenceCount ?? 0)
+    const governedEvidenceCount = Number(r.governedEvidenceCount ?? 0)
+    const state =
+      evidenceCount === 0
+        ? 'updating'
+        : governedEvidenceCount === evidenceCount && sampleCount >= minimumSample
+          ? 'available'
+          : 'unavailable'
+    return {
+      definitionVersionId: r.definitionVersionId,
+      metricKey: r.metricKey,
+      total: Number(r.total ?? 0),
+      count: Number(r.count ?? 0),
+      state,
+      sampleCount,
+      minimumSample,
+    }
+  })
 }
 
 // ── Statement timeout ─────────────────────────────────────────────────

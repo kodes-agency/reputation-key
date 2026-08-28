@@ -49,13 +49,13 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
             action: 'dashboard.read',
             propertyId: data.propertyId,
           })
-          const { useCases, clock, staffPublicApi, propertyProcessingScopeApi } =
+          const { dashboardPublicApi, clock, staffPublicApi, propertyPublicApi } =
             getContainer()
           // D6-001: non-admin callers may only read their assigned properties.
           await assertDashboardPropertyAccessible(staffPublicApi, ctx, data.propertyId)
           const pid = propertyId(data.propertyId)
           const { startDate, endDate, propertyTimezone } = await resolvePropertyPeriod(
-            { propertyFacts: propertyProcessingScopeApi, clock },
+            { propertyFacts: propertyPublicApi, clock },
             {
               organizationId: ctx.organizationId,
               propertyId: pid,
@@ -63,7 +63,7 @@ export const getDashboardDataFn = createServerFn({ method: 'GET' })
             },
           )
 
-          const dashboard = await useCases.getDashboardData({
+          const dashboard = await dashboardPublicApi.getDashboardData({
             organizationId: ctx.organizationId,
             propertyId: pid,
             portalId: data.portalId ? portalId(data.portalId) : null,
@@ -112,12 +112,12 @@ export const getPropertyOverviewFn = createServerFn({ method: 'GET' })
           })
           const org = await getAuth().api.getFullOrganization({ headers })
           const slaHours = extractResponseSlaHours(org)
-          const { useCases, clock, staffPublicApi, propertyProcessingScopeApi } =
+          const { dashboardPublicApi, clock, staffPublicApi, propertyPublicApi } =
             getContainer()
           await assertDashboardPropertyAccessible(staffPublicApi, ctx, data.propertyId)
           const pid = propertyId(data.propertyId)
           const { startDate, endDate, propertyTimezone } = await resolvePropertyPeriod(
-            { propertyFacts: propertyProcessingScopeApi, clock },
+            { propertyFacts: propertyPublicApi, clock },
             {
               organizationId: ctx.organizationId,
               propertyId: pid,
@@ -125,7 +125,7 @@ export const getPropertyOverviewFn = createServerFn({ method: 'GET' })
             },
           )
 
-          const overview = await useCases.getPropertyOverview({
+          const overview = await dashboardPublicApi.getPropertyOverview({
             organizationId: ctx.organizationId,
             propertyId: pid,
             portalId: data.portalId ? portalId(data.portalId) : null,

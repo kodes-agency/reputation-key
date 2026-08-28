@@ -67,6 +67,6 @@ export type DashboardRepository = Readonly<{
   getRatingTrend(input: DashboardPeriodQuery): Promise<RatingTrendPoint[]>
   getReviewVolume(input: DashboardPeriodQuery): Promise<ReviewVolumePoint[]>
   getReplyPerformance(input: DashboardPeriodQuery): Promise<ReplyPerformance>
-  getEngagementFunnel(input: DashboardPortalQuery): Promise<EngagementFunnel>
+  getEngagementFunnel(input: DashboardPortalQuery): Promise<EngagementFunnel | null>
   getRecentReviews(input: DashboardRecentReviewsQuery): Promise<RecentReview[]>
 }>

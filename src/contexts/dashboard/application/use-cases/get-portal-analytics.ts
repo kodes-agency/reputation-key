@@ -16,6 +16,8 @@ import type {
 import type { TimeRangePreset } from '../dto/dashboard.dto'
 import { computeTrend, priorPeriodDates, ratingComparison } from '../utils'
 import type { PortalResponseIntegrityPort } from '../ports/portal-response-integrity.port'
+import type { PortalLifetimeMetricsPort } from '../ports/portal-lifetime-metrics.port'
+import { portalLifetimeAnalyticsData } from './portal-lifetime-analytics'
 
 function roundedRating(value: number): number {
   return Math.round(value * 10) / 10
@@ -52,6 +54,7 @@ export type GetPortalAnalyticsInput = Readonly<{
 
 export type GetPortalAnalyticsDeps = Readonly<{
   portalMetrics: PortalMetricsPort
+  portalLifetime: PortalLifetimeMetricsPort
   responseIntegrity: PortalResponseIntegrityPort
 }>
 export type GetPortalAnalytics = ReturnType<typeof getPortalAnalytics>
@@ -73,10 +76,22 @@ export const getPortalAnalytics =
       propertyTimezone,
     } = input
 
-    // 'all' is unbounded, so there is no prior window: priorPeriodDates returns
-    // null and the second getPortalKpiSums call is skipped entirely. Passing the
-    // current window as its own prior (the old behaviour) both duplicated a
-    // scan-from-epoch on every page load and fabricated a 0% trend.
+    if (timeRange === 'all') {
+      const [lifetime, responseIntegrity] = await Promise.all([
+        deps.portalLifetime.get({ organizationId, propertyId, portalId }),
+        deps.responseIntegrity.getPortalResponseIntegritySummary({
+          organizationId,
+          propertyId,
+          portalId,
+          startAt: startDate,
+          endAt: endDate,
+        }),
+      ])
+      return portalLifetimeAnalyticsData(input, lifetime, responseIntegrity)
+    }
+
+    // The All Time branch above never reaches the period projection. Every
+    // bounded preset receives one equal-length Property-local prior window.
     const priorPeriod = priorPeriodDates(timeRange, startDate, endDate, propertyTimezone)
 
     // Fetch governed current/prior values and evidence in parallel. The owner
@@ -150,9 +165,6 @@ export const getPortalAnalytics =
     ) => new Map(rows.map((r) => [r.metricKey, r]))
 
     const cur = toMap(currentSums)
-    // For 'all' priorSums is empty, so every priorValue is 0 and computeTrend's
-    // `prior === 0` guard yields trend: null — the cards render an em dash
-    // instead of a made-up 0%.
     const prior = toMap(priorSums)
 
     const curScans = cur.get('portal.scan')
@@ -195,7 +207,7 @@ export const getPortalAnalytics =
         ? roundedRating(priorRating.total / priorRatingCount)
         : null
     const privateRatingComparison =
-      timeRange !== 'all' && curAvgRating !== null && priorAvgRating !== null
+      curAvgRating !== null && priorAvgRating !== null
         ? ratingComparison(curAvgRating, curRatingCount, priorAvgRating, priorRatingCount)
         : null
 
@@ -241,6 +253,7 @@ export const getPortalAnalytics =
 
     return {
       period: { startAt: startDate, endAt: endDate, timezone: propertyTimezone },
+      lifetimeReconciliation: null,
       kpis,
       engagementFunnel,
       ratingDistribution: curRatingReady ? ratingDistribution : [],

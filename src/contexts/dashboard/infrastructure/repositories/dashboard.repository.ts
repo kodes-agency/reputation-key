@@ -20,6 +20,8 @@ import type {
   ReplyPerformance,
   EngagementFunnel,
   RecentReview,
+  MetricKPIValue,
+  MetricKPIPeriodEvidence,
 } from '../../domain/types'
 import { toDashboardReplyStatus } from '../../domain/types'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
@@ -40,45 +42,68 @@ function computeKpis(input: {
   priorMetrics: readonly MetricSumRow[] | null
 }): KPIs {
   const { currentReviews, priorReviews, currentMetrics, priorMetrics } = input
-  const comparisonAvailable = priorReviews !== null && priorMetrics !== null
+  const reviewComparisonAvailable = priorReviews !== null
 
   const curReviewCount = currentReviews.count
   const priorReviewCount = priorReviews?.count ?? 0
   const curAvgRating = currentReviews.avgRating
   const priorAvgRating = priorReviews?.avgRating ?? 0
 
-  const toMap = (rows: readonly MetricSumRow[]) =>
-    new Map(rows.map((r) => [r.metricKey, r.total]))
+  const missingEvidence = (): MetricKPIPeriodEvidence => ({
+    state: 'updating',
+    definitionVersionId: null,
+    sampleCount: 0,
+    minimumSample: null,
+  })
+  const evidenceFor = (row: MetricSumRow | undefined): MetricKPIPeriodEvidence => {
+    if (!row) return missingEvidence()
+    return {
+      state: row.state === 'available' && row.total === null ? 'unavailable' : row.state,
+      definitionVersionId: row.definitionVersionId,
+      sampleCount: row.sampleCount,
+      minimumSample: row.minimumSample,
+    }
+  }
+  const metricKpi = (metricKey: string): MetricKPIValue => {
+    const current = currentMetrics.find((row) => row.metricKey === metricKey)
+    const prior = priorMetrics?.find((row) => row.metricKey === metricKey)
+    const currentEvidence = evidenceFor(current)
+    const priorEvidence = priorMetrics === null ? null : evidenceFor(prior)
+    const value =
+      currentEvidence.state === 'available' && current?.total !== null
+        ? (current?.total ?? null)
+        : null
+    const priorValue =
+      priorEvidence?.state === 'available' && prior?.total !== null
+        ? (prior?.total ?? null)
+        : null
 
-  const curMetricsMap = toMap(currentMetrics)
-  const priorMetricsMap = toMap(priorMetrics ?? [])
-
-  const curScans = curMetricsMap.get('portal.scan') ?? 0
-  const priorScans = priorMetricsMap.get('portal.scan') ?? 0
-  const curFeedback = curMetricsMap.get('portal.feedback') ?? 0
-  const priorFeedback = priorMetricsMap.get('portal.feedback') ?? 0
+    return {
+      value,
+      priorValue,
+      trend:
+        value !== null && priorValue !== null ? computeTrend(value, priorValue) : null,
+      evidence: { current: currentEvidence, prior: priorEvidence },
+    }
+  }
 
   return {
     reviews: {
       value: curReviewCount,
       priorValue: priorReviewCount,
-      trend: comparisonAvailable ? computeTrend(curReviewCount, priorReviewCount) : null,
+      trend: reviewComparisonAvailable
+        ? computeTrend(curReviewCount, priorReviewCount)
+        : null,
     },
     avgRating: {
       value: curAvgRating,
       priorValue: priorAvgRating,
-      trend: comparisonAvailable ? computeTrend(curAvgRating, priorAvgRating) : null,
+      trend: reviewComparisonAvailable
+        ? computeTrend(curAvgRating, priorAvgRating)
+        : null,
     },
-    scans: {
-      value: curScans,
-      priorValue: priorScans,
-      trend: comparisonAvailable ? computeTrend(curScans, priorScans) : null,
-    },
-    feedback: {
-      value: curFeedback,
-      priorValue: priorFeedback,
-      trend: comparisonAvailable ? computeTrend(curFeedback, priorFeedback) : null,
-    },
+    scans: metricKpi('portal.scan'),
+    feedback: metricKpi('portal.feedback'),
   }
 }
 
@@ -178,7 +203,7 @@ export const createDashboardRepository = (
         end: Date,
       ) =>
         portalIds.length === 0
-          ? Promise.resolve([] as readonly { metricKey: string; total: number }[])
+          ? Promise.resolve([] as readonly MetricSumRow[])
           : metricStats.getSumsByPortals(orgId, propId, portalIds, start, end)
 
       const [currentMetrics, priorMetrics] = await Promise.all([
@@ -255,7 +280,7 @@ export const createDashboardRepository = (
       return { replyRate: Math.round(replyRate * 100) / 100, avgReplyHours }
     })
   },
-  async getEngagementFunnel(input): Promise<EngagementFunnel> {
+  async getEngagementFunnel(input): Promise<EngagementFunnel | null> {
     return trace('dashboard.getEngagementFunnel', async () => {
       const { organizationId, propertyId, portalId, startDate, endDate } = input
 
@@ -269,12 +294,21 @@ export const createDashboardRepository = (
         endDate,
       )
 
-      const metricMap = new Map(rows.map((r) => [r.metricKey, r.count]))
+      const metricMap = new Map(rows.map((row) => [row.metricKey, row]))
+      const availableCount = (metricKey: string): number | null => {
+        const row = metricMap.get(metricKey)
+        return row?.state === 'available' && row.count !== null ? row.count : null
+      }
+      const scans = availableCount('portal.scan')
+      const ratings = availableCount('portal.rating')
+      const reviewLinkClicks = availableCount('portal.review_link_click')
+
+      if (scans === null || ratings === null || reviewLinkClicks === null) return null
 
       return {
-        scans: metricMap.get('portal.scan') ?? 0,
-        ratings: metricMap.get('portal.rating') ?? 0,
-        reviewLinkClicks: metricMap.get('portal.review_link_click') ?? 0,
+        scans,
+        ratings,
+        reviewLinkClicks,
       }
     })
   },

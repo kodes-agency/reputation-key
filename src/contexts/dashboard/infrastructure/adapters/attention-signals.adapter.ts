@@ -1,13 +1,21 @@
 // Dashboard context — Drizzle adapter implementing AttentionSignalsPort.
 // Count queries for the property attention band.
 // This is the ONLY place dashboard infrastructure touches reviews/replies,
-// inbox_items, and goals tables for attention-signal purposes (ADR-0007).
+// inbox_items, and canonical Goal Program results for attention-signal
+// purposes (ADR-0007).
 // BQC-5.5: scope predicates and the statement timeout come from the read
 // facade. The review-reading count applies THE source-eligibility predicate
 // (ADR 0031) — an unanswered count over expired content is not servable.
 
 import type { Database } from '#/shared/db'
-import { reviews, replies, inboxItems, goals, goalProgress } from '#/shared/db/schema'
+import {
+  goalMonthlyResults,
+  goalPrograms,
+  goalProgramVersions,
+  inboxItems,
+  replies,
+  reviews,
+} from '#/shared/db/schema'
 import { sql, lt } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
 import type { AttentionSignalsPort } from '../../application/ports/attention-signals.port'
@@ -16,7 +24,6 @@ import type { Clock } from '#/shared/domain/clock'
 import {
   DASHBOARD_READ_BUDGET_MS,
   eligibleAttentionReviewWhere,
-  goalScopeWhere,
   inboxScopeWhere,
   withStatementTimeout,
 } from '../read-facade'
@@ -60,21 +67,36 @@ export const createAttentionSignalsAdapter = (
                 )
               )
           ), goal_work AS MATERIALIZED (
-            SELECT 'goal:' || ${goals.id}::text AS work_key
-            FROM ${goals}
-            LEFT JOIN ${goalProgress}
-              ON ${goalProgress.goalId} = ${goals.id}
-              AND ${goalProgress.organizationId} = ${organizationId}
-            WHERE ${goalScopeWhere(organizationId, propertyId)}
-              AND ${goals.status} = 'active'
-              AND ${goals.periodStart} IS NOT NULL
-              AND ${goals.periodEnd} IS NOT NULL
-              AND ${goals.periodEnd} > ${now}
-              AND COALESCE(${goalProgress.currentValue}, 0) < ${goals.targetValue} *
+            SELECT 'goal-result:' || ${goalMonthlyResults.id}::text AS work_key
+            FROM ${goalMonthlyResults}
+            JOIN ${goalPrograms}
+              ON ${goalPrograms.organizationId} = ${goalMonthlyResults.organizationId}
+              AND ${goalPrograms.propertyId} = ${goalMonthlyResults.propertyId}
+              AND ${goalPrograms.id} = ${goalMonthlyResults.programId}
+            JOIN ${goalProgramVersions}
+              ON ${goalProgramVersions.organizationId} = ${goalMonthlyResults.organizationId}
+              AND ${goalProgramVersions.propertyId} = ${goalMonthlyResults.propertyId}
+              AND ${goalProgramVersions.programId} = ${goalMonthlyResults.programId}
+              AND ${goalProgramVersions.id} = ${goalMonthlyResults.programVersionId}
+            WHERE ${goalMonthlyResults.organizationId} = ${organizationId}
+              AND ${goalMonthlyResults.propertyId} = ${propertyId}
+              AND ${goalPrograms.status} = 'active'
+              AND ${goalMonthlyResults.status} = 'open'
+              AND ${goalMonthlyResults.periodStart} <= ${now}
+              AND ${goalMonthlyResults.periodEnd} > ${now}
+              AND ${goalMonthlyResults.evaluationState} = 'eligible'
+              AND ${goalProgramVersions.metricKey} IN (
+                'qualified_scans',
+                'portal_rating_count'
+              )
+              AND ${goalMonthlyResults.value} < ${goalProgramVersions.targetValue} *
                 GREATEST(0, LEAST(1,
-                  EXTRACT(EPOCH FROM (${now} - ${goals.periodStart}))
+                  EXTRACT(EPOCH FROM (${now} - ${goalMonthlyResults.periodStart}))
                   / NULLIF(
-                    EXTRACT(EPOCH FROM (${goals.periodEnd} - ${goals.periodStart})),
+                    EXTRACT(EPOCH FROM (
+                      ${goalMonthlyResults.periodEnd}
+                      - ${goalMonthlyResults.periodStart}
+                    )),
                     0
                   )
                 ))

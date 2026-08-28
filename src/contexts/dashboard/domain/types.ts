@@ -12,19 +12,41 @@ export type PortalRatingTrendPoint = Readonly<{
 // ─── KPI Strip ───
 
 export type KPIValue = Readonly<{
-  /** The metric value for the current period. 0 when no data exists. */
+  /** The Review-owned value for the current period. */
   value: number
-  /** The metric value for the prior period. 0 when no data exists. */
+  /** The Review-owned value for the prior period. */
   priorValue: number
   /** Percentage change vs prior period. Null when priorValue is 0. */
   trend: number | null
 }>
 
+export type MetricKPIDataState = 'available' | 'updating' | 'unavailable'
+
+export type MetricKPIPeriodEvidence = Readonly<{
+  state: MetricKPIDataState
+  definitionVersionId: string | null
+  sampleCount: number
+  minimumSample: number | null
+}>
+
+export type MetricKPIValue = Readonly<{
+  /** Null unless the governed current-period source is available. */
+  value: number | null
+  /** Null unless the governed prior-period source is available. */
+  priorValue: number | null
+  /** Present only when both governed periods are available. */
+  trend: number | null
+  evidence: Readonly<{
+    current: MetricKPIPeriodEvidence
+    prior: MetricKPIPeriodEvidence | null
+  }>
+}>
+
 export type KPIs = Readonly<{
   reviews: KPIValue
   avgRating: KPIValue
-  scans: KPIValue
-  feedback: KPIValue
+  scans: MetricKPIValue
+  feedback: MetricKPIValue
 }>
 
 // ─── Rating Distribution ───
@@ -122,7 +144,9 @@ export type PortalMetricDataState =
   'ready' | 'updating' | 'insufficient_data' | 'temporarily_unavailable'
 
 export type PortalMetricEvidence = Readonly<{
-  definitionVersionId: string
+  /** Omitted means a bounded governed period; lifetime has no time series. */
+  basis?: 'governed_period' | 'anonymous_lifetime'
+  definitionVersionId: string | null
   state: PortalMetricDataState
   verifiedThrough: Date | null
   latestActivity: Date | null
@@ -131,6 +155,14 @@ export type PortalMetricEvidence = Readonly<{
   availabilityReason: string | null
   correctionHead: Date | null
   sampleCount: number
+}>
+
+export type PortalLifetimeReconciliationState = Readonly<{
+  state: 'not_initialized' | 'awaiting_first_reconciliation' | 'reconciled'
+  projectionRevision: number | null
+  sealedThroughLocalDate: string | null
+  lastRebuiltAt: Date | null
+  lastSealedAt: Date | null
 }>
 
 export type PortalCountKPIValue = Readonly<{
@@ -161,6 +193,8 @@ export type PortalResponseIntegritySummary = Readonly<{
 
 export type PortalAnalyticsData = Readonly<{
   period: Readonly<{ startAt: Date; endAt: Date; timezone: string }>
+  /** Present only for the anonymous, non-comparative All Time projection. */
+  lifetimeReconciliation: PortalLifetimeReconciliationState | null
   kpis: PortalKPIs
   engagementFunnel: EngagementFunnel | null
   ratingDistribution: RatingDistribution

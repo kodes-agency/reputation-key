@@ -217,6 +217,13 @@ export const createFleetOverviewProjectionAdapter = (
                   AND metric_definition_versions.permitted_consumers @> '["portal_analytics"]'::jsonb
                 )
               )
+              AND EXISTS (
+                SELECT 1
+                FROM jsonb_array_elements_text(
+                  metric_definition_versions.source_policy_allowlist
+                ) AS allowed_policy(value)
+                WHERE allowed_policy.value = metric_readings.source_policy
+              )
             WHERE metric_readings.organization_id = ${input.organizationId}
               AND metric_readings.definition_version_id IN (
                 ${METRIC_VERSION_IDS.propertyReviewDashboard},
@@ -483,54 +490,49 @@ export const createFleetOverviewProjectionAdapter = (
               ) AS escalated
             FROM inbox_attention_items
             GROUP BY inbox_attention_items.property_id
-          ), current_goal_evaluations AS MATERIALIZED (
-            SELECT DISTINCT ON (goal_evaluations.period_id)
-              goal_evaluations.period_id,
-              goal_evaluations.value,
-              goal_evaluations.state
-            FROM goal_evaluations
-            WHERE ${input.goalReadEnabled}
-              AND goal_evaluations.organization_id = ${input.organizationId}
-              AND goal_evaluations.property_id IN (SELECT property_id FROM scoped)
-              AND NOT EXISTS (
-                SELECT 1 FROM goal_evaluations successor
-                WHERE successor.supersedes_evaluation_id = goal_evaluations.id
-              )
-            ORDER BY goal_evaluations.period_id,
-              goal_evaluations.created_at DESC,
-              goal_evaluations.id DESC
           ), goal_attention_items AS MATERIALIZED (
-            SELECT goal_periods.property_id, goal_periods.id AS goal_period_id
-            FROM goal_periods
-            JOIN goal_definitions
-              ON goal_definitions.organization_id = goal_periods.organization_id
-              AND goal_definitions.property_id = goal_periods.property_id
-              AND goal_definitions.id = goal_periods.definition_id
-            JOIN goal_definition_versions
-              ON goal_definition_versions.organization_id = goal_periods.organization_id
-              AND goal_definition_versions.property_id = goal_periods.property_id
-              AND goal_definition_versions.definition_id = goal_periods.definition_id
-              AND goal_definition_versions.id = goal_periods.definition_version_id
-            JOIN current_goal_evaluations
-              ON current_goal_evaluations.period_id = goal_periods.id
+            SELECT goal_monthly_results.property_id,
+              goal_monthly_results.id AS goal_result_id
+            FROM goal_monthly_results
+            JOIN goal_programs
+              ON goal_programs.organization_id = goal_monthly_results.organization_id
+              AND goal_programs.property_id = goal_monthly_results.property_id
+              AND goal_programs.id = goal_monthly_results.program_id
+            JOIN goal_program_versions
+              ON goal_program_versions.organization_id = goal_monthly_results.organization_id
+              AND goal_program_versions.property_id = goal_monthly_results.property_id
+              AND goal_program_versions.program_id = goal_monthly_results.program_id
+              AND goal_program_versions.id = goal_monthly_results.program_version_id
             JOIN policy
-              ON policy.property_id = goal_periods.property_id
+              ON policy.property_id = goal_monthly_results.property_id
               AND policy.goal_enabled
-            WHERE goal_periods.organization_id = ${input.organizationId}
-              AND goal_periods.status = 'open'
-              AND goal_definitions.status = 'active'
-              AND goal_periods.period_start <= ${input.now}
-              AND goal_periods.period_end > ${input.now}
-              AND current_goal_evaluations.state = 'eligible'
-              AND current_goal_evaluations.value <
-                goal_definition_versions.target_value
+            WHERE goal_monthly_results.organization_id = ${input.organizationId}
+              AND goal_monthly_results.property_id IN (
+                SELECT property_id FROM scoped
+              )
+              AND goal_programs.status = 'active'
+              AND goal_monthly_results.status = 'open'
+              AND goal_monthly_results.period_start <= ${input.now}
+              AND goal_monthly_results.period_end > ${input.now}
+              AND goal_monthly_results.evaluation_state = 'eligible'
+              AND goal_program_versions.metric_key IN (
+                'qualified_scans',
+                'portal_rating_count'
+              )
+              AND goal_monthly_results.value <
+                goal_program_versions.target_value
                 * greatest(
                   0,
                   least(
                     1,
-                    extract(epoch FROM (${input.now} - goal_periods.period_start))
+                    extract(epoch FROM (
+                      ${input.now} - goal_monthly_results.period_start
+                    ))
                       / nullif(
-                          extract(epoch FROM (goal_periods.period_end - goal_periods.period_start)),
+                          extract(epoch FROM (
+                            goal_monthly_results.period_end
+                            - goal_monthly_results.period_start
+                          )),
                           0
                         )
                   )
@@ -549,7 +551,7 @@ export const createFleetOverviewProjectionAdapter = (
                 AS work_key
               FROM inbox_attention_items
               UNION
-              SELECT property_id, 'goal:' || goal_period_id::text AS work_key
+              SELECT property_id, 'goal-result:' || goal_result_id::text AS work_key
               FROM goal_attention_items
             ) work
             GROUP BY property_id

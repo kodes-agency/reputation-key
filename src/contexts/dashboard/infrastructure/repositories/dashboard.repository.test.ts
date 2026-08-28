@@ -12,6 +12,7 @@ import type { MetricStatsPort } from '../../application/ports/metric-stats.port'
 import { getDb, type Database } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
+import { METRIC_VERSION_IDS } from '#/contexts/metric/application/public-api'
 
 const MS_PER_DAY = 86_400_000
 
@@ -110,13 +111,42 @@ async function seedMetricReading(
   const orgId = overrides.orgId ?? ORG_A
   const propId = overrides.propId ?? PROP_A
   const occurredAt = new Date(Date.now() - (overrides.daysAgo ?? 0) * MS_PER_DAY)
+  const metricContract = {
+    'portal.scan': {
+      definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
+      sourcePolicy: 'review_solicitation_analytics_only',
+    },
+    'portal.rating': {
+      definitionVersionId: METRIC_VERSION_IDS.portalRatingAnalytics,
+      sourcePolicy: 'first_party_guest_private',
+    },
+    'portal.feedback': {
+      definitionVersionId: METRIC_VERSION_IDS.portalFeedbackAnalytics,
+      sourcePolicy: 'first_party_guest_private',
+    },
+    'portal.review_link_click': {
+      definitionVersionId: METRIC_VERSION_IDS.portalDestinationClickAnalytics,
+      sourcePolicy: 'review_solicitation_analytics_only',
+    },
+  }[overrides.metricKey]
+  if (!metricContract)
+    throw new Error(`Uncatalogued dashboard metric: ${overrides.metricKey}`)
 
   // event_at is the guest-action time the dashboard window filters on;
   // recorded_at is ingestion. Production writes both (metric-command-store.ts),
   // and the fixture has no outbox lag, so they coincide here.
   await pool.query(
-    `INSERT INTO metric_readings (id, organization_id, property_id, portal_id, metric_key, value, recorded_at, event_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`,
+    `INSERT INTO metric_readings (
+       id, organization_id, property_id, portal_id, metric_key, value,
+       recorded_at, event_at, definition_version_id, source_event_id,
+       source_policy, exact_value, sample_count, attribution_quality,
+       property_local_date, data_quality, retention_class
+     ) VALUES (
+       $1, $2, $3, $4, $5, $6::real,
+       $7, $7, $8, $9,
+       $10, $6::numeric, 1, 'exact',
+       $11, 'exact', 'standard'
+     )`,
     [
       id,
       orgId,
@@ -125,12 +155,125 @@ async function seedMetricReading(
       overrides.metricKey,
       overrides.value,
       occurredAt,
+      metricContract.definitionVersionId,
+      `dashboard-fixture:${id}`,
+      metricContract.sourcePolicy,
+      occurredAt.toISOString().slice(0, 10),
     ],
   )
   return id
 }
 
 describe('dashboardRepository (integration)', () => {
+  describe('governed Metric facade', () => {
+    it('pins source policy and applies only the current append-only correction tip', async () => {
+      const pool = getPool()
+      await seedProperty(pool, PROP_A, ORG_A)
+      const readingId = await seedMetricReading(pool, {
+        metricKey: 'portal.scan',
+        value: 1,
+        daysAgo: 1,
+      })
+      const occurredAt = new Date(Date.now() - MS_PER_DAY)
+
+      await pool.query(
+        `INSERT INTO metric_readings (
+           id, organization_id, property_id, metric_key, value, recorded_at, event_at
+         ) VALUES ($1, $2, $3, 'portal.scan', 100, $4, $4)`,
+        [crypto.randomUUID(), ORG_A, PROP_A, occurredAt],
+      )
+      await pool.query(
+        `INSERT INTO metric_readings (
+           id, organization_id, property_id, metric_key, value,
+           recorded_at, event_at, definition_version_id, source_event_id,
+           source_policy, exact_value, sample_count, attribution_quality,
+           property_local_date, data_quality, retention_class
+         ) VALUES (
+           $1, $2, $3, 'portal.feedback', 50,
+           $4, $4, $5, $6,
+           'review_solicitation_analytics_only', 50, 1, 'exact',
+           $7, 'exact', 'standard'
+         )`,
+        [
+          crypto.randomUUID(),
+          ORG_A,
+          PROP_A,
+          occurredAt,
+          METRIC_VERSION_IDS.portalFeedbackAnalytics,
+          `dashboard-wrong-source:${crypto.randomUUID()}`,
+          occurredAt.toISOString().slice(0, 10),
+        ],
+      )
+
+      try {
+        const firstCorrectionId = crypto.randomUUID()
+        await pool.query(
+          `INSERT INTO metric_corrections (
+             id, reading_id, source_event_id, kind, reason, actor_type, actor_id,
+             replacement_value, event_at
+           ) VALUES ($1, $2, $3, 'replace', 'source correction', 'system',
+                     'dashboard-test', 10, $4)`,
+          [
+            firstCorrectionId,
+            readingId,
+            `dashboard-correction:${crypto.randomUUID()}`,
+            occurredAt,
+          ],
+        )
+        await pool.query(
+          `INSERT INTO metric_corrections (
+             id, reading_id, source_event_id, kind, reason, actor_type, actor_id,
+             exact_delta, event_at, supersedes_correction_id
+           ) VALUES ($1, $2, $3, 'adjust', 'latest correction', 'system',
+                     'dashboard-test', 2, $4, $5)`,
+          [
+            crypto.randomUUID(),
+            readingId,
+            `dashboard-correction:${crypto.randomUUID()}`,
+            occurredAt,
+            firstCorrectionId,
+          ],
+        )
+
+        const rows = await createMetricStatsAdapter(getDb()).getSumsByPeriod(
+          ORG_A,
+          PROP_A,
+          new Date(Date.now() - 7 * MS_PER_DAY),
+          new Date(),
+        )
+
+        expect(rows.find(({ metricKey }) => metricKey === 'portal.scan')).toEqual({
+          metricKey: 'portal.scan',
+          total: 3,
+          state: 'available',
+          definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
+          sampleCount: 1,
+          minimumSample: 1,
+        })
+        expect(rows.find(({ metricKey }) => metricKey === 'portal.feedback')).toEqual({
+          metricKey: 'portal.feedback',
+          total: null,
+          state: 'unavailable',
+          definitionVersionId: METRIC_VERSION_IDS.portalFeedbackAnalytics,
+          sampleCount: 0,
+          minimumSample: 5,
+        })
+        expect(rows.find(({ metricKey }) => metricKey === 'portal.rating')).toEqual({
+          metricKey: 'portal.rating',
+          total: null,
+          state: 'updating',
+          definitionVersionId: METRIC_VERSION_IDS.portalRatingAnalytics,
+          sampleCount: 0,
+          minimumSample: 5,
+        })
+      } finally {
+        await pool.query('DELETE FROM metric_corrections WHERE reading_id = $1', [
+          readingId,
+        ])
+      }
+    })
+  })
+
   describe('getRecentReviews', () => {
     it('returns last N reviews ordered by reviewedAt desc', async () => {
       const pool = getPool()
@@ -308,11 +451,108 @@ describe('dashboardRepository (integration)', () => {
   })
 
   describe('getKPIs', () => {
+    it('preserves missing Metric evidence instead of manufacturing zero values or trends', async () => {
+      const getPeriodStats = vi.fn().mockResolvedValue({ count: 2, avgRating: 4.5 })
+      const getSumsByPeriod = vi
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            metricKey: 'portal.scan',
+            total: 3,
+            state: 'available',
+            definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
+            sampleCount: 3,
+            minimumSample: 1,
+          },
+        ])
+        .mockResolvedValueOnce([])
+      const repo = createDashboardRepository(
+        {
+          getPeriodStats,
+          getRatingDistribution: vi.fn(),
+          getRatingTrend: vi.fn(),
+          getReviewVolume: vi.fn(),
+          getReplyPerformance: vi.fn(),
+          getRecentReviews: vi.fn(),
+        } as unknown as ReviewStatsPort,
+        {
+          getSumsByPeriod,
+          getSumsByPortal: vi.fn(),
+          getSumsByPortals: vi.fn(),
+          getCountsByPortal: vi.fn(),
+        } as unknown as MetricStatsPort,
+      )
+
+      const result = await repo.getKPIs({
+        organizationId: ORG_A,
+        propertyId: PROP_A,
+        startDate: new Date('2026-08-01T00:00:00.000Z'),
+        endDate: new Date('2026-09-01T00:00:00.000Z'),
+        comparisonPeriod: {
+          priorStartDate: new Date('2026-07-01T00:00:00.000Z'),
+          priorEndDate: new Date('2026-08-01T00:00:00.000Z'),
+        },
+      })
+
+      expect(result.scans).toEqual({
+        value: 3,
+        priorValue: null,
+        trend: null,
+        evidence: {
+          current: {
+            state: 'available',
+            definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
+            sampleCount: 3,
+            minimumSample: 1,
+          },
+          prior: {
+            state: 'updating',
+            definitionVersionId: null,
+            sampleCount: 0,
+            minimumSample: null,
+          },
+        },
+      })
+      expect(result.feedback).toEqual({
+        value: null,
+        priorValue: null,
+        trend: null,
+        evidence: {
+          current: {
+            state: 'updating',
+            definitionVersionId: null,
+            sampleCount: 0,
+            minimumSample: null,
+          },
+          prior: {
+            state: 'updating',
+            definitionVersionId: null,
+            sampleCount: 0,
+            minimumSample: null,
+          },
+        },
+      })
+    })
+
     it('skips prior reads and marks trends unavailable without a comparison period', async () => {
       const getPeriodStats = vi.fn().mockResolvedValue({ count: 2, avgRating: 4.5 })
       const getSumsByPeriod = vi.fn().mockResolvedValue([
-        { metricKey: 'portal.scan', total: 3 },
-        { metricKey: 'portal.feedback', total: 1 },
+        {
+          metricKey: 'portal.scan',
+          total: 3,
+          state: 'available',
+          definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
+          sampleCount: 3,
+          minimumSample: 1,
+        },
+        {
+          metricKey: 'portal.feedback',
+          total: 5,
+          state: 'available',
+          definitionVersionId: METRIC_VERSION_IDS.portalFeedbackAnalytics,
+          sampleCount: 5,
+          minimumSample: 5,
+        },
       ])
       const repo = createDashboardRepository(
         {
@@ -342,7 +582,10 @@ describe('dashboardRepository (integration)', () => {
       expect(getPeriodStats).toHaveBeenCalledOnce()
       expect(getSumsByPeriod).toHaveBeenCalledOnce()
       expect(result.reviews).toEqual({ value: 2, priorValue: 0, trend: null })
-      expect(result.scans).toEqual({ value: 3, priorValue: 0, trend: null })
+      expect(result.scans.value).toBe(3)
+      expect(result.scans.priorValue).toBeNull()
+      expect(result.scans.trend).toBeNull()
+      expect(result.scans.evidence.prior).toBeNull()
     })
 
     it('returns review count, avg rating, scan count, and feedback count with prior period trend', async () => {
@@ -365,6 +608,13 @@ describe('dashboardRepository (integration)', () => {
         value: 1,
         daysAgo: 4,
       })
+      for (const daysAgo of [1, 3, 5]) {
+        await seedMetricReading(pool, {
+          metricKey: 'portal.feedback',
+          value: 1,
+          daysAgo,
+        })
+      }
 
       // Prior period (7–14 days ago)
       await seedReview(pool, { rating: 4, daysAgo: 10 })
@@ -375,6 +625,13 @@ describe('dashboardRepository (integration)', () => {
         value: 1,
         daysAgo: 9,
       })
+      for (const daysAgo of [8, 10, 11, 12]) {
+        await seedMetricReading(pool, {
+          metricKey: 'portal.feedback',
+          value: 1,
+          daysAgo,
+        })
+      }
 
       const db = getDb()
       const repo = createDashboardRepository(
@@ -408,13 +665,13 @@ describe('dashboardRepository (integration)', () => {
       expect(result.scans.priorValue).toBe(2)
       expect(result.scans.trend).toBe(50)
 
-      // Feedback: 2 current, 1 prior → +100%
-      expect(result.feedback.value).toBe(2)
-      expect(result.feedback.priorValue).toBe(1)
-      expect(result.feedback.trend).toBe(100)
+      // Feedback: both periods meet the immutable five-response minimum.
+      expect(result.feedback.value).toBe(5)
+      expect(result.feedback.priorValue).toBe(5)
+      expect(result.feedback.trend).toBe(0)
     })
 
-    it('returns zero-prior KPIs with null trends when no data in prior period', async () => {
+    it('does not turn a missing prior Metric period into a zero comparison', async () => {
       const pool = getPool()
       await seedProperty(pool, PROP_A, ORG_A)
 
@@ -453,8 +710,9 @@ describe('dashboardRepository (integration)', () => {
       expect(result.avgRating.trend).toBeNull()
 
       expect(result.scans.value).toBe(1)
-      expect(result.scans.priorValue).toBe(0)
+      expect(result.scans.priorValue).toBeNull()
       expect(result.scans.trend).toBeNull()
+      expect(result.scans.evidence.prior?.state).toBe('updating')
     })
   })
 
@@ -605,6 +863,50 @@ describe('dashboardRepository (integration)', () => {
   })
 
   describe('getEngagementFunnel', () => {
+    it('withholds the funnel while any governed metric family is not available', async () => {
+      const repo = createDashboardRepository({} as ReviewStatsPort, {
+        getSumsByPeriod: vi.fn(),
+        getSumsByPortal: vi.fn(),
+        getSumsByPortals: vi.fn(),
+        getCountsByPortal: vi.fn().mockResolvedValue([
+          {
+            metricKey: 'portal.scan',
+            count: 3,
+            state: 'available',
+            definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
+            sampleCount: 3,
+            minimumSample: 1,
+          },
+          {
+            metricKey: 'portal.rating',
+            count: null,
+            state: 'updating',
+            definitionVersionId: METRIC_VERSION_IDS.portalRatingAnalytics,
+            sampleCount: 0,
+            minimumSample: 5,
+          },
+          {
+            metricKey: 'portal.review_link_click',
+            count: 1,
+            state: 'available',
+            definitionVersionId: METRIC_VERSION_IDS.portalDestinationClickAnalytics,
+            sampleCount: 1,
+            minimumSample: 1,
+          },
+        ]),
+      })
+
+      const result = await repo.getEngagementFunnel({
+        organizationId: ORG_A,
+        propertyId: PROP_A,
+        portalId: PORTAL_A,
+        startDate: new Date('2026-08-01T00:00:00.000Z'),
+        endDate: new Date('2026-09-01T00:00:00.000Z'),
+      })
+
+      expect(result).toBeNull()
+    })
+
     it('returns scans, ratings, and review link clicks for a portal', async () => {
       const pool = getPool()
       await seedProperty(pool, PROP_A, ORG_A)
@@ -650,6 +952,24 @@ describe('dashboardRepository (integration)', () => {
       })
       await seedMetricReading(pool, {
         portalId: PORTAL_A,
+        metricKey: 'portal.rating',
+        value: 1,
+        daysAgo: 3,
+      })
+      await seedMetricReading(pool, {
+        portalId: PORTAL_A,
+        metricKey: 'portal.rating',
+        value: 1,
+        daysAgo: 4,
+      })
+      await seedMetricReading(pool, {
+        portalId: PORTAL_A,
+        metricKey: 'portal.rating',
+        value: 1,
+        daysAgo: 5,
+      })
+      await seedMetricReading(pool, {
+        portalId: PORTAL_A,
         metricKey: 'portal.review_link_click',
         value: 1,
         daysAgo: 1,
@@ -668,9 +988,10 @@ describe('dashboardRepository (integration)', () => {
         endDate: new Date(),
       })
 
-      expect(result.scans).toBe(3)
-      expect(result.ratings).toBe(2) // portal.rating
-      expect(result.reviewLinkClicks).toBe(1)
+      expect(result).not.toBeNull()
+      expect(result?.scans).toBe(3)
+      expect(result?.ratings).toBe(5) // portal.rating
+      expect(result?.reviewLinkClicks).toBe(1)
     })
   })
 

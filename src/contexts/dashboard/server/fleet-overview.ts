@@ -47,10 +47,10 @@ export const getFleetOverviewFn = createServerFn({ method: 'GET' })
           const org = await auth.api.getFullOrganization({ headers })
           const slaHours = extractResponseSlaHours(org)
 
-          const { useCases } = getContainer()
+          const { dashboardPublicApi } = getContainer()
 
           const capabilityScope = { organizationId: ctx.organizationId }
-          return await useCases.getFleetOverview({
+          return await dashboardPublicApi.getFleetOverview({
             organizationId: ctx.organizationId,
             scope: {
               userId: ctx.userId,
