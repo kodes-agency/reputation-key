@@ -2,6 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
+import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { createNotificationRepository } from './notification.repository'
 
 const ORG_A = 'org-notification-list-a'
@@ -9,6 +10,8 @@ const ORG_B = 'org-notification-list-b'
 const PROPERTY_A = '81000000-0000-4000-8000-000000000001'
 const PROPERTY_B = '81000000-0000-4000-8000-000000000002'
 const USER = 'user-notification-list'
+const CONCURRENT_USER = 'user-notification-feed-head-concurrent'
+const CONCURRENT_NOTIFICATION = '82000000-0000-4000-8000-000000000099'
 
 let pool: Pool
 
@@ -20,6 +23,7 @@ async function insertNotification(input: {
   category?: string
   priority?: string
   status?: string
+  userId?: string
   createdAt: string
 }) {
   await pool.query(
@@ -29,7 +33,7 @@ async function insertNotification(input: {
      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'inbox_item', $9, $10, 'Test', $11, $11)`,
     [
       input.id,
-      USER,
+      input.userId ?? USER,
       input.organizationId ?? ORG_A,
       input.propertyId ?? PROPERTY_A,
       input.type ?? 'review.created',
@@ -56,7 +60,7 @@ afterAll(async () => {
     PROPERTY_A,
     PROPERTY_B,
   ])
-  await pool.query('DELETE FROM organization WHERE id IN ($1, $2)', [ORG_A, ORG_B])
+  await deleteTestOrganizations(pool, [ORG_A, ORG_B])
   await pool.end()
 })
 
@@ -69,7 +73,7 @@ beforeEach(async () => {
     PROPERTY_A,
     PROPERTY_B,
   ])
-  await pool.query('DELETE FROM organization WHERE id IN ($1, $2)', [ORG_A, ORG_B])
+  await deleteTestOrganizations(pool, [ORG_A, ORG_B])
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt") VALUES
        ($1, 'Notification A', 'notification-list-a', NOW()),
@@ -147,5 +151,56 @@ describe.sequential('notification list filters (real PostgreSQL)', () => {
     expect(workflow.map((row) => row.id)).toEqual([
       '82000000-0000-4000-8000-000000000004',
     ])
+  })
+
+  it('returns the first page and exact unread count with one snapshot watermark', async () => {
+    const head = await createNotificationRepository(getDb()).readFeedHead(
+      USER,
+      ORG_A,
+      2,
+      'all',
+    )
+
+    expect(head.page.notifications.map((row) => row.id)).toEqual([
+      '82000000-0000-4000-8000-000000000001',
+      '82000000-0000-4000-8000-000000000002',
+    ])
+    expect(head.page.hasMore).toBe(true)
+    expect(head.unreadCount).toBe(1)
+    expect(new Date(head.watermark).toISOString()).toBe(head.watermark)
+  })
+
+  it('keeps the newest unread page and count on one snapshot during concurrent writes', async () => {
+    await insertNotification({
+      id: CONCURRENT_NOTIFICATION,
+      userId: CONCURRENT_USER,
+      status: 'unread',
+      createdAt: '2026-08-25T10:07:00Z',
+    })
+    const repo = createNotificationRepository(getDb())
+    const observed = new Set<string>()
+
+    // Race a committed state change against each public feed-head read. A
+    // coherent snapshot may see either side of the write, but it may never
+    // combine the page from one side with the count from the other.
+    for (let attempt = 0; attempt < 80; attempt += 1) {
+      const nextStatus = attempt % 2 === 0 ? 'read' : 'unread'
+      const [head] = await Promise.all([
+        repo.readFeedHead(CONCURRENT_USER, ORG_A, 1, 'unread'),
+        pool.query(
+          `UPDATE notifications
+             SET status = $1, updated_at = NOW()
+           WHERE id = $2 AND organization_id = $3 AND user_id = $4`,
+          [nextStatus, CONCURRENT_NOTIFICATION, ORG_A, CONCURRENT_USER],
+        ),
+      ])
+      const ids = head.page.notifications.map((row) => row.id)
+      const signature = `${ids.join(',')}:${head.unreadCount}`
+      expect([':0', `${CONCURRENT_NOTIFICATION}:1`]).toContain(signature)
+      expect(new Date(head.watermark).toISOString()).toBe(head.watermark)
+      observed.add(signature)
+    }
+
+    expect(observed).toEqual(new Set([':0', `${CONCURRENT_NOTIFICATION}:1`]))
   })
 })

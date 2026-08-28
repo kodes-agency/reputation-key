@@ -36,7 +36,7 @@
 // logged is a count or an enum (ADR 0030 / BQC-7.3).
 
 import type { Job } from 'bullmq'
-import type { Logger } from 'pino'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export const JOB_NAME = 'reconcile-missing-notifications' as const
 
@@ -49,7 +49,6 @@ import {
   fanoutInboxItemNotifications,
   type InboxFanoutDeps,
 } from '../inbox-notification-fanout'
-import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
 const DEFAULT_BATCH_SIZE = 100
@@ -105,7 +104,7 @@ async function healCandidate(
   deps: ReconcileMissingNotificationsDeps,
   candidate: MissingNotificationCandidate,
   state: SweepState,
-  logger: Logger,
+  logger: LoggerPort,
 ): Promise<void> {
   try {
     const outcome = await fanoutInboxItemNotifications(deps, {
@@ -141,7 +140,7 @@ async function processBatch(
     createdAtOrAfter: Date
     createdBefore: Date
     batchSize: number
-    logger: Logger
+    logger: LoggerPort
   }>,
 ): Promise<boolean> {
   const batch = await deps.gapRepo.findItemsMissingNotifications({
@@ -174,7 +173,7 @@ export const createReconcileMissingNotificationsHandler = (
 
   return async (_job: Job) => {
     return trace('job.reconcileMissingNotifications', async () => {
-      const logger = getLogger()
+      const logger = deps.logger
       const now = deps.clock()
       const createdBefore = new Date(now.getTime() - graceMs)
       const createdAtOrAfter = new Date(now.getTime() - lookbackMs)

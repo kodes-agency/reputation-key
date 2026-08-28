@@ -11,6 +11,7 @@ export type NotificationErrorCode =
   | 'invalid_status'
   | 'insert_failed'
   | 'email_send_failed'
+  | 'query_failed'
   | 'not_found'
 
 export type NotificationError = Readonly<{

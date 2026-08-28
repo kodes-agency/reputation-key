@@ -68,7 +68,7 @@ describe('grouping one user digest by property (ADR 0046 r.4)', () => {
   const items: readonly DigestItem[] = [
     buildDigestItem({
       propertyId: 'prop-a',
-      payload: { propertyName: 'Riverside Hotel', rating: 2 },
+      payload: { propertyName: 'Riverside Hotel', platform: 'google' },
       type: 'review.created',
       resourceId: 'inbox-1',
     }),

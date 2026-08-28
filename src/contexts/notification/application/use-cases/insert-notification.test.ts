@@ -16,7 +16,7 @@ const input = {
   resourceType: 'inbox_item' as const,
   resourceId: 'item-1',
   eventId: 'event-1',
-  payload: { propertyName: 'Riverside Hotel', rating: 2 },
+  payload: { propertyName: 'Riverside Hotel', platform: 'google' as const },
 }
 
 function preference(
@@ -60,17 +60,50 @@ describe('insertNotification', () => {
     expect(deps.emailRepo.insert).not.toHaveBeenCalled()
   })
 
+  it('always persists Organization mandatory in-app and immediate email delivery', async () => {
+    const mandatoryInput = {
+      userId: USER_ID,
+      organizationId: ORG_ID,
+      propertyId: null,
+      type: 'account.organization_role_changed' as const,
+      resourceType: 'organization' as const,
+      resourceId: ORG_ID,
+      eventId: 'identity-role-event-1',
+    }
+
+    const result = await insertNotification(deps)(mandatoryInput)
+
+    expect(deps.preferenceRepo.findForDelivery).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      propertyId: null,
+      category: 'mandatory',
+      type: 'account.organization_role_changed',
+    })
+    expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        propertyId: null,
+        category: 'mandatory',
+        cadence: 'immediate',
+        status: 'pending',
+      }),
+    )
+    expect(deps.enqueueImmediateEmail).toHaveBeenCalledWith({
+      notificationEmailId: 'email-1',
+      organizationId: 'org-1',
+    })
+  })
+
   it('renders copy from the payload instead of storing caller-supplied text', async () => {
     const result = await insertNotification(deps)(input)
 
     // The handler passed facts only; the stored snapshot is the rendered copy.
     expect(result).toMatchObject({
-      title: 'New 2-star review at Riverside Hotel',
-      payload: { propertyName: 'Riverside Hotel', rating: 2 },
+      title: 'New review at Riverside Hotel',
+      payload: { propertyName: 'Riverside Hotel', platform: 'google' },
       coalescedCount: 1,
       coalescedLatestAt: null,
     })
-    expect(result?.body).toContain('A low rating needs a reply soon')
+    expect(result?.body).toContain('Open it to read the review and reply')
   })
 
   it('drops payload keys that are not on the ADR 0046 r.8 allowlist', async () => {
@@ -171,7 +204,11 @@ describe('insertNotification', () => {
     const result = await insertNotification(deps)({
       ...input,
       eventId: 'event-2',
-      payload: { propertyName: 'Riverside Hotel', rating: 2, waitingHours: 5 },
+      payload: {
+        propertyName: 'Riverside Hotel',
+        platform: 'google',
+        waitingHours: 5,
+      },
     })
 
     expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
@@ -182,7 +219,7 @@ describe('insertNotification', () => {
       coalescedLatestAt: NOW,
       payload: {
         propertyName: 'Riverside Hotel',
-        rating: 2,
+        platform: 'google',
         waitingHours: 5,
         occurrences: 2,
       },
@@ -213,7 +250,10 @@ describe('insertNotification', () => {
     ).mockResolvedValue(existing)
 
     // The second event's lookup failed, so it carries no property name.
-    const result = await insertNotification(deps)({ ...input, payload: { rating: 2 } })
+    const result = await insertNotification(deps)({
+      ...input,
+      payload: { platform: 'google' },
+    })
 
     expect(result?.payload.propertyName).toBe('Riverside Hotel')
   })
@@ -264,6 +304,28 @@ describe('insertNotification', () => {
       category: 'recognition',
       title: 'Goal completed: Weekend response time',
     })
+  })
+
+  it('defaults Action Required email to immediate while respecting quiet hours', async () => {
+    const result = await insertNotification(deps)({
+      userId: USER_ID,
+      organizationId: ORG_ID,
+      propertyId: PROPERTY_ID,
+      type: 'portal.health_attention',
+      resourceType: 'portal',
+      resourceId: 'portal-1',
+      eventId: 'event-portal-health-1',
+      payload: {},
+    })
+
+    expect(result).toMatchObject({
+      category: 'urgent_operational',
+      priority: 'normal',
+    })
+    expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+      expect.objectContaining({ cadence: 'immediate' }),
+    )
+    expect(deps.enqueueImmediateEmail).toHaveBeenCalledOnce()
   })
 
   it('keeps the durable email row pending when immediate queue dispatch is unavailable', async () => {

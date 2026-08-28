@@ -1,6 +1,6 @@
 // Notification context — email queue entry constructor
 
-import { ok, type Result } from '#/shared/domain'
+import { err, ok, type Result } from '#/shared/domain'
 import type {
   NotificationCadence,
   NotificationCategory,
@@ -14,14 +14,14 @@ import type {
   OrganizationId,
   PropertyId,
 } from '#/shared/domain/ids'
-import type { NotificationError } from './errors'
+import { notificationError, type NotificationError } from './errors'
 
 export type CreateNotificationEmailInput = Readonly<{
   id: NotificationEmailId
   notificationId: NotificationId
   userId: UserId
   organizationId: OrganizationId
-  propertyId: PropertyId
+  propertyId: PropertyId | null
   category: NotificationCategory
   cadence: NotificationCadence
   priority: NotificationPriority
@@ -33,6 +33,19 @@ export const createNotificationEmail = (
   input: CreateNotificationEmailInput,
   clock: () => Date,
 ): Result<NotificationEmail, NotificationError> => {
+  if (input.category === 'mandatory' && input.propertyId !== null) {
+    return err(
+      notificationError('invalid_input', 'Mandatory email must use Organization scope'),
+    )
+  }
+  if (input.category !== 'mandatory' && !input.propertyId) {
+    return err(
+      notificationError('invalid_input', 'Property-scoped email requires propertyId'),
+    )
+  }
+  if (input.category === 'mandatory' && input.cadence !== 'immediate') {
+    return err(notificationError('invalid_input', 'Mandatory email must be immediate'))
+  }
   const now = clock()
   return ok({
     ...input,

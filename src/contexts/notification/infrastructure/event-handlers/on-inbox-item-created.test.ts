@@ -33,7 +33,7 @@ describe('onInboxItemCreated (notification)', () => {
       portalId: 'portal-1',
       assignedTo: null,
       propertyName: 'Riverside Hotel',
-      rating: 4,
+      guestRating: 4,
       sourceType: 'feedback',
       createdAt: new Date('2026-06-01T11:30:00.000Z'),
     })
@@ -43,7 +43,7 @@ describe('onInboxItemCreated (notification)', () => {
     expectJobsEnqueued(deps, 2)
     const expectedPayload = {
       propertyName: 'Riverside Hotel',
-      rating: 4,
+      guestRating: 4,
       platform: 'portal',
       // 30 minutes old — under an hour, so the copy shows no age at all.
       waitingHours: 0,
@@ -118,8 +118,8 @@ describe('onInboxItemCreated (notification)', () => {
         type: 'review.created',
         resourceType: 'inbox_item',
         resourceId: NOTIF_TEST_IDS.inboxItemId,
-        // The rating IS carried — a 1-5 star number is a numeric fact, not
-        // source content (ADR 0046 r.8). The review TEXT never is.
+        // Google/provider rating and text both remain in Review; Notification
+        // stores only content-free routing and display facts.
         payload: EXPECTED_INBOX_PAYLOAD,
         audience: {
           kind: 'responsible_scope',

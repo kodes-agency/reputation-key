@@ -22,7 +22,10 @@ import type {
 } from '#/shared/domain/ids'
 import { notificationError, type NotificationError } from './errors'
 import { isUrgent, NOTIFICATION_TYPES } from './types'
-import { classifyNotification } from './notification-delivery-policy'
+import {
+  classifyNotification,
+  notificationScopeForType,
+} from './notification-delivery-policy'
 import {
   parseNotificationPayload,
   type NotificationPayload,
@@ -39,6 +42,9 @@ const ALLOWED_RESOURCE_TYPES: ReadonlySet<NotificationResourceType> = new Set([
   'goal',
   'badge',
   'portal',
+  'property',
+  'integration',
+  'organization',
 ])
 
 // ── Create notification ─────────────────────────────────────────────
@@ -47,7 +53,7 @@ export type CreateNotificationInput = Readonly<{
   id: NotificationId
   userId: UserId
   organizationId: OrganizationId
-  propertyId: PropertyId
+  propertyId: PropertyId | null
   type: NotificationType
   resourceType: NotificationResourceType
   resourceId: string
@@ -68,10 +74,6 @@ export const createNotification = (
   if (!input.userId) {
     return err(notificationError('invalid_input', 'userId is required'))
   }
-  if (!input.propertyId) {
-    return err(notificationError('invalid_input', 'propertyId is required'))
-  }
-
   if (!ALLOWED_TYPES.has(input.type)) {
     return err(
       notificationError('invalid_type', `Invalid notification type: ${input.type}`, {
@@ -86,6 +88,35 @@ export const createNotification = (
         'invalid_resource_type',
         `Invalid resource type: ${input.resourceType}`,
         { resourceType: input.resourceType },
+      ),
+    )
+  }
+
+  const scope = notificationScopeForType(input.type)
+  if (scope === 'organization' && input.propertyId !== null) {
+    return err(
+      notificationError(
+        'invalid_input',
+        'Mandatory notifications must use Organization scope',
+      ),
+    )
+  }
+  if (scope === 'organization' && input.resourceType !== 'organization') {
+    return err(
+      notificationError(
+        'invalid_input',
+        'Mandatory notifications must use an Organization resource',
+      ),
+    )
+  }
+  if (scope === 'property' && !input.propertyId) {
+    return err(notificationError('invalid_input', 'propertyId is required'))
+  }
+  if (scope === 'property' && input.resourceType === 'organization') {
+    return err(
+      notificationError(
+        'invalid_input',
+        'Property notifications cannot use an Organization resource',
       ),
     )
   }

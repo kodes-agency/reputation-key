@@ -17,10 +17,9 @@
 // The client is injectable so the adapter is unit-testable without network or a
 // live key. Production callers use the zero-arg form.
 import { Resend } from 'resend'
-import { getEnv } from '#/shared/config/env'
-import { getLogger } from '#/shared/observability/logger'
 import { maskEmail } from '#/shared/observability/pii'
 import { warnOnceOnSenderMisalignment } from '#/shared/email'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type {
   EmailSenderPort,
   EmailSendRequest,
@@ -53,39 +52,53 @@ export type ResendEmailClient = Readonly<{
   }>
 }>
 
-const buildClient = (): ResendEmailClient => {
-  const env = getEnv()
+export type ResendEmailAdapterConfig = Readonly<{
+  apiKey: string
+  baseUrl?: string
+  from: string
+  appBaseUrl: string
+}>
+
+export type ResendEmailAdapterDependencies = Readonly<{
+  config: ResendEmailAdapterConfig
+  logger: LoggerPort
+  clock: () => Date
+  clientFactory?: () => ResendEmailClient
+}>
+
+const buildClient = (config: ResendEmailAdapterConfig): ResendEmailClient => {
   // RESEND_BASE_URL absent → SDK default (https://api.resend.com).
-  const client = env.RESEND_BASE_URL
-    ? new Resend(env.RESEND_API_KEY, { baseUrl: env.RESEND_BASE_URL })
-    : new Resend(env.RESEND_API_KEY)
+  const client = config.baseUrl
+    ? new Resend(config.apiKey, { baseUrl: config.baseUrl })
+    : new Resend(config.apiKey)
   return client as unknown as ResendEmailClient
 }
 
 export const createResendEmailAdapter = (
-  clientFactory: () => ResendEmailClient = buildClient,
+  dependencies: ResendEmailAdapterDependencies,
 ): EmailSenderPort => {
   let client: ResendEmailClient | undefined
-  const getClient = (): ResendEmailClient => (client ??= clientFactory())
+  const getClient = (): ResendEmailClient =>
+    (client ??= (
+      dependencies.clientFactory ?? (() => buildClient(dependencies.config))
+    )())
 
   return {
     async send(params: EmailSendRequest) {
-      const logger = getLogger()
-      const acceptedAt = new Date()
-      const env = getEnv()
+      const acceptedAt = dependencies.clock()
 
       // Notification mail is the high-volume path, and the worker has no boot
       // hook shared with the web process, so the sender-alignment check is
       // latched here too. It warns at most once per process, not per message.
       warnOnceOnSenderMisalignment(
-        env.EMAIL_FROM,
-        env.BETTER_AUTH_URL,
-        (fields, message) => logger.warn(fields, message),
+        dependencies.config.from,
+        dependencies.config.appBaseUrl,
+        (fields, message) => dependencies.logger.warn(fields, message),
       )
 
       const { data, error } = await getClient().emails.send(
         {
-          from: env.EMAIL_FROM,
+          from: dependencies.config.from,
           to: params.to,
           subject: params.subject,
           html: params.html,
@@ -103,14 +116,14 @@ export const createResendEmailAdapter = (
           providerCode,
           message: error?.message ?? '',
         })
-        logger.error(
+        dependencies.logger.error(
           { toPrefix: maskEmail(params.to), providerCode, statusCode, classification },
           'Email provider rejected message',
         )
         return { kind: 'rejected' as const, classification, providerCode }
       }
 
-      logger.info(
+      dependencies.logger.info(
         { toPrefix: maskEmail(params.to), providerMessageId: data.id },
         'Email provider accepted message',
       )

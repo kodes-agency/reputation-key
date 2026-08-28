@@ -29,7 +29,11 @@ export function buildFakeInsertNotificationDeps(): FakeInsertNotificationDeps {
       findById: vi.fn(async () => null),
       findByIdForProperty: vi.fn(async () => null),
       findUnreadByUser: vi.fn(async () => []),
-      countUnreadByUser: vi.fn(async () => 0),
+      readFeedHead: vi.fn(async () => ({
+        page: { notifications: [], hasMore: false },
+        unreadCount: 0,
+        watermark: '2026-06-10T10:00:00.000Z',
+      })),
       findByUser: vi.fn(async () => []),
       markRead: vi.fn(async () => {}),
       markAllRead: vi.fn(async () => {}),

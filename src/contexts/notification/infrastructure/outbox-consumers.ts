@@ -34,7 +34,6 @@
 import { registerConsumer, type ConsumerEvent } from '#/shared/outbox'
 import type { OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
-import { getLogger } from '#/shared/observability/logger'
 import {
   inboxItemId as brandInboxItemId,
   organizationId as brandOrganizationId,
@@ -85,7 +84,7 @@ export async function handleNotificationInboxItemCreated(
   deps: NotificationConsumerDeps,
   event: ConsumerEvent,
 ): Promise<Readonly<{ status: 'applied' | 'obsolete' }>> {
-  const logger = getLogger()
+  const logger = deps.logger
   const correlationId = event.correlationId ?? undefined
   const payload = parseInboxItemCreated(event)
 
@@ -158,7 +157,7 @@ export function registerNotificationConsumers(deps: NotificationConsumerDeps): v
     module: 'notification.outbox-consumers',
     handler: (event) => handleNotificationInboxItemCreated(deps, event),
   })
-  getLogger().info(
+  deps.logger.info(
     'Notification consumers registered with outbox dispatcher (1 consumer)',
   )
 }

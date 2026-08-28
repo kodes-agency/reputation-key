@@ -11,9 +11,9 @@ export type NotificationPropertyScopeResolver = (
   propertyId: string,
 ) => Promise<NotificationPropertyScope | null>
 
-export function createNotificationPropertyScopeResolver(
+export const createNotificationPropertyScopeResolver = (
   pool: Pool,
-): NotificationPropertyScopeResolver {
+): NotificationPropertyScopeResolver => {
   return async (organizationId, propertyId) => {
     const result = await pool.query<Readonly<{ timezone: string }>>(
       `SELECT timezone

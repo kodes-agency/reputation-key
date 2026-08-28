@@ -78,12 +78,16 @@ describe('notification durable outbox consumer', () => {
   })
 
   it('registers the durable consumer identity declared in governance', () => {
-    registerNotificationConsumers(makeDeps())
+    const deps = makeDeps()
+    registerNotificationConsumers(deps)
 
     expect(listRegisteredConsumers()).toContainEqual({
       eventType: 'inbox.inbox_item.created',
       consumerName: 'notification.on-inbox-item-created',
     })
+    expect(deps.fakes.logger.info).toHaveBeenCalledWith(
+      'Notification consumers registered with outbox dispatcher (1 consumer)',
+    )
   })
 
   it('enqueues one insert-notification job per recipient and records an applied receipt', async () => {
@@ -124,7 +128,7 @@ describe('notification durable outbox consumer', () => {
       portalId: 'portal-from-item',
       assignedTo: null,
       propertyName: 'Riverside Hotel',
-      rating: 5,
+      guestRating: 5,
       sourceType: 'feedback',
       createdAt: new Date('2026-06-01T09:00:00.000Z'),
     })
@@ -173,7 +177,7 @@ describe('notification durable outbox consumer', () => {
       portalId: null,
       assignedTo: null,
       propertyName: null,
-      rating: null,
+      guestRating: null,
       sourceType: 'goal',
       createdAt: new Date('2026-06-01T09:00:00.000Z'),
     })

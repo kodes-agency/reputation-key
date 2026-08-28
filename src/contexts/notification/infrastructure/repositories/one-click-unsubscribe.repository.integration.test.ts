@@ -34,6 +34,10 @@ describe.sequential('one-click unsubscribe repository (real PostgreSQL)', () => 
     await db
       .delete(notificationDigestBatches)
       .where(eq(notificationDigestBatches.id, BATCH))
+    await db
+      .delete(notificationEmailQueue)
+      .where(eq(notificationEmailQueue.organizationId, ORG))
+    await db.delete(notifications).where(eq(notifications.organizationId, ORG))
     await db.delete(properties).where(eq(properties.organizationId, ORG))
     await db.insert(properties).values([
       {
@@ -67,7 +71,7 @@ describe.sequential('one-click unsubscribe repository (real PostgreSQL)', () => 
       {
         emailId: EMAIL_MANDATORY,
         notificationId: '85000000-0000-4000-8000-000000000103',
-        propertyId: PROPERTY_A,
+        propertyId: null,
         category: 'mandatory',
       },
     ] as const
@@ -81,7 +85,8 @@ describe.sequential('one-click unsubscribe repository (real PostgreSQL)', () => 
         category: seed.category,
         priority: 'normal',
         status: 'unread',
-        resourceType: 'inbox_item',
+        resourceType:
+          seed.category === 'mandatory' ? ('organization' as const) : 'inbox_item',
         resourceId: `one-click-${seed.emailId}`,
         eventId: `one-click-event-${seed.emailId}`,
         title: 'Notification',
@@ -98,7 +103,7 @@ describe.sequential('one-click unsubscribe repository (real PostgreSQL)', () => 
         organizationId: ORG,
         propertyId: seed.propertyId,
         category: seed.category,
-        cadence: 'daily',
+        cadence: seed.category === 'mandatory' ? 'immediate' : 'daily',
         status: 'accepted',
         priority: 'normal',
         idempotencyKey: `one-click-${seed.emailId}`,
@@ -167,6 +172,10 @@ describe.sequential('one-click unsubscribe repository (real PostgreSQL)', () => 
     await db
       ?.delete(notificationDigestBatches)
       .where(eq(notificationDigestBatches.id, BATCH))
+    await db
+      ?.delete(notificationEmailQueue)
+      .where(eq(notificationEmailQueue.organizationId, ORG))
+    await db?.delete(notifications).where(eq(notifications.organizationId, ORG))
     await db?.delete(properties).where(eq(properties.organizationId, ORG))
     await lease?.release()
   })

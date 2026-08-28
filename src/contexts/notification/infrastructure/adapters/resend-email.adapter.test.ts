@@ -6,14 +6,15 @@
 //   - RESEND_BASE_URL was ignored for notification mail even though identity
 //     mail honours it, so the documented sandbox seam did not exist here.
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
 import {
   createResendEmailAdapter,
   type ResendEmailClient,
   type ResendSendPayload,
   type ResendSendResult,
 } from './resend-email.adapter'
-import { resetEnv } from '#/shared/config/env'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 
 // Mocked so the default factory can be exercised without a network or a key —
 // the constructor arguments ARE the sandbox-seam contract under test.
@@ -27,11 +28,12 @@ vi.mock('resend', () => ({
   },
 }))
 
-const ORIGINAL = {
-  RESEND_API_KEY: process.env.RESEND_API_KEY,
-  RESEND_BASE_URL: process.env.RESEND_BASE_URL,
-  EMAIL_FROM: process.env.EMAIL_FROM,
-}
+const CONFIG = Object.freeze({
+  apiKey: 're_live_0123456789abcdef',
+  from: 'Reputation Key <notifications@test.example>',
+  appBaseUrl: 'https://app.test',
+})
+const CLOCK = () => new Date('2026-08-28T12:00:00.000Z')
 
 const request = {
   to: 'manager@example.com',
@@ -56,26 +58,27 @@ function fakeClient(answer: ResendSendResult = { data: { id: 'prov-1' }, error: 
 }
 
 describe('resend email adapter', () => {
-  beforeEach(() => {
-    process.env.RESEND_API_KEY = 're_live_0123456789abcdef'
-    process.env.EMAIL_FROM = 'Reputation Key <notifications@test.example>'
-    delete process.env.RESEND_BASE_URL
-    resetEnv()
-    resendCtor.mockClear()
-  })
+  const adapter = (clientFactory?: () => ResendEmailClient) =>
+    createResendEmailAdapter({
+      config: CONFIG,
+      logger: createMockLogger(),
+      clock: CLOCK,
+      ...(clientFactory ? { clientFactory } : {}),
+    })
 
-  afterEach(() => {
-    for (const [key, value] of Object.entries(ORIGINAL)) {
-      if (value === undefined) delete process.env[key]
-      else process.env[key] = value
-    }
-    resetEnv()
+  it('uses injected configuration, logging, and time without ambient runtime reads', () => {
+    const source = readFileSync(
+      new URL('./resend-email.adapter.ts', import.meta.url),
+      'utf8',
+    )
+    expect(source).not.toMatch(/\bget(?:Env|Logger)\s*\(/u)
+    expect(source).not.toMatch(/\bnew Date\s*\(/u)
   })
 
   it('forwards the plain-text twin and the unsubscribe headers to the provider', async () => {
     const { client, send } = fakeClient()
 
-    await createResendEmailAdapter(() => client).send(request)
+    await adapter(() => client).send(request)
 
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -90,7 +93,7 @@ describe('resend email adapter', () => {
   it('takes the sender from EMAIL_FROM rather than a hardcoded address', async () => {
     const { client, send } = fakeClient()
 
-    await createResendEmailAdapter(() => client).send(request)
+    await adapter(() => client).send(request)
 
     expect(send.mock.calls[0]![0].from).toBe(
       'Reputation Key <notifications@test.example>',
@@ -101,7 +104,7 @@ describe('resend email adapter', () => {
     const { client, send } = fakeClient()
     const { headers: _omitted, ...withoutHeaders } = request
 
-    await createResendEmailAdapter(() => client).send(withoutHeaders)
+    await adapter(() => client).send(withoutHeaders)
 
     expect(send.mock.calls[0]![0]).not.toHaveProperty('headers')
   })
@@ -109,7 +112,7 @@ describe('resend email adapter', () => {
   it('returns an accepted outcome carrying the provider message id', async () => {
     const { client } = fakeClient()
 
-    const outcome = await createResendEmailAdapter(() => client).send(request)
+    const outcome = await adapter(() => client).send(request)
 
     expect(outcome).toMatchObject({ kind: 'accepted', providerMessageId: 'prov-1' })
   })
@@ -120,7 +123,7 @@ describe('resend email adapter', () => {
       error: { name: 'rate_limit_exceeded', statusCode: 429, message: 'slow down' },
     })
 
-    const outcome = await createResendEmailAdapter(() => client).send(request)
+    const outcome = await adapter(() => client).send(request)
 
     expect(outcome).toMatchObject({ kind: 'rejected', classification: 'transient' })
   })
@@ -128,7 +131,7 @@ describe('resend email adapter', () => {
   it('treats a 200 with no id as a rejection rather than a silent success', async () => {
     const { client } = fakeClient({ data: null, error: null })
 
-    const outcome = await createResendEmailAdapter(() => client).send(request)
+    const outcome = await adapter(() => client).send(request)
 
     expect(outcome.kind).toBe('rejected')
   })
@@ -136,19 +139,22 @@ describe('resend email adapter', () => {
   it('builds the client once and reuses it across sends', async () => {
     const { client } = fakeClient()
     const factory = vi.fn(() => client)
-    const adapter = createResendEmailAdapter(factory)
+    const emailAdapter = adapter(factory)
 
-    await adapter.send(request)
-    await adapter.send(request)
+    await emailAdapter.send(request)
+    await emailAdapter.send(request)
 
     expect(factory).toHaveBeenCalledTimes(1)
   })
 
   it('points the real client at RESEND_BASE_URL — the seam identity mail already honours', async () => {
-    process.env.RESEND_BASE_URL = 'http://localhost:4101'
-    resetEnv()
+    resendCtor.mockClear()
 
-    await createResendEmailAdapter().send(request)
+    await createResendEmailAdapter({
+      config: { ...CONFIG, baseUrl: 'http://localhost:4101' },
+      logger: createMockLogger(),
+      clock: CLOCK,
+    }).send(request)
 
     expect(resendCtor).toHaveBeenCalledWith('re_live_0123456789abcdef', {
       baseUrl: 'http://localhost:4101',
@@ -156,7 +162,8 @@ describe('resend email adapter', () => {
   })
 
   it('falls back to the SDK default when RESEND_BASE_URL is absent', async () => {
-    await createResendEmailAdapter().send(request)
+    resendCtor.mockClear()
+    await adapter().send(request)
 
     expect(resendCtor).toHaveBeenCalledWith('re_live_0123456789abcdef')
   })

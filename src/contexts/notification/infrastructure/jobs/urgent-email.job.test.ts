@@ -67,6 +67,7 @@ function fakeDeps() {
       getUserSettings: vi.fn(async () => null),
     },
     notifRepo: {
+      findById: vi.fn(async (): Promise<Notification | null> => notification),
       findByIdForProperty: vi.fn(async (): Promise<Notification | null> => notification),
     },
     userLookup: {
@@ -233,20 +234,52 @@ describe('immediate notification email job', () => {
     expect(deps.emailSender.send).not.toHaveBeenCalled()
   })
 
-  it('omits List-Unsubscribe for mandatory mail, which has no off switch', async () => {
-    deps.emailRepo.findById.mockResolvedValue(
-      buildNotificationEmail({
-        id: 'email-1',
-        propertyId: PROPERTY as string,
-        category: 'mandatory',
-        cadence: 'immediate',
-        priority: 'urgent',
-      }),
+  it('sends mandatory Organization mail without Property authority, preferences, or unsubscribe', async () => {
+    const mandatoryEntry = buildNotificationEmail({
+      id: 'email-1',
+      propertyId: null,
+      category: 'mandatory',
+      cadence: 'immediate',
+      priority: 'normal',
+    })
+    const mandatoryNotification = buildNotification({
+      propertyId: null,
+      type: 'account.organization_access_removed',
+      category: 'mandatory',
+      priority: 'normal',
+      resourceType: 'organization',
+      resourceId: ORG,
+    })
+    deps.emailRepo.findById.mockResolvedValue(mandatoryEntry)
+    deps.notifRepo.findById.mockResolvedValue(mandatoryNotification)
+    const organizationJob = {
+      data: {
+        notificationEmailId: mandatoryEntry.id as string,
+        organizationId: ORG as string,
+        capability: 'notification.send_email',
+        policyVersionAtEnqueue: 'test',
+        initiator: { kind: 'system', id: 'test' },
+      } as unknown as UrgentEmailJobData,
+    }
+
+    await createUrgentEmailJobHandler(
+      deps as unknown as Parameters<typeof createUrgentEmailJobHandler>[0],
+    )(organizationJob)
+
+    expect(deps.resolvePropertyScope).not.toHaveBeenCalled()
+    expect(deps.authorizeScope).not.toHaveBeenCalled()
+    expect(deps.preferenceRepo.findForDelivery).not.toHaveBeenCalled()
+    expect(deps.preferenceRepo.getUserSettings).not.toHaveBeenCalled()
+    expect(deps.emailRepo.markAccepted).toHaveBeenCalledWith(
+      mandatoryEntry.id,
+      ORG,
+      null,
+      'provider-1',
+      NOW,
     )
-
-    await run()
-
     expect(sentPayload().headers).toEqual({})
+    expect(sentPayload().html).not.toContain('/settings/notifications')
+    expect(sentPayload().text).not.toContain('/settings/notifications')
   })
 
   // ── ADR 0046 r.3: recipient timezone ──────────────────────────────

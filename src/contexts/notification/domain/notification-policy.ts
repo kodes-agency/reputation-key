@@ -50,7 +50,9 @@ export function getDefaultEnabled(
 }
 
 export function getDefaultCadence(category: NotificationCategory): NotificationCadence {
-  return category === 'urgent_operational' ? 'immediate' : 'daily'
+  return category === 'mandatory' || category === 'urgent_operational'
+    ? 'immediate'
+    : 'daily'
 }
 
 /**

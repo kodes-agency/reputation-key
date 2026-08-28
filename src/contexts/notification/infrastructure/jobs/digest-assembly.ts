@@ -5,10 +5,16 @@
 // grouping, "no Google content in a heading" — are testable without a pool, a
 // queue, or a clock.
 
-import { createHash } from 'node:crypto'
 import type { Notification, NotificationEmail } from '../../domain/types'
 import type { RenderedNotification } from '../../domain/notification-templates'
 import { notificationLink, renderNotification } from '../../domain/notification-templates'
+import {
+  digestBatchIdempotencyKey,
+  digestMemberSet,
+  digestProviderRequest,
+} from '../digest-batch-identity'
+
+export { digestBatchIdempotencyKey, digestMemberSet, digestProviderRequest }
 
 /** One deliverable digest line: the queue row plus its in-app notification. */
 export type DigestItem = Readonly<{
@@ -21,65 +27,6 @@ export type DigestGroup = Readonly<{
   propertyName: string
   items: ReadonlyArray<Readonly<{ rendered: RenderedNotification; actionUrl: string }>>
 }>
-
-const sha256 = (domain: string, values: readonly string[]): string => {
-  const hash = createHash('sha256')
-  hash.update(`${domain}\0`)
-  for (const value of values)
-    hash.update(`${Buffer.byteLength(value, 'utf8')}:`).update(value)
-  return hash.digest('hex')
-}
-
-/** Content-free fingerprint of the exact queue rows owned by one batch. */
-export function digestMemberSet(emailIds: readonly string[]): string {
-  return sha256('reputation-key/digest-members/v1', [...emailIds].sort())
-}
-
-/**
- * Fingerprint every provider-visible field except the idempotency key itself.
- * A retry may reuse a provider key only when this value still matches the
- * durable batch record.
- */
-export function digestProviderRequest(input: {
-  to: string
-  subject: string
-  html: string
-  text: string
-  headers?: Readonly<Record<string, string>>
-}): string {
-  const headers = Object.entries(input.headers ?? {}).sort(([a], [b]) =>
-    a.localeCompare(b),
-  )
-  return sha256('reputation-key/digest-provider-request/v1', [
-    input.to,
-    input.subject,
-    input.html,
-    input.text,
-    ...headers.flatMap(([name, value]) => [name, value]),
-  ])
-}
-
-/**
- * ADR 0046 r.5 — bind the provider key to an immutable batch rather than the
- * mutable set of rows that happen to be due on a local date. The digest keeps
- * the key within provider limits even when tenant/user identifiers are long.
- */
-export function digestBatchIdempotencyKey(input: {
-  organizationId: string
-  userId: string
-  localDate: string
-  batchId: string
-  memberDigest: string
-}): string {
-  const digest = sha256('reputation-key/digest-idempotency/v2', [
-    input.organizationId,
-    input.userId,
-    input.localDate,
-    input.batchId,
-    input.memberDigest,
-  ])
-  return `rk-digest-v2:${digest}`
-}
 
 /**
  * Group one user's digest lines by property, preserving queue order within a

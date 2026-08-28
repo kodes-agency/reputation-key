@@ -153,7 +153,7 @@ describe('durable workflow notification consumers', () => {
         portalId: null,
         assignedTo: NOTIF_TEST_IDS.manager1,
         propertyName: 'Riverside Hotel',
-        rating: 2,
+        guestRating: null,
         sourceType: 'review',
         createdAt: new Date('2026-06-01T09:00:00.000Z'),
       })
@@ -194,6 +194,31 @@ describe('durable workflow notification consumers', () => {
       { jobId: `${EVENT_ID}-${unbrand(NOTIF_TEST_IDS.authorId)}` },
       { jobId: `${EVENT_ID}-${unbrand(NOTIF_TEST_IDS.authorId)}` },
     ])
+  })
+
+  it('preserves bulkId and lets the grouped completion fact own delivery', async () => {
+    const deps = makeDeps()
+
+    await expect(
+      handleWorkflowNotificationEvent(
+        deps,
+        event('inbox.inbox_item.assigned', {
+          inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+          assignedTo: unbrand(NOTIF_TEST_IDS.manager1),
+          userId: unbrand(NOTIF_TEST_IDS.submitter),
+          bulkId: '30000000-0000-4000-8000-000000000099',
+          source: 'web',
+        }),
+      ),
+    ).resolves.toEqual({ status: 'applied' })
+
+    expect(deps.fakes.jobs).toEqual([])
+    expect(deps.fakes.inboxItemLookup.findInboxItemFacts).not.toHaveBeenCalled()
+    expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
+      EVENT_ID,
+      'notification.on-inbox-inbox_item-assigned',
+      'applied',
+    )
   })
 
   it.each([

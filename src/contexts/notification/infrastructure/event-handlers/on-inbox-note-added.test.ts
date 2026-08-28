@@ -119,7 +119,7 @@ describe('onInboxNoteAdded (notification)', () => {
       portalId: null,
       assignedTo: NOTIF_TEST_IDS.manager1,
       propertyName: 'Riverside Hotel',
-      rating: 2,
+      guestRating: null,
       sourceType: 'review',
       createdAt: new Date('2026-06-01T09:00:00.000Z'),
     })

@@ -1,7 +1,7 @@
 // Notification context — Drizzle repository adapter for notifications
 // Per architecture: factory pattern `createXxxRepository(db)` returning port interface.
 
-import { and, eq, desc, inArray, ne, sql } from 'drizzle-orm'
+import { and, eq, desc, inArray, isNull, ne, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notifications } from '#/shared/db/schema/notification.schema'
 import { unbrand } from '#/shared/domain/ids'
@@ -9,6 +9,7 @@ import type { Notification, NotificationStatus } from '../../domain/types'
 import { notificationFromRow } from './notification-row.mapper'
 import { notificationError } from '../../domain/errors'
 import type { NotificationListFilter } from '../../application/notification-list-filter'
+import { createNotificationPage } from '../../application/notification-page'
 
 // ── Repository ──────────────────────────────────────────────────────
 
@@ -55,6 +56,26 @@ const selectUserNotifications = (
     .then((rows) => rows.map(notificationFromRow))
 }
 
+const countVisibleUnread = async (
+  db: Database,
+  userId: string,
+  orgId: string,
+): Promise<number> => {
+  const rows = await db
+    .select({ count: sql<number>`count(*)::int` })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.userId, userId),
+        eq(notifications.organizationId, orgId),
+        eq(notifications.status, 'unread'),
+        notOptedOutInApp,
+      ),
+    )
+
+  return rows[0]!.count
+}
+
 export const createNotificationRepository = (db: Database) => ({
   // ── Mutations ────────────────────────────────────────────────────
 
@@ -65,7 +86,8 @@ export const createNotificationRepository = (db: Database) => ({
         id: unbrand(notification.id),
         userId: unbrand(notification.userId),
         organizationId: unbrand(notification.organizationId),
-        propertyId: unbrand(notification.propertyId),
+        propertyId:
+          notification.propertyId === null ? null : unbrand(notification.propertyId),
         type: notification.type,
         category: notification.category,
         priority: notification.priority,
@@ -165,7 +187,7 @@ export const createNotificationRepository = (db: Database) => ({
   findUnreadByUserTypeResource: async (
     userId: string,
     orgId: string,
-    propertyId: string,
+    propertyId: string | null,
     type: string,
     resourceId: string,
   ): Promise<Notification | null> => {
@@ -176,7 +198,9 @@ export const createNotificationRepository = (db: Database) => ({
         and(
           eq(notifications.userId, userId),
           eq(notifications.organizationId, orgId),
-          eq(notifications.propertyId, propertyId),
+          propertyId === null
+            ? isNull(notifications.propertyId)
+            : eq(notifications.propertyId, propertyId),
           eq(notifications.type, type),
           eq(notifications.resourceId, resourceId),
           eq(notifications.status, 'unread'),
@@ -337,21 +361,51 @@ export const createNotificationRepository = (db: Database) => ({
   ): Promise<Notification[]> =>
     selectUserNotifications(db, userId, orgId, limit, offset, 'unread'),
 
-  countUnreadByUser: async (userId: string, orgId: string): Promise<number> => {
-    const rows = await db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(notifications)
-      .where(
-        and(
-          eq(notifications.userId, userId),
-          eq(notifications.organizationId, orgId),
-          eq(notifications.status, 'unread'),
-          notOptedOutInApp,
-        ),
-      )
-
-    return rows[0]!.count
-  },
+  readFeedHead: async (
+    userId: string,
+    orgId: string,
+    limit: number,
+    filter: NotificationListFilter,
+  ) =>
+    db.transaction(
+      async (tx) => {
+        // The transaction handle has the same query surface as Database. Keep
+        // the cast at this adapter boundary rather than weakening the port.
+        const snapshot = tx as unknown as Database
+        const rows = await selectUserNotifications(
+          snapshot,
+          userId,
+          orgId,
+          limit + 1,
+          0,
+          filter,
+        )
+        const unreadCount = await countVisibleUnread(snapshot, userId, orgId)
+        const watermarkResult = await snapshot.execute(
+          sql<{ watermark: Date | string }>`SELECT transaction_timestamp() AS watermark`,
+        )
+        const rawWatermark = watermarkResult.rows[0]?.watermark
+        // node-postgres can return timestamptz either as Date or as text when
+        // a process-level type parser is installed. Both represent the exact
+        // transaction snapshot boundary; normalize once at the repository.
+        const watermark =
+          rawWatermark instanceof Date
+            ? rawWatermark
+            : new Date(String(rawWatermark ?? ''))
+        if (Number.isNaN(watermark.getTime())) {
+          throw notificationError(
+            'query_failed',
+            'Notification feed snapshot did not return a valid watermark',
+          )
+        }
+        return {
+          page: createNotificationPage(rows, limit),
+          unreadCount,
+          watermark: watermark.toISOString(),
+        }
+      },
+      { isolationLevel: 'repeatable read', accessMode: 'read only' },
+    ),
 
   findByUser: async (
     userId: string,

@@ -16,6 +16,7 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import type { NotificationListFilter } from '../notification-list-filter'
+import type { NotificationFeedHead } from '../notification-page'
 
 export type NotificationRepositoryPort = Readonly<{
   /**
@@ -50,7 +51,16 @@ export type NotificationRepositoryPort = Readonly<{
     offset: number,
   ): Promise<readonly Notification[]>
 
-  countUnreadByUser(userId: UserId, orgId: OrganizationId): Promise<number>
+  /**
+   * Read the offset-zero page and exact unread count from one repeatable-read
+   * PostgreSQL snapshot. The returned watermark identifies that shared read.
+   */
+  readFeedHead(
+    userId: UserId,
+    orgId: OrganizationId,
+    limit: number,
+    filter: NotificationListFilter,
+  ): Promise<NotificationFeedHead>
 
   findByUser(
     userId: UserId,
@@ -74,7 +84,7 @@ export type NotificationRepositoryPort = Readonly<{
   findUnreadByUserTypeResource(
     userId: UserId,
     orgId: OrganizationId,
-    propertyId: PropertyId,
+    propertyId: PropertyId | null,
     type: NotificationType,
     resourceId: string,
   ): Promise<Notification | null>

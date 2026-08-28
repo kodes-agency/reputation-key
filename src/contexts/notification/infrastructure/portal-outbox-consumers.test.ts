@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { ZodError } from 'zod/v4'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
 import {
   clearConsumers,
@@ -116,7 +117,7 @@ describe('portal notification durable consumer', () => {
 
     await expect(
       handleNotificationPortalResponsibilityNeeded(deps, event({ payload })),
-    ).rejects.toThrow()
+    ).rejects.toThrowError(ZodError)
     expect(deps.receipts.insertReceipt).not.toHaveBeenCalled()
   })
 

@@ -25,15 +25,15 @@ export type CapturingEmailSender = EmailSenderPort &
 
 export type CapturingEmailSenderOptions = Readonly<{
   /** Injected so captures are deterministic under a fake clock. */
-  clock?: () => Date
+  clock: () => Date
   /** Drive rejection/retry branches without a live provider. */
   outcome?: (params: EmailSendRequest) => NotificationDeliveryOutcome | undefined
 }>
 
-export function createCapturingEmailSender(
-  options: CapturingEmailSenderOptions = {},
-): CapturingEmailSender {
-  const clock = options.clock ?? (() => new Date())
+export const createCapturingEmailSender = (
+  options: CapturingEmailSenderOptions,
+): CapturingEmailSender => {
+  const clock = options.clock
   const captured: CapturedEmail[] = []
   let sequence = 0
 

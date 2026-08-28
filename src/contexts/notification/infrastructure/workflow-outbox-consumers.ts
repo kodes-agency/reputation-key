@@ -6,7 +6,6 @@
 // per-recipient job enqueue succeeds. The handlers use <eventId>-<userId> job
 // identities, so immediate bus delivery and later durable replay converge.
 
-import type { Queue } from 'bullmq'
 import {
   registerConsumer,
   type ConsumerEvent,
@@ -46,6 +45,7 @@ import { onReplyApproved } from './event-handlers/on-reply-approved'
 import { onReplyRejected } from './event-handlers/on-reply-rejected'
 import { onReplyPublished } from './event-handlers/on-reply-published'
 import { onReplyPublishFailed } from './event-handlers/on-reply-publish-failed'
+import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 
 export const WORKFLOW_NOTIFICATION_CONSUMERS = [
   {
@@ -94,7 +94,7 @@ type WorkflowEvent =
   | ReviewReplyPublishFailed
 
 export type WorkflowNotificationConsumerDeps = Readonly<{
-  queue: Queue
+  queue: NotificationJobEnqueuePort
   userLookup: UserLookupPort
   responsibleManagers: ResponsibleManagerLookupPort
   inboxItemLookup: InboxItemLookupPort
@@ -186,6 +186,9 @@ function parseWorkflowEvent(event: ConsumerEvent): WorkflowEvent {
         propertyId: property,
         userId: userId(requiredString(parsed, 'userId')),
         assignedTo: userId(requiredString(parsed, 'assignedTo')),
+        ...(nullableString(parsed, 'bulkId')
+          ? { bulkId: requiredString(parsed, 'bulkId') }
+          : {}),
         source: eventSource(parsed),
       }
     case 'inbox.inbox_item.escalated':

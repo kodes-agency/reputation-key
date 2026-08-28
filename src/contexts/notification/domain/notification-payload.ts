@@ -4,7 +4,7 @@
 // READ time (see `notification-templates.ts`), not frozen into a string at
 // enqueue time. That is what lets a notification say
 //
-//   "New 2-star review · Riverside Hotel · waiting 3h"
+//   "New guest feedback · Riverside Hotel · waiting 3h"
 //
 // instead of "New review received", while still obeying the source-content
 // boundary.
@@ -13,20 +13,20 @@
 // "property/resource/status metadata" ONLY:
 //
 //   ALLOWED   property name (tenant-authored), goal/badge/portal display names
-//             (registered non-sensitive), the 1-5 star rating (a numeric fact),
-//             actor ROLE, counts, ages in hours, platform enum, internal
-//             moderation reason (staff-authored).
-//   FORBIDDEN review text, reply text, guest/reviewer name, media URLs,
-//             sentiment or any derived score, and any other employee's NAME
-//             or email.
+//             (registered non-sensitive), the locally collected 1-5 guest
+//             rating, actor ROLE, counts, ages in hours, platform enum, and an
+//             internal moderation reason (staff-authored).
+//   FORBIDDEN Google/provider review ratings and content, reply text,
+//             guest/reviewer name, media URLs, sentiment or any derived score,
+//             and any other employee's NAME or email.
 //
 // `parseNotificationPayload` is the only way a payload enters the domain, and
 // it drops every unrecognised key. A new field must be added here AND to
 // PROTECTED_FIELD_REGISTRY (`notifications.payload`) — the governance test
 // fails otherwise.
 
-/** Star rating as reported by the provider. */
-export type NotificationRating = 1 | 2 | 3 | 4 | 5
+/** Star rating collected locally through a RepKey guest Portal. */
+export type NotificationGuestRating = 1 | 2 | 3 | 4 | 5
 
 /**
  * Actor role — we surface WHO acted by role, never by name, because ADR 0046
@@ -41,8 +41,8 @@ export type NotificationTargetKind = 'portal' | 'portal_group'
 export type NotificationPayload = Readonly<{
   /** Tenant-authored property name. Present on every payload we mint. */
   propertyName?: string
-  /** 1-5 star rating. Numeric fact, not source content. */
-  rating?: NotificationRating
+  /** Locally collected 1-5 guest rating; valid only with platform=portal. */
+  guestRating?: NotificationGuestRating
   /** Review source platform. */
   platform?: NotificationPlatform
   /** Hours the resource has been waiting for action, floored. Drives urgency copy. */
@@ -61,6 +61,8 @@ export type NotificationPayload = Readonly<{
   targetKind?: NotificationTargetKind
   /** Repeat-event count when a row has coalesced. */
   occurrences?: number
+  /** Number of Inbox items represented by one grouped assignment fact. */
+  itemCount?: number
 }>
 
 const ACTOR_ROLES: Record<string, true> = {
@@ -86,9 +88,9 @@ const takeText = (value: unknown, max: number): string | undefined => {
   return trimmed.length > max ? trimmed.slice(0, max) : trimmed
 }
 
-const takeRating = (value: unknown): NotificationRating | undefined => {
+const takeGuestRating = (value: unknown): NotificationGuestRating | undefined => {
   if (typeof value !== 'number' || !Number.isInteger(value)) return undefined
-  return value >= 1 && value <= 5 ? (value as NotificationRating) : undefined
+  return value >= 1 && value <= 5 ? (value as NotificationGuestRating) : undefined
 }
 
 /** Non-negative integer count. Fractional/negative input is dropped, not coerced. */
@@ -121,8 +123,11 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   }
 
   set('propertyName', takeText(raw.propertyName, MAX_NAME_LENGTH))
-  set('rating', takeRating(raw.rating))
-  set('platform', takeMember(raw.platform, PLATFORMS))
+  const platform = takeMember<NotificationPlatform>(raw.platform, PLATFORMS)
+  set('platform', platform)
+  if (platform === 'portal') {
+    set('guestRating', takeGuestRating(raw.guestRating))
+  }
   set('waitingHours', takeCount(raw.waitingHours))
   set('actorRole', takeMember(raw.actorRole, ACTOR_ROLES))
   set('moderationReason', takeText(raw.moderationReason, MAX_REASON_LENGTH))
@@ -131,6 +136,7 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   set('recipientName', takeText(raw.recipientName, MAX_NAME_LENGTH))
   set('targetKind', takeMember(raw.targetKind, TARGET_KINDS))
   set('occurrences', takeCount(raw.occurrences))
+  set('itemCount', takeCount(raw.itemCount))
 
   return parsed as NotificationPayload
 }

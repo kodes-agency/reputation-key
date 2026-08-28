@@ -12,6 +12,8 @@ const request = (overrides: Partial<EmailSendRequest> = {}): EmailSendRequest =>
 })
 
 describe('capturing email sender', () => {
+  const clock = () => new Date('2026-08-21T09:00:00Z')
+
   it('captures the full send request including the plain-text twin and headers', async () => {
     const sender = createCapturingEmailSender({
       clock: () => new Date('2026-08-21T09:00:00Z'),
@@ -36,7 +38,7 @@ describe('capturing email sender', () => {
   })
 
   it('returns a distinct provider message id per send so queue rows do not collapse', async () => {
-    const sender = createCapturingEmailSender()
+    const sender = createCapturingEmailSender({ clock })
 
     const first = await sender.send(request({ idempotencyKey: 'a' }))
     const second = await sender.send(request({ idempotencyKey: 'b' }))
@@ -50,6 +52,7 @@ describe('capturing email sender', () => {
 
   it('forces a rejection outcome while still capturing the attempt', async () => {
     const sender = createCapturingEmailSender({
+      clock,
       outcome: () => ({
         kind: 'rejected',
         classification: 'transient',
@@ -68,7 +71,7 @@ describe('capturing email sender', () => {
   })
 
   it('clear() empties the capture log', async () => {
-    const sender = createCapturingEmailSender()
+    const sender = createCapturingEmailSender({ clock })
     await sender.send(request())
 
     sender.clear()

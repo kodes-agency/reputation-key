@@ -23,7 +23,6 @@
 // recovery path for an enqueue that failed at insert time.
 
 import type { Job } from 'bullmq'
-import { randomUUID } from 'node:crypto'
 import type { Pool } from 'pg'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { ScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
@@ -89,6 +88,7 @@ export type DigestDeps = Readonly<{
   resolveOrganizationScope: NotificationOrganizationScopeResolver
   logger: LoggerPort
   clock: () => Date
+  batchIdGen: () => string
   authorizeScope: ScheduledScopeAuthorizer
   /** `env.BETTER_AUTH_URL`. Injected, never read from env inside the job. */
   baseUrl: string
@@ -526,7 +526,7 @@ async function sendUserDigest(
     return
   }
 
-  const batchId = openBatch?.id ?? notificationDigestBatchId(randomUUID())
+  const batchId = openBatch?.id ?? notificationDigestBatchId(deps.batchIdGen())
   const unsubscribeKeyVersion =
     openBatch?.unsubscribeKeyVersion ?? deps.activeOneClickUnsubscribeKeyVersion()
   const request = await buildProviderRequest(

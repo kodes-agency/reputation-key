@@ -20,6 +20,10 @@ type Deps = Readonly<{
 export const onInboxItemAssigned =
   (deps: Deps) =>
   async (event: InboxItemAssigned): Promise<void> => {
+    // The atomic bulk-completion fact owns grouped delivery. Per-item facts
+    // remain activity/audit facts but must not also produce N notifications.
+    if (event.bulkId) return
+
     // `event.userId` is whoever performed the assignment; the template renders
     // their ROLE ("A property manager assigned this to you"), never their name.
     const payload = await buildInboxItemPayload(deps, {

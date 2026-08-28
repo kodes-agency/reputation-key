@@ -72,6 +72,12 @@ export const createNotificationPreferenceRepository = (db: Database) => ({
   },
 
   upsert: async (preference: NotificationPreference): Promise<NotificationPreference> => {
+    if (preference.category === 'mandatory') {
+      throw notificationError(
+        'invalid_input',
+        'Mandatory notifications cannot be configured',
+      )
+    }
     const rows = await db
       .insert(notificationPreferences)
       .values({
@@ -120,6 +126,12 @@ export const createNotificationPreferenceRepository = (db: Database) => ({
   upsertEnabled: async (
     preference: NotificationPreference,
   ): Promise<NotificationPreference> => {
+    if (preference.category === 'mandatory') {
+      throw notificationError(
+        'invalid_input',
+        'Mandatory notifications cannot be configured',
+      )
+    }
     const rows = await db
       .insert(notificationPreferences)
       .values({

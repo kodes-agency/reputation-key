@@ -1,4 +1,9 @@
-import type { DeliveryErrorClass, NotificationCategory, NotificationType } from './types'
+import type {
+  ConfigurableNotificationCategory,
+  DeliveryErrorClass,
+  NotificationCategory,
+  NotificationType,
+} from './types'
 
 export type NotificationDeliveryOutcome =
   | Readonly<{ kind: 'accepted'; providerMessageId: string; acceptedAt: Date }>
@@ -17,7 +22,11 @@ export type DeliveryTiming =
   Readonly<{ kind: 'send' }> | Readonly<{ kind: 'defer'; until: Date }>
 
 const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>> = {
+  'account.organization_access_granted': 'mandatory',
+  'account.organization_role_changed': 'mandatory',
+  'account.organization_access_removed': 'mandatory',
   'review.created': 'workflow_collaboration',
+  'review.updated': 'urgent_operational',
   // Private feedback asks a manager to review and handle a guest concern. It
   // is Action Required even when it is not marked urgent enough to bypass
   // quiet hours.
@@ -28,10 +37,20 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'reply.published': 'workflow_collaboration',
   'reply.publish_failed': 'urgent_operational',
   'inbox.escalated': 'urgent_operational',
+  'inbox.escalation_resolved': 'workflow_collaboration',
+  'inbox.reopened': 'urgent_operational',
+  'inbox.response_target_halfway': 'workflow_collaboration',
+  // A passed target belongs in the operational-attention category, but it is
+  // deliberately absent from URGENT_TYPES: it respects quiet hours and never
+  // becomes an automatic escalation.
+  'inbox.response_target_passed': 'urgent_operational',
   'inbox.assigned': 'workflow_collaboration',
+  'inbox.bulk_assigned': 'workflow_collaboration',
   'inbox_note.added': 'workflow_collaboration',
   'portal.responsibility_needed': 'urgent_operational',
+  'portal.health_attention': 'urgent_operational',
   'property.responsibility_needed': 'urgent_operational',
+  'integration.reauthorization_required': 'urgent_operational',
   // Recognition, NOT a digest: `digest_summary` defaulted to
   // {in_app:false, email:false}, so a goal completion classified as a digest
   // was DROPPED entirely for any tenant without preference rows — nothing was
@@ -39,11 +58,23 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   // (ADR 0046: "On privately"), same as a badge. The digest category itself is
   // retired; a daily digest is a cadence (see domain/types.ts).
   'goal.completed': 'recognition',
+  'goal.result_revised': 'recognition',
   'badge.awarded': 'recognition',
 }
 
 export function classifyNotification(type: NotificationType): NotificationCategory {
   return CATEGORY_BY_TYPE[type]
+}
+
+/**
+ * Mandatory account/security notices belong to the Organization. Every other
+ * active family remains Property-scoped. Keeping this derived from the same
+ * category map prevents callers from inventing a Property for an account fact.
+ */
+export function notificationScopeForType(
+  type: NotificationType,
+): 'organization' | 'property' {
+  return classifyNotification(type) === 'mandatory' ? 'organization' : 'property'
 }
 
 /**
@@ -59,24 +90,24 @@ export const NOTIFICATION_CATEGORIES: ReadonlyArray<NotificationCategory> = [
 ]
 
 /**
- * Categories offered as beta preference controls. `recognition` stays in the
- * persisted category model so historical rows and preferences remain valid,
- * but its post-core controls are intentionally absent from active surfaces.
+ * Categories offered as Property preference controls. `mandatory` is
+ * Organization policy and therefore has no Property preference row;
+ * `recognition` stays in the persisted model for history but is post-core.
  */
-export const NOTIFICATION_SETTINGS_CATEGORIES: ReadonlyArray<NotificationCategory> =
-  NOTIFICATION_CATEGORIES.filter((category) => category !== 'recognition')
+export const NOTIFICATION_SETTINGS_CATEGORIES: ReadonlyArray<ConfigurableNotificationCategory> =
+  ['urgent_operational', 'workflow_collaboration']
 
 /**
  * Active settings categories that govern at least one notification type —
  * derived from `CATEGORY_BY_TYPE`, never hand-listed, so it cannot drift.
  *
- * This is the list a FILTER may offer. It excludes `mandatory`, because zero
- * types classify as mandatory, and retained `recognition`, because that
- * post-core category is not an active beta control.
+ * This is the list a FILTER may offer. Retained `recognition` is excluded
+ * because that post-core category is not an active beta control.
  */
 export const GOVERNING_NOTIFICATION_CATEGORIES: ReadonlyArray<NotificationCategory> =
-  NOTIFICATION_SETTINGS_CATEGORIES.filter((category) =>
-    Object.values(CATEGORY_BY_TYPE).includes(category),
+  NOTIFICATION_CATEGORIES.filter(
+    (category) =>
+      category !== 'recognition' && Object.values(CATEGORY_BY_TYPE).includes(category),
   )
 
 function minuteOfDay(value: string): number {

@@ -19,7 +19,7 @@ import type { ResponsibleManagerLookupPort } from './application/ports/responsib
 import type { FeedbackPortalLookupPort } from './application/ports/feedback-portal-lookup.port'
 import { createNotificationAudienceAuthorizer } from './application/notification-audience'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
-import { createRecognitionLookupAdapter } from './infrastructure/adapters/recognition-lookup.adapter'
+import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
 import { registerNotificationHandlers } from './infrastructure/event-handlers'
 import { registerNotificationConsumers } from './infrastructure/outbox-consumers'
 import { registerWorkflowNotificationConsumers } from './infrastructure/workflow-outbox-consumers'
@@ -27,6 +27,13 @@ import { registerPortalNotificationConsumers } from './infrastructure/portal-out
 import { registerPortalNotificationHandlers } from './infrastructure/event-handlers/portal-event-handlers'
 import { registerPropertyNotificationHandlers } from './infrastructure/event-handlers/property-event-handlers'
 import { registerPropertyNotificationConsumers } from './infrastructure/property-outbox-consumers'
+import { registerIntegrationNotificationConsumers } from './infrastructure/integration-outbox-consumers'
+import { registerBulkAssignmentNotificationConsumer } from './infrastructure/bulk-assignment-outbox-consumers'
+import { registerEscalationResolutionNotificationConsumer } from './infrastructure/escalation-resolution-outbox-consumers'
+import { registerGoalNotificationConsumer } from './infrastructure/goal-outbox-consumers'
+import { registerHandlingCycleNotificationConsumers } from './infrastructure/handling-cycle-outbox-consumers'
+import { registerResponseTargetNotificationConsumer } from './infrastructure/response-target-outbox-consumers'
+import type { GoogleConnectionPropertyLookup } from './infrastructure/event-handlers/on-google-reauthorization-required'
 import { createNotificationGapRepository } from './infrastructure/repositories/notification-gap.repository'
 import { createResendEventHandler } from './infrastructure/handlers/resend-event-handler'
 import {
@@ -35,7 +42,7 @@ import {
   DEFAULT_RECONCILE_LOOKBACK_MS,
   NOTIFICATION_GAP_SCAN_LIMIT,
 } from './infrastructure/jobs/reconcile-missing-notifications.job'
-import type { OutboxRepository } from '#/shared/outbox'
+import { listRegisteredConsumers, type OutboxRepository } from '#/shared/outbox'
 import { insertNotification } from './application/use-cases/insert-notification'
 import { muteNotificationCategory } from './application/use-cases/mute-notification-category'
 import { URGENT_EMAIL_JOB_NAME } from './infrastructure/jobs/urgent-email.job'
@@ -59,6 +66,21 @@ import type { Result } from '#/shared/domain'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { NotificationListFilter } from './application/notification-list-filter'
 import type { OneClickUnsubscribeTarget } from './application/one-click-unsubscribe-token'
+import { assertBetaNotificationTriggerMatrix } from './application/beta-notification-trigger-matrix'
+import type { MonthlyResultNotificationFactsLookup } from '#/contexts/goal/application/public-api'
+import { withBetaOutboxNotificationDelivery } from './infrastructure/outbox-notification-delivery'
+import { createNotificationDeliverySettlement } from './infrastructure/repositories/notification-delivery-settlement.repository'
+import { createNotificationDeliveryLagRepository } from './infrastructure/repositories/notification-delivery-lag.repository'
+import { MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT } from './application/ports/notification-delivery-lag.repository'
+import type { PortalHealthLookupPort } from './application/ports/portal-health-lookup.port'
+import { registerPortalHealthNotificationConsumer } from './infrastructure/portal-health-outbox-consumers'
+import { createOrganizationAccountNotificationAuthority } from './infrastructure/adapters/organization-account-notification-authority.adapter'
+import { registerIdentityAccountNotificationConsumers } from './infrastructure/identity-account-outbox-consumers'
+
+export const NOTIFICATION_DELIVERY_LAG_GRACE_MS = 60_000
+export const NOTIFICATION_DELIVERY_LAG_LOOKBACK_MS = 24 * 60 * 60 * 1000
+export const NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT =
+  MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT
 
 type BuildInput = Readonly<{
   db: Database
@@ -66,16 +88,23 @@ type BuildInput = Readonly<{
   outboxRepo: OutboxRepository
   queue: Queue | undefined
   clock: () => Date
+  idGen: () => string
   logger: LoggerPort
   /** Current, eligibility-filtered Property/Portal notification authorities. */
   responsibleManagers: ResponsibleManagerLookupPort
   /** Guest-owned source attribution; Notification never reads Guest tables. */
   feedbackPortalLookup: FeedbackPortalLookupPort
+  googleConnectionProperties: GoogleConnectionPropertyLookup
+  /** Goal-owned exact closed-and-achieved result lookup. */
+  monthlyResultFacts: MonthlyResultNotificationFactsLookup
+  /** Portal-owned exact current Health state fence for delayed delivery. */
+  portalHealthLookup: PortalHealthLookupPort
 }>
 
 export const buildNotificationContext = (input: BuildInput) => {
   const notificationRepo = createNotificationRepository(input.db)
   const gapRepo = createNotificationGapRepository(input.db)
+  const deliveryLagRepo = createNotificationDeliveryLagRepository(input.db)
   const emailRepo = createNotificationEmailRepository(input.db)
   const prefRepo = createNotificationPreferenceRepository(input.db)
   const oneClickUnsubscribeRepo = createOneClickUnsubscribeRepository(input.db)
@@ -85,11 +114,18 @@ export const buildNotificationContext = (input: BuildInput) => {
     input.db,
     input.feedbackPortalLookup,
   )
-  const recognitionLookup = createRecognitionLookupAdapter(input.db)
+  const escalationResolutions = createEscalationResolutionLookupAdapter(input.db)
+  const organizationAccountAuthority = createOrganizationAccountNotificationAuthority(
+    input.db,
+  )
   const authorizeAudience = createNotificationAudienceAuthorizer({
     userLookup,
     responsibleManagers: input.responsibleManagers,
     inboxItemLookup,
+    escalationResolutions,
+    portalHealthLookup: input.portalHealthLookup,
+    monthlyResultFacts: input.monthlyResultFacts,
+    organizationAccountAuthority,
   })
 
   /**
@@ -124,26 +160,32 @@ export const buildNotificationContext = (input: BuildInput) => {
   // BQC-3.6: the queue is wrapped so every insert-notification enqueue
   // inherits the catalogue retry policy (attempts/backoff+jitter/timeout).
   const policyQueue = input.queue ? withCatalogueJobOptions(input.queue) : undefined
-  if (policyQueue) {
+  // Immediate EventBus delivery and durable replay deliberately share this
+  // wrapper. Whichever path wins the stable BullMQ job identity therefore
+  // carries the same Postgres materialization marker.
+  const notificationDeliveryQueue = policyQueue
+    ? withBetaOutboxNotificationDelivery(policyQueue, input.outboxRepo)
+    : undefined
+  if (notificationDeliveryQueue) {
     registerNotificationHandlers({
       events: input.events,
-      queue: policyQueue,
+      queue: notificationDeliveryQueue,
       userLookup,
       responsibleManagers: input.responsibleManagers,
       inboxItemLookup,
-      recognitionLookup,
+      googleConnectionProperties: input.googleConnectionProperties,
       clock: input.clock,
       logger: input.logger,
     })
     registerPortalNotificationHandlers({
       events: input.events,
-      queue: policyQueue,
+      queue: notificationDeliveryQueue,
       userLookup,
       logger: input.logger,
     })
     registerPropertyNotificationHandlers({
       events: input.events,
-      queue: policyQueue,
+      queue: notificationDeliveryQueue,
       userLookup,
       logger: input.logger,
     })
@@ -151,9 +193,9 @@ export const buildNotificationContext = (input: BuildInput) => {
 
   // The one fan-out identity the bus handler, the durable consumer and the
   // reconciliation sweep all share (infrastructure/inbox-notification-fanout).
-  const fanoutDeps = policyQueue
+  const fanoutDeps = notificationDeliveryQueue
     ? {
-        queue: policyQueue,
+        queue: notificationDeliveryQueue,
         userLookup,
         responsibleManagers: input.responsibleManagers,
         inboxItemLookup,
@@ -174,37 +216,52 @@ export const buildNotificationContext = (input: BuildInput) => {
     }
   }
 
+  const enqueueImmediateEmail = input.queue
+    ? async (data: {
+        notificationEmailId: string
+        organizationId: string
+        propertyId?: string
+      }) => {
+        await input.queue!.add(
+          URGENT_EMAIL_JOB_NAME,
+          {
+            ...data,
+            ...createJobExecutionEnvelope({
+              organizationId: data.organizationId,
+              ...(data.propertyId === undefined ? {} : { propertyId: data.propertyId }),
+              capability: 'notification.send_email',
+              initiator: { kind: 'system', id: 'notification:urgent-enqueue' },
+              correlationId: `notification-email:${data.notificationEmailId}`,
+            }),
+          },
+          {
+            ...jobEnqueueOptions(URGENT_EMAIL_JOB_NAME),
+          },
+        )
+      }
+    : undefined
+
   const useCases = {
     insertNotification: insertNotification({
       notificationRepo,
       emailRepo,
       preferenceRepo: prefRepo,
       clock: input.clock,
-      idGen: () => notificationId(crypto.randomUUID()),
-      emailIdGen: () => notificationEmailId(crypto.randomUUID()),
+      idGen: () => notificationId(input.idGen()),
+      emailIdGen: () => notificationEmailId(input.idGen()),
       logger: input.logger,
-      enqueueImmediateEmail: input.queue
-        ? async (data) => {
-            await input.queue!.add(
-              URGENT_EMAIL_JOB_NAME,
-              {
-                ...data,
-                ...createJobExecutionEnvelope({
-                  organizationId: data.organizationId,
-                  propertyId: data.propertyId,
-                  capability: 'notification.send_email',
-                  initiator: { kind: 'system', id: 'notification:urgent-enqueue' },
-                  correlationId: `notification-email:${data.notificationEmailId}`,
-                }),
-              },
-              {
-                ...jobEnqueueOptions(URGENT_EMAIL_JOB_NAME),
-              },
-            )
-          }
-        : undefined,
+      enqueueImmediateEmail,
     }),
   } as const
+
+  const deliverySettlement = createNotificationDeliverySettlement({
+    db: input.db,
+    clock: input.clock,
+    idGen: () => notificationId(input.idGen()),
+    emailIdGen: () => notificationEmailId(input.idGen()),
+    logger: input.logger,
+    enqueueImmediateEmail,
+  })
 
   const publicApi = {
     insertNotification: useCases.insertNotification,
@@ -220,10 +277,29 @@ export const buildNotificationContext = (input: BuildInput) => {
         scanLimit: NOTIFICATION_GAP_SCAN_LIMIT,
       }),
 
+    /**
+     * Payload-free, bounded evidence for durable-source→Redis and
+     * Redis→Postgres materialization lag. The one-minute grace is the accepted
+     * healthy in-app target; the 24-hour lower bound prevents an operational
+     * read from becoming a historical table scan.
+     */
+    readNotificationDeliveryLag: () => {
+      const now = input.clock().getTime()
+      return deliveryLagRepo.read({
+        recordedAtOrAfter: new Date(now - NOTIFICATION_DELIVERY_LAG_LOOKBACK_MS),
+        recordedBefore: new Date(now - NOTIFICATION_DELIVERY_LAG_GRACE_MS),
+        scanLimit: NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT,
+      })
+    },
+
     // Query methods exposed for server functions
     findById: (id: string, orgId: string) => notificationRepo.findById(id, orgId),
-    getUnreadCount: (userId: string, orgId: string) =>
-      notificationRepo.countUnreadByUser(userId, orgId),
+    getFeedHead: (
+      userId: string,
+      orgId: string,
+      limit: number,
+      filter: NotificationListFilter,
+    ) => notificationRepo.readFeedHead(userId, orgId, limit, filter),
     getNotifications: (
       userId: string,
       orgId: string,
@@ -280,7 +356,7 @@ export const buildNotificationContext = (input: BuildInput) => {
       const now = input.clock()
       const result = createNotificationPreference(
         {
-          id: notificationPreferenceId(crypto.randomUUID()),
+          id: notificationPreferenceId(input.idGen()),
           userId: userId as UserId,
           organizationId: orgId as OrganizationId,
           propertyId: propertyId as PropertyId,
@@ -313,7 +389,7 @@ export const buildNotificationContext = (input: BuildInput) => {
           channel,
         },
         {
-          newId: () => notificationPreferenceId(crypto.randomUUID()),
+          newId: () => notificationPreferenceId(input.idGen()),
           clock: input.clock,
           upsertEnabled: prefRepo.upsertEnabled,
         },
@@ -338,43 +414,90 @@ export const buildNotificationContext = (input: BuildInput) => {
     },
   } as const
 
+  /**
+   * Context-owned durable consumer registration. It is inert without the
+   * worker queue, so web composition can expose the capability without
+   * exposing Notification repositories or use cases.
+   */
+  const registerOutboxConsumers = () => {
+    if (!fanoutDeps) return
+    registerIdentityAccountNotificationConsumers({
+      queue: fanoutDeps.queue,
+      receipts: input.outboxRepo,
+    })
+    registerNotificationConsumers({
+      ...fanoutDeps,
+      receipts: input.outboxRepo,
+    })
+    registerWorkflowNotificationConsumers({
+      ...fanoutDeps,
+      receipts: input.outboxRepo,
+    })
+    registerBulkAssignmentNotificationConsumer({
+      queue: fanoutDeps.queue,
+      userLookup,
+      receipts: input.outboxRepo,
+    })
+    registerEscalationResolutionNotificationConsumer({
+      queue: fanoutDeps.queue,
+      escalationResolutions,
+      responsibleManagers: input.responsibleManagers,
+      receipts: input.outboxRepo,
+    })
+    registerHandlingCycleNotificationConsumers({
+      ...fanoutDeps,
+      receipts: input.outboxRepo,
+    })
+    registerResponseTargetNotificationConsumer({
+      ...fanoutDeps,
+      receipts: input.outboxRepo,
+    })
+    registerGoalNotificationConsumer({
+      queue: fanoutDeps.queue,
+      monthlyResultFacts: input.monthlyResultFacts,
+      responsibleManagers: input.responsibleManagers,
+      userLookup,
+      receipts: input.outboxRepo,
+    })
+    registerPortalNotificationConsumers({
+      queue: fanoutDeps.queue,
+      userLookup,
+      logger: input.logger,
+      receipts: input.outboxRepo,
+    })
+    registerPortalHealthNotificationConsumer({
+      queue: fanoutDeps.queue,
+      responsibleManagers: input.responsibleManagers,
+      userLookup,
+      logger: input.logger,
+      receipts: input.outboxRepo,
+    })
+    registerPropertyNotificationConsumers({
+      queue: fanoutDeps.queue,
+      userLookup,
+      logger: input.logger,
+      receipts: input.outboxRepo,
+    })
+    registerIntegrationNotificationConsumers({
+      queue: fanoutDeps.queue,
+      userLookup,
+      googleConnectionProperties: input.googleConnectionProperties,
+      logger: input.logger,
+      receipts: input.outboxRepo,
+    })
+    // Executable readiness contract: compare the beta trigger/recipient
+    // matrix with the consumers that are actually present in this worker.
+    assertBetaNotificationTriggerMatrix(listRegisteredConsumers())
+  }
+
   return {
     publicApi,
+    worker: Object.freeze({ registerOutboxConsumers }),
     internal: {
-      repos: { notificationRepo, emailRepo, prefRepo, gapRepo },
+      repos: { notificationRepo, emailRepo, prefRepo, gapRepo, deliveryLagRepo },
       useCases,
       handleResendEvent,
-      /**
-       * Durable at-least-once path for `inbox.inbox_item.created`. Inert until
-       * OUTBOX_DISPATCHER_ENABLED is true (the DURABLE_CUTOVER_INBOX* flags do
-       * not apply — they govern the four review.* families); registered
-       * regardless so the flip is a config change, not a code change. Without
-       * a queue there is nothing to enqueue onto, so registration is skipped
-       * rather than registering a consumer that would fail every event.
-       */
-      registerOutboxConsumers: () => {
-        if (!fanoutDeps) return
-        registerNotificationConsumers({
-          ...fanoutDeps,
-          receipts: input.outboxRepo,
-        })
-        registerWorkflowNotificationConsumers({
-          ...fanoutDeps,
-          receipts: input.outboxRepo,
-        })
-        registerPortalNotificationConsumers({
-          queue: fanoutDeps.queue,
-          userLookup,
-          logger: input.logger,
-          receipts: input.outboxRepo,
-        })
-        registerPropertyNotificationConsumers({
-          queue: fanoutDeps.queue,
-          userLookup,
-          logger: input.logger,
-          receipts: input.outboxRepo,
-        })
-      },
+      deliverySettlement,
       /**
        * The sweep that heals what the best-effort bus path drops. Undefined
        * without a queue, for the same reason as the consumers above.

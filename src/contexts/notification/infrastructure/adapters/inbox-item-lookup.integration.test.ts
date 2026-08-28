@@ -20,7 +20,16 @@ const { getPool } = setupIntegrationDb({
   orgB: ORG_B,
   // Guest tables are cleanup-only: earlier versions of this test seeded them,
   // and their Portal FKs must be cleared before the fixture Portal is deleted.
-  tables: ['inbox_items', 'guest_responses', 'feedback', 'portals', 'properties'],
+  tables: [
+    'inbox_handling_cycle_transitions',
+    'inbox_handling_cycle_heads',
+    'inbox_handling_cycles',
+    'inbox_items',
+    'guest_responses',
+    'feedback',
+    'portals',
+    'properties',
+  ],
 })
 
 async function seedPropertyAndPortal(
@@ -58,6 +67,29 @@ async function seedInboxItem(
   )
 }
 
+async function seedFeedbackHandlingCycle(
+  id: string,
+  organization: string,
+  property: string,
+  sourceId: string,
+): Promise<void> {
+  const pool = getPool()
+  await pool.query(
+    `INSERT INTO inbox_handling_cycles
+       (inbox_item_id, cycle_number, organization_id, property_id, source_type,
+        source_id, source_revision, opened_reason, opened_at)
+     VALUES ($1, 1, $2, $3, 'feedback', $4, 1, 'feedback_submitted', NOW())`,
+    [id, organization, property, sourceId],
+  )
+  await pool.query(
+    `INSERT INTO inbox_handling_cycle_heads
+       (inbox_item_id, organization_id, property_id, source_type, source_id,
+        current_source_revision, current_cycle_number, state_revision, status)
+     VALUES ($1, $2, $3, 'feedback', $4, 1, 1, 1, 'open')`,
+    [id, organization, property, sourceId],
+  )
+}
+
 describe('createInboxItemLookupAdapter.findInboxItemFacts', () => {
   it('uses Guest-owned Portal attribution and returns the current assignee', async () => {
     await seedPropertyAndPortal(ORG_A, PROPERTY_A, PORTAL_A)
@@ -92,5 +124,30 @@ describe('createInboxItemLookupAdapter.findInboxItemFacts', () => {
       expect.objectContaining({ portalId: null, assignedTo: null }),
     )
     expect(findPortalId).toHaveBeenCalledWith(ORG_B, feedbackId(RESPONSE))
+  })
+
+  it('returns the exact current Handling Cycle fence with Portal attribution', async () => {
+    await seedPropertyAndPortal(ORG_A, PROPERTY_A, PORTAL_A)
+    await seedInboxItem(ITEM_A, ORG_A, PROPERTY_A, RESPONSE, null)
+    await seedFeedbackHandlingCycle(ITEM_A, ORG_A, PROPERTY_A, RESPONSE)
+    const lookup = createInboxItemLookupAdapter(
+      drizzle(getPool()) as unknown as Database,
+      { findPortalId: vi.fn().mockResolvedValue(portalId(PORTAL_A)) },
+    )
+
+    await expect(
+      lookup.findHandlingCycleNotificationFacts(ITEM_A, ORG_A),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        propertyId: PROPERTY_A,
+        portalId: PORTAL_A,
+        sourceType: 'feedback',
+        sourceId: RESPONSE,
+        currentCycleNumber: 1,
+        currentSourceRevision: 1,
+        stateRevision: 1,
+        status: 'open',
+      }),
+    )
   })
 })

@@ -45,6 +45,11 @@ export const createNotificationPreference = (
   if (!CATEGORIES[input.category]) {
     return err(notificationError('invalid_type', 'Invalid notification category'))
   }
+  if (input.category === 'mandatory') {
+    return err(
+      notificationError('invalid_input', 'Mandatory notifications cannot be configured'),
+    )
+  }
   if (input.channel !== 'in_app' && input.channel !== 'email') {
     return err(notificationError('invalid_input', 'Invalid notification channel'))
   }

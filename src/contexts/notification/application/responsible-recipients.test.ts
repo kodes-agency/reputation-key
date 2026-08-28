@@ -36,7 +36,7 @@ const facts = (overrides: Partial<InboxItemFacts> = {}): InboxItemFacts => ({
   portalId: null,
   assignedTo: null,
   propertyName: 'Riverside',
-  rating: 4,
+  guestRating: null,
   sourceType: 'review',
   createdAt: new Date('2026-08-25T12:00:00.000Z'),
   ...overrides,

@@ -48,6 +48,7 @@ describe('notification policy', () => {
   })
 
   it('keeps cadence defaults in domain policy', () => {
+    expect(getDefaultCadence('mandatory')).toBe('immediate')
     expect(getDefaultCadence('urgent_operational')).toBe('immediate')
     expect(getDefaultCadence('workflow_collaboration')).toBe('daily')
   })
@@ -64,7 +65,11 @@ describe('notification policy', () => {
   })
 
   it('publishes the new count as `occurrences` so the copy can say it', () => {
-    const bumped = applyCoalescence(unread({ rating: 1 }), { rating: 1 }, LATER)
+    const bumped = applyCoalescence(
+      unread({ guestRating: 1, platform: 'portal' }),
+      { guestRating: 1, platform: 'portal' },
+      LATER,
+    )
 
     expect(bumped.payload.occurrences).toBe(2)
     expect(bumped.body).toContain('Updated 2 times')
@@ -72,20 +77,25 @@ describe('notification policy', () => {
 
   it('re-renders the title from the merged facts', () => {
     const bumped = applyCoalescence(
-      unread({ propertyName: 'Riverside', rating: 3 }),
-      { propertyName: 'Riverside', rating: 1, waitingHours: 30 },
+      unread({ propertyName: 'Riverside', guestRating: 3, platform: 'portal' }),
+      {
+        propertyName: 'Riverside',
+        guestRating: 1,
+        platform: 'portal',
+        waitingHours: 30,
+      },
       LATER,
     )
 
-    // The newer rating wins; the age it has now waited is reflected.
-    expect(bumped.title).toBe('Escalated: 1-star review at Riverside')
+    // The newer local guest rating wins; the age it has now waited is reflected.
+    expect(bumped.title).toBe('Escalated: 1-star feedback at Riverside')
     expect(bumped.body).toContain('Waiting 1d')
   })
 
   it('keeps a fact the repeat event could not resolve (newest wins per key)', () => {
     const bumped = applyCoalescence(
-      unread({ propertyName: 'Riverside', rating: 2 }),
-      { rating: 2 },
+      unread({ propertyName: 'Riverside', guestRating: 2, platform: 'portal' }),
+      { guestRating: 2, platform: 'portal' },
       LATER,
     )
 

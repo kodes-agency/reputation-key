@@ -1,9 +1,10 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { and, eq, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/node-postgres'
 import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import {
+  notificationDigestBatchMembers,
   notificationDigestBatches,
   notificationEmailQueue,
   notifications,
@@ -28,6 +29,33 @@ const EMAIL_LATE = notificationEmailId('81000000-0000-4000-8000-000000000013')
 const BATCH = notificationDigestBatchId('81000000-0000-4000-8000-000000000021')
 const NOW = new Date('2026-08-25T08:00:00.000Z')
 
+const digestBatchInput = (
+  id = BATCH,
+): Parameters<
+  ReturnType<typeof createNotificationEmailRepository>['prepareDigestBatch']
+>[0] => {
+  const memberIds = [EMAIL_A, EMAIL_B] as const
+  const memberDigest = digestMemberSet(memberIds)
+  return {
+    id,
+    organizationId: ORG,
+    userId: USER,
+    localDate: '2026-08-25',
+    memberIds,
+    memberDigest,
+    contentDigest: 'a'.repeat(64),
+    unsubscribeKeyVersion: 'v1',
+    providerIdempotencyKey: digestBatchIdempotencyKey({
+      organizationId: ORG,
+      userId: USER,
+      localDate: '2026-08-25',
+      batchId: id,
+      memberDigest,
+    }),
+    preparedAt: NOW,
+  }
+}
+
 describe.sequential('notification digest batch repository (real PostgreSQL)', () => {
   let lease: TestLease
   let db: Database
@@ -35,6 +63,9 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
   beforeAll(async () => {
     lease = await acquireTestLease(getEnv().DATABASE_URL)
     db = drizzle(lease.pool) as Database
+  })
+
+  beforeEach(async () => {
     await db
       .delete(notificationDigestBatches)
       .where(eq(notificationDigestBatches.organizationId, ORG))
@@ -95,33 +126,15 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
 
   it('freezes exact members, serializes concurrent preparation, and settles atomically', async () => {
     const repo = createNotificationEmailRepository(db)
-    const memberIds = [EMAIL_A, EMAIL_B] as const
-    const memberDigest = digestMemberSet(memberIds)
-    const input = {
-      id: BATCH,
-      organizationId: ORG,
-      userId: USER,
-      localDate: '2026-08-25',
-      memberIds,
-      memberDigest,
-      contentDigest: 'a'.repeat(64),
-      unsubscribeKeyVersion: 'v1',
-      providerIdempotencyKey: digestBatchIdempotencyKey({
-        organizationId: ORG,
-        userId: USER,
-        localDate: '2026-08-25',
-        batchId: BATCH,
-        memberDigest,
-      }),
-      preparedAt: NOW,
-    }
+    const input = digestBatchInput()
 
     const [first, concurrent] = await Promise.all([
       repo.prepareDigestBatch(input),
-      repo.prepareDigestBatch({
-        ...input,
-        id: notificationDigestBatchId('81000000-0000-4000-8000-000000000022'),
-      }),
+      repo.prepareDigestBatch(
+        digestBatchInput(
+          notificationDigestBatchId('81000000-0000-4000-8000-000000000022'),
+        ),
+      ),
     ])
     const owner = first.created ? first : concurrent
     const follower = first.created ? concurrent : first
@@ -138,6 +151,53 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
     await expect(
       repo.findDueRecipients('daily', new Date('2026-08-25T09:00:00.000Z')),
     ).resolves.toContainEqual({ organizationId: ORG, userId: USER })
+
+    await expect(
+      repo.settleDigestBatch({
+        batchId: owner.batch.id,
+        organizationId: ORG,
+        userId: USER,
+        expectedContentDigest: 'b'.repeat(64),
+        settlement: {
+          kind: 'accepted',
+          providerMessageId: 'must-not-accept-stale-content',
+          acceptedAt: NOW,
+        },
+      }),
+    ).resolves.toBe(false)
+
+    const retryAt = new Date('2026-08-25T08:01:00.000Z')
+    await expect(
+      repo.settleDigestBatch({
+        batchId: owner.batch.id,
+        organizationId: ORG,
+        userId: USER,
+        expectedContentDigest: input.contentDigest,
+        settlement: {
+          kind: 'rejected',
+          classification: 'transient',
+          nextAttemptAt: retryAt,
+          failedAt: NOW,
+        },
+      }),
+    ).resolves.toBe(true)
+    await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toMatchObject({
+      id: owner.batch.id,
+      state: 'retryable',
+      retryCount: 1,
+    })
+
+    const retryStates = await db
+      .select({ id: notificationEmailQueue.id, status: notificationEmailQueue.status })
+      .from(notificationEmailQueue)
+      .where(eq(notificationEmailQueue.organizationId, ORG))
+    expect(new Map(retryStates.map((row) => [row.id, row.status]))).toEqual(
+      new Map([
+        [EMAIL_A, 'failed'],
+        [EMAIL_B, 'failed'],
+        [EMAIL_LATE, 'pending'],
+      ]),
+    )
 
     await expect(
       repo.settleDigestBatch({
@@ -170,5 +230,127 @@ describe.sequential('notification digest batch repository (real PostgreSQL)', ()
       ]),
     )
     await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toBeNull()
+  })
+
+  it('rejects a member fingerprint or provider key that does not bind the exact batch', async () => {
+    const repo = createNotificationEmailRepository(db)
+    const input = digestBatchInput()
+
+    await expect(
+      repo.prepareDigestBatch({ ...input, memberDigest: 'b'.repeat(64) }),
+    ).rejects.toThrow('Digest batch member fingerprint does not match exact members')
+    await expect(
+      repo.prepareDigestBatch({
+        ...input,
+        providerIdempotencyKey: `rk-digest-v2:${'c'.repeat(64)}`,
+      }),
+    ).rejects.toThrow('Digest batch provider key does not match immutable identity')
+    await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toBeNull()
+  })
+
+  it('refuses provider outcomes after membership corruption and allows terminal invalidation', async () => {
+    const repo = createNotificationEmailRepository(db)
+    const input = digestBatchInput()
+    const prepared = await repo.prepareDigestBatch(input)
+
+    await db
+      .delete(notificationDigestBatchMembers)
+      .where(
+        and(
+          eq(notificationDigestBatchMembers.batchId, prepared.batch.id),
+          eq(notificationDigestBatchMembers.notificationEmailId, EMAIL_B),
+        ),
+      )
+
+    await expect(
+      repo.settleDigestBatch({
+        batchId: prepared.batch.id,
+        organizationId: ORG,
+        userId: USER,
+        expectedContentDigest: input.contentDigest,
+        settlement: {
+          kind: 'accepted',
+          providerMessageId: 'must-not-settle-partial-membership',
+          acceptedAt: NOW,
+        },
+      }),
+    ).resolves.toBe(false)
+
+    const beforeInvalidation = await db
+      .select({ id: notificationEmailQueue.id, status: notificationEmailQueue.status })
+      .from(notificationEmailQueue)
+      .where(eq(notificationEmailQueue.organizationId, ORG))
+    expect(new Map(beforeInvalidation.map((row) => [row.id, row.status]))).toEqual(
+      new Map([
+        [EMAIL_A, 'pending'],
+        [EMAIL_B, 'pending'],
+        [EMAIL_LATE, 'pending'],
+      ]),
+    )
+
+    await expect(
+      repo.settleDigestBatch({
+        batchId: prepared.batch.id,
+        organizationId: ORG,
+        userId: USER,
+        expectedContentDigest: input.contentDigest,
+        settlement: {
+          kind: 'invalidated',
+          reason: 'digest_membership_changed',
+          invalidatedAt: NOW,
+        },
+      }),
+    ).resolves.toBe(true)
+
+    const afterInvalidation = await db
+      .select({ id: notificationEmailQueue.id, status: notificationEmailQueue.status })
+      .from(notificationEmailQueue)
+      .where(eq(notificationEmailQueue.organizationId, ORG))
+    expect(new Map(afterInvalidation.map((row) => [row.id, row.status]))).toEqual(
+      new Map([
+        [EMAIL_A, 'suppressed'],
+        [EMAIL_B, 'pending'],
+        [EMAIL_LATE, 'pending'],
+      ]),
+    )
+    await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toBeNull()
+  })
+
+  it('terminates only the frozen members when provider-visible retry content drifts', async () => {
+    const repo = createNotificationEmailRepository(db)
+    const input = digestBatchInput()
+    const prepared = await repo.prepareDigestBatch(input)
+
+    await expect(
+      repo.settleDigestBatch({
+        batchId: prepared.batch.id,
+        organizationId: ORG,
+        userId: USER,
+        expectedContentDigest: 'd'.repeat(64),
+        settlement: { kind: 'content_mismatch', detectedAt: NOW },
+      }),
+    ).resolves.toBe(true)
+
+    const states = await db
+      .select({ id: notificationEmailQueue.id, status: notificationEmailQueue.status })
+      .from(notificationEmailQueue)
+      .where(eq(notificationEmailQueue.organizationId, ORG))
+    expect(new Map(states.map((row) => [row.id, row.status]))).toEqual(
+      new Map([
+        [EMAIL_A, 'suppressed'],
+        [EMAIL_B, 'suppressed'],
+        [EMAIL_LATE, 'pending'],
+      ]),
+    )
+    await expect(repo.findOpenDigestBatch(ORG, USER)).resolves.toBeNull()
+    await expect(
+      repo.settleDigestBatch({
+        batchId: prepared.batch.id,
+        organizationId: ORG,
+        userId: USER,
+        expectedContentDigest: 'd'.repeat(64),
+        settlement: { kind: 'content_mismatch', detectedAt: NOW },
+      }),
+    ).resolves.toBe(false)
   })
 })

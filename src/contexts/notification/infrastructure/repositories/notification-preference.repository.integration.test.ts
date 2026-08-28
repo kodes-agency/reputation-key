@@ -86,7 +86,7 @@ describe.sequential('notification preference mute repository (real PostgreSQL)',
     })
   })
 
-  it('enforces required channels at the database boundary', async () => {
+  it('rejects non-configurable categories and enforces required channels at the database boundary', async () => {
     const base = {
       userId: USER,
       organizationId: ORG,
@@ -108,7 +108,9 @@ describe.sequential('notification preference mute repository (real PostgreSQL)',
         channel: 'email',
       }),
     ).rejects.toMatchObject({
-      cause: { constraint: 'notification_preferences_required_enabled' },
+      cause: {
+        constraint: 'notification_preferences_configurable_category_check',
+      },
     })
 
     await expect(

@@ -6,10 +6,11 @@ import type { ReviewId, OrganizationId, InboxItemId, UserId } from '#/shared/dom
 /**
  * The render facts a notification needs about an inbox item (ADR 0046 r.8).
  *
- * Content-free by construction: the item's snippet, reviewer name, and media
- * are deliberately NOT here and must never be added — `rating` is a numeric
- * fact, `propertyName` is tenant-authored, and `createdAt` only yields an age.
- * The events themselves carry ids only, which is why this seam exists.
+ * Content-free by construction: the item's snippet, reviewer name, media, and
+ * Google/provider rating are deliberately NOT here and must never be added.
+ * A locally collected Portal rating may cross; `propertyName` is
+ * tenant-authored, and `createdAt` only yields an age. The events themselves
+ * carry ids only, which is why this seam exists.
  */
 export type InboxItemFacts = Readonly<{
   propertyId: string
@@ -19,12 +20,49 @@ export type InboxItemFacts = Readonly<{
   assignedTo: UserId | null
   /** Tenant-authored property name. Null when the property row is gone. */
   propertyName: string | null
-  /** 1-5 stars as reported by the source, or null for unrated feedback. */
-  rating: number | null
+  /** Locally collected Portal stars, or null for reviews/unrated feedback. */
+  guestRating: number | null
   /** 'review' (Google-sourced) or 'feedback' (portal-sourced). */
   sourceType: string
   /** When the item entered the inbox — the clock the waiting age is measured from. */
   createdAt: Date
+}>
+
+/**
+ * Exact current Handling Cycle authority used by durable notification
+ * admission and revalidated again when the queued notification is delivered.
+ * It intentionally carries identifiers and workflow revisions only.
+ */
+export type HandlingCycleNotificationFacts = InboxItemFacts &
+  Readonly<{
+    sourceId: string
+    currentCycleNumber: number
+    currentSourceRevision: number
+    stateRevision: number
+    status: 'open' | 'closed'
+  }>
+
+/**
+ * Exact current Response Target reminder authority. The tuple in the durable
+ * event is looked up again before fan-out and again before materialization so
+ * a completed target, superseded cycle, or changed responsibility cannot
+ * produce a stale notification.
+ */
+export type ResponseTargetReminderNotificationFacts = HandlingCycleNotificationFacts &
+  Readonly<{
+    sourceType: 'review' | 'feedback'
+    targetKind: 'google_review_response' | 'private_feedback_handling'
+    reminderKind: 'halfway' | 'target_passed'
+    scheduledFor: Date
+  }>
+
+export type ResponseTargetReminderNotificationLookup = Readonly<{
+  inboxItemId: InboxItemId
+  organizationId: OrganizationId
+  cycleNumber: number
+  targetKind: 'google_review_response' | 'private_feedback_handling'
+  reminderKind: 'halfway' | 'target_passed'
+  scheduledFor: Date
 }>
 
 export type InboxItemLookupPort = Readonly<{
@@ -40,4 +78,15 @@ export type InboxItemLookupPort = Readonly<{
     inboxItemId: InboxItemId,
     orgId: OrganizationId,
   ): Promise<InboxItemFacts | null>
+
+  /** Resolve the current source cycle/head together with content-free item facts. */
+  findHandlingCycleNotificationFacts(
+    inboxItemId: InboxItemId,
+    orgId: OrganizationId,
+  ): Promise<HandlingCycleNotificationFacts | null>
+
+  /** Resolve one released reminder only while its exact target remains active. */
+  findResponseTargetReminderNotificationFacts(
+    input: ResponseTargetReminderNotificationLookup,
+  ): Promise<ResponseTargetReminderNotificationFacts | null>
 }>

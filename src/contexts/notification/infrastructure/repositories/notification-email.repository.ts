@@ -1,7 +1,7 @@
 // Notification context — Drizzle repository adapter for notification email queue
 // Per architecture: factory pattern `createXxxRepository(db)` returning port interface.
 
-import { and, asc, eq, inArray, lte, max, or, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, lte, max, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   notificationDigestBatchMembers,
@@ -31,6 +31,7 @@ import type {
   PreparedNotificationDigestBatch,
   ProviderStateTransition,
 } from '../../application/ports/notification-email-repository.port'
+import { digestBatchIdempotencyKey, digestMemberSet } from '../digest-batch-identity'
 import { notificationError } from '../../domain/errors'
 
 type EmailRow = typeof notificationEmailQueue.$inferSelect
@@ -41,7 +42,7 @@ const emailFromRow = (row: EmailRow): NotificationEmail => ({
   notificationId: notificationId(row.notificationId),
   userId: toUserId(row.userId),
   organizationId: toOrgId(row.organizationId),
-  propertyId: toPropertyId(row.propertyId),
+  propertyId: row.propertyId === null ? null : toPropertyId(row.propertyId),
   category: row.category as NotificationCategory,
   cadence: row.cadence as NotificationCadence,
   status: row.status as EmailQueueStatus,
@@ -80,11 +81,13 @@ const digestBatchFromRow = (row: DigestBatchRow): NotificationDigestBatch => ({
   updatedAt: row.updatedAt,
 })
 
-const scope = (id: string, orgId: string, propertyId: string) =>
+const scope = (id: string, orgId: string, propertyId: string | null) =>
   and(
     eq(notificationEmailQueue.id, id),
     eq(notificationEmailQueue.organizationId, orgId),
-    eq(notificationEmailQueue.propertyId, propertyId),
+    propertyId === null
+      ? isNull(notificationEmailQueue.propertyId)
+      : eq(notificationEmailQueue.propertyId, propertyId),
   )
 
 /** Statuses a row can still be sent from. */
@@ -143,7 +146,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
         notificationId: email.notificationId as string,
         userId: email.userId as string,
         organizationId: email.organizationId as string,
-        propertyId: email.propertyId as string,
+        propertyId: email.propertyId as string | null,
         category: email.category,
         cadence: email.cadence,
         status: email.status,
@@ -165,13 +168,9 @@ export const createNotificationEmailRepository = (db: Database) => ({
         createdAt: email.createdAt,
         updatedAt: email.updatedAt,
       })
-      .onConflictDoNothing({
-        target: [
-          notificationEmailQueue.organizationId,
-          notificationEmailQueue.propertyId,
-          notificationEmailQueue.idempotencyKey,
-        ],
-      })
+      // Property and Organization scopes use separate partial unique indexes.
+      // The row shape determines which one PostgreSQL applies.
+      .onConflictDoNothing()
       .returning()
     if (rows[0]) return emailFromRow(rows[0])
 
@@ -181,7 +180,9 @@ export const createNotificationEmailRepository = (db: Database) => ({
       .where(
         and(
           eq(notificationEmailQueue.organizationId, email.organizationId as string),
-          eq(notificationEmailQueue.propertyId, email.propertyId as string),
+          email.propertyId === null
+            ? isNull(notificationEmailQueue.propertyId)
+            : eq(notificationEmailQueue.propertyId, email.propertyId as string),
           eq(notificationEmailQueue.idempotencyKey, email.idempotencyKey),
         ),
       )
@@ -194,7 +195,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
   findById: async (
     id: string,
     orgId: string,
-    propertyId: string,
+    propertyId: string | null,
   ): Promise<NotificationEmail | null> => {
     const rows = await db
       .select()
@@ -293,7 +294,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
   markAccepted: async (
     id: string,
     orgId: string,
-    propertyId: string,
+    propertyId: string | null,
     providerMessageId: string,
     acceptedAt: Date,
   ): Promise<void> => {
@@ -321,7 +322,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
   markDelayed: async (
     id: string,
     orgId: string,
-    propertyId: string,
+    propertyId: string | null,
     notBefore: Date,
     updatedAt: Date,
   ): Promise<void> => {
@@ -339,7 +340,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
   markFailed: async (
     id: string,
     orgId: string,
-    propertyId: string,
+    propertyId: string | null,
     classification: DeliveryErrorClass,
     nextAttemptAt: Date | null,
     failedAt: Date,
@@ -366,7 +367,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
   markSuppressed: async (
     id: string,
     orgId: string,
-    propertyId: string,
+    propertyId: string | null,
     reason: string,
     updatedAt: Date,
   ): Promise<void> => {
@@ -423,7 +424,7 @@ export const createNotificationEmailRepository = (db: Database) => ({
       emailId: notificationEmailId(row.id),
       userId: toUserId(row.userId),
       organizationId: toOrgId(row.organizationId),
-      propertyId: toPropertyId(row.propertyId),
+      propertyId: row.propertyId === null ? null : toPropertyId(row.propertyId),
     }))
   },
 
@@ -544,6 +545,26 @@ export const createNotificationEmailRepository = (db: Database) => ({
     }
     if (new Set(input.memberIds).size !== input.memberIds.length) {
       throw notificationError('insert_failed', 'Digest batch members must be unique')
+    }
+    const expectedMemberDigest = digestMemberSet(input.memberIds)
+    if (input.memberDigest !== expectedMemberDigest) {
+      throw notificationError(
+        'insert_failed',
+        'Digest batch member fingerprint does not match exact members',
+      )
+    }
+    const expectedProviderIdempotencyKey = digestBatchIdempotencyKey({
+      organizationId: input.organizationId,
+      userId: input.userId,
+      localDate: input.localDate,
+      batchId: input.id,
+      memberDigest: expectedMemberDigest,
+    })
+    if (input.providerIdempotencyKey !== expectedProviderIdempotencyKey) {
+      throw notificationError(
+        'insert_failed',
+        'Digest batch provider key does not match immutable identity',
+      )
     }
 
     return db.transaction(async (tx) => {
@@ -677,8 +698,15 @@ export const createNotificationEmailRepository = (db: Database) => ({
             eq(notificationDigestBatchMembers.userId, input.userId),
           ),
         )
-      if (members.length === 0) return false
       const memberIds = members.map((member) => member.id)
+      const immutableMembershipIntact =
+        members.length > 0 && digestMemberSet(memberIds) === batch.memberDigest
+      // An accepted/rejected provider outcome is meaningful only for the
+      // exact frozen set. Invalidation is the recovery path for corrupted or
+      // unavailable membership and must still be able to close an empty batch.
+      if (!immutableMembershipIntact && input.settlement.kind !== 'invalidated') {
+        return false
+      }
 
       if (input.settlement.kind === 'accepted') {
         await tx
@@ -749,23 +777,25 @@ export const createNotificationEmailRepository = (db: Database) => ({
       }
 
       if (input.settlement.kind === 'invalidated') {
-        await tx
-          .update(notificationEmailQueue)
-          .set({
-            status: 'suppressed',
-            providerState: 'suppressed',
-            suppressionReason: input.settlement.reason,
-            nextAttemptAt: null,
-            updatedAt: input.settlement.invalidatedAt,
-          })
-          .where(
-            and(
-              eq(notificationEmailQueue.organizationId, input.organizationId),
-              eq(notificationEmailQueue.userId, input.userId),
-              inArray(notificationEmailQueue.id, memberIds),
-              inArray(notificationEmailQueue.status, [...SENDABLE]),
-            ),
-          )
+        if (memberIds.length > 0) {
+          await tx
+            .update(notificationEmailQueue)
+            .set({
+              status: 'suppressed',
+              providerState: 'suppressed',
+              suppressionReason: input.settlement.reason,
+              nextAttemptAt: null,
+              updatedAt: input.settlement.invalidatedAt,
+            })
+            .where(
+              and(
+                eq(notificationEmailQueue.organizationId, input.organizationId),
+                eq(notificationEmailQueue.userId, input.userId),
+                inArray(notificationEmailQueue.id, memberIds),
+                inArray(notificationEmailQueue.status, [...SENDABLE]),
+              ),
+            )
+        }
         await tx
           .update(notificationDigestBatches)
           .set({

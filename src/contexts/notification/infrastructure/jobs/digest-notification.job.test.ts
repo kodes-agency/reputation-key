@@ -156,6 +156,7 @@ function baseDeps(options: Options = {}) {
     })),
     logger: createFakeJobLogger(),
     clock: () => now,
+    batchIdGen: vi.fn(() => '86000000-0000-4000-8000-000000000099'),
     authorizeScope: vi.fn(async (_org: string, _property: string) => true),
     baseUrl: BASE_URL,
     activeOneClickUnsubscribeKeyVersion: vi.fn(

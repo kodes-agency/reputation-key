@@ -23,9 +23,14 @@ const urgent = (rendered: RenderedNotification) =>
 
 const pendingApproval = renderNotification('reply.pending_approval', {
   propertyName: 'Riverside Hotel',
-  rating: 2,
   waitingHours: 3,
   actorRole: 'staff',
+})
+
+const portalFeedback = renderNotification('feedback.created', {
+  propertyName: 'Riverside Hotel',
+  guestRating: 2,
+  platform: 'portal',
 })
 
 const digestGroup = (
@@ -34,7 +39,7 @@ const digestGroup = (
 ): DigestEmailGroup => ({
   propertyName,
   items: ids.map((id) => ({
-    rendered: renderNotification('review.created', { propertyName, rating: 4 }),
+    rendered: renderNotification('review.created', { propertyName }),
     actionUrl: `https://app.test/inbox?itemId=${id}`,
   })),
 })
@@ -71,7 +76,7 @@ describe('renderNotificationEmail — parts', () => {
 
   it('emits the summary as the preheader', () => {
     expect(email.html).toContain('data-skip-in-text="true"')
-    expect(email.html).toContain('Riverside Hotel · 2-star review · waiting 3h')
+    expect(email.html).toContain('Riverside Hotel · review · waiting 3h')
   })
 
   it('marks urgency with a pill rather than a red banner', () => {
@@ -96,16 +101,16 @@ describe('renderNotificationEmail — parts', () => {
 })
 
 describe('renderNotificationEmail — star rating', () => {
-  const email = urgent(pendingApproval)
+  const email = urgent(portalFeedback)
 
   it('draws glyphs as aria-hidden decoration beside the wording', () => {
     expect(email.html).toContain('★★☆☆☆')
     expect(email.html).toContain('aria-hidden="true"')
-    expect(email.html).toContain('2-star review')
+    expect(email.html).toContain('2-star feedback')
   })
 
   it('gives the plain-text twin the numeric equivalent, not glyphs', () => {
-    expect(email.text).toContain('2/5 review')
+    expect(email.text).toContain('2/5 feedback')
     expect(email.text).not.toContain('★')
   })
 })

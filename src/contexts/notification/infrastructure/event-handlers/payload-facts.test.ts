@@ -1,20 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import {
-  buildBadgePayload,
-  buildGoalPayload,
-  buildInboxItemPayload,
-  type InboxPayloadDeps,
-  type RecognitionPayloadDeps,
-} from './payload-facts'
-import {
-  badgeId,
-  goalId,
-  inboxItemId,
-  organizationId,
-  portalGroupId,
-  portalId,
-  userId,
-} from '#/shared/domain/ids'
+import { buildInboxItemPayload, type InboxPayloadDeps } from './payload-facts'
+import { inboxItemId, organizationId, userId } from '#/shared/domain/ids'
 
 const ORG = organizationId('org-1')
 const ITEM = inboxItemId('item-1')
@@ -46,7 +32,7 @@ const inboxDeps = (
 const reviewFacts = {
   propertyId: 'prop-1',
   propertyName: 'Riverside Hotel',
-  rating: 2,
+  guestRating: null,
   sourceType: 'review',
   createdAt: new Date('2026-06-01T09:00:00.000Z'),
 }
@@ -60,7 +46,6 @@ describe('buildInboxItemPayload', () => {
 
     expect(payload).toEqual({
       propertyName: 'Riverside Hotel',
-      rating: 2,
       platform: 'google',
       waitingHours: 3,
     })
@@ -68,11 +53,11 @@ describe('buildInboxItemPayload', () => {
 
   it('reads feedback as portal-sourced', async () => {
     const payload = await buildInboxItemPayload(
-      inboxDeps({ ...reviewFacts, sourceType: 'feedback' }),
+      inboxDeps({ ...reviewFacts, sourceType: 'feedback', guestRating: 2 }),
       { inboxItemId: ITEM, orgId: ORG },
     )
 
-    expect(payload.platform).toBe('portal')
+    expect(payload).toMatchObject({ platform: 'portal', guestRating: 2 })
   })
 
   it('floors the waiting age and never goes negative', async () => {
@@ -89,9 +74,9 @@ describe('buildInboxItemPayload', () => {
     expect(partial.waitingHours).toBe(1)
   })
 
-  it('omits the property name and rating the item does not have', async () => {
+  it('omits the property name and local guest rating the item does not have', async () => {
     const payload = await buildInboxItemPayload(
-      inboxDeps({ ...reviewFacts, propertyName: null, rating: null }),
+      inboxDeps({ ...reviewFacts, propertyName: null, guestRating: null }),
       { inboxItemId: ITEM, orgId: ORG },
     )
 
@@ -164,91 +149,5 @@ describe('buildInboxItemPayload', () => {
     })
 
     expect(payload).toEqual({})
-  })
-})
-
-const recognitionDeps = (goal: unknown, badge: unknown): RecognitionPayloadDeps =>
-  ({
-    recognitionLookup: {
-      findGoalFacts: vi.fn(async () => goal),
-      findBadgeFacts: vi.fn(async () => badge),
-    },
-    logger: logger(),
-  }) as unknown as RecognitionPayloadDeps
-
-describe('buildGoalPayload', () => {
-  it('carries the goal and property names', async () => {
-    const payload = await buildGoalPayload(
-      recognitionDeps(
-        { goalName: 'Weekend response time', propertyName: 'Riverside' },
-        null,
-      ),
-      { goalId: goalId('goal-1'), orgId: ORG },
-    )
-
-    expect(payload).toEqual({
-      goalName: 'Weekend response time',
-      propertyName: 'Riverside',
-    })
-  })
-
-  it('omits the property name when the property row is gone', async () => {
-    const payload = await buildGoalPayload(
-      recognitionDeps({ goalName: 'Weekend response time', propertyName: null }, null),
-      { goalId: goalId('goal-1'), orgId: ORG },
-    )
-
-    expect(payload).toEqual({ goalName: 'Weekend response time' })
-  })
-
-  it('returns an empty payload when the goal is gone', async () => {
-    const payload = await buildGoalPayload(recognitionDeps(null, null), {
-      goalId: goalId('goal-1'),
-      orgId: ORG,
-    })
-
-    expect(payload).toEqual({})
-  })
-})
-
-describe('buildBadgePayload', () => {
-  it('carries the badge name and the recipient display name', async () => {
-    const payload = await buildBadgePayload(
-      recognitionDeps(null, { badgeName: 'Fast Responder', recipientName: 'Front desk' }),
-      {
-        badgeDefinitionId: badgeId('badge-1'),
-        target: { kind: 'portal', id: portalId('portal-1') },
-        orgId: ORG,
-      },
-    )
-
-    expect(payload).toEqual({
-      targetKind: 'portal',
-      badgeName: 'Fast Responder',
-      recipientName: 'Front desk',
-    })
-  })
-
-  it('keeps the target kind when the badge lookup finds nothing', async () => {
-    const payload = await buildBadgePayload(recognitionDeps(null, null), {
-      badgeDefinitionId: badgeId('badge-1'),
-      target: { kind: 'portal_group', id: portalGroupId('group-1') },
-      orgId: ORG,
-    })
-
-    expect(payload).toEqual({ targetKind: 'portal_group' })
-  })
-
-  it('omits a recipient name the target no longer has', async () => {
-    const payload = await buildBadgePayload(
-      recognitionDeps(null, { badgeName: 'Fast Responder', recipientName: null }),
-      {
-        badgeDefinitionId: badgeId('badge-1'),
-        target: { kind: 'portal', id: portalId('portal-1') },
-        orgId: ORG,
-      },
-    )
-
-    expect(payload).toEqual({ targetKind: 'portal', badgeName: 'Fast Responder' })
   })
 })

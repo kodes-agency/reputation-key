@@ -4,6 +4,7 @@
 
 // ── Domain type re-exports ────────────────────────────────────────────
 export type {
+  ConfigurableNotificationCategory,
   DeliveryErrorClass,
   EmailQueueStatus,
   Notification,
@@ -33,9 +34,9 @@ export { isUrgent, URGENT_TYPES } from '../domain/types'
 // everywhere, including rows already in the database.
 export type {
   NotificationActorRole,
+  NotificationGuestRating,
   NotificationPayload,
   NotificationPlatform,
-  NotificationRating,
   NotificationTargetKind,
 } from '../domain/notification-payload'
 export type {
@@ -50,15 +51,17 @@ export {
 
 // ── Category surfaces ─────────────────────────────────────────────────
 // `NOTIFICATION_CATEGORIES` is the complete retained persistence vocabulary.
-// `NOTIFICATION_SETTINGS_CATEGORIES` excludes post-core controls while keeping
-// mandatory account/safety policy visible. `GOVERNING_NOTIFICATION_CATEGORIES`
-// is its non-empty filter subset. Historical rows from excluded categories
-// remain visible through All/Unread and map through the complete vocabulary.
+// `NOTIFICATION_SETTINGS_CATEGORIES` contains only configurable Property
+// categories. Organization mandatory policy and post-core recognition have no
+// Property controls. `GOVERNING_NOTIFICATION_CATEGORIES` is the active filter
+// vocabulary, which still exposes mandatory history. Historical rows remain
+// visible through All/Unread and map through the complete vocabulary.
 export {
   classifyNotification,
   GOVERNING_NOTIFICATION_CATEGORIES,
   NOTIFICATION_CATEGORIES,
   NOTIFICATION_SETTINGS_CATEGORIES,
+  notificationScopeForType,
 } from '../domain/notification-delivery-policy'
 
 // ── Constructor re-exports ────────────────────────────────────────────
@@ -78,22 +81,33 @@ export type { UserLookupPort } from './ports/user-lookup.port'
 export type { ResponsibleManagerLookupPort } from './ports/responsible-manager-lookup.port'
 export type { FeedbackPortalLookupPort } from './ports/feedback-portal-lookup.port'
 export type {
+  PortalHealthLookupPort,
+  PortalHealthNotificationFacts,
+} from './ports/portal-health-lookup.port'
+export type {
+  NotificationDeliveryLagReport,
+  NotificationDeliveryLagRepository,
+  NotificationDeliveryLagWindow,
+} from './ports/notification-delivery-lag.repository'
+export type {
   NotificationAudience,
   NotificationAudienceAuthorizationInput,
   NotificationAudienceAuthorizer,
 } from './notification-audience'
 export type { EmailSenderPort } from './ports/email-sender.port'
-export type { InboxItemFacts, InboxItemLookupPort } from './ports/inbox-item-lookup.port'
 export type {
-  BadgeFacts,
-  GoalFacts,
-  RecognitionLookupPort,
-} from './ports/recognition-lookup.port'
-
+  HandlingCycleNotificationFacts,
+  InboxItemFacts,
+  InboxItemLookupPort,
+} from './ports/inbox-item-lookup.port'
+export type {
+  EscalationResolutionLookupPort,
+  EscalationResolutionNotificationFacts,
+} from './ports/escalation-resolution-lookup.port'
 // ── Use-case input re-exports ─────────────────────────────────────────
 export type { InsertNotificationInput } from './use-cases/insert-notification'
 export {
   NOTIFICATION_LIST_FILTERS,
   type NotificationListFilter,
 } from './notification-list-filter'
-export type { NotificationPage } from './notification-page'
+export type { NotificationFeedHead, NotificationPage } from './notification-page'

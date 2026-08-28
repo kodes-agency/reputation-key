@@ -88,4 +88,14 @@ describe('onInboxItemAssigned (notification)', () => {
       'Queue unavailable',
     )
   })
+
+  it('leaves bulk-linked per-item facts to the grouped completion consumer', async () => {
+    await onInboxItemAssigned(deps)({
+      ...mockEvent,
+      bulkId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    })
+
+    expect(deps.queue.add).not.toHaveBeenCalled()
+    expect(deps.inboxItemLookup.findInboxItemFacts).not.toHaveBeenCalled()
+  })
 })

@@ -100,10 +100,15 @@ describe('notification delivery policy', () => {
     expect(requiredCapabilityForPreferenceChannel('in_app')).toBeUndefined()
   })
   it('maps notification types to governed categories', () => {
+    expect(classifyNotification('account.organization_access_granted')).toBe('mandatory')
+    expect(classifyNotification('account.organization_role_changed')).toBe('mandatory')
+    expect(classifyNotification('account.organization_access_removed')).toBe('mandatory')
     expect(classifyNotification('reply.publish_failed')).toBe('urgent_operational')
     expect(classifyNotification('feedback.created')).toBe('urgent_operational')
     expect(classifyNotification('badge.awarded')).toBe('recognition')
     expect(classifyNotification('review.created')).toBe('workflow_collaboration')
+    expect(classifyNotification('review.updated')).toBe('urgent_operational')
+    expect(classifyNotification('inbox.reopened')).toBe('urgent_operational')
   })
 
   // ── Category surfaces ─────────────────────────────────────────────
@@ -111,11 +116,11 @@ describe('notification delivery policy', () => {
   it('keeps retained Recognition data out of active beta controls', () => {
     expect(NOTIFICATION_CATEGORIES).toContain('recognition')
     expect(NOTIFICATION_SETTINGS_CATEGORIES).toEqual([
-      'mandatory',
       'urgent_operational',
       'workflow_collaboration',
     ])
     expect(GOVERNING_NOTIFICATION_CATEGORIES).toEqual([
+      'mandatory',
       'urgent_operational',
       'workflow_collaboration',
     ])
@@ -142,17 +147,9 @@ describe('notification delivery policy', () => {
     }
   })
 
-  it('keeps mandatory out of the filterable set while keeping it in settings', () => {
-    // ADR 0046 reserves `mandatory` for account/security/legal mail, so settings
-    // must still show it (non-disableable), but a filter tab for it could only
-    // ever return an empty list.
-    expect(GOVERNING_NOTIFICATION_CATEGORIES).not.toContain('mandatory')
-    expect(NOTIFICATION_SETTINGS_CATEGORIES).toContain('mandatory')
-    expect(
-      GOVERNING_NOTIFICATION_CATEGORIES.every((c) =>
-        NOTIFICATION_SETTINGS_CATEGORIES.includes(c),
-      ),
-    ).toBe(true)
+  it('keeps Organization policy out of Property preference controls', () => {
+    expect(GOVERNING_NOTIFICATION_CATEGORIES).toContain('mandatory')
+    expect(NOTIFICATION_SETTINGS_CATEGORIES).not.toContain('mandatory')
   })
 
   it('leaves every notification type in-app-enabled by default', () => {
@@ -173,5 +170,6 @@ describe('notification delivery policy', () => {
 
   it('classifies a completed goal as recognition, not a digest', () => {
     expect(classifyNotification('goal.completed')).toBe('recognition')
+    expect(classifyNotification('goal.result_revised')).toBe('recognition')
   })
 })

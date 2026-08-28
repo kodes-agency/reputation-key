@@ -12,6 +12,7 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { z } from 'zod/v4'
 import { isNotificationError, NOTIFICATION_LIST_FILTERS } from '../application/public-api'
 import { createNotificationPage } from '../application/notification-page'
+import { notificationUserSettingsDto } from '../application/dto/notification-user-settings.dto'
 import { requiredCapabilityForPreferenceChannel } from '../domain/notification-delivery-policy'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -30,31 +31,6 @@ const resolveOptionalTenantContext = async (): Promise<AuthContext | null> => {
   })
 }
 
-// ── getUnreadNotificationCountFn ──────────────────────────────────
-
-export const getUnreadNotificationCountFn = createServerFn({ method: 'GET' }).handler(
-  tracedHandler(
-    async () => {
-      // No active org → empty result (new user hasn't selected an org yet).
-      const ctx = await resolveOptionalTenantContext()
-      if (!ctx) return { count: 0 }
-      await requireExecutionAllowed({ actor: ctx, action: 'notification.read' })
-      try {
-        const { notificationPublicApi } = getContainer()
-        const count = await notificationPublicApi.getUnreadCount(
-          ctx.userId,
-          ctx.organizationId,
-        )
-        return { count }
-      } catch (e) {
-        throw catchUntagged(e)
-      }
-    },
-    'GET',
-    'notification.getUnreadCount',
-  ),
-)
-
 // ── getNotificationsFn ────────────────────────────────────────────
 
 const getNotificationsDto = z.object({
@@ -62,6 +38,43 @@ const getNotificationsDto = z.object({
   offset: z.coerce.number().min(0).optional().default(0),
   filter: z.enum(NOTIFICATION_LIST_FILTERS).optional().default('all'),
 })
+
+/** Offset-zero feed authority. History continues to use getNotificationsFn. */
+export const getNotificationFeedHeadDto = getNotificationsDto.omit({ offset: true })
+
+export const getNotificationFeedHeadFn = createServerFn({ method: 'GET' })
+  .validator(getNotificationFeedHeadDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const ctx = await resolveOptionalTenantContext()
+        if (!ctx) {
+          return {
+            page: createNotificationPage([], data.limit),
+            unreadCount: 0,
+            watermark: 'no-active-organization',
+          }
+        }
+        await requireExecutionAllowed({ actor: ctx, action: 'notification.read' })
+        try {
+          const { notificationPublicApi } = getContainer()
+          // One public/repository call owns all three values. Separate list
+          // and count reads would reintroduce a race between the bell badge
+          // and its visible rows.
+          return notificationPublicApi.getFeedHead(
+            ctx.userId,
+            ctx.organizationId,
+            data.limit,
+            data.filter,
+          )
+        } catch (e) {
+          throw catchUntagged(e)
+        }
+      },
+      'GET',
+      'notification.getFeedHead',
+    ),
+  )
 
 export const getNotificationsFn = createServerFn({ method: 'GET' })
   .validator(getNotificationsDto)
@@ -264,8 +277,7 @@ const quietTime = z
   .string()
   .regex(/^(?:[01]\d|2[0-3]):[0-5]\d$/)
   .nullable()
-const notificationCategory = z.enum([
-  'mandatory',
+export const notificationPreferenceCategory = z.enum([
   'urgent_operational',
   'workflow_collaboration',
   'recognition',
@@ -273,7 +285,7 @@ const notificationCategory = z.enum([
 const notificationChannel = z.enum(['in_app', 'email'])
 const updateNotificationPreferenceDto = z.object({
   propertyId: z.uuid(),
-  category: notificationCategory,
+  category: notificationPreferenceCategory,
   channel: notificationChannel,
   enabled: z.boolean(),
   cadence: z.enum(['immediate', 'daily']),
@@ -312,6 +324,9 @@ export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
             data.quietHoursEnd,
           )
         } catch (error) {
+          if (isNotificationError(error)) {
+            throwContextError('NotificationError', error, 400)
+          }
           throw catchUntagged(error)
         }
       },
@@ -322,7 +337,7 @@ export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
 
 const muteNotificationCategoryDto = z.object({
   propertyId: z.uuid(),
-  category: notificationCategory,
+  category: notificationPreferenceCategory,
 })
 
 /** @public Used by notification rows to disable only their in-app category. */
@@ -358,33 +373,6 @@ export const muteNotificationCategoryFn = createServerFn({ method: 'POST' })
       'notification.muteCategory',
     ),
   )
-
-const localeLanguagePattern = /^[A-Za-z]{2,3}$/
-const localeSubtagPattern = /^[A-Za-z0-9]{2,8}$/
-
-function isSupportedLocaleSyntax(locale: string): boolean {
-  const [language, ...subtags] = locale.split('-')
-  return (
-    localeLanguagePattern.test(language ?? '') &&
-    subtags.every((subtag) => localeSubtagPattern.test(subtag))
-  )
-}
-
-const notificationUserSettingsDto = z.object({
-  locale: z.string().max(35).refine(isSupportedLocaleSyntax, 'Invalid locale'),
-  timezone: z
-    .string()
-    .min(1)
-    .max(64)
-    .refine((timezone) => {
-      try {
-        new Intl.DateTimeFormat('en', { timeZone: timezone }).format()
-        return true
-      } catch {
-        return false
-      }
-    }, 'Invalid IANA timezone'),
-})
 
 export const getNotificationUserSettingsFn = createServerFn({ method: 'GET' }).handler(
   tracedHandler(

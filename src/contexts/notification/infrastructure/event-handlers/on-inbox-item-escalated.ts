@@ -4,8 +4,9 @@
 // This handler used to paste the raw inbox-item UUID into the body ("Inbox item
 // 61ed98fc-… has been escalated and requires attention"), which told the reader
 // nothing they could act on — the id is already carried silently by the deep
-// link. It now emits facts, and the template says how bad the rating is, which
-// property it belongs to, and how long it has gone unanswered.
+// link. It now emits content-free facts: Property, source kind, and how long it
+// has gone unanswered. Only locally collected Portal feedback may include its
+// private guest rating; Google/provider ratings remain in Review.
 
 import type { InboxItemEscalated } from '#/contexts/inbox/application/public-api'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'

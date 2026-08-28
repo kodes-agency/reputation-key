@@ -85,11 +85,10 @@ const meta: Meta<typeof EmailPreview> = {
 export default meta
 type Story = StoryObj<typeof EmailPreview>
 
-/** The reply-approval alert: pill, stars, waiting age, one CTA. */
+/** The reply-approval alert: pill, waiting age, one CTA. */
 export const UrgentReplyApproval: Story = {
   args: single('reply.pending_approval', {
     propertyName: 'Riverside Hotel',
-    rating: 2,
     waitingHours: 3,
     actorRole: 'staff',
   }),
@@ -99,18 +98,15 @@ export const UrgentReplyApproval: Story = {
 export const UrgentEscalation: Story = {
   args: single('inbox.escalated', {
     propertyName: 'Harbour Lodge',
-    rating: 1,
+    guestRating: 1,
+    platform: 'portal',
     waitingHours: 52,
   }),
 }
 
 /** Normal priority drops the attention pill; everything else is identical. */
 export const NormalPriority: Story = {
-  args: single(
-    'reply.published',
-    { propertyName: 'Riverside Hotel', rating: 5 },
-    'normal',
-  ),
+  args: single('reply.published', { propertyName: 'Riverside Hotel' }, 'normal'),
 }
 
 /** Graceful degradation: an empty payload must still produce a usable email. */
@@ -122,7 +118,8 @@ export const NoMetadata: Story = {
 export const CoalescedOccurrences: Story = {
   args: single('inbox.escalated', {
     propertyName: 'Riverside Hotel',
-    rating: 2,
+    guestRating: 2,
+    platform: 'portal',
     waitingHours: 26,
     occurrences: 4,
   }),
@@ -137,16 +134,11 @@ export const Digest: Story = {
       {
         propertyName: 'Riverside Hotel',
         items: [
-          digestItem(
-            'review.created',
-            { propertyName: 'Riverside Hotel', rating: 5 },
-            'a1',
-          ),
+          digestItem('review.created', { propertyName: 'Riverside Hotel' }, 'a1'),
           digestItem(
             'reply.pending_approval',
             {
               propertyName: 'Riverside Hotel',
-              rating: 2,
               waitingHours: 9,
               actorRole: 'staff',
             },
@@ -159,7 +151,12 @@ export const Digest: Story = {
         items: [
           digestItem(
             'inbox.escalated',
-            { propertyName: 'Harbour Lodge', rating: 1, waitingHours: 30 },
+            {
+              propertyName: 'Harbour Lodge',
+              guestRating: 1,
+              platform: 'portal',
+              waitingHours: 30,
+            },
             'b1',
           ),
           digestItem(
@@ -187,7 +184,8 @@ export const DigestSingleProperty: Story = {
             'inbox_note.added',
             {
               propertyName: 'Riverside Hotel',
-              rating: 4,
+              guestRating: 4,
+              platform: 'portal',
               actorRole: 'property_manager',
             },
             'c1',

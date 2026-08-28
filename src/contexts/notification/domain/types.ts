@@ -19,8 +19,13 @@ import type { NotificationPayload } from './notification-payload'
 // Names are user-facing (for preferences, templates, filtering).
 
 export const NOTIFICATION_TYPES = [
+  // Organization account/security events
+  'account.organization_access_granted',
+  'account.organization_role_changed',
+  'account.organization_access_removed',
   // Review events
   'review.created',
+  'review.updated',
   // Inbox events (feedback only — reviews use review.created)
   'feedback.created',
   // Reply lifecycle
@@ -31,13 +36,21 @@ export const NOTIFICATION_TYPES = [
   'reply.publish_failed',
   // Inbox triage
   'inbox.escalated',
+  'inbox.escalation_resolved',
+  'inbox.reopened',
+  'inbox.response_target_halfway',
+  'inbox.response_target_passed',
   'inbox.assigned',
+  'inbox.bulk_assigned',
   'inbox_note.added',
   // Portal operations
   'portal.responsibility_needed',
+  'portal.health_attention',
   'property.responsibility_needed',
+  'integration.reauthorization_required',
   // Goal events
   'goal.completed',
+  'goal.result_revised',
   // Badge events
   'badge.awarded',
 ] as const
@@ -58,6 +71,8 @@ export type NotificationPriority = 'urgent' | 'normal'
  */
 export type NotificationCategory =
   'mandatory' | 'urgent_operational' | 'workflow_collaboration' | 'recognition'
+/** Categories a user may configure for a Property. Mandatory is Organization policy. */
+export type ConfigurableNotificationCategory = Exclude<NotificationCategory, 'mandatory'>
 export type NotificationChannel = 'in_app' | 'email'
 export type NotificationCadence = 'immediate' | 'daily'
 export type NotificationStatus = 'unread' | 'read' | 'dismissed'
@@ -73,7 +88,14 @@ export type EmailQueueStatus =
   | 'cancelled'
 export type DeliveryErrorClass = 'transient' | 'permanent' | 'suppressed'
 export type NotificationResourceType =
-  'inbox_item' | 'reply' | 'goal' | 'badge' | 'portal' | 'property'
+  | 'organization'
+  | 'inbox_item'
+  | 'reply'
+  | 'goal'
+  | 'badge'
+  | 'portal'
+  | 'property'
+  | 'integration'
 
 // ── In-app notification ─────────────────────────────────────────────
 
@@ -81,7 +103,8 @@ export type Notification = Readonly<{
   id: NotificationId
   userId: UserId
   organizationId: OrganizationId
-  propertyId: PropertyId
+  /** Null only for Organization-scoped mandatory account/security notices. */
+  propertyId: PropertyId | null
   type: NotificationType
   category: NotificationCategory
   priority: NotificationPriority
@@ -113,7 +136,8 @@ export type NotificationEmail = Readonly<{
   notificationId: NotificationId
   userId: UserId
   organizationId: OrganizationId
-  propertyId: PropertyId
+  /** Null only for Organization-scoped mandatory account/security notices. */
+  propertyId: PropertyId | null
   category: NotificationCategory
   cadence: NotificationCadence
   status: EmailQueueStatus
@@ -171,6 +195,7 @@ export const URGENT_TYPES: ReadonlySet<NotificationType> = new Set([
   'inbox.escalated',
   'portal.responsibility_needed',
   'property.responsibility_needed',
+  'integration.reauthorization_required',
 ])
 
 export const isUrgent = (type: NotificationType): boolean => URGENT_TYPES.has(type)

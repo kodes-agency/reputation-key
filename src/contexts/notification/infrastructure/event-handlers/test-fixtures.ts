@@ -6,7 +6,6 @@ import type { Queue } from 'bullmq'
 import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import type { InboxItemLookupPort } from '../../application/ports/inbox-item-lookup.port'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import type { RecognitionLookupPort } from '../../application/ports/recognition-lookup.port'
 import type { ResponsibleManagerLookupPort } from '../../application/ports/responsible-manager-lookup.port'
 import type { NotificationResourceType, NotificationType } from '../../domain/types'
 import type { NotificationPayload } from '../../domain/notification-payload'
@@ -48,7 +47,6 @@ export type FakeEventHandlerDeps = Readonly<{
   userLookup: MockedPort<UserLookupPort>
   responsibleManagers: MockedPort<ResponsibleManagerLookupPort>
   inboxItemLookup: MockedPort<InboxItemLookupPort>
-  recognitionLookup: MockedPort<RecognitionLookupPort>
   clock: () => Date
   logger: MockedPort<LoggerPort>
 }>
@@ -90,7 +88,7 @@ const createFakeLogger = (): MockedPort<LoggerPort> =>
   }) as unknown as MockedPort<LoggerPort>
 
 /** Fake InboxItemLookupPort — resolves the standard inbox item and a standard
- *  set of render facts (2-star Google review at Riverside Hotel, 3h old
+ *  set of render facts (Google review at Riverside Hotel, 3h old
  *  against NOTIF_TEST_IDS.now); tests override for skip/degrade cases. */
 const createFakeInboxItemLookup = (): MockedPort<InboxItemLookupPort> =>
   ({
@@ -100,24 +98,26 @@ const createFakeInboxItemLookup = (): MockedPort<InboxItemLookupPort> =>
       portalId: null,
       assignedTo: null,
       propertyName: 'Riverside Hotel',
-      rating: 2,
+      guestRating: null,
       sourceType: 'review',
       createdAt: new Date('2026-06-01T09:00:00.000Z'),
     })),
-  }) as unknown as MockedPort<InboxItemLookupPort>
-
-/** Fake RecognitionLookupPort — named goal/badge facts by default. */
-const createFakeRecognitionLookup = (): MockedPort<RecognitionLookupPort> =>
-  ({
-    findGoalFacts: vi.fn(async () => ({
-      goalName: 'Weekend response time',
+    findHandlingCycleNotificationFacts: vi.fn(async () => ({
+      propertyId: 'prop-1',
+      portalId: null,
+      assignedTo: null,
       propertyName: 'Riverside Hotel',
+      guestRating: null,
+      sourceType: 'review',
+      sourceId: 'source-1',
+      createdAt: new Date('2026-06-01T09:00:00.000Z'),
+      currentCycleNumber: 1,
+      currentSourceRevision: 1,
+      stateRevision: 1,
+      status: 'open',
     })),
-    findBadgeFacts: vi.fn(async () => ({
-      badgeName: 'Fast Responder',
-      recipientName: 'Front desk',
-    })),
-  }) as unknown as MockedPort<RecognitionLookupPort>
+    findResponseTargetReminderNotificationFacts: vi.fn(async () => null),
+  }) as unknown as MockedPort<InboxItemLookupPort>
 
 /** Build the full deps record used by notification event-handler tests. */
 export const createEventHandlerDeps = (): FakeEventHandlerDeps => ({
@@ -126,19 +126,17 @@ export const createEventHandlerDeps = (): FakeEventHandlerDeps => ({
   responsibleManagers: createFakeResponsibleManagers(),
   logger: createFakeLogger(),
   inboxItemLookup: createFakeInboxItemLookup(),
-  recognitionLookup: createFakeRecognitionLookup(),
   // Fixed clock, 3 hours after the fake item's createdAt.
   clock: () => new Date('2026-06-01T12:00:00.000Z'),
 })
 
 /**
  * The payload every inbox-keyed handler derives from the fake facts above:
- * property name, star rating, platform, and a 3h waiting age. Handlers that
+ * property name, source platform, and a 3h waiting age. Handlers that
  * name an actor add `actorRole` on top (see `withActor`).
  */
 export const EXPECTED_INBOX_PAYLOAD = {
   propertyName: 'Riverside Hotel',
-  rating: 2,
   platform: 'google',
   waitingHours: 3,
 } as const

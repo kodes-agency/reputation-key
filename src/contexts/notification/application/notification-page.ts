@@ -6,6 +6,19 @@ export type NotificationPage = Readonly<{
 }>
 
 /**
+ * The only refreshable notification-feed authority.
+ *
+ * `page`, `unreadCount`, and `watermark` are read from one database snapshot.
+ * The watermark is opaque to clients; it exists so observers and diagnostics
+ * can prove that the badge and the visible head came from the same read.
+ */
+export type NotificationFeedHead = Readonly<{
+  page: NotificationPage
+  unreadCount: number
+  watermark: string
+}>
+
+/**
  * Convert a limit+1 repository read into an exact page result. The extra row
  * is evidence only and is never returned to the caller.
  */

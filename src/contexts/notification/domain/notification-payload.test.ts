@@ -15,8 +15,8 @@ describe('parseNotificationPayload', () => {
     expect(
       parseNotificationPayload({
         propertyName: 'Riverside Hotel',
-        rating: 2,
-        platform: 'google',
+        guestRating: 2,
+        platform: 'portal',
         waitingHours: 27,
         actorRole: 'property_manager',
         moderationReason: 'Tone is too defensive.',
@@ -25,11 +25,12 @@ describe('parseNotificationPayload', () => {
         recipientName: 'Front Desk',
         targetKind: 'portal_group',
         occurrences: 3,
+        itemCount: 4,
       }),
     ).toEqual({
       propertyName: 'Riverside Hotel',
-      rating: 2,
-      platform: 'google',
+      guestRating: 2,
+      platform: 'portal',
       waitingHours: 27,
       actorRole: 'property_manager',
       moderationReason: 'Tone is too defensive.',
@@ -38,6 +39,7 @@ describe('parseNotificationPayload', () => {
       recipientName: 'Front Desk',
       targetKind: 'portal_group',
       occurrences: 3,
+      itemCount: 4,
     })
   })
 
@@ -65,13 +67,23 @@ describe('parseNotificationPayload', () => {
     }
   })
 
-  describe('rating', () => {
-    it.each([1, 2, 3, 4, 5])('accepts %i', (rating) => {
-      expect(parseNotificationPayload({ rating }).rating).toBe(rating)
+  describe('guestRating', () => {
+    it.each([1, 2, 3, 4, 5])('accepts local Portal rating %i', (guestRating) => {
+      expect(
+        parseNotificationPayload({ guestRating, platform: 'portal' }).guestRating,
+      ).toBe(guestRating)
     })
 
-    it.each([0, 6, -1, 2.5, '3', null])('rejects %p', (rating) => {
-      expect(parseNotificationPayload({ rating }).rating).toBeUndefined()
+    it.each([0, 6, -1, 2.5, '3', null])('rejects %p', (guestRating) => {
+      expect(
+        parseNotificationPayload({ guestRating, platform: 'portal' }).guestRating,
+      ).toBeUndefined()
+    })
+
+    it('drops legacy/provider rating fields and rejects guestRating outside Portal', () => {
+      expect(
+        parseNotificationPayload({ rating: 1, guestRating: 2, platform: 'google' }),
+      ).toEqual({ platform: 'google' })
     })
   })
 
@@ -93,6 +105,11 @@ describe('parseNotificationPayload', () => {
 
     it.each([-1, 1.5, Number.NaN, '4'])('rejects %p', (waitingHours) => {
       expect(parseNotificationPayload({ waitingHours }).waitingHours).toBeUndefined()
+    })
+
+    it('keeps only a non-negative integer grouped item count', () => {
+      expect(parseNotificationPayload({ itemCount: 12 }).itemCount).toBe(12)
+      expect(parseNotificationPayload({ itemCount: -1 }).itemCount).toBeUndefined()
     })
   })
 
@@ -133,6 +150,6 @@ describe('parseNotificationPayload', () => {
 describe('isEmptyNotificationPayload', () => {
   it('is true only when nothing survived parsing', () => {
     expect(isEmptyNotificationPayload({})).toBe(true)
-    expect(isEmptyNotificationPayload({ rating: 4 })).toBe(false)
+    expect(isEmptyNotificationPayload({ guestRating: 4, platform: 'portal' })).toBe(false)
   })
 })

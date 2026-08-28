@@ -213,6 +213,20 @@ describe('reconcile-missing-notifications sweep', () => {
         eventId: 'reconcile:item-1',
       }),
     )
+    expect(fakes.logger.info).toHaveBeenCalledWith(
+      {
+        candidatesSeen: 1,
+        itemsHealed: 1,
+        notificationsEnqueued: 1,
+        itemsSkipped: 0,
+        itemsFailed: 0,
+        batchesProcessed: 1,
+        budgetExhausted: false,
+        lookbackMs: DEFAULT_RECONCILE_LOOKBACK_MS,
+        graceMs: DEFAULT_RECONCILE_GRACE_MS,
+      },
+      'Reconcile missing notifications sweep finished',
+    )
   })
 
   it('enqueues for every resolved recipient of the item', async () => {

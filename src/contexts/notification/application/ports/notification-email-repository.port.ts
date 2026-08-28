@@ -32,7 +32,7 @@ export type ProviderStateTransition = Readonly<{
   emailId: NotificationEmailId
   userId: UserId
   organizationId: OrganizationId
-  propertyId: PropertyId
+  propertyId: PropertyId | null
 }>
 
 export type NotificationDigestBatchState =
@@ -86,7 +86,7 @@ export type NotificationEmailRepositoryPort = Readonly<{
   findById(
     id: NotificationEmailId,
     orgId: OrganizationId,
-    propertyId: PropertyId,
+    propertyId: PropertyId | null,
   ): Promise<NotificationEmail | null>
   findDueByProperty(
     orgId: OrganizationId,
@@ -97,21 +97,21 @@ export type NotificationEmailRepositoryPort = Readonly<{
   markAccepted(
     id: NotificationEmailId,
     orgId: OrganizationId,
-    propertyId: PropertyId,
+    propertyId: PropertyId | null,
     providerMessageId: string,
     acceptedAt: Date,
   ): Promise<void>
   markDelayed(
     id: NotificationEmailId,
     orgId: OrganizationId,
-    propertyId: PropertyId,
+    propertyId: PropertyId | null,
     notBefore: Date,
     updatedAt: Date,
   ): Promise<void>
   markFailed(
     id: NotificationEmailId,
     orgId: OrganizationId,
-    propertyId: PropertyId,
+    propertyId: PropertyId | null,
     classification: DeliveryErrorClass,
     nextAttemptAt: Date | null,
     failedAt: Date,
@@ -119,7 +119,7 @@ export type NotificationEmailRepositoryPort = Readonly<{
   markSuppressed(
     id: NotificationEmailId,
     orgId: OrganizationId,
-    propertyId: PropertyId,
+    propertyId: PropertyId | null,
     reason: string,
     updatedAt: Date,
   ): Promise<void>
