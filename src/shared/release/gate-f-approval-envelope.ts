@@ -127,6 +127,16 @@ const roleKeySchema = z.discriminatedUnion('status', [
   notEnrolledRoleKeySchema,
 ])
 
+/**
+ * Roles that must not share a key with counsel or founder.
+ *
+ * "Engineering cannot self-approve this gate" was a sentence in the program and
+ * a constant in this file with no consumer, which meant one keypair enrolled
+ * for both `security` and `counsel` would have satisfied both approvals. The
+ * refinement below is what makes the sentence true.
+ */
+const INDEPENDENT_OF_ENGINEERING = ['counsel', 'founder'] as const
+
 const roleKeyMapSchema = z
   .object({
     version: z.literal(GATE_F_APPROVAL_ROLE_KEYS_VERSION),
@@ -142,6 +152,49 @@ const roleKeyMapSchema = z
       .strict(),
   })
   .strict()
+  .superRefine((value, ctx) => {
+    const enrolled = Object.entries(value.roles).filter(
+      ([, key]) => key.status === 'enrolled',
+    ) as ReadonlyArray<
+      [string, Extract<z.infer<typeof roleKeySchema>, { status: 'enrolled' }>]
+    >
+
+    // One key per role. A shared key makes six approvals one approval.
+    const byDigest = new Map<string, string[]>()
+    for (const [role, key] of enrolled) {
+      byDigest.set(key.publicKeySha256, [
+        ...(byDigest.get(key.publicKeySha256) ?? []),
+        role,
+      ])
+    }
+    for (const [digest, roles] of byDigest) {
+      if (roles.length > 1) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `key ${digest} is enrolled for more than one role (${roles.sort().join(', ')}); each role must sign with its own key`,
+        })
+      }
+    }
+
+    // Belt and braces: name the engineering/counsel collision explicitly, so a
+    // future reader sees the rule rather than inferring it from distinctness.
+    const engineeringDigests = new Set(
+      enrolled
+        .filter(([role]) =>
+          (GATE_F_ENGINEERING_ROLES as readonly string[]).includes(role),
+        )
+        .map(([, key]) => key.publicKeySha256),
+    )
+    for (const role of INDEPENDENT_OF_ENGINEERING) {
+      const key = value.roles[role]
+      if (key.status === 'enrolled' && engineeringDigests.has(key.publicKeySha256)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `the ${role} key is also enrolled for an engineering role; engineering cannot approve on behalf of ${role}`,
+        })
+      }
+    }
+  })
 
 export type GateFApprovalRoleKeys = z.infer<typeof roleKeyMapSchema>
 

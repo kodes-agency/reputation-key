@@ -157,6 +157,78 @@ describe('Gate F approval verification', () => {
 describe('security/gate-f-approval-roles.json', () => {
   const raw = readFileSync(resolve(ROOT, GATE_F_APPROVAL_ROLE_KEYS_PATH), 'utf8')
 
+  const enrolled = (custodian: string, digest: string) => ({
+    status: 'enrolled' as const,
+    custodian,
+    enrolledAt: '2026-08-29T00:00:00.000Z',
+    publicKeyPem: `-----BEGIN PUBLIC KEY-----\n${'A'.repeat(60)}\n-----END PUBLIC KEY-----`,
+    publicKeySha256: digest,
+  })
+  const notEnrolled = (custodian: string) => ({
+    status: 'not_enrolled' as const,
+    custodian,
+    note: 'awaiting enrolment',
+  })
+  const roleMap = (
+    overrides: Partial<Record<(typeof GATE_F_APPROVAL_ROLES)[number], unknown>>,
+  ) => ({
+    version: 'repkey-gate-f-approval-roles-1',
+    roles: {
+      counsel: notEnrolled('counsel'),
+      founder: notEnrolled('founder'),
+      operations: notEnrolled('operations'),
+      product: notEnrolled('product'),
+      security: notEnrolled('security'),
+      support_incident: notEnrolled('support'),
+      ...overrides,
+    },
+  })
+
+  it('refuses one key enrolled for two roles — six approvals would be one approval', () => {
+    const shared = 'a'.repeat(64)
+    const parsed = parseGateFApprovalRoleKeys(
+      roleMap({
+        operations: enrolled('same person', shared),
+        product: enrolled('same person', shared),
+      }),
+    )
+
+    expect(parsed.ok).toBe(false)
+    if (!parsed.ok) {
+      expect(parsed.errors.join('\n')).toMatch(/enrolled for more than one role/u)
+    }
+  })
+
+  it('refuses an engineering key standing in for counsel', () => {
+    // The program says engineering cannot self-approve the legal gate. Before
+    // this refinement that was a sentence, not a control.
+    const shared = 'b'.repeat(64)
+    const parsed = parseGateFApprovalRoleKeys(
+      roleMap({
+        security: enrolled('an engineer', shared),
+        counsel: enrolled('an engineer', shared),
+      }),
+    )
+
+    expect(parsed.ok).toBe(false)
+    if (!parsed.ok) {
+      expect(parsed.errors.join('\n')).toMatch(
+        /engineering cannot approve on behalf of counsel/u,
+      )
+    }
+  })
+
+  it('accepts distinct keys per role', () => {
+    const parsed = parseGateFApprovalRoleKeys(
+      roleMap({
+        counsel: enrolled('external counsel', 'c'.repeat(64)),
+        security: enrolled('security owner', 'd'.repeat(64)),
+      }),
+    )
+
+    expect(parsed.ok ? [] : parsed.errors).toEqual([])
+  })
+
   it('parses and names every required role', () => {
     const parsed = parseGateFApprovalRoleKeys(JSON.parse(raw))
 

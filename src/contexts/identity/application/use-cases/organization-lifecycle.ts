@@ -5,6 +5,7 @@ import {
   type OrganizationClosureRequestReasonCode,
   type OrganizationLifecycleStatus,
 } from '../../domain/organization-lifecycle'
+import { identityError } from '../../domain/errors'
 import type { OrganizationLifecycleCommandStore } from '../ports/organization-lifecycle-command-store.port'
 
 export type OrganizationLifecycleDeps = Readonly<{
@@ -12,6 +13,19 @@ export type OrganizationLifecycleDeps = Readonly<{
   clock: () => Date
   /** Refreshes this process from the policy generation committed by requestClosure. */
   refreshPolicy: () => Promise<void>
+  /**
+   * Whether this deployment can actually reactivate a cancelled closure.
+   *
+   * Requesting a closure commits an Organization-wide suspension, and
+   * cancelling deliberately LEAVES that suspension in place with the
+   * reactivation fence set — nothing resumes silently. Reactivation is the only
+   * command that lifts it. If reactivation is not composed, a single request
+   * therefore suspends the tenant with no in-product way back.
+   *
+   * So the request is refused unless the undo path exists. Read as a thunk
+   * because the reactivation binding is constructed after this facade.
+   */
+  reactivationConfigured: () => boolean
 }>
 
 export type RequestOrganizationClosureInput = Readonly<{
@@ -48,6 +62,12 @@ export function createOrganizationLifecycle(deps: OrganizationLifecycleDeps) {
     async requestClosure(
       input: RequestOrganizationClosureInput,
     ): Promise<OrganizationLifecycleStatus> {
+      if (!deps.reactivationConfigured()) {
+        throw identityError(
+          'forbidden',
+          'Organization closure is unavailable: this deployment cannot reactivate a cancelled closure, and requesting one would suspend the Organization with no way back.',
+        )
+      }
       const now = deps.clock()
       const result = await deps.store.requestClosure({
         ...input,

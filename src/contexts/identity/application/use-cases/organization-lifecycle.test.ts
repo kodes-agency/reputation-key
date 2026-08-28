@@ -48,12 +48,40 @@ function fakeStore(): OrganizationLifecycleCommandStore {
 }
 
 describe('Organization lifecycle application API', () => {
+  it('refuses to arm a closure when this deployment cannot reactivate one', async () => {
+    // Requesting a closure commits an Organization-wide suspension, and
+    // cancelling deliberately leaves it in place with the reactivation fence
+    // set. If reactivation is not composed, one request would suspend the
+    // tenant with no in-product way back — so the request is refused instead.
+    const store = fakeStore()
+    const lifecycle = createOrganizationLifecycle({
+      store,
+      clock: () => now,
+      reactivationConfigured: () => false,
+      refreshPolicy: async () => {},
+    })
+
+    await expect(
+      lifecycle.requestClosure({
+        operationId: '11111111-1111-4111-8111-111111111111',
+        organizationId: 'org-1',
+        actorUserId: 'user-1',
+        reasonCode: 'account_admin_request',
+        supportEvidenceRef: 'support:ticket-1',
+      }),
+    ).rejects.toMatchObject({ _tag: 'IdentityError', code: 'forbidden' })
+
+    // Nothing was committed: the suspension is the part that cannot be undone.
+    expect(store.requestClosure).not.toHaveBeenCalled()
+  })
+
   it('uses the fixed 30-day deadline and refreshes the global suspension before returning', async () => {
     const store = fakeStore()
     const refreshPolicy = vi.fn(async () => {})
     const lifecycle = createOrganizationLifecycle({
       store,
       clock: () => now,
+      reactivationConfigured: () => true,
       refreshPolicy,
     })
 
@@ -80,6 +108,7 @@ describe('Organization lifecycle application API', () => {
     const lifecycle = createOrganizationLifecycle({
       store,
       clock: () => now,
+      reactivationConfigured: () => true,
       refreshPolicy,
     })
 
@@ -100,6 +129,7 @@ describe('Organization lifecycle application API', () => {
     const lifecycle = createOrganizationLifecycle({
       store,
       clock: () => now,
+      reactivationConfigured: () => true,
       refreshPolicy: async () => {},
     })
 

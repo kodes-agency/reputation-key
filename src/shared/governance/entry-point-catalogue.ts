@@ -1167,7 +1167,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
           stateOwner: 'identity',
           disposition: 'atomic_state_and_fact',
           reason:
-            'Commits the cancellation and clears the suspension in one transaction, leaving the reactivation fence set so nothing resumes silently',
+            'Commits the cancellation and DELIBERATELY LEAVES the Organization-wide suspension in place, setting the reactivation fence so nothing resumes silently. Only reactivateOrganization lifts the suspension, which is why requestClosure refuses when reactivation is not composed',
         },
       },
     ),
@@ -1186,7 +1186,7 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
           stateOwner: 'identity',
           disposition: 'atomic_state_and_fact',
           reason:
-            'Commits the cancellation and clears the suspension in one transaction, leaving the reactivation fence set so nothing resumes silently',
+            'Commits the cancellation and DELIBERATELY LEAVES the Organization-wide suspension in place, setting the reactivation fence so nothing resumes silently. Only reactivateOrganization lifts the suspension, which is why requestClosure refuses when reactivation is not composed',
         },
       },
     ),

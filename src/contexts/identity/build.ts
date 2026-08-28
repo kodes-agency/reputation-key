@@ -419,6 +419,9 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   const organizationLifecycle = createOrganizationLifecycle({
     store: organizationLifecycleStore,
     clock: deps.clock,
+    // Thunk: `reactivate` is constructed below, and a closure must not be
+    // armable in a deployment that cannot undo it.
+    reactivationConfigured: () => reactivate !== null,
     refreshPolicy: async () => {
       const result = await policyStore.refreshRequired()
       if ('unavailable' in result) {
