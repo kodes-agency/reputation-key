@@ -239,13 +239,16 @@ portal/
 
 Exported from `application/public-api.ts`:
 
-- Types: `StoragePort`, `LinkResolverPort`, `PortalContextResult`, `PublicPortalBySlugResult`, `PortalPublicApi`
+- Ports: `StoragePort`, `PortalStoragePort`, `IssuedPortalUploadStoragePort`, `LinkResolverPort`
+- Types: `Portal`, `PortalContextResult`, `PortalPublicApi`, `PortalGroupSummary`, `PortalTokenStatus` (token existence/metadata for management surfaces — never token material), `PortalPublicationHistory`, `PortalPublicationHistoryItem`
+- Public-load types: `PublicPortalResult`, `PublicPortalByTokenOutcome` (every unavailable posture collapses to one outcome), `PublicGoogleReviewDestination`, `PublicPortalResponseConfiguration` (submission evidence the guest browser projection omits)
 - `PortalPublicApi.getResponsibleManagerUserIds` returns only current assignments that remain role/access/participation eligible at read/delivery time.
+- Authority facades: `PortalContactRequestManagerAuthorityPublicApi` with `PortalContactRequestManagerAuthorityFacts`, and `PortalAiReplyBrandProfilePublicApi` for the one Property Brand field permitted in AI Reply Drafting.
 - `PortalContactRequestManagerAuthorityPublicApi.getContactRequestManagerAuthorityFacts` returns only the exact Portal's Property ID, creator ID, and current eligible assigned-manager IDs. Guest combines these identifier-only facts with current Identity membership and Property access; Portal never reads contact material or grants contact permission.
-- Types: `PortalGroupPublicApi` (exposes `findGroupForPortal`), `PortalTokenStatus` (token existence/metadata for management surfaces — never token material)
+- Types: `PortalGroupPublicApi` (exposes `findGroupForPortal`)
 - Functions: `isValidExternalUrl` (https-only link-destination guard, used by the public redirect route)
-- Event types: `PortalDeleted`, `PortalResponsibilityNeeded`, `PortalEvent`, `PortalGroupDeleted`
-- Event constructors: `portalDeleted`, `portalGroupDeleted`
+- Event types: `PortalDeleted`, `PortalArchived`, `PortalRestored`, `PortalResponsibilityNeeded`, `PortalPublicationPublished`, `PortalPublicationRolledBack`, `PortalAccessArtifactPublished`, `PortalContentReviewCompleted`, `PortalApprovedDestinationRatioRecorded`, `PortalConfigurationCompletenessRecorded`, `PortalGroupDeleted`, `PortalEvent`
+- Event constructors are deliberately not re-exported. Only Portal emits Portal events, so consumers receive decoding types and nothing that can produce one.
 
 ## Server functions
 

@@ -217,11 +217,13 @@ activity/
 | Operational history lifecycle/readiness use cases | Assess the proposed horizon, manage holds/redaction, and report gaps                  | Restricted operator only      |
 | Recent Activity vocabulary report/apply           | Report historical code groups; apply one exact reviewed mapping                       | Internal; apply defaults deny |
 
-The public API exports the two manager Recent Activity reads and the restricted
-history list/export seam. Recovery, append, lifecycle, and readiness remain
-worker/operator-internal. Consumers must never use Recent Activity rows to
-authorize actions, prove external effects, or reconstruct Operational Action
-History.
+`application/public-api.ts` exports the `ActivityPublicApi` facade carrying the
+two manager Recent Activity reads and the restricted history list/export seam,
+plus the read vocabulary it returns: `RecentActivityEntry`, `ActivityAction`,
+`ActivityPayload`, and `ResourceType`. Recovery, append, lifecycle, and
+readiness remain worker/operator-internal and are deliberately absent from the
+facade. Consumers must never use Recent Activity rows to authorize actions,
+prove external effects, or reconstruct Operational Action History.
 
 ## Verification authority
 

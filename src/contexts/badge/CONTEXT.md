@@ -40,7 +40,8 @@ beta-active path may emit it while `badge.use` is denied.
 ## Public API
 
 `application/public-api.ts` exports only the historical `badge.awarded` event
-types. It is a type-only decoding boundary, not a Badge producer or product API.
+types — `BadgeAwarded`, the `BadgeEvent` union, and `BadgeTargetType`. It is a
+type-only decoding boundary, not a Badge producer or product API.
 The production container does not construct or expose Badge, and no Badge
 server operation exists.
 

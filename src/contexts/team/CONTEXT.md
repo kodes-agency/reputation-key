@@ -48,7 +48,10 @@ History coverage.
 Team exposes no active cross-context beta API. `build.ts` returns an empty
 `publicApi` and empty internal groups without constructing retained code.
 `application/public-api.ts` is a historical type/event barrel that must not gain a
-new consumer during quarantine.
+new consumer during quarantine: `TeamId`, `TeamPublicApi`, the event types
+`TeamCreated`, `TeamUpdated`, `TeamDeleted` and their `TeamEvent` union, and the
+constructors `teamCreated`, `teamUpdated`, `teamDeleted`. The constructors are
+retained only so historical rows stay decodable; nothing in the beta calls them.
 
 ## Why code and data remain
 

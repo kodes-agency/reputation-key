@@ -186,12 +186,21 @@ below documents migration-era application code, not network-reachable CRUD.
 Exported from `application/public-api.ts`:
 
 - Types: `CreateGoalInput`, `UpdateGoalInput`, `CancelGoalInput`, `ListGoalsInput`, `GetGoalInput`, `Goal`, `GoalProgress`, `GoalType`, `GoalStatus`, `StaffGoalEntry`, `GoalWithProgress`
+- Program contracts: `GoalProgram`, `GoalProgramBundle`, `GoalProgramVersion`, `GoalProgramStatus`, `GoalProgramRequestApi`, `GoalProgramError`
+- Governed definition vocabulary: `GovernedGoalDefinition`, `GovernedGoalVersion`, `GovernedGoalPeriod`, `GovernedGoalEvaluation`, `GoalExecutionPolicy`, `GoalMetric`, `GoalMetricEvaluation`
+- Subject and assignment contracts: `GoalSubject`, `GoalSubjectAssignment`, `GoalActor`, `GoalAssignmentChangeResult`, `GoalAssignmentChangeOutcome`, `GoalAssignmentChangeOutcomeCode`
+- Monthly result contracts: `GoalMonthlyResult`, `GoalMonthlyResultStatus`, `ClosedGoalResultHead`, `GoalResultRevision`, `AppendGoalResultRevisionResult`
+- Results matrix read model: `GoalResultsMatrix`, `GoalResultsMatrixRow`, `GoalResultsMatrixEvidence`, `GoalResultsMatrixAvailability`, `buildGoalResultsMatrix`
 - Functions: `deriveEntityScope`
 - Port types: `GoalRepository`, `GoalListFilter`
 - Event types: `GoalCompleted` (legacy), `GoalMonthlyResultClosed`,
   `GoalMonthlyResultReconciled`, `GoalMonthlyResultRevised`, `GoalEvent`
 - Event constructors: `goalCompleted` (legacy), `goalMonthlyResultClosed`,
   `goalMonthlyResultReconciled`, `goalMonthlyResultRevised`
+- Notification fact contracts: `MonthlyResultNotificationFactsLookup`,
+  `MonthlyResultNotificationFacts`, `MonthlyResultRevisionNotificationFacts`,
+  `FindMonthlyResultNotificationFactsInput`,
+  `FindMonthlyResultRevisionNotificationFactsInput`
 - Goal build public API: `findMonthlyResultNotificationFacts` (exact
   Organization/Property/Assignment/Result lookup; closed + achieved only) and
   `findMonthlyResultRevisionNotificationFacts` (exact current revision fence;

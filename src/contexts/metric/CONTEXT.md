@@ -148,8 +148,11 @@ metric/
 
 Exported from `application/public-api.ts`:
 
-- Types: `MetricReadingsQuery`, `MetricReadingsAggregate`, `MetricPublicApi`, `CurrentOnGoogleReputationSnapshot`, `VerifiedGoogleReputationSnapshotFact`, `PortalMetricSumRow`, `PortalRatingBucket`, `PortalRatingTrendPoint`, `PortalMetricEvidence`, `PortalMetricEvidenceSet`, `PortalLifetimeAggregate`, `PortalLifetimeInspection`, `PortalLifetimeReconciliation`, `GoalMetricCorrectionImpact`
-- Event types: `MetricRecorded`, `MetricCorrected`, `MetricEvent`
+- Types: `MetricReadingsQuery`, `MetricReadingsAggregate`, `MetricPublicApi`, `CurrentOnGoogleReputationSnapshot`, `VerifiedGoogleReputationSnapshotFact`, `PortalMetricSumRow`, `PortalMetricFamily`, `PortalRatingBucket`, `PortalRatingTrendPoint`, `PortalMetricEvidence`, `PortalMetricEvidenceSet`, `PortalLifetimeAggregate`, `PortalLifetimeInspection`, `PortalLifetimeReconciliation`, `GoalMetricCorrectionImpact`
+- Portal lifetime read seam: `PortalLifetimeAggregatePort`, `PortalLifetimeReadApi` (the single port read permitted cross-context), `PortalLifetimeScope`
+- Governed goal metric contracts: `GovernedGoalMetricQuery`, `GovernedGoalMetricResult`, `GoalMetricCorrectionImpactLookup`, `FindGoalMetricCorrectionImpactsInput`
+- Metric definition registry: `METRIC_VERSION_IDS`, `GovernedMetricVersion`
+- Event types: `MetricRecorded` and the `MetricEvent` union. The correction variant is reachable only through that union: no consumer may name it directly, because a context that handles corrections in isolation is recomputing an aggregate Metric owns.
 
 ## Server functions
 
