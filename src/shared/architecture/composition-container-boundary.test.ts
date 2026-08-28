@@ -145,6 +145,51 @@ describe('composition container boundary evidence', () => {
     )
   })
 
+  // ARC-03-T10: one Google provider trust-boundary graph, one named module.
+  it('keeps the Google provider trust boundary in a named composition module', () => {
+    const composition = readFileSync(resolve('src/composition.ts'), 'utf8')
+    const authority = readFileSync(
+      resolve('src/composition/google-provider-authority.ts'),
+      'utf8',
+    )
+
+    expect(composition).toContain("from './composition/google-provider-authority'")
+    expect(composition).toContain('buildGoogleProviderAuthority({')
+    for (const moved of [
+      'createGoogleCredentialBinder',
+      'createGoogleEgressGatewayHttpClient',
+      'loadInternalMtlsMaterialFromOneSource',
+      'createProviderAuthorizationLeaseService',
+    ]) {
+      expect(composition, moved).not.toContain(moved)
+      expect(authority, moved).toContain(moved)
+    }
+  })
+
+  // Pinned so the reduction cannot silently regress: the root selects
+  // implementations, it does not hold implementation graphs.
+  it('keeps the composition root under 1000 lines', () => {
+    const lines = readFileSync(resolve('src/composition.ts'), 'utf8').split('\n').length
+
+    expect(lines).toBeLessThan(1000)
+  })
+
+  // ARC-03-T15: the worker consumes container-owned handles instead of
+  // building a second routing model and its own queue connections.
+  it('builds no infrastructure in the worker entry point', () => {
+    const worker = readFileSync(resolve('src/worker/index.ts'), 'utf8')
+
+    for (const constructed of [
+      'createProcessingRouter(',
+      'createWorkerBarrierQueue(',
+      'createJobQueue(',
+    ]) {
+      expect(worker, constructed).not.toContain(constructed)
+    }
+    expect(worker).toContain('createWorkerContainer()')
+    expect(worker).toContain('container.jobDispatchWorkerRuntime')
+  })
+
   it('delegates Review worker wiring through one context-owned registration capability', () => {
     const bootstrap = readFileSync(resolve('src/bootstrap.ts'), 'utf8')
     const composition = readFileSync(resolve('src/composition.ts'), 'utf8')
@@ -156,7 +201,7 @@ describe('composition container boundary evidence', () => {
       ),
     ).toEqual([])
     expect(bootstrap).not.toContain('container.reviewQueue')
-    expect(composition).toContain('review.internal.registerWorkerJobs({')
+    expect(composition).toContain('review.worker.registerWorkerJobs({')
     expect(composition).not.toContain('replyCommandStore: review.internal')
     expect(composition).not.toContain('reviewQueue: review.internal')
     expect(composition).not.toContain('replyQueue: review.internal')
@@ -166,8 +211,9 @@ describe('composition container boundary evidence', () => {
     const bootstrap = readFileSync(resolve('src/bootstrap.ts'), 'utf8')
     const composition = readFileSync(resolve('src/composition.ts'), 'utf8')
 
-    expect(composition).toContain('inboxRuntime: Object.freeze({')
-    expect(composition).toContain('releaseDueResponseTargetReminders,')
+    // ARC-03-T12: the reminder release is an Inbox-owned runtime capability,
+    // not a use case the root destructures out of the context-private hatch.
+    expect(composition).toContain('inboxRuntime: inbox.runtime')
     expect(bootstrap).toContain(
       'container.inboxRuntime.releaseDueResponseTargetReminders',
     )
@@ -500,6 +546,93 @@ describe('composition container boundary evidence', () => {
     expect(policyStoreInit).not.toContain('initCapabilityPolicyStore(')
     expect(worker).toContain('bindProcessPolicies(container)')
     expect(operatorHarness).toContain('bindProcessPolicies(handle)')
+  })
+
+  // ARC-03-T11/T12: the Done clause is "no production .internal reach-through",
+  // not "no repository reach-through". The composition root speaks only named
+  // context capabilities; the single documented exception is the simulation
+  // block, which normal application containers never receive.
+  describe('production .internal reach-through is retired', () => {
+    const composition = () => readFileSync(resolve('src/composition.ts'), 'utf8')
+
+    const simulationBlock = (source: string): string => {
+      const start = source.indexOf('...(options?.exposeSimulationRuntime')
+      const end = source.indexOf('providerEphemeralReadiness,', start)
+      expect(start).toBeGreaterThan(-1)
+      expect(end).toBeGreaterThan(start)
+      return source.slice(start, end)
+    }
+
+    const outsideSimulationBlock = (source: string): string =>
+      source.replace(simulationBlock(source), '')
+
+    it('detects a reach-through the matcher must catch', () => {
+      expect(
+        /\.internal\.repos\b/u.test('const x = guest.internal.repos.guestRepo'),
+      ).toBe(true)
+    })
+
+    it.each([
+      'guest.internal.repos',
+      'portal.internal.repos',
+      'property.internal.repos',
+      'inbox.internal.repos',
+      'notification.internal.repos',
+      'activity.internal.repos',
+      'review.internal.repos',
+    ])('does not read %s from the composition root', (reachThrough) => {
+      expect(outsideSimulationBlock(composition())).not.toContain(reachThrough)
+    })
+
+    it('names the replacement capabilities instead', () => {
+      const source = composition()
+      for (const capability of [
+        'guest.snippets.',
+        'guestObservationLoss: guest.observationLoss',
+        'guest.contactRequestReadiness.retentionSweep',
+        'portal.responsibility',
+        'portal.uploads.storage',
+        'portal.uploads.uploadStore',
+        'portal.publicApi.portal.listPortalIdsByProperty',
+        'property.responsibility',
+        'inbox.assignments',
+        'inbox.runtime',
+        'review.lookups.',
+        'review.worker.refreshProviderSubjectKeys',
+        'notification.delivery.',
+        'activity.worker.projectRecentActivity',
+        'identity.policy.',
+        'identity.authority.',
+        'identity.lifecycle',
+        'integration.reviewSync.',
+        'staff.authority.',
+      ]) {
+        expect(source).toContain(capability)
+      }
+    })
+
+    it('leaves no .internal read anywhere outside the simulation block', () => {
+      expect(outsideSimulationBlock(composition())).not.toMatch(/\.internal\./u)
+    })
+
+    it('keeps the simulation block the sole exception, guarded by its option', () => {
+      const block = simulationBlock(composition())
+      expect(block).toMatch(/\.internal\.repos\b/u)
+      expect(composition()).toContain('...(options?.exposeSimulationRuntime')
+    })
+
+    it('leaves no production file outside the root reading a context repository hatch', () => {
+      const root = process.cwd()
+      const consumers = [resolve('src'), resolve('scripts'), resolve('server')]
+        .flatMap(sourceFiles)
+        .map((path) => relative(root, path))
+        .filter((path) => !/\.(?:test|spec|stories)\.[cm]?[jt]sx?$/u.test(path))
+        .filter((path) => path !== 'src/composition.ts')
+        .filter((path) => /\.internal\.repos\b/u.test(readFileSync(path, 'utf8')))
+        .sort()
+
+      expect(consumers).toEqual([])
+    })
   })
 
   it('routes Identity requests and recovery through owned capabilities', () => {

@@ -23,7 +23,12 @@ describe('buildActivityContext', () => {
     })
 
     expect(Object.keys(context).sort()).toEqual(['internal', 'publicApi', 'worker'])
-    expect(Object.keys(context.worker)).toEqual(['registerOutboxConsumers'])
+    // ARC-03-T12: Activity owns the Recent Activity projection; the container
+    // no longer publishes its repository for the worker to assemble one.
+    expect(Object.keys(context.worker).sort()).toEqual([
+      'projectRecentActivity',
+      'registerOutboxConsumers',
+    ])
     expect(context.worker.registerOutboxConsumers).toBeTypeOf('function')
     expect(Object.keys(context.internal).sort()).toEqual(['repos', 'useCases'])
     expect(context.internal.useCases).toMatchObject({

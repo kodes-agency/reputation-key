@@ -191,24 +191,41 @@ Skip steps that don't apply. Query: (1) + (5) + (7). Mutation: all 7.
 
 ### 3.1 Return shape
 
-Every context build function SHALL return:
+Every context build function SHALL return `publicApi` plus NAMED capability groups.
+A capability group states what a class of consumer may do; it never publishes a
+repository, a command store, or a bag of use cases.
 
 ```ts
 type ContextApi<T> = Readonly<{
-  publicApi: T              // Cross-context boundary. Only this is imported by other contexts.
-  internal: Readonly<{
-    repos: { ... }          // Repositories for adapter wiring in composition.ts
-    useCases: { ... }       // Use cases for server function wiring in composition.ts
-    // Additional context-specific keys (e.g. storage, events) allowed if consumed by composition.ts only
-  }>
+  publicApi: T            // Cross-context boundary. Only this is imported by other contexts.
+  worker?: { ... }        // Job/consumer registration and worker-owned operations.
+  maintenance?: { ... }   // Bounded, reviewed operator repair capabilities.
+  lifecycle?: { ... }     // Cross-context workflow authority (no request surface).
+  webhook?: { ... }       // Authenticated provider ingress handlers.
+  // Additional context-named groups where the context genuinely owns one,
+  // e.g. `responsibility`, `assignments`, `delivery`, `uploads`, `lookups`.
 }>
 ```
 
-- `publicApi` — the ONLY cross-context boundary. Contains types, query functions, port interfaces.
-- `internal.repos` — repositories accessible to cross-context adapters.
-- `internal.useCases` — use cases accessible to server functions.
+- `publicApi` — the ONLY cross-context boundary. Types, query functions, ports.
+- Every other group is named for the CAPABILITY it grants, not for the layer it
+  came from. `portal.responsibility.releaseForUser` is a capability;
+  `portal.internal.repos.portalResponsibleManagerRepo` is a leaked repository.
 
-`composition.ts` may access `internal`. Other contexts may NOT import `internal`.
+**The composition root consumes capability groups only.** It does not read a
+context's private wiring, and there is no production `.internal` reach-through.
+The single documented exception is the simulation runtime, which is guarded by
+`options?.exposeSimulationRuntime` and is absent from every application
+container.
+
+`internal` MAY be retained by a context as its own private wiring seam — for
+example so the context's `build.test.ts` can assert construction — but it is
+never an input to composition, and no other context may import it. A build that
+publishes `internal.repos` for the composition root to consume does not meet
+this standard.
+
+See `docs/architecture/composition-and-process-boundaries.md` for the process
+boundaries these capability groups are projected onto.
 
 ---
 

@@ -73,7 +73,6 @@ import {
   createRefreshRollupHandler,
   JOB_NAMES,
 } from '#/contexts/metric/infrastructure/jobs/refresh-materialized-view.job'
-import { recentActivityEntryId } from '#/shared/domain/ids'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
 import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import {
@@ -614,21 +613,17 @@ export async function bootstrap(
   )
 
   // ── Recent Activity projection job ────────────────────────────────
-  const {
-    createProjectRecentActivityHandler,
-    PROJECT_RECENT_ACTIVITY_JOB_NAME,
-    LEGACY_INSERT_ACTIVITY_LOG_JOB_NAME,
-  } = await import('#/contexts/activity/infrastructure/jobs/project-recent-activity.job')
-  const { createDbUserLookupAdapter } =
-    await import('#/contexts/activity/infrastructure/adapters/db-user-lookup.adapter')
-  const dbUserLookup = createDbUserLookupAdapter(container.db)
-  const projectRecentActivityHandler = createProjectRecentActivityHandler({
-    repo: container.activityWorkerRuntime.recentActivityRepo,
-    userLookup: dbUserLookup,
-    clock: container.clock,
-    logger: container.logger,
-    idGen: () => recentActivityEntryId(crypto.randomUUID()),
-  })
+  const { PROJECT_RECENT_ACTIVITY_JOB_NAME, LEGACY_INSERT_ACTIVITY_LOG_JOB_NAME } =
+    await import('#/contexts/activity/infrastructure/jobs/project-recent-activity.job')
+  // ARC-03-T12: Activity owns the projection. The worker's job is transport
+  // only — it unwraps the BullMQ envelope and calls the context capability.
+  const projectRecentActivityHandler = async (
+    job: import('bullmq').Job<
+      import('#/contexts/activity/infrastructure/jobs/project-recent-activity.job').ProjectRecentActivityJobData
+    >,
+  ): Promise<void> => {
+    await container.activityWorkerRuntime.projectRecentActivity(job.data)
+  }
   container.jobRegistry.register(
     PROJECT_RECENT_ACTIVITY_JOB_NAME,
     async (job): Promise<void> => {

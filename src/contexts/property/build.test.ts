@@ -61,7 +61,13 @@ describe('PropertyPublicApi', () => {
       regionMove: { writeOperatorAudit: async () => {}, queues: [] },
     })
 
-    expect(Object.keys(context).sort()).toEqual(['internal', 'publicApi', 'worker'])
+    // ARC-03-T11: `responsibility` is the named member-authority capability.
+    expect(Object.keys(context).sort()).toEqual([
+      'internal',
+      'publicApi',
+      'responsibility',
+      'worker',
+    ])
     expect(Object.keys(context.internal).sort()).toEqual(['repos', 'useCases'])
     expect(context.worker.registerOutboxConsumers).toBeTypeOf('function')
     expect(context.publicApi.management).toBeDefined()

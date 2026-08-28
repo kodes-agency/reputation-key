@@ -11,6 +11,7 @@ import type {
 import type { StaffPublicApi } from '#/contexts/staff/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Clock } from '#/shared/domain/clock'
+import type { GuestSnippetReadPort } from './application/ports/guest-snippet-read.port'
 import { createGuestInteractionRepository } from './infrastructure/repositories/guest-interaction.repository'
 import { createGuestResponseRepository } from './infrastructure/repositories/guest-response.repository'
 import { createAtomicGuestResponseCommandStore } from './infrastructure/guest-response-command-store'
@@ -173,24 +174,33 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
     ...integrityPublicApi,
   }
 
+  // ARC-03-T11: the two named Guest capabilities the composition root consumes.
+  // Both used to be Guest repository reach-throughs from the root.
+  const snippets: GuestSnippetReadPort = Object.freeze({
+    findResponseSnippetsByIds: (ids, organizationId) =>
+      guestResponseRepo.findSnippetsForOrg(organizationId, ids),
+    findEligibleResponseIds: (organizationId, filter) =>
+      guestResponseRepo.findEligibleSnippetIdsForOrg(organizationId, filter),
+    findLegacyFeedbackSnippetsByIds: (ids, organizationId) =>
+      guestRepo.findFeedbackSnippetsByIds(ids, organizationId),
+    findEligibleLegacyFeedbackIds: (organizationId, filter) =>
+      guestRepo.findEligibleFeedbackIds(organizationId, filter),
+  })
+
   return {
     publicApi,
-    internal: {
-      repos: {
-        guestRepo,
-        guestResponseRepo,
-        guestResponseCommandStore,
-        guestObservationStore,
-        guestNetworkPressureStore,
-        guestObservationLossMonitor,
-        portalContextResolver,
-      },
-      useCases,
-      contactRequestReadiness: Object.freeze({
-        responseAuthority: contactRequestResponseAuthority,
-        managerAuthority: contactRequestManagerAuthority,
-        retentionSweep: contactRequestRetention,
-      }),
-    },
+    snippets,
+    /** Health-snapshot gauge input; the monitor itself stays context-private. */
+    observationLoss: Object.freeze({
+      read: (asOf: Date) => guestObservationLossMonitor.read(asOf),
+    }),
+    /** Contact Request stays dark; the retention sweep is the only capability
+     * a running deployable consumes, and it operates on rows that can only
+     * exist once the dark capability is turned on. */
+    contactRequestReadiness: Object.freeze({
+      responseAuthority: contactRequestResponseAuthority,
+      managerAuthority: contactRequestManagerAuthority,
+      retentionSweep: contactRequestRetention,
+    }),
   } as const
 }

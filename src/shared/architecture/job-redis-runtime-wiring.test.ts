@@ -14,7 +14,8 @@ describe('BullMQ Redis boot contract', () => {
   it('asserts the configured runtime before constructing queue clients', () => {
     expect(worker).toContain('assertConfiguredJobRedisRuntime')
     const assertion = worker.indexOf('await assertConfiguredJobRedisRuntime')
-    const container = worker.indexOf('createContainer({ enableJobs: true })')
+    // ARC-03-T15: the worker builds the WORKER deployable's container.
+    const container = worker.indexOf('createWorkerContainer()')
     expect(assertion).toBeGreaterThan(-1)
     expect(container).toBeGreaterThan(assertion)
   })

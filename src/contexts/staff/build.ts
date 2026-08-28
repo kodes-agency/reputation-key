@@ -158,12 +158,14 @@ export const buildStaffContext = (deps: StaffContextDeps) => {
 
   return {
     publicApi,
+    // ARC-03-T12: the named authority decision the Inbox command authority
+    // consumes. Replaces the root's context-private hatch read.
+    authority: Object.freeze({ decideUserParticipationAuthority }),
     internal: {
       repos: {
         staffParticipationRepo: participationRepo,
       } as const,
       useCases,
-      decideUserParticipationAuthority,
     },
   } as const
 }

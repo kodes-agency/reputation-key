@@ -6,6 +6,7 @@ import type { Database } from '#/shared/db'
 import type { ConsumerRegistry } from '#/shared/outbox'
 
 import type { PropertyRepository } from './application/ports/property.repository'
+import { createPropertyResponsibilityRuntime } from './application/property-responsibility-runtime'
 import type {
   PropertyFactsPublicApi,
   PropertyProcessingScopePublicApi,
@@ -347,6 +348,9 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) =>
         registerPropertyRetentionConsumer(consumerRegistry, publicApi),
     }),
+    /** ARC-03-T11: the named member-authority capability. Replaces the root's
+     * Property responsible-manager repository reach-through. */
+    responsibility: createPropertyResponsibilityRuntime(responsibleManagerRepo),
     internal: {
       repos: { responsibleManagerRepo } as const,
       useCases,

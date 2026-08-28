@@ -39,6 +39,7 @@ import {
 } from './application/use-cases/reconcile-recent-activity-vocabulary'
 import type { RecentActivityVocabularyApplyAuthority } from './ports/recent-activity-vocabulary-reconciliation.port'
 import { createRecentActivityVocabularyReconciliationStore } from './infrastructure/recent-activity-vocabulary-reconciliation.store'
+import { createActivityProjectionRuntime } from './application/activity-projection-runtime'
 
 type BuildInput = Readonly<{
   db: Database
@@ -130,7 +131,19 @@ export const buildActivityContext = (input: BuildInput) => {
   // function is for the web process (query + handler registration only).
   return {
     publicApi,
-    worker: Object.freeze({ registerOutboxConsumers }),
+    // ARC-03-T12: Activity owns its projection end to end. The container used
+    // to hand bootstrap the recent-activity REPOSITORY so the worker could
+    // assemble this itself.
+    worker: Object.freeze({
+      registerOutboxConsumers,
+      ...createActivityProjectionRuntime({
+        repo,
+        userLookup,
+        clock: input.clock,
+        logger: input.logger,
+        idGen: input.idGen,
+      }),
+    }),
     internal: {
       repos: {
         recentActivityRepo: repo,

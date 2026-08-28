@@ -93,6 +93,61 @@ describe('authorize server boundary (BQR-4.1)', () => {
     expect(map).toContain('export function capabilityForPermission')
   })
 
+  // ARC-03-T13: the web framework is a composition-boundary choice. A context's
+  // application or infrastructure layer that reaches for it — statically or by
+  // dynamic import — cannot be built in a worker, sidecar or process fixture.
+  describe('the ambient request context stays behind an injected port', () => {
+    const FRAMEWORK = '@tanstack/react-start'
+
+    const guardedFiles = (): string[] => [
+      ...ENABLED_CONTEXTS.flatMap((ctx) => [
+        ...listServerTs(join(ROOT, ctx, 'infrastructure')),
+        ...listServerTs(join(ROOT, ctx, 'application')),
+      ]),
+      join(process.cwd(), 'src/composition.ts'),
+    ]
+
+    it('catches a dynamic import, not just a static one', () => {
+      const fixture = "const m = await import('@tanstack/react-start/server')"
+      expect(fixture).toContain(FRAMEWORK)
+    })
+
+    it('has no framework edge in context application/infrastructure or the root', () => {
+      const offenders = guardedFiles()
+        .filter((file) => readFileSync(file, 'utf8').includes(FRAMEWORK))
+        .map(relative)
+        .sort()
+
+      expect(offenders).toEqual([])
+    })
+
+    it('keeps exactly one owner of the framework request adapter', () => {
+      const adapter = readFileSync(
+        join(process.cwd(), 'src/shared/auth/tanstack-request-context.ts'),
+        'utf8',
+      )
+      const headers = readFileSync(
+        join(process.cwd(), 'src/shared/auth/headers.ts'),
+        'utf8',
+      )
+
+      expect(adapter).toContain(FRAMEWORK)
+      expect(adapter).toContain('export function createTanstackRequestContext')
+      // The legacy helper is now a thin call shape over the same adapter.
+      expect(headers).not.toContain(FRAMEWORK)
+      expect(headers).toContain('createTanstackRequestContext')
+    })
+
+    it('injects the session provider into the root instead of calling it', () => {
+      const composition = readFileSync(join(process.cwd(), 'src/composition.ts'), 'utf8')
+
+      expect(composition).not.toContain('getAuth(')
+      expect(composition).not.toContain('headersFromContext')
+      expect(composition).toContain('createBetterAuthSessionPort({ requestContext })')
+      expect(composition).toContain('options?.authSession ??')
+    })
+  })
+
   it('execution-policy exports the BQC-2.4 seam', () => {
     const src = readFileSync(
       join(process.cwd(), 'src/shared/auth/execution-policy.ts'),

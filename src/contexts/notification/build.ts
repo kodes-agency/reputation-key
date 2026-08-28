@@ -67,6 +67,7 @@ import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { NotificationListFilter } from './application/notification-list-filter'
 import type { OneClickUnsubscribeTarget } from './application/one-click-unsubscribe-token'
 import { assertBetaNotificationTriggerMatrix } from './application/beta-notification-trigger-matrix'
+import { createNotificationDeliveryRuntime } from './application/notification-delivery-runtime'
 import type { MonthlyResultNotificationFactsLookup } from '#/contexts/goal/application/public-api'
 import { withBetaOutboxNotificationDelivery } from './infrastructure/outbox-notification-delivery'
 import { createNotificationDeliverySettlement } from './infrastructure/repositories/notification-delivery-settlement.repository'
@@ -496,19 +497,18 @@ export const buildNotificationContext = (input: BuildInput) => {
   return {
     publicApi,
     worker: Object.freeze({ registerOutboxConsumers }),
-    internal: {
-      repos: { notificationRepo, emailRepo, prefRepo, gapRepo, deliveryLagRepo },
-      useCases,
-      handleResendEvent,
-      deliverySettlement,
-      /**
-       * The sweep that heals what the best-effort bus path drops. Undefined
-       * without a queue, for the same reason as the consumers above.
-       */
-      reconcileMissingNotificationsHandler: fanoutDeps
-        ? createReconcileMissingNotificationsHandler({ ...fanoutDeps, gapRepo })
-        : undefined,
-      authorizeAudience,
-    },
+    // ARC-03-T12: one named delivery capability replaces the root's reach into
+    // Notification's private repository trio and loose handlers.
+    delivery: createNotificationDeliveryRuntime({
+      repos: { notificationRepo, emailRepo, preferenceRepo: prefRepo },
+      handlers: {
+        handleResendEvent,
+        authorizeAudience,
+        deliverySettlement,
+        reconcileMissingNotificationsHandler: fanoutDeps
+          ? createReconcileMissingNotificationsHandler({ ...fanoutDeps, gapRepo })
+          : undefined,
+      },
+    }),
   } as const
 }

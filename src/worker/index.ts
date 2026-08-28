@@ -20,7 +20,7 @@ import {
   isRestoreIsolated,
   RESTORE_ISOLATED_LOG_LINE,
 } from '#/shared/config/restore-mode'
-import { createContainer } from '#/composition'
+import { createWorkerContainer } from '#/composition/deployables'
 import { bindProcessPolicies } from '#/shared/auth/process-policy-binding'
 import { bootstrap, createBootstrapRuntimeConfig } from '#/bootstrap'
 import {
@@ -28,7 +28,7 @@ import {
   createJobWorker,
   DEFAULT_QUEUE_CONCURRENCY,
 } from '#/shared/jobs/worker'
-import { createJobQueue, createWorkerBarrierQueue, type Queue } from '#/shared/jobs/queue'
+
 import { assertConfiguredJobRedisRuntime } from '#/shared/jobs/redis-runtime'
 import {
   assertProductionRedisTopology,
@@ -53,14 +53,8 @@ import {
   createWorkerProcessFailurePolicy,
   type WorkerTerminationTrigger,
 } from './process-failure'
-import {
-  QUARANTINE_QUEUE_NAME,
-  quarantineJobDirect,
-} from '#/shared/jobs/failure-quarantine'
+import { quarantineJobDirect } from '#/shared/jobs/failure-quarantine'
 import { createPublishReplyScopeResolver } from '#/contexts/review/infrastructure/jobs/publish-reply-scope-resolver'
-import { createProcessingRouter } from '#/shared/routing/processing-router'
-import { createPropertyRoutingLoader } from '#/contexts/property/infrastructure/property-routing.adapter'
-import { createImportItemRoutingLoader } from '#/contexts/integration/infrastructure/import-item-routing.adapter'
 import { createOutboxRelay } from '#/shared/outbox/relay'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
 import type { Worker } from 'bullmq'
@@ -119,8 +113,11 @@ async function main() {
     )
   }
 
-  // Build the dependency container
-  const container = createContainer({ enableJobs: true })
+  // ARC-03-T15: the worker builds the WORKER deployable's container — the one
+  // complete Application Container this process may hold. A second build fails
+  // by name instead of quietly producing a second policy trio, a second
+  // consumer registry and a second set of queue connections.
+  const container = createWorkerContainer()
 
   // ARC-03-T8: the worker's ONE explicit policy installation. Building the
   // container no longer installs the ExecutionPolicy / DelayedExecutionPolicy
@@ -181,10 +178,11 @@ async function main() {
   // review → propertyId). Every other job name falls through to the payload.
   const resolveScope = createPublishReplyScopeResolver({ db: container.db })
 
-  // BQC-3.6: the dead-letter quarantine queue — created here (same pattern
-  // as the domain-events queue below), NEVER processed by a worker. Jobs
-  // whose attempt budget is spent land here with a content-safe envelope.
-  const quarantineQueue = createWorkerBarrierQueue(QUARANTINE_QUEUE_NAME)
+  // ARC-03-T15: the dead-letter quarantine barrier queue is CONTAINER-owned.
+  // It is written to and never processed; jobs whose attempt budget is spent
+  // land here with a content-safe envelope.
+  const { quarantineQueue, domainEventsQueue, processingRouter } =
+    container.jobDispatchWorkerRuntime
   const runtimeObservationQueue = container.backgroundQueue ?? container.jobQueue
   const runtimeObservationStore = runtimeObservationQueue
     ? createQueueJobRuntimeObservationStore({
@@ -199,10 +197,9 @@ async function main() {
   // wrong-cell jobs are quarantined directly (fail closed, no retry burn).
   const processingCell = env.PROCESSING_CELL
   const routingGate: JobRoutingGate = {
-    router: createProcessingRouter({
-      loadPropertyRouting: createPropertyRoutingLoader({ db: container.db }),
-      loadImportItemRouting: createImportItemRoutingLoader({ db: container.db }),
-    }),
+    // ARC-03-T15: the container's ONE routing model. The worker used to build a
+    // second ProcessingRouter, so a single process held two routing decisions.
+    router: processingRouter,
     cell: processingCell,
     quarantine: async (job, policyReason) => {
       // Undefined only when Redis is absent — but then no worker starts, so
@@ -344,11 +341,8 @@ async function main() {
   // handing delivery to durable consumers (see `resolveCutoverState`).
   let domainEventsWorker: Worker | undefined
   let stopRelay: (() => void) | undefined
-  let domainEventsQueue: Queue | undefined
 
   if (container.outboxRepo && jobRedisUrl && env.OUTBOX_DISPATCHER_ENABLED) {
-    domainEventsQueue = createJobQueue('domain-events')
-
     if (domainEventsQueue) {
       const relay = createOutboxRelay(container.outboxRepo, domainEventsQueue, {
         sourceCell: env.PROCESSING_CELL,

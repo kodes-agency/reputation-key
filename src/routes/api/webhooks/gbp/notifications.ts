@@ -4,7 +4,8 @@ import type pino from 'pino'
 import { z, ZodError } from 'zod/v4'
 import { getContainer } from '#/composition'
 import { verifyPubSubJwt } from '#/shared/auth/pubsub-jwt.verifier'
-import { getEnv, type Env } from '#/shared/config/env'
+import type { Env } from '#/shared/config/env'
+import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 import { parseReviewProviderResource } from '#/shared/review-provider-subject-contract'
@@ -146,7 +147,7 @@ async function readPushNotification(
 export async function handleGbpWebhookPost(request: Request): Promise<Response> {
   return trace('webhook.gbpNotifications', async () => {
     const logger = getLogger()
-    const env = getEnv()
+    const env = requestRuntimeConfig().env
     try {
       const rejection = await rejectInauthenticPush(request, env, logger)
       if (rejection) return rejection

@@ -344,6 +344,13 @@ export type IntegrationContextApi = Readonly<{
     processImportItem: GoogleImportV2Processor['process'] | null
     sweepImportLifecycle: ReturnType<typeof createGoogleImportV2Lifecycle>['sweep'] | null
   }>
+  /** ARC-03-T12: the named provider capabilities the Review build consumes. */
+  reviewSync: Readonly<{
+    /** BQC-5.2: the Google review API adapter, typed by Review's port. */
+    googleReviewApi: GoogleReviewApiPort
+    /** Identifier-only reference resolver consumed by Review's targeted job. */
+    googleReviewPushTargetResolver: TargetedGoogleReviewReferenceResolver
+  }>
   internal: Readonly<{
     repos: Readonly<{
       connectionRepo: ReturnType<typeof createGoogleConnectionRepository>
@@ -1476,6 +1483,12 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       registerOutboxConsumers,
       processImportItem: useCases.processGoogleImportV2Item,
       sweepImportLifecycle: useCases.sweepGoogleImportV2Lifecycle,
+    }),
+    // ARC-03-T12: the two provider capabilities the Review context consumes.
+    // The root forwards this named group instead of reaching into `internal`.
+    reviewSync: Object.freeze({
+      googleReviewApi,
+      googleReviewPushTargetResolver,
     }),
     internal: {
       repos: {

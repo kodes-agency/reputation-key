@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { createOneClickUnsubscribePostHandler } from '#/contexts/notification/server/one-click-unsubscribe'
 import { getContainer } from '#/composition'
-import { getEnv } from '#/shared/config/env'
+import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
 import { getLogger } from '#/shared/observability/logger'
 
 export const Route = createFileRoute('/api/notifications/unsubscribe')({
@@ -9,7 +9,7 @@ export const Route = createFileRoute('/api/notifications/unsubscribe')({
     handlers: {
       POST: ({ request }) =>
         createOneClickUnsubscribePostHandler({
-          rawKeys: getEnv().NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS,
+          rawKeys: requestRuntimeConfig().notificationUnsubscribeHmacKeys,
           logger: getLogger(),
           oneClickUnsubscribe: (target) =>
             getContainer().notificationPublicApi.oneClickUnsubscribe(target),

@@ -170,6 +170,20 @@ export type PortalPublicApi = Readonly<{
     name: string
     publicationState: 'draft' | 'published' | 'disabled' | 'archived'
   }> | null>
+
+  /**
+   * ARC-03-T9: every Portal belonging to a Property, by id.
+   *
+   * Staff owns the StaffPortalLookupPort contract and needs this for ownership
+   * validation. Publishing it here is what lets the composition root satisfy
+   * that port from Portal's public API instead of reaching into
+   * the Portal repository.
+   */
+  listPortalIdsByProperty: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<ReadonlyArray<PortalId>>
+
   /** Bounded, deterministic request-time snapshot for explicit Goal assignment. */
   listCurrentPortalIds: (
     orgId: OrganizationId,

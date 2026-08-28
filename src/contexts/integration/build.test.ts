@@ -116,6 +116,8 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
       'lifecycle',
       'maintenance',
       'publicApi',
+      // ARC-03-T12: the named provider capabilities the Review build consumes.
+      'reviewSync',
       'webhook',
       'worker',
     ])

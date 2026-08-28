@@ -7,6 +7,19 @@
 
 import type { NitroAppPlugin } from 'nitro/types'
 
+/**
+ * ARC-03-T14: the exact configuration this module reads. Naming it is what
+ * lets a caller supply it explicitly instead of the module re-reading ambient
+ * process state on every response.
+ */
+export type SecurityHeadersEnvironment = Readonly<{
+  NODE_ENV?: string | undefined
+  S3_PRESIGN_ENDPOINT?: string | undefined
+  AWS_S3_BUCKET_NAME?: string | undefined
+  AWS_S3_REGION?: string | undefined
+  S3_FORCE_PATH_STYLE?: string | undefined
+}>
+
 /** Options for {@link getSecurityHeaders}. */
 export interface SecurityHeadersOptions {
   /** Override production detection (defaults to NODE_ENV === 'production'). */
@@ -15,6 +28,21 @@ export interface SecurityHeadersOptions {
   readonly cspNonce?: string
   /** Browser upload endpoints permitted by connect-src. URLs are reduced to origins. */
   readonly connectSources?: readonly string[]
+  /**
+   * Explicit configuration. Absent only on the Nitro response hook, which runs
+   * outside any container and therefore falls back to the ONE named ambient
+   * read below.
+   */
+  readonly env?: SecurityHeadersEnvironment
+}
+
+/**
+ * The single ambient environment read in this module (ARC-03-T14 allowlist).
+ * The Nitro response hook has no injected configuration; every other caller
+ * passes `env` explicitly.
+ */
+function ambientSecurityHeadersEnvironment(): SecurityHeadersEnvironment {
+  return process.env
 }
 
 const CSP_NONCE_PATTERN = /^[A-Za-z0-9+/_-]+={0,2}$/
@@ -31,22 +59,32 @@ function getScriptSource(cspNonce: string | undefined): string {
   return `'self' 'nonce-${cspNonce}'`
 }
 
-function configuredStorageConnectSources(): readonly string[] {
-  if (process.env.S3_PRESIGN_ENDPOINT) {
-    return [process.env.S3_PRESIGN_ENDPOINT]
+/**
+ * Browser-reachable object-storage origins permitted by connect-src, derived
+ * from explicit configuration. Exported so the derivation is testable without
+ * mutating process state.
+ */
+export function storageConnectSources(
+  env: SecurityHeadersEnvironment,
+): readonly string[] {
+  if (env.S3_PRESIGN_ENDPOINT) {
+    return [env.S3_PRESIGN_ENDPOINT]
   }
 
-  const bucket = process.env.AWS_S3_BUCKET_NAME
-  const region = process.env.AWS_S3_REGION
+  const bucket = env.AWS_S3_BUCKET_NAME
+  const region = env.AWS_S3_REGION
   if (!bucket || !region) return []
 
-  return process.env.S3_FORCE_PATH_STYLE?.toLowerCase() === 'true'
+  return env.S3_FORCE_PATH_STYLE?.toLowerCase() === 'true'
     ? [`https://s3.${region}.amazonaws.com`]
     : [`https://${bucket}.s3.${region}.amazonaws.com`]
 }
 
-function getConnectSource(opts: SecurityHeadersOptions | undefined): string {
-  const sources = opts?.connectSources ?? configuredStorageConnectSources()
+function getConnectSource(
+  opts: SecurityHeadersOptions | undefined,
+  env: SecurityHeadersEnvironment,
+): string {
+  const sources = opts?.connectSources ?? storageConnectSources(env)
   const origins = sources.map((source) => {
     let url: URL
     try {
@@ -76,10 +114,11 @@ function getConnectSource(opts: SecurityHeadersOptions | undefined): string {
 export function getSecurityHeaders(
   opts?: SecurityHeadersOptions,
 ): Readonly<Record<string, string>> {
-  const isProduction = opts?.isProduction ?? process.env.NODE_ENV === 'production'
+  const env = opts?.env ?? ambientSecurityHeadersEnvironment()
+  const isProduction = opts?.isProduction ?? env.NODE_ENV === 'production'
 
   const scriptSource = getScriptSource(opts?.cspNonce)
-  const connectSource = getConnectSource(opts)
+  const connectSource = getConnectSource(opts, env)
 
   const headers: Record<string, string> = {
     'Content-Security-Policy': [

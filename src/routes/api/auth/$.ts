@@ -4,7 +4,7 @@ import {
   claimsE2ERateLimitBypass,
   isE2ERateLimitBypassAuthorized,
 } from '#/shared/auth/beta-capabilities'
-import { getEnv } from '#/shared/config/env'
+import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
 import { getContainer } from '#/composition'
 import { getLogger } from '#/shared/observability/logger'
 import { clientIpFromHeaders } from '#/shared/security/client-ip'
@@ -55,7 +55,7 @@ let bypassRefusalLogged = false
  * value ('0', 'true') already refused boot rather than opening the endpoint.
  */
 function authRateLimitBypassed(): boolean {
-  const env = getEnv()
+  const env = requestRuntimeConfig().env
   if (isE2ERateLimitBypassAuthorized(env)) return true
   if (claimsE2ERateLimitBypass(env) && !bypassRefusalLogged) {
     bypassRefusalLogged = true

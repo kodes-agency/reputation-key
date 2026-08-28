@@ -21,9 +21,9 @@ import {
   createCurrentPortalIdReader,
   createPortalRepository,
 } from './infrastructure/repositories/portal.repository'
+import { createPortalResponsibilityRuntime } from './application/portal-responsibility-runtime'
 import { createPortalLinkRepository } from './infrastructure/repositories/portal-link.repository'
 import { createPortalGroupRepository } from './infrastructure/repositories/portal-group.repository'
-import { createLinkResolverPort } from './infrastructure/repositories/link-resolver.repository'
 import { createS3StorageAdapter } from './infrastructure/adapters/s3-storage.adapter'
 import { createPortalTokenRepository } from './infrastructure/repositories/portal-token.repository'
 import { createPortalPublicationRepository } from './infrastructure/repositories/portal-publication.repository'
@@ -159,7 +159,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     secret: deps.tokenHashSecret,
     randomBytes: deps.secureRandomBytes,
   })
-  const linkResolver = createLinkResolverPort(deps.db)
   const portalWorkflowFactStore = createPortalWorkflowFactStore(deps.db, deps.events)
   const storage =
     deps.storage ??
@@ -496,6 +495,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
         .then((p) =>
           p ? { id: p.id, name: p.name, publicationState: p.publicationState } : null,
         ),
+    listPortalIdsByProperty: async (orgId, pid) =>
+      (await portalRepo.listByProperty(orgId, pid)).map((p) => p.id),
     listCurrentPortalIds: async (orgId, propertyId, limit) => {
       return listCurrentPortalIds(orgId, propertyId, limit)
     },
@@ -593,22 +594,16 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       registerOutboxConsumers,
       revalidateApprovedDestinations: useCases.revalidatePortalApprovedDestinations,
     }),
-    internal: {
-      repos: {
-        portalRepo,
-        portalLinkRepo,
-        portalGroupRepo,
-        portalAccessArtifactRepo,
-        portalTokenRepo,
-        portalPublicationRepo,
-        portalHealthRepo,
-        portalHealthReconciliationStore,
-        portalResponsibleManagerRepo,
-        portalUploadStore,
-        linkResolver,
-      },
-      useCases,
+    /** ARC-03-T11: the named member-authority capability. Replaces the root's
+     * Portal responsible-manager repository reach-through. */
+    responsibility: createPortalResponsibilityRuntime(portalResponsibleManagerRepo),
+    /** ARC-03-T11: Portal-owned issued-object capability. `storage` is the
+     * shared asset port (Identity profile assets, Portal media); `uploadStore`
+     * is the issuance ledger the derivative worker settles against. Replaces
+     * the root's Portal upload-store and storage reach-throughs. */
+    uploads: Object.freeze({
       storage,
-    },
+      uploadStore: portalUploadStore,
+    }),
   } as const
 }

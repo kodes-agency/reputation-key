@@ -36,14 +36,16 @@ describe('Goal runtime dependency injection', () => {
 
   it('keeps the active Goal build clock rooted in composition', () => {
     const buildSource = readFileSync(join(GOAL_ROOT, 'build.ts'), 'utf8')
+    // ARC-03-T10: Goal is a leaf context, built by the root's read/notify
+    // composition module. The clock is still root-owned and injected.
     const compositionSource = readFileSync(
-      join(GOAL_ROOT, '..', '..', 'composition.ts'),
+      join(GOAL_ROOT, '..', '..', 'composition', 'read-and-notify-contexts.ts'),
       'utf8',
     )
 
     expect(buildSource).toMatch(/\bclock:\s*\(\)\s*=>\s*Date/u)
     expect(compositionSource).toMatch(
-      /buildGoalContext\s*\(\s*\{[\s\S]*?\bclock\s*,[\s\S]*?\}\s*\)/u,
+      /buildGoalContext\s*\(\s*\{[\s\S]*?\bclock:\s*input\.clock,[\s\S]*?\}\s*\)/u,
     )
   })
 })

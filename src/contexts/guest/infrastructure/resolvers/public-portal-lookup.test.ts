@@ -9,6 +9,7 @@ function createPortalApiStub(
     resolvePortalContext: async () => null,
     getPortalInfo: async () => null,
     listCurrentPortalIds: async () => [],
+    listPortalIdsByProperty: async () => [],
     getResponsibleManagerUserIds: async () => [],
     findPortalHealthNotificationFacts: async () => null,
     findPublicPortalByToken,

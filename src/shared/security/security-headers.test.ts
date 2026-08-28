@@ -1,7 +1,11 @@
 // Tests for security headers (B0.7).
 
 import { afterEach, describe, it, expect, vi } from 'vitest'
-import { getSecurityHeaders, applySecurityHeaders } from './security-headers'
+import {
+  getSecurityHeaders,
+  applySecurityHeaders,
+  storageConnectSources,
+} from './security-headers'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -103,5 +107,60 @@ describe('applySecurityHeaders', () => {
     h.set('X-Frame-Options', 'SAMEORIGIN')
     applySecurityHeaders(h, { isProduction: false })
     expect(h.get('X-Frame-Options')).toBe('SAMEORIGIN')
+  })
+})
+
+// ARC-03-T14: the header builder takes configuration explicitly. The parity
+// cases below use the same values the ambient reads used to produce, so the
+// output is provably unchanged for a given configuration.
+describe('explicit configuration (ARC-03-T14)', () => {
+  it('derives the presign endpoint origin when one is configured', () => {
+    expect(
+      storageConnectSources({ S3_PRESIGN_ENDPOINT: 'https://presign.example' }),
+    ).toEqual(['https://presign.example'])
+  })
+
+  it('derives the virtual-hosted bucket origin from bucket + region', () => {
+    expect(
+      storageConnectSources({ AWS_S3_BUCKET_NAME: 'assets', AWS_S3_REGION: 'us-east-1' }),
+    ).toEqual(['https://assets.s3.us-east-1.amazonaws.com'])
+  })
+
+  it('derives the path-style origin when path style is enabled', () => {
+    expect(
+      storageConnectSources({
+        AWS_S3_BUCKET_NAME: 'assets',
+        AWS_S3_REGION: 'us-east-1',
+        S3_FORCE_PATH_STYLE: 'true',
+      }),
+    ).toEqual(['https://s3.us-east-1.amazonaws.com'])
+  })
+
+  it('derives nothing from an incomplete configuration rather than guessing', () => {
+    expect(storageConnectSources({ AWS_S3_BUCKET_NAME: 'assets' })).toEqual([])
+    expect(storageConnectSources({})).toEqual([])
+  })
+
+  it('takes production posture from the supplied environment', () => {
+    const production = getSecurityHeaders({ env: { NODE_ENV: 'production' } })
+    const development = getSecurityHeaders({ env: { NODE_ENV: 'development' } })
+
+    expect(production['Strict-Transport-Security']).toBeDefined()
+    expect(development['Strict-Transport-Security']).toBeUndefined()
+  })
+
+  it('produces the same CSP from an explicit env as from equivalent connectSources', () => {
+    const explicitEnv = getSecurityHeaders({
+      isProduction: false,
+      env: { AWS_S3_BUCKET_NAME: 'assets', AWS_S3_REGION: 'us-east-1' },
+    })
+    const explicitSources = getSecurityHeaders({
+      isProduction: false,
+      connectSources: ['https://assets.s3.us-east-1.amazonaws.com'],
+    })
+
+    expect(explicitEnv['Content-Security-Policy']).toBe(
+      explicitSources['Content-Security-Policy'],
+    )
   })
 })

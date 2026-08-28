@@ -200,6 +200,20 @@ export type ReviewContextApi = Readonly<{
   /** Context-owned worker registration; exposes no repositories or use cases. */
   worker: Readonly<{
     registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) => void
+    /** Review-owned registration against the root's one canonical job registry. */
+    registerWorkerJobs: (runtime: { discoveryIntervalMs: number }) => Promise<void>
+    /** Boot-time inventory-parity check for the provider subject keyring. */
+    refreshProviderSubjectKeys: () => Promise<void>
+  }>
+  /**
+   * ARC-03-T12: narrow cross-context read lookups Review publishes. They
+   * satisfy the Inbox-owned lookup source contracts and the Dashboard's review
+   * stats dep port; the repositories themselves stay context-private.
+   */
+  lookups: Readonly<{
+    reply: ReplyRepository
+    review: ReviewRepository
+    servingStats: ReviewServingStats
   }>
   internal: Readonly<{
     repos: Readonly<{
@@ -536,6 +550,37 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       receipts: input.outboxRepo,
       logger: input.logger,
     })
+  // BQC-5.5: governed aggregate serving reads — eligibility in SQL,
+  // clock-injected. Wired into the dashboard build by composition. ONE
+  // instance: two constructions would open two independent read paths.
+  const servingStats = createServingStats({ db: input.db, clock: input.clock })
+  const registerWorkerJobs = async ({
+    discoveryIntervalMs,
+  }: Readonly<{ discoveryIntervalMs: number }>): Promise<void> => {
+    const { registerReviewWorkerJobs } = await import('./infrastructure/worker-runtime')
+    await registerReviewWorkerJobs({
+      db: input.db,
+      pool: input.workerRuntime.pool,
+      events: input.events,
+      registry: input.workerRuntime.registry,
+      backgroundQueue: input.workerRuntime.backgroundQueue,
+      reviewQueue: queue,
+      reviewRepo,
+      replyRepo,
+      replyCommandStore,
+      googleReviewApi: input.googleReviewApi,
+      staffPublicApi: input.staffPublicApi,
+      propertyRouting: propertyRoutingLookup,
+      runSnapshot: useCases.runReviewProviderSnapshot,
+      runTargetedFetch: useCases.runTargetedGoogleReviewFetch,
+      runSourceContentLifecycle: useCases.runReviewSourceContentLifecycle,
+      reconcileReplyPublication: useCases.reconcileReplyPublication,
+      clock: input.clock,
+      idGen: input.idGen,
+      logger: input.logger,
+      discoveryIntervalMs,
+    })
+  }
 
   return {
     publicApi: {
@@ -568,7 +613,34 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       runSourceContentLifecycle: useCases.runReviewSourceContentLifecycle,
       recovery,
     }),
-    worker: Object.freeze({ registerOutboxConsumers }),
+    worker: Object.freeze({
+      registerOutboxConsumers,
+      /**
+       * ARC-03-T12: Review-owned worker contributions. The root used to reach
+       * `registerWorkerJobs` and the subject keyring out of the context-private
+       * hatch; both are worker capabilities and belong here.
+       */
+      registerWorkerJobs,
+      /**
+       * Boot-time inventory-parity check for the provider subject keyring. It
+       * is always a service: the real keyring-backed one when writer material
+       * is configured, otherwise the secret-free deny adapter whose
+       * acquireDeriver() throws `config_invalid`.
+       */
+      refreshProviderSubjectKeys: async (): Promise<void> => {
+        await providerSubjectKeys.acquireDeriver()
+      },
+    }),
+    /**
+     * ARC-03-T12: narrow cross-context read lookups Review publishes for the
+     * Inbox projection. They satisfy the Inbox-owned lookup source contracts;
+     * the repositories themselves stay context-private.
+     */
+    lookups: Object.freeze({
+      reply: replyRepo,
+      review: reviewRepo,
+      servingStats,
+    }),
     internal: {
       repos: {
         reviewRepo,
@@ -580,37 +652,10 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         replyQueue,
       },
       useCases,
-      // BQC-5.5: governed aggregate serving reads — eligibility in SQL,
-      // clock-injected. Wired into the dashboard build by composition.
-      servingStats: createServingStats({ db: input.db, clock: input.clock }),
+      servingStats,
       aiReviewSource,
       providerSubjectKeys,
-      registerWorkerJobs: async ({ discoveryIntervalMs }) => {
-        const { registerReviewWorkerJobs } =
-          await import('./infrastructure/worker-runtime')
-        await registerReviewWorkerJobs({
-          db: input.db,
-          pool: input.workerRuntime.pool,
-          events: input.events,
-          registry: input.workerRuntime.registry,
-          backgroundQueue: input.workerRuntime.backgroundQueue,
-          reviewQueue: queue,
-          reviewRepo,
-          replyRepo,
-          replyCommandStore,
-          googleReviewApi: input.googleReviewApi,
-          staffPublicApi: input.staffPublicApi,
-          propertyRouting: propertyRoutingLookup,
-          runSnapshot: useCases.runReviewProviderSnapshot,
-          runTargetedFetch: useCases.runTargetedGoogleReviewFetch,
-          runSourceContentLifecycle: useCases.runReviewSourceContentLifecycle,
-          reconcileReplyPublication: useCases.reconcileReplyPublication,
-          clock: input.clock,
-          idGen: input.idGen,
-          logger: input.logger,
-          discoveryIntervalMs,
-        })
-      },
+      registerWorkerJobs,
     },
   }
 }

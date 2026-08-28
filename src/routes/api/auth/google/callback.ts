@@ -2,7 +2,8 @@
 // handle; tenant, user, session, PKCE verifier, and OIDC nonce stay server-side.
 
 import { createFileRoute } from '@tanstack/react-router'
-import { getEnv } from '#/shared/config/env'
+import type { Env } from '#/shared/config/env'
+import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
 import { getContainer } from '#/composition'
 import { getSessionFromHeaders, resolveTenantContext } from '#/shared/auth/middleware'
 import { getLogger } from '#/shared/observability/logger'
@@ -23,10 +24,7 @@ import { isOAuthStateInvalidError } from '#/contexts/integration/server/error-he
  */
 type CallbackErrorCode = 'connection_failed' | 'account_already_connected' | 'denied'
 
-const redirectWithError = (
-  env: ReturnType<typeof getEnv>,
-  code: CallbackErrorCode = 'connection_failed',
-) =>
+const redirectWithError = (env: Env, code: CallbackErrorCode = 'connection_failed') =>
   new Response(null, {
     status: 302,
     headers: {
@@ -48,7 +46,7 @@ const connectFailureCode = (error: unknown): CallbackErrorCode =>
 
 /** Log a state rejection without echoing the handle, tenant, or provider input. */
 const rejectState = (
-  env: ReturnType<typeof getEnv>,
+  env: Env,
   reason: OAuthStateHandleRejection | 'missing' | 'pkce_redeem_failed' | 'abuse_denied',
 ): Response => {
   getLogger().warn({ security: true, reason }, 'OAuth state rejected')
@@ -65,7 +63,7 @@ export async function handleGoogleOAuthCallback(request: Request): Promise<Respo
     const code = url.searchParams.get('code')
     const state = url.searchParams.get('state')
     const error = url.searchParams.get('error')
-    const env = getEnv()
+    const env = requestRuntimeConfig().env
 
     // Every callback first consumes the tenant-blind abuse budget. State and
     // provider outcome handling happen only after that boundary.
