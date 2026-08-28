@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, lstatSync, readFileSync, writeFileSync } from 'node:fs'
+import { lstatSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
@@ -998,9 +998,6 @@ export async function runRailwayGoogleContentApprovalActivationCli(
     assertRailwayFullProjectVisibilityCredential(environment)
     const version = railwayCommand(railway, ['--version'], environment)
     assertExactRailwayCliVersion(`${version.stdout}\n${version.stderr}`)
-    if (options.mode === 'plan' && existsSync(options.intentPath)) {
-      throw new Error('activation intent path already exists')
-    }
 
     const database = dependencies.database ?? createDefaultDatabase()
     ownsDatabase = dependencies.database === undefined
@@ -1052,7 +1049,19 @@ export async function runRailwayGoogleContentApprovalActivationCli(
       const inspection = await database.inspect(runtimeBindings)
       assertDatabaseSafe(inspection, intent, false)
       const bytes = intentBytes(intent)
-      writeFileSync(options.intentPath, bytes, { mode: 0o600, flag: 'wx' })
+      // The exclusive create IS the refusal. `wx` fails with EEXIST atomically,
+      // so an existsSync pre-check would only add a window in which the path
+      // can appear between the check and the write. Translating EEXIST here
+      // keeps the same operator-facing message with one syscall and no window.
+      // `src/shared/release/write-once.ts` cannot carry the 0o600 mode, and the
+      // private intent must never exist group- or world-readable, so the mode
+      // has to be set by the same call that creates the file.
+      try {
+        writeFileSync(options.intentPath, bytes, { mode: 0o600, flag: 'wx' })
+      } catch (error) {
+        if ((error as { code?: unknown } | null)?.code !== 'EEXIST') throw error
+        throw new Error('activation intent path already exists', { cause: error })
+      }
       process.stdout.write(
         `${JSON.stringify({
           intentPath: options.intentPath,

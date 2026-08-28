@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, lstatSync, readFileSync, writeFileSync } from 'node:fs'
+import { lstatSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -643,9 +643,6 @@ export function runRailwayDataCellDomainCli(
   try {
     const options = parseOptions(args)
     const railway = dependencies.railway ?? defaultRailwayExecutor
-    if (options.mode === 'plan' && existsSync(options.intentPath)) {
-      throw new Error('Railway domain intent path already exists')
-    }
     const reviewed = options.mode === 'plan' ? undefined : parseIntent(options.intentPath)
     if (reviewed && reviewed.sha256 !== options.intentSha256) {
       throw new Error('Railway domain intent changed after review')
@@ -725,7 +722,19 @@ export function runRailwayDataCellDomainCli(
     if (options.mode === 'plan') {
       assertNoExistingDomain(listed.stdout)
       const bytes = intentBytes(liveIntent)
-      writeFileSync(options.intentPath, bytes, { mode: 0o600, flag: 'wx' })
+      // The exclusive create IS the refusal. `wx` fails with EEXIST atomically,
+      // so an existsSync pre-check would only add a window in which the path
+      // can appear between the check and the write. Translating EEXIST here
+      // keeps the same operator-facing message with one syscall and no window.
+      // `src/shared/release/write-once.ts` cannot carry the 0o600 mode, and the
+      // reviewed intent must never exist group- or world-readable, so the mode
+      // has to be set by the same call that creates the file.
+      try {
+        writeFileSync(options.intentPath, bytes, { mode: 0o600, flag: 'wx' })
+      } catch (error) {
+        if ((error as { code?: unknown } | null)?.code !== 'EEXIST') throw error
+        throw new Error('Railway domain intent path already exists', { cause: error })
+      }
       const sha256 = createHash('sha256').update(bytes).digest('hex')
       process.stdout.write(bytes)
       process.stderr.write(

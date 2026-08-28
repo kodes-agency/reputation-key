@@ -342,7 +342,10 @@ describe('rehearse-recovery safety surface', () => {
     }
   })
 
-  it('writes every artifact with the exclusive-create flag', () => {
-    expect(source).toContain("flag: 'wx'")
+  // The exclusive-create flag now lives in write-once.ts, so what this file has
+  // to prove is that it never reaches around that helper to a raw write.
+  it('creates every artifact only through the write-once helper', () => {
+    expect(source).toContain("from '../../src/shared/release/write-once'")
+    expect(source).not.toContain('writeFileSync')
   })
 })

@@ -23,7 +23,7 @@
 // Reverse DDL is refused at plan build time (recovery-rehearsal-plan.ts) and the
 // emitted evidence always records `reverseDdlExecuted: false`.
 
-import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod/v4'
@@ -41,6 +41,7 @@ import {
   releaseCandidateBindingSchema,
   releaseEvidenceSha256,
 } from '../../src/shared/release/candidate-bound-evidence'
+import { writeContentAddressed, writeOnce } from '../../src/shared/release/write-once'
 
 const COMMAND_NAME = 'release:rehearse-recovery'
 
@@ -122,10 +123,6 @@ function runPlanMode(
   }
 
   const outputPath = resolve(flagValue(args, '--output') ?? '')
-  if (existsSync(outputPath)) {
-    io.err(`${COMMAND_NAME} refuses to overwrite the existing plan ${outputPath}.`)
-    return 2
-  }
 
   let candidate: z.infer<typeof releaseCandidateBindingSchema>
   try {
@@ -162,13 +159,15 @@ function runPlanMode(
     return 1
   }
 
-  try {
-    writeFileSync(outputPath, canonicalRecoveryRehearsalPlan(plan.plan), {
-      encoding: 'utf8',
-      flag: 'wx',
-    })
-  } catch (error) {
-    io.err(`${COMMAND_NAME}: ${error instanceof Error ? error.message : String(error)}`)
+  // The exclusive create IS the refusal — there is no separate existence check
+  // to race against. A plan that is already there ends the run.
+  const emitted = writeOnce(outputPath, canonicalRecoveryRehearsalPlan(plan.plan))
+  if (emitted.status === 'already_present') {
+    io.err(`${COMMAND_NAME} refuses to overwrite the existing plan ${outputPath}.`)
+    return 2
+  }
+  if (emitted.status === 'failed') {
+    io.err(`${COMMAND_NAME}: ${emitted.message}`)
     return 1
   }
 
@@ -219,10 +218,6 @@ function runApplyMode(args: readonly string[], io: RehearseRecoveryIo): number {
   }
 
   const outputPath = resolve(flagValue(args, '--output') ?? '')
-  if (existsSync(outputPath)) {
-    io.err(`${COMMAND_NAME} refuses to overwrite the existing artifact ${outputPath}.`)
-    return 2
-  }
 
   let planDocument: string
   let authorizationDocument: string
@@ -329,18 +324,29 @@ function runApplyMode(args: readonly string[], io: RehearseRecoveryIo): number {
   const dependencyDir = resolve(
     flagValue(args, '--dependency-dir') ?? dirname(outputPath),
   )
-  try {
-    for (const dependency of assembled.dependencies) {
-      const path = resolve(dependencyDir, `${dependency.sha256}.dependency`)
-      if (existsSync(path)) continue
-      writeFileSync(path, dependency.content, { encoding: 'utf8', flag: 'wx' })
+  for (const dependency of assembled.dependencies) {
+    const path = resolve(dependencyDir, `${dependency.sha256}.dependency`)
+    // The filename is the digest, so a sibling that is already there holds
+    // these exact bytes. Retaining it twice is not a conflict.
+    const retained = writeContentAddressed(path, dependency.content)
+    if (retained.status === 'failed') {
+      io.err(`${COMMAND_NAME}: ${retained.message}`)
+      return 1
     }
-    writeFileSync(outputPath, canonicalRecoveryRehearsalEvidence(assembled.evidence), {
-      encoding: 'utf8',
-      flag: 'wx',
-    })
-  } catch (error) {
-    io.err(`${COMMAND_NAME}: ${error instanceof Error ? error.message : String(error)}`)
+  }
+
+  // The exclusive create IS the refusal — there is no separate existence check
+  // to race against. An artifact that is already there ends the run.
+  const emitted = writeOnce(
+    outputPath,
+    canonicalRecoveryRehearsalEvidence(assembled.evidence),
+  )
+  if (emitted.status === 'already_present') {
+    io.err(`${COMMAND_NAME} refuses to overwrite the existing artifact ${outputPath}.`)
+    return 2
+  }
+  if (emitted.status === 'failed') {
+    io.err(`${COMMAND_NAME}: ${emitted.message}`)
     return 1
   }
 

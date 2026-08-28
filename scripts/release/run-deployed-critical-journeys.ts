@@ -28,7 +28,7 @@
 // file, because gate-f-evidence.ts rejects an unretained dependency.
 
 import { createRequire } from 'node:module'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod/v4'
@@ -49,6 +49,7 @@ import {
   DEPLOYED_CRITICAL_PLAYWRIGHT_PROJECT_NAME,
   DEPLOYED_PRODUCTION_ORIGIN,
 } from '../../e2e/deployed/deployed-target'
+import { writeContentAddressed, writeOnce } from '../../src/shared/release/write-once'
 
 const COMMAND_NAME = 'release:deployed-journeys'
 const PLAYWRIGHT_CONFIG_PATH = 'playwright.config.ts'
@@ -478,10 +479,6 @@ export async function runDeployedCriticalJourneysCli(
   }
 
   const outputPath = resolve(flagValue(args, '--output') ?? '')
-  if (existsSync(outputPath)) {
-    io.err(`${COMMAND_NAME} refuses to overwrite the existing artifact ${outputPath}.`)
-    return 2
-  }
 
   let manifestDigest: string
   let authorizationDocument: string
@@ -608,18 +605,29 @@ export async function runDeployedCriticalJourneysCli(
     return 1
   }
 
-  try {
-    for (const dependency of built.dependencies) {
-      const path = resolve(dependencyDir, `${dependency.sha256}.dependency`)
-      if (existsSync(path)) continue
-      writeFileSync(path, dependency.content, { encoding: 'utf8', flag: 'wx' })
+  for (const dependency of built.dependencies) {
+    const path = resolve(dependencyDir, `${dependency.sha256}.dependency`)
+    // The filename is the digest, so a sibling that is already there holds
+    // these exact bytes. Retaining it twice is not a conflict.
+    const retained = writeContentAddressed(path, dependency.content)
+    if (retained.status === 'failed') {
+      io.err(`${COMMAND_NAME}: ${retained.message}`)
+      return 1
     }
-    writeFileSync(outputPath, canonicalDeployedCriticalJourneyEvidence(built.evidence), {
-      encoding: 'utf8',
-      flag: 'wx',
-    })
-  } catch (error) {
-    io.err(`${COMMAND_NAME}: ${error instanceof Error ? error.message : String(error)}`)
+  }
+
+  // The exclusive create IS the refusal — there is no separate existence check
+  // to race against. An artifact that is already there ends the run.
+  const emitted = writeOnce(
+    outputPath,
+    canonicalDeployedCriticalJourneyEvidence(built.evidence),
+  )
+  if (emitted.status === 'already_present') {
+    io.err(`${COMMAND_NAME} refuses to overwrite the existing artifact ${outputPath}.`)
+    return 2
+  }
+  if (emitted.status === 'failed') {
+    io.err(`${COMMAND_NAME}: ${emitted.message}`)
     return 1
   }
 

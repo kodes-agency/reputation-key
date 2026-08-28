@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -337,6 +337,34 @@ describe('single-US Railway production domain ceremony', () => {
     expect(stderr.mock.calls.flat().join('')).toContain(
       createHash('sha256').update(bytes).digest('hex'),
     )
+  })
+
+  it('refuses a second plan into the same path and retains the first private intent', () => {
+    const intentPath = temporaryIntentPath()
+    const railway = (command: readonly string[]) => {
+      if (command[0] === '--version') {
+        return { status: 0, stdout: 'railway 5.45.2', stderr: '' }
+      }
+      if (command[0] === 'status') {
+        return { status: 0, stdout: foundationStatus(), stderr: '' }
+      }
+      if (command[0] === 'config') {
+        return { status: 0, stdout: foundationNoDriftPlan(), stderr: '' }
+      }
+      return { status: 0, stdout: emptyDomains, stderr: '' }
+    }
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+    expect(runRailwayDataCellDomainCli(args('plan', intentPath), { railway })).toBe(0)
+    const retained = readFileSync(intentPath)
+
+    expect(runRailwayDataCellDomainCli(args('plan', intentPath), { railway })).toBe(1)
+    expect(stderr.mock.calls.flat().join('')).toContain(
+      'Railway Data Cell domain refused: Railway domain intent path already exists',
+    )
+    expect(readFileSync(intentPath)).toEqual(retained)
+    expect(statSync(intentPath).mode & 0o777).toBe(0o600)
   })
 
   it('applies only reviewed bytes and verifies exact domain readback', () => {

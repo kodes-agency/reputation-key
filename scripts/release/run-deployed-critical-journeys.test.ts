@@ -298,10 +298,15 @@ describe('run-deployed-critical-journeys CLI', () => {
     expect(readFileSync(join(space.dir, 'deployed-journeys.json'), 'utf8')).toBe(first)
   })
 
-  it('writes every artifact with the exclusive-create flag', () => {
-    expect(
-      readFileSync(resolve('scripts/release/run-deployed-critical-journeys.ts'), 'utf8'),
-    ).toContain("flag: 'wx'")
+  // The exclusive-create flag now lives in write-once.ts, so what this file has
+  // to prove is that it never reaches around that helper to a raw write.
+  it('creates every artifact only through the write-once helper', () => {
+    const source = readFileSync(
+      resolve('scripts/release/run-deployed-critical-journeys.ts'),
+      'utf8',
+    )
+    expect(source).toContain("from '../../src/shared/release/write-once'")
+    expect(source).not.toContain('writeFileSync')
   })
 
   it('refuses any origin that is not the production cell-us origin', async () => {

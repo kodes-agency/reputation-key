@@ -101,12 +101,15 @@ describe('observe-canary-window CLI', () => {
     expect(readFileSync(output, 'utf8')).toBe('{"already":"here"}\n')
   })
 
-  it('writes its artifacts with the exclusive-create flag', () => {
+  // The exclusive-create flag now lives in write-once.ts, so what this file has
+  // to prove is that it never reaches around that helper to a raw write.
+  it('creates its artifacts only through the write-once helper', () => {
     const source = readFileSync(
       resolve('scripts/release/observe-canary-window.ts'),
       'utf8',
     )
-    expect(source).toContain("flag: 'wx'")
+    expect(source).toContain("from '../../src/shared/release/write-once'")
+    expect(source).not.toContain('writeFileSync')
   })
 
   it('refuses to observe while the window duration is an open operating decision', async () => {

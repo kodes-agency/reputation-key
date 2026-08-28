@@ -545,6 +545,41 @@ describe('Railway Google Content approval activation', () => {
     ).toBe(false)
   })
 
+  it('refuses a second plan into the same path and retains the first private intent', async () => {
+    const directory = temporaryDirectory()
+    const intentPath = join(directory, 'activation-intent.json')
+    const inputs = writeInputs(directory)
+    const railway = railwayHarness()
+    const database = databaseHarness()
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+    await expect(
+      runRailwayGoogleContentApprovalActivationCli(planArgs(intentPath, inputs), {
+        railway: railway.railway,
+        database: database.database,
+        clock: () => NOW,
+      }),
+    ).resolves.toBe(0)
+    const retained = readFileSync(intentPath)
+
+    await expect(
+      runRailwayGoogleContentApprovalActivationCli(planArgs(intentPath, inputs), {
+        railway: railway.railway,
+        database: database.database,
+        clock: () => NOW,
+      }),
+    ).resolves.toBe(1)
+    expect(stderr.mock.calls.flat().join('')).toContain(
+      'Railway Google Content approval activation refused: activation intent path already exists',
+    )
+    expect(readFileSync(intentPath)).toEqual(retained)
+    expect(statSync(intentPath).mode & 0o777).toBe(0o600)
+    expect(database.installed.size).toBe(0)
+    expect(
+      railway.commands.some(({ args }) => args.join(' ').startsWith('environment edit ')),
+    ).toBe(false)
+  })
+
   it('installs every approval before one two-variable Railway commit and verifies exact readback', async () => {
     const directory = temporaryDirectory()
     const intentPath = join(directory, 'activation-intent.json')

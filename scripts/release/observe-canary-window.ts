@@ -12,8 +12,9 @@
 //      attempts: 1 / retries: 0;
 //   2. any `--app-origin` other than the single production cell-us origin is
 //      refused, so a staging or local observation can never be relabelled;
-//   3. an existing output path is refused, and every write uses flag 'wx', so
-//      no run can silently replace an earlier artifact;
+//   3. every artifact is created exclusively (see write-once.ts), so an output
+//      path that already exists is refused by the write itself and no run can
+//      silently replace an earlier artifact;
 //   4. the candidate manifest digest must equal the digest of the supplied
 //      manifest file;
 //   5. the threshold profile must be RATIFIED (ADR 0059). While the duration is
@@ -26,7 +27,7 @@
 // is a MISSING sample (see canary-sampler.ts), which fails the window.
 
 import { createHash, randomUUID } from 'node:crypto'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { z } from 'zod/v4'
@@ -47,6 +48,7 @@ import {
 } from '../../src/shared/release/canary-window-evidence'
 import { releaseEvidenceSha256 } from '../../src/shared/release/candidate-bound-evidence'
 import { PRODUCTION_RAILWAY_PROJECT_NAME } from '../../src/shared/release/railway-deployment-profile'
+import { writeContentAddressed, writeOnce } from '../../src/shared/release/write-once'
 
 const COMMAND_NAME = 'release:observe-canary'
 const PRODUCTION_APP_ORIGIN = 'https://us.reputationkey.app'
@@ -361,10 +363,6 @@ export async function runObserveCanaryWindowCli(
   }
 
   const outputPath = resolve(flagValue(args, '--output') ?? '')
-  if (existsSync(outputPath)) {
-    io.err(`${COMMAND_NAME} refuses to overwrite the existing artifact ${outputPath}.`)
-    return 2
-  }
 
   const manifestPath = resolve(flagValue(args, '--release-manifest') ?? '')
   let manifestDigest: string
@@ -491,18 +489,26 @@ export async function runObserveCanaryWindowCli(
   const dependencyDir = resolve(
     flagValue(args, '--dependency-dir') ?? dirname(outputPath),
   )
-  try {
-    for (const dependency of result.dependencies) {
-      const path = resolve(dependencyDir, `${dependency.sha256}.dependency`)
-      if (existsSync(path)) continue
-      writeFileSync(path, dependency.content, { encoding: 'utf8', flag: 'wx' })
+  for (const dependency of result.dependencies) {
+    const path = resolve(dependencyDir, `${dependency.sha256}.dependency`)
+    // The filename is the digest, so a sibling that is already there holds
+    // these exact bytes. Retaining it twice is not a conflict.
+    const retained = writeContentAddressed(path, dependency.content)
+    if (retained.status === 'failed') {
+      io.err(`${COMMAND_NAME}: ${retained.message}`)
+      return 1
     }
-    writeFileSync(outputPath, canonicalCanaryWindowEvidence(result.evidence), {
-      encoding: 'utf8',
-      flag: 'wx',
-    })
-  } catch (error) {
-    io.err(`${COMMAND_NAME}: ${error instanceof Error ? error.message : String(error)}`)
+  }
+
+  // The exclusive create IS the refusal — there is no separate existence check
+  // to race against. An artifact that is already there ends the run.
+  const emitted = writeOnce(outputPath, canonicalCanaryWindowEvidence(result.evidence))
+  if (emitted.status === 'already_present') {
+    io.err(`${COMMAND_NAME} refuses to overwrite the existing artifact ${outputPath}.`)
+    return 2
+  }
+  if (emitted.status === 'failed') {
+    io.err(`${COMMAND_NAME}: ${emitted.message}`)
     return 1
   }
 
