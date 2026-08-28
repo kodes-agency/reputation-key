@@ -23,6 +23,21 @@ import {
   parseLegalRevisionSetEvidence,
   type LegalRevisionSetContext,
 } from './legal-revision-set-evidence'
+import {
+  parseLegalApprovalChecklist,
+  type LegalApprovalChecklistContext,
+} from './legal-approval-checklist'
+import {
+  parsePromotionReadbackEvidence,
+  promotionReadbackDependencyDigests,
+  PROMOTION_READBACK_GATE_F_IDS,
+  type PromotionReadbackGate,
+} from './promotion-readback-evidence'
+import { LIVE_EVIDENCE_PARSERS, type LiveEvidenceGateId } from './live-evidence'
+import {
+  parseGateFApprovalEnvelope,
+  type GateFApprovalVerifier,
+} from './gate-f-approval-envelope'
 
 export const GATE_F_EVIDENCE_VERSION = 'repkey-gate-f-evidence-1' as const
 
@@ -122,6 +137,13 @@ const gateFEvidenceSchema = z
         manifest: evidenceReferenceSchema,
         signatureBundle: evidenceReferenceSchema,
         legalRevisionSet: evidenceReferenceSchema,
+        /**
+         * REL-01-T8. The revision set proves WHICH legal bytes counsel
+         * approved; the checklist proves counsel DECIDED the LEG-01 facts
+         * those bytes depend on and that the approval is still current. Both
+         * are required — one without the other is a half-approval.
+         */
+        legalApprovalChecklist: evidenceReferenceSchema,
         releaseSha: sourceRevision,
         cell: z.literal('us'),
         environment: z.literal('cell-us'),
@@ -233,6 +255,7 @@ const gateFEvidenceSchema = z
       Date.parse(value.release.manifest.capturedAt),
       Date.parse(value.release.signatureBundle.capturedAt),
       Date.parse(value.release.legalRevisionSet.capturedAt),
+      Date.parse(value.release.legalApprovalChecklist.capturedAt),
       ...value.gates.flatMap(({ evidence }) =>
         evidence.map(({ capturedAt }) => Date.parse(capturedAt)),
       ),
@@ -294,6 +317,28 @@ export function canonicalGateFEvidence(value: GateFEvidence): string {
   return `${JSON.stringify(sortedJson(value as JsonValue))}\n`
 }
 
+/**
+ * The Gate F DECISION — the index without its approvals.
+ *
+ * This is what an approver actually reads and signs: the release identity, the
+ * eighteen gates, the findings register, the first cohort and the completion
+ * time. The approvals themselves are excluded because a signature cannot cover
+ * a document that contains it, and because each role must sign the same bytes
+ * regardless of who else has signed yet.
+ */
+export function gateFDecisionDocument(
+  value: GateFEvidence,
+): Readonly<Record<string, unknown>> {
+  const { approvals: _approvals, ...decision } = value
+  return decision
+}
+
+export function gateFDecisionSha256(value: GateFEvidence): string {
+  return gateFEvidenceSha256(
+    `${JSON.stringify(sortedJson(gateFDecisionDocument(value) as JsonValue))}\n`,
+  )
+}
+
 export function gateFEvidenceSha256(content: string | Uint8Array): string {
   return createHash('sha256').update(content).digest('hex')
 }
@@ -338,6 +383,10 @@ function evidenceReferences(
       label: 'release.legalRevisionSet',
       reference: evidence.release.legalRevisionSet,
     },
+    {
+      label: 'release.legalApprovalChecklist',
+      reference: evidence.release.legalApprovalChecklist,
+    },
     ...evidence.gates.flatMap((gate) =>
       gate.evidence.map((reference, index) => ({
         label: `gates.${gate.id}.evidence.${String(index)}`,
@@ -357,100 +406,265 @@ export type GateFEvidenceValidationResult =
   | Readonly<{ ok: true; evidence: GateFEvidence; digest: string }>
   | Readonly<{ ok: false; errors: readonly string[] }>
 
+type TypedArtifactFacts = Readonly<{
+  candidate: ReleaseCandidateBinding
+  capturedAt: string
+  outcome: 'passed' | 'failed'
+  /** Live-evidence artifacts expire; wave-2 promotion proofs do not. */
+  expiresAt?: string
+}>
+
+type TypedArtifactParse = Readonly<{
+  facts?: TypedArtifactFacts
+  errors: readonly string[]
+  dependencyDigests: readonly string[]
+  /** Release-level artifacts have no owning gate to retain dependencies. */
+  checkRetention: boolean
+}>
+
+/** Gate id -> the read-back gate that produces it, for the four promotion keys. */
+const READBACK_GATE_BY_GATE_F_ID = Object.fromEntries(
+  Object.entries(PROMOTION_READBACK_GATE_F_IDS).map(([gate, gateFId]) => [gateFId, gate]),
+) as Readonly<Record<string, PromotionReadbackGate>>
+
+/**
+ * Dispatch one referenced artifact to its producer's parser.
+ *
+ * `undefined` means the label has no typed producer. After REL-01-T6 that is
+ * true only for the manifest, the signature bundle, the findings register, the
+ * approval envelopes (handled separately, because they need the decision
+ * digest and a signature verifier) and the secondary dependency artifacts a
+ * gate retains alongside its primary proof.
+ */
+function parseTypedArtifact(
+  label: string,
+  content: string,
+  options: GateFValidationOptions,
+): TypedArtifactParse | undefined {
+  if (label === 'release.legalRevisionSet') {
+    const parsed = parseLegalRevisionSetEvidence(
+      content,
+      options.legalRevisionSet ?? DEFAULT_LEGAL_REVISION_SET_CONTEXT,
+    )
+    return parsed.ok
+      ? {
+          facts: parsed.evidence,
+          errors: [],
+          dependencyDigests: [],
+          checkRetention: false,
+        }
+      : { errors: parsed.errors, dependencyDigests: [], checkRetention: false }
+  }
+  if (label === 'release.legalApprovalChecklist') {
+    const parsed = parseLegalApprovalChecklist(content, options.legalDocuments)
+    return parsed.ok
+      ? {
+          facts: { ...parsed.evidence, outcome: parsed.evidence.outcome },
+          errors: [],
+          dependencyDigests: [],
+          checkRetention: false,
+        }
+      : { errors: parsed.errors, dependencyDigests: [], checkRetention: false }
+  }
+
+  const gateMatch = /^gates\.(.+)\.evidence\.0$/u.exec(label)
+  if (!gateMatch) return undefined
+  const gateId = gateMatch[1] ?? ''
+
+  if (gateId === 'promotion.deployed_critical_journeys') {
+    const parsed = parseDeployedCriticalJourneyEvidence(content)
+    return parsed.ok
+      ? {
+          facts: parsed.evidence,
+          errors: [],
+          dependencyDigests: deployedCriticalJourneyDependencyDigests(parsed.evidence),
+          checkRetention: true,
+        }
+      : { errors: parsed.errors, dependencyDigests: [], checkRetention: true }
+  }
+  if (gateId === 'promotion.canary_window') {
+    const parsed = parseCanaryWindowEvidence(content)
+    return parsed.ok
+      ? {
+          facts: parsed.evidence,
+          errors: [],
+          dependencyDigests: canaryWindowDependencyDigests(parsed.evidence),
+          checkRetention: true,
+        }
+      : { errors: parsed.errors, dependencyDigests: [], checkRetention: true }
+  }
+  if (gateId === 'promotion.restore_rollback') {
+    const parsed = parseRecoveryRehearsalEvidence(content)
+    return parsed.ok
+      ? {
+          facts: parsed.evidence,
+          errors: [],
+          dependencyDigests: recoveryRehearsalDependencyDigests(parsed.evidence),
+          checkRetention: true,
+        }
+      : { errors: parsed.errors, dependencyDigests: [], checkRetention: true }
+  }
+
+  const readbackGate = READBACK_GATE_BY_GATE_F_ID[gateId]
+  if (readbackGate) {
+    const parsed = parsePromotionReadbackEvidence(content, readbackGate)
+    return parsed.ok
+      ? {
+          facts: parsed.evidence,
+          errors: [],
+          dependencyDigests: promotionReadbackDependencyDigests(parsed.evidence),
+          checkRetention: true,
+        }
+      : { errors: parsed.errors, dependencyDigests: [], checkRetention: true }
+  }
+
+  if (Object.hasOwn(LIVE_EVIDENCE_PARSERS, gateId)) {
+    const parsed = LIVE_EVIDENCE_PARSERS[gateId as LiveEvidenceGateId](content)
+    return parsed.ok
+      ? {
+          facts: parsed.evidence,
+          errors: [],
+          dependencyDigests: parsed.dependencyDigests,
+          checkRetention: true,
+        }
+      : { errors: parsed.errors, dependencyDigests: [], checkRetention: true }
+  }
+
+  return undefined
+}
+
 function validateTypedPromotionArtifact(input: {
   label: string
   content: string
   referencedAt: string
+  completedAt: string
   candidate: ReleaseCandidateBinding
   retainedDigests: ReadonlySet<string>
-  legalRevisionSet: LegalRevisionSetContext
+  options: GateFValidationOptions
 }): readonly string[] {
-  let evidence:
-    | Readonly<{
-        candidate: ReleaseCandidateBinding
-        capturedAt: string
-        outcome: 'passed' | 'failed'
-      }>
-    | undefined
-  let dependencyDigests: readonly string[] = []
-  let parseErrors: readonly string[] = []
-  /**
-   * `release.legalRevisionSet` is a RELEASE-level artifact: it has no owning
-   * gate, so there is no retained-digest set to check its dependencies
-   * against. Until LEG-01 it also had no type at all — Gate F accepted any
-   * bytes under this label, which made "no external beta before counsel
-   * approval" unenforceable. It is typed here, and only the dependency-
-   * retention step is skipped.
-   */
-  let skipDependencyRetention = false
-  if (input.label === 'release.legalRevisionSet') {
-    skipDependencyRetention = true
-    const parsed = parseLegalRevisionSetEvidence(input.content, input.legalRevisionSet)
-    if (parsed.ok) evidence = parsed.evidence
-    else parseErrors = parsed.errors
-  } else if (input.label === 'gates.promotion.deployed_critical_journeys.evidence.0') {
-    const parsed = parseDeployedCriticalJourneyEvidence(input.content)
-    if (parsed.ok) {
-      evidence = parsed.evidence
-      dependencyDigests = deployedCriticalJourneyDependencyDigests(parsed.evidence)
-    } else parseErrors = parsed.errors
-  } else if (input.label === 'gates.promotion.canary_window.evidence.0') {
-    const parsed = parseCanaryWindowEvidence(input.content)
-    if (parsed.ok) {
-      evidence = parsed.evidence
-      dependencyDigests = canaryWindowDependencyDigests(parsed.evidence)
-    } else parseErrors = parsed.errors
-  } else if (input.label === 'gates.promotion.restore_rollback.evidence.0') {
-    const parsed = parseRecoveryRehearsalEvidence(input.content)
-    if (parsed.ok) {
-      evidence = parsed.evidence
-      dependencyDigests = recoveryRehearsalDependencyDigests(parsed.evidence)
-    } else parseErrors = parsed.errors
-  } else return []
-  if (!evidence) {
-    return parseErrors.map((error) => `${input.label}: ${error}`)
-  }
-  const errors = candidateBindingErrors(evidence.candidate, input.candidate).map(
+  const parsed = parseTypedArtifact(input.label, input.content, input.options)
+  if (!parsed) return []
+  if (!parsed.facts) return parsed.errors.map((error) => `${input.label}: ${error}`)
+  const facts = parsed.facts
+  const errors = candidateBindingErrors(facts.candidate, input.candidate).map(
     (error) => `${input.label}: ${error}`,
   )
-  if (!skipDependencyRetention) {
-    for (const digest of new Set(dependencyDigests)) {
+  if (parsed.checkRetention) {
+    for (const digest of new Set(parsed.dependencyDigests)) {
       if (!input.retainedDigests.has(digest)) {
         errors.push(`${input.label}: dependency ${digest} is not retained by this gate`)
       }
     }
   }
-  if (evidence.outcome !== 'passed') {
+  if (facts.outcome !== 'passed') {
     errors.push(`${input.label}: typed promotion evidence did not pass`)
   }
-  if (Date.parse(input.referencedAt) < Date.parse(evidence.capturedAt)) {
+  if (Date.parse(input.referencedAt) < Date.parse(facts.capturedAt)) {
     errors.push(`${input.label}: Gate F reference predates artifact capture`)
+  }
+  // A proof that had already expired when Gate F completed is not a proof for
+  // this release; it is last month's receipt carried forward.
+  if (
+    facts.expiresAt !== undefined &&
+    Date.parse(facts.expiresAt) < Date.parse(input.completedAt)
+  ) {
+    errors.push(
+      `${input.label}: evidence expired at ${facts.expiresAt}, before Gate F completed at ${input.completedAt}`,
+    )
   }
   return errors
 }
+
+/**
+ * Approval envelopes are validated separately from the other artifacts: they
+ * are the only ones that must bind the Gate F DECISION digest and carry a
+ * verified signature, and the only ones where a missing verifier is itself a
+ * rejection.
+ */
+function validateApprovalEnvelope(input: {
+  label: string
+  content: string
+  approval: GateFEvidence['approvals'][number]
+  legalRevisionSetSha256: string
+  decisionSha256: string
+  verifyApproval: GateFApprovalVerifier | undefined
+}): readonly string[] {
+  const parsed = parseGateFApprovalEnvelope(input.content)
+  if (!parsed.ok) return parsed.errors.map((error) => `${input.label}: ${error}`)
+  const envelope = parsed.envelope
+  const errors: string[] = []
+  if (envelope.role !== input.approval.role) {
+    errors.push(
+      `${input.label}: envelope role ${envelope.role} does not match the indexed approval role ${input.approval.role}`,
+    )
+  }
+  if (envelope.approverIdentity !== input.approval.approverIdentity) {
+    errors.push(`${input.label}: envelope approver does not match the indexed approval`)
+  }
+  if (envelope.approvedAt !== input.approval.approvedAt) {
+    errors.push(`${input.label}: envelope approval time does not match the index`)
+  }
+  if (envelope.releaseManifestSha256 !== input.approval.releaseManifestSha256) {
+    errors.push(`${input.label}: envelope does not bind the release manifest digest`)
+  }
+  if (envelope.legalRevisionSetSha256 !== input.legalRevisionSetSha256) {
+    errors.push(`${input.label}: envelope does not bind the legal revision-set digest`)
+  }
+  if (envelope.gateFDecisionSha256 !== input.decisionSha256) {
+    errors.push(
+      `${input.label}: envelope signs Gate F decision ${envelope.gateFDecisionSha256}, not this decision ${input.decisionSha256}`,
+    )
+  }
+  if (!input.verifyApproval) {
+    // No verifier means CLOSED, not skipped. An unverifiable approval is
+    // indistinguishable from a forged one.
+    errors.push(
+      `${input.label}: no approval signature verifier was supplied; Gate F approvals cannot be accepted unverified`,
+    )
+    return errors
+  }
+  const verification = input.verifyApproval(envelope)
+  if (!verification.ok) {
+    errors.push(`${input.label}: ${verification.code}: ${verification.message}`)
+  }
+  return errors
+}
+
+export type GateFValidationOptions = Readonly<{
+  /** Fail-closed Ed25519 role verifier (REL-01-T7). Absent means rejected. */
+  verifyApproval?: GateFApprovalVerifier
+  legalRevisionSet?: LegalRevisionSetContext
+  /** Reader for the on-disk legal documents (REL-01-T8). Absent means rejected. */
+  legalDocuments?: LegalApprovalChecklistContext
+}>
 
 /**
  * Validate the canonical index plus every byte-bound evidence reference.
  * `readEvidence` owns root containment; the repository CLI supplies a
  * path-contained implementation.
  *
- * `legalRevisionSet` defaults to the SHIPPED legal document registry, which
- * is the honest default: while every counsel-owned row is a draft, no Gate F
- * bundle can validate. It is injectable for the same reason
+ * `options.legalRevisionSet` defaults to the SHIPPED legal document registry,
+ * which is the honest default: while every counsel-owned row is a draft, no
+ * Gate F bundle can validate. It is injectable for the same reason
  * `legal-approval-authority.ts` injects its reader — the rules have to be
- * exercisable against a hypothetically-approved registry — and the CLI never
- * passes it.
+ * exercisable against a hypothetically-approved registry.
+ *
+ * `options.verifyApproval` and `options.legalDocuments` are NOT optional in
+ * effect. Omitting either is a rejection, not a skip: an approval nobody can
+ * verify and a legal document nobody re-hashed are exactly the two fail-opens
+ * REL-01-T7 and REL-01-T8 exist to close.
  */
 export function validateGateFEvidenceBundle(
   content: string,
   readEvidence: (path: string) => Uint8Array,
-  legalRevisionSet: LegalRevisionSetContext = DEFAULT_LEGAL_REVISION_SET_CONTEXT,
+  options: GateFValidationOptions = {},
 ): GateFEvidenceValidationResult {
   const parsed = parseGateFEvidence(content)
   if (!parsed.ok) return parsed
   const errors: string[] = []
   const observedByPath = new Map<string, string>()
   let manifestContent: string | undefined
+  let legalChecklistContent: string | undefined
   const retainedGateDigests = new Map(
     parsed.evidence.gates.map((gate) => [
       `gates.${gate.id}.evidence.0`,
@@ -468,6 +682,13 @@ export function validateGateFEvidenceBundle(
     environmentId: parsed.evidence.release.environmentId,
     appOrigin: parsed.evidence.release.appOrigin,
   }
+  const decisionSha256 = gateFDecisionSha256(parsed.evidence)
+  const approvalsByLabel = new Map(
+    parsed.evidence.approvals.map((approval) => [
+      `approvals.${approval.role}.evidence`,
+      approval,
+    ]),
+  )
   for (const { label, reference } of evidenceReferences(parsed.evidence)) {
     const priorDigest = observedByPath.get(reference.path)
     if (priorDigest && priorDigest !== reference.sha256) {
@@ -488,18 +709,49 @@ export function validateGateFEvidenceBundle(
       errors.push(`${label}: evidence digest mismatch`)
       continue
     }
-    errors.push(
-      ...validateTypedPromotionArtifact({
-        label,
-        content: Buffer.from(payload).toString('utf8'),
-        referencedAt: reference.capturedAt,
-        candidate: expectedCandidate,
-        retainedDigests: retainedGateDigests.get(label) ?? new Set<string>(),
-        legalRevisionSet,
-      }),
+    const utf8 = Buffer.from(payload).toString('utf8')
+    const approval = approvalsByLabel.get(label)
+    if (approval) {
+      errors.push(
+        ...validateApprovalEnvelope({
+          label,
+          content: utf8,
+          approval,
+          legalRevisionSetSha256: parsed.evidence.release.legalRevisionSet.sha256,
+          decisionSha256,
+          verifyApproval: options.verifyApproval,
+        }),
+      )
+    } else {
+      errors.push(
+        ...validateTypedPromotionArtifact({
+          label,
+          content: utf8,
+          referencedAt: reference.capturedAt,
+          completedAt: parsed.evidence.completedAt,
+          candidate: expectedCandidate,
+          retainedDigests: retainedGateDigests.get(label) ?? new Set<string>(),
+          options,
+        }),
+      )
+    }
+    if (label === 'release.manifest') manifestContent = utf8
+    if (label === 'release.legalApprovalChecklist') legalChecklistContent = utf8
+  }
+
+  if (legalChecklistContent !== undefined) {
+    const checklist = parseLegalApprovalChecklist(
+      legalChecklistContent,
+      options.legalDocuments,
     )
-    if (label === 'release.manifest') {
-      manifestContent = Buffer.from(payload).toString('utf8')
+    if (
+      checklist.ok &&
+      checklist.evidence.legalRevisionSetSha256 !==
+        parsed.evidence.release.legalRevisionSet.sha256
+    ) {
+      errors.push(
+        'release.legalApprovalChecklist: checklist does not decide the legal revision set this bundle binds',
+      )
     }
   }
 

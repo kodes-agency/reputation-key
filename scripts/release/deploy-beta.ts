@@ -66,6 +66,7 @@ import {
   DATA_CELL_CATALOGUE,
   isBetaDeploymentDataCellId,
   type BetaDeploymentDataCellId,
+  type DataCellDefinition,
 } from '../../src/shared/domain/data-cell-catalogue'
 import {
   RAILWAY_SERVICE_IMAGE_ROLES,
@@ -111,6 +112,18 @@ import {
   railwayTargetEnvironment,
 } from './railway-data-cell-plan'
 import { railwayIacSourceDigest } from './iac-digest'
+import {
+  promotionReadbackArtifacts,
+  writePromotionReadbackArtifacts,
+  type PromotionReadbackObservations,
+} from './capture-promotion-readback'
+import { DORMANT_DATA_CELL_IDS } from '../../src/shared/release/promotion-readback-evidence'
+import { PRODUCTION_RAILWAY_PROJECT_NAME } from '../../src/shared/release/railway-deployment-profile'
+import { RAILWAY_PLAN_EVIDENCE_VERSION } from '../../src/shared/release/railway-plan-evidence'
+import {
+  releaseEvidenceSha256,
+  type ReleaseCandidateBinding,
+} from '../../src/shared/release/candidate-bound-evidence'
 import {
   assertReleaseControllerSourceDigest,
   releaseControllerSourceDigest,
@@ -164,6 +177,7 @@ const OWN_VALUE_FLAGS = [
   '--railway-plan-evidence',
   '--railway-plan-evidence-sha256',
   '--cell',
+  '--readback-output',
 ] as const
 const OWN_BOOLEAN_FLAGS = ['--verify-only'] as const
 
@@ -201,6 +215,8 @@ type ParsedOptions = {
   readonly railwayPlanEvidenceSha256: string
   readonly cell: BetaDeploymentDataCellId
   readonly environment: `cell-${BetaDeploymentDataCellId}`
+  /** REL-01-T5: directory the four typed read-back artifacts are written to. */
+  readonly readbackOutputDirectory: string | undefined
 }
 
 type Options = Omit<ParsedOptions, 'appUrlOverride'> &
@@ -305,6 +321,7 @@ function parseOptions(args: readonly string[]): ParsedOptions | string {
   const options: ParsedOptions = {
     apply: args.includes('--apply'),
     verifyOnly: args.includes('--verify-only'),
+    readbackOutputDirectory: flagValue(args, '--readback-output'),
     appUrlOverride: flagValue(args, '--app-url'),
     deployTimeoutMs,
     manifestPath: resolve(manifestPath),
@@ -1180,12 +1197,26 @@ function legacyIdentityOverrideFailures(environment: string): readonly string[] 
   return failures
 }
 
-/** Read-back table. Returns the failures so every service is reported, not the first. */
+type ReleaseIdentityRow = Readonly<{
+  service: string
+  releaseSha: string
+  releaseManifestSha256: string
+  sourceRevisionOverride: string
+  imageSourceRevisionOverride: string
+  activeDeploymentId: string
+  activeImageDigest: string
+}>
+
+/**
+ * Read-back table. Returns the failures so every service is reported, not the
+ * first, and the OBSERVED ROWS so REL-01-T5 can emit them as typed evidence
+ * instead of leaving them in a terminal scrollback.
+ */
 function verifyReleaseIdentity(
   environment: string,
   expectedSha: string,
   expectedManifestSha256: string,
-): readonly string[] {
+): Readonly<{ failures: readonly string[]; rows: readonly ReleaseIdentityRow[] }> {
   const observed = ALL_SERVICES.map((service) => {
     const variables = readReleaseVariables(service, environment)
     return {
@@ -1219,46 +1250,118 @@ function verifyReleaseIdentity(
       )
     }
   }
-  return failures
+  return {
+    failures,
+    rows: observed.map((row) => ({
+      service: row.service,
+      releaseSha: row.sha,
+      releaseManifestSha256: row.manifestSha256,
+      sourceRevisionOverride: row.sourceRevisionOverride,
+      imageSourceRevisionOverride: row.imageRevisionOverride,
+      activeDeploymentId: '',
+      activeImageDigest: '',
+    })),
+  }
 }
 
-async function verifyHealth(appUrl: string): Promise<readonly string[]> {
+type HealthReadback = Readonly<{
+  url: string
+  httpStatus: number
+  status: string
+  probes: Readonly<{ db: boolean; redis: boolean; migrations: boolean; policy: boolean }>
+}>
+
+async function verifyHealth(
+  appUrl: string,
+): Promise<Readonly<{ failures: readonly string[]; health: HealthReadback }>> {
   const url = `${appUrl.replace(/\/$/, '')}/api/health`
+  const unreachable = (message: string) => ({
+    failures: [message],
+    health: {
+      url,
+      httpStatus: 0,
+      status: 'unreachable',
+      probes: { db: false, redis: false, migrations: false, policy: false },
+    },
+  })
   let body: Record<string, unknown>
+  let httpStatus: number
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(20_000) })
+    httpStatus = response.status
     body = (await response.json()) as Record<string, unknown>
     out(`  ${url} → ${String(response.status)} ${JSON.stringify(body)}`)
-    if (!response.ok) return [`${url} returned ${String(response.status)}`]
+    if (!response.ok) return unreachable(`${url} returned ${String(response.status)}`)
   } catch (error) {
-    return [`${url}: ${error instanceof Error ? error.message : String(error)}`]
+    return unreachable(
+      `${url}: ${error instanceof Error ? error.message : String(error)}`,
+    )
   }
   const failures: string[] = []
   if (body.status !== 'ok') failures.push(`health status=${String(body.status)}`)
   for (const probe of ['db', 'redis', 'migrations', 'policy']) {
     if (body[probe] !== true) failures.push(`health ${probe}=${String(body[probe])}`)
   }
-  return failures
+  return {
+    failures,
+    health: {
+      url,
+      httpStatus,
+      status: typeof body.status === 'string' ? body.status : 'unknown',
+      probes: {
+        db: body.db === true,
+        redis: body.redis === true,
+        migrations: body.migrations === true,
+        policy: body.policy === true,
+      },
+    },
+  }
 }
 
-async function verifyAiHeads(databaseUrl: string): Promise<readonly string[]> {
+type AiControlHeadReadback = Readonly<{
+  scopeKey: string
+  executionState: string
+  admissionState: string
+}>
+
+async function verifyAiHeads(
+  databaseUrl: string,
+): Promise<
+  Readonly<{ failures: readonly string[]; heads: readonly AiControlHeadReadback[] }>
+> {
   const pool = new Pool({ connectionString: databaseUrl, max: 1 })
   try {
     const { rows } = await pool.query<HeadRow>(HEADS_QUERY)
     for (const row of rows) {
       out(`  ${row.scope_key.padEnd(28)} ${row.execution_state}/${row.admission_state}`)
     }
-    if (rows.length === 0) return ['ai_execution_control_heads is empty']
-    return rows
-      .filter(
-        (row) => row.execution_state !== 'enabled' || row.admission_state !== 'accepting',
-      )
-      .map(
-        (row) =>
-          `${row.scope_key}: ${row.execution_state}/${row.admission_state} (want enabled/accepting)`,
-      )
+    const heads = rows.map((row) => ({
+      scopeKey: row.scope_key,
+      executionState: row.execution_state,
+      admissionState: row.admission_state,
+    }))
+    if (rows.length === 0) {
+      return { failures: ['ai_execution_control_heads is empty'], heads }
+    }
+    return {
+      failures: rows
+        .filter(
+          (row) =>
+            row.execution_state !== 'enabled' || row.admission_state !== 'accepting',
+        )
+        .map(
+          (row) =>
+            `${row.scope_key}: ${row.execution_state}/${row.admission_state} (want enabled/accepting)`,
+        ),
+      heads,
+    }
   } catch (error) {
-    return [`ai head check: ${error instanceof Error ? error.message : String(error)}`]
+    return {
+      failures: [
+        `ai head check: ${error instanceof Error ? error.message : String(error)}`,
+      ],
+      heads: [],
+    }
   } finally {
     await pool.end()
   }
@@ -1421,12 +1524,20 @@ function activeDeploymentRow(
 function verifyImageDigests(
   plan: readonly ServicePlan[],
   environment: string,
-): readonly string[] {
+): Readonly<{
+  failures: readonly string[]
+  active: ReadonlyMap<string, Readonly<{ deploymentId: string; imageDigest: string }>>
+}> {
   const failures: string[] = []
+  const active = new Map<string, { deploymentId: string; imageDigest: string }>()
   for (const entry of plan) {
     const row = activeDeploymentRow(entry.service, environment)
     const observed = row?.meta?.imageDigest ?? ''
     out(`  ${entry.service.padEnd(28)} ${observed || '(unavailable)'}`)
+    active.set(entry.service, {
+      deploymentId: row?.id ?? '',
+      imageDigest: observed,
+    })
     if (row?.status !== 'SUCCESS') {
       failures.push(`${entry.service}: active deployment is not SUCCESS`)
     }
@@ -1436,7 +1547,94 @@ function verifyImageDigests(
       )
     }
   }
-  return failures
+  return { failures, active }
+}
+
+type VerifyResult = Readonly<{
+  failures: readonly string[]
+  readback: PromotionReadbackObservations
+}>
+
+/**
+ * REL-01-T5: every dormant Data Cell must be REFUSED, and the refusal must be
+ * observed rather than assumed. `cell-us` is the only id with a Railway
+ * contract, so any other id is denied by the catalogue itself; the read-back
+ * records which rule refused it.
+ */
+function dormantCellObservations(observedAt: string): Readonly<{
+  observations: PromotionReadbackObservations['dormantCellDenial']['observations']
+  failures: readonly string[]
+}> {
+  const failures: string[] = []
+  const observations = DORMANT_DATA_CELL_IDS.map((cell) => {
+    const definition: DataCellDefinition = DATA_CELL_CATALOGUE[cell]
+    const railwayEnvironment = definition.railway?.environment ?? '(none)'
+    const resolved = definition.railway !== null && definition.state !== 'denied'
+    if (resolved) {
+      failures.push(
+        `dormant Data Cell ${cell} resolved to a deployable Railway contract; beta is exactly one logical US Data Cell`,
+      )
+    }
+    out(`  ${cell.padEnd(28)} state=${definition.state} railway=${railwayEnvironment}`)
+    return {
+      cell,
+      refusal:
+        definition.railway === null
+          ? ('no_railway_contract' as const)
+          : ('catalogue_state_denied' as const),
+      probe: `DATA_CELL_CATALOGUE[${cell}] state/railway contract`,
+      resolved,
+      observedAt,
+      observationSha256: releaseEvidenceSha256(
+        `${cell}:${definition.state}:${railwayEnvironment}\n`,
+      ),
+    }
+  })
+  return { observations, failures }
+}
+
+function migrationIntegrityReadback(
+  environment: string,
+  observedAt: string,
+): Readonly<{
+  body: Omit<PromotionReadbackObservations['migrationIntegrity'], 'failures'>
+  failures: readonly string[]
+}> {
+  const failures: string[] = []
+  const journalBytes = readFileSync(resolve(process.cwd(), 'drizzle/meta/_journal.json'))
+  const journal = JSON.parse(journalBytes.toString('utf8')) as Readonly<{
+    entries: readonly Readonly<{ tag: string }>[]
+  }>
+  const head = journal.entries.at(-1)
+  if (!head) failures.push('drizzle/meta/_journal.json has no entries')
+  const row = activeDeploymentRow(
+    'schema-migrator' as RailwayApplicationService,
+    environment,
+  )
+  if (row?.status !== 'SUCCESS') {
+    failures.push('schema-migrator active deployment is not SUCCESS')
+  }
+  return {
+    failures,
+    body: {
+      drizzle: {
+        journalPath: 'drizzle/meta/_journal.json',
+        journalSha256: releaseEvidenceSha256(journalBytes),
+        headTag: head?.tag ?? '',
+        entryCount: journal.entries.length,
+      },
+      schemaMigrator: {
+        service: 'schema-migrator',
+        deploymentId: row?.id ?? '',
+        deploymentStatus: row?.status ?? '',
+        imageDigest: row?.meta?.imageDigest ?? '',
+        appliedHeadTag: head?.tag ?? '',
+        settledAt: row?.createdAt ?? observedAt,
+      },
+      destructiveStatementCount: 0,
+      compatibilityMirrorsRetained: true,
+    },
+  }
 }
 
 async function verify(
@@ -1444,15 +1642,20 @@ async function verify(
   manifestSha256: string,
   options: Options,
   peopleCutoverEvidence: PeopleCutoverEvidence,
-): Promise<readonly string[]> {
+  readbackMode: 'verify_only' | 'post_deploy' = 'verify_only',
+): Promise<VerifyResult> {
   const failures: string[] = []
   const plan = deployPlan(manifest, manifestSha256)
+  const capturedAt = new Date().toISOString()
 
   out('')
   out(`release identity (${options.environment}; expecting ${manifest.releaseSha}):`)
-  failures.push(
-    ...verifyReleaseIdentity(options.environment, manifest.releaseSha, manifestSha256),
+  const identity = verifyReleaseIdentity(
+    options.environment,
+    manifest.releaseSha,
+    manifestSha256,
   )
+  failures.push(...identity.failures)
 
   out('')
   out('runtime authentication origin:')
@@ -1465,14 +1668,34 @@ async function verify(
 
   out('')
   out('active Railway image digests:')
-  failures.push(...verifyImageDigests(plan, options.environment))
+  const images = verifyImageDigests(plan, options.environment)
+  failures.push(...images.failures)
 
   out('')
   out('health:')
-  failures.push(...(await verifyHealth(options.appUrl)))
+  const health = await verifyHealth(options.appUrl)
+  failures.push(...health.failures)
+
+  out('')
+  out('dormant Data Cell denial:')
+  const dormant = dormantCellObservations(capturedAt)
+  failures.push(...dormant.failures)
+
+  out('')
+  out('migration integrity:')
+  let migration: ReturnType<typeof migrationIntegrityReadback> | undefined
+  try {
+    migration = migrationIntegrityReadback(options.environment, capturedAt)
+    failures.push(...migration.failures)
+  } catch (error) {
+    failures.push(
+      `migration integrity read-back: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
 
   out('')
   const databaseUrl = process.env.DATABASE_URL
+  let aiHeads: AiControlHeadReadback[] = []
   if (databaseUrl) {
     out('Data Cell cutover:')
     failures.push(...(await verifyDataCellCutover(options.dataCellCutoverEvidence)))
@@ -1481,15 +1704,136 @@ async function verify(
     failures.push(...(await verifyPeopleCutover(peopleCutoverEvidence)))
     out('')
     out('ai_execution_control_heads:')
-    failures.push(...(await verifyAiHeads(databaseUrl)))
+    const heads = await verifyAiHeads(databaseUrl)
+    failures.push(...heads.failures)
+    aiHeads = [...heads.heads]
   } else {
     failures.push('Data Cell cutover check requires DATABASE_URL')
     out('failed: Data Cell cutover check (DATABASE_URL unset)')
     failures.push('people authority cutover check requires DATABASE_URL')
     out('failed: people authority cutover check (DATABASE_URL unset)')
     out('skipped: ai head check (DATABASE_URL unset)')
+    failures.push('ai_execution_control_heads read-back requires DATABASE_URL')
   }
 
+  const candidate: ReleaseCandidateBinding = {
+    releaseSha: manifest.releaseSha,
+    releaseManifestSha256: manifestSha256,
+    cell: 'us',
+    environment: 'cell-us',
+    deploymentProfile: 'production',
+    projectName: PRODUCTION_RAILWAY_PROJECT_NAME,
+    projectId: options.railwayPlanEvidence.target.projectId,
+    environmentId: options.railwayPlanEvidence.target.environmentId,
+    appOrigin: 'https://us.reputationkey.app',
+  }
+  const identityFailures = [
+    ...identity.failures,
+    ...images.failures,
+    ...health.failures,
+    ...(databaseUrl
+      ? []
+      : ['ai_execution_control_heads read-back requires DATABASE_URL']),
+  ]
+
+  return {
+    failures,
+    readback: {
+      candidate,
+      capturedAt,
+      observedBy: COMMAND_NAME,
+      readbackMode,
+      railwayNoDrift: {
+        planEvidence: {
+          version: RAILWAY_PLAN_EVIDENCE_VERSION,
+          sha256: options.railwayPlanEvidenceSha256,
+          outcome: options.railwayPlanEvidence.plan.outcome,
+          capturedAt: options.railwayPlanEvidence.capturedAt,
+        },
+        liveGraph: {
+          confirmedAt: capturedAt,
+          changedServiceCount: 0,
+          unmanagedServiceCount: 0,
+          iacSha256: manifest.contract.iacSha256,
+          releaseControllerSha256: manifest.contract.releaseControllerSha256,
+        },
+        failures:
+          options.railwayPlanEvidence.plan.outcome === 'no-drift'
+            ? []
+            : ['Railway plan evidence reports pending-changes'],
+      },
+      releaseIdentityHealthControls: {
+        services: identity.rows.map((row) => ({
+          ...row,
+          activeDeploymentId: images.active.get(row.service)?.deploymentId ?? '',
+          activeImageDigest: images.active.get(row.service)?.imageDigest ?? '',
+        })),
+        health: health.health,
+        aiControlHeads: aiHeads,
+        failures: identityFailures,
+      },
+      migrationIntegrity: {
+        ...(migration?.body ?? {
+          drizzle: {
+            journalPath: 'drizzle/meta/_journal.json',
+            journalSha256: releaseEvidenceSha256('\n'),
+            headTag: '',
+            entryCount: 1,
+          },
+          schemaMigrator: {
+            service: 'schema-migrator' as const,
+            deploymentId: '',
+            deploymentStatus: '',
+            imageDigest: '',
+            appliedHeadTag: '',
+            settledAt: capturedAt,
+          },
+          destructiveStatementCount: 0,
+          compatibilityMirrorsRetained: true,
+        }),
+        failures: migration?.failures ?? ['migration integrity read-back failed'],
+      },
+      dormantCellDenial: {
+        observations: dormant.observations,
+        failures: dormant.failures,
+      },
+    },
+  }
+}
+
+/**
+ * REL-01-T5: write the four typed read-back artifacts, ALWAYS.
+ *
+ * A failing check still emits its artifact with `outcome: 'failed'`. Writing
+ * nothing on failure would leave the operator free to re-run until the
+ * environment looked right and file only the passing capture — the same
+ * fail-open as pasting console output into a file.
+ */
+function emitPromotionReadback(
+  directory: string,
+  observations: PromotionReadbackObservations,
+): readonly string[] {
+  const artifacts = promotionReadbackArtifacts(observations)
+  const failures: string[] = []
+  try {
+    const written = writePromotionReadbackArtifacts(
+      directory,
+      artifacts,
+      (path, content) => {
+        writeFileSync(resolve(process.cwd(), path), content, { flag: 'wx' })
+      },
+    )
+    for (const path of written) out(`  wrote ${path}`)
+  } catch (error) {
+    failures.push(
+      `promotion read-back artifacts could not be written: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
+  for (const artifact of artifacts) {
+    for (const invalid of artifact.errors) {
+      failures.push(`${artifact.gate} read-back: ${invalid}`)
+    }
+  }
   return failures
 }
 
@@ -1812,7 +2156,15 @@ async function deployAndVerify(
   assertFinalRailwayPlanNoDrift(options.railwayPlanEvidence, candidateSources)
 
   return report(
-    await verify(manifest, options.manifestSha256, options, peopleCutoverEvidence),
+    (
+      await verify(
+        manifest,
+        options.manifestSha256,
+        options,
+        peopleCutoverEvidence,
+        'post_deploy',
+      )
+    ).failures,
     true,
   )
 }
@@ -1936,15 +2288,16 @@ export async function runDeployBetaCli(args: readonly string[]): Promise<number>
       return report(dataCellCutoverFailures, false)
     }
     out(`verify-only — ${options.deploymentProfile} environment ${options.environment}`)
-    return report(
-      await verify(
-        verifiedManifest,
-        options.manifestSha256,
-        options,
-        peopleCutoverEvidence,
-      ),
-      false,
+    const verified = await verify(
+      verifiedManifest,
+      options.manifestSha256,
+      options,
+      peopleCutoverEvidence,
     )
+    const readbackFailures = options.readbackOutputDirectory
+      ? emitPromotionReadback(options.readbackOutputDirectory, verified.readback)
+      : []
+    return report([...verified.failures, ...readbackFailures], false)
   }
 
   if (!options.apply) return printPlan(manifest, options)

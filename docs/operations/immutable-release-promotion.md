@@ -527,6 +527,14 @@ pnpm release:validate-evidence -- \
   --evidence-root=docs/release-evidence/beta/<release-id>
 ```
 
+The command loads the tracked `security/gate-f-approval-roles.json` role key
+map and re-hashes the on-disk legal documents. Both are mandatory inputs: a
+bundle validated without a signature verifier, or without a document reader, is
+accepting approvals nobody can verify over documents nobody re-hashed, so both
+absences are rejections rather than skips. `--approval-roles` and `--legal-root`
+exist only so a reviewer can validate a bundle against the exact key map and
+document set it was approved over; both are path-contained.
+
 The strict contract and required gate identifiers live in
 `src/shared/release/gate-f-evidence.ts`. The validator re-hashes every referenced
 artifact, including the retained Sigstore bundle, parses the exact promotion
@@ -560,8 +568,8 @@ candidate-bound contract rather than an arbitrary attachment:
   recovery generation, RPO/RTO, routing cutover/rollback read-backs and forward
   recovery. Reverse DDL is structurally forbidden.
 
-The schemas and final validator do not run these operations. Three producers
-do, and each is fail-closed: it exits non-zero with a precise reason rather than
+The schemas and final validator do not run these operations. Producers do, and
+each is fail-closed: it exits non-zero with a precise reason rather than
 emitting a well-formed artifact from absent, stubbed, or defaulted data. Every
 dependency digest named inside a typed summary is written beside the artifact as
 a `<sha256>.dependency` file, because Gate F rejects a dependency it cannot
@@ -620,6 +628,125 @@ authorization carrying the exact digest of that plan. It never issues a restore
 — it consumes a platform-issued receipt by path — and reverse DDL is
 structurally impossible to emit. See `backup-and-lifecycle.md` for the full
 contract.
+
+## Freeze the candidate first
+
+### `pnpm release:freeze-candidate`
+
+`scripts/release/freeze-release-candidate.ts` emits one
+`repkey-candidate-freeze-1` record pinning everything REL-01 candidate creation
+step 1 names: the lockfile digest, the drizzle migration head, the generated
+route tree, the release-controller and Railway IaC digests, the capability and
+Data Cell catalogue policy versions, the Playwright package and browser
+versions, and the legal revision-set digest. `cells` is the exact tuple
+`["us"]`.
+
+```bash
+pnpm release:freeze-candidate -- \
+  --release-sha=<40 hex> --operator=<id> --change-record=<id> \
+  --legal-revision-set=docs/release-evidence/beta/<release-id>/legal/revision-set.json
+```
+
+It refuses to emit on a dirty worktree, on a SHA that is not merged into
+`origin/main`, when any of `check:google-provider-fixtures`,
+`check:ai-governance-artifacts` or `check:schema-drift` reports drift, and when
+the freeze file already exists (it writes with `wx`). After writing it
+recomputes the release-controller digest: a freeze that raced a source edit
+fails rather than describing a tree that no longer exists.
+
+## Produce the remaining Gate F keys
+
+All eighteen `GATE_F_REQUIRED_GATE_IDS` now have a producer. Gate F parses the
+first referenced artifact of every gate against that producer's schema, so a
+generic `{"status":"passed"}` file fails for every key, not only the three live
+promotion gates.
+
+### `pnpm release:capture-readback`
+
+`scripts/release/capture-promotion-readback.ts` turns a promotion read-back into
+four `repkey-promotion-readback-1` artifacts, discriminated on `gate`:
+
+- `railway_no_drift` binds the `repkey-railway-plan-5` evidence digest and fails
+  when its outcome is `pending-changes`;
+- `release_identity_health_controls` requires one row per promoted Railway
+  service carrying the candidate `RELEASE_SHA`/`RELEASE_MANIFEST_SHA256`, absent
+  `SOURCE_REVISION`/`IMAGE_SOURCE_REVISION` overrides, all four `/api/health`
+  probes green, and every `ai_execution_control_heads` row `enabled/accepting`;
+- `migration_integrity` binds the drizzle head tag from
+  `drizzle/meta/_journal.json` and the schema-migrator deployment id and image
+  digest;
+- `dormant_cell_denial` requires an explicit refusal observation for every
+  non-`us` Data Cell id and fails if any dormant cell resolved.
+
+`pnpm release:beta -- --verify-only --readback-output=<dir>` writes the same four
+artifacts in-process. A FAILING check still writes its artifact with
+`outcome: "failed"` and the failure named — writing nothing on failure would let
+an operator re-run until the environment looked right and file only the passing
+capture.
+
+### `pnpm release:import-live-evidence`
+
+`scripts/release/import-live-evidence.ts` normalizes an operator's captured
+output into the typed shape for the eleven remaining keys
+(`--list` prints them). It canonicalizes the raw JSON and hands it to that
+gate's schema; it NEVER supplies a field the input did not contain, exits
+non-zero naming any missing required field, and writes with `wx`.
+
+Notable refusals:
+
+- `candidate.clean_ci` requires `runAttempt === 1`, zero skipped required jobs,
+  and the exact workflow identity
+  `https://github.com/kodes-agency/reputation-key/.github/workflows/release-images.yml@refs/heads/main`;
+- `preproduction.live_provider_journeys` pins `providerMode: "live"` while the
+  stub journeys pin `providerMode: "stub"`. The two evidence classes are
+  structurally disjoint, so stub evidence can never be filed as live evidence;
+- `preproduction.observability_content_inspection` names every sink — Sentry,
+  structured log, metric, fact stream and notification — and requires
+  `prohibitedFieldOccurrences === 0` across all of them;
+- `promotion.backup_pitr` pins `source: "platform_receipt"`, requires a receipt
+  digest, and requires the WAL/PITR window to cover the promotion timestamp. A
+  self-reported application claim is refused;
+- `opening.cohort_readiness` requires a pseudonymized design-partner reference
+  plus separately named support and incident owners, and refuses a real
+  organization name or an email address.
+
+## Authenticate the approvals
+
+### `pnpm release:prepare-approval`
+
+`scripts/release/prepare-gate-f-approval.ts` prints the exact canonical bytes an
+approver must sign for a given Gate F index and role. The signed payload covers
+exactly `{role, approverIdentity, approvedAt, releaseManifestSha256,
+legalRevisionSetSha256, gateFDecisionSha256}`, where the decision digest is the
+Gate F index WITHOUT its approvals — the thing an approver actually reads.
+
+This command holds no key material and there is no code path in this repository
+that reads, writes, derives or generates a private key. The approver signs the
+printed bytes where their key lives and returns the base64 signature.
+
+`security/gate-f-approval-roles.json` holds PUBLIC keys only, one entry per
+required role: counsel, founder, operations, product, security,
+support_incident. Every role currently ships `status: "not_enrolled"`, so Gate F
+fails closed on approvals until real public keys are enrolled. Verification is
+fail-closed at every step: no verifier, no enrolled key for the role, a key that
+is not that role's key, and a signature that does not check out are each a
+distinct rejection code. Engineering cannot sign counsel's role, because the
+role is inside the signed payload and counsel's key is the only key enrolled
+for it.
+
+### Legal approval must be current
+
+`release.legalApprovalChecklist` is a required Gate F reference alongside
+`release.legalRevisionSet`. The revision set proves WHICH legal bytes counsel
+approved; the checklist (`repkey-legal-approval-checklist-1`) proves counsel
+DECIDED the LEG-01 facts those bytes depend on — controller/processor roles,
+lawful bases, DPIA/CCPA, retention classes, data-subject rights, subprocessors,
+regions and transfers, the Google confirmation scope/conditions/expiry/monitoring
+owner, employee-metrics framing and the beta support commitment. A missing or
+`decided: false` fact is a rejection. Each document digest must equal the
+on-disk digest of that `docs/legal` file, so a post-approval edit invalidates
+the approval, and Gate F refuses a checklist whose `expiresAt` precedes
+`completedAt`. See `docs/legal/revision-set.schema.md`.
 
 ## Rollback boundary
 

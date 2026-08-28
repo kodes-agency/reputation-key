@@ -1,7 +1,41 @@
 import {
+  canonicalReleaseEvidence,
   releaseEvidenceSha256,
   type ReleaseCandidateBinding,
 } from './candidate-bound-evidence'
+import {
+  BACKUP_PITR_RECEIPT_EVIDENCE_VERSION,
+  CLEAN_CI_RUN_EVIDENCE_VERSION,
+  COHORT_READINESS_CHECKS,
+  COHORT_READINESS_EVIDENCE_VERSION,
+  DEFECT_DISPOSITION_EVIDENCE_VERSION,
+  INDEPENDENT_REVIEW_EVIDENCE_VERSION,
+  ISOLATED_RESTORE_MIGRATION_EVIDENCE_VERSION,
+  LIVE_PROVIDER_MATRIX_EVIDENCE_VERSION,
+  LIVE_PROVIDER_SURFACES,
+  PREPRODUCTION_JOURNEY_EVIDENCE_VERSION,
+  PREPRODUCTION_JOURNEY_GATE_CLASS,
+  RELEASE_IMAGES_WORKFLOW_REF,
+  TELEMETRY_CONTENT_INSPECTION_EVIDENCE_VERSION,
+  TELEMETRY_INSPECTED_SINKS,
+  TELEMETRY_PROHIBITED_FIELD_CLASSES,
+  type BackupPitrReceiptEvidence,
+  type CleanCiRunEvidence,
+  type CohortReadinessEvidence,
+  type DefectDispositionEvidence,
+  type IndependentReviewEvidence,
+  type IsolatedRestoreMigrationEvidence,
+  type LiveProviderMatrixEvidence,
+  type PreproductionJourneyEvidence,
+  type TelemetryContentInspectionEvidence,
+} from './live-evidence'
+import {
+  DORMANT_DATA_CELL_IDS,
+  PROMOTION_READBACK_EVIDENCE_VERSION,
+  PROMOTION_READBACK_SERVICES,
+  type PromotionReadbackEvidence,
+} from './promotion-readback-evidence'
+import { RAILWAY_PLAN_EVIDENCE_VERSION } from './railway-plan-evidence'
 import {
   canonicalDeployedCriticalJourneyEvidence,
   DEPLOYED_CRITICAL_JOURNEY_EVIDENCE_VERSION,
@@ -247,5 +281,468 @@ export function gateFLiveEvidenceFixtures(
     'promotion.deployed_critical_journeys': deployed(candidate),
     'promotion.canary_window': canary(candidate),
     'promotion.restore_rollback': recovery(candidate),
+    ...remainingGateFTypedFixtures(candidate),
+  }
+}
+
+// ── REL-01-T6/T5: the fifteen remaining typed Gate F keys ────────────────
+//
+// Every fixture below is produced by the REAL schema types, so a producer
+// whose rules change breaks these fixtures instead of silently accepting a
+// weaker artifact. The dependency recorder writes the source/report artifacts
+// each proof claims, so the gate genuinely retains what its evidence cites.
+
+const LIVE_CAPTURED_AT = '2026-08-28T09:00:00.000Z'
+const LIVE_EXPIRES_AT = '2026-09-28T00:00:00.000Z'
+
+function liveCommon(
+  candidate: ReleaseCandidateBinding,
+  deps: ReturnType<typeof dependencyRecorder>,
+) {
+  return {
+    candidate,
+    capturedAt: LIVE_CAPTURED_AT,
+    expiresAt: LIVE_EXPIRES_AT,
+    authority: {
+      capturedBy: 'release-operator',
+      attestedBy: 'release-reviewer',
+      changeRecord: 'CHG-REL-01-001',
+      sourceArtifactSha256: deps.sha256('source'),
+    },
+    redaction: {
+      reportSha256: deps.sha256('redaction-report'),
+      prohibitedFieldOccurrences: 0,
+      unexpectedExternalRequests: 0,
+    },
+    outcome: 'passed' as const,
+    failures: [],
+  }
+}
+
+function cleanCi(candidate: ReleaseCandidateBinding): GateFLiveEvidenceFixture {
+  const deps = dependencyRecorder('candidate.clean_ci')
+  const evidence: CleanCiRunEvidence = {
+    version: CLEAN_CI_RUN_EVIDENCE_VERSION,
+    evidenceKind: 'clean-ci-run',
+    ...liveCommon(candidate, deps),
+    workflowRef: RELEASE_IMAGES_WORKFLOW_REF,
+    workflowRunId: '1234567890',
+    workflowRunUrl:
+      'https://github.com/kodes-agency/reputation-key/actions/runs/1234567890',
+    runAttempt: 1,
+    headSha: candidate.releaseSha,
+    startedAt: '2026-08-28T07:00:00.000Z',
+    completedAt: '2026-08-28T07:40:00.000Z',
+    jobs: [
+      { name: 'check', required: true, conclusion: 'success' },
+      { name: 'unit', required: true, conclusion: 'success' },
+      { name: 'integration', required: true, conclusion: 'success' },
+      { name: 'e2e', required: true, conclusion: 'success' },
+      { name: 'release-images', required: true, conclusion: 'success' },
+      { name: 'optional-preview', required: false, conclusion: 'skipped' },
+    ],
+  }
+  return { content: canonicalReleaseEvidence(evidence), dependencies: deps.dependencies }
+}
+
+function independentReview(candidate: ReleaseCandidateBinding): GateFLiveEvidenceFixture {
+  const deps = dependencyRecorder('candidate.independent_review')
+  const evidence: IndependentReviewEvidence = {
+    version: INDEPENDENT_REVIEW_EVIDENCE_VERSION,
+    evidenceKind: 'independent-review',
+    ...liveCommon(candidate, deps),
+    reviewerIdentity: 'independent-reviewer',
+    reviewedSha: candidate.releaseSha,
+    reviewedAt: '2026-08-28T07:50:00.000Z',
+    changes: [
+      {
+        reference: 'PR-4821',
+        headSha: candidate.releaseSha,
+        authorIdentity: 'release-engineer',
+        approvedAt: '2026-08-28T07:50:00.000Z',
+      },
+    ],
+    unresolvedComments: 0,
+  }
+  return { content: canonicalReleaseEvidence(evidence), dependencies: deps.dependencies }
+}
+
+function defectDisposition(candidate: ReleaseCandidateBinding): GateFLiveEvidenceFixture {
+  const deps = dependencyRecorder('candidate.defect_disposition')
+  const evidence: DefectDispositionEvidence = {
+    version: DEFECT_DISPOSITION_EVIDENCE_VERSION,
+    evidenceKind: 'defect-disposition',
+    ...liveCommon(candidate, deps),
+    registerSha256: deps.sha256('defect-register'),
+    defects: [
+      {
+        id: 'DEF-1',
+        title: 'portal empty-state copy is stale',
+        severity: 'low',
+        protectedSurfaceReachable: false,
+        disposition: 'deferred',
+        decidedBy: 'product-owner',
+        decidedAt: '2026-08-28T07:55:00.000Z',
+        rationale: 'cosmetic; no protected surface reachable',
+        deferredToRelease: 'beta-rc-2',
+      },
+      {
+        id: 'DEF-2',
+        title: 'reply publish retry logged twice',
+        severity: 'medium',
+        protectedSurfaceReachable: true,
+        disposition: 'fixed_in_candidate',
+        decidedBy: 'release-engineer',
+        decidedAt: '2026-08-28T07:56:00.000Z',
+        rationale: 'fixed and covered by a regression test',
+        deferredToRelease: null,
+      },
+    ],
+  }
+  return { content: canonicalReleaseEvidence(evidence), dependencies: deps.dependencies }
+}
+
+function isolatedRestore(candidate: ReleaseCandidateBinding): GateFLiveEvidenceFixture {
+  const deps = dependencyRecorder('preproduction.isolated_restore_migration')
+  const evidence: IsolatedRestoreMigrationEvidence = {
+    version: ISOLATED_RESTORE_MIGRATION_EVIDENCE_VERSION,
+    evidenceKind: 'isolated-restore-migration',
+    ...liveCommon(candidate, deps),
+    startedAt: '2026-08-28T06:00:00.000Z',
+    completedAt: '2026-08-28T06:30:00.000Z',
+    restore: {
+      backupReceiptSha256: deps.sha256('restore-receipt'),
+      backupTakenAt: '2026-08-28T05:00:00.000Z',
+      restoredRowCount: 184_302,
+    },
+    isolation: {
+      targetIsProductionDatabase: false,
+      targetProjectId: 'railway-project-us-restore-rehearsal',
+      targetEnvironmentId: 'railway-environment-restore-rehearsal',
+      externalEffectsBlocked: true,
+    },
+    migration: {
+      fromHeadTag: '0167_prior_head',
+      toHeadTag: '0168_identity_organization_lifecycle_receipts',
+      journalSha256: deps.sha256('journal'),
+      appliedCount: 1,
+      destructiveStatementCount: 0,
+      compatibilityMirrorsRetained: true,
+      durationMs: 42_000,
+    },
+    verification: {
+      postMigrationDriftCount: 0,
+      orphanedRowCount: 0,
+      reportSha256: deps.sha256('restore-verification'),
+      summary: 'restored snapshot migrated to head with no drift',
+    },
+  }
+  return { content: canonicalReleaseEvidence(evidence), dependencies: deps.dependencies }
+}
+
+function preproductionJourneys(
+  candidate: ReleaseCandidateBinding,
+  gateId: keyof typeof PREPRODUCTION_JOURNEY_GATE_CLASS,
+): GateFLiveEvidenceFixture {
+  const deps = dependencyRecorder(gateId)
+  const journeyClass = PREPRODUCTION_JOURNEY_GATE_CLASS[gateId]
+  const evidence: PreproductionJourneyEvidence = {
+    version: PREPRODUCTION_JOURNEY_EVIDENCE_VERSION,
+    evidenceKind: 'preproduction-journeys',
+    ...liveCommon(candidate, deps),
+    journeyClass,
+    providerMode: 'stub',
+    environmentClass: 'preproduction',
+    startedAt: '2026-08-28T06:40:00.000Z',
+    completedAt: '2026-08-28T06:55:00.000Z',
+    runner: {
+      kind: 'playwright',
+      specSha256: deps.sha256('spec'),
+      packageVersion: '1.55.0',
+      attempts: 1,
+      retries: 0,
+    },
+    results: [
+      {
+        journeyId: `${journeyClass}-core`,
+        title: `${journeyClass} core journey`,
+        outcome: 'passed',
+        durationMs: 4_500,
+      },
+    ],
+  }
+  return { content: canonicalReleaseEvidence(evidence), dependencies: deps.dependencies }
+}
+
+function liveProviderMatrix(
+  candidate: ReleaseCandidateBinding,
+): GateFLiveEvidenceFixture {
+  const deps = dependencyRecorder('preproduction.live_provider_journeys')
+  const evidence: LiveProviderMatrixEvidence = {
+    version: LIVE_PROVIDER_MATRIX_EVIDENCE_VERSION,
+    evidenceKind: 'live-provider-matrix',
+    ...liveCommon(candidate, deps),
+    providerMode: 'live',
+    provider: 'google_business_profile',
+    startedAt: '2026-08-28T07:00:00.000Z',
+    completedAt: '2026-08-28T07:30:00.000Z',
+    account: {
+      providerAccountRef: 'gbp-account-rehearsal-01',
+      consentArtifactSha256: deps.sha256('provider-consent'),
+      approvedBy: 'product-owner',
+      approvedAt: '2026-08-27T09:00:00.000Z',
+    },
+    egress: {
+      gatewayAttestationSha256: deps.sha256('gateway-attestation'),
+      offGatewayRequestCount: 0,
+      summary: 'all provider traffic left through google-egress-gateway',
+    },
+    surfaces: LIVE_PROVIDER_SURFACES.map((surface) => ({
+      surface,
+      requestCount: 3,
+      providerErrorCount: 0,
+      quotaExhaustedCount: 0,
+      outcome: 'passed' as const,
+      observedAt: '2026-08-28T07:20:00.000Z',
+    })),
+  }
+  return { content: canonicalReleaseEvidence(evidence), dependencies: deps.dependencies }
+}
+
+function telemetryInspection(
+  candidate: ReleaseCandidateBinding,
+): GateFLiveEvidenceFixture {
+  const deps = dependencyRecorder('preproduction.observability_content_inspection')
+  const evidence: TelemetryContentInspectionEvidence = {
+    version: TELEMETRY_CONTENT_INSPECTION_EVIDENCE_VERSION,
+    evidenceKind: 'telemetry-content-inspection',
+    ...liveCommon(candidate, deps),
+    inspectedFieldClasses: [...TELEMETRY_PROHIBITED_FIELD_CLASSES],
+    sinks: TELEMETRY_INSPECTED_SINKS.map((sink) => ({
+      sink,
+      exportSha256: deps.sha256(`${sink}-export`),
+      inspectedRecordCount: 500,
+      prohibitedFieldOccurrences: 0,
+      windowStartedAt: '2026-08-28T06:00:00.000Z',
+      windowEndedAt: '2026-08-28T08:00:00.000Z',
+      summary: `${sink} export carried no prohibited field class`,
+    })),
+  }
+  return { content: canonicalReleaseEvidence(evidence), dependencies: deps.dependencies }
+}
+
+function backupPitr(candidate: ReleaseCandidateBinding): GateFLiveEvidenceFixture {
+  const deps = dependencyRecorder('promotion.backup_pitr')
+  const evidence: BackupPitrReceiptEvidence = {
+    version: BACKUP_PITR_RECEIPT_EVIDENCE_VERSION,
+    evidenceKind: 'backup-pitr-receipt',
+    ...liveCommon(candidate, deps),
+    source: 'platform_receipt',
+    platform: 'railway',
+    promotionAt: '2026-08-28T08:20:00.000Z',
+    receipt: {
+      receiptId: 'railway-backup-receipt-2026-08-28',
+      receiptSha256: deps.sha256('platform-receipt'),
+      exportedAt: '2026-08-28T08:30:00.000Z',
+      databaseServiceId: 'railway-service-postgres',
+      projectId: candidate.projectId,
+      environmentId: candidate.environmentId,
+    },
+    backup: {
+      snapshotId: 'railway-snapshot-2026-08-28-0700',
+      takenAt: '2026-08-28T07:00:00.000Z',
+      sizeBytes: 4_294_967_296,
+      restoreVerifiedAt: '2026-08-28T07:45:00.000Z',
+      restoreVerificationSha256: deps.sha256('restore-verification'),
+    },
+    pitrWindow: {
+      earliestRestorableAt: '2026-08-21T00:00:00.000Z',
+      latestRestorableAt: '2026-08-28T08:30:00.000Z',
+      walArchivingEnabled: true,
+      summary: 'seven-day WAL archive covering the promotion timestamp',
+    },
+  }
+  return { content: canonicalReleaseEvidence(evidence), dependencies: deps.dependencies }
+}
+
+function cohortReadiness(candidate: ReleaseCandidateBinding): GateFLiveEvidenceFixture {
+  const deps = dependencyRecorder('opening.cohort_readiness')
+  const evidence: CohortReadinessEvidence = {
+    version: COHORT_READINESS_EVIDENCE_VERSION,
+    evidenceKind: 'cohort-readiness',
+    ...liveCommon(candidate, deps),
+    kind: 'design_partner',
+    cohortReference: 'design-partner-9f3c17ab',
+    cohortReferenceSha256: deps.sha256('cohort-reference'),
+    pseudonymMappingCustodian: 'founder',
+    organizationCount: 1,
+    seatCount: 8,
+    supportOwner: 'support-owner',
+    incidentOwner: 'incident-owner',
+    changeRecord: 'CHG-REL-01-001',
+    openingWindow: {
+      opensAt: '2026-08-29T09:00:00.000Z',
+      reviewAt: '2026-09-12T09:00:00.000Z',
+    },
+    checks: COHORT_READINESS_CHECKS.map((name) => ({
+      name,
+      satisfied: true,
+      evidenceSha256: deps.sha256(`check-${name}`),
+    })),
+  }
+  return { content: canonicalReleaseEvidence(evidence), dependencies: deps.dependencies }
+}
+
+function readbackCommon(candidate: ReleaseCandidateBinding) {
+  return {
+    version: PROMOTION_READBACK_EVIDENCE_VERSION,
+    evidenceKind: 'promotion-readback' as const,
+    candidate,
+    capturedAt: '2026-08-28T09:10:00.000Z',
+    observedBy: 'release-operator',
+    readbackMode: 'verify_only' as const,
+    outcome: 'passed' as const,
+    failures: [],
+  }
+}
+
+const READBACK_DEPLOYMENT_IDS = [
+  '50000000-0000-4000-8000-000000000001',
+  '50000000-0000-4000-8000-000000000002',
+  '50000000-0000-4000-8000-000000000003',
+  '50000000-0000-4000-8000-000000000004',
+  '50000000-0000-4000-8000-000000000005',
+  '50000000-0000-4000-8000-000000000006',
+  '50000000-0000-4000-8000-000000000007',
+] as const
+
+function railwayNoDrift(candidate: ReleaseCandidateBinding): GateFLiveEvidenceFixture {
+  const deps = dependencyRecorder('promotion.railway_no_drift')
+  const evidence: PromotionReadbackEvidence = {
+    ...readbackCommon(candidate),
+    gate: 'railway_no_drift',
+    planEvidence: {
+      version: RAILWAY_PLAN_EVIDENCE_VERSION,
+      sha256: deps.sha256('railway-plan-evidence'),
+      outcome: 'no-drift',
+      capturedAt: '2026-08-28T08:10:00.000Z',
+    },
+    liveGraph: {
+      confirmedAt: '2026-08-28T09:05:00.000Z',
+      changedServiceCount: 0,
+      unmanagedServiceCount: 0,
+      iacSha256: releaseEvidenceSha256('iac\n'),
+      releaseControllerSha256: releaseEvidenceSha256('controller\n'),
+    },
+  }
+  return { content: canonicalReleaseEvidence(evidence), dependencies: deps.dependencies }
+}
+
+function releaseIdentityHealth(
+  candidate: ReleaseCandidateBinding,
+): GateFLiveEvidenceFixture {
+  const deps = dependencyRecorder('promotion.release_identity_health_controls')
+  const evidence: PromotionReadbackEvidence = {
+    ...readbackCommon(candidate),
+    gate: 'release_identity_health_controls',
+    services: PROMOTION_READBACK_SERVICES.map((service, index) => ({
+      service,
+      releaseSha: candidate.releaseSha,
+      releaseManifestSha256: candidate.releaseManifestSha256,
+      sourceRevisionOverride: '' as const,
+      imageSourceRevisionOverride: '' as const,
+      activeDeploymentId: READBACK_DEPLOYMENT_IDS[index] ?? READBACK_DEPLOYMENT_IDS[0],
+      activeImageDigest: `sha256:${releaseEvidenceSha256(`${service}\n`)}`,
+    })),
+    health: {
+      url: `${candidate.appOrigin}/api/health`,
+      httpStatus: 200,
+      status: 'ok',
+      probes: { db: true, redis: true, migrations: true, policy: true },
+    },
+    aiControlHeads: [
+      {
+        scopeKey: 'global',
+        executionState: 'enabled',
+        admissionState: 'accepting',
+      },
+    ],
+  }
+  return { content: canonicalReleaseEvidence(evidence), dependencies: deps.dependencies }
+}
+
+function migrationIntegrity(
+  candidate: ReleaseCandidateBinding,
+): GateFLiveEvidenceFixture {
+  const deps = dependencyRecorder('promotion.migration_integrity')
+  const evidence: PromotionReadbackEvidence = {
+    ...readbackCommon(candidate),
+    gate: 'migration_integrity',
+    drizzle: {
+      journalPath: 'drizzle/meta/_journal.json',
+      journalSha256: deps.sha256('journal'),
+      headTag: '0168_identity_organization_lifecycle_receipts',
+      entryCount: 169,
+    },
+    schemaMigrator: {
+      service: 'schema-migrator',
+      deploymentId: '50000000-0000-4000-8000-0000000000aa',
+      deploymentStatus: 'SUCCESS',
+      imageDigest: `sha256:${releaseEvidenceSha256('schema-migrator\n')}`,
+      appliedHeadTag: '0168_identity_organization_lifecycle_receipts',
+      settledAt: '2026-08-28T08:15:00.000Z',
+    },
+    destructiveStatementCount: 0,
+    compatibilityMirrorsRetained: true,
+  }
+  return { content: canonicalReleaseEvidence(evidence), dependencies: deps.dependencies }
+}
+
+function dormantCellDenial(candidate: ReleaseCandidateBinding): GateFLiveEvidenceFixture {
+  const deps = dependencyRecorder('promotion.dormant_cell_denial')
+  const evidence: PromotionReadbackEvidence = {
+    ...readbackCommon(candidate),
+    gate: 'dormant_cell_denial',
+    observations: DORMANT_DATA_CELL_IDS.map((cell) => ({
+      cell,
+      refusal: 'catalogue_state_denied' as const,
+      probe: `railway environment resolve cell-${cell}`,
+      resolved: false as const,
+      observedAt: '2026-08-28T09:06:00.000Z',
+      observationSha256: deps.sha256(`dormant-${cell}`),
+    })),
+  }
+  return { content: canonicalReleaseEvidence(evidence), dependencies: deps.dependencies }
+}
+
+/** The fifteen Gate F keys added by REL-01-T5 and REL-01-T6. */
+export function remainingGateFTypedFixtures(
+  candidate: ReleaseCandidateBinding,
+): Readonly<Record<string, GateFLiveEvidenceFixture>> {
+  return {
+    'candidate.clean_ci': cleanCi(candidate),
+    'candidate.independent_review': independentReview(candidate),
+    'candidate.defect_disposition': defectDisposition(candidate),
+    'preproduction.isolated_restore_migration': isolatedRestore(candidate),
+    'preproduction.provider_stub_journeys': preproductionJourneys(
+      candidate,
+      'preproduction.provider_stub_journeys',
+    ),
+    'preproduction.live_provider_journeys': liveProviderMatrix(candidate),
+    'preproduction.portal_privacy': preproductionJourneys(
+      candidate,
+      'preproduction.portal_privacy',
+    ),
+    'preproduction.manager_journeys': preproductionJourneys(
+      candidate,
+      'preproduction.manager_journeys',
+    ),
+    'preproduction.observability_content_inspection': telemetryInspection(candidate),
+    'promotion.railway_no_drift': railwayNoDrift(candidate),
+    'promotion.backup_pitr': backupPitr(candidate),
+    'promotion.migration_integrity': migrationIntegrity(candidate),
+    'promotion.release_identity_health_controls': releaseIdentityHealth(candidate),
+    'promotion.dormant_cell_denial': dormantCellDenial(candidate),
+    'opening.cohort_readiness': cohortReadiness(candidate),
   }
 }

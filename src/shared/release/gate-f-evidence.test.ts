@@ -1,40 +1,22 @@
 import { describe, expect, it } from 'vitest'
 import {
-  PROMOTED_IMAGE_REPOSITORIES,
-  PROMOTED_IMAGE_ROLES,
-  PROMOTION_MANIFEST_VERSION,
-  TRUSTED_RELEASE_REPOSITORY,
-  TRUSTED_RELEASE_WORKFLOW_IDENTITY,
-  canonicalPromotionManifest,
-  promotionManifestSha256,
-  type PromotionManifest,
-} from './promotion-manifest'
-import {
-  RELEASE_BUILDKIT_IMAGE,
-  RELEASE_BUILDKIT_VERSION,
-  RELEASE_BUILDX_VERSION,
-  RELEASE_DOCKER_VERSION,
-  RELEASE_RUNNER_ARCHITECTURE,
-  RELEASE_RUNNER_IMAGE_OS,
-  RELEASE_RUNNER_LABEL,
-} from './release-build-toolchain'
-import {
-  GATE_F_EVIDENCE_VERSION,
   GATE_F_REQUIRED_APPROVAL_ROLES,
   GATE_F_REQUIRED_GATE_IDS,
   canonicalGateFEvidence,
+  gateFDecisionSha256,
   gateFEvidenceSha256,
   parseGateFEvidence,
   validateGateFEvidenceBundle,
   type GateFEvidence,
-  type GateFEvidenceReference,
 } from './gate-f-evidence'
-import { PRODUCTION_RAILWAY_PROJECT_NAME } from './railway-deployment-profile'
-import { gateFLiveEvidenceFixtures } from './gate-f-live-evidence.test-fixtures'
 import {
-  canonicalReleaseEvidence,
-  type ReleaseCandidateBinding,
-} from './candidate-bound-evidence'
+  completeBundleCandidate,
+  completeGateFBundle,
+  completeGateFBundleReader,
+  rehearsalCanaryArtifact,
+  type CompleteGateFBundleOverrides,
+} from './gate-f-complete-evidence.test-fixtures'
+import { canonicalReleaseEvidence } from './candidate-bound-evidence'
 import {
   legalRevisionSetContextFixture,
   legalRevisionSetFixture,
@@ -52,215 +34,45 @@ const digest = (value: string): string => value.repeat(64).slice(0, 64)
  */
 const LEGAL_CONTEXT = legalRevisionSetContextFixture()
 
-function promotionManifest(): PromotionManifest {
-  const releaseSha = 'a'.repeat(40)
-  return {
-    version: PROMOTION_MANIFEST_VERSION,
-    releaseSha,
-    createdAt: '2026-08-28T08:00:00.000Z',
-    source: { repository: TRUSTED_RELEASE_REPOSITORY, ref: 'refs/heads/main' },
-    ci: {
-      workflowIdentity: TRUSTED_RELEASE_WORKFLOW_IDENTITY,
-      runId: '1234',
-      runAttempt: 1,
-    },
-    build: {
-      runnerLabel: RELEASE_RUNNER_LABEL,
-      runnerImageOS: RELEASE_RUNNER_IMAGE_OS,
-      runnerImageVersion: '20260824.1.0',
-      runnerArchitecture: RELEASE_RUNNER_ARCHITECTURE,
-      dockerVersion: RELEASE_DOCKER_VERSION,
-      buildxVersion: RELEASE_BUILDX_VERSION,
-      buildkitVersion: RELEASE_BUILDKIT_VERSION,
-      buildkitImage: RELEASE_BUILDKIT_IMAGE,
-      imageMetadataIndexSha256: digest('e'),
-    },
-    contract: {
-      lockfileSha256: digest('1'),
-      iacSha256: digest('2'),
-      releaseControllerSha256: digest('3'),
-      migrationHead: '0140_single_us_data_cell_cutover',
-      capabilityPolicyVersion: 'beta-us-1',
-      dataCellCataloguePolicyVersion: 3,
-      betaEvidenceManifestSha256: digest('4'),
-      testEvidenceSha256: digest('5'),
-      providerApprovalEvidenceSha256: digest('6'),
-      sbomIndexSha256: digest('7'),
-      vulnerabilityIndexSha256: digest('8'),
-    },
-    cells: ['us'],
-    images: Object.fromEntries(
-      PROMOTED_IMAGE_ROLES.map((role, index) => [
-        role,
-        {
-          repository: PROMOTED_IMAGE_REPOSITORIES[role],
-          digest: `sha256:${digest(String((index % 8) + 1))}`,
-          sourceRevision: releaseSha,
-          sbomSha256: digest('9'),
-          provenanceSha256: digest('a'),
-          signatureBundleSha256: digest('b'),
-          vulnerabilityReportSha256: digest('c'),
-        },
-      ]),
-    ) as PromotionManifest['images'],
-  }
-}
-
-/** The one release target every artifact in this bundle must bind. */
-function fixtureCandidate(
-  overrides: Partial<ReleaseCandidateBinding> = {},
-): ReleaseCandidateBinding {
-  const manifest = promotionManifest()
-  return {
-    releaseSha: manifest.releaseSha,
-    releaseManifestSha256: promotionManifestSha256(canonicalPromotionManifest(manifest)),
-    cell: 'us',
-    environment: 'cell-us',
-    deploymentProfile: 'production',
-    projectName: PRODUCTION_RAILWAY_PROJECT_NAME,
-    projectId: 'railway-project-us-production',
-    environmentId: 'railway-environment-cell-us',
-    appOrigin: 'https://us.reputationkey.app',
-    ...overrides,
-  }
-}
+const fixtureCandidate = completeBundleCandidate
 
 type GateFFixture = Readonly<{
   evidence: GateFEvidence
   content: string
   files: Map<string, Uint8Array>
+  options: NonNullable<Parameters<typeof validateGateFEvidenceBundle>[2]>
+  decisionSha256: string
 }>
 
-function gateFFixture(legalRevisionSetContent?: string): GateFFixture {
-  const files = new Map<string, Uint8Array>()
-  const capturedAt = '2026-08-28T10:00:00.000Z'
-  const addEvidence = (
-    path: string,
-    value: string,
-    timestamp = capturedAt,
-  ): GateFEvidenceReference => {
-    const payload = Buffer.from(`${value}\n`)
-    files.set(path, payload)
-    return { path, sha256: gateFEvidenceSha256(payload), capturedAt: timestamp }
-  }
-  const addPayload = (
-    path: string,
-    payload: string,
-    timestamp = capturedAt,
-  ): GateFEvidenceReference => {
-    const bytes = Buffer.from(payload)
-    files.set(path, bytes)
-    return { path, sha256: gateFEvidenceSha256(bytes), capturedAt: timestamp }
-  }
-
-  const manifest = promotionManifest()
-  const manifestContent = canonicalPromotionManifest(manifest)
-  const manifestPath = 'release/promotion-manifest.json'
-  files.set(manifestPath, Buffer.from(manifestContent))
-  const manifestReference = {
-    path: manifestPath,
-    sha256: promotionManifestSha256(manifestContent),
-    capturedAt,
-  }
-  const candidate = fixtureCandidate()
-  // LEG-01: a REAL typed revision set. The stub this replaced —
-  // `{"privacy":"2026-08-28","terms":"2026-08-28"}` — is exactly the fail-open
-  // Gate F used to have: any bytes satisfied the strongest legal control in
-  // the program.
-  const legalRevisionSet = addPayload(
-    'legal/revision-set.json',
-    legalRevisionSetContent ?? legalRevisionSetFixtureContent(candidate, LEGAL_CONTEXT),
-  )
-  const approvalEvidenceAt = '2026-08-28T11:01:00.000Z'
-  const approvalBase = (role: string) => ({
-    approverIdentity: `${role}-approver`,
-    approvedAt: '2026-08-28T11:00:00.000Z',
-    releaseManifestSha256: manifestReference.sha256,
-    evidence: addEvidence(
-      `approvals/${role}.json`,
-      `${role} approval`,
-      approvalEvidenceAt,
-    ),
+/**
+ * REL-01-T11: the fixture is now the COMPLETE eighteen-gate bundle, produced
+ * by the real producer functions and signed with ephemeral Ed25519 role keys.
+ * The previous version filled fifteen gates with `"<id> passed"`, which is the
+ * exact fail-open this wave closes.
+ */
+function gateFFixture(
+  legalRevisionSetContent?: string,
+  overrides: CompleteGateFBundleOverrides = {},
+): GateFFixture {
+  const bundle = completeGateFBundle({
+    ...overrides,
+    ...(legalRevisionSetContent === undefined ? {} : { legalRevisionSetContent }),
   })
-  const livePromotionEvidence = gateFLiveEvidenceFixtures(candidate)
-
-  const evidence: GateFEvidence = {
-    version: GATE_F_EVIDENCE_VERSION,
-    release: {
-      manifest: manifestReference,
-      signatureBundle: addEvidence(
-        'release/promotion-manifest.sigstore.json',
-        '{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}',
-      ),
-      legalRevisionSet,
-      releaseSha: manifest.releaseSha,
-      cell: 'us',
-      environment: 'cell-us',
-      deploymentProfile: 'production',
-      projectName: PRODUCTION_RAILWAY_PROJECT_NAME,
-      projectId: 'railway-project-us-production',
-      environmentId: 'railway-environment-cell-us',
-      appOrigin: 'https://us.reputationkey.app',
-    },
-    gates: GATE_F_REQUIRED_GATE_IDS.map((id) => {
-      const typedEvidence = livePromotionEvidence[id]
-      return {
-        id,
-        status: 'passed',
-        evidence:
-          typedEvidence == null
-            ? [addEvidence(`gates/${id}.json`, `${id} passed`)]
-            : [
-                addPayload(`gates/${id}.json`, typedEvidence.content),
-                ...typedEvidence.dependencies.map((dependency) =>
-                  addPayload(dependency.path, dependency.payload, dependency.capturedAt),
-                ),
-              ],
-      }
-    }),
-    findings: {
-      protectedReachableHighCount: 0,
-      register: addEvidence('findings/register.json', 'no protected reachable High'),
-    },
-    approvals: [
-      {
-        role: 'counsel',
-        ...approvalBase('counsel'),
-        legalRevisionSetSha256: legalRevisionSet.sha256,
-      },
-      {
-        role: 'founder',
-        ...approvalBase('founder'),
-        legalRevisionSetSha256: legalRevisionSet.sha256,
-      },
-      { role: 'operations', ...approvalBase('operations') },
-      { role: 'product', ...approvalBase('product') },
-      { role: 'security', ...approvalBase('security') },
-      { role: 'support_incident', ...approvalBase('support_incident') },
-    ],
-    firstCohort: {
-      kind: 'design_partner',
-      cohortReferenceSha256: digest('d'),
-      supportOwner: 'support-owner',
-      incidentOwner: 'incident-owner',
-      changeRecord: 'CHG-REL-01-001',
-      evidence: addEvidence('cohort/readiness.json', 'bounded cohort ready'),
-    },
-    completedAt: '2026-08-28T12:00:00.000Z',
+  return {
+    evidence: bundle.evidence,
+    content: bundle.content,
+    files: new Map(bundle.files),
+    options: bundle.options,
+    decisionSha256: bundle.decisionSha256,
   }
-  return { evidence, content: canonicalGateFEvidence(evidence), files }
 }
 
 function readFixture(fixture: GateFFixture): (path: string) => Uint8Array {
-  return (path) => {
-    const payload = fixture.files.get(path)
-    if (!payload) throw new Error(`missing fixture ${path}`)
-    return payload
-  }
+  return completeGateFBundleReader(fixture.files)
 }
 
 function validateContent(content: string, fixture: GateFFixture) {
-  return validateGateFEvidenceBundle(content, readFixture(fixture), LEGAL_CONTEXT)
+  return validateGateFEvidenceBundle(content, readFixture(fixture), fixture.options)
 }
 
 function validateFixture(fixture: GateFFixture) {
@@ -547,24 +359,17 @@ describe('Gate F legal revision set', () => {
   })
 
   it('leaves references outside the typed labels untouched', () => {
-    // The new branch is scoped: an unknown label still contributes no typed
-    // errors, so ordinary attachments stay ordinary bytes.
+    // The typed branch is scoped: the signature bundle is opaque bytes with no
+    // producer, and it still validates. Note the bundle must be REBUILT rather
+    // than mutated — every approval signs the Gate F decision digest, so any
+    // edit to a decision field invalidates all six signatures by design.
     const fixture = gateFFixture()
-    const payload = Buffer.from('{"not":"typed release evidence"}\n')
-    fixture.files.set('release/promotion-manifest.sigstore.json', payload)
-    const release = {
-      ...fixture.evidence.release,
-      signatureBundle: {
-        ...fixture.evidence.release.signatureBundle,
-        sha256: gateFEvidenceSha256(payload),
-      },
-    }
-    const result = validateContent(
-      canonicalGateFEvidence({ ...fixture.evidence, release }),
-      fixture,
-    )
+    const signatureBundlePath = fixture.evidence.release.signatureBundle.path
+    const bytes = fixture.files.get(signatureBundlePath)
 
-    expect(result.ok).toBe(true)
+    expect(bytes).toBeDefined()
+    expect(Buffer.from(bytes ?? []).toString('utf8')).not.toContain('"candidate"')
+    expect(validateFixture(fixture).ok).toBe(true)
   })
 
   it('fails against the shipped registry, where counsel has approved nothing', () => {
@@ -577,6 +382,215 @@ describe('Gate F legal revision set', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) {
       expect(result.errors.join('\n')).toContain('release.legalRevisionSet:')
+    }
+  })
+})
+
+describe('Gate F typed producers cover every required key (REL-01-T6)', () => {
+  // Before this, three of eighteen keys had a producer. The other fifteen
+  // accepted any bytes whose digest matched the index, which made "a
+  // successful deploy without this complete evidence join cannot substitute
+  // for Gate F" unenforceable for 83% of the join.
+  const PLACEHOLDER = '{"status":"passed"}\n'
+
+  it.each(GATE_F_REQUIRED_GATE_IDS)('rejects an opaque placeholder for %s', (gateId) => {
+    const fixture = gateFFixture(undefined, {
+      gateArtifacts: { [gateId]: PLACEHOLDER },
+    })
+    const result = validateFixture(fixture)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errors.join('\n')).toContain(`gates.${gateId}.evidence.0`)
+    }
+  })
+
+  it('accepts the complete bundle every one of those controls is measured against', () => {
+    expect(validateFixture(gateFFixture())).toMatchObject({ ok: true })
+  })
+
+  it('refuses canary evidence produced against the rehearsal project', () => {
+    // Rehearsal and production deliberately cannot share a Railway project.
+    // Relabelling rehearsal evidence as production evidence is the single
+    // cheapest way to fake a promotion, so it must fail structurally.
+    const base = gateFFixture()
+    const fixture = gateFFixture(undefined, {
+      gateArtifacts: {
+        'promotion.canary_window': rehearsalCanaryArtifact(base.files),
+      },
+    })
+    const result = validateFixture(fixture)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errors.join('\n')).toContain('gates.promotion.canary_window')
+    }
+  })
+})
+
+describe('Gate F approval envelope (REL-01-T7)', () => {
+  it('fails closed when no signature verifier is supplied', () => {
+    const fixture = gateFFixture()
+    const result = validateGateFEvidenceBundle(
+      fixture.content,
+      readFixture(fixture),
+      // Deliberately keeps the legal context so the ONLY missing input is the
+      // verifier: no verifier must mean closed, not skipped.
+      { legalRevisionSet: LEGAL_CONTEXT, legalDocuments: fixture.options.legalDocuments },
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errors.join('\n')).toContain(
+        'no approval signature verifier was supplied',
+      )
+    }
+  })
+
+  it.each(GATE_F_REQUIRED_APPROVAL_ROLES)('rejects an unsigned %s approval', (role) => {
+    const fixture = gateFFixture(undefined, { unsignedRoles: [role] })
+    const result = validateFixture(fixture)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errors.join('\n')).toContain(
+        `approvals.${role}.evidence: signature_invalid`,
+      )
+    }
+  })
+
+  it.each(GATE_F_REQUIRED_APPROVAL_ROLES)(
+    'rejects a %s approval signed by a key enrolled for nobody',
+    (role) => {
+      const fixture = gateFFixture(undefined, { strangerSignedRoles: [role] })
+      const result = validateFixture(fixture)
+
+      expect(result.ok).toBe(false)
+      if (!result.ok) {
+        expect(result.errors.join('\n')).toContain(
+          `approvals.${role}.evidence: unknown_key`,
+        )
+      }
+    },
+  )
+
+  it('rejects a counsel signature that covers a different Gate F decision', () => {
+    // The legal digest and the manifest digest both match; only the decision
+    // the signature actually covers is different. Without the decision digest
+    // in the signed payload this substitution would be invisible.
+    const fixture = gateFFixture(undefined, {
+      counselDecisionSha256: digest('9'),
+    })
+    const result = validateFixture(fixture)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errors.join('\n')).toContain(
+        'approvals.counsel.evidence: signature_invalid',
+      )
+    }
+  })
+
+  it('binds the decision digest to the index bytes without the approvals', () => {
+    const fixture = gateFFixture()
+
+    expect(gateFDecisionSha256(fixture.evidence)).toBe(fixture.decisionSha256)
+    expect(
+      gateFDecisionSha256({
+        ...fixture.evidence,
+        approvals: fixture.evidence.approvals.slice(0, 1) as GateFEvidence['approvals'],
+      }),
+    ).toBe(fixture.decisionSha256)
+  })
+})
+
+describe('Gate F legal approval checklist (REL-01-T8)', () => {
+  it('rejects a bundle whose legal approval expired before completion', () => {
+    const fixture = gateFFixture(undefined, {
+      legalChecklistExpiresAt: '2026-08-28T11:59:00.000Z',
+    })
+    const result = validateFixture(fixture)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errors.join('\n')).toContain('release.legalApprovalChecklist')
+    }
+  })
+
+  it('rejects an undecided LEG-01 fact', () => {
+    const base = completeGateFBundle()
+    const checklistBytes = base.files.get('legal/approval-checklist.json')
+    expect(checklistBytes).toBeDefined()
+    const parsed = JSON.parse(
+      Buffer.from(checklistBytes ?? []).toString('utf8'),
+    ) as Record<string, unknown> & { facts: { key: string; decided: boolean }[] }
+    const undecided = canonicalReleaseEvidence({
+      ...parsed,
+      facts: parsed.facts.map((fact, index) =>
+        index === 0 ? { ...fact, decided: false } : fact,
+      ),
+    })
+    const fixture = gateFFixture(undefined, { legalChecklistContent: undecided })
+    const result = validateFixture(fixture)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errors.join('\n')).toContain('is undecided')
+    }
+  })
+
+  it('fails closed when the on-disk legal documents cannot be re-hashed', () => {
+    const fixture = gateFFixture()
+    const result = validateGateFEvidenceBundle(fixture.content, readFixture(fixture), {
+      verifyApproval: fixture.options.verifyApproval,
+      legalRevisionSet: fixture.options.legalRevisionSet,
+    })
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errors.join('\n')).toContain(
+        'on-disk legal document digests cannot be verified without a document reader',
+      )
+    }
+  })
+
+  it('rejects a checklist that decides a different legal revision set', () => {
+    const base = completeGateFBundle()
+    const checklistBytes = base.files.get('legal/approval-checklist.json')
+    const parsed = JSON.parse(
+      Buffer.from(checklistBytes ?? []).toString('utf8'),
+    ) as Record<string, unknown>
+    const foreign = canonicalReleaseEvidence({
+      ...parsed,
+      legalRevisionSetSha256: digest('7'),
+    })
+    const fixture = gateFFixture(undefined, { legalChecklistContent: foreign })
+    const result = validateFixture(fixture)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errors.join('\n')).toContain(
+        'checklist does not decide the legal revision set this bundle binds',
+      )
+    }
+  })
+
+  it('cannot be satisfied by an engineering identity signing counsel', () => {
+    // Role separation is structural: counsel's row is signed by counsel's
+    // enrolled key. An engineering identity in the approverIdentity string
+    // does not change who signed, and a bundle that renames the approver
+    // without re-signing fails.
+    const fixture = gateFFixture(undefined, {
+      approverIdentities: { counsel: 'Kodes Agency' },
+      strangerSignedRoles: ['counsel'],
+    })
+    const result = validateFixture(fixture)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) {
+      expect(result.errors.join('\n')).toContain(
+        'approvals.counsel.evidence: unknown_key',
+      )
     }
   })
 })

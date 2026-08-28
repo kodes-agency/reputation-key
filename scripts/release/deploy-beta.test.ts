@@ -165,3 +165,49 @@ describe('release:beta people cutover evidence v2 display', () => {
     expect(summary.toLowerCase()).not.toContain('membership')
   })
 })
+
+describe('release:beta promotion read-back evidence (REL-01-T5)', () => {
+  const source = readFileSync(resolve('scripts/release/deploy-beta.ts'), 'utf8')
+
+  it('owns --readback-output and threads it through --verify-only', () => {
+    expect(source).toMatch(/OWN_VALUE_FLAGS[\s\S]*?'--readback-output'/u)
+    expect(source).toMatch(
+      /readbackOutputDirectory: flagValue\(args, '--readback-output'\)/u,
+    )
+    expect(source).toMatch(
+      /options\.readbackOutputDirectory\s*\?\s*emitPromotionReadback\(/u,
+    )
+  })
+
+  it('writes the four artifacts before reporting, so a failing check still emits', () => {
+    // The failure list is APPENDED to the verify failures after the write, and
+    // the write is not conditional on the verification having passed. A
+    // read-back that wrote nothing on failure would let an operator re-run
+    // until the environment looked right and file only the passing capture.
+    const emitter = source.slice(
+      source.indexOf('function emitPromotionReadback('),
+      source.indexOf('function report('),
+    )
+    expect(emitter).toMatch(
+      /const artifacts = promotionReadbackArtifacts\(observations\)/u,
+    )
+    expect(emitter).toMatch(/writePromotionReadbackArtifacts\(/u)
+    expect(emitter).not.toMatch(/outcome === 'passed'/u)
+    expect(emitter.indexOf('writePromotionReadbackArtifacts')).toBeLessThan(
+      emitter.indexOf('artifact.errors'),
+    )
+  })
+
+  it('binds every read-back artifact to the reviewed Railway target', () => {
+    expect(source).toMatch(/projectId: options\.railwayPlanEvidence\.target\.projectId/u)
+    expect(source).toMatch(
+      /environmentId: options\.railwayPlanEvidence\.target\.environmentId/u,
+    )
+    expect(source).toMatch(/projectName: PRODUCTION_RAILWAY_PROJECT_NAME/u)
+  })
+
+  it('records a dormant-cell refusal for every non-us catalogue id', () => {
+    expect(source).toMatch(/DORMANT_DATA_CELL_IDS\.map\(\(cell\) => \{/u)
+    expect(source).toMatch(/no_railway_contract|catalogue_state_denied/u)
+  })
+})

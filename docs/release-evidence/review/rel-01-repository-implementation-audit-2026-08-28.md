@@ -298,3 +298,37 @@ The repository-wide typecheck was not green, for concurrent non-REL changes:
 Those files are outside this audit's authorized response/lifecycle/legal/CNV
 boundaries and were not changed. Consequently this report does not claim a
 clean full-CI candidate.
+
+## Addendum — 2026-08-28, REL-01-T5 … T11
+
+The gaps this audit recorded in the repository half of REL-01 are now closed.
+Nothing here is a live-readiness claim; every item below is repository
+machinery whose whole purpose is to REFUSE.
+
+- **Immutable candidate.** `pnpm release:freeze-candidate` emits
+  `repkey-candidate-freeze-1`, pinning the lockfile, migration head, generated
+  route tree, release-controller and IaC digests, capability and Data Cell
+  catalogue policy versions, Playwright package/browser versions, and the legal
+  revision-set digest, with `cells` fixed to the exact tuple `["us"]`. It
+  refuses a dirty worktree, an unmerged SHA, generated-artifact drift, an
+  existing freeze file, and a source edit that raced the write.
+- **Every Gate F key has a producer.** All eighteen
+  `GATE_F_REQUIRED_GATE_IDS` are now parsed against a producer schema — the
+  three wave-2 live promotion proofs, four `repkey-promotion-readback-1`
+  artifacts from `release:beta --verify-only --readback-output`, and eleven
+  normalized importers under `src/shared/release/live-evidence/`. A generic
+  `{"status":"passed"}` file now fails for every key.
+- **Approvals are authenticated.** `approverIdentity` is no longer an
+  unverified string. Six roles sign a canonical Ed25519 payload over
+  `{role, approverIdentity, approvedAt, releaseManifestSha256,
+legalRevisionSetSha256, gateFDecisionSha256}`; the repository holds PUBLIC
+  keys only, and verification is fail-closed on an absent verifier, an
+  unenrolled role, an unknown key, and an invalid signature.
+- **Legal approval must be current.** `release.legalApprovalChecklist` requires
+  every LEG-01 fact to be decided, re-hashes each `docs/legal` document, and is
+  refused when it expires before Gate F completes.
+
+The audit's live-evidence conclusions are unchanged: none of this proves a
+Railway, provider, backup or counsel fact. `security/gate-f-approval-roles.json`
+enrols no key today and the shipped legal registry still carries counsel drafts,
+so no Gate F bundle can validate — which is the honest state of the program.

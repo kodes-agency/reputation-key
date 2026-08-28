@@ -16,7 +16,7 @@
 // A deliberate future change edits this file with the reasoning; an accidental
 // one fails here instead of six weeks later in a coverage audit.
 
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -161,5 +161,76 @@ describe('local hooks', () => {
     // hash-pinned inputs fails in seconds instead of ~7 minutes later in CI.
     expect(prePush).toContain('git diff --name-only origin/main...HEAD')
     for (const gate of ARTIFACT_GATES) expect(prePush).toContain(gate)
+  })
+})
+
+describe('REL-01 Gate F producers', () => {
+  // REL-01 required-clean-gates: "The exact executable gate list lives in CI
+  // and the release manifest; this prose cannot silently replace a missing CI
+  // job." A producer that is not addressable, not typechecked, and not bound
+  // to the signed controller digest is prose.
+  const RELEASE_PRODUCERS = {
+    'release:freeze-candidate': 'scripts/release/freeze-release-candidate.ts',
+    'release:deployed-journeys': 'scripts/release/run-deployed-critical-journeys.ts',
+    'release:observe-canary': 'scripts/release/observe-canary-window.ts',
+    'release:rehearse-recovery': 'scripts/release/rehearse-recovery.ts',
+    'release:capture-readback': 'scripts/release/capture-promotion-readback.ts',
+    'release:import-live-evidence': 'scripts/release/import-live-evidence.ts',
+    'release:prepare-approval': 'scripts/release/prepare-gate-f-approval.ts',
+  } as const
+
+  it('declares every producer as an addressable script pointing at a real file', () => {
+    for (const [script, file] of Object.entries(RELEASE_PRODUCERS)) {
+      expect(packageJson.scripts[script]).toBe(`tsx ${file}`)
+      expect(existsSync(resolve(ROOT, file))).toBe(true)
+    }
+  })
+
+  it('keeps every producer inside the signed release-controller digest', () => {
+    // A producer outside RELEASE_AUTHORITY_SOURCE_PATHS could be edited
+    // without changing contract.releaseControllerSha256, so the signed
+    // manifest would no longer describe the code that produced the evidence.
+    const authority = read('scripts/release/release-authority-digest.ts')
+    for (const file of Object.values(RELEASE_PRODUCERS)) {
+      const covered = ['scripts/release', 'src/shared'].some(
+        (path) => file.startsWith(`${path}/`) && authority.includes(`'${path}'`),
+      )
+      expect(covered).toBe(true)
+    }
+    // scripts/beta is deliberately NOT covered, so no producer may live there.
+    expect(authority).not.toContain("'scripts/beta'")
+    for (const file of Object.values(RELEASE_PRODUCERS)) {
+      expect(file.startsWith('scripts/beta/')).toBe(false)
+    }
+  })
+
+  it('runs every producer test in the unit project', () => {
+    const vitestConfig = read('vitest.config.ts')
+    expect(vitestConfig).toContain("'scripts/release/**/*.test.ts'")
+    expect(vitestConfig).toContain("'src/**/*.test.ts'")
+    // scripts/beta/**/*.test.ts is not in the include list, which is why no
+    // producer test may be placed there.
+    expect(vitestConfig).not.toContain("'scripts/beta/**/*.test.ts'")
+    for (const file of Object.values(RELEASE_PRODUCERS)) {
+      expect(existsSync(resolve(ROOT, file.replace(/\.ts$/u, '.test.ts')))).toBe(true)
+    }
+  })
+
+  it('keeps the Gate F approval role map tracked and public-key only', () => {
+    const roles = read('security/gate-f-approval-roles.json')
+    expect(roles).not.toMatch(/PRIVATE KEY/u)
+    expect(JSON.parse(roles)).toMatchObject({
+      version: 'repkey-gate-f-approval-roles-1',
+    })
+  })
+
+  it('no longer describes the deployed runner, canary observer and recovery orchestrator as missing', () => {
+    const runbook = read('docs/operations/immutable-release-promotion.md')
+    for (const producer of Object.keys(RELEASE_PRODUCERS)) {
+      expect(runbook).toContain(producer)
+    }
+    expect(runbook).not.toMatch(/no safe deployed runner exists/iu)
+    expect(runbook).not.toMatch(/there is no canary observer/iu)
+    expect(runbook).not.toMatch(/no recovery orchestrator/iu)
   })
 })

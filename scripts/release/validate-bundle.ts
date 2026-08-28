@@ -4,6 +4,7 @@
 //   pnpm release:validate-evidence -- --release-sha=<sha> [--manifest-sha256=<digest>]
 //   pnpm release:validate-evidence -- --release-id=beta-rc-2026-08-08.1
 //   pnpm release:validate-evidence -- --gate-f-index=<path> [--evidence-root=<path>]
+//        [--approval-roles=<path>] [--legal-root=<path>]
 //
 // Both formats are read-only and path-contained. The release SHA form validates
 // the promoted beta-local-1 manifest, checksum, approvals, and immutable index.
@@ -15,6 +16,11 @@ import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { validateGateFEvidenceBundle } from '../../src/shared/release/gate-f-evidence'
+import {
+  GATE_F_APPROVAL_ROLE_KEYS_PATH,
+  createGateFApprovalVerifier,
+  parseGateFApprovalRoleKeys,
+} from '../../src/shared/release/gate-f-approval-envelope'
 import { validatePromotedLocalEvidence } from '../../src/shared/testing/beta-local-evidence'
 import {
   BETA_RELEASE_EVIDENCE_FILES,
@@ -41,7 +47,72 @@ function isContainedPath(root: string, candidate: string): boolean {
   )
 }
 
-function validateGateFIndex(indexArg: string, evidenceRootArg?: string): number {
+/**
+ * REL-01-T7/T8: the CLI supplies the two inputs Gate F fails closed without —
+ * the TRACKED public-key role map and a repository-relative reader for the
+ * legal documents. Neither is optional: a bundle validated without them would
+ * be accepting approvals nobody can verify over documents nobody re-hashed.
+ */
+function gateFValidationOptions(
+  approvalRolesArg: string | undefined,
+  legalRootArg: string | undefined,
+):
+  | Readonly<{ ok: true; options: Parameters<typeof validateGateFEvidenceBundle>[2] }>
+  | Readonly<{ ok: false; errors: readonly string[] }> {
+  const rolesPath = resolve(
+    process.cwd(),
+    approvalRolesArg ?? GATE_F_APPROVAL_ROLE_KEYS_PATH,
+  )
+  let raw: unknown
+  try {
+    raw = JSON.parse(readFileSync(rolesPath, 'utf8'))
+  } catch (error) {
+    return {
+      ok: false,
+      errors: [
+        `Gate F approval role key map ${rolesPath} could not be read: ${error instanceof Error ? error.message : String(error)}`,
+      ],
+    }
+  }
+  const parsed = parseGateFApprovalRoleKeys(raw)
+  if (!parsed.ok) {
+    return {
+      ok: false,
+      errors: parsed.errors.map((error) => `approval role keys: ${error}`),
+    }
+  }
+  // `--legal-root` exists so a reviewer can validate a bundle against the
+  // document set it was approved over. It is path-contained for the same
+  // reason `--evidence-root` is.
+  const legalRoot = realpathSync(resolve(process.cwd(), legalRootArg ?? '.'))
+  return {
+    ok: true,
+    options: {
+      verifyApproval: createGateFApprovalVerifier(parsed.roleKeys),
+      legalDocuments: {
+        readDocument: (path: string) => {
+          const candidate = resolve(legalRoot, path)
+          if (!isContainedPath(legalRoot, candidate)) {
+            throw new Error('legal document resolved outside the legal root')
+          }
+          return readFileSync(candidate)
+        },
+      },
+    },
+  }
+}
+
+function validateGateFIndex(
+  indexArg: string,
+  evidenceRootArg?: string,
+  approvalRolesArg?: string,
+  legalRootArg?: string,
+): number {
+  const options = gateFValidationOptions(approvalRolesArg, legalRootArg)
+  if (!options.ok) {
+    for (const error of options.errors) console.error(error)
+    return 2
+  }
   try {
     const indexPath = resolve(process.cwd(), indexArg)
     const evidenceRootPath = resolve(process.cwd(), evidenceRootArg ?? dirname(indexPath))
@@ -78,6 +149,7 @@ function validateGateFIndex(indexArg: string, evidenceRootArg?: string): number 
         }
         return readFileSync(realPath)
       },
+      options.options,
     )
     if (!result.ok) {
       console.error(`Gate F evidence index ${indexArg} is invalid:`)
@@ -100,20 +172,26 @@ export function runReleaseValidationCli(args: readonly string[]): number {
   const gateFIndex = argValue(args, '--gate-f-index')
   const expectedManifestSha256 = argValue(args, '--manifest-sha256')
   const evidenceRoot = argValue(args, '--evidence-root')
+  const approvalRoles = argValue(args, '--approval-roles')
+  const legalRoot = argValue(args, '--legal-root')
   const selectedModes = [releaseSha, releaseId, gateFIndex].filter(
     (value) => value != null,
   )
   if (
     selectedModes.length !== 1 ||
     (expectedManifestSha256 != null && releaseSha == null) ||
-    (evidenceRoot != null && gateFIndex == null)
+    (evidenceRoot != null && gateFIndex == null) ||
+    (approvalRoles != null && gateFIndex == null) ||
+    (legalRoot != null && gateFIndex == null)
   ) {
     console.error(
       'Usage: choose exactly one of --release-sha=<sha>, --release-id=<id>, or --gate-f-index=<path>',
     )
     return 2
   }
-  if (gateFIndex) return validateGateFIndex(gateFIndex, evidenceRoot)
+  if (gateFIndex) {
+    return validateGateFIndex(gateFIndex, evidenceRoot, approvalRoles, legalRoot)
+  }
 
   if (releaseSha) {
     if (
