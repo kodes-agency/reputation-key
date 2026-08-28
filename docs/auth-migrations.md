@@ -1,10 +1,11 @@
-# Auth-Table Schema Migrations — STRICT (no manual SQL)
+# Auth-Table Schema Migrations — Runtime Authority
 
 **Status:** Accepted
 **Scope:** Auth tables managed by better-auth
 
-Auth tables and their custom columns are managed by the **schema API in the exact
-repository-pinned `better-auth` runtime**, never by hand-written SQL. The
+Auth tables and their custom columns are managed in normal development and
+deployment by the **schema API in the exact repository-pinned `better-auth`
+runtime**, not by hand-written SQL. The
 `scripts/better-auth-schema.ts` runner exposes this as `pnpm auth:generate` and
 `pnpm auth:migrate`. Manual `ALTER TABLE` / `CREATE TABLE` against auth tables is
 a **STRICT NO** — it silently drifts the live DB. (This exact drift once left
@@ -15,29 +16,30 @@ invite 500'd.)
 `verification`, `organization`, `member`, `invitation`, and ALL
 `additionalFields` on them.
 
-**Business tables (Drizzle):** all 139 app-owned tables — `drizzle.config.ts` points at `src/shared/db/schema/migratable.ts` (no `tablesFilter` whitelist since BQC-5.4). Migrate-based: `pnpm db:generate` then **commit `drizzle/`** (it is version-controlled); `pnpm db:migrate` is the deploy path. Do NOT use `db:push` on business tables — it desyncs the journal (root cause of the prior schema drift). The barrel deliberately excludes auth tables — neither `db:push` nor `db:migrate` will touch them. **Schema authority + current deploy order: `src/shared/db/CONTEXT.md` (BQC-5.4).**
+**Business tables (Drizzle):** the migratable barrel currently exports all 195 app-owned tables. `drizzle.config.ts` points at `src/shared/db/schema/migratable.ts` and derives its `tablesFilter` from that same barrel, so there is no second hand-maintained allowlist. Migrate-based: `pnpm db:generate` then **commit `drizzle/`** (it is version-controlled); `pnpm db:migrate` is the deploy path. Do NOT use `db:push` on business tables — it desyncs the journal (root cause of the prior schema drift). The barrel deliberately excludes auth tables — neither `db:push` nor `db:migrate` will touch them. **Schema authority + current deploy order: `src/shared/db/CONTEXT.md` (BQC-5.4).**
 
-## Fresh-DB provisioning (the one manual-SQL exception)
+## Fresh-database provisioning
 
-> **2026-07-28 (BQC-5.4): largely superseded.** Better Auth's schema API
-> creates the 8 baseline tables on an empty database (verified — CI relies on
-> it), so step 1 is no longer required; the `mv_*` materialized views in step
-> 4 were folded into migration 0004 and dropped by migration 0008, so
-> `pnpm db:matviews` is historical. The live deploy order is
-> `auth:migrate → db:migrate → registered sidecars` (step 5 below) — see
-> `src/shared/db/CONTEXT.md`. Kept below for the historical record.
+The pinned Better Auth schema API creates all eight auth tables on an empty
+database. This is exercised by CI and by `pnpm db:migrate-deploy`; no manual
+auth bootstrap belongs in the normal deployment path.
 
-Better Auth's CLI never captured a **baseline** migration — `better-auth_migrations/` contains only 2 incremental files that assume the 8 baseline tables already exist. So `pnpm auth:migrate` on an **empty** database silently reports "no migrations needed" and creates nothing. A committed bootstrap SQL is the reproducible fix:
+Use one of these equivalent authorities:
 
-| Step | Command                                                                                 | Creates                                                                                                                                                                                                                                                               |
-| ---- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | `pnpm db:bootstrap-auth`                                                                | The 8 BA auth tables + baseline indexes (`scripts/migrations/0000-auth-tables-bootstrap.sql`, idempotent `CREATE TABLE IF NOT EXISTS`)                                                                                                                                |
-| 2    | `pnpm auth:migrate`                                                                     | Applies the 2 incremental BA files (idempotent no-ops post-bootstrap; safe for future increments too)                                                                                                                                                                 |
-| 3    | `pnpm db:migrate`                                                                       | Drizzle business tables (`drizzle/`)                                                                                                                                                                                                                                  |
-| 4    | `pnpm db:matviews`                                                                      | 3 materialized views (`mv_daily_metrics`, `mv_weekly_metrics`, `mv_daily_inbox_metrics`) + unique indexes + the GBP place-id partial unique index. Raw SQL by necessity (complex aggregations Drizzle can't express; adding to tablesFilter risks destructive drift). |
-| 5    | `psql "$DATABASE_URL" -f scripts/migrations/2026-07-06-permission-version-triggers.sql` | DAC: `permission_version` + `organization_role_policy` tables, bump triggers/functions, last-owner backstop, the `organization_role_org_role_lower_unique` index                                                                                                      |
+- production/pre-deploy: `pnpm db:migrate-deploy` (Better Auth → staged
+  Drizzle journal → registered sidecars → provider-subject initialization);
+- explicit local/CI sequence: `pnpm auth:migrate` → `pnpm db:migrate` →
+  `pnpm db:google-property-binding-index` → the registered DAC SQL sidecar.
 
-The bootstrap SQL is the **only** hand-written SQL for auth tables, and only because the CLI can't synthesize the baseline. It is idempotent (`IF NOT EXISTS`) so it no-ops on a DB that already has the tables (verified against Neon). Captured from the live Neon schema 2026-07-06; re-capture via `pg_dump --schema-only` if the auth schema changes. Detail: `docs/ba-fresh-db-provisioning.md`.
+`pnpm db:bootstrap-auth` is the one explicit exception: a compatibility-only
+empty-database fallback for constrained recovery environments that cannot
+execute the application runner. Its SQL must remain semantically identical to
+the pinned runtime. The `auth-bootstrap-compatibility.integration.test.ts`
+gate compares its columns, constraints, and indexes against runtime-created
+tables. The fallback must be followed by `pnpm auth:migrate` plus
+`pnpm check:schema-drift`. Never
+run it as a substitute for a missing incremental auth migration, and never use
+it to patch an existing auth table.
 
 **Single source of truth for auth additionalFields:** `src/shared/auth/org-schema.ts` — imported by BOTH `src/shared/auth/auth.ts` (runtime) and `src/shared/auth/auth-cli.ts` (migration CLI). Edit it ONCE; both configs see the change. Never re-declare additionalFields inline in either file.
 
@@ -49,7 +51,9 @@ The bootstrap SQL is the **only** hand-written SQL for auth tables, and only bec
 
 ## Do NOT
 
-- Add `scripts/migrations/*.sql` for auth tables — that folder is legacy business-table patches only.
+- Add or change `scripts/migrations/*.sql` for auth tables. The named recovery
+  bootstrap is frozen compatibility infrastructure, not a second migration
+  track.
 - Re-declare `additionalFields` inline in `auth.ts` or `auth-cli.ts` — use `org-schema.ts`.
 - Hand-patch an auth column with raw SQL when the tooling "didn't add it."
 

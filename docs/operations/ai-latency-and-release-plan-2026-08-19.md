@@ -1,5 +1,12 @@
 # AI latency fix + release plan — 2026-08-19
 
+> **Historical record.** This captures the measured AI incident and release
+> procedure used on 2026-08-19. It is not current deployment authority. Use
+> [Immutable release promotion](immutable-release-promotion.md),
+> [ADR 0057](../adr/0057-single-us-beta-data-cell.md), and the current
+> [AI release-evidence index](../product-readiness-program-2026-07/ai-governance/ai-release-evidence-index.md)
+> for any new candidate.
+
 ## What changed and why
 
 `reasoning: { effort: 'xhigh' }` was hardcoded as a type literal in
@@ -100,11 +107,11 @@ Free memory first (the largest consumers are a 28-process WebKit/Safari fan and
 ```sh
 cd /Users/bozhidardenev/kodes/projects/rep-key
 
-# 1. Fresh-migrate proof (the one path not yet verified locally)
+# 1. Fresh-migrate proof through the production pre-deploy authority
 createdb effort_fresh
-psql postgresql://test:test@localhost:5432/effort_fresh \
-  -f scripts/migrations/0000-auth-tables-bootstrap.sql
-DATABASE_URL=postgresql://test:test@localhost:5432/effort_fresh pnpm db:migrate
+DATABASE_URL=postgresql://test:test@localhost:5432/effort_fresh \
+  DATABASE_URL_POOLER=postgresql://test:test@localhost:5432/effort_fresh \
+  pnpm db:migrate-deploy
 
 # 2. Gates
 pnpm typecheck && pnpm lint:ci && pnpm test:unit

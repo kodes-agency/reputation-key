@@ -1,18 +1,18 @@
 # Closed-beta release runbook — 2026-08-19
 
-> **Historical release notice:** section 3 records the former
-> `google-closed-beta` working-tree deployment procedure. It is superseded by
-> `immutable-release-promotion.md` and is prohibited for every `cell-*`
-> environment. The Google approval and AI activation incident history remains
-> useful; the `railway up` release commands do not.
+> **Historical record only — execute none of this document's Railway
+> commands.** Sections 1, 1A, 2, and 3 describe the former
+> `google-closed-beta` environment. They are superseded for every `cell-*`
+> environment by `railway-data-cells.md` and
+> `immutable-release-promotion.md`. The incident analysis remains useful; its
+> implicit target selection, direct variable changes, and `railway up`
+> commands are prohibited.
 
-Both ceremonies are complete: the Google Content approvals are re-signed and
-installed (section 1), the AI canary passes and all three capability heads are
-restored with the worker's outbox dispatcher enabled (section 2). This document
-is now the record of what was done and the procedure for the next re-approval or
-re-canary.
+Both ceremonies were completed in the legacy environment. This document is a
+record of what happened, not the procedure for a re-approval, role rotation,
+re-canary, release, or rollback in `cell-us`.
 
-## 1. Re-sign the Google Content approvals — DONE 2026-08-19 09:19Z
+## 1. Historical Google Content re-sign — DONE 2026-08-19 09:19Z
 
 Both capabilities re-approved at `routeCatalogue=2026-08-16` (bindings
 `94dce861-64cf-4e38-8c87-a83866358fe0` for `property.import_gbp_v2`,
@@ -21,8 +21,8 @@ expiring 2026-09-17), role public keys rotated on web + worker, both redeployed
 `SUCCESS`. Every stored version column matches the compiled constants, so
 `approvalRecordFromRow` resolves instead of returning null. The keystore now
 exists: later re-approvals prompt for the password once, not twice. The
-procedure below stands for the next re-approval (route catalogue change, role
-rotation, or the 2026-09-17 expiry).
+steps below were specific to that incident and do not stand for the next
+re-approval.
 
 **A re-sign moves two deployment variables, not one.** The first attempt rotated
 only `GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON`, and the import page then
@@ -37,12 +37,14 @@ differed; every deployment fact (release SHA, image digests, migration head,
 cohort, all version pins) already agreed.
 
 Fixed live at 09:38Z by patching both digests per capability on web + worker and
-redeploying, and fixed permanently in the signer: with `--railway-environment` it
-now rotates the runtime bindings alongside the role keys, comparing every other
-field with RFC 8785 canonicalization first — `imageDigests` legitimately arrives
-in a different key order, and it aborts naming the drifted fields if a real
-deployment fact has changed, because that needs fresh evidence rather than a
-re-sign.
+redeploying. The former signer then rotated both values when given
+`--railway-environment`; that implicit-target mutation has since been retired.
+The current signer rejects both that flag and `--apply` before any database
+write. It prepares all four private bundles plus the public-key map. The current
+source-less production `cell-us` activation is now owned by the exact-target
+`infra:railway:google-content-approval` controller documented in
+`railway-data-cells.md`; none of this historical section's commands or target
+assumptions apply to it.
 
 **Why:** `GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION` is now approval-bound. It
 pins the Performance route URL, the wire `dailyMetrics` set, the dailyRange
@@ -51,46 +53,13 @@ without re-approval. Before this ceremony every approval row predated the column
 and carried the `unapproved-pre-0056` sentinel, so both Google capabilities
 denied `approval_unavailable`.
 
-**What it costs:** nothing but your password. The command re-signs the _existing_
-evidence — it never mints new evidence — and installs it through the normal
-`ops:google-content-approval` path, which stays ticketed and audited.
-
-```bash
-# 1. Open a tunnel to the private database (leave running in another shell).
-railway connect Postgres16 --environment google-closed-beta --tunnel-only --port 55500
-
-# 2. Point DATABASE_URL at the tunnel and give the ops CLI a valid env. `--apply`
-#    shells out to `ops:google-content-approval`, which boots the operator
-#    runtime and validates the whole env schema, so these seven must be present
-#    or the install fails after the bundles are already signed. Take them from
-#    the deployed service so they match production exactly.
-export DATABASE_URL="$(railway variable list --service web --environment google-closed-beta --kv \
-  | sed -n 's/^DATABASE_URL=//p' | sed 's#@[^:/]*:[0-9]*#@127.0.0.1:55500#')"
-export OPS_OPERATOR_IDENTITIES=denev@kodes.agency
-VARS="$(railway variable list --service web --environment google-closed-beta --kv)"
-for v in BETTER_AUTH_SECRET BETTER_AUTH_URL RESEND_API_KEY GOOGLE_CLIENT_ID \
-         GOOGLE_CLIENT_SECRET ENCRYPTION_KEY OAUTH_STATE_SECRET; do
-  export "$v=$(printf '%s\n' "$VARS" | sed -n "s/^$v=//p")"
-done
-unset VARS
-
-# 3. Dry run: validates both bundles, writes nothing.
-pnpm ops:google-content-approval-sign \
-  --operator denev@kodes.agency \
-  --reason "Route catalogue 2026-08-16 approval" \
-  --ticket closed-beta-ai-release-2026-08-19
-
-# 4. Apply, and rotate the role public keys on web + worker in one step.
-pnpm ops:google-content-approval-sign \
-  --operator denev@kodes.agency \
-  --reason "Route catalogue 2026-08-16 approval" \
-  --ticket closed-beta-ai-release-2026-08-19 \
-  --apply --railway-environment google-closed-beta
-
-# 5. Redeploy so the new role public keys are live.
-railway up --service web --environment google-closed-beta --detach
-railway up --service worker --environment google-closed-beta --detach
-```
+**Current `cell-us` disposition:** preparation remains read-only remotely and
+writes private local artifacts. Do not invoke `ops:google-content-approval`
+manually with those bundles, copy either value through the Railway dashboard,
+or redeploy web/worker outside the signed release controller. Use only the
+reviewed plan/apply-or-recover/verify ceremony in `railway-data-cells.md`; it
+requires all four capabilities killed and fully drained, and it changes no
+service source.
 
 First run creates `.secrets/google-content-approval-roles.enc.json` (gitignored,
 mode 0600, scrypt N=2^17 + AES-256-GCM). Keep the password: every later
@@ -102,9 +71,12 @@ capability_compliance_approvals order by created_at desc limit 2;` shows
 `2026-08-16` / `approved`, then load a property Dashboard — the Performance card
 renders instead of "temporarily unavailable".
 
-### 1A. Provision the Google admission database role
+### 1A. Historical Google admission database-role notes
 
-Releases containing migration `0079_google-admission-database-authority` require
+These notes explain the least-privilege role used by the former environment;
+the commands below are retained as incident evidence and must not be aimed at
+`cell-us`. Releases containing migration
+`0079_google-admission-database-authority` require
 `google-execution-admission` to use a dedicated PostgreSQL login. The runtime
 login has `CONNECT`/schema `USAGE`, no table or sequence privileges, and
 `EXECUTE` on exactly four security-definer permit operations. Startup readiness

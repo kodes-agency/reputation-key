@@ -59,6 +59,10 @@ Do not combine a dependency upgrade with an unrelated domain migration.
 - `@types/node` is exact and must remain on the same supported major as Node.
 - pnpm `10.6.5` comes only from `package.json#packageManager`; the SHA-pinned
   setup action intentionally has no second version input.
+- Release images use SHA-pinned Docker setup actions with Docker 29.7.2,
+  Buildx 0.32.1, and BuildKit 0.30.0 from a digest-pinned driver image. The
+  fixed `ubuntu-24.04` label's observed GitHub `ImageVersion` is signed into
+  promotion manifest v4 and must be identical across all eight build roles.
 - Better Auth schema commands, shadcn MCP configuration, Drizzle Kit, Railway,
   and all other listed CLIs execute repository-installed binaries.
 - Mutable network execution through `npx -y`, `pnpm dlx`, or an `@latest`

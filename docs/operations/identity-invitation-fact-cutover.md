@@ -25,10 +25,14 @@ provide the complete cross-store guarantee.
 - The scrub is report-first, bounded by `--batch-size`, idempotent, and safely
   restartable. The remaining target predicates in PostgreSQL/Redis are the
   durable checkpoint: repeat the same command after any interruption.
-- The scrub covers `outbox_events`, `activity_log`, every retained state of the
+- The scrub covers `outbox_events`, `recent_activity_entries`, every retained state of the
   `default` and `domain-events` queues, and the failure `quarantine` queue. For
   each targeted BullMQ job it also inspects/redacts `failedReason`, stack
   traces, job logs, and the quarantine envelope's own failure reason.
+- During the migration-0160 rolling window, queue inspection and redaction treat
+  both `project-recent-activity` and the drain-only `insert-activity-log` name as
+  the same privacy target. Do not contract this recognition before the legacy
+  queue-depth proof in the Recent Activity identifier-cutover runbook.
 - Reports distinguish `privacyDirty` (a retained address/private detail) from
   `compatibilityV1` (a content-free sentinel envelope). `verifiedAt` seals the
   former privacy guarantee. It deliberately does not claim the later v1
@@ -124,9 +128,9 @@ Redis bindings. Never point one invocation at another cell's resources.
    pnpm ops:queue resume default --operator <id> --reason "invitation fact v2 verified" --apply
    ```
 
-Repeat steps 1–8 for every approved Railway Data Cell. Geographic enablement is
-not complete until each cell has its own zero-privacy verification and sealed
-contract row.
+For beta, run steps 1–8 once against `cell-us` and seal its contract row. If a
+future Data Cell is approved, it must run this cutover independently before it
+can accept traffic; dormant cell identifiers create no beta work.
 
 ## Rollback and forward recovery
 
@@ -155,19 +159,19 @@ contract row.
 
 ## Executable evidence map
 
-| Surface                                                                          | Evidence                                                                                                                      |
-| -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Domain event/new producer                                                        | `contexts/identity/domain/events.test.ts`, `application/use-cases/invite-member.test.ts`                                      |
-| v1/v2 database guard and row-lock race                                           | `shared/db/identity-invitation-fact-contract.integration.test.ts`                                                             |
-| Relay/in-memory claim race                                                       | `shared/outbox/envelope.test.ts`                                                                                              |
-| New Activity payload                                                             | `contexts/activity/infrastructure/event-handlers/on-member-invited.test.ts`                                                   |
-| PostgreSQL plus live/default/domain/quarantine Redis copies and bounded restart  | `shared/jobs/infrastructure/repositories/identity-invitation-fact-contract.integration.test.ts`                               |
-| Delayed terminal-attempt quarantine publication and failure-confirmation barrier | `shared/jobs/worker-observability.test.ts`, `shared/jobs/failure-quarantine.test.ts`                                          |
-| Worker barrier queue has no ambiguous client command timeout                     | `shared/jobs/queue.test.ts`                                                                                                   |
-| Redrive sanitization and proof-based pending recovery                            | `shared/jobs/failure-quarantine.test.ts`                                                                                      |
-| Pre-BQR bare payload and late Activity persistence defense                       | `shared/ops/identity-invitation-fact-contract.test.ts`, `contexts/activity/application/use-cases/insert-activity-log.test.ts` |
-| Sentry email/user scrubbing                                                      | `shared/observability/telemetry.test.ts`                                                                                      |
-| Content-free log/metric vocabulary                                               | `shared/architecture/observability-schema.test.ts`, `shared/observability/metrics-schema.test.ts`                             |
+| Surface                                                                          | Evidence                                                                                                                          |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Domain event/new producer                                                        | `contexts/identity/domain/events.test.ts`, `application/use-cases/invite-member.test.ts`                                          |
+| v1/v2 database guard and row-lock race                                           | `shared/db/identity-invitation-fact-contract.integration.test.ts`                                                                 |
+| Relay/in-memory claim race                                                       | `shared/outbox/envelope.test.ts`                                                                                                  |
+| New Activity payload                                                             | `contexts/activity/infrastructure/event-handlers/on-member-invited.test.ts`                                                       |
+| PostgreSQL plus live/default/domain/quarantine Redis copies and bounded restart  | `shared/jobs/infrastructure/repositories/identity-invitation-fact-contract.integration.test.ts`                                   |
+| Delayed terminal-attempt quarantine publication and failure-confirmation barrier | `shared/jobs/worker-observability.test.ts`, `shared/jobs/failure-quarantine.test.ts`                                              |
+| Worker barrier queue has no ambiguous client command timeout                     | `shared/jobs/queue.test.ts`                                                                                                       |
+| Redrive sanitization and proof-based pending recovery                            | `shared/jobs/failure-quarantine.test.ts`                                                                                          |
+| Pre-BQR bare payload and late Activity persistence defense                       | `shared/ops/identity-invitation-fact-contract.test.ts`, `contexts/activity/application/use-cases/project-recent-activity.test.ts` |
+| Sentry email/user scrubbing                                                      | `shared/observability/telemetry.test.ts`                                                                                          |
+| Content-free log/metric vocabulary                                               | `shared/architecture/observability-schema.test.ts`, `shared/observability/metrics-schema.test.ts`                                 |
 
 All markers in these proofs are synthetic. Evidence artifacts record counts,
 versions, queue states, and correlation IDs only—never the marker value.

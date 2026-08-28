@@ -4,6 +4,11 @@ This read-only report compares retained People data with the canonical beta
 model before any legacy contraction or corrective migration. It does not create,
 update, or remove rows.
 
+It also reconciles immutable event-time Primary Staff snapshots on Guest
+Qualified Scans, Guest responses, Metric readings, and Metric corrections.
+Supporting responsibilities are excluded. A later responsibility end does not
+rewrite or invalidate the interval captured by an earlier fact.
+
 Run it with an explicit observation time so an unchanged database produces the
 same ordered rows and SHA-256 fingerprint:
 

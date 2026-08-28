@@ -6,14 +6,18 @@
 retention, data-retention registry, quarantine TTL, evidence retention, region/
 encryption/access posture for internal beta.
 
-Exit-matrix line: **"Backup/PITR and retention configuration is
-documented/active."** BQC-8 (not this slice) performs the TIMED
-restoration/recovery proof against the RPO/RTO targets.
+The legacy exit-matrix label is **"Backup/PITR and retention configuration is
+documented/active."** Only the documentation and repository retention/recovery
+controls are evidenced locally. The latest retained Railway inspection says
+backup/PITR is not active, and REG-04/Gate E now requires both activation and a
+timed restore before customer data; BQC-8/REG-04 performs that external proof
+against the RPO/RTO targets.
 
 Related: [runbooks.md](runbooks.md) §7/§8,
 [bqr6-recovery-rehearsal.md](bqr6-recovery-rehearsal.md) (procedure + targets),
 [ADR 0038](../adr/0038-beta-service-objectives-and-recovery.md) (RPO ≤ 15 min,
-RTO ≤ 4 h), [ADR 0048](../adr/0048-property-region-routing.md) (single-cell posture).
+RTO ≤ 4 h), [ADR 0057](../adr/0057-single-us-beta-data-cell.md) (current
+single-US beta posture).
 
 ---
 
@@ -23,19 +27,46 @@ RTO ≤ 4 h), [ADR 0048](../adr/0048-property-region-routing.md) (single-cell po
 migrate services attach to it). Older docs/scripts that say "Neon" are stale —
 this document is the current reference.
 
-**Configuration (platform console, owner: Bozhidar Denev).** Backups/PITR are a
-platform feature, configured and verified in the Railway project console —
-NOT in app code or railway.json (which deliberately carries no backup knobs):
+**Required platform configuration (owner: Bozhidar Denev).** Backups/PITR are
+a platform feature, configured and verified in the Railway project console —
+NOT in app code or `.railway/railway.ts` (which deliberately carries no backup
+knobs). This paragraph is a target procedure, not evidence that it is active.
+The latest retained live inspection reports PITR disabled and no backup for the
+candidate PostgreSQL service. `cell-us` therefore cannot accept customer data
+until a fresh exact-target record proves all items below:
 
-- Railway project → Postgres service → **Backups** tab: backup schedule is
-  enabled; the retention window and the available restore points are listed
-  there. The restore point used in any drill/incident must be inside that
-  window — confirm in the console BEFORE starting (this is also the
-  `ops:restore-preflight` checklist reminder).
+- Railway project → `cell-us` → `Postgres` → **Backups** tab: enable the
+  approved schedule and PITR, then retain the exact project/environment/service
+  identity, schedule, latest successful point, WAL/PITR health, earliest/latest
+  restore range, observation time, and alert-routing test. The restore point
+  used in any drill/incident must be inside that range — confirm before
+  starting (this is also the `ops:restore-preflight` checklist reminder).
 - **Where to verify:** the same Backups panel (schedule, last successful
-  backup, window) at drill time and after any platform plan change.
+  backup, WAL/PITR state, and range) at drill time and after any platform plan
+  or service change. Repository tests cannot satisfy this check.
 - **Target:** PITR granularity must satisfy RPO ≤ 15 min (ADR 0038); BQC-8
-  times the actual achieved RPO/RTO in the recovery rehearsal.
+  times the actual achieved RPO/RTO in the recovery rehearsal. RPO/RTO are
+  internal operating targets, never a customer-facing SLA.
+
+**Catastrophic-loss logical export.** Before customer data, counsel/platform
+must approve the export cadence, retention, encryption/key owner, destination
+account, and destination region. The destination must be outside the source
+Railway project/account while remaining inside the approved legal/residency
+boundary. Each run retains only a content-free manifest (source cell/service,
+started/completed time, encrypted-object digest and size, schema/migration
+head, outcome, and destination policy identifier). Monitor latest-success age
+against the approved cadence and exercise a read/restore verification. No
+runner, destination, cadence approval, or live success evidence is claimed by
+this repository today; this is a release blocker, not an instruction to create
+an unapproved export destination.
+
+The exact external monitoring inventory is registered in
+`src/shared/observability/regional-platform-signals.ts`: backup age, WAL/PITR
+health, restore range, logical-export success, web/sidecar availability, error
+rate, and release/config drift for `cell-us` only. Application-owned queue,
+outbox, reply, and Google-sync signals remain in
+`src/shared/observability/alert-definitions.ts`. A registered row is a required
+configuration/evidence contract; it is not deployed alert evidence.
 
 **PITR EXECUTION stays platform-owned** (registered finding — runbooks.md
 "Registered gaps"): no app/ops command performs a point-in-time restore.
@@ -64,7 +95,7 @@ cutover mechanism. This procedure uses the PITR sibling described by
 "$RESTORE_DATABASE_SERVICE_NAME" --tunnel-only`; use the loopback URL it
    prints as `DATABASE_URL`. An in-platform invocation is accepted only when
    the URL is the exact `<service>.railway.internal` hostname and Railway's
-   injected project/environment identity names the authoritative `cell-*`
+   injected project/environment identity names the authoritative `cell-us`
    environment. Public TCP proxies and the live `Postgres.railway.internal`
    service fail closed.
 4. Export `RESTORE_MODE=isolated`, `RESTORE_SOURCE_CELL`,
@@ -77,11 +108,21 @@ cutover mechanism. This procedure uses the PITR sibling described by
    (`pnpm db:migrate-deploy`, advisory-locked and idempotent). Re-run preflight
    and schema parity. If the migration is not forward-safe, stop; do not repair
    the production source or reverse DDL from this workflow.
-6. Run `pnpm ops:restore-verify --operator <id>` first as a dry run. Review the
-   content-free retention, Google-import, external-effect-authority, and active
-   Data Cell move inventory. Any unresolved move blocks recovery.
-7. Run `pnpm ops:restore-verify --operator <id> --reason <change-ref> --apply
---yes ops:restore-verify`. The command, in process and without BullMQ:
+6. Run `pnpm ops:restore-verify --operator <id>` first as a dry run. Review and
+   retain its canonical aggregate Review report and exact approval request,
+   together with the content-free retention, Google-import,
+   external-effect-authority, and active Data Cell move inventory. Any
+   unresolved move blocks recovery. Follow
+   [review-lifecycle-recovery-approval](review-lifecycle-recovery-approval.md)
+   for independent signing and exact-byte configuration.
+7. The checked-in composition remains inspection-only unless all three
+   restore-scoped approval values carry a current, trusted, digest-pinned
+   Ed25519 bundle for that exact report, target, recovery UUID, generation,
+   and policy. Missing, denied, stale, changed, replayed, or untrusted authority
+   refuses before mutation. With the independently reviewed bundle configured
+   only on the isolated verifier, run
+   `pnpm ops:restore-verify --operator <id> --reason <change-ref> --apply --yes
+ops:restore-verify`. The authorized command, in process and without BullMQ,
    applies all overdue retention rules; reconciles Google import retention;
    invalidates restored sessions and verification tokens; cancels pending
    invitations, email/digest work, legacy imports, and unpublished reply
@@ -90,8 +131,10 @@ cutover mechanism. This procedure uses the PITR sibling described by
    backfills; and recovery-fences every unpublished outbox row. It then writes
    one durable, cell-scoped `recovery_runs` generation and proves zero
    remaining unfenced authority. Exact retries replay the same generation.
-   Record the command's printed `run=<uuid>` and recovery generation; these
-   are the only accepted serving attestation for the sibling.
+   Record the authorized command's printed `run=<uuid>` and recovery
+   generation; these are the only accepted serving attestation for the sibling.
+   The repository executor is local implementation proof only: this step is
+   not complete until the actual signed sibling rehearsal succeeds.
 8. Re-run the dry run and require all counts to remain zero. Boot a temporary,
    no-public-domain web verifier from the exact signed web image with
    `RESTORE_MODE=isolated` and a service-scoped private sibling URL. Boot
@@ -159,12 +202,19 @@ and endpoint variables are incomplete.
 
 The target Railway topology binds those variables to one private, cell-local
 `object-store` bucket; the variable names retain their `AWS_S3_*` compatibility
-prefix and do not identify the live storage provider. Bucket lifecycle is
-external platform configuration. Before any activation, record the exact live
-provider/cell, lifecycle rules for source and derived objects, orphan cleanup,
-deletion and restore behavior, and the end-to-end object-store readiness
-evidence required by SAFE-01. A repository configuration expectation is not
-proof that those live controls exist.
+prefix and do not identify the live storage provider. The hourly,
+capability-independent `portal-upload-source-cleanup` job expires at most 100
+issuances per run, removes only server-derived private source keys, removes
+non-published derivative keys for rejected/expired/superseded issuances, and
+records separate durable completion timestamps. Deletes are idempotent and a
+failed row is retried without losing already recorded progress. Finalized
+public variants are never selected as orphans.
+
+Bucket lifecycle remains external platform configuration. Before activation,
+record the exact live provider/cell, provider lifecycle rules, deletion and
+restore behavior, and an end-to-end drill proving the scheduled cleanup against
+the real object store. Repository cleanup authority is not proof that the live
+provider accepted or retained each delete.
 
 ## 4. Log / trace retention
 
@@ -179,49 +229,59 @@ proof that those live controls exist.
   (no protected content in logs/metrics/evidence); alert dispatch is an
   error-level schema-conformant log line + optional `ALERT_WEBHOOK_URL` POST.
 
-## 5. Data-retention registry (RETENTION_POLICY_VERSION 5)
+## 5. Data-retention registry (RETENTION_POLICY_VERSION 8)
 
 Evidence for every deletion or redaction lands in `retention_runs` (content-free:
 subject, separate deletion/redaction counts, outcome, policy version). Scheduled sweeps run on the
 background queue (retention-sweep offset 3h, quarantine-ttl-sweep offset 4h).
 The former Review row-delete schedule is deliberately absent. REV-01 expand
 storage now separates and atomically erases provider content while preserving
-Review/Reply identity, but SAFE-03 keeps recurring execution quarantined until
-the backfill/shadow-parity audit and checkpointed cutover in
+Review/Reply/Inbox identity. All Review-content purge adapters use the same
+bounded, checkpointed Review authority. SAFE-03 still keeps recurring execution
+quarantined: normal production composition has no apply authorizer, and the job
+accepts only report/shadow mode until the backfill/shadow-parity audit,
+restore/erasure proof, and checkpointed cutover in
 `review-source-content-cutover.md` are sealed.
 
-| Subject                                     | Table / store                                                     | TTL / trigger                                                                                                                                                                       | Mechanism                                                                                                      |
-| ------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `reviews.purge`                             | `review_source_contents` + nullable `reviews` compatibility cache | Source policy: raw content 30d from last fetch (refresh-due 25d) — ADR 0031, no grace                                                                                               | Field-level erasure implemented and tested; recurring schedule remains quarantined pending parity/cutover seal |
-| `reviews.purge.connection`                  | `reviews` by connection                                           | on disconnect (event-driven)                                                                                                                                                        | source-content purge (bounded executor)                                                                        |
-| `reviews.purge.property`                    | `reviews` by property                                             | on approved property purge                                                                                                                                                          | source-content purge                                                                                           |
-| `reviews.purge.organization`                | `reviews` by org                                                  | on approved org purge                                                                                                                                                               | source-content purge                                                                                           |
-| `inbox_items.purge.property`                | `inbox_items` by property                                         | companion of property purge                                                                                                                                                         | source-content purge                                                                                           |
-| `integration.google_import_v2.lifecycle`    | import parents/items + Property operation receipts                | item `effect_deadline_at`; parent fixed `purge_at` at first terminal + 30d; Property receipt fixed 32d and retention release                                                        | receipt-first terminalization, bounded parent purge/release event, released receipt sweep                      |
-| `guest_response_session_bindings.expired`   | `guest_response_session_bindings`                                 | exact signed-session expiry, maximum 24h                                                                                                                                            | bounded deletion; stale reads deny independently of sweep timing                                               |
-| `guest_response_private_feedback.expired`   | `guest_response_private_feedback`                                 | 90d from private-feedback submission                                                                                                                                                | bounded deletion; stale reads deny independently of sweep timing                                               |
-| `guest_responses.deidentified_fact`         | content-free `guest_responses` fact/tombstone                     | 24 calendar months from initial rating                                                                                                                                              | bounded deletion                                                                                               |
-| `scan_events.guest_session_pseudonym`       | `scan_events.session_id`                                          | 24h                                                                                                                                                                                 | bounded redaction; visit fact remains                                                                          |
-| `ratings.guest_session_pseudonym`           | `ratings.session_id`                                              | 24h                                                                                                                                                                                 | bounded redaction; legacy rating remains                                                                       |
-| `feedback.guest_session_pseudonym`          | `feedback.session_id`                                             | 24h                                                                                                                                                                                 | bounded redaction; legacy feedback remains                                                                     |
-| `guest_destination_action_receipts.expired` | `guest_destination_action_receipts`                               | signed-session expiry, maximum 24h                                                                                                                                                  | bounded deletion; content-free action fact remains                                                             |
-| `scan_events.abuse_pseudonym`               | `scan_events.ip_hash`                                             | 7d                                                                                                                                                                                  | bounded redaction; visit fact remains                                                                          |
-| `ratings.abuse_pseudonym`                   | `ratings.ip_hash`                                                 | 7d                                                                                                                                                                                  | bounded redaction; legacy rating remains                                                                       |
-| `feedback.abuse_pseudonym`                  | `feedback.ip_hash`                                                | 7d                                                                                                                                                                                  | bounded redaction; legacy feedback remains                                                                     |
-| `outbox_events.published`                   | `outbox_events`                                                   | 30d from `published_at`                                                                                                                                                             | retention-sweep                                                                                                |
-| `event_consumer_receipts`                   | `event_consumer_receipts`                                         | 30d                                                                                                                                                                                 | retention-sweep                                                                                                |
-| `review_sync_runs`                          | `review_sync_runs`                                                | 30d                                                                                                                                                                                 | retention-sweep                                                                                                |
-| `review_refresh_runs`                       | `review_refresh_runs`                                             | 30d                                                                                                                                                                                 | retention-sweep                                                                                                |
-| `inbound_webhook_receipts`                  | `inbound_webhook_receipts`                                        | 30d                                                                                                                                                                                 | retention-sweep                                                                                                |
-| `notifications`                             | `notifications`                                                   | 90d                                                                                                                                                                                 | retention-sweep                                                                                                |
-| `notification_digest_batches`               | immutable digest batch + member rows                              | 90d after accepted/terminal; open retry evidence is retained                                                                                                                        | retention-sweep; member rows cascade with batch                                                                |
-| `notification_email_queue`                  | `notification_email_queue`                                        | 90d, terminal states only                                                                                                                                                           | retention-sweep                                                                                                |
-| `activity_log`                              | `activity_log`                                                    | 90d                                                                                                                                                                                 | retention-sweep                                                                                                |
-| `gbp_cache.expired`                         | `gbp_cache`                                                       | at `expires_at`                                                                                                                                                                     | retention-sweep                                                                                                |
-| `policy_decision_audit`                     | `policy_decision_audit`                                           | **365d** (beta audit-trail horizon, BQC-7.8)                                                                                                                                        | retention-sweep                                                                                                |
-| `audit_logs`                                | `audit_logs`                                                      | **365d** (same horizon, BQC-7.8)                                                                                                                                                    | retention-sweep                                                                                                |
-| `quarantine.ttl`                            | `quarantine` BullMQ queue                                         | `QUARANTINE_TTL_DAYS` (default 30d)                                                                                                                                                 | quarantine-ttl-sweep                                                                                           |
-| `retention_runs`                            | `retention_runs`                                                  | **indefinite-by-design** — the evidence chain FOR deletions; deleting it would erase the proof of erasure. Size monitored via the metrics snapshot; no rule exists by deliberation. | none (monitored)                                                                                               |
+| Subject                                     | Table / store                                                                                | TTL / trigger                                                                                                                                                                       | Mechanism                                                                                                                                                                                  |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `reviews.purge`                             | `review_source_contents` + nullable `reviews` compatibility cache                            | Source policy: raw content 30d from last fetch (refresh-due 25d) — ADR 0031, no grace                                                                                               | Shared atomic lifecycle authority; recurring job remains report/shadow-only pending parity/cutover seal                                                                                    |
+| `reviews.purge.connection`                  | `reviews` by connection                                                                      | on disconnect (event-driven)                                                                                                                                                        | shared atomic lifecycle authority (bounded pages)                                                                                                                                          |
+| `reviews.purge.property`                    | `reviews` by property                                                                        | on approved property purge                                                                                                                                                          | shared atomic lifecycle authority (bounded pages)                                                                                                                                          |
+| `reviews.purge.organization`                | `reviews` by org                                                                             | on approved org purge                                                                                                                                                               | shared atomic lifecycle authority (bounded pages)                                                                                                                                          |
+| `inbox_items.purge.property`                | `inbox_items` by property                                                                    | companion of property purge                                                                                                                                                         | source-content purge                                                                                                                                                                       |
+| `integration.google_import_v2.lifecycle`    | import parents/items + Property operation receipts                                           | item `effect_deadline_at`; parent fixed `purge_at` at first terminal + 30d; Property receipt fixed 32d and retention release                                                        | receipt-first terminalization, bounded parent purge/release event, released receipt sweep                                                                                                  |
+| `guest_contact_requests.expired_material`   | encrypted Contact Request email/name material                                                | exact per-row `expires_at`, 30 days after explicit submission                                                                                                                       | Guest-owned serialized/checkpointed bounded redaction through the daily retention sweep; stale reads deny independently; runs even while activation is blocked                             |
+| `guest_response_session_bindings.expired`   | `guest_response_session_bindings`                                                            | exact signed-session expiry, maximum 24h                                                                                                                                            | bounded deletion; stale reads deny independently of sweep timing                                                                                                                           |
+| `guest_response_private_feedback.expired`   | `guest_response_private_feedback`                                                            | 90d from private-feedback submission                                                                                                                                                | bounded deletion; stale reads deny independently of sweep timing                                                                                                                           |
+| `guest_responses.deidentified_fact`         | content-free `guest_responses` fact/tombstone                                                | 24 calendar months from initial rating                                                                                                                                              | bounded deletion                                                                                                                                                                           |
+| `scan_events.guest_session_pseudonym`       | `scan_events.session_id`                                                                     | 24h                                                                                                                                                                                 | bounded redaction; visit fact remains                                                                                                                                                      |
+| `ratings.guest_session_pseudonym`           | `ratings.session_id`                                                                         | 24h                                                                                                                                                                                 | bounded redaction; legacy rating remains                                                                                                                                                   |
+| `feedback.guest_session_pseudonym`          | `feedback.session_id`                                                                        | 24h                                                                                                                                                                                 | bounded redaction; legacy feedback remains                                                                                                                                                 |
+| `guest_destination_action_receipts.expired` | `guest_destination_action_receipts`                                                          | signed-session expiry, maximum 24h                                                                                                                                                  | bounded deletion; content-free action fact remains                                                                                                                                         |
+| `guest_network_pressure_records.expired`    | `guest_network_pressure_records`                                                             | exact per-row `expires_at`, seven days after observation                                                                                                                            | bounded complete-row deletion; content-free `retention_runs` evidence                                                                                                                      |
+| `ai.authorization_derivatives`              | retired `ai_review_analyses`, Property aggregate rows, and Property Trend schedules/outcomes | authorization transition hides the prior exact generation immediately; physical deletion must complete within 24h                                                                   | PostgreSQL-leased, eight-attempt bounded erasure every five minutes; class-separated lifecycle counts and content-free `retention_runs` evidence; latest failure trips `retention.failure` |
+| `scan_events.abuse_pseudonym`               | nullable legacy `scan_events.ip_hash`                                                        | 7d                                                                                                                                                                                  | restore/backfill defence; migration 0142 cleared active rows and canonical writes stay null                                                                                                |
+| `ratings.abuse_pseudonym`                   | nullable legacy `ratings.ip_hash`                                                            | 7d                                                                                                                                                                                  | restore/backfill defence; migration 0142 cleared active rows and canonical writes stay null                                                                                                |
+| `feedback.abuse_pseudonym`                  | nullable legacy `feedback.ip_hash`                                                           | 7d                                                                                                                                                                                  | restore/backfill defence; migration 0142 cleared active rows and canonical writes stay null                                                                                                |
+| `outbox_events.published`                   | `outbox_events`                                                                              | 30d from `published_at`                                                                                                                                                             | retention-sweep                                                                                                                                                                            |
+| `event_consumer_receipts`                   | `event_consumer_receipts`                                                                    | 30d                                                                                                                                                                                 | retention-sweep                                                                                                                                                                            |
+| `review_sync_runs`                          | `review_sync_runs`                                                                           | 30d                                                                                                                                                                                 | retention-sweep                                                                                                                                                                            |
+| `review_refresh_runs`                       | `review_refresh_runs`                                                                        | 30d                                                                                                                                                                                 | retention-sweep                                                                                                                                                                            |
+| `inbound_webhook_receipts`                  | `inbound_webhook_receipts`                                                                   | 30d                                                                                                                                                                                 | retention-sweep                                                                                                                                                                            |
+| `notifications`                             | `notifications`                                                                              | 90d                                                                                                                                                                                 | retention-sweep                                                                                                                                                                            |
+| `notification_digest_batches`               | immutable digest batch + member rows                                                         | 90d after accepted/terminal; open retry evidence is retained                                                                                                                        | retention-sweep; member rows cascade with batch                                                                                                                                            |
+| `notification_email_queue`                  | `notification_email_queue`                                                                   | 90d, terminal states only                                                                                                                                                           | retention-sweep                                                                                                                                                                            |
+| `recent_activity_replay_facts`              | `recent_activity_replay_facts`                                                               | exactly 90d from `source_occurred_at`                                                                                                                                               | retention-sweep; content-free recovery authority, independent of 30d outbox retention                                                                                                      |
+| `recent_activity_actor_label_redactions`    | `recent_activity_actor_label_redactions`                                                     | until `expires_at` (90d from latest bounded actor-label redaction)                                                                                                                  | retention-sweep; content-free privacy fence prevents delayed delivery/rebuild from restoring labels                                                                                        |
+| `recent_activity_entries`                   | `recent_activity_entries`                                                                    | 90d                                                                                                                                                                                 | retention-sweep                                                                                                                                                                            |
+| `operational_action_history_records`        | Restricted Operational Action History records + tenant-local sequence head                   | Proposed 365d; **assessment-only pending counsel**. Active legal holds override eligibility.                                                                                        | No destructive sweep/apply exists. Bounded assessment emits only counts/cutoff; identifier redaction is one-way and legal-hold-aware.                                                      |
+| `operational_action_history_legal_holds`    | Operational Action History legal-hold placement/release evidence                             | Active holds retained; released-hold lifecycle pending counsel-approved policy                                                                                                      | No destructive sweep. Append-oriented placement; database permits only the explicit one-time release transition.                                                                           |
+| `gbp_cache.expired`                         | `gbp_cache`                                                                                  | at `expires_at`                                                                                                                                                                     | retention-sweep                                                                                                                                                                            |
+| `policy_decision_audit`                     | `policy_decision_audit`                                                                      | **365d** (beta audit-trail horizon, BQC-7.8)                                                                                                                                        | retention-sweep                                                                                                                                                                            |
+| `audit_logs`                                | `audit_logs`                                                                                 | **365d** (same horizon, BQC-7.8)                                                                                                                                                    | retention-sweep                                                                                                                                                                            |
+| `quarantine.ttl`                            | `quarantine` BullMQ queue                                                                    | `QUARANTINE_TTL_DAYS` (default 30d)                                                                                                                                                 | quarantine-ttl-sweep                                                                                                                                                                       |
+| `retention_runs`                            | `retention_runs`                                                                             | **indefinite-by-design** — the evidence chain FOR deletions; deleting it would erase the proof of erasure. Size monitored via the metrics snapshot; no rule exists by deliberation. | none (monitored)                                                                                                                                                                           |
 
 Version history: v1 (BQC-1.6) initial 9-rule registry + lifecycle purges; v2
 (BQC-7.8) + `policy_decision_audit` / `audit_logs` at 365d, +
@@ -231,7 +291,10 @@ session-pseudonym and 7-day network-abuse-pseudonym redaction while preserving
 the de-identified managerial facts; v4 adds 90-day terminal notification-digest
 batch evidence while retaining open retry batches; v5 splits signed recovery
 authority, private-feedback text, and de-identified
-Guest Response facts into independently expiring stores. `pnpm ops:purge
+Guest Response facts into independently expiring stores; v6 adds canonical
+seven-day Guest network-pressure deletion; v7 adds retired-generation AI
+derivative erasure; v8 adds scheduled, bounded Contact Request encrypted-material
+expiry evidence without activating Contact Request. `pnpm ops:purge
 retention --operator <id>` reports content-free per-rule counts and exact
 cutoffs without requiring Redis or changing business rows; `--apply` remains a
 separately confirmed bounded enqueue. The report identifies Google import
@@ -244,20 +307,32 @@ the whole sweep.
 - **Deletion evidence** (`retention_runs`) and **decision audit**
   (`policy_decision_audit`) / **action audit** (`audit_logs`): per the registry
   above — audit tables at the 365d horizon, `retention_runs` indefinite.
+- **Restricted Operational Action History:** migration 0149 is a distinct
+  identifier-only authority. Its proposed 365-day horizon is not part of the
+  retention sweep: local code can assess eligibility/holds but cannot delete.
+  Counsel approval, deployed least-privilege proof, and isolated restore/export
+  evidence are required before a destructive lifecycle can be designed.
 - **CI artifacts** (GitHub Actions): SBOM (`sbom-spdx`) 30d, container image
   SBOMs (`sbom-images-spdx`) 30d, e2e failure artifacts 7d
   (`.github/workflows/ci.yml`).
 - **Release evidence**: `docs/release-evidence/beta/` is git-retained
   (permanent, reviewable history).
 - **Operational Redis keys**: alert firing-state 24h TTL (re-notify window),
+  one global content-free Guest observation-loss hash whose stale five-minute
+  bucket fields are pruned on every access and whose key has a refreshed
+  24h05m TTL (coverage epoch and counters share the same evictable unit; after
+  Cache Redis loss/reset/eviction, monitor state stays explicitly unavailable
+  until one full observation window has elapsed),
   worker heartbeat 900s TTL (one missed 5-min beat tolerated).
 
 ## 7. Region placement, encryption, access
 
-- **Region:** the signed Data Cell catalogue is authoritative. `us` is the only
-  currently accepting cell; `europe` and `global` remain provisioning until
-  their independent Railway topology, wrong-cell, provider, and recovery
-  evidence passes. No cell fails over to another by policy (runbooks §12).
+- **Region:** the signed Data Cell catalogue is authoritative. Beta has one
+  accepting and deployable cell, `cell-us`, in Railway US West/California with
+  object storage in Railway US West/California (`sjc`). The identifier does not
+  establish a guaranteed city. All 245 supported countries allocate there.
+  `europe` and `global` are denied future identifiers, not beta deployments.
+  Unknown or stale assignments never fall back silently (ADR 0057).
 - **Encryption at rest:** platform-managed — Railway Postgres storage and
   service volumes are encrypted by the platform; OAuth tokens are
   additionally AES-256-GCM encrypted at the application layer
@@ -265,8 +340,9 @@ the whole sweep.
 - **Encryption in transit:** TLS — `DATABASE_URL` with `sslmode=require`,
   Redis over TLS where the provider endpoint requires it, HTTPS at the
   platform edge (HSTS in production).
-- **Access:** the Railway project (console + env vars + backups + logs) is
-  owned by the platform owner (Bozhidar Denev); no shared third-party access.
+- **Access:** each dedicated Railway project (console + env vars + backups +
+  logs) is owned by the platform owner (Bozhidar Denev); no shared third-party
+  access. Production and rehearsal use separately scoped credentials.
 - **Secrets:** stored as Railway service variables, **distinct per
   environment** (production / staging / test identities are separate — the
   BQC-7.6 placeholder-secret boot guard refuses known test values in

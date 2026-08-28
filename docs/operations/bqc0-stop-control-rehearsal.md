@@ -35,7 +35,7 @@
 ### 2. Durable relay / dispatcher / schedules stop
 
 - **Procedure:** keep `OUTBOX_DISPATCHER_ENABLED` unset/false (default). Worker log confirms: "Outbox relay + dispatcher DISABLED (BQR-0 containment)". Consumers stay registered but inert; events still deliver via the in-process bus.
-- **Schedules:** dark-context schedules (goal/badge/leaderboard/digest) are gated by `isCapabilityJobEnabled` and get no-op handlers (`bootstrap.ts`); the remaining schedules (health-check, metric rollups, review retention) have no external side effects. To stop processing entirely without deleting jobs, pause the `background` queue (control 4).
+- **Schedules:** blocked/dark schedules are gated by `isCapabilityJobEnabled`, receive no executable handler, and are reconciled out of BullMQ (`bootstrap.ts`, `worker/index.ts`). Any already-queued remnant fails unknown-job admission and moves to the governed quarantine instead of being acknowledged. Retained schedules still authorize at dispatch. To stop processing entirely without deleting jobs, pause the `background` queue (control 4).
 - **Proof:** worker boot log lines (captured during the control-1 smoke); dark-job gating covered by `dark-capability-enforcement.test.ts` (27 tests).
 
 ### 3. Deny new property activation

@@ -73,8 +73,10 @@ pnpm perf:seed-scale -- --clean --dry-run                               # count 
 - `--base-time` anchors `reviewed_at`/`expires_at` at load time; it is NOT
   part of the hash (identity and structure are deterministic; wall-clock is
   environment-relative).
-- Distribution: US-heavy with denied `europe`/`global` cells (the BQC-4
-  routing proofs need them) and ~30% of reviews on the top 5% of properties.
+- Distribution: geographically varied supported countries/timezones, all
+  allocated to the one `us` beta cell, and ~30% of reviews on the top 5% of
+  properties. Dormant-cell denial stays in focused routing tests rather than
+  corrupting the production-shaped capacity dataset.
 - `--verify` checks exact table counts, property org/region integrity, the
   exact per-property review distribution, skew bounds, and the manifest hash.
 - `--clean` deletes by recomputed exact ids in FK order — never a
@@ -137,11 +139,11 @@ pnpm perf:cell -- down --drop                               # stop; drop the cel
   `last_fetched_at` / `content_expires_at` NULL, so routine BQC-8.2 execution
   cannot erase its own 500,000-row fixture. The separate
   `--source-lifecycle` profile populates deterministic fetch clocks and content
-  hashes. Its `retention` run still drives the production
-  `purge-expired-reviews` queue handler, but SAFE-03 now requires that handler
-  to return `quarantined` without mutations. Consequently this scenario must
-  fail release evidence until REV-01 supplies the stable-identity erasure path,
-  then requires zero expired rows and zero remaining canaries.
+  hashes. Its `retention` run deliberately has no lifecycle seam while Review
+  apply is quarantined; the executor therefore fails closed instead of treating
+  the report-only `purge-expired-reviews` compatibility job as erasure proof.
+  An approved cutover harness must later inject the separate apply seam and
+  prove zero expired rows and zero remaining canaries.
 
 Typical execution session:
 
@@ -257,9 +259,11 @@ pnpm perf:seed-scale -- --source-lifecycle --orgs=100 --properties=5000 --review
 pnpm perf:run -- --scenario=retention --out=docs/release-evidence/beta/<release-id>/raw
 ```
 
-`retention` fails unless the production purge path clears every expired
-fetch-clock row, accounts for every original expired row, proves the canary
-set disappeared, and keeps each sweep within its configured keyset bound.
+`retention` currently fails at `lifecycle harness configured`. That is the
+required non-evidence posture until external shadow parity, restore proof, and
+cutover approval admit a separate apply seam. Once admitted, it must clear every
+expired fetch-clock row, account for every original expired row, prove the
+canary set disappeared, and keep each sweep within its configured keyset bound.
 
 Every BQC-8.4/8.5 fault has an executor. A staging operator supplies
 `BQC8_FAULT_RUNNER=/absolute/path/to/controller`; the controller receives the
