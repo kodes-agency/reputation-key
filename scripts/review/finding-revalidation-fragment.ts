@@ -7,9 +7,9 @@ import { z } from 'zod/v4'
 
 export const ACCEPTED_REVIEW_SHA = '718fad1807b7422885584660bd3580f2a3a49113' as const
 
-export const REVALIDATED_FAMILIES = ['ARCH', 'AUTH', 'DATA', 'DEC', 'EVT'] as const
+const REVALIDATED_FAMILIES = ['ARCH', 'AUTH', 'DATA', 'DEC', 'EVT'] as const
 
-export const REVALIDATED_FAMILIES_BY_FRAGMENT = {
+const REVALIDATED_FAMILIES_BY_FRAGMENT = {
   'arch-auth-data-dec-evt': REVALIDATED_FAMILIES,
   'data-runtime-safeguards': ['SEC'],
   'gate-gov-ops': ['GATE', 'GOV', 'OPS'],
@@ -360,7 +360,7 @@ export function validateFindingRevalidationFragment(
   return actualIds
 }
 
-export function runFindingRevalidationFragmentCli(args: readonly string[]): number {
+function runFindingRevalidationFragmentCli(args: readonly string[]): number {
   try {
     const fragmentPath = resolve(
       args[0] ??

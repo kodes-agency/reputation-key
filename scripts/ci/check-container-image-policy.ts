@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, posix, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -266,6 +266,52 @@ export function validateReleaseContainerCoverage(
   return listDifference(expected, actual, 'release image matrix')
 }
 
+/**
+ * Prove that the caller-supplied beta-evidence digest names a retained,
+ * non-expired artifact from the exact CI run. Copying an arbitrary digest into
+ * a signed manifest is not an evidence binding.
+ */
+export function validateReleaseEvidenceBinding(workflow: string): readonly string[] {
+  const requiredFragments = [
+    'BETA_EVIDENCE_MANIFEST_SHA256: ${{ inputs.beta_evidence_manifest_sha256 }}',
+    'test "$GITHUB_RUN_ATTEMPT" = "1"',
+    'test "$(jq -r \'.run_attempt\' <<<"$run_json")" = "1"',
+    'actions/runs/${CI_RUN_ID}/artifacts?per_page=100',
+    'beta-local-smoke-${BETA_EVIDENCE_MANIFEST_SHA256}',
+    'select(.name == $name and .expired == false)',
+    'test "$(jq \'length\' <<<"$beta_artifacts")" -eq 1',
+    'actions/artifacts/${beta_artifact_id}/zip',
+    'test "${#manifest_checksums[@]}" -eq 1',
+    'test "$(basename "$manifest_dir")" = "$BETA_EVIDENCE_MANIFEST_SHA256"',
+    '(cd "$manifest_dir" && sha256sum --check manifest.sha256)',
+    '--argjson betaEvidenceArtifacts "$beta_artifacts"',
+    'betaEvidenceManifestSha256:$betaEvidenceManifestSha256',
+    'betaEvidenceArtifacts:$betaEvidenceArtifacts',
+    'RELEASE_RUNNER_LABEL: ubuntu-24.04',
+    'RELEASE_DOCKER_VERSION: 29.7.2',
+    'RELEASE_BUILDX_VERSION: 0.32.1',
+    'RELEASE_BUILDKIT_VERSION: 0.30.0',
+    'RELEASE_BUILDKIT_IMAGE: moby/buildkit:v0.30.0@sha256:0168606be2315b7c807a03b3d8aa79beefdb31c98740cebdffdfeebf31190c9f',
+    'uses: docker/setup-docker-action@77e84dbf09b47d1e29270283c22f16145aa85ca1 # v5.4.0',
+    'uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0',
+    'test "$docker_version" = "$RELEASE_DOCKER_VERSION $RELEASE_DOCKER_VERSION"',
+    'test "$buildx_version" = "$RELEASE_BUILDX_VERSION"',
+    'repkey-image-provenance-2',
+    'runnerImageVersion',
+    'buildkitImage',
+  ] as const
+  const violations = requiredFragments
+    .filter((fragment) => !workflow.includes(fragment))
+    .map((fragment) => `release CI evidence binding is missing ${fragment}`)
+  if (workflow.includes('runs-on: ubuntu-latest')) {
+    violations.push('release workflow uses mutable runner label ubuntu-latest')
+  }
+  if (workflow.includes('docker buildx create')) {
+    violations.push('release workflow bypasses the pinned Buildx setup action')
+  }
+  return violations
+}
+
 function dependabotDockerDirectories(configuration: string): readonly string[] {
   const lines = configuration.split('\n')
   const directories: string[] = []
@@ -329,6 +375,60 @@ function validateDockerfileSupplyChain(
   return violations
 }
 
+/** Validate one Dockerfile's plain COPY sources against a `**` allowlist. */
+export function validateDockerfileContextAllowlist(
+  dockerfile: string,
+  dockerfileContent: string,
+  ignore: string,
+): readonly string[] {
+  if (!ignore.split('\n').some((line) => line.trim() === '**')) return []
+  const allowed = new Set(
+    ignore
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('!'))
+      .map((line) => line.slice(1).replace(/^\.\//u, '')),
+  )
+  const violations: string[] = []
+  for (const line of dockerfileContent.split('\n')) {
+    if (!/^COPY\s+/iu.test(line) || /^COPY\s+--from=/iu.test(line)) continue
+    const tokens = line.trim().split(/\s+/u).slice(1)
+    const sources = tokens.filter((token) => !token.startsWith('--')).slice(0, -1)
+    for (const source of sources) {
+      const normalized = source.replace(/^\.\//u, '')
+      if (normalized === '.' || normalized.includes('*') || allowed.has(normalized)) {
+        continue
+      }
+      violations.push(`${dockerfile}.dockerignore excludes COPY source ${normalized}`)
+    }
+  }
+  return violations
+}
+
+/**
+ * A Dockerfile-specific allowlist (`**` followed by `!path`) can silently
+ * exclude a source that the Dockerfile later COPYs. Validate every plain-file
+ * COPY source against that allowlist before CI spends time starting a build.
+ */
+function validateDockerfileContextAllowlists(
+  root: string,
+  policy: ContainerImagePolicy,
+): readonly string[] {
+  const violations: string[] = []
+  for (const { dockerfile } of policy.images) {
+    const ignorePath = join(root, `${dockerfile}.dockerignore`)
+    if (!existsSync(ignorePath)) continue
+    violations.push(
+      ...validateDockerfileContextAllowlist(
+        dockerfile,
+        readFileSync(join(root, dockerfile), 'utf8'),
+        readFileSync(ignorePath, 'utf8'),
+      ),
+    )
+  }
+  return violations
+}
+
 export function validateContainerImagePolicy(root: string): readonly string[] {
   try {
     const policy = loadContainerImagePolicy(root)
@@ -342,11 +442,15 @@ export function validateContainerImagePolicy(root: string): readonly string[] {
         policy,
         readFileSync(join(root, '.github/workflows/release-images.yml'), 'utf8'),
       ),
+      ...validateReleaseEvidenceBinding(
+        readFileSync(join(root, '.github/workflows/release-images.yml'), 'utf8'),
+      ),
       ...validateDependabotContainerCoverage(
         policy,
         readFileSync(join(root, '.github/dependabot.yml'), 'utf8'),
       ),
       ...validateDockerfileSupplyChain(root, policy),
+      ...validateDockerfileContextAllowlists(root, policy),
     ]
   } catch (error) {
     return [error instanceof Error ? error.message : String(error)]

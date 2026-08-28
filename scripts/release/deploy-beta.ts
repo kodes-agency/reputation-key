@@ -16,9 +16,9 @@
 //
 // THREE things this script refuses to lie about:
 //
-//   1. Settlement. Source connection returns before a deployment settles.
-//      Every promotion is tracked by deployment id and polled to a terminal
-//      state; anything but SUCCESS fails the release.
+//   1. Settlement. A saved IaC apply returns before a deployment settles. Every
+//      promotion is tracked by deployment id and polled to a terminal state;
+//      anything but SUCCESS fails the release.
 //   2. Provenance. The canonical manifest and Sigstore bundle are verified
 //      against the producing main-branch GitHub Actions identity. Every image
 //      is digest-pinned and names that same merged source revision.
@@ -36,29 +36,36 @@
 // Usage:
 //   pnpm release:beta --manifest <manifest.json> --signature-bundle <bundle.json>
 //     --manifest-sha256 <digest> --people-cutover-evidence <evidence.json>
-//     --cell <us|europe|global>
+//     --data-cell-cutover-evidence <evidence.json>
+//     --data-cell-cutover-evidence-sha256 <digest>
+//     --railway-plan-evidence <evidence.json>
+//     --railway-plan-evidence-sha256 <digest> --cell <us>
 //   add --apply --operator <id> --reason "<text>" to execute
 //   add --verify-only to prove an already-promoted cell
 //   flags: --app-url <url> --deploy-timeout <seconds>
 //
 // Verification, always run after a settled --apply and by --verify-only:
-//   1. current people-authority parity matches audited cutover evidence,
-//   2. RELEASE_SHA + RELEASE_MANIFEST_SHA256 from every service (blocking),
-//   3. active Railway image digest from every service (blocking),
-//   4. GET /api/health with every readiness boolean true (blocking when a URL
-//      is known: --app-url or BETA_APP_URL),
-//   5. every ai_execution_control_heads row enabled/accepting (blocking when
+//   1. completed Data Cell evidence matches a fresh locked US/policy-3 read,
+//   2. current people-authority parity matches audited cutover evidence,
+//   3. RELEASE_SHA + RELEASE_MANIFEST_SHA256 from every service (blocking),
+//   4. active Railway image digest from every service (blocking),
+//   5. web/worker BETTER_AUTH_URL equals the profile-bound authentication
+//      origin, then GET /api/health at the selected probe origin reports every
+//      readiness boolean true (blocking),
+//   6. every ai_execution_control_heads row enabled/accepting (blocking when
 //      DATABASE_URL is set; skipped, printed, otherwise).
 
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Pool } from 'pg'
 import {
+  BETA_DEPLOYMENT_DATA_CELL_IDS,
   DATA_CELL_CATALOGUE,
-  DATA_CELL_IDS,
-  type DataCellId,
+  isBetaDeploymentDataCellId,
+  type BetaDeploymentDataCellId,
 } from '../../src/shared/domain/data-cell-catalogue'
 import {
   RAILWAY_SERVICE_IMAGE_ROLES,
@@ -70,10 +77,63 @@ import {
 } from '../../src/shared/release/promotion-manifest'
 import {
   parsePeopleCutoverEvidence,
+  type PeopleCutoverCounts,
   type PeopleCutoverEvidence,
 } from '../../src/shared/release/people-cutover-evidence'
+import {
+  assertRailwayPlanEvidenceFresh,
+  classifyRailwayPlanExit,
+  parseRailwayPlanEvidence,
+  railwayPlanArgs,
+  railwayPlanEvidenceSha256,
+  type RailwayPlanEvidence,
+} from '../../src/shared/release/railway-plan-evidence'
+import type { RailwayDeploymentProfile } from '../../src/shared/release/railway-deployment-profile'
+import {
+  assertRailwayFullProjectVisibilityCredential,
+  assertSingleUsBetaRailwayProjectIsolation,
+  parseRailwayProjectServiceInventory,
+  railwayFullProjectStatusArgs,
+} from '../../src/shared/release/railway-project-service-isolation'
 import { getDb } from '../../src/shared/db'
+import {
+  readCompletedSingleUsDataCellCutover,
+  type CompletedDataCellCutover,
+} from '../../src/shared/db/single-us-data-cell-cutover'
+import {
+  parseDataCellCutoverEvidence,
+  type DataCellCutoverEvidence,
+} from '../../src/shared/release/data-cell-cutover-evidence'
 import { verifyPeopleCutoverPromotionReadiness } from '../../src/contexts/team/infrastructure/repositories/reconcile-people-team.repository'
+import {
+  assertRailwayTargetMatchesPlanEvidence,
+  parseRailwayLinkedTarget,
+  railwayTargetEnvironment,
+} from './railway-data-cell-plan'
+import { railwayIacSourceDigest } from './iac-digest'
+import {
+  assertReleaseControllerSourceDigest,
+  releaseControllerSourceDigest,
+} from './release-authority-digest'
+import {
+  assertPinnedRailwayApplyResult,
+  assertRailwayCliSupportsPinnedPlans,
+  assertRailwaySavedPlanArtifactUnchanged,
+  bindRailwaySavedPlanArtifact,
+  fullRailwayServiceSourceInput,
+  inspectFullCandidateRailwayPlan,
+  inspectStagedRailwayPlan,
+  railwayPinnedApplyArgs,
+  railwayPinnedPlanArgs,
+  railwaySourceMapEnvironment,
+  stagedRailwayServiceSourceInput,
+  type RailwayIacTarget,
+} from './staged-railway-sources'
+import {
+  RAILWAY_SERVICE_SOURCE_MAP_ENV,
+  type RailwayServiceSourceInput,
+  type RailwayServiceSourceMap,
+} from '../../.railway/service-source-map'
 
 const COMMAND_NAME = 'release:beta'
 const ALL_SERVICES = Object.freeze(
@@ -85,10 +145,12 @@ const HEADS_QUERY =
 
 /** Railway deployment states that will never change again. */
 const TERMINAL_STATUSES = new Set(['SUCCESS', 'FAILED', 'CRASHED', 'REMOVED', 'SKIPPED'])
+const DEPLOYMENT_ID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 
 const DEFAULT_DEPLOY_TIMEOUT_SECONDS = 900
+const MAX_DEPLOY_TIMEOUT_SECONDS = 3_600
 const POLL_INTERVAL_MS = 10_000
-
 /** Flags this script owns; stripped before argv reaches the operator harness. */
 const OWN_VALUE_FLAGS = [
   '--app-url',
@@ -97,6 +159,10 @@ const OWN_VALUE_FLAGS = [
   '--signature-bundle',
   '--manifest-sha256',
   '--people-cutover-evidence',
+  '--data-cell-cutover-evidence',
+  '--data-cell-cutover-evidence-sha256',
+  '--railway-plan-evidence',
+  '--railway-plan-evidence-sha256',
   '--cell',
 ] as const
 const OWN_BOOLEAN_FLAGS = ['--verify-only'] as const
@@ -108,7 +174,11 @@ export type ServicePlan = {
   readonly imageDigest: string
 }
 
-type Deployment = { readonly service: string; readonly deploymentId: string | undefined }
+type Deployment = Readonly<{
+  service: string
+  deploymentId: string | undefined
+  baselineDeploymentIds: readonly string[]
+}>
 
 type HeadRow = {
   readonly scope_key: string
@@ -116,18 +186,30 @@ type HeadRow = {
   readonly admission_state: string
 }
 
-type Options = {
+type ParsedOptions = {
   readonly apply: boolean
   readonly verifyOnly: boolean
-  readonly appUrl: string | undefined
+  readonly appUrlOverride: string | undefined
   readonly deployTimeoutMs: number
   readonly manifestPath: string
   readonly signatureBundlePath: string
   readonly manifestSha256: string
   readonly peopleCutoverEvidencePath: string
-  readonly cell: DataCellId
-  readonly environment: `cell-${DataCellId}`
+  readonly dataCellCutoverEvidencePath: string
+  readonly dataCellCutoverEvidenceSha256: string
+  readonly railwayPlanEvidencePath: string
+  readonly railwayPlanEvidenceSha256: string
+  readonly cell: BetaDeploymentDataCellId
+  readonly environment: `cell-${BetaDeploymentDataCellId}`
 }
+
+type Options = Omit<ParsedOptions, 'appUrlOverride'> &
+  Readonly<{
+    appUrl: string
+    deploymentProfile: RailwayDeploymentProfile
+    dataCellCutoverEvidence: DataCellCutoverEvidence
+    railwayPlanEvidence: RailwayPlanEvidence
+  }>
 
 export function deployPlan(
   manifest: PromotionManifest,
@@ -156,46 +238,83 @@ function flagValue(args: readonly string[], name: string): string | undefined {
   return next?.startsWith('--') ? undefined : next
 }
 
-function parseOptions(args: readonly string[]): Options | string {
-  const timeoutRaw = flagValue(args, '--deploy-timeout')
-  const timeoutSeconds =
-    timeoutRaw === undefined ? DEFAULT_DEPLOY_TIMEOUT_SECONDS : Number(timeoutRaw)
-  if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0) {
-    return `--deploy-timeout must be a positive number of seconds (got '${String(timeoutRaw)}')`
+export function deployTimeoutMilliseconds(value: string | undefined): number {
+  if (value === undefined) return DEFAULT_DEPLOY_TIMEOUT_SECONDS * 1000
+  const seconds = Number(value)
+  if (
+    !Number.isSafeInteger(seconds) ||
+    seconds <= 0 ||
+    seconds > MAX_DEPLOY_TIMEOUT_SECONDS
+  ) {
+    throw new Error(
+      `--deploy-timeout must be a positive integer no greater than ${String(MAX_DEPLOY_TIMEOUT_SECONDS)} seconds`,
+    )
+  }
+  return seconds * 1000
+}
+
+function parseOptions(args: readonly string[]): ParsedOptions | string {
+  let deployTimeoutMs: number
+  try {
+    deployTimeoutMs = deployTimeoutMilliseconds(flagValue(args, '--deploy-timeout'))
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error)
   }
   const manifestPath = flagValue(args, '--manifest')
   const signatureBundlePath = flagValue(args, '--signature-bundle')
   const manifestSha256 = flagValue(args, '--manifest-sha256')
   const peopleCutoverEvidencePath = flagValue(args, '--people-cutover-evidence')
-  const cell = flagValue(args, '--cell')
+  const dataCellCutoverEvidencePath = flagValue(args, '--data-cell-cutover-evidence')
+  const dataCellCutoverEvidenceSha256 = flagValue(
+    args,
+    '--data-cell-cutover-evidence-sha256',
+  )
+  const railwayPlanEvidencePath = flagValue(args, '--railway-plan-evidence')
+  const railwayPlanEvidenceSha256 = flagValue(args, '--railway-plan-evidence-sha256')
+  const cellValue = flagValue(args, '--cell')
+  if (cellValue && !isBetaDeploymentDataCellId(cellValue)) {
+    return `--cell must be one of: ${BETA_DEPLOYMENT_DATA_CELL_IDS.join(', ')}`
+  }
+  const cell: BetaDeploymentDataCellId | undefined =
+    cellValue !== undefined && isBetaDeploymentDataCellId(cellValue)
+      ? cellValue
+      : undefined
   if (
     !manifestPath ||
     !signatureBundlePath ||
     !manifestSha256 ||
     !peopleCutoverEvidencePath ||
+    !dataCellCutoverEvidencePath ||
+    !dataCellCutoverEvidenceSha256 ||
+    !railwayPlanEvidencePath ||
+    !railwayPlanEvidenceSha256 ||
     !cell
   ) {
-    return '--manifest, --signature-bundle, --manifest-sha256, --people-cutover-evidence, and --cell are required'
+    return '--manifest, --signature-bundle, --manifest-sha256, --people-cutover-evidence, --data-cell-cutover-evidence, --data-cell-cutover-evidence-sha256, --railway-plan-evidence, --railway-plan-evidence-sha256, and --cell are required'
   }
   if (!/^[0-9a-f]{64}$/u.test(manifestSha256)) {
     return '--manifest-sha256 must be a lowercase sha256'
   }
-  if (!DATA_CELL_IDS.includes(cell as DataCellId)) {
-    return `--cell must be one of: ${DATA_CELL_IDS.join(', ')}`
+  if (!/^[0-9a-f]{64}$/u.test(railwayPlanEvidenceSha256)) {
+    return '--railway-plan-evidence-sha256 must be a lowercase sha256'
   }
-  const dataCell = cell as DataCellId
-  const options: Options = {
+  if (!/^[0-9a-f]{64}$/u.test(dataCellCutoverEvidenceSha256)) {
+    return '--data-cell-cutover-evidence-sha256 must be a lowercase sha256'
+  }
+  const dataCell = cell
+  const options: ParsedOptions = {
     apply: args.includes('--apply'),
     verifyOnly: args.includes('--verify-only'),
-    appUrl:
-      flagValue(args, '--app-url') ??
-      process.env.BETA_APP_URL ??
-      `https://${DATA_CELL_CATALOGUE[dataCell].domain}`,
-    deployTimeoutMs: timeoutSeconds * 1000,
+    appUrlOverride: flagValue(args, '--app-url'),
+    deployTimeoutMs,
     manifestPath: resolve(manifestPath),
     signatureBundlePath: resolve(signatureBundlePath),
     manifestSha256,
     peopleCutoverEvidencePath: resolve(peopleCutoverEvidencePath),
+    dataCellCutoverEvidencePath: resolve(dataCellCutoverEvidencePath),
+    dataCellCutoverEvidenceSha256,
+    railwayPlanEvidencePath: resolve(railwayPlanEvidencePath),
+    railwayPlanEvidenceSha256,
     cell: dataCell,
     environment: `cell-${dataCell}`,
   }
@@ -203,6 +322,156 @@ function parseOptions(args: readonly string[]): Options | string {
     return '--apply and --verify-only are mutually exclusive'
   }
   return options
+}
+
+function canonicalHttpsOrigin(value: string, source: string): string {
+  let url: URL
+  try {
+    url = new URL(value)
+  } catch {
+    throw new Error(`${source} must be an absolute HTTPS URL`)
+  }
+  if (
+    url.protocol !== 'https:' ||
+    url.username !== '' ||
+    url.password !== '' ||
+    url.pathname !== '/' ||
+    url.search !== '' ||
+    url.hash !== ''
+  ) {
+    throw new Error(`${source} must be a credential-free HTTPS origin without a path`)
+  }
+  return url.origin
+}
+
+/** Resolve the health-probe origin without letting rehearsal borrow production. */
+export function resolveDeploymentAppUrl(
+  input: Readonly<{
+    deploymentProfile: RailwayDeploymentProfile
+    cell: BetaDeploymentDataCellId
+    appUrlOverride?: string
+    environmentAppUrl?: string
+  }>,
+): string {
+  const productionOrigin = `https://${DATA_CELL_CATALOGUE[input.cell].domain}`
+  if (input.deploymentProfile === 'production') {
+    return canonicalHttpsOrigin(
+      input.appUrlOverride ?? input.environmentAppUrl ?? productionOrigin,
+      '--app-url',
+    )
+  }
+
+  if (!input.appUrlOverride) {
+    throw new Error('rehearsal promotion requires its own explicit --app-url')
+  }
+  const appUrl = canonicalHttpsOrigin(input.appUrlOverride, '--app-url')
+  if (new URL(appUrl).hostname === DATA_CELL_CATALOGUE[input.cell].domain) {
+    throw new Error(
+      `rehearsal --app-url must not use the production host ${DATA_CELL_CATALOGUE[input.cell].domain}`,
+    )
+  }
+  return appUrl
+}
+
+function expectedRuntimeAuthenticationUrl(options: Options): string {
+  return options.deploymentProfile === 'production'
+    ? `https://${DATA_CELL_CATALOGUE[options.cell].domain}`
+    : options.appUrl
+}
+
+export function validateRailwayPlanEvidenceForPromotion(
+  evidence: RailwayPlanEvidence,
+  input: Readonly<{
+    cell: BetaDeploymentDataCellId
+    manifestSha256: string
+    signedIacSha256: string
+    currentIacSha256: string
+    signedReleaseControllerSha256: string
+    currentReleaseControllerSha256: string
+    now: Date
+  }>,
+): void {
+  if (evidence.cell !== input.cell) {
+    throw new Error(
+      `Railway plan cell ${evidence.cell} does not match requested cell ${input.cell}`,
+    )
+  }
+  if (evidence.release.manifestSha256 !== input.manifestSha256) {
+    throw new Error(
+      `Railway plan manifest digest ${evidence.release.manifestSha256} does not match requested manifest digest ${input.manifestSha256}`,
+    )
+  }
+  if (evidence.release.controllerSha256 !== input.signedReleaseControllerSha256) {
+    throw new Error(
+      `Railway plan controller digest ${evidence.release.controllerSha256} does not match signed manifest controller digest ${input.signedReleaseControllerSha256}`,
+    )
+  }
+  assertReleaseControllerSourceDigest(
+    input.signedReleaseControllerSha256,
+    input.currentReleaseControllerSha256,
+  )
+  if (evidence.iac.sha256 !== input.signedIacSha256) {
+    throw new Error(
+      `Railway plan IaC digest ${evidence.iac.sha256} does not match signed manifest IaC digest ${input.signedIacSha256}`,
+    )
+  }
+  if (input.currentIacSha256 !== input.signedIacSha256) {
+    throw new Error(
+      `current Railway IaC digest ${input.currentIacSha256} does not match signed manifest IaC digest ${input.signedIacSha256}`,
+    )
+  }
+  assertRailwayPlanEvidenceFresh(evidence, input.now)
+}
+
+function bindOptions(
+  parsed: ParsedOptions,
+  dataCellCutoverEvidence: DataCellCutoverEvidence,
+  railwayPlanEvidence: RailwayPlanEvidence,
+): Options {
+  assertDataCellCutoverTargetMatchesRailwayPlan(
+    dataCellCutoverEvidence,
+    railwayPlanEvidence,
+  )
+  const { appUrlOverride, ...rest } = parsed
+  return {
+    ...rest,
+    appUrl: resolveDeploymentAppUrl({
+      deploymentProfile: railwayPlanEvidence.deploymentProfile,
+      cell: parsed.cell,
+      appUrlOverride,
+      environmentAppUrl: process.env.BETA_APP_URL,
+    }),
+    deploymentProfile: railwayPlanEvidence.deploymentProfile,
+    dataCellCutoverEvidence,
+    railwayPlanEvidence,
+  }
+}
+
+/**
+ * The topology cutover and the infrastructure review must name the same
+ * opaque Railway target. Human-readable names are intentionally insufficient:
+ * a copied database or relinked environment must not satisfy promotion.
+ */
+export function assertDataCellCutoverTargetMatchesRailwayPlan(
+  evidence: DataCellCutoverEvidence,
+  railwayPlanEvidence: RailwayPlanEvidence,
+): void {
+  const comparisons = [
+    ['cell', evidence.target.cell, railwayPlanEvidence.cell],
+    ['projectId', evidence.target.projectId, railwayPlanEvidence.target.projectId],
+    [
+      'environmentId',
+      evidence.target.environmentId,
+      railwayPlanEvidence.target.environmentId,
+    ],
+  ] as const
+  const mismatch = comparisons.find(([, cutover, plan]) => cutover !== plan)
+  if (mismatch) {
+    const [field, cutover, plan] = mismatch
+    throw new Error(
+      `Data Cell cutover target ${field}=${cutover} does not match Railway plan target ${field}=${plan}`,
+    )
+  }
 }
 
 /** argv with this script's own flags removed, so the harness sees only its own. */
@@ -223,40 +492,457 @@ function harnessArgv(args: readonly string[]): string[] {
   return kept
 }
 
-/** Run a Railway command; throw naming the command and its stderr on failure. */
-function railway(args: readonly string[]): string {
-  const printable = `railway ${args.join(' ')}`
-  const result = spawnSync('railway', [...args], { encoding: 'utf8' })
-  if (result.error) throw new Error(`${printable}: ${result.error.message}`)
-  if (result.status !== 0) {
-    const detail = (result.stderr || result.stdout || '').trim()
-    throw new Error(`${printable} exited ${String(result.status)}\n${detail}`)
+let pinnedRailwayEnvironment: NodeJS.ProcessEnv | undefined
+let pinnedRailwayTarget: RailwayPlanEvidence['target'] | undefined
+
+type RailwayCommandResult = Readonly<{ stdout: string; status: number }>
+
+/**
+ * Replace the reviewed human environment name with its opaque ID and refuse
+ * any explicit target that disagrees with the pinned evidence. Environment
+ * variables still bind commands that do not expose target flags.
+ */
+export function bindRailwayCommandArgsToTarget(
+  args: readonly string[],
+  target: RailwayPlanEvidence['target'],
+): readonly string[] {
+  const bound = [...args]
+  for (let index = 0; index < bound.length; index += 1) {
+    const flag = bound[index]
+    if (flag !== '--environment' && flag !== '--project') continue
+    const value = bound[index + 1]
+    if (!value) throw new Error(`${flag} requires a target value`)
+    const accepted =
+      flag === '--environment'
+        ? [target.environment, target.environmentId]
+        : [target.projectName, target.projectId]
+    if (!accepted.includes(value)) {
+      throw new Error(`${flag} ${value} does not match the reviewed Railway target`)
+    }
+    bound[index + 1] = flag === '--environment' ? target.environmentId : target.projectId
+    index += 1
   }
-  return result.stdout ?? ''
+  return Object.freeze(bound)
 }
 
-function parseDeploymentId(output: string): string | undefined {
-  try {
-    const value = JSON.parse(output) as unknown
-    if (value && typeof value === 'object') {
-      for (const field of ['deploymentId', 'id'] as const) {
-        const candidate = (value as Record<string, unknown>)[field]
-        if (typeof candidate === 'string' && /^[0-9a-f-]{36}$/iu.test(candidate)) {
-          return candidate
-        }
-      }
-    }
-  } catch {
-    // Some CLI versions write a human build-log URL rather than JSON.
+/** Run a Railway command and permit only the explicitly reviewed exit codes. */
+function railwayCommand(
+  args: readonly string[],
+  allowedStatuses: readonly number[] = [0],
+): RailwayCommandResult {
+  const targetedArgs = pinnedRailwayTarget
+    ? bindRailwayCommandArgsToTarget(args, pinnedRailwayTarget)
+    : args
+  const printable = `railway ${targetedArgs.join(' ')}`
+  const result = spawnSync('railway', [...targetedArgs], {
+    encoding: 'utf8',
+    env: pinnedRailwayEnvironment ?? process.env,
+  })
+  if (result.error) throw new Error(`${printable}: ${result.error.message}`)
+  const status = result.status ?? 1
+  if (!allowedStatuses.includes(status)) {
+    const detail = (result.stderr || result.stdout || '').trim()
+    throw new Error(`${printable} exited ${String(status)}\n${detail}`)
   }
-  return /[?&]id=([0-9a-f-]{36})/iu.exec(output)?.[1]
+  return Object.freeze({ stdout: result.stdout ?? '', status })
+}
+
+function railway(args: readonly string[]): string {
+  return railwayCommand(args).stdout
+}
+
+function setPinnedRailwaySourceInput(input: RailwayServiceSourceInput): void {
+  if (!pinnedRailwayEnvironment) {
+    throw new Error('Railway target must be pinned before selecting a source graph')
+  }
+  pinnedRailwayEnvironment = {
+    ...pinnedRailwayEnvironment,
+    [RAILWAY_SERVICE_SOURCE_MAP_ENV]: railwaySourceMapEnvironment(input),
+  }
 }
 
 /**
- * Write release identity without triggering intermediate deployments, then
- * connect the exact registry digest. No local source archive is uploaded.
+ * Select the exact reviewed target by opaque IDs and keep those IDs in every
+ * later Railway child process. Ambient links are never an execution input.
  */
-function deployService(plan: ServicePlan, environment: string): Deployment {
+function pinAndAssertRailwayTarget(
+  evidence: RailwayPlanEvidence,
+  sourceInput: RailwayServiceSourceInput,
+): void {
+  pinnedRailwayTarget = evidence.target
+  pinnedRailwayEnvironment = {
+    ...railwayTargetEnvironment({
+      project: evidence.target.projectId,
+      name: evidence.target.projectName,
+      environment: evidence.target.environmentId,
+    }),
+    RAILWAY_CALLER: process.env.RAILWAY_CALLER ?? 'repo:release-beta',
+    RAILWAY_AGENT_SESSION:
+      process.env.RAILWAY_AGENT_SESSION ??
+      `repkey-release-${evidence.deploymentProfile}-${evidence.cell}`,
+    REPKEY_RAILWAY_CELL_ENVIRONMENT: evidence.target.environment,
+    REPKEY_RAILWAY_DEPLOYMENT_PROFILE: evidence.deploymentProfile,
+    [RAILWAY_SERVICE_SOURCE_MAP_ENV]: railwaySourceMapEnvironment(sourceInput),
+  }
+  assertRailwayFullProjectVisibilityCredential(pinnedRailwayEnvironment)
+  assertRailwayCliSupportsPinnedPlans(railway(['--version']))
+  const selectedTarget = parseRailwayLinkedTarget(railway(['status']))
+  assertRailwayTargetMatchesPlanEvidence(evidence, selectedTarget)
+  assertPinnedRailwayProjectIsolation(railwayIacTarget(evidence))
+  out(
+    `Railway target and single-environment service isolation confirmed: ${evidence.deploymentProfile} ${evidence.target.projectName} (${evidence.target.projectId}) / ${evidence.target.environment} (${evidence.target.environmentId})`,
+  )
+}
+
+/** Re-read the complete project; a target-local status cannot prove isolation. */
+function assertPinnedRailwayProjectIsolation(target: RailwayIacTarget): void {
+  assertSingleUsBetaRailwayProjectIsolation(
+    parseRailwayProjectServiceInventory(railway(railwayFullProjectStatusArgs())),
+    {
+      projectId: target.projectId,
+      projectName: target.projectName,
+      environmentId: target.environmentId,
+      environmentName: target.environment,
+    },
+  )
+}
+
+function railwayIacTarget(evidence: RailwayPlanEvidence): RailwayIacTarget {
+  return Object.freeze({
+    projectId: evidence.target.projectId,
+    projectName: evidence.target.projectName,
+    environmentId: evidence.target.environmentId,
+    environment: evidence.target.environment,
+  })
+}
+
+/** Re-run the exact retained candidate plan against the pinned target. */
+function assertLiveRailwayPlanMatchesEvidence(
+  evidence: RailwayPlanEvidence,
+  candidate: RailwayServiceSourceInput,
+  requireNoDrift: boolean,
+): RailwayServiceSourceMap {
+  setPinnedRailwaySourceInput(candidate)
+  const result = railwayCommand(
+    railwayPlanArgs({ iacFile: '.railway/railway.ts' }),
+    [0, 2],
+  )
+  const inspected = inspectFullCandidateRailwayPlan(
+    result.stdout,
+    railwayIacTarget(evidence),
+    candidate,
+  )
+  const outcome = classifyRailwayPlanExit(result.status)
+  if (outcome !== evidence.plan.outcome) {
+    throw new Error(
+      `live Railway plan outcome ${outcome} does not match retained ${evidence.plan.outcome}`,
+    )
+  }
+  if (inspected.rawSha256 !== evidence.plan.rawSha256) {
+    throw new Error(
+      `live Railway plan digest ${inspected.rawSha256} does not match retained ${evidence.plan.rawSha256}`,
+    )
+  }
+  if (railwayPlanEvidenceSha256(result.stdout) !== evidence.plan.rawSha256) {
+    throw new Error('live Railway plan bytes changed after inspection')
+  }
+  if (
+    (result.status === 0 && inspected.changeCount !== 0) ||
+    (result.status === 2 && inspected.changeCount === 0)
+  ) {
+    throw new Error('Railway plan exit code disagrees with its change set')
+  }
+  if (requireNoDrift && (result.status !== 0 || inspected.changeCount !== 0)) {
+    throw new Error('verify-only requires an exact no-drift Railway plan')
+  }
+  out(
+    `Railway live ${outcome} plan matches retained evidence for ${evidence.target.projectName}/${evidence.target.environment}`,
+  )
+  return inspected.currentSources
+}
+
+/** Prove the fully promoted graph is now exactly the signed candidate. */
+function assertFinalRailwayPlanNoDrift(
+  evidence: RailwayPlanEvidence,
+  candidate: RailwayServiceSourceInput,
+): void {
+  setPinnedRailwaySourceInput(candidate)
+  const result = railwayCommand(
+    railwayPlanArgs({ iacFile: '.railway/railway.ts' }),
+    [0, 2],
+  )
+  const inspected = inspectFullCandidateRailwayPlan(
+    result.stdout,
+    railwayIacTarget(evidence),
+    candidate,
+  )
+  if (result.status !== 0 || inspected.changeCount !== 0) {
+    throw new Error('Railway graph still has drift after staged source promotion')
+  }
+  for (const serviceName of Object.keys(candidate.sources)) {
+    const source = serviceName as keyof RailwayServiceSourceMap
+    if (inspected.currentSources[source] !== candidate.sources[source]) {
+      throw new Error(`Railway graph did not converge ${serviceName} to the candidate`)
+    }
+  }
+  assertPinnedRailwayProjectIsolation(railwayIacTarget(evidence))
+  out('Railway graph confirmed no drift at the complete signed source map')
+}
+
+/** Parse only hostname-bearing fields from `railway domain list --json`. */
+export function parseRailwayDomainHostnames(output: string): readonly string[] {
+  let value: unknown
+  try {
+    value = JSON.parse(output)
+  } catch {
+    throw new Error('could not parse Railway web domain list')
+  }
+  const hostnames = new Set<string>()
+  const visit = (candidate: unknown): void => {
+    if (Array.isArray(candidate)) {
+      for (const entry of candidate) visit(entry)
+      return
+    }
+    if (!candidate || typeof candidate !== 'object') return
+    for (const [key, entry] of Object.entries(candidate)) {
+      if (
+        (key === 'domain' || key === 'hostname' || key === 'fqdn') &&
+        typeof entry === 'string' &&
+        entry.trim() !== ''
+      ) {
+        hostnames.add(entry.trim().toLowerCase().replace(/\.$/u, ''))
+      } else {
+        visit(entry)
+      }
+    }
+  }
+  visit(value)
+  if (hostnames.size === 0) {
+    throw new Error('Railway web domain list did not contain a hostname')
+  }
+  return Object.freeze([...hostnames].sort())
+}
+
+function assertHealthOriginBelongsToTarget(options: Options): void {
+  const domains = parseRailwayDomainHostnames(
+    railway([
+      'domain',
+      'list',
+      '--service',
+      'web',
+      '--project',
+      options.railwayPlanEvidence.target.projectId,
+      '--environment',
+      options.railwayPlanEvidence.target.environmentId,
+      '--json',
+    ]),
+  )
+  const hostname = assertHealthOriginAttached(options.appUrl, domains)
+  out(`Railway health origin confirmed on target web service: ${hostname}`)
+}
+
+/** Require the selected probe origin to be attached to the exact web service. */
+export function assertHealthOriginAttached(
+  appUrl: string,
+  domains: readonly string[],
+): string {
+  const hostname = new URL(appUrl).hostname.toLowerCase()
+  if (!domains.includes(hostname)) {
+    throw new Error(
+      `health origin ${hostname} is not attached to the reviewed Railway web service (available: ${domains.join(', ')})`,
+    )
+  }
+  return hostname
+}
+
+export type DeploymentRow = {
+  readonly id?: string
+  readonly status?: string
+  readonly createdAt?: string
+  readonly meta?: Readonly<{ imageDigest?: string }>
+}
+
+export type SchemaMigratorBootstrapBinding = Readonly<{
+  deploymentId: string
+  imageDigest: string
+  source: string
+}>
+
+/**
+ * Prove that the one-shot migration job is the signed candidate before any
+ * serving service is changed. Railway returns deployments newest-first, but
+ * the timestamp check makes that ordering an independently verified fact and
+ * refuses tied or incomplete rows rather than guessing which run is binding.
+ * The newest deployment overall must be the successful signed-digest run; an
+ * older successful migration cannot authorize serving after a later run.
+ */
+export function assertSchemaMigratorBootstrapBinding(
+  currentSources: RailwayServiceSourceMap,
+  candidate: RailwayServiceSourceInput,
+  rows: readonly DeploymentRow[],
+  expectedDigest: string,
+): SchemaMigratorBootstrapBinding {
+  const expectedSource = candidate.sources['schema-migrator']
+  if (!expectedSource) {
+    throw new Error('signed candidate does not bind a schema-migrator source')
+  }
+  const currentSource = currentSources['schema-migrator']
+  if (currentSource !== expectedSource) {
+    throw new Error(
+      `schema-migrator live source ${currentSource ?? '(unbound)'} does not match signed candidate ${expectedSource}`,
+    )
+  }
+
+  const observed = rows.map((row) => {
+    const createdAt =
+      typeof row.createdAt === 'string' ? Date.parse(row.createdAt) : Number.NaN
+    if (!Number.isFinite(createdAt)) {
+      throw new Error(
+        `schema-migrator deployment ${row.id ?? '(unavailable)'} has no valid createdAt binding`,
+      )
+    }
+    return { row, createdAt }
+  })
+  if (observed.length === 0) {
+    throw new Error('schema-migrator has no deployment history')
+  }
+  const newestTimestamp = Math.max(...observed.map((entry) => entry.createdAt))
+  const newest = observed.filter((entry) => entry.createdAt === newestTimestamp)
+  if (newest.length !== 1) {
+    throw new Error('schema-migrator newest deployment is ambiguous')
+  }
+  const deployment = newest[0]?.row
+  if (!deployment?.id || !DEPLOYMENT_ID.test(deployment.id)) {
+    throw new Error('schema-migrator newest signed-digest deployment has no valid id')
+  }
+  if (deployment.meta?.imageDigest !== expectedDigest) {
+    throw new Error(
+      `schema-migrator newest deployment carries ${deployment.meta?.imageDigest ?? '(no digest)'}, not signed ${expectedDigest}`,
+    )
+  }
+  if (deployment.status !== 'SUCCESS') {
+    throw new Error(
+      `schema-migrator deployment ${deployment.id} at the signed image digest is ${deployment.status ?? 'UNKNOWN'}, not SUCCESS`,
+    )
+  }
+  return Object.freeze({
+    deploymentId: deployment.id,
+    imageDigest: expectedDigest,
+    source: expectedSource,
+  })
+}
+
+function listDeploymentRows(
+  service: string,
+  environment: string,
+): readonly DeploymentRow[] {
+  const listed = railway([
+    'deployment',
+    'list',
+    '--service',
+    service,
+    '--environment',
+    environment,
+    '--limit',
+    '100',
+    '--json',
+  ])
+  let rows: unknown
+  try {
+    rows = JSON.parse(listed)
+  } catch {
+    throw new Error(`could not parse deployment list for ${service}`)
+  }
+  if (!Array.isArray(rows)) {
+    throw new Error(`deployment list for ${service} must be an array`)
+  }
+  return rows as readonly DeploymentRow[]
+}
+
+function assertSchemaMigratorReadyForServing(
+  currentSources: RailwayServiceSourceMap,
+  candidate: RailwayServiceSourceInput,
+  environment: string,
+  expectedDigest: string,
+): void {
+  const binding = assertSchemaMigratorBootstrapBinding(
+    currentSources,
+    candidate,
+    listDeploymentRows('schema-migrator', environment),
+    expectedDigest,
+  )
+  out(
+    `schema-migrator bootstrap confirmed: deployment ${binding.deploymentId} SUCCESS at ${binding.imageDigest}`,
+  )
+}
+
+/** Select only a newly-created deployment carrying the signed digest. */
+export function selectPromotedDeploymentRow(
+  rows: readonly DeploymentRow[],
+  deployment: Deployment,
+  expectedDigest: string,
+): DeploymentRow | undefined {
+  if (deployment.deploymentId) {
+    const row = rows.find((entry) => entry.id === deployment.deploymentId)
+    if (row && row.meta?.imageDigest !== expectedDigest) {
+      throw new Error(
+        `${deployment.service}: deployment ${deployment.deploymentId} carries ${row.meta?.imageDigest ?? '(no digest)'} instead of ${expectedDigest}`,
+      )
+    }
+    return row
+  }
+  const baseline = new Set(deployment.baselineDeploymentIds)
+  const candidates = rows.filter(
+    (entry) =>
+      typeof entry.id === 'string' &&
+      !baseline.has(entry.id) &&
+      entry.meta?.imageDigest === expectedDigest,
+  )
+  if (candidates.length > 1) {
+    throw new Error(
+      `${deployment.service}: multiple new deployments carry ${expectedDigest}; refusing ambiguous settlement`,
+    )
+  }
+  return candidates[0]
+}
+
+function assertRedeployFromSourceAcknowledged(output: string, service: string): void {
+  let value: unknown
+  try {
+    value = JSON.parse(output)
+  } catch {
+    throw new Error(`${service}: Railway recovery redeploy did not return JSON`)
+  }
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    (value as Readonly<Record<string, unknown>>).success !== true
+  ) {
+    throw new Error(`${service}: Railway recovery redeploy was not acknowledged`)
+  }
+}
+
+/**
+ * Advance exactly one IaC-owned immutable source through a saved Railway plan.
+ * The saved plan is the apply input, closing the plan/apply race. A converged
+ * retry redeploys the already-reviewed source once so release variables reach
+ * the running service without changing source ownership.
+ */
+function stageServiceSource(
+  plan: ServicePlan,
+  environment: string,
+  currentSources: RailwayServiceSourceMap,
+  candidate: RailwayServiceSourceInput,
+  target: RailwayIacTarget,
+  expectedIacSha256: string,
+): Readonly<{ deployment: Deployment; sources: RailwayServiceSourceMap }> {
+  if (railwayIacSourceDigest() !== expectedIacSha256) {
+    throw new Error(`${plan.service}: Railway IaC changed before release mutation`)
+  }
+  const baselineDeploymentIds = listDeploymentRows(plan.service, environment)
+    .map((row) => row.id)
+    .filter((id): id is string => typeof id === 'string')
+  assertPinnedRailwayProjectIsolation(target)
   for (const assignment of plan.variables) {
     railway([
       'variable',
@@ -269,58 +955,90 @@ function deployService(plan: ServicePlan, environment: string): Deployment {
       '--skip-deploys',
     ])
   }
-  const stdout = railway([
-    'service',
-    'source',
-    'connect',
-    '--image',
-    plan.imageReference,
-    '--service',
-    plan.service,
-    '--environment',
-    environment,
-    '--json',
-  ])
-  process.stdout.write(stdout.endsWith('\n') || stdout === '' ? stdout : `${stdout}\n`)
-  const deploymentId = parseDeploymentId(stdout)
-  if (!deploymentId) {
-    out(
-      `   WARNING: could not parse a deployment id for ${plan.service}; settlement will use the first deployment carrying ${plan.imageDigest}`,
+  const desired = stagedRailwayServiceSourceInput(currentSources, candidate, plan.service)
+  setPinnedRailwaySourceInput(desired)
+  const directory = mkdtempSync(join(tmpdir(), `repkey-railway-${plan.service}-`))
+  const planPath = join(directory, 'saved-plan.json')
+  try {
+    if (railwayIacSourceDigest() !== expectedIacSha256) {
+      throw new Error(`${plan.service}: Railway IaC changed before saved planning`)
+    }
+    assertPinnedRailwayProjectIsolation(target)
+    const planned = railwayCommand(railwayPinnedPlanArgs(planPath), [0, 2])
+    const savedPlanSha256 = bindRailwaySavedPlanArtifact(
+      planPath,
+      planned.stdout,
+      target,
+      currentSources,
+      desired,
+      plan.service,
     )
+    const disposition = inspectStagedRailwayPlan(
+      planned.stdout,
+      target,
+      currentSources,
+      desired,
+      plan.service,
+    )
+    if (
+      (disposition === 'change' && planned.status !== 2) ||
+      (disposition === 'noop' && planned.status !== 0)
+    ) {
+      throw new Error(
+        `${plan.service}: Railway saved-plan exit ${String(planned.status)} disagrees with ${disposition}`,
+      )
+    }
+    if (railwayIacSourceDigest() !== expectedIacSha256) {
+      throw new Error(`${plan.service}: Railway IaC changed between plan and apply`)
+    }
+    assertPinnedRailwayProjectIsolation(target)
+    if (disposition === 'change') {
+      assertRailwaySavedPlanArtifactUnchanged(planPath, savedPlanSha256)
+      assertPinnedRailwayApplyResult(
+        railway(railwayPinnedApplyArgs(planPath)),
+        plan.service,
+      )
+    } else {
+      assertRedeployFromSourceAcknowledged(
+        railway([
+          'service',
+          'redeploy',
+          '--from-source',
+          '--yes',
+          '--service',
+          plan.service,
+          '--environment',
+          environment,
+          '--json',
+        ]),
+        plan.service,
+      )
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
   }
-  return { service: plan.service, deploymentId }
-}
-
-type DeploymentRow = {
-  readonly id?: string
-  readonly status?: string
-  readonly meta?: Readonly<{ imageDigest?: string }>
+  return Object.freeze({
+    deployment: Object.freeze({
+      service: plan.service,
+      deploymentId: undefined,
+      baselineDeploymentIds: Object.freeze(baselineDeploymentIds),
+    }),
+    sources: desired.sources,
+  })
 }
 
 function deploymentStatus(
   deployment: Deployment,
   environment: string,
   expectedDigest?: string,
-): string {
-  const listed = railway([
-    'deployment',
-    'list',
-    '--service',
-    deployment.service,
-    '--environment',
-    environment,
-    '--json',
-  ])
-  let rows: readonly DeploymentRow[]
-  try {
-    rows = JSON.parse(listed) as readonly DeploymentRow[]
-  } catch {
-    throw new Error(`could not parse deployment list for ${deployment.service}`)
-  }
-  const row = deployment.deploymentId
-    ? rows.find((entry) => entry.id === deployment.deploymentId)
-    : rows.find((entry) => entry.meta?.imageDigest === expectedDigest)
-  return row?.status ?? 'UNKNOWN'
+): Readonly<{ status: string; deploymentId: string | undefined }> {
+  if (!expectedDigest) return { status: 'UNKNOWN', deploymentId: undefined }
+  const row = selectPromotedDeploymentRow(
+    listDeploymentRows(deployment.service, environment),
+    deployment,
+    expectedDigest,
+  )
+  return { status: row?.status ?? 'UNKNOWN', deploymentId: row?.id }
 }
 
 /**
@@ -341,13 +1059,22 @@ async function awaitSettlement(
   while (pending.size > 0) {
     for (const [service, deployment] of [...pending]) {
       const expectedDigest = plans.find((plan) => plan.service === service)?.imageDigest
-      const status = deploymentStatus(deployment, environment, expectedDigest)
+      const observation = deploymentStatus(deployment, environment, expectedDigest)
+      const observedDeployment = observation.deploymentId
+        ? { ...deployment, deploymentId: observation.deploymentId }
+        : deployment
+      if (observation.deploymentId && !deployment.deploymentId) {
+        pending.set(service, observedDeployment)
+      }
+      const status = observation.status
       if (!TERMINAL_STATUSES.has(status)) continue
       pending.delete(service)
-      out(`  ${service.padEnd(28)} ${status}`)
+      out(
+        `  ${service.padEnd(28)} ${status} (${observedDeployment.deploymentId ?? 'deployment unavailable'})`,
+      )
       if (status !== 'SUCCESS') {
         failures.push(
-          `${service}: deployment ${deployment.deploymentId ?? '(latest)'} ended ${status}`,
+          `${service}: deployment ${observedDeployment.deploymentId ?? '(unavailable)'} ended ${status}`,
         )
       }
     }
@@ -355,8 +1082,9 @@ async function awaitSettlement(
     if (Date.now() > deadline) {
       for (const [service, deployment] of pending) {
         const expectedDigest = plans.find((plan) => plan.service === service)?.imageDigest
+        const observation = deploymentStatus(deployment, environment, expectedDigest)
         failures.push(
-          `${service}: deployment ${deployment.deploymentId ?? `(digest ${expectedDigest ?? 'unknown'})`} still ${deploymentStatus(deployment, environment, expectedDigest)} after ${String(Math.round(timeoutMs / 1000))}s`,
+          `${service}: deployment ${observation.deploymentId ?? `(new digest ${expectedDigest ?? 'unknown'})`} still ${observation.status} after ${String(Math.round(timeoutMs / 1000))}s`,
         )
       }
       break
@@ -367,7 +1095,11 @@ async function awaitSettlement(
 }
 
 type ReleaseVariable =
-  'RELEASE_SHA' | 'RELEASE_MANIFEST_SHA256' | 'SOURCE_REVISION' | 'IMAGE_SOURCE_REVISION'
+  | 'RELEASE_SHA'
+  | 'RELEASE_MANIFEST_SHA256'
+  | 'SOURCE_REVISION'
+  | 'IMAGE_SOURCE_REVISION'
+  | 'BETTER_AUTH_URL'
 
 function readReleaseVariables(
   service: string,
@@ -399,7 +1131,32 @@ function readReleaseVariables(
     RELEASE_MANIFEST_SHA256: values.RELEASE_MANIFEST_SHA256 ?? '',
     SOURCE_REVISION: values.SOURCE_REVISION ?? '',
     IMAGE_SOURCE_REVISION: values.IMAGE_SOURCE_REVISION ?? '',
+    BETTER_AUTH_URL: values.BETTER_AUTH_URL ?? '',
   }
+}
+
+function runtimeAuthenticationUrlFailures(
+  environment: string,
+  expectedAppUrl: string,
+): readonly string[] {
+  const failures: string[] = []
+  for (const service of ['web', 'worker'] as const) {
+    const configured = readReleaseVariables(service, environment).BETTER_AUTH_URL
+    let configuredOrigin: string
+    try {
+      configuredOrigin = canonicalHttpsOrigin(configured, `${service} BETTER_AUTH_URL`)
+    } catch {
+      failures.push(`${service}: BETTER_AUTH_URL must be a credential-free HTTPS origin`)
+      continue
+    }
+    out(`  ${service} BETTER_AUTH_URL=${configuredOrigin}`)
+    if (configuredOrigin !== expectedAppUrl) {
+      failures.push(
+        `${service}: BETTER_AUTH_URL=${configuredOrigin} != ${expectedAppUrl}`,
+      )
+    }
+  }
+  return failures
 }
 
 /**
@@ -507,18 +1264,22 @@ async function verifyAiHeads(databaseUrl: string): Promise<readonly string[]> {
   }
 }
 
+export const formatPeopleCutoverParitySummary = (counts: PeopleCutoverCounts): string =>
+  `participations ${String(counts.matchedParticipations)}/${String(counts.expectedParticipations)}; ` +
+  `responsibilities ${String(counts.matchedResponsibilities)}/${String(counts.expectedResponsibilities)}; ` +
+  `portal groups ${String(counts.matchedGroupMemberships)}/${String(counts.expectedGroupMemberships)}`
+
 async function verifyPeopleCutover(
   evidence: PeopleCutoverEvidence,
 ): Promise<readonly string[]> {
   try {
-    const readiness = await verifyPeopleCutoverPromotionReadiness(getDb(), evidence)
-    const counts = readiness.parity.counts
-    out(
-      `  participations ${String(counts.matchedParticipations)}/${String(counts.expectedParticipations)}; ` +
-        `memberships ${String(counts.matchedMemberships)}/${String(counts.expectedMemberships)}; ` +
-        `responsibilities ${String(counts.matchedResponsibilities)}/${String(counts.expectedResponsibilities)}; ` +
-        `portal groups ${String(counts.matchedGroupMemberships)}/${String(counts.expectedGroupMemberships)}`,
+    const readiness = await verifyPeopleCutoverPromotionReadiness(
+      getDb(),
+      () => new Date(),
+      evidence,
     )
+    const counts = readiness.parity.counts
+    out(`  ${formatPeopleCutoverParitySummary(counts)}`)
     out(
       `  anomalies=${String(counts.anomalies)} missingMappings=${String(counts.missingMappings)} fingerprint=${readiness.parity.fingerprintSha256}`,
     )
@@ -526,6 +1287,103 @@ async function verifyPeopleCutover(
   } catch (error) {
     return [
       `people authority cutover check: ${error instanceof Error ? error.message : String(error)}`,
+    ]
+  }
+}
+
+/**
+ * Bind retained cutover evidence to the completed control row read from the
+ * release database. The database reader also performs a fresh, locked check
+ * that every Property and credential-home fact still names US/policy 3.
+ */
+export function dataCellCutoverEvidenceFailures(
+  completed: CompletedDataCellCutover,
+  evidence: DataCellCutoverEvidence,
+): readonly string[] {
+  const comparisons = [
+    ['completedAt', completed.completedAt.toISOString(), evidence.completedAt],
+    ['reportDigestSha256', completed.reportDigestSha256, evidence.reportDigestSha256],
+    [
+      'completionDigestSha256',
+      completed.completionDigestSha256,
+      evidence.completionDigestSha256,
+    ],
+    [
+      'propertiesProcessed',
+      completed.propertiesProcessed,
+      evidence.progress.propertiesProcessed,
+    ],
+    [
+      'credentialHomesProcessed',
+      completed.credentialHomesProcessed,
+      evidence.progress.credentialHomesProcessed,
+    ],
+    [
+      'credentialConnectionsProcessed',
+      completed.credentialConnectionsProcessed,
+      evidence.progress.credentialConnectionsProcessed,
+    ],
+    ['target.projectId', completed.targetProjectId, evidence.target.projectId],
+    [
+      'target.environmentId',
+      completed.targetEnvironmentId,
+      evidence.target.environmentId,
+    ],
+    ['errorCount', completed.errorCount, evidence.progress.errorCount],
+    [
+      'verification.remainingProperties',
+      completed.verification.remainingProperties,
+      evidence.verification.remainingProperties,
+    ],
+    [
+      'verification.resolvablePropertiesRemaining',
+      completed.verification.resolvablePropertiesRemaining,
+      evidence.verification.resolvablePropertiesRemaining,
+    ],
+    [
+      'verification.remainingCredentialHomes',
+      completed.verification.remainingCredentialHomes,
+      evidence.verification.remainingCredentialHomes,
+    ],
+    // Active workflows are a truthful capture-time observation, not a durable
+    // completion invariant. They may legitimately resume after cutover; the
+    // locked live reader excludes them from its post-completion blocker gate.
+    [
+      'verification.routingConflicts',
+      completed.verification.routingConflicts,
+      evidence.verification.routingConflicts,
+    ],
+    ['operator.id', completed.operatorId, evidence.operator.id],
+    ['operator.changeTicket', completed.changeTicket, evidence.operator.changeTicket],
+    ['operator.correlationId', completed.correlationId, evidence.operator.correlationId],
+  ] as const
+  return comparisons
+    .filter(([, observed, expected]) => observed !== expected)
+    .map(
+      ([label, observed, expected]) =>
+        `Data Cell cutover ${label} live=${String(observed)} evidence=${String(expected)}`,
+    )
+}
+
+async function verifyDataCellCutover(
+  evidence: DataCellCutoverEvidence,
+): Promise<readonly string[]> {
+  try {
+    const completed = await readCompletedSingleUsDataCellCutover(getDb())
+    if (!completed) {
+      return ['Data Cell cutover single-us-beta-v3 is not completed']
+    }
+    out(
+      `  completed=${completed.completedAt.toISOString()} properties=${String(completed.propertiesProcessed)} credentialHomes=${String(completed.credentialHomesProcessed)} credentialConnections=${String(completed.credentialConnectionsProcessed)} errors=${String(completed.errorCount)}`,
+    )
+    out(`  target=${completed.targetProjectId}/${completed.targetEnvironmentId}`)
+    out(
+      `  report=${completed.reportDigestSha256} completion=${completed.completionDigestSha256}`,
+    )
+    return dataCellCutoverEvidenceFailures(completed, evidence)
+  } catch (error) {
+    return [
+      `Data Cell cutover check: ${error instanceof Error ? error.message : String(error)}`,
     ]
   }
 }
@@ -597,26 +1455,36 @@ async function verify(
   )
 
   out('')
+  out('runtime authentication origin:')
+  failures.push(
+    ...runtimeAuthenticationUrlFailures(
+      options.environment,
+      expectedRuntimeAuthenticationUrl(options),
+    ),
+  )
+
+  out('')
   out('active Railway image digests:')
   failures.push(...verifyImageDigests(plan, options.environment))
 
   out('')
-  if (options.appUrl) {
-    out('health:')
-    failures.push(...(await verifyHealth(options.appUrl)))
-  } else {
-    out('skipped: health check (no --app-url and BETA_APP_URL unset)')
-  }
+  out('health:')
+  failures.push(...(await verifyHealth(options.appUrl)))
 
   out('')
   const databaseUrl = process.env.DATABASE_URL
   if (databaseUrl) {
+    out('Data Cell cutover:')
+    failures.push(...(await verifyDataCellCutover(options.dataCellCutoverEvidence)))
+    out('')
     out('people authority cutover:')
     failures.push(...(await verifyPeopleCutover(peopleCutoverEvidence)))
     out('')
     out('ai_execution_control_heads:')
     failures.push(...(await verifyAiHeads(databaseUrl)))
   } else {
+    failures.push('Data Cell cutover check requires DATABASE_URL')
+    out('failed: Data Cell cutover check (DATABASE_URL unset)')
     failures.push('people authority cutover check requires DATABASE_URL')
     out('failed: people authority cutover check (DATABASE_URL unset)')
     out('skipped: ai head check (DATABASE_URL unset)')
@@ -644,7 +1512,9 @@ function report(failures: readonly string[], settled: boolean): number {
   return 1
 }
 
-function loadManifest(options: Options): PromotionManifest | string {
+function loadManifest(
+  options: Pick<ParsedOptions, 'manifestPath' | 'manifestSha256'>,
+): PromotionManifest | string {
   let content: string
   try {
     content = readFileSync(options.manifestPath, 'utf8')
@@ -657,6 +1527,67 @@ function loadManifest(options: Options): PromotionManifest | string {
     return `promotion manifest digest ${parsed.digest} does not match --manifest-sha256`
   }
   return parsed.manifest
+}
+
+function loadRailwayPlanEvidence(
+  options: ParsedOptions,
+  manifest: PromotionManifest,
+): RailwayPlanEvidence | string {
+  let content: string
+  try {
+    content = readFileSync(options.railwayPlanEvidencePath, 'utf8')
+  } catch (error) {
+    return `could not read Railway plan evidence: ${error instanceof Error ? error.message : String(error)}`
+  }
+  const parsed = parseRailwayPlanEvidence(content)
+  if (!parsed.ok) return parsed.errors.join('\n')
+  if (parsed.digest !== options.railwayPlanEvidenceSha256) {
+    return `Railway plan evidence digest ${parsed.digest} does not match --railway-plan-evidence-sha256`
+  }
+  try {
+    validateRailwayPlanEvidenceForPromotion(parsed.evidence, {
+      cell: options.cell,
+      manifestSha256: options.manifestSha256,
+      signedIacSha256: manifest.contract.iacSha256,
+      currentIacSha256: railwayIacSourceDigest(),
+      signedReleaseControllerSha256: manifest.contract.releaseControllerSha256,
+      currentReleaseControllerSha256: releaseControllerSourceDigest(),
+      now: new Date(),
+    })
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error)
+  }
+  return parsed.evidence
+}
+
+function loadDataCellCutoverEvidence(
+  options: Pick<
+    ParsedOptions,
+    'dataCellCutoverEvidencePath' | 'dataCellCutoverEvidenceSha256'
+  >,
+): DataCellCutoverEvidence | string {
+  let content: string
+  try {
+    content = readFileSync(options.dataCellCutoverEvidencePath, 'utf8')
+  } catch (error) {
+    return `could not read Data Cell cutover evidence: ${error instanceof Error ? error.message : String(error)}`
+  }
+  return validateDataCellCutoverEvidenceForPromotion(
+    content,
+    options.dataCellCutoverEvidenceSha256,
+  )
+}
+
+export function validateDataCellCutoverEvidenceForPromotion(
+  content: string,
+  expectedSha256: string,
+): DataCellCutoverEvidence | string {
+  const parsed = parseDataCellCutoverEvidence(content)
+  if (!parsed.ok) return parsed.errors.join('\n')
+  if (parsed.digest !== expectedSha256) {
+    return `Data Cell cutover evidence digest ${parsed.digest} does not match --data-cell-cutover-evidence-sha256`
+  }
+  return parsed.evidence
 }
 
 function assertSafeCosignVersion(): void {
@@ -680,19 +1611,55 @@ function assertSafeCosignVersion(): void {
   }
 }
 
-function verifyManifestSignature(options: Options): void {
-  assertSafeCosignVersion()
-  const args = sigstoreManifestVerificationArgs({
-    manifestPath: options.manifestPath,
-    bundlePath: options.signatureBundlePath,
-  })
-  const result = spawnSync('cosign', [...args], { encoding: 'utf8' })
-  if (result.error || result.status !== 0) {
-    const detail = (result.stderr || result.stdout || '').trim()
+export function rebindPromotionManifestAtDigest(
+  content: string,
+  expectedDigest: string,
+): PromotionManifest {
+  const parsed = parsePromotionManifest(content)
+  if (!parsed.ok) throw new Error(parsed.errors.join('\n'))
+  if (parsed.digest !== expectedDigest) {
     throw new Error(
-      `release manifest signature verification failed${detail ? `: ${detail}` : ''}`,
+      `verified promotion manifest digest ${parsed.digest} does not match expected ${expectedDigest}`,
     )
   }
+  return parsed.manifest
+}
+
+function verifyManifestSignature(
+  options: Pick<ParsedOptions, 'manifestPath' | 'signatureBundlePath' | 'manifestSha256'>,
+): PromotionManifest {
+  assertSafeCosignVersion()
+  const manifestContent = readFileSync(options.manifestPath, 'utf8')
+  const signatureBundleContent = readFileSync(options.signatureBundlePath)
+  const manifest = rebindPromotionManifestAtDigest(
+    manifestContent,
+    options.manifestSha256,
+  )
+  const directory = mkdtempSync(join(tmpdir(), 'repkey-beta-signature-'))
+  const manifestPath = join(directory, 'manifest.json')
+  const bundlePath = join(directory, 'bundle.json')
+  try {
+    writeFileSync(manifestPath, manifestContent, { flag: 'wx', mode: 0o600 })
+    writeFileSync(bundlePath, signatureBundleContent, { flag: 'wx', mode: 0o600 })
+    const args = sigstoreManifestVerificationArgs({ manifestPath, bundlePath })
+    const result = spawnSync('cosign', [...args], { encoding: 'utf8' })
+    if (result.error || result.status !== 0) {
+      const detail = (result.stderr || result.stdout || '').trim()
+      throw new Error(
+        `release manifest signature verification failed${detail ? `: ${detail}` : ''}`,
+      )
+    }
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+  return manifest
+}
+
+function assertSignedReleaseControllerCurrent(manifest: PromotionManifest): void {
+  assertReleaseControllerSourceDigest(
+    manifest.contract.releaseControllerSha256,
+    releaseControllerSourceDigest(),
+  )
 }
 
 async function deployAndVerify(
@@ -701,9 +1668,30 @@ async function deployAndVerify(
   peopleCutoverEvidence: PeopleCutoverEvidence,
 ): Promise<number> {
   const plan = deployPlan(manifest, options.manifestSha256)
+  const candidateSources = fullRailwayServiceSourceInput(manifest)
   out(
     `APPLY — environment ${options.environment}, revision ${manifest.releaseSha}, manifest ${options.manifestSha256}`,
   )
+
+  out('')
+  out('preflight: isolated Railway target, exact reviewed plan, and web origin')
+  pinAndAssertRailwayTarget(options.railwayPlanEvidence, candidateSources)
+  let currentSources = assertLiveRailwayPlanMatchesEvidence(
+    options.railwayPlanEvidence,
+    candidateSources,
+    false,
+  )
+  assertHealthOriginBelongsToTarget(options)
+
+  out('')
+  out('preflight: completed single-US Data Cell cutover + retained evidence')
+  const dataCellCutoverFailures = await verifyDataCellCutover(
+    options.dataCellCutoverEvidence,
+  )
+  if (dataCellCutoverFailures.length > 0) {
+    return report(dataCellCutoverFailures, false)
+  }
+  out('  clear — live Property and credential-home topology remains US/policy 3')
 
   out('')
   out('preflight: people authority cutover parity + audited evidence')
@@ -714,12 +1702,32 @@ async function deployAndVerify(
   out('  clear — legacy people relationships match canonical readers')
 
   out('')
+  out('preflight: runtime authentication origin')
+  const authenticationUrlFailures = runtimeAuthenticationUrlFailures(
+    options.environment,
+    expectedRuntimeAuthenticationUrl(options),
+  )
+  if (authenticationUrlFailures.length > 0) {
+    return report(authenticationUrlFailures, false)
+  }
+  out('  clear — web and worker authentication origins match the profile')
+
+  out('')
   out('preflight: legacy image-identity overrides')
   const legacyOverrideFailures = legacyIdentityOverrideFailures(options.environment)
   if (legacyOverrideFailures.length > 0) {
     return report(legacyOverrideFailures, false)
   }
   out('  clear — promoted image metadata is the sole source identity')
+
+  out('')
+  out('preflight: signed schema-migrator bootstrap binding')
+  assertSchemaMigratorReadyForServing(
+    currentSources,
+    candidateSources,
+    options.environment,
+    manifest.images.web.digest,
+  )
 
   // Provider Redis is independent of the schema and must be ready before an
   // enabled Google path can reach the new web. Web then owns the pre-deploy
@@ -738,8 +1746,17 @@ async function deployAndVerify(
   out(
     `1/${String(plan.length)} ${providerRedis.service}: ${providerRedis.imageReference} ${providerRedis.variables.join(' ')}`,
   )
+  const providerStage = stageServiceSource(
+    providerRedis,
+    options.environment,
+    currentSources,
+    candidateSources,
+    railwayIacTarget(options.railwayPlanEvidence),
+    manifest.contract.iacSha256,
+  )
+  currentSources = providerStage.sources
   const providerSettlement = await awaitSettlement(
-    [deployService(providerRedis, options.environment)],
+    [providerStage.deployment],
     [providerRedis],
     options.environment,
     options.deployTimeoutMs,
@@ -750,8 +1767,17 @@ async function deployAndVerify(
   out(
     `2/${String(plan.length)} ${web.service}: ${web.imageReference} ${web.variables.join(' ')}`,
   )
+  const webStage = stageServiceSource(
+    web,
+    options.environment,
+    currentSources,
+    candidateSources,
+    railwayIacTarget(options.railwayPlanEvidence),
+    manifest.contract.iacSha256,
+  )
+  currentSources = webStage.sources
   const webSettlement = await awaitSettlement(
-    [deployService(web, options.environment)],
+    [webStage.deployment],
     [web],
     options.environment,
     options.deployTimeoutMs,
@@ -765,14 +1791,25 @@ async function deployAndVerify(
     out(
       `${String(index + 3)}/${String(plan.length)} ${entry.service}: ${entry.imageReference} ${entry.variables.join(' ')}`,
     )
+    const staged = stageServiceSource(
+      entry,
+      options.environment,
+      currentSources,
+      candidateSources,
+      railwayIacTarget(options.railwayPlanEvidence),
+      manifest.contract.iacSha256,
+    )
+    currentSources = staged.sources
     const settlement = await awaitSettlement(
-      [deployService(entry, options.environment)],
+      [staged.deployment],
       [entry],
       options.environment,
       options.deployTimeoutMs,
     )
     if (settlement.length > 0) return report(settlement, false)
   }
+
+  assertFinalRailwayPlanNoDrift(options.railwayPlanEvidence, candidateSources)
 
   return report(
     await verify(manifest, options.manifestSha256, options, peopleCutoverEvidence),
@@ -783,11 +1820,24 @@ async function deployAndVerify(
 function printPlan(manifest: PromotionManifest, options: Options): number {
   const plan = deployPlan(manifest, options.manifestSha256)
   out(
-    `DRY RUN — environment ${options.environment}, revision ${manifest.releaseSha}, manifest ${options.manifestSha256}`,
+    `DRY RUN — ${options.deploymentProfile} environment ${options.environment}, revision ${manifest.releaseSha}, manifest ${options.manifestSha256}`,
   )
   out('Re-run with --apply --operator <id> --reason "<text>" to execute.')
   out('No Railway command has been invoked. Apply will verify the Sigstore bundle.')
   out(`People cutover evidence: ${options.peopleCutoverEvidencePath}`)
+  out(
+    `Data Cell cutover evidence: ${options.dataCellCutoverEvidencePath} (${options.dataCellCutoverEvidenceSha256})`,
+  )
+  out(
+    `Railway plan evidence: ${options.railwayPlanEvidencePath} (${options.railwayPlanEvidenceSha256})`,
+  )
+  out(
+    `Reviewed target: ${options.railwayPlanEvidence.target.projectName} (${options.railwayPlanEvidence.target.projectId}) / ${options.railwayPlanEvidence.target.environment} (${options.railwayPlanEvidence.target.environmentId})`,
+  )
+  out(`Health origin: ${options.appUrl}`)
+  out(
+    'Apply will verify project isolation, rebind the retained candidate plan, then advance one IaC-owned digest source through a saved plan at a time.',
+  )
   for (const [index, entry] of plan.entries()) {
     out('')
     out(`${String(index + 1)}. ${entry.service}`)
@@ -796,27 +1846,52 @@ function printPlan(manifest: PromotionManifest, options: Options): number {
         `   railway variable set ${assignment} --service ${entry.service} --environment ${options.environment} --skip-deploys`,
       )
     }
+    out(`   saved IaC plan/apply → ${entry.imageReference}`)
     out(
-      `   railway service source connect --image ${entry.imageReference} --service ${entry.service} --environment ${options.environment} --json`,
+      `   railway deployment list --service ${entry.service} --limit 100 --json  → poll to SUCCESS`,
     )
-    out(`   railway deployment list --service ${entry.service} --json  → poll to SUCCESS`)
   }
   return 0
 }
 
 export async function runDeployBetaCli(args: readonly string[]): Promise<number> {
+  // A test runner or embedding process may invoke the CLI more than once. A
+  // target from a previous invocation must never bleed into the next one.
+  pinnedRailwayEnvironment = undefined
+  pinnedRailwayTarget = undefined
   const parsed = parseOptions(args)
   if (typeof parsed === 'string') {
     process.stderr.write(`${parsed}\n`)
     return 2
   }
-  const options = parsed
-  const loaded = loadManifest(options)
+  const parsedOptions = parsed
+  const loaded = loadManifest(parsedOptions)
   if (typeof loaded === 'string') {
     process.stderr.write(`invalid release manifest:\n${loaded}\n`)
     return 1
   }
   const manifest = loaded
+  const loadedRailwayPlan = loadRailwayPlanEvidence(parsedOptions, manifest)
+  if (typeof loadedRailwayPlan === 'string') {
+    process.stderr.write(`invalid Railway plan evidence:\n${loadedRailwayPlan}\n`)
+    return 1
+  }
+  const loadedDataCellCutover = loadDataCellCutoverEvidence(parsedOptions)
+  if (typeof loadedDataCellCutover === 'string') {
+    process.stderr.write(
+      `invalid Data Cell cutover evidence:\n${loadedDataCellCutover}\n`,
+    )
+    return 1
+  }
+  let options: Options
+  try {
+    options = bindOptions(parsedOptions, loadedDataCellCutover, loadedRailwayPlan)
+  } catch (error) {
+    process.stderr.write(
+      `invalid deployment profile or app URL: ${error instanceof Error ? error.message : String(error)}\n`,
+    )
+    return 2
+  }
   let peopleCutoverContent: string
   try {
     peopleCutoverContent = readFileSync(options.peopleCutoverEvidencePath, 'utf8')
@@ -835,12 +1910,39 @@ export async function runDeployBetaCli(args: readonly string[]): Promise<number>
   }
   const peopleCutoverEvidence = parsedPeopleCutover.evidence
   out(`people cutover evidence sha256=${parsedPeopleCutover.digest}`)
+  out(`Data Cell cutover evidence sha256=${options.dataCellCutoverEvidenceSha256}`)
 
   if (options.verifyOnly) {
-    verifyManifestSignature(options)
-    out(`verify-only — environment ${options.environment}`)
+    const verifiedManifest = verifyManifestSignature(options)
+    assertSignedReleaseControllerCurrent(verifiedManifest)
+    const candidateSources = fullRailwayServiceSourceInput(verifiedManifest)
+    pinAndAssertRailwayTarget(options.railwayPlanEvidence, candidateSources)
+    const currentSources = assertLiveRailwayPlanMatchesEvidence(
+      options.railwayPlanEvidence,
+      candidateSources,
+      true,
+    )
+    assertSchemaMigratorReadyForServing(
+      currentSources,
+      candidateSources,
+      options.environment,
+      verifiedManifest.images.web.digest,
+    )
+    assertHealthOriginBelongsToTarget(options)
+    const dataCellCutoverFailures = await verifyDataCellCutover(
+      options.dataCellCutoverEvidence,
+    )
+    if (dataCellCutoverFailures.length > 0) {
+      return report(dataCellCutoverFailures, false)
+    }
+    out(`verify-only — ${options.deploymentProfile} environment ${options.environment}`)
     return report(
-      await verify(manifest, options.manifestSha256, options, peopleCutoverEvidence),
+      await verify(
+        verifiedManifest,
+        options.manifestSha256,
+        options,
+        peopleCutoverEvidence,
+      ),
       false,
     )
   }
@@ -866,7 +1968,41 @@ export async function runDeployBetaCli(args: readonly string[]): Promise<number>
 
   // Signature verification is never bypassable. It is the authority for
   // source and image provenance.
-  verifyManifestSignature(options)
+  const verifiedManifest = verifyManifestSignature(options)
+  assertSignedReleaseControllerCurrent(verifiedManifest)
+  const candidateSources = fullRailwayServiceSourceInput(verifiedManifest)
+
+  // Select the reviewed project/environment by opaque IDs, prove project-wide
+  // service isolation and the exact retained plan, then bind the probe origin
+  // before the audited harness can write even its decision row.
+  pinAndAssertRailwayTarget(options.railwayPlanEvidence, candidateSources)
+  const currentSources = assertLiveRailwayPlanMatchesEvidence(
+    options.railwayPlanEvidence,
+    candidateSources,
+    false,
+  )
+  assertSchemaMigratorReadyForServing(
+    currentSources,
+    candidateSources,
+    options.environment,
+    verifiedManifest.images.web.digest,
+  )
+  assertHealthOriginBelongsToTarget(options)
+
+  // Bind retained completion evidence to the live target database before the
+  // audited harness can reach the first Railway mutation. The same check runs
+  // again inside the harness and after deployment to narrow the TOCTOU window.
+  const dataCellCutoverFailures = await verifyDataCellCutover(
+    options.dataCellCutoverEvidence,
+  )
+  if (dataCellCutoverFailures.length > 0) {
+    return report(dataCellCutoverFailures, false)
+  }
+
+  // The network/readback preflights above may take time. Recompute immediately
+  // before loading the dynamic operator/auth authority so a changed local
+  // module cannot enter the audited mutation path after the signed preflight.
+  assertSignedReleaseControllerCurrent(verifiedManifest)
 
   // Audited path: same contract as every ops:* mutation — named operator from
   // OPS_OPERATOR_IDENTITIES, --reason, and one audited ExecutionPolicy decision
@@ -878,9 +2014,9 @@ export async function runDeployBetaCli(args: readonly string[]): Promise<number>
       name: COMMAND_NAME,
       scope: 'global',
       mutation: true,
-      usage: `pnpm ${COMMAND_NAME} --manifest <manifest.json> --signature-bundle <bundle.json> --manifest-sha256 <digest> --people-cutover-evidence <evidence.json> --cell <us|europe|global> --apply --operator <id> --reason "<text>" [--app-url <url>] [--deploy-timeout <seconds>]`,
+      usage: `pnpm ${COMMAND_NAME} --manifest <manifest.json> --signature-bundle <bundle.json> --manifest-sha256 <digest> --people-cutover-evidence <evidence.json> --data-cell-cutover-evidence <evidence.json> --data-cell-cutover-evidence-sha256 <digest> --railway-plan-evidence <evidence.json> --railway-plan-evidence-sha256 <digest> --cell <us> --apply --operator <id> --reason "<text>" [--app-url <url>] [--deploy-timeout <seconds>]`,
     },
-    async () => deployAndVerify(manifest, options, peopleCutoverEvidence),
+    async () => deployAndVerify(verifiedManifest, options, peopleCutoverEvidence),
     harnessArgv(args),
   )
   return result.exitCode

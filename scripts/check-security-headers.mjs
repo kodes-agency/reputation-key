@@ -50,7 +50,7 @@ const PROBE_UPLOAD_ORIGIN = 'https://uploads.security-probe.repkey.invalid'
 // src/shared/security/security-headers.ts — keep in sync deliberately; this
 // independent encoding is what makes the gate fail on drift.
 const EXPECTED_CSP_PATTERN =
-  /^script-src 'self'(?: 'nonce-[A-Za-z0-9+/_-]+={0,2}')?; style-src 'self' 'unsafe-inline' https:\/\/api\.fontshare\.com https:\/\/fonts\.googleapis\.com; img-src 'self' data: https:; connect-src 'self' https:\/\/uploads\.security-probe\.repkey\.invalid; font-src 'self' https:\/\/cdn\.fontshare\.com https:\/\/fonts\.gstatic\.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'$/
+  /^default-src 'none'; script-src 'self'(?: 'nonce-[A-Za-z0-9+/_-]+={0,2}')?; style-src 'self' 'unsafe-inline' https:\/\/api\.fontshare\.com https:\/\/fonts\.googleapis\.com; img-src 'self' data: https:; connect-src 'self' https:\/\/uploads\.security-probe\.repkey\.invalid; font-src 'self' https:\/\/cdn\.fontshare\.com https:\/\/fonts\.gstatic\.com; object-src 'none'; frame-src 'none'; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'$/
 
 const EXPECTED_HEADERS = {
   'x-content-type-options': 'nosniff',
@@ -86,6 +86,7 @@ function serverEnv(port) {
   return {
     ...process.env,
     NODE_ENV: 'production',
+    PROCESSING_CELL: 'us',
     HOST: '127.0.0.1',
     PORT: String(port),
     // Not contacted by the probes (liveness has no database dependency and

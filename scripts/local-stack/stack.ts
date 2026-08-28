@@ -1213,21 +1213,6 @@ async function waitWorkerRestart(
   throw new Error(`worker did not emit readiness line: ${WORKER_READY_LINE}`)
 }
 
-function serviceRunning(
-  mode: LocalStackMode,
-  state: StackPaths,
-  service: string,
-): boolean {
-  const id = dockerCompose(mode, state, ['ps', '--all', '--quiet', service], {
-    capture: true,
-    allowFailure: true,
-  }).trim()
-  if (!id) return false
-  const parsed = JSON.parse(
-    run('docker', ['inspect', id], { capture: true }),
-  ) as DockerInspect
-  return parsed[0]?.State.Running === true
-}
 function serviceNetworks(
   mode: LocalStackMode,
   state: StackPaths,

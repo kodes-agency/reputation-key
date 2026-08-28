@@ -19,7 +19,11 @@ describe('pino development transport in built ESM', () => {
     // resolves the same repository-owned node_modules tree as the real build.
     const directory = mkdtempSync(join(ROOT, '.pino-esm-proof-'))
     createdDirectories.push(directory)
-    const entry = join(directory, 'probe.ts')
+    // The ownership gate scans TypeScript concurrently with the unit suite.
+    // This probe contains plain ESM, so keep its short-lived source as `.mjs`
+    // rather than making an intentionally unowned TypeScript module appear in
+    // the repository while another worker inventories project coverage.
+    const entry = join(directory, 'probe.mjs')
     const outDir = join(directory, 'dist')
     writeFileSync(
       entry,

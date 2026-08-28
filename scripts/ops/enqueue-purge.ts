@@ -4,15 +4,17 @@
 // at execution). Handlers are never invoked directly.
 //
 // DESTRUCTIVE: retention deletes expired data (bounded, evidence-writing), so
-// --apply requires the typed confirmation --yes ops:purge. The Review target
-// is SAFE-03-quarantined and performs no mutation until REV-01 cutover.
+// --apply requires the typed confirmation --yes ops:purge. Review targets run
+// the content-free report/shadow authority only; even an enqueued invocation
+// has no destructive apply authority until the reviewed REV-01 cutover.
 //
 // Usage:
 //   pnpm ops:purge <target> --operator <id>            — dry-run report
 //   pnpm ops:purge <target> --operator <id> --reason <text> --apply --yes ops:purge
 //
 // Targets (background queue, bounded internally by the sweeps themselves):
-//   reviews    — purge-expired-reviews (quarantined; no mutation/evidence)
+//   reviews         — checkpointed lifecycle eligibility report (no mutation)
+//   reviews-shadow  — checkpointed expand/cache parity report (no mutation)
 //   retention  — retention-sweep (daily; static registry, evidence in retention_runs)
 //
 // Report mode requires DATABASE_URL only. Apply also requires QUEUE_REDIS_URL. Every
@@ -29,13 +31,27 @@ import {
   RETENTION_RULES,
 } from '../../src/shared/jobs/retention-sweep.job'
 import { buildRetentionRuleReport } from '../../src/shared/db/retention/report-retention-rules'
+import { wireReviewSourceContentLifecycle } from '../../src/contexts/review/build'
 import { runOperatorCommand } from './operator-command'
 
 const TARGETS = {
-  reviews: { jobName: 'purge-expired-reviews', capability: 'review.use' },
+  reviews: {
+    jobName: 'purge-expired-reviews',
+    capability: 'review.use',
+    lifecycleMode: 'report',
+  },
+  'reviews-shadow': {
+    jobName: 'purge-expired-reviews',
+    capability: 'review.use',
+    lifecycleMode: 'shadow',
+  },
   // Retention is the data-lifecycle safety process — deliberately NOT
   // capability-gated so it still runs while product capabilities are killed.
-  retention: { jobName: 'retention-sweep', capability: undefined },
+  retention: {
+    jobName: 'retention-sweep',
+    capability: undefined,
+    lifecycleMode: undefined,
+  },
 } as const
 
 type Target = keyof typeof TARGETS
@@ -50,7 +66,7 @@ function usage(): never {
 async function main(): Promise<void> {
   const [target] = positionalArgs(process.argv.slice(2))
   if (!target || !(target in TARGETS)) usage()
-  const { jobName, capability } = TARGETS[target as Target]
+  const { jobName, capability, lifecycleMode } = TARGETS[target as Target]
 
   const result = await runOperatorCommand(
     {
@@ -89,8 +105,17 @@ async function main(): Promise<void> {
           )
           return
         }
+        const runLifecycle = wireReviewSourceContentLifecycle({
+          db: getDb(),
+          clock: () => new Date(),
+        })
+        const report = await runLifecycle({
+          mode: lifecycleMode ?? 'report',
+          batchSize: 100,
+        })
+        io.out(JSON.stringify({ target, ...report }, null, 2))
         io.out(
-          `would enqueue '${jobName}' on 'background' (catalogue retry policy) — re-run with --apply --yes ops:purge`,
+          'report is content-free and read-only; destructive apply remains unavailable pending external shadow parity and cutover approval',
         )
         return
       }
@@ -101,7 +126,11 @@ async function main(): Promise<void> {
         return 1
       }
       try {
-        const job = await queue.add(jobName, {}, jobEnqueueOptions(jobName))
+        const job = await queue.add(
+          jobName,
+          lifecycleMode == null ? {} : { mode: lifecycleMode },
+          jobEnqueueOptions(jobName),
+        )
         io.out(
           JSON.stringify(
             { enqueued: jobName, queue: 'background', jobId: job.id, target },

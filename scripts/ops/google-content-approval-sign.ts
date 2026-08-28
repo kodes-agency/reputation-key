@@ -1,5 +1,5 @@
 /**
- * Re-sign and install the Google Content capability approvals.
+ * Prepare freshly signed Google Content capability approval bundles.
  *
  * Why this exists: `capability_compliance_approvals` rows are Ed25519
  * role-signed and byte-pinned to the compiled contract. When an approval-bound
@@ -7,8 +7,9 @@
  * fixes the Performance route URL, its wire metric set, the dailyRange
  * encoding, page size and response cap — every persisted approval stops
  * resolving and both Google capabilities deny `approval_unavailable` until a
- * freshly signed bundle is installed. Only the approval owner can do that, so
- * this command asks for one password and does the rest.
+ * freshly signed bundle is installed. Only the approval owner can prepare the
+ * role decisions, so this command asks for one password and creates the
+ * private inputs for the separate reviewed activation controller.
  *
  * What it does:
  *   1. unlocks (or creates) an encrypted role keystore with your password;
@@ -16,19 +17,19 @@
  *      the compiled catalogue/policy versions and a fresh approval window;
  *   3. signs the five role documents, assembles each bundle and validates it
  *      locally with the same parser/validator the installer uses;
- *   4. installs both bundles through `ops:google-content-approval`; and
- *   5. reports whether the deployed role public keys must be updated.
+ *   4. writes all four private bundles plus the public-role-key map for review;
+ *      and
+ *   5. reports the inputs for the exact-target approval/configuration
+ *      activation ceremony.
  *
  * Usage:
  *   pnpm ops:google-content-approval-sign --operator <id> \
- *     --reason <text> --ticket <ref> [--apply] \
- *     [--railway-environment google-closed-beta]
+ *     --reason <text> --ticket <ref>
  *
- * Without `--apply` it validates and prints what would be installed, touching
- * nothing. `DATABASE_URL` must point at the target database. With
- * `--railway-environment` it also rotates
- * `GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON` on web and worker, which is
- * required whenever the keystore is created or rotated.
+ * It reads the current approval rows and writes only private local artifacts;
+ * it does not change the database or Railway. `--apply` is deliberately
+ * refused before any database write. The exact-target release controller owns
+ * the coordinated database installation and two-variable Railway activation.
  */
 import {
   createCipheriv,
@@ -38,7 +39,7 @@ import {
   scryptSync,
   sign as signPayload,
 } from 'node:crypto'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { Client } from 'pg'
@@ -62,15 +63,12 @@ import {
   type GoogleContentCapability,
 } from '../../src/shared/auth/google-content-contract'
 import { GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION } from '../../src/shared/google-provider-control/contracts'
-import { getEnv } from '../../src/shared/config/env'
-import { canonicalizeRfc8785 } from '../../src/shared/merchant-ai-notice-contract'
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url))
 /** Override only for rehearsal; the real ceremony uses the default path. */
 const KEYSTORE_PATH =
   process.env.GOOGLE_CONTENT_APPROVAL_KEYSTORE ??
   resolve(ROOT, '.secrets/google-content-approval-roles.enc.json')
-const RUNTIME_BINDINGS_VAR = 'GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON'
 const BUNDLE_DIR = resolve(ROOT, '.secrets/google-content-approval-bundles')
 /** Approval window for the closed beta; the validator caps it at 30 days. */
 const APPROVAL_WINDOW_MS = 29 * 24 * 60 * 60 * 1000
@@ -343,6 +341,16 @@ async function main(): Promise<void> {
   const reason = flag('reason')
   const ticket = flag('ticket')
   const apply = process.argv.includes('--apply')
+  if (flag('railway-environment')) {
+    fail(
+      '--railway-environment is retired; this command never mutates Railway. Use the governed exact-target cell-us configuration and signed-release procedure.',
+    )
+  }
+  if (apply) {
+    fail(
+      '--apply is blocked before any database write: this signer prepares private review artifacts only. Use pnpm infra:railway:google-content-approval plan, then apply or recover the unchanged reviewed intent; do not install bundles manually.',
+    )
+  }
   if (!operator || !reason || !ticket) {
     fail(
       'Usage: pnpm ops:google-content-approval-sign --operator <id> --reason <text> --ticket <ref> [--apply]',
@@ -350,12 +358,6 @@ async function main(): Promise<void> {
   }
   const databaseUrl = process.env.DATABASE_URL
   if (!databaseUrl) fail('DATABASE_URL is required')
-  // `ops:google-content-approval` boots the operator runtime, which validates
-  // the whole env schema. Validate it here too: without this the command
-  // prompts for a password, creates the keystore and signs both bundles, and
-  // only then dies on the child's `[CONFIG] Invalid environment variables`.
-  if (apply) getEnv()
-
   const created = !existsSync(KEYSTORE_PATH)
   const password = await readPassword(
     created
@@ -403,6 +405,11 @@ async function main(): Promise<void> {
   const approvedAt = now.toISOString()
   const expiresAt = new Date(now.getTime() + APPROVAL_WINDOW_MS).toISOString()
   mkdirSync(BUNDLE_DIR, { recursive: true, mode: 0o700 })
+  const rolePublicKeysPath = resolve(BUNDLE_DIR, 'role-public-keys.json')
+  writeFileSync(rolePublicKeysPath, `${JSON.stringify(publicKeys, null, 2)}\n`, {
+    mode: 0o600,
+  })
+  chmodSync(rolePublicKeysPath, 0o600)
   const bundlePaths: string[] = []
 
   for (const row of rows) {
@@ -451,6 +458,7 @@ async function main(): Promise<void> {
 
     const path = resolve(BUNDLE_DIR, `${row.capability.replaceAll('.', '-')}.json`)
     writeFileSync(path, `${JSON.stringify(bundle, null, 2)}\n`, { mode: 0o600 })
+    chmodSync(path, 0o600)
     bundlePaths.push(path)
     process.stderr.write(
       `validated ${row.capability} routeCatalogue=${GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION} expires=${expiresAt}\n`,
@@ -460,133 +468,19 @@ async function main(): Promise<void> {
   process.stdout.write(
     `${JSON.stringify(
       {
-        rolePublicKeys: publicKeys,
+        rolePublicKeysPath,
         bundles: bundlePaths,
         approvedAt,
         expiresAt,
-        apply,
+        databaseApplied: false,
+        railwayConfigurationApplied: false,
       },
       null,
       2,
     )}\n`,
   )
-  if (!apply) {
-    process.stderr.write('re-run with --apply to install these bundles\n')
-    return
-  }
-  const { spawnSync } = await import('node:child_process')
-  for (const path of bundlePaths) {
-    const child = spawnSync(
-      'pnpm',
-      [
-        'ops:google-content-approval',
-        path,
-        '--operator',
-        operator,
-        '--reason',
-        reason,
-        '--ticket',
-        ticket,
-        '--apply',
-      ],
-      {
-        cwd: ROOT,
-        stdio: 'inherit',
-        env: {
-          ...process.env,
-          GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON: JSON.stringify(publicKeys),
-        },
-      },
-    )
-    if (child.status !== 0) fail(`installing ${path} failed`)
-  }
-  // Two deployment variables have to move with a re-sign, not one:
-  //   * GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON — the runtime verifies
-  //     each stored approval's role signatures against it;
-  //   * GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON — every re-sign recomputes the
-  //     evidence manifest digest (it hashes the prior index digest) and the
-  //     evidence index digest (it hashes the fresh role-document digests), and
-  //     the runtime compares the stored approval's binding to this variable
-  //     field for field.
-  // Rotating only the keys leaves a successfully installed approval denying
-  // `runtime_binding_mismatch` at `google-content-preauthorize`.
-  const railwayEnvironment = flag('railway-environment')
-  if (!railwayEnvironment) {
-    process.stderr.write(
-      'installed. On web and worker set GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON to the rolePublicKeys above, ' +
-        'and patch evidenceManifestSha256 + evidenceIndexSha256 in GOOGLE_CONTENT_RUNTIME_BINDINGS_JSON to the ' +
-        "installed bundles' values, then redeploy both.\n",
-    )
-    return
-  }
-  const listed = spawnSync(
-    'railway',
-    ['variable', 'list', '--service', 'web', '--environment', railwayEnvironment, '--kv'],
-    { cwd: ROOT, encoding: 'utf8' },
-  )
-  if (listed.status !== 0) fail(`reading ${RUNTIME_BINDINGS_VAR} from web failed`)
-  const bindingsLine = listed.stdout
-    .split('\n')
-    .find((line) => line.startsWith(`${RUNTIME_BINDINGS_VAR}=`))
-  if (!bindingsLine)
-    fail(`${RUNTIME_BINDINGS_VAR} is not set on web in ${railwayEnvironment}`)
-  const runtimeBindings = JSON.parse(
-    bindingsLine.slice(RUNTIME_BINDINGS_VAR.length + 1),
-  ) as Record<string, Record<string, unknown>>
-  for (const path of bundlePaths) {
-    const { candidate } = JSON.parse(readFileSync(path, 'utf8')) as {
-      candidate: { binding: Record<string, unknown> }
-    }
-    const capability = String(candidate.binding.capability)
-    const current = runtimeBindings[capability]
-    if (!current) fail(`${RUNTIME_BINDINGS_VAR} has no entry for ${capability}`)
-    // RFC 8785, not JSON.stringify: `imageDigests` carries the same digests in
-    // a different key order on either side, and a textual compare would report
-    // a pure evidence rotation as a deployment change.
-    const drifted = Object.keys(current).filter(
-      (key) =>
-        key !== 'evidenceManifestSha256' &&
-        key !== 'evidenceIndexSha256' &&
-        canonicalizeRfc8785(current[key]) !== canonicalizeRfc8785(candidate.binding[key]),
-    )
-    if (drifted.length > 0) {
-      fail(
-        `${capability}: the deployment's runtime binding differs from the approved binding in ` +
-          `${drifted.join(', ')}. That is a deployment change, not an evidence rotation — ` +
-          'mint fresh evidence instead of re-signing.',
-      )
-    }
-    current.evidenceManifestSha256 = candidate.binding.evidenceManifestSha256
-    current.evidenceIndexSha256 = candidate.binding.evidenceIndexSha256
-  }
-  for (const service of ['web', 'worker']) {
-    for (const assignment of [
-      `GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON=${JSON.stringify(publicKeys)}`,
-      `${RUNTIME_BINDINGS_VAR}=${JSON.stringify(runtimeBindings)}`,
-    ]) {
-      const child = spawnSync(
-        'railway',
-        [
-          'variable',
-          'set',
-          assignment,
-          '--service',
-          service,
-          '--environment',
-          railwayEnvironment,
-          '--skip-deploys',
-        ],
-        { cwd: ROOT, stdio: 'inherit' },
-      )
-      if (child.status !== 0) {
-        fail(
-          `setting ${assignment.slice(0, assignment.indexOf('='))} on ${service} failed`,
-        )
-      }
-    }
-  }
   process.stderr.write(
-    `installed and rotated role public keys + runtime bindings on web + worker in ${railwayEnvironment}. Redeploy both to pick them up:\n  railway up --service web --environment ${railwayEnvironment} --detach\n  railway up --service worker --environment ${railwayEnvironment} --detach\n`,
+    'prepared only; nothing was installed. Create one private canonical intent with pnpm infra:railway:google-content-approval plan, review its SHA-256 and exact cell-us IDs, then use apply or recover and finish with verify.\n',
   )
 }
 

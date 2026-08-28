@@ -14,17 +14,19 @@
         "details",
         "detail",
         "notes",
-        "activity"
+        "activity",
+        "responseTargetPolicies",
+        "privateFeedbackTargetAnalytics",
+        "googleReviewTargetAnalytics"
       ],
       "owner": "Inbox query lifecycle",
-      "policy": "The active-tenant root separates filtered lists, property/all counts, last-visit count, and item details. Notes and activity descend from an item detail so item invalidation reaches its projections; filters and item ids remain part of the cache identity."
+      "policy": "The active-tenant root separates filtered lists, property/all counts, last-visit count, item details, response-target policies, and target analytics. Notes and activity descend from an item detail so item invalidation reaches its projections; filters and item ids remain part of the cache identity. Response-target policy and analytics keys include either the globally unique Property id or the explicit Organization scope, preventing Property and Organization settings from sharing cache entries."
     },
     {
       "id": "notificationKeys",
       "members": [
         "all",
         "feed",
-        "count",
         "lists",
         "list",
         "head",
@@ -60,6 +62,7 @@
       "id": "dashboardKeys",
       "members": [
         "all",
+        "setup",
         "fleets",
         "fleet",
         "staff",
@@ -68,7 +71,7 @@
         "googlePerformanceLease"
       ],
       "owner": "Dashboard query lifecycle",
-      "policy": "Fleet is a real prefix above range-specific infinite entries. Staff/property callers include their property and view filters in the argument object. Google performance is isolated by property, preset, catalogue version, and view epoch; an authorization lease adds leaseRef beneath that exact report."
+      "policy": "Setup is the authoritative role-aware checklist for the active session and organization; confirmed session or tenant transitions clear the complete QueryClient, so it cannot cross organizations. Fleet is a real prefix above range-specific infinite entries. Staff/property callers include their property and view filters in the argument object. Google performance is isolated by property, preset, catalogue version, and view epoch; an authorization lease adds leaseRef beneath that exact report."
     },
     {
       "id": "aiKeys",
@@ -103,6 +106,8 @@
         "links",
         "responsibleManagers",
         "publicationHistory",
+        "experience",
+        "approvedDestinations",
         "groups",
         "goalSubjects",
         "goalSubjectNames",
@@ -112,7 +117,7 @@
         "analytics"
       ],
       "owner": "Portal query lifecycle",
-      "policy": "Property lists, groups, and goal-subject projections include propertyId. Detail descendants use globally unique portalId. Analytics additionally nests propertyId, portalId, and time range so property teardown, portal teardown, and range-specific reads each have a usable prefix."
+      "policy": "Property lists, groups, and goal-subject projections include propertyId. Every successful Portal Group create, rename, archive, member-add, or member-remove command goes through one named cache policy that invalidates only the exact groups, goalSubjects, and goalSubjectNames keys for that Property; failed commands do not run the policy. Detail descendants use globally unique portalId; the guest-experience projection also includes propertyId because it combines Property defaults with Portal overrides, while approved destinations remain Portal-scoped. Analytics additionally nests propertyId, portalId, and time range so property teardown, portal teardown, and range-specific reads each have a usable prefix."
     },
     {
       "id": "integrationKeys",
@@ -135,6 +140,48 @@
       "policy": "Public portal data is keyed by the complete validated route argument object, currently the public token, beneath a Guest-only root; token navigation therefore remounts and reads a distinct cache entry."
     }
   ],
+  "queryKeyDelegates": [
+    {
+      "id": "src/components/features/notification/notification-feed-pagination.ts:queryKey#1",
+      "owner": "Notification feed query-options helper",
+      "policy": "The helper is intentionally generic over a caller-supplied QueryKey; its only production caller passes notificationKeys.head from notification-queries.ts, which owns Organization, filter, and page-size identity."
+    },
+    {
+      "id": "src/components/features/notification/notification-feed-pagination.ts:queryKey#2",
+      "owner": "Notification history query-options helper",
+      "policy": "The helper is intentionally generic over a caller-supplied QueryKey; its only production caller passes notificationKeys.list from notification-queries.ts, which owns Organization, filter, and page-size identity."
+    },
+    {
+      "id": "src/components/features/portal/portal-group-cache-policy.ts:queryKey#1",
+      "owner": "Portal Group cache fan-out",
+      "policy": "The mapped value comes only from affectedProjectionKeys, whose closed array is built from portalKeys.groups, portalKeys.goalSubjects, and portalKeys.goalSubjectNames for the exact Property."
+    },
+    {
+      "id": "src/components/features/property/use-google-performance.ts:queryKey#1",
+      "owner": "Google Performance volatile-content cleanup",
+      "policy": "The private cleanup callback accepts only the hook-local dashboardKeys.googlePerformance key and cancels that exact view before removing it."
+    },
+    {
+      "id": "src/components/features/property/use-google-performance.ts:queryKey#2",
+      "owner": "Google Performance volatile-content cleanup",
+      "policy": "The private cleanup callback accepts only the hook-local dashboardKeys.googlePerformance key and removes that exact view after cancellation."
+    },
+    {
+      "id": "src/components/hooks/use-action-mutation.ts:queryKey#1",
+      "owner": "Shared action-mutation adapter",
+      "policy": "The generic adapter accepts typed QueryKey values supplied through invalidateKeys; feature routes remain responsible for building those values from an owned shared factory, while this loop performs only the declared targeted invalidations."
+    },
+    {
+      "id": "src/routes/_authenticated/properties/$propertyId/portals/$portalId.tsx:queryKey#9",
+      "owner": "Portal optimistic-update transaction",
+      "policy": "The block-local queryKey alias is portalKeys.detail(portalId); it is cancelled and snapshotted before the optimistic write."
+    },
+    {
+      "id": "src/routes/_authenticated/properties/$propertyId/portals/$portalId.tsx:queryKey#10",
+      "owner": "Portal optimistic-update rollback",
+      "policy": "The error block recreates the same portalKeys.detail(portalId) alias, restores its snapshot, and refetches only that exact detail."
+    }
+  ],
   "broadInvalidationExceptions": [
     {
       "id": "src/routes/login.tsx:router.invalidate#1",
@@ -144,22 +191,16 @@
   ],
   "stateMirrorCandidates": [
     {
-      "id": "src/components/features/guest/public-portal/guest-response-form.tsx:useState(response)",
+      "id": "src/components/features/guest/public-portal/use-guest-response-controller.ts:useState(response)",
       "classification": "server_snapshot",
       "owner": "Guest response journey",
       "policy": "Seed from the loader response, then replace only with confirmed response-mutation results; route-token remount remains the reset boundary."
     },
     {
-      "id": "src/components/features/guest/public-portal/guest-response-form.tsx:useState(activeCsrfNonce)",
+      "id": "src/components/features/guest/public-portal/use-guest-response-controller.ts:useState(activeCsrfNonce)",
       "classification": "server_snapshot",
       "owner": "Guest response CSRF lifecycle",
       "policy": "Seed from the issued nonce and rotate only from confirmed start-new-response results; route-token remount remains the reset boundary."
-    },
-    {
-      "id": "src/components/features/guest/public-portal/guest-response-form.tsx:useState(rating)",
-      "classification": "server_draft",
-      "owner": "Guest rating form",
-      "policy": "Seed from the current response rating and keep guest edits local until submit or correction completes."
     },
     {
       "id": "src/components/features/identity/profile-settings-form.tsx:useState(avatarUrl)",
@@ -210,34 +251,28 @@
       "policy": "Seed from the persisted SLA and keep typing local; OrganizationSettingsPage keys the card by responseSlaHours, and the browser story proves a changed server value remounts the draft instead of leaving stale input on screen."
     },
     {
-      "id": "src/components/features/portal/link-tree/link-inline-form.tsx:useState(label)",
-      "classification": "server_draft",
-      "owner": "Portal link editor",
-      "policy": "Seed the edit form label once and retain local input until submit or cancel unmounts the inline form."
-    },
-    {
-      "id": "src/components/features/portal/link-tree/link-inline-form.tsx:useState(url)",
-      "classification": "server_draft",
-      "owner": "Portal link editor",
-      "policy": "Seed the edit form URL once and retain local input until submit or cancel unmounts the inline form."
-    },
-    {
-      "id": "src/components/features/portal/link-tree/use-category-form.ts:useState(title)",
-      "classification": "server_draft",
-      "owner": "Portal link-category editor",
-      "policy": "Seed edit mode from the category title; create mode clears after success and edit mode resets by unmounting."
-    },
-    {
       "id": "src/components/features/portal/portal-analytics/portal-analytics-tab.tsx:useState(timeRange)",
       "classification": "client_persistence",
       "owner": "Portal analytics viewing preference",
       "policy": "Initialize from schema-validated localStorage and persist changes; this preference is intentionally global across portals."
     },
     {
-      "id": "src/components/features/portal/portal-group-row.tsx:useState(editName)",
+      "id": "src/components/features/portal/portal-settings/portal-locale-configuration.tsx:useState(primary)",
       "classification": "server_draft",
-      "owner": "Portal group rename form",
-      "policy": "Seed from the group name and explicitly reset from the latest prop each time rename mode opens."
+      "owner": "Portal guest-language settings",
+      "policy": "Seed the fallback locale from persisted Portal settings and keep edits local until Save; PortalExperienceSettingsCard keys the editor by the effective persisted primary and Bulgarian-enabled values, so a changed server configuration remounts the draft."
+    },
+    {
+      "id": "src/components/features/portal/portal-settings/portal-locale-configuration.tsx:useState(bulgarianEnabled)",
+      "classification": "server_draft",
+      "owner": "Portal guest-language settings",
+      "policy": "Seed the Bulgarian toggle from persisted Portal settings and keep edits local until Save; PortalExperienceSettingsCard keys the editor by the effective persisted primary and Bulgarian-enabled values, so a changed server configuration remounts the draft."
+    },
+    {
+      "id": "src/components/features/portal/portal-settings/portal-publication-history-card.tsx:useState(continuation)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Portal publication-history pagination",
+      "policy": "The local continuation stores client-loaded pages tagged with the server history source key. Rendering ignores pages when that key no longer matches, and the next load rebases onto the current source key, so stale pagination cannot cross a changed history snapshot."
     },
     {
       "id": "src/components/features/responsible-managers/use-responsible-manager-selection.ts:useState(selected)",
@@ -258,18 +293,6 @@
       "policy": "Seed from the current authorization or notice defaults and retain local capability edits until a command result replaces them; the propertyId-keyed route remount prevents drafts crossing properties."
     },
     {
-      "id": "src/components/features/settings/notifications-settings-page.tsx:useState(locale)",
-      "classification": "server_draft",
-      "owner": "Notification formatting settings",
-      "policy": "The keyed NotificationFormattingBoundary remounts when persisted locale/timezone changes, while preserving in-progress edits between refetches with identical server values."
-    },
-    {
-      "id": "src/components/features/settings/notifications-settings-page.tsx:useState(timezone)",
-      "classification": "server_draft",
-      "owner": "Notification formatting settings",
-      "policy": "The keyed NotificationFormattingBoundary remounts when persisted locale/timezone changes, while preserving in-progress edits between refetches with identical server values."
-    },
-    {
       "id": "src/components/features/settings/quiet-hours-editor.tsx:useState(nextStart)",
       "classification": "server_draft",
       "owner": "Notification quiet-hours editor",
@@ -286,24 +309,6 @@
       "classification": "server_draft",
       "owner": "Staff portal-responsibility editor",
       "policy": "Seed from current responsibility and preserve edits for this modal instance; closing the modal unmounts the draft."
-    },
-    {
-      "id": "src/components/goals/goal-program-revision-dialog.tsx:useState(metric)",
-      "classification": "server_draft",
-      "owner": "Goal program revision dialog",
-      "policy": "Seed from the current goal version and explicitly reset from the latest props whenever the dialog opens; edits remain local only while it is open."
-    },
-    {
-      "id": "src/components/goals/goal-program-revision-dialog.tsx:useState(target)",
-      "classification": "server_draft",
-      "owner": "Goal program revision dialog",
-      "policy": "Seed from the current goal target and explicitly reset from the latest props whenever the dialog opens; edits remain local only while it is open."
-    },
-    {
-      "id": "src/components/goals/goal-program-revision-dialog.tsx:useState(subjects)",
-      "classification": "server_draft",
-      "owner": "Goal program revision dialog",
-      "policy": "Seed from current goal assignments and explicitly reset from the latest props whenever the dialog opens; edits remain local only while it is open."
     },
     {
       "id": "src/components/inbox/reply-editor-views.tsx:useState(text)",
@@ -423,8 +428,8 @@
   },
   "limitations": [
     "This executable inventory covers production TypeScript and TSX files under src/components, src/routes, src/hooks, and src/shared/hooks; it excludes tests, stories, context internals, workers, and external packages.",
-    "The state-mirror inventory is a conservative syntax heuristic over non-literal useState initializers. Classification prevents silent new candidates but does not prove semantic completeness or correct synchronization behavior.",
-    "The query-key check rejects direct array literals assigned to queryKey, inventories every exported factory member against an owned scope/lifecycle policy, and inventories explicit and shorthand queryKey properties. It does not prove that every server read uses TanStack Query or that every mutation invalidates all semantically related sibling projections.",
+    "The state-mirror inventory is a conservative syntax heuristic over non-literal useState initializers. It requires unique, current, owned classifications and rejects an effect that overwrites a declared server draft, but feature-owned tests must still prove each remount, conflict, synchronization, or mutation-adoption policy.",
+    "The query-key check rejects direct array literals, requires every factory member to descend acyclically from its own unique family root, inventories every member against an owned lifecycle policy, requires every explicit or shorthand queryKey site to resolve to a registered factory member or a narrow documented generic delegate, and requires every useActionMutation invalidation array to resolve to owned factory keys. It still does not prove that every server read uses TanStack Query or that every mutation invalidates all semantically related sibling projections; those fan-outs need feature-owned behavioral tests such as the Portal Group to Goal cache matrix.",
     "The invalidation check detects zero-argument .invalidate() calls in scope. The login auth-bootstrap row is the only approved whole-router exception."
   ]
 }

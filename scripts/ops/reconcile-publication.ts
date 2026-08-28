@@ -20,9 +20,11 @@ import { pathToFileURL } from 'node:url'
 import { getContainer } from '../../src/composition'
 import { organizationId, replyId } from '../../src/shared/domain/ids'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
-import type { ReplyRepository } from '../../src/contexts/review/application/ports/reply.repository'
-import type { ReconcileReplyPublication } from '../../src/contexts/review/application/use-cases/reconcile-reply-publication'
-import type { Reply } from '../../src/contexts/review/domain/types'
+import type {
+  AmbiguousPublicationReconciliationCandidate,
+  FindAmbiguousPublicationReconciliationCandidates,
+  ReconcileReplyPublication,
+} from '../../src/contexts/review/application/public-api'
 import { runOperatorCommand } from './operator-command'
 
 const USAGE =
@@ -39,7 +41,7 @@ export type PublicationSweepCursor = Readonly<{
 }>
 
 type PublicationSweepDeps = Readonly<{
-  findBatch: ReplyRepository['findAmbiguousPublicationBatch']
+  findCandidates: FindAmbiguousPublicationReconciliationCandidates
   reconcile: ReconcileReplyPublication
   clock: () => Date
 }>
@@ -164,40 +166,40 @@ export function extractPublicationSweepResume(
   return { argv: stripped, resumeToken }
 }
 
-function compareKeyset(left: Reply, right: Reply): number {
-  const leftDue = left.reconcileDueAt
-  const rightDue = right.reconcileDueAt
-  if (!leftDue || !rightDue) {
-    throw new Error('ambiguous publication sweep received an undated row')
-  }
-  const dueOrder = leftDue.getTime() - rightDue.getTime()
+function compareKeyset(
+  left: Pick<AmbiguousPublicationReconciliationCandidate, 'replyId' | 'reconcileDueAt'>,
+  right: Pick<AmbiguousPublicationReconciliationCandidate, 'replyId' | 'reconcileDueAt'>,
+): number {
+  const dueOrder = left.reconcileDueAt.getTime() - right.reconcileDueAt.getTime()
   if (dueOrder !== 0) return dueOrder
-  const leftId = String(left.id).toLowerCase()
-  const rightId = String(right.id).toLowerCase()
+  const leftId = String(left.replyId).toLowerCase()
+  const rightId = String(right.replyId).toLowerCase()
   return leftId < rightId ? -1 : leftId > rightId ? 1 : 0
 }
 
 function assertProgressingBatch(
-  batch: ReadonlyArray<Reply>,
+  batch: ReadonlyArray<AmbiguousPublicationReconciliationCandidate>,
   dueThrough: Date,
   cursor: PublicationSweepCursor | null,
 ): void {
   for (let index = 0; index < batch.length; index++) {
-    const row = batch[index] as Reply
+    const row = batch[index] as AmbiguousPublicationReconciliationCandidate
     if (
       row.publicationState !== 'ambiguous' ||
-      !row.reconcileDueAt ||
       row.reconcileDueAt > dueThrough ||
-      (index > 0 && compareKeyset(batch[index - 1] as Reply, row) >= 0)
+      (index > 0 &&
+        compareKeyset(
+          batch[index - 1] as AmbiguousPublicationReconciliationCandidate,
+          row,
+        ) >= 0)
     ) {
-      throw new Error('ambiguous publication sweep repository contract violated')
+      throw new Error('ambiguous publication sweep candidate contract violated')
     }
     if (
       cursor &&
       compareKeyset(
         {
-          ...row,
-          id: replyId(cursor.id),
+          replyId: replyId(cursor.id),
           reconcileDueAt: cursor.reconcileDueAt,
         },
         row,
@@ -231,11 +233,13 @@ export async function runAmbiguousPublicationSweepPage(
   if (Number.isNaN(dueThrough.getTime())) {
     throw new Error('publication sweep clock returned an invalid time')
   }
-  const batch = await deps.findBatch(
+  const batch = await deps.findCandidates({
     dueThrough,
-    cursor ? { reconcileDueAt: cursor.reconcileDueAt, id: cursor.id } : null,
-    input.batchSize,
-  )
+    after: cursor
+      ? { reconcileDueAt: cursor.reconcileDueAt, replyId: replyId(cursor.id) }
+      : null,
+    limit: input.batchSize,
+  })
   assertProgressingBatch(batch, dueThrough, cursor)
 
   let confirmedOnGoogle = 0
@@ -248,11 +252,11 @@ export async function runAmbiguousPublicationSweepPage(
     }>
   > = []
   if (!input.dryRun) {
-    for (const reply of batch) {
+    for (const candidate of batch) {
       try {
         const reconciled = await deps.reconcile({
-          replyId: reply.id,
-          organizationId: reply.organizationId,
+          replyId: candidate.replyId,
+          organizationId: candidate.organizationId,
         })
         if (reconciled.isErr()) {
           failed++
@@ -283,12 +287,12 @@ export async function runAmbiguousPublicationSweepPage(
 
   const last = batch.at(-1)
   const nextResumeToken =
-    batch.length === input.batchSize && last?.reconcileDueAt
+    batch.length === input.batchSize && last
       ? encodePublicationSweepResume({
           mode,
           dueThrough,
           reconcileDueAt: last.reconcileDueAt,
-          id: last.id,
+          id: last.replyId,
         })
       : null
   return {
@@ -307,10 +311,10 @@ export async function runAmbiguousPublicationSweepPage(
     notConfirmed,
     failed,
     unresolvedInPage: input.dryRun ? batch.length : notConfirmed + failed,
-    rows: batch.map((reply, index) => ({
-      replyId: reply.id,
-      organizationId: reply.organizationId,
-      reconcileDueAt: reply.reconcileDueAt!.toISOString(),
+    rows: batch.map((candidate, index) => ({
+      replyId: candidate.replyId,
+      organizationId: candidate.organizationId,
+      reconcileDueAt: candidate.reconcileDueAt.toISOString(),
       outcome: rowOutcomes[index]!.outcome,
       detail: rowOutcomes[index]!.detail,
     })),
@@ -359,10 +363,11 @@ async function main(): Promise<void> {
           )
           return
         }
-        const reconciled = await container.useCases.reconcileReplyPublication({
-          replyId: replyId(singleReplyId),
-          organizationId: organizationId(ctx.organizationId as string),
-        })
+        const reconciled =
+          await container.reviewMaintenanceRuntime.publicationReconciliation.reconcile({
+            replyId: replyId(singleReplyId),
+            organizationId: organizationId(ctx.organizationId as string),
+          })
         if (reconciled.isErr()) {
           io.err(`reconcile failed: ${reconciled.error.code}`)
           return 1
@@ -373,8 +378,10 @@ async function main(): Promise<void> {
 
       const report = await runAmbiguousPublicationSweepPage(
         {
-          findBatch: container.replyRepo.findAmbiguousPublicationBatch,
-          reconcile: container.useCases.reconcileReplyPublication,
+          findCandidates:
+            container.reviewMaintenanceRuntime.publicationReconciliation.findCandidates,
+          reconcile:
+            container.reviewMaintenanceRuntime.publicationReconciliation.reconcile,
           clock: () => new Date(),
         },
         {

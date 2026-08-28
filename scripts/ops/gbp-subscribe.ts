@@ -54,7 +54,7 @@ async function main(): Promise<void> {
     async (ctx, args, io) => {
       const container = getContainer()
       return createGbpSubscribeOperatorAction(
-        container.useCases.gbpSubscribeBackfill,
+        container.integrationMaintenanceRuntime.subscribeNotifications,
         COMMAND_NAME,
       )(ctx, args, io)
     },

@@ -1,28 +1,75 @@
 import { spawnSync } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { basename, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  DATA_CELL_IDS,
-  type DataCellId,
+  BETA_DEPLOYMENT_DATA_CELL_IDS,
+  isBetaDeploymentDataCellId,
+  type BetaDeploymentDataCellId,
 } from '../../src/shared/domain/data-cell-catalogue'
-import { sourceTreeDigest } from './iac-digest'
+import { railwayIacSourceDigest } from './iac-digest'
 import {
   canonicalRailwayPlanEvidence,
   classifyRailwayPlanExit,
   createRailwayPlanEvidence,
   railwayPlanArgs,
   railwayPlanEvidenceSha256,
+  type RailwayPlanEvidence,
 } from '../../src/shared/release/railway-plan-evidence'
+import {
+  assertRailwayProjectNameForProfile,
+  REPKEY_RAILWAY_PROJECT_NAME_ENV,
+  requireRailwayDeploymentProfile,
+  type RailwayDeploymentProfile,
+} from '../../src/shared/release/railway-deployment-profile'
+import { parsePromotionManifest } from '../../src/shared/release/promotion-manifest'
+import {
+  assertRailwayFullProjectVisibilityCredential,
+  assertSingleUsBetaRailwayProjectIsolation,
+  parseRailwayProjectServiceInventory,
+  railwayFullProjectStatusArgs,
+} from '../../src/shared/release/railway-project-service-isolation'
+import {
+  assertRailwayCliSupportsPinnedPlans,
+  fullRailwayServiceSourceInput,
+  inspectFullCandidateRailwayPlan,
+  railwaySourceMapEnvironment,
+  type RailwayIacTarget,
+} from './staged-railway-sources'
+import {
+  RAILWAY_SERVICE_SOURCE_MAP_ENV,
+  type RailwayServiceSourceInput,
+} from '../../.railway/service-source-map'
+import {
+  assertReleaseControllerSourceDigest,
+  releaseControllerSourceDigest,
+} from './release-authority-digest'
 
 export type RailwayLinkedTarget = Readonly<{
   project: string
   name: string
+  /** Railway's opaque environment identifier, not its human-readable name. */
   environment: string
   environmentName: string
 }>
 
-const EXPECTED_PROJECT_NAME = 'reputation-key'
+/**
+ * Pin every Railway child process to opaque target IDs after the human-linked
+ * target has been checked. This closes the gap where the local Railway link
+ * could change between `railway status` and `railway config plan`.
+ */
+export function railwayTargetEnvironment(
+  target: Pick<RailwayLinkedTarget, 'project' | 'name' | 'environment'>,
+  baseEnvironment: NodeJS.ProcessEnv = process.env,
+): NodeJS.ProcessEnv {
+  return {
+    ...baseEnvironment,
+    RAILWAY_PROJECT_ID: target.project,
+    RAILWAY_ENVIRONMENT_ID: target.environment,
+    [REPKEY_RAILWAY_PROJECT_NAME_ENV]: target.name,
+  }
+}
+
 /** The repository graph is the target authority; never plan against service config. */
 const IAC_ROOT = '.railway'
 const IAC_FILE = `${IAC_ROOT}/railway.ts`
@@ -53,20 +100,19 @@ export function parseRailwayLinkedTarget(output: string): RailwayLinkedTarget {
  * planning: a plausible plan for the wrong cell is unsafe evidence.
  */
 export function assertRailwayDataCellTarget(
-  cell: DataCellId,
+  cell: BetaDeploymentDataCellId,
+  deploymentProfile: RailwayDeploymentProfile,
   target: RailwayLinkedTarget,
 ): Readonly<{
-  cell: DataCellId
-  environment: string
+  cell: BetaDeploymentDataCellId
+  deploymentProfile: RailwayDeploymentProfile
+  environment: `cell-${BetaDeploymentDataCellId}`
   environmentId: string
+  projectName: string
   projectId: string
 }> {
-  const expectedEnvironment = `cell-${cell}`
-  if (target.name !== EXPECTED_PROJECT_NAME) {
-    throw new Error(
-      `Railway project mismatch: expected ${EXPECTED_PROJECT_NAME}, linked ${target.name}`,
-    )
-  }
+  const expectedEnvironment: `cell-${BetaDeploymentDataCellId}` = `cell-${cell}`
+  assertRailwayProjectNameForProfile(deploymentProfile, target.name)
   if (target.environmentName !== expectedEnvironment) {
     throw new Error(
       `Railway Data Cell environment mismatch: expected ${expectedEnvironment}, linked ${target.environmentName}`,
@@ -74,9 +120,37 @@ export function assertRailwayDataCellTarget(
   }
   return {
     cell,
-    environment: target.environmentName,
+    deploymentProfile,
+    environment: expectedEnvironment,
     environmentId: target.environment,
+    projectName: target.name,
     projectId: target.project,
+  }
+}
+
+/**
+ * Bind a later promotion to the exact project/environment identity that an
+ * operator reviewed. Human-readable names alone are insufficient because they
+ * can be recreated or duplicated; both opaque IDs must also match.
+ */
+export function assertRailwayTargetMatchesPlanEvidence(
+  evidence: RailwayPlanEvidence,
+  target: RailwayLinkedTarget,
+): void {
+  assertRailwayDataCellTarget(evidence.cell, evidence.deploymentProfile, target)
+  const expected = evidence.target
+  const comparisons = [
+    ['project name', expected.projectName, target.name],
+    ['project ID', expected.projectId, target.project],
+    ['environment name', expected.environment, target.environmentName],
+    ['environment ID', expected.environmentId, target.environment],
+  ] as const
+  for (const [label, wanted, observed] of comparisons) {
+    if (wanted !== observed) {
+      throw new Error(
+        `Railway target mismatch for ${label}: plan evidence=${wanted}, linked=${observed}`,
+      )
+    }
   }
 }
 
@@ -88,12 +162,16 @@ function flagValue(args: readonly string[], name: string): string | undefined {
   return value?.startsWith('--') ? undefined : value
 }
 
-function parseCell(args: readonly string[]): DataCellId {
+function parseCell(args: readonly string[]): BetaDeploymentDataCellId {
   const value = flagValue(args, '--cell')
-  if (!DATA_CELL_IDS.includes(value as DataCellId)) {
-    throw new Error(`--cell must be one of ${DATA_CELL_IDS.join(', ')}`)
+  if (!value || !isBetaDeploymentDataCellId(value)) {
+    throw new Error(`--cell must be one of ${BETA_DEPLOYMENT_DATA_CELL_IDS.join(', ')}`)
   }
-  return value as DataCellId
+  return value
+}
+
+function parseDeploymentProfile(args: readonly string[]): RailwayDeploymentProfile {
+  return requireRailwayDeploymentProfile(flagValue(args, '--deployment-profile'))
 }
 
 export type RailwayPlanEvidenceFiles = Readonly<{
@@ -105,6 +183,28 @@ export type RailwayPlanEvidenceFiles = Readonly<{
 }>
 
 /**
+ * Prove the raw plan is the exact full-candidate graph for the reviewed target
+ * before it can be represented by retained evidence. Exit status and change
+ * count must agree as well; a contradictory CLI result is never reviewable.
+ */
+export function assertRailwayFullCandidatePlanReviewable(
+  rawPlan: string,
+  exitCode: number,
+  target: RailwayIacTarget,
+  candidate: RailwayServiceSourceInput,
+): ReturnType<typeof inspectFullCandidateRailwayPlan> {
+  const outcome = classifyRailwayPlanExit(exitCode)
+  const inspection = inspectFullCandidateRailwayPlan(rawPlan, target, candidate)
+  if (outcome === 'no-drift' && inspection.changeCount !== 0) {
+    throw new Error('Railway no-drift plan reported pending graph changes')
+  }
+  if (outcome === 'pending-changes' && inspection.changeCount === 0) {
+    throw new Error('Railway pending plan did not report a graph change')
+  }
+  return inspection
+}
+
+/**
  * Render the retained artifact pair without touching the filesystem, so the
  * evidence shape is provable in tests rather than only observable after a live
  * plan. The sidecar uses the `shasum -c` format the release scripts already
@@ -114,9 +214,17 @@ export function buildRailwayPlanEvidenceFiles(
   input: Readonly<{
     outputPath: string
     capturedAt: Date
-    cell: DataCellId
-    target: Readonly<{ projectId: string; environment: string; environmentId: string }>
+    cell: BetaDeploymentDataCellId
+    deploymentProfile: RailwayDeploymentProfile
+    target: Readonly<{
+      projectName: string
+      projectId: string
+      environment: `cell-${BetaDeploymentDataCellId}`
+      environmentId: string
+    }>
     iacSha256: string
+    releaseManifestSha256: string
+    releaseControllerSha256: string
     exitCode: number
     rawPlan: string
   }>,
@@ -124,8 +232,11 @@ export function buildRailwayPlanEvidenceFiles(
   const evidence = createRailwayPlanEvidence({
     capturedAt: input.capturedAt,
     cell: input.cell,
+    deploymentProfile: input.deploymentProfile,
     target: input.target,
     iacSha256: input.iacSha256,
+    releaseManifestSha256: input.releaseManifestSha256,
+    releaseControllerSha256: input.releaseControllerSha256,
     exitCode: input.exitCode,
     rawPlan: input.rawPlan,
   })
@@ -143,12 +254,56 @@ export function buildRailwayPlanEvidenceFiles(
 export function runRailwayDataCellPlanCli(args: readonly string[]): number {
   try {
     const cell = parseCell(args)
+    const deploymentProfile = parseDeploymentProfile(args)
+    const manifestPath = flagValue(args, '--manifest')
+    const manifestDigest = flagValue(args, '--manifest-sha256')
+    if (!manifestPath || !manifestDigest) {
+      throw new Error('--manifest and --manifest-sha256 are required')
+    }
+    if (!/^[0-9a-f]{64}$/u.test(manifestDigest)) {
+      throw new Error('--manifest-sha256 must be a lowercase sha256')
+    }
+    const parsedManifest = parsePromotionManifest(
+      readFileSync(resolve(manifestPath), 'utf8'),
+    )
+    if (!parsedManifest.ok) {
+      throw new Error(parsedManifest.errors.join('\n'))
+    }
+    if (parsedManifest.digest !== manifestDigest) {
+      throw new Error(
+        `promotion manifest digest ${parsedManifest.digest} does not match --manifest-sha256`,
+      )
+    }
+    const currentIacSha256 = railwayIacSourceDigest()
+    if (parsedManifest.manifest.contract.iacSha256 !== currentIacSha256) {
+      throw new Error(
+        `promotion manifest IaC digest ${parsedManifest.manifest.contract.iacSha256} does not match current ${currentIacSha256}`,
+      )
+    }
+    const currentReleaseControllerSha256 = releaseControllerSourceDigest()
+    assertReleaseControllerSourceDigest(
+      parsedManifest.manifest.contract.releaseControllerSha256,
+      currentReleaseControllerSha256,
+    )
+    const candidateSourceInput = fullRailwayServiceSourceInput(parsedManifest.manifest)
+    const sourceMap = railwaySourceMapEnvironment(candidateSourceInput)
     const callerEnvironment = {
       ...process.env,
       RAILWAY_CALLER: process.env.RAILWAY_CALLER ?? 'repo:railway-data-cell-plan',
       RAILWAY_AGENT_SESSION:
         process.env.RAILWAY_AGENT_SESSION ?? `repkey-data-cell-plan-${cell}`,
     }
+    assertRailwayFullProjectVisibilityCredential(callerEnvironment)
+    const version = spawnSync('railway', ['--version'], {
+      encoding: 'utf8',
+      env: callerEnvironment,
+    })
+    if (version.error || version.status !== 0) {
+      throw new Error(version.stderr.trim() || 'railway --version failed')
+    }
+    assertRailwayCliSupportsPinnedPlans(
+      `${version.stdout ?? ''}\n${version.stderr ?? ''}`,
+    )
     const status = spawnSync('railway', ['status'], {
       encoding: 'utf8',
       env: callerEnvironment,
@@ -158,10 +313,41 @@ export function runRailwayDataCellPlanCli(args: readonly string[]): number {
     }
     const target = assertRailwayDataCellTarget(
       cell,
+      deploymentProfile,
       parseRailwayLinkedTarget(status.stdout),
     )
     process.stderr.write(
-      `Planning ${target.cell} against ${target.environment} (${target.environmentId}) in project ${target.projectId}\n`,
+      `Planning ${target.deploymentProfile}/${target.cell} against ${target.environment} (${target.environmentId}) in ${target.projectName} (${target.projectId})\n`,
+    )
+
+    const pinnedEnvironment = {
+      ...railwayTargetEnvironment(
+        {
+          project: target.projectId,
+          name: target.projectName,
+          environment: target.environmentId,
+        },
+        callerEnvironment,
+      ),
+      REPKEY_RAILWAY_CELL_ENVIRONMENT: target.environment,
+      REPKEY_RAILWAY_DEPLOYMENT_PROFILE: target.deploymentProfile,
+      [RAILWAY_SERVICE_SOURCE_MAP_ENV]: sourceMap,
+    }
+    const projectStatus = spawnSync('railway', [...railwayFullProjectStatusArgs()], {
+      encoding: 'utf8',
+      env: pinnedEnvironment,
+    })
+    if (projectStatus.error || projectStatus.status !== 0) {
+      throw new Error(projectStatus.stderr.trim() || 'railway status --json failed')
+    }
+    assertSingleUsBetaRailwayProjectIsolation(
+      parseRailwayProjectServiceInventory(projectStatus.stdout),
+      {
+        projectId: target.projectId,
+        projectName: target.projectName,
+        environmentId: target.environmentId,
+        environmentName: target.environment,
+      },
     )
 
     // stdout is captured for evidence; stderr stays attached so the operator
@@ -169,10 +355,7 @@ export function runRailwayDataCellPlanCli(args: readonly string[]): number {
     const plan = spawnSync('railway', railwayPlanArgs({ iacFile: IAC_FILE }), {
       encoding: 'utf8',
       stdio: ['inherit', 'pipe', 'inherit'],
-      env: {
-        ...callerEnvironment,
-        REPKEY_RAILWAY_CELL_ENVIRONMENT: target.environment,
-      },
+      env: pinnedEnvironment,
     })
     if (plan.error) throw plan.error
 
@@ -180,6 +363,17 @@ export function runRailwayDataCellPlanCli(args: readonly string[]): number {
     // Throws for any code outside the documented 0/2 contract, so a blocking
     // plan can never be written out as if it were reviewable evidence.
     const outcome = classifyRailwayPlanExit(exitCode)
+    assertRailwayFullCandidatePlanReviewable(
+      plan.stdout,
+      exitCode,
+      {
+        projectId: target.projectId,
+        projectName: target.projectName,
+        environmentId: target.environmentId,
+        environment: target.environment,
+      },
+      candidateSourceInput,
+    )
 
     const evidenceOut = flagValue(args, '--evidence-out')
     if (evidenceOut) {
@@ -187,12 +381,16 @@ export function runRailwayDataCellPlanCli(args: readonly string[]): number {
         outputPath: resolve(evidenceOut),
         capturedAt: new Date(),
         cell,
+        deploymentProfile,
         target: {
+          projectName: target.projectName,
           projectId: target.projectId,
           environment: target.environment,
           environmentId: target.environmentId,
         },
-        iacSha256: sourceTreeDigest([IAC_ROOT]),
+        iacSha256: currentIacSha256,
+        releaseManifestSha256: manifestDigest,
+        releaseControllerSha256: currentReleaseControllerSha256,
         exitCode,
         rawPlan: plan.stdout,
       })

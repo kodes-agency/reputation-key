@@ -31,12 +31,13 @@
 //
 // ── Tier 2 — project baseline ratchet (fails on DECREASE *and* on DRIFT) ──
 //
-// Measured 2026-08-21 on chore/test-suite-hardening (v8 provider, unit project,
-// all:true over src/**; 666 test files, 7167 passed + 146 skipped = 7313 tests):
+// Measured 2026-08-27 on codex/comprehensive-program-continuation (v8 provider,
+// unit project, all:true over src/**; 986 test files, 9983 passed + 4 skipped =
+// 9987 tests):
 //
 //   scope    lines   branches  functions  statements
-//   overall  54.01   48.47     45.69      53.11      (all of src/**)
-//   domain   96.84   92.27     98.95      96.07      (contexts/*/domain/** + shared/domain/**)
+//   overall  56.57   50.94     48.92      55.49      (all of src/**)
+//   domain   98.08   94.09     98.90      97.27      (contexts/*/domain/** + shared/domain/**)
 //
 // The FLOORS below sit PIN_MARGIN_PP under those measurements. Two consecutive
 // full runs on 2026-08-21 differed by 0.01pp on overall branches and statements
@@ -45,19 +46,13 @@
 // margin is baked into the ready-to-paste literal the gate emits, so the next
 // person to re-pin inherits it without having to know about this.
 //
-// PROVENANCE CAVEAT: measured MID-SESSION on 2026-08-21 while the
-// test-suite-hardening branch was still landing tests, so this is a snapshot of
-// that branch, not of a settled tree. The last green full run of that session
-// (671 files, 7195 passed + 146 skipped) already sat 0.14–0.22pp above the
-// overall floors and 0.05pp above the domain floors — inside both ceilings, but
-// re-pin once the branch closes.
-//
-// The previous pin was 2026-07-29 at 4318 tests (overall 47.20/42.61/39.93/
-// 46.77, domain 96.04/89.79/97.92/95.80). By 2026-08-21 the suite had grown
-// 69% and the floors sat 5.8pp — about 1,800 lines — below reality: a PR could
-// have stopped exercising 1,800 lines of src/** and this gate would still have
-// printed OK. A floor-only ratchet decays exactly like that, silently, because
-// nothing ever forces the re-pin. So the ratchet now has a ceiling too:
+// The previous pin was 2026-08-21 at 7313 tests (overall
+// 54.01/48.47/45.69/53.11, domain 96.84/92.27/98.95/96.07). This 2026-08-27
+// re-pin follows meaningful branch restoration: tier-1 is still exact 100%,
+// and the domain aggregate rose rather than accepting the temporary regression
+// caused by newly added decision modules. A floor-only ratchet decays silently,
+// because nothing ever forces a stale baseline upward. The ratchet therefore
+// keeps its ceiling too:
 //
 //   floor   — measured < floor                → coverage regressed; fix the tests
 //   ceiling — measured > floor + MAX_DRIFT_PP → floors are stale; re-pin them here
@@ -74,8 +69,8 @@
 // MAX_DRIFT_PP is per-scope, because a percentage point means different things
 // in the two pools:
 //
-//   overall 2.50pp — the pool is 31,917 lines / 23,581 branches / 8,289
-//     functions / 34,629 statements, so 2.50pp is ~798 lines of slack. A 1.00pp
+//   overall 2.50pp — the pool is 44,791 lines / 35,776 branches / 11,093
+//     functions / 48,501 statements, so 2.50pp is ~1,120 lines of slack. A 1.00pp
 //     band was tried and rejected: one ordinary session of test-writing moved
 //     overall lines from 53.03 to 54.01 (~0.98pp) on 2026-08-21 alone, so a
 //     1.00pp ceiling would fire on routine work and train authors to bump the
@@ -83,9 +78,9 @@
 //     2.50pp absorbs a session of honest test addition and still catches the
 //     5.83pp rot that accumulated here over three weeks, twice over.
 //
-//   domain 1.00pp — the pool is only 2,123 lines / 2,059 branches / 575
-//     functions / 2,317 statements and already sits at 96.84%, so 1.00pp is
-//     ~21 lines. Only 67 domain lines are uncovered at all: moving a full
+//   domain 1.00pp — the pool is only 2,866 lines / 2,983 branches / 732
+//     functions / 3,118 statements and sits at 98.08%, so 1.00pp is ~29 lines.
+//     Only 55 domain lines are uncovered at all: moving a full
 //     percentage point there is a deliberate, reviewable event, never churn.
 //     Undetectable regression is also far more expensive in domain code, so
 //     the band that would be too tight for src/** is the right one here.
@@ -140,8 +135,8 @@ const TIER1_FILES = [...contextRulesFiles(), ...sharedDomainFiles()]
 // ── Tier 2 floors (ratchet — see header for measurement provenance) ──
 
 const FLOORS = {
-  overall: { lines: 53.96, branches: 48.42, functions: 45.64, statements: 53.06 },
-  domain: { lines: 96.79, branches: 92.22, functions: 98.9, statements: 96.02 },
+  overall: { lines: 56.52, branches: 50.89, functions: 48.87, statements: 55.44 },
+  domain: { lines: 98.03, branches: 94.04, functions: 98.85, statements: 97.22 },
 }
 
 /**
@@ -163,7 +158,7 @@ const MAX_DRIFT_PP = { overall: 2.5, domain: 1.0 }
  * the failure text accuses the author of a regression that did not happen. One
  * such false failure is enough to get the whole ratchet disabled.
  *
- * 0.05pp is ~16 lines of the 31,917-line pool: five times the observed jitter,
+ * 0.05pp is ~22 lines of the 44,791-line pool: five times the observed jitter,
  * and negligible against the 2.50pp/1.00pp ceilings that force the re-pin.
  */
 const PIN_MARGIN_PP = 0.05

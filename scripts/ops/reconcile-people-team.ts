@@ -1,5 +1,7 @@
-// Controlled people/team cutover. Report first; --apply converts only rows
-// whose tenant/property parents and legacy relationships are unambiguous.
+// Controlled People-authority cutover. Report first; --apply converts only
+// canonical participation/Portal relationships whose parents are unambiguous.
+// Retained Team relationships remain opaque quarantine evidence and are never
+// planned, compared, or written by this command.
 //
 // Usage:
 //   pnpm ops:reconcile-people-team --operator <id> [--org <id>]
@@ -56,7 +58,6 @@ function printReport(report: PeopleReconcileReport): void {
     'organization'.padEnd(28),
     'legacy'.padStart(8),
     'people'.padStart(8),
-    'members'.padStart(9),
     'portals'.padStart(9),
     'groups'.padStart(8),
     'quarantine'.padStart(12),
@@ -66,7 +67,6 @@ function printReport(report: PeopleReconcileReport): void {
       row.organizationId.padEnd(28),
       String(row.activeAssignments).padStart(8),
       String(row.participationCandidates).padStart(8),
-      String(row.membershipCandidates).padStart(9),
       String(row.responsibilityCandidates).padStart(9),
       String(row.groupMembershipCandidates).padStart(8),
       String(row.anomalies).padStart(12),
@@ -88,7 +88,6 @@ function printParity(parity: PeopleReconcileParity): void {
   console.log(`people authority parity (${parity.checkedAt.toISOString()})`)
   console.log(
     `  participations ${counts.matchedParticipations}/${counts.expectedParticipations}; ` +
-      `memberships ${counts.matchedMemberships}/${counts.expectedMemberships}; ` +
       `responsibilities ${counts.matchedResponsibilities}/${counts.expectedResponsibilities}; ` +
       `portal groups ${counts.matchedGroupMemberships}/${counts.expectedGroupMemberships}`,
   )
@@ -121,13 +120,14 @@ async function main(): Promise<void> {
     },
     async (ctx, args, io) => {
       const db = getDb()
+      const clock = () => new Date()
       const scope = args.organizationId
         ? { organizationIds: [args.organizationId] }
         : undefined
-      const report = await buildPeopleReconcileReport(db, scope)
+      const report = await buildPeopleReconcileReport(db, clock, scope)
       printReport(report)
       if (ctx.dryRun) {
-        const parity = await verifyPeopleReconciliationParity(db, scope)
+        const parity = await verifyPeopleReconciliationParity(db, clock, scope)
         printParity(parity)
         io.out(
           'report only — correct quarantined rows, then re-run; use --apply for clean rows\n',
@@ -139,9 +139,9 @@ async function main(): Promise<void> {
         scope,
       })
       io.out(
-        `applied: ${applied.participationsCreated} participation(s), ${applied.membershipsCreated} membership(s), ${applied.leadsPromoted} lead promotion(s), ${applied.responsibilitiesCreated} portal responsibility row(s), ${applied.groupMembershipsCreated} portal-group interval(s)\n`,
+        `applied: ${applied.participationsCreated} participation(s), ${applied.responsibilitiesCreated} portal responsibility row(s), ${applied.groupMembershipsCreated} portal-group interval(s)\n`,
       )
-      const parity = await verifyPeopleReconciliationParity(db, scope)
+      const parity = await verifyPeopleReconciliationParity(db, clock, scope)
       printParity(parity)
       if (!parity.exact) {
         io.err(

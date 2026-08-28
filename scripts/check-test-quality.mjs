@@ -4,8 +4,9 @@
 //
 // ── SCOPE (widened 2026-08-21 — three holes that let this gate be evaded) ──
 //
-//   src/**, services/**, e2e/**   *.test.ts(x) / *.spec.ts(x)
-//   src/**/*.stories.tsx          the Storybook estate
+//   src/**, services/**, e2e/**, scripts/**, server/**, .railway/**,
+//   .storybook/**                 *.test.ts(x) / *.spec.ts(x)
+//   src/** and .storybook/**      *.stories.tsx
 //
 // `services/**` is in the unit project's include (vitest.config.ts:91) — it is
 // the AI egress-gateway + execution-admission plane — and `*.stories.tsx` is a
@@ -182,6 +183,10 @@ const files = [
   ...walk(join(ROOT, 'src')),
   ...walk(join(ROOT, 'services')),
   ...walk(join(ROOT, 'e2e')),
+  ...walk(join(ROOT, 'scripts')),
+  ...walk(join(ROOT, 'server')),
+  ...walk(join(ROOT, '.railway')),
+  ...walk(join(ROOT, '.storybook')),
 ]
 
 // `.only` in every chained form vitest accepts — `describe.only(`,
@@ -303,7 +308,7 @@ function tally(hits, register) {
 }
 
 console.log(
-  `[test-quality] scanned ${files.length} test/spec/story files across src+services+e2e ` +
+  `[test-quality] scanned ${files.length} test/spec/story files across all executable TypeScript roots ` +
     `(incl. ${storyCount} *.stories.tsx); ` +
     `skip|todo|skipIf|runIf: ${tally(skipHits, skipRegister)} site(s) in ${skipHits.size} file(s) ` +
     `(${SKIP_REGISTER.length} register entries; ${fenced.length} runtime-fenced, ` +

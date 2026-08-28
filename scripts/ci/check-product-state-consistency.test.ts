@@ -10,6 +10,7 @@ const EMPTY_LEDGER: ProductStateLedger = {
   version: 2,
   scope: ['src/components', 'src/routes'],
   queryKeyFactories: [],
+  queryKeyDelegates: [],
   broadInvalidationExceptions: [],
   stateMirrorCandidates: [],
   classificationDefinitions: {
@@ -72,6 +73,83 @@ describe('product-state consistency audit', () => {
     ).toEqual(['stale query-key factory policy: removedKeys.all'])
   })
 
+  it('requires every query-key member to descend from its own family root', () => {
+    const source = {
+      path: 'src/shared/queries/query-keys.ts',
+      content: `
+        export const portalKeys = {
+          all: ['portals'] as const,
+          list: (propertyId: string) => ['list', propertyId] as const,
+          detail: (portalId: string) => [...identityKeys.all, 'detail', portalId] as const,
+        }
+        export const identityKeys = {
+          all: ['identity'] as const,
+        }
+      `,
+    }
+    const ledger: ProductStateLedger = {
+      ...EMPTY_LEDGER,
+      queryKeyFactories: [
+        {
+          id: 'portalKeys',
+          members: ['all', 'list', 'detail'],
+          owner: 'Portal query lifecycle',
+          policy: 'Every Portal key descends from the Portal root.',
+        },
+        {
+          id: 'identityKeys',
+          members: ['all'],
+          owner: 'Identity query lifecycle',
+          policy: 'Every Identity key descends from the Identity root.',
+        },
+      ],
+    }
+
+    expect(auditQueryKeyFactorySource(source, ledger).violations).toEqual([
+      'query-key factory member must begin with its own family prefix: portalKeys.list',
+      'query-key factory member must begin with its own family prefix: portalKeys.detail',
+    ])
+  })
+
+  it('rejects duplicate roots and hierarchy cycles', () => {
+    const source = {
+      path: 'src/shared/queries/query-keys.ts',
+      content: `
+        export const portalKeys = {
+          all: ['shared'] as const,
+          list: () => [...portalKeys.detail(), 'list'] as const,
+          detail: () => [...portalKeys.list(), 'detail'] as const,
+        }
+        export const identityKeys = {
+          all: ['shared'] as const,
+        }
+      `,
+    }
+    const ledger: ProductStateLedger = {
+      ...EMPTY_LEDGER,
+      queryKeyFactories: [
+        {
+          id: 'portalKeys',
+          members: ['all', 'list', 'detail'],
+          owner: 'Portal query lifecycle',
+          policy: 'Every Portal key descends from one unique root.',
+        },
+        {
+          id: 'identityKeys',
+          members: ['all'],
+          owner: 'Identity query lifecycle',
+          policy: 'Every Identity key descends from one unique root.',
+        },
+      ],
+    }
+
+    expect(auditQueryKeyFactorySource(source, ledger).violations).toEqual([
+      'query-key factory hierarchy is cyclic: portalKeys.list',
+      'query-key factory hierarchy is cyclic: portalKeys.detail',
+      'query-key factory root collision: portalKeys.all and identityKeys.all both use "shared"',
+    ])
+  })
+
   it('includes production shared-hook roots in the repository inventory', () => {
     expect(loadProductStateLedger(process.cwd()).scope).toEqual(
       expect.arrayContaining(['src/hooks', 'src/shared/hooks']),
@@ -79,6 +157,17 @@ describe('product-state consistency audit', () => {
   })
 
   it('rejects literal query keys while accepting factory-owned keys', () => {
+    const ledger: ProductStateLedger = {
+      ...EMPTY_LEDGER,
+      queryKeyFactories: [
+        {
+          id: 'portalKeys',
+          members: ['detail'],
+          owner: 'Portal query lifecycle',
+          policy: 'Portal detail identity includes the Portal id.',
+        },
+      ],
+    }
     const report = auditProductStateSources(
       [
         {
@@ -90,7 +179,7 @@ describe('product-state consistency audit', () => {
           content: `queryOptions({ queryKey: portalKeys.detail(portalId), queryFn: load })`,
         },
       ],
-      EMPTY_LEDGER,
+      ledger,
     )
 
     expect(report.queryKeySites).toHaveLength(2)
@@ -114,6 +203,104 @@ describe('product-state consistency audit', () => {
     )
 
     expect(report.queryKeySites).toHaveLength(1)
+  })
+
+  it('requires generic query-key delegates to be explicit and owned', () => {
+    const source = {
+      path: 'src/components/query-helper.ts',
+      content: `
+        function options(queryKey) {
+          return { queryKey, queryFn: load }
+        }
+      `,
+    }
+    const denied = auditProductStateSources([source], EMPTY_LEDGER)
+    expect(denied.violations).toEqual([
+      'src/components/query-helper.ts:3: queryKey is neither factory-owned nor an explicit generic delegate',
+    ])
+
+    const allowed = auditProductStateSources([source], {
+      ...EMPTY_LEDGER,
+      queryKeyDelegates: [
+        {
+          id: 'src/components/query-helper.ts:queryKey#1',
+          owner: 'Feature query adapter',
+          policy: 'The sole caller supplies one exact factory-owned key.',
+        },
+      ],
+    })
+    expect(allowed.violations).toEqual([])
+  })
+
+  it('rejects stale or undocumented query-key delegate exceptions', () => {
+    const ledger: ProductStateLedger = {
+      ...EMPTY_LEDGER,
+      queryKeyDelegates: [
+        {
+          id: 'src/components/removed.ts:queryKey#1',
+          owner: '',
+          policy: '',
+        },
+      ],
+    }
+
+    expect(auditProductStateSources([], ledger).violations).toEqual([
+      'query-key delegate lacks ownership detail: src/components/removed.ts:queryKey#1',
+      'stale query-key delegate: src/components/removed.ts:queryKey#1',
+    ])
+  })
+
+  it('requires targeted mutation invalidations to use owned factory keys', () => {
+    const ledger: ProductStateLedger = {
+      ...EMPTY_LEDGER,
+      queryKeyFactories: [
+        {
+          id: 'portalKeys',
+          members: ['detail'],
+          owner: 'Portal query lifecycle',
+          policy: 'Portal detail identity includes the Portal id.',
+        },
+      ],
+    }
+    const report = auditProductStateSources(
+      [
+        {
+          path: 'src/routes/mutations.tsx',
+          content: `
+            const detailInvalidations = [portalKeys.detail(portalId)]
+            useActionMutation(save, { invalidateKeys: detailInvalidations })
+            useActionMutation(remove, { invalidateKeys: [portalKeys.detail(portalId)] })
+            useActionMutation(unsafe, { invalidateKeys: [['portals', portalId]] })
+          `,
+        },
+      ],
+      ledger,
+    )
+
+    expect(report.mutationInvalidationSites).toHaveLength(3)
+    expect(report.violations).toEqual([
+      'src/routes/mutations.tsx:5: invalidateKeys contains a key without an owned shared factory',
+    ])
+  })
+
+  it('rejects empty or dynamically opaque mutation invalidation arrays', () => {
+    const report = auditProductStateSources(
+      [
+        {
+          path: 'src/routes/mutations.tsx',
+          content: `
+            useActionMutation(save, { invalidateKeys: [] })
+            useActionMutation(remove, { invalidateKeys: buildKeys() })
+          `,
+        },
+      ],
+      EMPTY_LEDGER,
+    )
+
+    expect(report.violations).toEqual([
+      'src/routes/mutations.tsx:2: invalidateKeys must be a non-empty statically resolvable array',
+      'src/routes/mutations.tsx:3: invalidateKeys must be a non-empty statically resolvable array',
+    ])
   })
 
   it('allows only explicitly owned broad auth-bootstrap invalidation', () => {
@@ -196,6 +383,85 @@ describe('product-state consistency audit', () => {
       'src/components/composite.tsx:useState(draft)',
       'src/components/composite.tsx:useState(selection)',
       'src/components/composite.tsx:useState(lazy)',
+    ])
+  })
+
+  it('rejects effect-based overwrites of an in-progress server draft', () => {
+    const source = {
+      path: 'src/components/editor.tsx',
+      content: `
+        function Editor({ serverValue }) {
+          const [draft, setDraft] = useState(serverValue)
+          useEffect(() => setDraft(serverValue), [serverValue])
+          return draft
+        }
+      `,
+    }
+    const id = 'src/components/editor.tsx:useState(draft)'
+    const report = auditProductStateSources([source], {
+      ...EMPTY_LEDGER,
+      stateMirrorCandidates: [
+        {
+          id,
+          classification: 'server_draft',
+          owner: 'Example editor',
+          policy: 'User edits remain local until an explicit remount.',
+        },
+      ],
+    })
+
+    expect(report.violations).toEqual([
+      'src/components/editor.tsx:3: server draft useState(draft) is overwritten from an effect; use an explicit remount/conflict boundary',
+    ])
+  })
+
+  it('permits an owned synchronized prop copy to reconcile in an effect', () => {
+    const source = {
+      path: 'src/components/debounced.tsx',
+      content: `
+        function Debounced({ value }) {
+          const [debounced, setDebounced] = useState(value)
+          useEffect(() => setDebounced(value), [value])
+          return debounced
+        }
+      `,
+    }
+    const report = auditProductStateSources([source], {
+      ...EMPTY_LEDGER,
+      stateMirrorCandidates: [
+        {
+          id: 'src/components/debounced.tsx:useState(debounced)',
+          classification: 'synchronized_prop_copy',
+          owner: 'Debounce helper',
+          policy: 'The delayed prop copy is the declared behavior.',
+        },
+      ],
+    })
+
+    expect(report.violations).toEqual([])
+  })
+
+  it('rejects duplicate or ownerless state classifications', () => {
+    const source = {
+      path: 'src/components/editor.tsx',
+      content: `const [draft] = useState(serverValue)`,
+    }
+    const id = 'src/components/editor.tsx:useState(draft)'
+    const row = {
+      id,
+      classification: 'server_draft' as const,
+      owner: '',
+      policy: '',
+    }
+    const report = auditProductStateSources([source], {
+      ...EMPTY_LEDGER,
+      stateMirrorCandidates: [row, row],
+    })
+
+    expect(report.violations).toEqual([
+      `state-mirror classification lacks ownership detail: ${id}`,
+      `state-mirror classification lacks ownership detail: ${id}`,
+      `duplicate state-mirror classification: ${id}`,
     ])
   })
 

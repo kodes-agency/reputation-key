@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { ZodError } from 'zod/v4'
 import {
   FROZEN_REVIEW_SHA,
   repositoryOracleReaders,
@@ -135,7 +136,7 @@ describe('pre-fix regression oracles', () => {
   it('fails when the frozen SHA, case inventory, or order changes', () => {
     const sha = readIndex()
     sha.frozenSha = '0'.repeat(40)
-    expect(() => validatePreFixOracleIndex(sha)).toThrow()
+    expect(() => validatePreFixOracleIndex(sha)).toThrowError(ZodError)
 
     const inventory = readIndex()
     inventory.oracles = inventory.oracles.slice(1)

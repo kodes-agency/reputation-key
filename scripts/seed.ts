@@ -10,8 +10,6 @@
 
 import 'dotenv/config'
 import { createSimulationContainer } from '../src/shared/testing/simulation-container.server'
-import { organizationId, userId } from '../src/shared/domain/ids'
-import type { AuthContext } from '../src/shared/domain/auth-context'
 import {
   buildScenario,
   type ScenarioSpec,
@@ -19,7 +17,6 @@ import {
 } from '../src/shared/testing/scenario/builder.server'
 import { createInvariantCheckers, runInvariants } from '../src/shared/testing/invariants'
 import { organization } from '../src/shared/db/schema/auth'
-import { properties } from '../src/shared/db/schema/property.schema'
 import type { Container } from '../src/composition'
 
 const MS_PER_DAY = 86_400_000
@@ -88,7 +85,7 @@ async function resolveOrgId(container: Container): Promise<string> {
  * Grant an organization the beta capability set.
  *
  * Without this a seeded database looks complete but every non-core feature is
- * dark: Portals, Teams, Goals and Recognition all deny with
+ * dark: promotable Portals and Goals deny with
  * `org_not_allowlisted` / `property_not_allowlisted`, so a developer can see
  * seeded portals in the database yet cannot create one through the product.
  *
@@ -312,29 +309,6 @@ async function main(): Promise<void> {
   // After every scenario, before anything reads policy: the scenario builder
   // inserts property rows directly, so those properties have no allowlist yet.
   await cascadeCapabilitiesToProperties(container, [orgId, org2Id])
-
-  // ── Badge awards pipeline ──
-  console.log('\n── Badge Pipeline ──')
-  const badgeDefs = await container.useCases.seedBadgeDefinitions()
-  console.log(`  Definitions seeded: ${badgeDefs.length}`)
-  const brandedOrgId = organizationId(orgId)
-  const simCtx: AuthContext = {
-    organizationId: brandedOrgId,
-    userId: userId('sim-admin-00000000-0000-0000-0000-000000000001'),
-    role: 'AccountAdmin',
-  }
-  for (const def of badgeDefs) {
-    await container.badgePublicApi.setOrganizationBadgeEnablement(simCtx, {
-      organizationId: brandedOrgId,
-      badgeDefinitionId: def.id,
-      enabled: true,
-    })
-  }
-  console.log(`  Badges enabled for org: ${badgeDefs.length}`)
-  const badgeResult = await container.useCases.reconcileBadgeDefinitions({
-    organizationId: brandedOrgId,
-  })
-  console.log(`  Reconcile: ${JSON.stringify(badgeResult)}`)
 
   if (!runInv) {
     process.exit(0)

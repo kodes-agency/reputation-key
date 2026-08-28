@@ -11,8 +11,9 @@
 //   - All work runs IN-PROCESS through the production repository/handler
 //     paths — never a BullMQ enqueue; the drill has no worker.
 //
-// DESTRUCTIVE: deletes expired source content (bounded, evidence-writing).
-// --apply requires --reason + the typed confirmation --yes ops:restore-verify.
+// Ordinary composition is inspection-only. This restore-only CLI admits
+// `--apply` only when all three REVIEW_LIFECYCLE_RECOVERY_APPROVAL_* values
+// carry one exact digest-pinned, Ed25519-signed approval bundle.
 //
 // Usage:
 //   pnpm ops:restore-verify --operator <id>            — dry-run report
@@ -26,8 +27,6 @@
 import { sql } from 'drizzle-orm'
 import { getContainer } from '../../src/composition'
 import { getEnv } from '../../src/shared/config/env'
-import { createAtomicReplyCommandStore } from '../../src/contexts/review/infrastructure/reply-command-store'
-import { createPurgeExpiredReviewsHandler } from '../../src/contexts/review/infrastructure/jobs/purge-expired-reviews.job'
 import {
   RESTORE_VERIFY_PURGE_SUBJECT,
   RESTORE_VERIFY_SPEC,
@@ -43,45 +42,54 @@ import {
   RETENTION_RULES,
 } from '../../src/shared/jobs/retention-sweep.job'
 import { countRetentionRuleCandidates } from '../../src/shared/db/retention/execute-retention-rule'
+import {
+  collectReviewSourceContentLifecycleReport,
+  REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
+} from '../../src/contexts/review/application/public-api'
 import { runOperatorCommand } from './operator-command'
 
 async function main(): Promise<void> {
   const result = await runOperatorCommand(RESTORE_VERIFY_SPEC, async (ctx, _args, io) => {
     const env = getEnv()
     const container = getContainer()
-
-    // The same construction the worker's bootstrap uses for the scheduled
-    // purge (bootstrap.ts) — one shared atomic command store, the job
-    // handler core invoked directly (the drill has no BullMQ).
-    const commandStore = createAtomicReplyCommandStore(container.db, container.eventBus)
-    const purgeHandler = createPurgeExpiredReviewsHandler({
-      reviewRepo: container.reviewRepo,
-      commandStore,
-      clock: container.clock,
-      db: container.db,
+    const approvalContent = env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON
+    const approvalBundleSha256 = env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_SHA256
+    const approvalPublicKeys = env.REVIEW_LIFECYCLE_RECOVERY_APPROVAL_PUBLIC_KEYS_JSON
+    const reviewLifecycle = container.reviewMaintenanceRuntime.recovery.createAuthority({
+      ...(approvalContent === undefined ? {} : { approvalContent }),
+      ...(approvalBundleSha256 === undefined ? {} : { approvalBundleSha256 }),
+      ...(approvalPublicKeys === undefined
+        ? {}
+        : { approvalPublicKeysJson: approvalPublicKeys }),
     })
+
     const retentionHandler = createRetentionSweepHandler({
       db: container.db,
       clock: container.clock,
       rules: RETENTION_RULES,
     })
-
     return runRestoreVerifyAction(
       ctx,
       {
         env,
-        countExpired: async () =>
-          container.reviewRepo.countExpiredBeforeAcrossTenants(container.clock()),
-        purgeExpired: async () => {
-          await purgeHandler({} as never)
+        reviewLifecycle,
+        countExpired: async () => {
+          const report = await collectReviewSourceContentLifecycleReport(
+            container.reviewMaintenanceRuntime.runSourceContentLifecycle,
+            {
+              mode: 'report',
+              batchSize: REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE,
+            },
+          )
+          return report.lifecycle.expired
         },
         inspectGoogleImportLifecycle: async () => {
-          const inspect = container.useCases.inspectGoogleImportV2Lifecycle
+          const inspect = container.integrationMaintenanceRuntime.imports.inspectBacklog
           if (!inspect) throw new Error('Google import lifecycle unavailable')
           return inspect()
         },
         sweepGoogleImportLifecycle: async () => {
-          const sweep = container.useCases.sweepGoogleImportV2Lifecycle
+          const sweep = container.integrationMaintenanceRuntime.imports.sweep
           if (!sweep) throw new Error('Google import lifecycle unavailable')
           await sweep()
         },

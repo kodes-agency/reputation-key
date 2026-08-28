@@ -21,6 +21,7 @@
 import { getDb } from '../../src/shared/db'
 import { closePool } from '../../src/shared/db/pool'
 import { getEnv } from '../../src/shared/config/env'
+import { getLogger } from '../../src/shared/observability/logger'
 import { initPersistedCapabilityPolicyStore } from '../../src/contexts/identity/infrastructure/policy-store-init'
 import { getExecutionPolicy } from '../../src/shared/auth/execution-policy'
 import { createPropertyRoutingLoader } from '../../src/contexts/property/infrastructure/property-routing.adapter'
@@ -34,13 +35,13 @@ import {
   type OperatorRuntime,
 } from '../../src/shared/ops/operator-command'
 
-export type OperatorBoot = Readonly<{
+type OperatorBoot = Readonly<{
   runtime: OperatorRuntime
   cleanup: () => void
 }>
 
 /** Boot the minimal operator policy runtime (capability store + both policies). */
-export async function bootOperatorRuntime(): Promise<OperatorBoot> {
+async function bootOperatorRuntime(): Promise<OperatorBoot> {
   const db = getDb()
   const env = getEnv()
   const dataCellExecutionFence = createDataCellExecutionFence({
@@ -50,6 +51,8 @@ export async function bootOperatorRuntime(): Promise<OperatorBoot> {
   const handle = initPersistedCapabilityPolicyStore({
     db,
     env,
+    clock: () => new Date(),
+    logger: getLogger(),
     admitPropertyExecution: dataCellExecutionFence.decideProperty,
   })
   // Strong read: operator decisions see persisted tenant state (suspensions,

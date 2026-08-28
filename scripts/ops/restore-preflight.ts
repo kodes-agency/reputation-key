@@ -75,13 +75,16 @@ async function main(): Promise<void> {
         '  3. Boot ISOLATED: RESTORE_MODE=isolated (worker refuses to boot; web capabilities deny fail-closed)',
       )
       io.out(
-        '  4. Run pnpm ops:restore-verify --operator <id> --reason <text> --apply --yes ops:restore-verify',
+        '  4. Run pnpm ops:restore-verify --operator <id>; independently review/sign its exact Review report request',
+      )
+      io.out(
+        '  5. Configure the one-shot approval only on the isolated verifier, then run the typed --apply command',
       )
       io.out(
         '     — enforces retention, invalidates restored authority, fences unpublished effects, and proves zero backlog',
       )
       io.out(
-        '  5. Cut over only after verification (pin recovery run/generation, UNSET RESTORE_MODE, redeploy) — restore is the ONLY rollback path, reserved for data loss',
+        '  6. Cut over only after verification (pin recovery run/generation, remove approval values, UNSET RESTORE_MODE, redeploy) — restore is the ONLY rollback path, reserved for data loss',
       )
       io.out('')
     },

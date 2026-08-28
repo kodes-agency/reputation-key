@@ -27,28 +27,44 @@ const completionRecord = z
   })
   .strict()
 
+const implementationProgress = z
+  .object({
+    status: z.enum(['not_started', 'in_progress', 'complete']),
+    remaining: evidenceList,
+  })
+  .strict()
+
+const repositoryVerificationProgress = z
+  .object({
+    status: z.enum(['not_started', 'in_progress', 'passed']),
+    remaining: evidenceList,
+  })
+  .strict()
+
+const externalVerificationProgress = z
+  .object({
+    status: z.enum(['not_required', 'not_started', 'in_progress', 'blocked', 'passed']),
+    remaining: evidenceList,
+    blockers: evidenceList,
+  })
+  .strict()
+
 const packageStatusRow = z
   .object({
     id: z.string().regex(/^[A-Z]+-\d{2}$/u),
-    status: z.enum([
-      'not_started',
-      'partial',
-      'code_complete',
-      'evidence_complete',
-      'blocked_external',
-    ]),
     summary: z.string().trim().min(1),
+    implementation: implementationProgress,
+    repositoryVerification: repositoryVerificationProgress,
+    externalVerification: externalVerificationProgress,
     codeEvidence: evidenceList,
     testEvidence: evidenceList,
-    remaining: evidenceList,
-    externalBlockers: evidenceList,
     completionRecord: completionRecord.optional(),
   })
   .strict()
 
 const comprehensiveProgramStatus = z
   .object({
-    version: z.literal(1),
+    version: z.literal(2),
     baselineSha: sha,
     assessedAt: z.iso.date(),
     packages: z.array(packageStatusRow),
@@ -78,18 +94,83 @@ export function validateComprehensiveProgramStatus(
   }
 
   for (const row of ledger.packages) {
-    if (row.status === 'blocked_external' && row.externalBlockers.length === 0) {
-      throw new Error(`${row.id} blocked_external status must name its externalBlockers`)
+    if (
+      row.implementation.status === 'complete' &&
+      row.implementation.remaining.length > 0
+    ) {
+      throw new Error(`${row.id} complete implementation cannot name remaining work`)
     }
-    if (row.status === 'not_started' && row.remaining.length === 0) {
-      throw new Error(`${row.id} not_started status must name the work remaining`)
+    if (
+      row.implementation.status !== 'complete' &&
+      row.implementation.remaining.length === 0
+    ) {
+      throw new Error(`${row.id} unfinished implementation must name remaining work`)
     }
-    if (row.status === 'partial' && row.remaining.length === 0) {
-      throw new Error(`${row.id} partial status must name the work remaining`)
+    if (
+      row.repositoryVerification.status === 'passed' &&
+      (row.repositoryVerification.remaining.length > 0 || row.testEvidence.length === 0)
+    ) {
+      throw new Error(`${row.id} passed repository verification has evidence gaps`)
     }
-    if (row.status !== 'evidence_complete') continue
+    if (
+      row.repositoryVerification.status !== 'passed' &&
+      row.repositoryVerification.remaining.length === 0
+    ) {
+      throw new Error(
+        `${row.id} unfinished repository verification must name remaining work`,
+      )
+    }
+    if (
+      row.repositoryVerification.status === 'passed' &&
+      row.implementation.status !== 'complete'
+    ) {
+      throw new Error(
+        `${row.id} cannot pass repository verification before implementation`,
+      )
+    }
+    if (
+      row.externalVerification.status === 'blocked' &&
+      row.externalVerification.blockers.length === 0
+    ) {
+      throw new Error(`${row.id} blocked external verification must name its blockers`)
+    }
+    if (
+      row.externalVerification.status === 'not_required' &&
+      (row.externalVerification.remaining.length > 0 ||
+        row.externalVerification.blockers.length > 0)
+    ) {
+      throw new Error(`${row.id} not-required external verification cannot carry work`)
+    }
+    if (
+      row.externalVerification.status === 'passed' &&
+      (row.externalVerification.remaining.length > 0 ||
+        row.externalVerification.blockers.length > 0)
+    ) {
+      throw new Error(`${row.id} passed external verification has unresolved work`)
+    }
+    if (
+      ['not_started', 'in_progress'].includes(row.externalVerification.status) &&
+      row.externalVerification.remaining.length === 0
+    ) {
+      throw new Error(
+        `${row.id} unfinished external verification must name remaining work`,
+      )
+    }
+
+    const formallyComplete =
+      row.implementation.status === 'complete' &&
+      row.repositoryVerification.status === 'passed' &&
+      ['not_required', 'passed'].includes(row.externalVerification.status)
+    if (!formallyComplete) {
+      if (row.completionRecord) {
+        throw new Error(
+          `${row.id} cannot publish a completionRecord before all axes close`,
+        )
+      }
+      continue
+    }
     if (!row.completionRecord) {
-      throw new Error(`${row.id} cannot be evidence_complete without a completionRecord`)
+      throw new Error(`${row.id} cannot close without a completionRecord`)
     }
     if (row.completionRecord.package !== row.id) {
       throw new Error(`${row.id} completionRecord names a different package`)
@@ -100,13 +181,8 @@ export function validateComprehensiveProgramStatus(
     if (row.completionRecord.owner === row.completionRecord.reviewer) {
       throw new Error(`${row.id} completionRecord requires an independent reviewer`)
     }
-    if (
-      row.codeEvidence.length === 0 ||
-      row.testEvidence.length === 0 ||
-      row.remaining.length > 0 ||
-      row.externalBlockers.length > 0
-    ) {
-      throw new Error(`${row.id} evidence_complete claim has unresolved evidence gaps`)
+    if (row.codeEvidence.length === 0 || row.testEvidence.length === 0) {
+      throw new Error(`${row.id} completed package has unresolved evidence gaps`)
     }
   }
 
@@ -126,19 +202,30 @@ export function runComprehensiveProgramStatusCli(args: readonly string[]): numbe
     const ledger = JSON.parse(readFileSync(ledgerPath, 'utf8')) as unknown
     const packageIds = validateComprehensiveProgramStatus(plan, ledger)
     const status = comprehensiveProgramStatus.parse(ledger)
-    const counts = Object.fromEntries(
-      [
+    const countAxis = (values: readonly string[]) =>
+      Object.fromEntries(values.map((value) => [value, 0]))
+    const counts = {
+      implementation: countAxis(['not_started', 'in_progress', 'complete']),
+      repositoryVerification: countAxis(['not_started', 'in_progress', 'passed']),
+      externalVerification: countAxis([
+        'not_required',
         'not_started',
-        'partial',
-        'code_complete',
-        'evidence_complete',
-        'blocked_external',
-      ].map((state) => [
-        state,
-        status.packages.filter((row) => row.status === state).length,
+        'in_progress',
+        'blocked',
+        'passed',
       ]),
+    }
+    for (const row of status.packages) {
+      counts.implementation[row.implementation.status]! += 1
+      counts.repositoryVerification[row.repositoryVerification.status]! += 1
+      counts.externalVerification[row.externalVerification.status]! += 1
+    }
+    const formallyComplete = status.packages.filter(
+      (row) => row.completionRecord !== undefined,
+    ).length
+    process.stdout.write(
+      `${JSON.stringify({ packages: packageIds.length, counts, formalClosure: { complete: formallyComplete, open: packageIds.length - formallyComplete } })}\n`,
     )
-    process.stdout.write(`${JSON.stringify({ packages: packageIds.length, counts })}\n`)
     return 0
   } catch (error) {
     process.stderr.write(

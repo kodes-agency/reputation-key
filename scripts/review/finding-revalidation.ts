@@ -232,7 +232,7 @@ export function validateFindingRevalidation(
   return actualIds
 }
 
-export function runFindingRevalidationCli(args: readonly string[]): number {
+function runFindingRevalidationCli(args: readonly string[]): number {
   try {
     const indexPath = resolve(
       args[0] ?? 'docs/release-evidence/review/finding-revalidation-2026-08-26.json',

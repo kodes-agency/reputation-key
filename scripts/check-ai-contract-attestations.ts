@@ -145,7 +145,9 @@ function parseStrictJson(raw: string, path: string): unknown {
   let offset = 0
 
   const skipWhitespace = () => {
-    while (offset < raw.length && /[\u0009\u000a\u000d\u0020]/u.test(raw[offset]!)) {
+    while (offset < raw.length) {
+      const code = raw.charCodeAt(offset)
+      if (code !== 0x09 && code !== 0x0a && code !== 0x0d && code !== 0x20) break
       offset += 1
     }
   }

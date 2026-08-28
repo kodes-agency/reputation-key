@@ -68,6 +68,9 @@ async function operation(): Promise<void> {
         Buffer.from('local application fault probe'),
         'text/plain',
       )
+      if (!storage.inspectObject) {
+        throw new Error('Object-store metadata inspection is unavailable')
+      }
       await storage.inspectObject(key)
       await storage.deleteObject(key)
       return

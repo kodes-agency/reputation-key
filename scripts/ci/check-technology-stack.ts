@@ -311,18 +311,18 @@ function lockImporterVersions(lockfile: string): ReadonlyMap<string, string> {
   for (let index = importerStart + 1; index < lines.length; index += 1) {
     const line = lines[index]!
     if (/^\S/u.test(line)) break
-    const sectionMatch = /^    (dependencies|devDependencies):\s*$/u.exec(line)
+    const sectionMatch = /^ {4}(dependencies|devDependencies):\s*$/u.exec(line)
     if (sectionMatch) {
       section = sectionMatch[1] as PackageSection
       currentPackage = undefined
       continue
     }
-    const packageMatch = /^      (?:'([^']+)'|([^:\s]+)):\s*$/u.exec(line)
+    const packageMatch = /^ {6}(?:'([^']+)'|([^:\s]+)):\s*$/u.exec(line)
     if (packageMatch && section) {
       currentPackage = packageMatch[1] ?? packageMatch[2]
       continue
     }
-    const versionMatch = /^        version:\s*([^\s(]+).*$/u.exec(line)
+    const versionMatch = /^ {8}version:\s*([^\s(]+).*$/u.exec(line)
     if (versionMatch && section && currentPackage) {
       versions.set(`${section}:${currentPackage}`, versionMatch[1]!)
     }

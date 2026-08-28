@@ -72,7 +72,7 @@ async function main(): Promise<void> {
       const scope = args.organizationId
         ? { organizationId: args.organizationId }
         : undefined
-      const report = await buildRegionReconcileReport(db, scope)
+      const report = await buildRegionReconcileReport(db, () => new Date(), scope)
       printReport(report)
 
       if (ctx.dryRun) {

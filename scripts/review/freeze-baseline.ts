@@ -104,7 +104,7 @@ function writeJson(path: string, value: unknown): void {
 }
 
 function extension(path: string): string {
-  const match = /(?:\.[^.\/]+)$/.exec(path)
+  const match = /(?:\.[^./]+)$/.exec(path)
   return match?.[0].toLowerCase() ?? ''
 }
 

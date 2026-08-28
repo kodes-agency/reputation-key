@@ -69,7 +69,7 @@ async function main(): Promise<void> {
         args.organizations.length > 0
           ? { organizationIds: args.organizations }
           : undefined
-      const report = await buildReconcileReport(db, scope)
+      const report = await buildReconcileReport(db, () => new Date(), scope)
       printReport(report)
 
       if (ctx.dryRun) {

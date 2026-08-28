@@ -1,19 +1,15 @@
 import { readFile, stat } from 'node:fs/promises'
-import { getDb } from '../../src/shared/db'
 import {
   createGoogleContentRoleSignatureVerifier,
   parseGoogleContentApprovalBundle,
   parseGoogleContentRolePublicKeys,
   validateGoogleContentApprovalBundle,
 } from '../../src/shared/auth/google-content-approval'
-import { createGoogleContentApprovalInstaller } from '../../src/shared/auth/google-content-authority'
-import { createGoogleContentAuthorityRepository } from '../../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
 import { runOperatorCommand } from './operator-command'
 
 const MAX_BUNDLE_BYTES = 5 * 1024 * 1024
 const PUBLIC_KEYS_ENV = 'GOOGLE_CONTENT_APPROVAL_ROLE_PUBLIC_KEYS_JSON'
-const USAGE =
-  'pnpm ops:google-content-approval <bundle.json> --operator <id> [--reason <text> --ticket <ref> --apply]'
+const USAGE = 'pnpm ops:google-content-approval <bundle.json> --operator <id>'
 
 async function readJsonFile(path: string): Promise<unknown> {
   const metadata = await stat(path)
@@ -55,6 +51,12 @@ async function main(): Promise<void> {
         io.err(`Usage: ${USAGE}`)
         return 1
       }
+      if (!ctx.dryRun) {
+        io.err(
+          '--apply is blocked before approval installation: this command validates one private bundle only. Use pnpm infra:railway:google-content-approval plan, then apply or recover the unchanged reviewed cell-us intent',
+        )
+        return 1
+      }
 
       let bundleInput: unknown
       let publicKeysInput: unknown
@@ -87,29 +89,13 @@ async function main(): Promise<void> {
       }
 
       const binding = validation.binding
-      if (ctx.dryRun) {
-        // routeCatalogue is approval-bound: the bundle must carry the exact
-        // compiled GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION or parsing above
-        // already refused it. Printed so the operator can confirm which
-        // catalogue this approval authorizes.
-        io.out(
-          `validated capability=${binding.capability} phase=${binding.targetPhase} release=${binding.releaseSha} routeCatalogue=${binding.routeCatalogueVersion} performanceCatalog=${binding.performanceCatalogVersion} expires=${binding.expiresAt}; re-run with --apply`,
-        )
-        return
-      }
-
-      const installer = createGoogleContentApprovalInstaller({
-        store: createGoogleContentAuthorityRepository(getDb()),
-        clock: () => new Date(),
-        verifyRoleApproval,
-      })
-      const installed = await installer.installApproval(parsedBundle.bundle)
-      if (!installed.ok) {
-        io.err(`approval_refused code=${installed.code}`)
-        return 1
-      }
+      // routeCatalogue is approval-bound: the bundle must carry the exact
+      // compiled GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION or parsing above
+      // already refused it. Printed so the operator can confirm which
+      // catalogue this approval authorizes. Validation is the only permitted
+      // action here: the exact-target controller coordinates installation.
       io.out(
-        `approval_installed capability=${binding.capability} phase=${binding.targetPhase} routeCatalogue=${binding.routeCatalogueVersion} binding=${installed.approvalBindingId}`,
+        `validated capability=${binding.capability} phase=${binding.targetPhase} release=${binding.releaseSha} routeCatalogue=${binding.routeCatalogueVersion} performanceCatalog=${binding.performanceCatalogVersion} expires=${binding.expiresAt}; use the reviewed exact-target activation controller`,
       )
     },
   )

@@ -12,7 +12,7 @@ import 'dotenv/config'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import type { E2eSeedState } from '../e2e/helpers/seed-state'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { and, eq, isNull } from 'drizzle-orm'
 import { hashPassword } from 'better-auth/crypto'
 import { getAuth } from '../src/shared/auth/auth'
 import { getDb } from '../src/shared/db'
@@ -32,12 +32,9 @@ import {
 import { portalGroups } from '../src/shared/db/schema/portal-group.schema'
 import { reviews } from '../src/shared/db/schema/review.schema'
 import { computeAiReviewSourceProvenance } from '../src/contexts/review/application/ai-review-source'
-import { teams } from '../src/shared/db/schema/team.schema'
 import {
   staffParticipations,
-  teamMemberships,
   portalResponsibilities,
-  teamPortalGroupScopes,
   portalGroupMemberships,
 } from '../src/shared/db/schema/people-access.schema'
 import {
@@ -47,20 +44,12 @@ import {
   goalEvaluations,
 } from '../src/shared/db/schema/goal.schema'
 import { metricReadings } from '../src/shared/db/schema/metric.schema'
-import { governedBadgeAwards } from '../src/shared/db/schema/badge.schema'
-import {
-  recognitionActivations,
-  recognitionActivationGroups,
-  recognitionBoardSnapshots,
-  recognitionBoardEntries,
-} from '../src/shared/db/schema/leaderboard.schema'
 import {
   notifications,
   notificationEmailQueue,
   notificationPreferences,
 } from '../src/shared/db/schema/notification.schema'
 import { LOCAL_BETA_CAPABILITIES } from '../src/shared/config/local-stack-contract'
-import { CAPABILITY_POLICY_VERSION } from '../src/shared/auth/beta-capabilities'
 import {
   grantPropertyAccess,
   hasActiveGrant,
@@ -78,6 +67,7 @@ import {
 } from '../src/contexts/identity/infrastructure/adapters/better-auth-schemas'
 import { createPortalTokenCodec } from '../src/contexts/portal/infrastructure/adapters/portal-token-codec'
 import { assertLocalToolExecutionIdentity } from '../src/shared/config/local-tool-execution'
+import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '../src/shared/domain/data-cell-catalogue'
 
 import {
   createGoogleContentRoleSignatureVerifier,
@@ -114,7 +104,6 @@ const organizationName = process.env.E2E_TEST_ORG ?? 'E2E Org A'
 const LOCKED_ORG_ID = 'e2e-locked-org-b'
 const FIXTURE_AT = new Date('2026-08-01T12:00:00.000Z')
 const GOAL_FIXTURE_AT = new Date('2026-08-08T12:00:00.000Z')
-const GOVERNED_FIXTURE_AT = new Date('2026-08-09T00:01:00.000Z')
 const FAR_FUTURE = new Date('2030-01-01T00:00:00.000Z')
 
 const IDS = {
@@ -132,29 +121,18 @@ const IDS = {
   p1Group: '11111111-1111-4111-8111-111111111120',
   p1GroupMember: '11111111-1111-4111-8111-111111111121',
   effectiveGroupMember: '11111111-1111-4111-8111-111111111123',
-  p1Team: '11111111-1111-4111-8111-111111111124',
   managerParticipation: '11111111-1111-4111-8111-111111111112',
   staffParticipation: '11111111-1111-4111-8111-111111111113',
-  managerMembership: '11111111-1111-4111-8111-111111111114',
   candidateAParticipation: '11111111-1111-4111-8111-111111111126',
   candidateBParticipation: '11111111-1111-4111-8111-111111111127',
-  staffMembership: '11111111-1111-4111-8111-111111111115',
   portalResponsibility: '11111111-1111-4111-8111-111111111116',
-  teamGroupScope: '11111111-1111-4111-8111-111111111117',
   goal: '11111111-1111-4111-8111-111111111118',
   goalDefinitionVersion: '11111111-1111-4111-8111-111111111142',
   goalPeriod: '11111111-1111-4111-8111-111111111143',
   goalEvaluation: '11111111-1111-4111-8111-111111111144',
-  badge: '44444444-4444-4444-8444-444444444101',
-  badgeAward: '11111111-1111-4111-8111-111111111122',
   notificationPreference: '11111111-1111-4111-8111-111111111125',
   notificationPreferenceInApp: '11111111-1111-4111-8111-111111111126',
-  recognitionActivation: '11111111-1111-4111-8111-111111111128',
-  recognitionReading: '11111111-1111-4111-8111-111111111129',
   goalReading: '11111111-1111-4111-8111-111111111145',
-  recognitionActivationGroup: '11111111-1111-4111-8111-111111111127',
-  recognitionBoardSnapshot: '11111111-1111-4111-8111-111111111140',
-  recognitionBoardEntry: '11111111-1111-4111-8111-111111111141',
   p1Notification: '11111111-1111-4111-8111-111111111130',
   p2Notification: '22222222-2222-4222-8222-222222222131',
   p3Notification: '33333333-3333-4333-8333-333333333132',
@@ -323,8 +301,9 @@ async function ensureProperty(
     countryCode: 'US',
     countrySource: 'manual' as const,
     processingRegion: 'us' as const,
+    dataCellId: 'us' as const,
     processingRegionSource: 'country_default' as const,
-    routingPolicyVersion: 1,
+    routingPolicyVersion: DATA_CELL_CATALOGUE_POLICY_VERSION,
     processingRegionResolvedAt: FIXTURE_AT,
     lifecycleState: 'active' as const,
     sourceEpoch: 0,
@@ -503,6 +482,7 @@ async function ensurePortalFixtures(
       categoryId: IDS.p1Category,
       portalId: IDS.p1Portal,
       organizationId,
+      propertyId,
       label: 'Visit example review destination',
       url: 'https://example.com/reviews',
       iconKey: 'external-link',
@@ -512,6 +492,7 @@ async function ensurePortalFixtures(
       target: portalLinks.id,
       set: {
         label: 'Visit example review destination',
+        propertyId,
         url: 'https://example.com/reviews',
         sortKey: 'a0',
       },
@@ -555,7 +536,7 @@ async function ensurePortalFixtures(
     .onConflictDoNothing()
 }
 
-async function ensurePeopleAndTeamFixtures(input: {
+async function ensurePeopleFixtures(input: {
   organizationId: string
   propertyId: string
   managerUserId: string
@@ -610,56 +591,6 @@ async function ensurePeopleAndTeamFixtures(input: {
     ])
     .onConflictDoNothing()
   await db
-    .insert(teams)
-    .values({
-      id: IDS.p1Team,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      name: 'E2E Guest Services Team',
-      description: 'Stable team fixture for lead and membership journeys.',
-      teamLeadId: input.managerUserId,
-    })
-    .onConflictDoUpdate({
-      target: teams.id,
-      set: {
-        name: 'E2E Guest Services Team',
-        description: 'Stable team fixture for lead and membership journeys.',
-        deletedAt: null,
-      },
-    })
-  await db
-    .delete(teamMemberships)
-    .where(
-      inArray(teamMemberships.staffParticipationId, [
-        IDS.managerParticipation,
-        IDS.staffParticipation,
-        IDS.candidateAParticipation,
-        IDS.candidateBParticipation,
-      ]),
-    )
-  await db.insert(teamMemberships).values([
-    {
-      id: IDS.managerMembership,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      teamId: IDS.p1Team,
-      staffParticipationId: IDS.managerParticipation,
-      role: 'lead',
-      effectiveFrom: FIXTURE_AT,
-      createdBy: input.managerUserId,
-    },
-    {
-      id: IDS.staffMembership,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      teamId: IDS.p1Team,
-      staffParticipationId: IDS.staffParticipation,
-      role: 'member',
-      effectiveFrom: FIXTURE_AT,
-      createdBy: input.managerUserId,
-    },
-  ])
-  await db
     .insert(portalResponsibilities)
     .values({
       id: IDS.portalResponsibility,
@@ -672,56 +603,14 @@ async function ensurePeopleAndTeamFixtures(input: {
       createdBy: input.managerUserId,
     })
     .onConflictDoNothing()
-  await db
-    .insert(teamPortalGroupScopes)
-    .values({
-      id: IDS.teamGroupScope,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      teamId: IDS.p1Team,
-      portalGroupId: IDS.p1Group,
-      effectiveFrom: FIXTURE_AT,
-      createdBy: input.managerUserId,
-    })
-    .onConflictDoNothing()
 }
 
-async function ensureGoalAndRecognitionFixtures(input: {
+async function ensureGoalFixtures(input: {
   organizationId: string
   propertyId: string
   managerUserId: string
 }): Promise<void> {
   const db = getDb()
-  await db
-    .insert(metricReadings)
-    .values({
-      id: IDS.recognitionReading,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      groupId: IDS.p1Group,
-      metricKey: 'portal.content_review.completed',
-      value: 8,
-      definitionVersionId: '11111111-1111-4111-8111-111111112101',
-      sourceEventId: 'e2e-recognition-content-reviewed-1',
-      sourcePolicy: 'first_party_workflow',
-      exactValue: '8',
-      sampleCount: 8,
-      attributionQuality: 'exact',
-      occurredAt: GOVERNED_FIXTURE_AT,
-      eventAt: GOVERNED_FIXTURE_AT,
-      propertyLocalDate: '2026-08-08',
-      dataQuality: 'accepted',
-      retentionClass: 'standard',
-    })
-    .onConflictDoUpdate({
-      target: metricReadings.id,
-      set: {
-        exactValue: '8',
-        value: 8,
-        sampleCount: 8,
-        eventAt: GOVERNED_FIXTURE_AT,
-      },
-    })
   await db
     .insert(metricReadings)
     .values({
@@ -734,7 +623,7 @@ async function ensureGoalAndRecognitionFixtures(input: {
       definitionVersionId: '11111111-1111-4111-8111-111111111101',
       sourceEventId: 'e2e-goal-content-reviewed-1',
       sourcePolicy: 'first_party_workflow',
-      exactValue: '8',
+      exactValue: 8,
       sampleCount: 8,
       attributionQuality: 'exact',
       occurredAt: GOAL_FIXTURE_AT,
@@ -746,7 +635,7 @@ async function ensureGoalAndRecognitionFixtures(input: {
     .onConflictDoUpdate({
       target: metricReadings.id,
       set: {
-        exactValue: '8',
+        exactValue: 8,
         value: 8,
         sampleCount: 8,
         eventAt: GOAL_FIXTURE_AT,
@@ -790,13 +679,7 @@ async function ensureGoalAndRecognitionFixtures(input: {
       metricValueKind: 'counter',
       metricMinimumSample: 1,
       metricAllowedScopes: ['property', 'portal_group'],
-      metricPermittedConsumers: [
-        'dashboard',
-        'goal',
-        'badge',
-        'leaderboard',
-        'notification',
-      ],
+      metricPermittedConsumers: ['dashboard', 'goal', 'notification'],
       metricEmploymentDecisionEligible: false,
       measureKind: 'progress',
       targetValue: 20,
@@ -858,136 +741,6 @@ async function ensureGoalAndRecognitionFixtures(input: {
       supersedesEvaluationId: null,
       correctionReadingId: null,
       createdBy: 'system:e2e-seed',
-    })
-    .onConflictDoNothing()
-  await db
-    .insert(recognitionActivations)
-    .values({
-      id: IDS.recognitionActivation,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      capabilityPolicyVersion: CAPABILITY_POLICY_VERSION,
-      jurisdiction: 'local-e2e',
-      noticeStatus: 'completed',
-      consultationStatus: 'not_required',
-      metricDefinitionVersionId: '11111111-1111-4111-8111-111111112101',
-      aggregation: 'sum',
-      periodKind: 'monthly',
-      minimumExposure: 1,
-      minimumSample: 1,
-      freshnessSeconds: 2_678_400,
-      minimumCompleteness: 0.9,
-      audience: 'property_managers_and_scoped_staff',
-      acknowledgedBy: input.managerUserId,
-      acknowledgedAt: GOVERNED_FIXTURE_AT,
-      effectiveFrom: GOVERNED_FIXTURE_AT,
-      effectiveTo: null,
-      status: 'active',
-      employmentDecisionEligible: false,
-    })
-    .onConflictDoUpdate({
-      target: recognitionActivations.id,
-      set: {
-        capabilityPolicyVersion: CAPABILITY_POLICY_VERSION,
-        metricDefinitionVersionId: '11111111-1111-4111-8111-111111112101',
-        aggregation: 'sum',
-        periodKind: 'monthly',
-        minimumExposure: 1,
-        minimumSample: 1,
-        freshnessSeconds: 2_678_400,
-        minimumCompleteness: 0.9,
-        status: 'active',
-        effectiveTo: null,
-        employmentDecisionEligible: false,
-      },
-    })
-  await db
-    .insert(recognitionActivationGroups)
-    .values({
-      id: IDS.recognitionActivationGroup,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      activationId: IDS.recognitionActivation,
-      portalGroupId: IDS.p1Group,
-    })
-    .onConflictDoNothing()
-  await db
-    .insert(recognitionBoardSnapshots)
-    .values({
-      id: IDS.recognitionBoardSnapshot,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      activationId: IDS.recognitionActivation,
-      metricDefinitionId: '11111111-1111-4111-8111-111111110101',
-      metricDefinitionVersionId: '11111111-1111-4111-8111-111111112101',
-      aggregation: 'sum',
-      periodKind: 'monthly',
-      periodStart: new Date('2026-08-01T04:00:00.000Z'),
-      periodEnd: new Date('2026-09-01T04:00:00.000Z'),
-      timezone: 'America/New_York',
-      minimumExposure: 1,
-      minimumSample: 1,
-      freshnessSeconds: 2_678_400,
-      minimumCompleteness: 0.9,
-      sourceWatermark: GOVERNED_FIXTURE_AT,
-      status: 'ready',
-      correctionGeneration: 0,
-      employmentDecisionEligible: false,
-      reconciledAt: GOVERNED_FIXTURE_AT,
-    })
-    .onConflictDoNothing()
-  await db
-    .insert(recognitionBoardEntries)
-    .values({
-      id: IDS.recognitionBoardEntry,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      snapshotId: IDS.recognitionBoardSnapshot,
-      portalGroupId: IDS.p1Group,
-      value: 8,
-      numerator: null,
-      denominator: null,
-      sampleCount: 8,
-      exposureCount: 8,
-      completeness: 1,
-      rank: 1,
-      tieGroup: 1,
-      eligibilityReason: 'eligible',
-      status: 'ranked',
-      sourceWatermark: GOVERNED_FIXTURE_AT,
-      correctionGeneration: 0,
-      employmentDecisionEligible: false,
-      reconciledAt: GOVERNED_FIXTURE_AT,
-    })
-    .onConflictDoNothing()
-  await db
-    .insert(governedBadgeAwards)
-    .values({
-      id: IDS.badgeAward,
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      portalGroupId: IDS.p1Group,
-      definitionVersionId: '55555555-5555-4555-8555-555555555101',
-      metricDefinitionVersionId: '11111111-1111-4111-8111-111111112101',
-      sourceSnapshotId: IDS.recognitionBoardSnapshot,
-      sourceFactId: `${IDS.recognitionBoardSnapshot}:55555555-5555-4555-8555-555555555101:${IDS.p1Group}`,
-      sourceWatermark: GOVERNED_FIXTURE_AT,
-      periodStart: new Date('2026-08-01T04:00:00.000Z'),
-      periodEnd: new Date('2026-09-01T04:00:00.000Z'),
-      timezone: 'America/New_York',
-      sampleCount: 8,
-      exposureCount: 8,
-      completeness: 1,
-      eligibilityReason: 'eligible',
-      definitionSnapshot: {
-        name: 'Content Review Stewardship',
-        icon: 'clipboard-check',
-        criteria: 'At least five governed content reviews in the period',
-        rule: 'sum >= 5',
-        metricVersion: '11111111-1111-4111-8111-111111112101',
-      },
-      awardedAt: GOVERNED_FIXTURE_AT,
-      employmentDecisionEligible: false,
     })
     .onConflictDoNothing()
   await db
@@ -1116,7 +869,7 @@ async function ensureReviews(input: {
         definitionVersionId: '11111111-1111-4111-8111-111111111205',
         sourceEventId: `e2e-review-created-${ordinal}`,
         sourcePolicy: 'google_property_derivative',
-        exactValue: String((index % 5) + 1),
+        exactValue: (index % 5) + 1,
         sampleCount: 1,
         attributionQuality: 'exact',
         occurredAt: reviewedAt,
@@ -1131,7 +884,7 @@ async function ensureReviews(input: {
           organizationId: scope.organizationId,
           propertyId: scope.propertyId,
           value: (index % 5) + 1,
-          exactValue: String((index % 5) + 1),
+          exactValue: (index % 5) + 1,
           occurredAt: reviewedAt,
           eventAt: reviewedAt,
           propertyLocalDate: reviewedAt.toISOString().slice(0, 10),
@@ -1235,12 +988,24 @@ async function ensureLocalGoogleContentApprovals(): Promise<void> {
     throw new Error('local Google Content approval public keys are invalid')
   }
 
+  const store = createGoogleContentAuthorityRepository(getDb())
   const authority = createGoogleContentAuthorizationAuthority({
-    store: createGoogleContentAuthorityRepository(getDb()),
+    store,
     clock: () => new Date(),
     newPermitId: randomUUID,
     verifyRoleApproval: createGoogleContentRoleSignatureVerifier(parsedKeys.publicKeys),
+    refreshPolicy: () =>
+      store.transaction(async (tx) => {
+        const control = await store.loadControl(tx)
+        return {
+          version: control.policyVersion,
+          emergencyKillVersion: control.emergencyKillVersion,
+        }
+      }),
     isRegisteredOperator: (operatorId) => operatorId === 'local-stack-seed',
+    // This local seed only installs approvals and changes the persisted control.
+    // It must never become an alternate execution authorizer.
+    authorize: async () => ({ allowed: false, code: 'authorization_denied' }),
   })
   for (const value of bundleValues) {
     const parsed = parseGoogleContentApprovalBundle(value)
@@ -1399,7 +1164,7 @@ async function main(): Promise<void> {
   })
 
   await ensurePortalFixtures(orgAId, p1Id, managerUserId)
-  await ensurePeopleAndTeamFixtures({
+  await ensurePeopleFixtures({
     organizationId: orgAId,
     propertyId: p1Id,
     managerUserId,
@@ -1407,7 +1172,7 @@ async function main(): Promise<void> {
     candidateAUserId,
     candidateBUserId,
   })
-  await ensureGoalAndRecognitionFixtures({
+  await ensureGoalFixtures({
     organizationId: orgAId,
     propertyId: p1Id,
     managerUserId,
@@ -1474,11 +1239,9 @@ async function main(): Promise<void> {
     p3PortalToken: p3Portal.portalToken,
     portalGroupId: IDS.p1Group,
     portalLinkId: IDS.p1Link,
-    teamId: IDS.p1Team,
     managerParticipationId: IDS.managerParticipation,
     staffParticipationId: IDS.staffParticipation,
     goalId: IDS.goal,
-    badgeDefinitionId: IDS.badge,
     emailQueueFixtureIds: [IDS.p1EmailQueue, IDS.p2EmailQueue, IDS.p3EmailQueue],
     reviewCount: 100,
   })
