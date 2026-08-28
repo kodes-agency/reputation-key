@@ -1091,6 +1091,318 @@ const SERVER_FUNCTION_ROWS: ReadonlyArray<EntryPointRow> = [
   // ── identity ──────────────────────────────────────────────────────
   ...[
     sf(
+      'getClosureCenterHandler',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+      },
+    ),
+    sf(
+      'getClosureCenterFn',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+      },
+    ),
+    sf(
+      'requestOrganizationClosureHandler',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Commits the closure request, the Organization-wide suspension and the lifecycle authority row in one transaction after locking the membership and binding rows',
+        },
+      },
+    ),
+    sf(
+      'requestOrganizationClosureFn',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Commits the closure request, the Organization-wide suspension and the lifecycle authority row in one transaction after locking the membership and binding rows',
+        },
+      },
+    ),
+    sf(
+      'cancelOrganizationClosureHandler',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Commits the cancellation and clears the suspension in one transaction, leaving the reactivation fence set so nothing resumes silently',
+        },
+      },
+    ),
+    sf(
+      'cancelOrganizationClosureFn',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Commits the cancellation and clears the suspension in one transaction, leaving the reactivation fence set so nothing resumes silently',
+        },
+      },
+    ),
+    sf(
+      'reactivateOrganizationHandler',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Clears the reactivation fence only after every declared health, Google authorization and Portal reactivation check passes, in one transaction with its evidence',
+        },
+      },
+    ),
+    sf(
+      'reactivateOrganizationFn',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Clears the reactivation fence only after every declared health, Google authorization and Portal reactivation check passes, in one transaction with its evidence',
+        },
+      },
+    ),
+    sf(
+      'requestOrganizationExportHandler',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Idempotently binds the caller-supplied request id to one export request row',
+        },
+      },
+    ),
+    sf(
+      'requestOrganizationExportFn',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Idempotently binds the caller-supplied request id to one export request row',
+        },
+      },
+    ),
+    sf(
+      'issueOrganizationExportRetrievalHandler',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Co-commits the digest-only, bounded retrieval authority with its access audit',
+        },
+      },
+    ),
+    sf(
+      'issueOrganizationExportRetrievalFn',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Co-commits the digest-only, bounded retrieval authority with its access audit',
+        },
+      },
+    ),
+    sf(
+      'downloadOrganizationExportHandler',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Atomically consumes an unexpired single-use token and co-commits the access audit',
+        },
+      },
+    ),
+    sf(
+      'downloadOrganizationExportFn',
+      `${IDENTITY}/organization-closure-fns.ts`,
+      'organization.update',
+      'none',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T17 Closure Center. Deliberately outside requireExecutionAllowed: a closure commits an Organization-wide suspension that denies every capability, so gating these would make the closure uncancellable and the export unretrievable. Authority is stronger, not weaker -- every command rechecks current AccountAdmin with an active Organization binding inside the command-store transaction under FOR UPDATE. No MFA, step-up or fresh-password check is introduced',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Atomically consumes an unexpired single-use token and co-commits the access audit',
+        },
+      },
+    ),
+    sf(
+      'listOutstandingResponsibilitiesHandler',
+      `${IDENTITY}/organization-leave-fns.ts`,
+      'identity.leave_org',
+      'identity.invite',
+      'organization',
+      {
+        notes:
+          'LIF-01-T21 transfer-first leave. Gated by identity.leave_org; a sole AccountAdmin cannot leave, and outstanding responsibilities must transfer before the membership is removed',
+      },
+    ),
+    sf(
+      'listOutstandingResponsibilitiesFn',
+      `${IDENTITY}/organization-leave-fns.ts`,
+      'identity.leave_org',
+      'identity.invite',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T21 transfer-first leave. Gated by identity.leave_org; a sole AccountAdmin cannot leave, and outstanding responsibilities must transfer before the membership is removed',
+      },
+    ),
+    sf(
+      'leaveOrganizationHandler',
+      `${IDENTITY}/organization-leave-fns.ts`,
+      'identity.leave_org',
+      'identity.invite',
+      'organization',
+      {
+        notes:
+          'LIF-01-T21 transfer-first leave. Gated by identity.leave_org; a sole AccountAdmin cannot leave, and outstanding responsibilities must transfer before the membership is removed',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Removes the membership, transfers or refuses on outstanding responsibilities, and revokes sessions in one transaction with its durable fact',
+        },
+      },
+    ),
+    sf(
+      'leaveOrganizationFn',
+      `${IDENTITY}/organization-leave-fns.ts`,
+      'identity.leave_org',
+      'identity.invite',
+      'organization',
+      {
+        canonicalOnly: true,
+        notes:
+          'LIF-01-T21 transfer-first leave. Gated by identity.leave_org; a sole AccountAdmin cannot leave, and outstanding responsibilities must transfer before the membership is removed',
+        mutation: {
+          kind: 'mutation',
+          stateOwner: 'identity',
+          disposition: 'atomic_state_and_fact',
+          reason:
+            'Removes the membership, transfers or refuses on outstanding responsibilities, and revokes sessions in one transaction with its durable fact',
+        },
+      },
+    ),
+    sf(
       'submitBetaFeedbackHandler',
       `${IDENTITY}/beta-feedback.ts`,
       'feedback.respond',
@@ -3106,6 +3418,17 @@ const ROUTE_UI_ROWS: ReadonlyArray<EntryPointRow> = [
       notes: 'index redirect → /settings/profile',
     }),
     ui(
+      '/settings/closure',
+      `${AUTHED}/settings/closure.tsx`,
+      'system:ui.render',
+      'none',
+      'organization',
+      {
+        notes:
+          'LIF-01-T17 Closure Center: authenticated read-only status plus the closure lifecycle and export retrieval commands. The loader primes the Query cache and returns void so the payload is not serialized twice',
+      },
+    ),
+    ui(
       '/settings/profile',
       `${AUTHED}/settings/profile.tsx`,
       'system:ui.render',
@@ -3925,10 +4248,11 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
       'identity.invitation.accepted',
       'identity.member.role_changed',
       'identity.member.removed',
+      'identity.organization_lifecycle.changed',
     ],
     {
       notes:
-        'durable affected-account access notices; exact schema-validated Identity fact is re-read at delivery, so role-change actor and target cannot be confused and a removed user still receives their own notice',
+        'durable affected-account access notices; exact schema-validated Identity fact is re-read at delivery, so role-change actor and target cannot be confused and a removed user still receives their own notice. LIF-01 program bullet 5: the lifecycle fact additionally carries the MANDATORY Purge Pending final notice, which is the one delivery deliberately carved out of the Closing suppression',
     },
   ),
   consumer(
@@ -4770,6 +5094,50 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     {
       notes:
         'ops:report-legacy-recognition — read-only REC-01 inventory of all 13 retained Badge/Leaderboard/Recognition tables, exact row counts, foreign-key dependencies, data-fate classifications, and a content-free fingerprint; no record identifiers or apply path',
+    },
+  ),
+  ops('scripts/ops/property-erase.ts', 'scripts/ops/property-erase.ts', 'property', {
+    notes:
+      'ops:property-erase — LIF-01-T19 support-mediated permanent Property Erase. Report-only by default; the destructive path additionally requires --apply, the typed confirmation, an operator id, a ticket, and an INDEPENDENT support authorization reference. It declares no capability on purpose: property.erase stays in BLOCKED_CAPABILITIES, so this operator command is the only entry point and no tenant-facing authorization path exists',
+  }),
+  ops('scripts/ops/privacy-request.ts', 'scripts/ops/privacy-request.ts', 'property', {
+    notes:
+      'ops:privacy-request — LIF-01-T20 privacy access, correction, withdrawal and erasure for Guest and Participant subjects. Tenant and property scoped; the subject is named only by the SHA-256 of a verified identifier, never in the clear. Report-only by default, destructive only under --apply',
+  }),
+  ops(
+    'scripts/ops/repair-partial-offboarding.ts',
+    'scripts/ops/repair-partial-offboarding.ts',
+    'property',
+    {
+      notes:
+        'ops:repair-partial-offboarding — LIF-01-T21 recovery for a membership removal that transferred some responsibilities and then failed. Reports the outstanding transfers by default and completes them only under --apply',
+    },
+  ),
+  ops(
+    'scripts/ops/report-legacy-custom-roles.ts',
+    'scripts/ops/report-legacy-custom-roles.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-legacy-custom-roles — read-only bullet-12 inventory of retained custom-role rows that must be reconciled or archived before migration; content-free counts at an explicit --as-of, no apply path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-legacy-multi-org.ts',
+    'scripts/ops/report-legacy-multi-org.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-legacy-multi-org — read-only bullet-12 inventory of users holding more than one Organization binding, which the singular-binding model must reconcile without erasing the evidence needed to resolve the conflict; no apply path',
+    },
+  ),
+  ops(
+    'scripts/ops/report-legacy-guest-compatibility.ts',
+    'scripts/ops/report-legacy-guest-compatibility.ts',
+    'tenant_cross',
+    {
+      notes:
+        'ops:report-legacy-guest-compatibility — read-only bullet-12 inventory of the legacy Guest compatibility rows. It is a reference scan, not a table inventory: the compatibility mirrors it reads are already claimed by ops:report-compatibility-read-surfaces, and claiming them twice would break the one-tool-per-table registry',
     },
   ),
   ops(

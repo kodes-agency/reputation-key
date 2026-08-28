@@ -1190,12 +1190,17 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       action: 'none',
       schemaRegistered: true,
       recordedInOutbox: true,
-      consumers: [],
-      disposition: 'recorded_only',
+      consumers: [
+        durable(
+          'notification.on-identity-organization-purge-pending',
+          NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
+        ),
+      ],
+      disposition: 'enabled',
     },
     {
       notes:
-        'content-minimal Organization closure/cancellation revision fact; lifecycle state, global suspension, policy generation, retry receipt, and outbox row co-commit; no cleanup, provider reactivation, or irreversible apply consumer is active in LIF-01',
+        'content-minimal Organization closure/cancellation/reactivation revision fact; lifecycle state, global suspension, policy generation, retry receipt, and outbox row co-commit; the ONE durable consumer is the LIF-01 bullet-5 mandatory final notice, which records an obsolete receipt for every state except purge_pending; no cleanup, provider reactivation, or irreversible apply consumer is active in LIF-01',
     },
   ),
 ]

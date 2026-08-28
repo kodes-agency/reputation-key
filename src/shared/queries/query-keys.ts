@@ -93,6 +93,11 @@ export const identityKeys = {
   invitations: () => [...identityKeys.all, 'invitations'] as const,
   userInvitations: () => [...identityKeys.invitations(), 'user'] as const,
   organizationInvitations: () => [...identityKeys.invitations(), 'organization'] as const,
+  /** LIF-01-T17 Closure Center status + export view. */
+  closureCenter: () => [...identityKeys.all, 'closure-center'] as const,
+  /** LIF-01-T21 transfer worklist a departing member must clear. */
+  outstandingResponsibilities: () =>
+    [...identityKeys.all, 'outstanding-responsibilities'] as const,
 }
 
 // ── Properties ──────────────────────────────────────────────────────────

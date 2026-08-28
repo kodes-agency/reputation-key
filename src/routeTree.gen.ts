@@ -29,6 +29,7 @@ import { Route as AuthenticatedPropertiesIndexRouteImport } from './routes/_auth
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties/$propertyId'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
 import { Route as AuthenticatedSettingsAiRouteImport } from './routes/_authenticated/settings/ai'
+import { Route as AuthenticatedSettingsClosureRouteImport } from './routes/_authenticated/settings/closure'
 import { Route as AuthenticatedSettingsIntegrationsRouteImport } from './routes/_authenticated/settings/integrations'
 import { Route as AuthenticatedSettingsMembersRouteImport } from './routes/_authenticated/settings/members'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings/notifications'
@@ -166,6 +167,12 @@ const AuthenticatedSettingsAiRoute = AuthenticatedSettingsAiRouteImport.update({
   path: '/ai',
   getParentRoute: () => AuthenticatedSettingsRoute,
 } as any)
+const AuthenticatedSettingsClosureRoute =
+  AuthenticatedSettingsClosureRouteImport.update({
+    id: '/closure',
+    path: '/closure',
+    getParentRoute: () => AuthenticatedSettingsRoute,
+  } as any)
 const AuthenticatedSettingsIntegrationsRoute =
   AuthenticatedSettingsIntegrationsRouteImport.update({
     id: '/integrations',
@@ -368,6 +375,7 @@ export interface FileRoutesByFullPath {
   '/p/$token': typeof PTokenRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/settings/ai': typeof AuthenticatedSettingsAiRoute
+  '/settings/closure': typeof AuthenticatedSettingsClosureRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
@@ -419,6 +427,7 @@ export interface FileRoutesByTo {
   '/progress': typeof AuthenticatedProgressRoute
   '/p/$token': typeof PTokenRoute
   '/settings/ai': typeof AuthenticatedSettingsAiRoute
+  '/settings/closure': typeof AuthenticatedSettingsClosureRoute
   '/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
@@ -473,6 +482,7 @@ export interface FileRoutesById {
   '/p/$token': typeof PTokenRoute
   '/_authenticated/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   '/_authenticated/settings/ai': typeof AuthenticatedSettingsAiRoute
+  '/_authenticated/settings/closure': typeof AuthenticatedSettingsClosureRoute
   '/_authenticated/settings/integrations': typeof AuthenticatedSettingsIntegrationsRoute
   '/_authenticated/settings/members': typeof AuthenticatedSettingsMembersRoute
   '/_authenticated/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
@@ -528,6 +538,7 @@ export interface FileRouteTypes {
     | '/p/$token'
     | '/properties/$propertyId'
     | '/settings/ai'
+    | '/settings/closure'
     | '/settings/integrations'
     | '/settings/members'
     | '/settings/notifications'
@@ -579,6 +590,7 @@ export interface FileRouteTypes {
     | '/progress'
     | '/p/$token'
     | '/settings/ai'
+    | '/settings/closure'
     | '/settings/integrations'
     | '/settings/members'
     | '/settings/notifications'
@@ -632,6 +644,7 @@ export interface FileRouteTypes {
     | '/p/$token'
     | '/_authenticated/properties/$propertyId'
     | '/_authenticated/settings/ai'
+    | '/_authenticated/settings/closure'
     | '/_authenticated/settings/integrations'
     | '/_authenticated/settings/members'
     | '/_authenticated/settings/notifications'
@@ -832,6 +845,13 @@ declare module '@tanstack/react-router' {
       path: '/ai'
       fullPath: '/settings/ai'
       preLoaderRoute: typeof AuthenticatedSettingsAiRouteImport
+      parentRoute: typeof AuthenticatedSettingsRoute
+    }
+    '/_authenticated/settings/closure': {
+      id: '/_authenticated/settings/closure'
+      path: '/closure'
+      fullPath: '/settings/closure'
+      preLoaderRoute: typeof AuthenticatedSettingsClosureRouteImport
       parentRoute: typeof AuthenticatedSettingsRoute
     }
     '/_authenticated/settings/integrations': {
@@ -1063,6 +1083,7 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedSettingsRouteChildren {
   AuthenticatedSettingsAiRoute: typeof AuthenticatedSettingsAiRoute
+  AuthenticatedSettingsClosureRoute: typeof AuthenticatedSettingsClosureRoute
   AuthenticatedSettingsIntegrationsRoute: typeof AuthenticatedSettingsIntegrationsRoute
   AuthenticatedSettingsMembersRoute: typeof AuthenticatedSettingsMembersRoute
   AuthenticatedSettingsNotificationsRoute: typeof AuthenticatedSettingsNotificationsRoute
@@ -1076,6 +1097,7 @@ interface AuthenticatedSettingsRouteChildren {
 
 const AuthenticatedSettingsRouteChildren: AuthenticatedSettingsRouteChildren = {
   AuthenticatedSettingsAiRoute: AuthenticatedSettingsAiRoute,
+  AuthenticatedSettingsClosureRoute: AuthenticatedSettingsClosureRoute,
   AuthenticatedSettingsIntegrationsRoute:
     AuthenticatedSettingsIntegrationsRoute,
   AuthenticatedSettingsMembersRoute: AuthenticatedSettingsMembersRoute,

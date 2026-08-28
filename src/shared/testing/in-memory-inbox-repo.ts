@@ -153,6 +153,21 @@ export function createInMemoryInboxRepo(): InboxRepository & {
       }
       return { updated }
     },
+    // Milestone-only writer: it cannot express `status`, matching the real
+    // repository seam that keeps the `inbox_items.status` compatibility mirror
+    // writable only where it co-commits with the Handling Cycle head.
+    stampReplyMilestones: async (id, orgId, milestones, now) => {
+      const item = items.find((i) => i.id === id && i.organizationId === orgId)
+      if (!item) return null
+      const idx = items.indexOf(item)
+      items[idx] = {
+        ...item,
+        ...milestones,
+        commandRevision: nextCommandRevision(item),
+        updatedAt: now ?? new Date(),
+      }
+      return items[idx]
+    },
     updateAssignment: async (id, orgId, assignedTo, now) => {
       const item = items.find((i) => i.id === id && i.organizationId === orgId)
       if (!item) throw new Error('not found')

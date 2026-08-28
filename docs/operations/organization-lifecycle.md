@@ -148,6 +148,45 @@ state to `active` but retains the closure lineage, Organization suspension, and
 `reactivation_required=true`. It does not reactivate Google, Portals, AI,
 imports, sync, replies, notifications, or schedules.
 
+## Explicit reactivation (LIF-01-T18)
+
+Clearing `reactivation_required` and lifting the Organization suspension is a
+separate command with its own authority, readiness evidence and receipt. It
+answers five closed checks, all of which must pass:
+
+| Check                         | Question                                                                  |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| `data_cell_health`            | is the assigned Data Cell (`cell-us`) accepting work?                     |
+| `responsible_manager`         | does every Property have an eligible CURRENT Responsible Manager?         |
+| `google_authorization`        | is there a FRESH authorization — not merely a stored credential?          |
+| `portal_reactivation`         | was at least one Portal deliberately re-pointed at its retained snapshot? |
+| `schedule_quarantine_cleared` | are the lifecycle/import/sync/notification schedules out of quarantine?   |
+
+A probe that cannot answer is an UNSATISFIED check (`probe_unavailable`), never
+an implicit pass.
+
+Three DELIBERATE ACTIONS must additionally be recorded, each with a human actor
+and a content-free reason: `portal_republished`, `ai_capability_reviewed`,
+`google_reauthorized`. The command asserts them; it never performs them. It
+never republishes a Portal, never re-enables an AI capability and never
+restores a Google credential. A `system:` actor is refused — a machine cannot
+author a deliberate human decision.
+
+Reactivation is compare-and-set on the revision its readiness evidence
+describes, so a concurrent closure request or operator transition invalidates
+it. On success `reactivation_required` becomes false, the whole closure lineage
+clears (the `organization_lifecycle_state_shape` check requires it), the
+suspension is lifted with a new policy generation, and only THEN can a new
+closure be requested.
+
+**Currently fenced by the database.** Migration `0159` predates this command:
+`guard_organization_lifecycle_revision_v1` allows no `active -> active` edge,
+and `organization_lifecycle_receipt_operation_valid` allows only the `request`
+and `cancel` operations. Both belong to the migration integrator. Until that
+migration lands, `reactivate` fails closed at the database rather than
+half-lifting the fence — the safe direction. An Organization that cannot prove
+reactivation stays fenced.
+
 ## Scheduled and support transitions
 
 One bounded scheduled pass examines at most 50 candidates. It can perform:
@@ -297,10 +336,80 @@ for the departing user, changes the matching active User Organization Binding
 to `released` with a new version, deletes membership, and appends
 `identity.member.removed`.
 
-Self-service Organization leave remains blocked at the raw Better Auth HTTP
-boundary. A complete transfer-first leave experience and a recovery/repair
-workflow for cross-context pre-fence success followed by Identity failure are
-still required before this LIF-01 item is complete.
+### Transfer-first leave (LIF-01-T21)
+
+Self-service leave is a SEPARATE command from removal, because the two need
+opposite behaviour. Removal RELEASES what the member held — an AccountAdmin is
+present to reassign afterwards. A voluntary leave has no such supervisor, so
+`leaveOrganization` REFUSES until every Portal responsibility, Property
+responsibility and open Inbox assignment the leaver holds has been explicitly
+transferred to a named, currently eligible manager. There is no auto-assign and
+no "release to nobody": choosing a successor is an accountability decision.
+
+- The sole AccountAdmin cannot leave. Checked in the use case for a usable
+  message and re-checked under the Organization advisory lock in the command
+  store, which is what closes the race between two admins leaving at once.
+- The worklist is re-read AFTER the transfers are applied, so a responsibility
+  created during the hand-over blocks the leave instead of being abandoned.
+- The responsibility facts are composed (`memberOffboarding`). ABSENT IS
+  FAIL-CLOSED: with no adapter bound, leave refuses. A leave that cannot see
+  the worklist would silently strand everything on it.
+- `identity.leave_org` is capability-gated as usual, so a suspended
+  Organization does not lose members while its closure is pending.
+
+`property_access_grant` revocation now commits INSIDE the Identity transaction
+alongside session deletion, binding release, membership deletion and the
+`identity.member.removed` fact. Google connector and import fencing cannot join
+that transaction, so they still run before it — deliberately, because a fenced
+connector with a surviving membership is repairable while a deleted membership
+with a live provider grant is not.
+
+### Repairing a partial offboarding
+
+A crash between the provider fence and the Identity transaction leaves exactly
+one shape: every grant revoked with reason `member_offboarded`, no live grant
+left, and a membership row that should not exist.
+
+```sh
+# Report the whole candidate set (always report-only)
+pnpm ops:repair-partial-offboarding --operator <id>
+
+# Report one user
+pnpm ops:repair-partial-offboarding <organization-id> <user-id> --operator <id>
+
+# Converge one reviewed user
+pnpm ops:repair-partial-offboarding <organization-id> <user-id> \
+  --operator <id> --ticket <ref> --reason <text> \
+  --apply --yes ops:repair-partial-offboarding
+```
+
+The repair converges by COMPLETING the offboarding through the same atomic
+command a clean removal uses. It never re-grants access: the fence was an
+authorized decision, and resurrecting access to undo a crash would hand back
+authority somebody already removed. To let the person keep working, re-invite
+them — that has its own audit trail. Retries are idempotent: after convergence
+the same user classifies as `already_offboarded`.
+
+## Purge Pending final notice (program bullet 5)
+
+Closing cancels every still-sendable NON-mandatory queued email, so ordinary
+product mail stops the moment a closure is requested. The final notice is the
+explicit carve-out: `account.organization_purge_pending` is a MANDATORY
+category, and the Closing fence skips that category, so this notice survives
+the fence that silenced everything else.
+
+- It is emitted at `purge_pending` and nowhere else. Earlier states are
+  recoverable and already visible in the Closure Center; `purging` is past the
+  irreversible boundary, where a "last chance" message would be a lie.
+- It rides on the existing `identity.organization_lifecycle.changed` fact, so
+  no new event family exists. The consumer
+  (`notification.on-identity-organization-purge-pending`) records an
+  `obsolete` receipt for every other state.
+- Recipients are the CURRENT AccountAdmins, not the original requester, who may
+  have left. If none remains the consumer logs a content-free warning rather
+  than proceeding silently.
+- The job id is `<eventId>-<recipient>`, so bus/outbox dual delivery and any
+  retry converge on one notice per admin.
 
 ## Read-only diagnostics
 
@@ -349,8 +458,9 @@ the final candidate:
    recovery that never rebuilds a later live snapshot as historical proof;
 3. production composition, bounded schedules, manager Closure Center, and
    ticketed independent operator authorization;
-4. explicit reactivation with health, Data Cell, responsibility, Google,
-   Portal, AI, import/sync/reply, notification, and schedule checks;
+4. the migration that adds the `active -> active` reactivation edge and the
+   `reactivate` receipt operation, without which explicit reactivation (whose
+   command, readiness port and checks now exist) cannot commit;
 5. support-mediated Property Erase and Organization Purge interruption/retry
    drills with independently retained managerial-work decisions;
 6. backup erasure/restore fences proving closed or expired data cannot

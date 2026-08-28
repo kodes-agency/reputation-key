@@ -572,6 +572,33 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exitCriteria: RECONCILE_QUARANTINE,
   }),
   ...rows({
+    schemaFile: 'backup-erasure-ledger.schema.ts',
+    exportNames: ['backupErasureLedger', 'backupErasureHoldReleases'],
+    owner: 'identity',
+    disposition: 'recoverable_archive',
+    authority: 'LIF-01',
+    exitCriteria:
+      'Content-free evidence that must OUTLIVE the data it describes: the restore resurrection fence replays these entries before a restored cell may be declared verified, so erasing the ledger would let purged data come back through a restore. Retained until counsel approves a retention horizon that is strictly longer than the longest backup retention window.',
+  }),
+  ...rows({
+    schemaFile: 'property-erase.schema.ts',
+    exportNames: ['propertyEraseAuthorities', 'propertyEraseContextReceipts'],
+    owner: 'property',
+    disposition: 'recoverable_archive',
+    authority: 'LIF-01',
+    exitCriteria:
+      'Content-free authority and per-context receipts for an irreversible erase. They are the only proof that the erase was independently authorized and that every owning context reported, so they outlive the erased Property. Contract only after counsel approves an evidence retention horizon.',
+  }),
+  ...rows({
+    schemaFile: 'privacy-request.schema.ts',
+    exportNames: ['privacyRequests', 'privacyRequestTransitions'],
+    owner: 'identity',
+    disposition: 'recoverable_archive',
+    authority: 'LIF-01',
+    exitCriteria:
+      'Content-free privacy-request audit: the subject is named only by the SHA-256 of a verified identifier, never in the clear, so the record proves a request was handled without re-storing what it was about. Retained until counsel approves a data-subject-request evidence horizon.',
+  }),
+  ...rows({
     schemaFile: 'organization-lifecycle.schema.ts',
     exportNames: ['organizationExports', 'organizationLifecycleAuthority'],
     owner: 'identity',
