@@ -60,23 +60,23 @@ Official-doc-backed requirements and their links live in the two research files 
 
 ### 3.2 Feature posture
 
-| Capability                                                      | Controlled-beta state        | Owner gate                                                          |
-| --------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------- |
-| Identity, sessions, built-in roles                              | Core                         | Security/identity                                                   |
-| Custom/dynamic roles                                            | Off                          | Repository-wide authorization migration and E2E                     |
-| Property access and staff participation                         | Core, grant scoped           | People/access integrity                                             |
-| Team and lead administration                                    | P1 allowlist                 | Effective-dated membership, lead, and tenant-isolation smoke        |
-| Google OAuth/import/sync/status                                 | Existing property policy     | Existing Google workflow gate                                       |
-| Reviews, Inbox, manual replies                                  | Core                         | Existing durable review/Inbox gate                                  |
-| Dashboard                                                       | Core base; P1 overlays only  | Governed metric registry and bounded fleet query                    |
-| In-app notifications                                            | Core                         | Durable delivery gate                                               |
-| Product notification email                                      | P1 allowlist                 | Property preference, provider sandbox, queue, and kill-switch smoke |
-| Portal management/public read                                   | P1 allowlist                 | Publication/token/tenancy/public-edge gate                          |
-| Guest response/text/contact/media                               | Separate P1 allowlists       | Consent, abuse, privacy, upload, withdrawal, and deletion gates     |
-| Property/portal-group Goals                                     | P1 allowlist                 | Governed metric and recurrence gate                                 |
-| Group recognition/leaderboard                                   | P1 allowlist plus activation | Eligibility, consultation/notice, bounded audience, correction gate |
-| AI 17/18                                                        | Off                          | ADR 0031 plus phase-specific provider/privacy evidence              |
-| Auto-publish/cross-property AI/review solicitation gamification | Permanently blocked          | Not allowlistable                                                   |
+| Capability                                                      | Controlled-beta state        | Owner gate                                                                                                              |
+| --------------------------------------------------------------- | ---------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Identity, sessions, built-in roles                              | Core                         | Security/identity                                                                                                       |
+| Custom/dynamic roles                                            | Off                          | Repository-wide authorization migration and E2E                                                                         |
+| Property access and staff participation                         | Core, grant scoped           | People/access integrity                                                                                                 |
+| Team and lead administration                                    | P1 allowlist                 | Effective-dated membership, lead, and tenant-isolation smoke                                                            |
+| Google OAuth/import/sync/status                                 | Existing property policy     | Existing Google workflow gate                                                                                           |
+| Reviews, Inbox, manual replies                                  | Core                         | Existing durable review/Inbox gate                                                                                      |
+| Dashboard                                                       | Core base; P1 overlays only  | Governed metric registry and bounded fleet query                                                                        |
+| In-app notifications                                            | Core                         | Durable delivery gate                                                                                                   |
+| Product notification email                                      | P1 allowlist                 | Property preference, deterministic provider stub, authorized non-customer provider canary, queue, and kill-switch smoke |
+| Portal management/public read                                   | P1 allowlist                 | Publication/token/tenancy/public-edge gate                                                                              |
+| Guest response/text/contact/media                               | Separate P1 allowlists       | Consent, abuse, privacy, upload, withdrawal, and deletion gates                                                         |
+| Property/portal-group Goals                                     | P1 allowlist                 | Governed metric and recurrence gate                                                                                     |
+| Group recognition/leaderboard                                   | P1 allowlist plus activation | Eligibility, consultation/notice, bounded audience, correction gate                                                     |
+| AI 17/18                                                        | Off                          | ADR 0031 plus phase-specific provider/privacy evidence                                                                  |
+| Auto-publish/cross-property AI/review solicitation gamification | Permanently blocked          | Not allowlistable                                                                                                       |
 
 ### 3.3 Initial internal service objectives
 

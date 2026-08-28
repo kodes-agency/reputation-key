@@ -1,5 +1,13 @@
 # Beta release evidence packs
 
+> `beta-local-1` is candidate evidence only. It is necessary for release-image
+> creation, but it is not Gate F or permission to open the external beta. The
+> current authority is `REL-01` in
+> `docs/comprehensive-beta-implementation-program-2026-08-25.md`, which also
+> requires candidate-bound Railway, backup/PITR/restore, live-provider,
+> deployed-journey, canary, rollback, legal, operations, and cohort evidence.
+> None of those hosted gates may be marked passed by this local validator.
+
 Each candidate build that claims BQR completion creates a directory:
 
 ```text
@@ -50,3 +58,71 @@ The validator rejects template/pending files, a mixed candidate identity,
 missing target-scale dataset, missing BQC-8 exit-matrix gates, non-passing
 required gates, unaccepted P0/P1 findings, incomplete P2/P3 exceptions, and
 approvals that predate final evidence.
+
+## REL-01 Gate F completion index
+
+The final external-beta decision uses a separate canonical
+`gate-f-index.json`. It is a join over real candidate-bound artifacts, not a
+replacement for producing them. Keep it with the exact promotion manifest and
+all referenced evidence under one immutable evidence root, then validate it:
+
+```bash
+pnpm release:validate-evidence -- \
+  --gate-f-index=docs/release-evidence/beta/<release-id>/gate-f-index.json \
+  --evidence-root=docs/release-evidence/beta/<release-id>
+```
+
+The index byte-binds the canonical promotion manifest and its retained Sigstore
+bundle, and must bind all of the following exact evidence classes:
+
+- clean candidate CI, independent high-risk review, and defect disposition;
+- isolated restore/migration, provider-stub and authorized live-provider
+  journeys, Portal/privacy checks, manager journeys, and telemetry-content
+  inspection;
+- Railway no-drift, backup/PITR, migration integrity, release identity and
+  controls, deployed critical journeys, canary window, restore/rollback, and
+  dormant-cell denial;
+- zero protected reachable High findings and the complete finding register;
+- cohort readiness for one pseudonymized design partner, including a named
+  support owner, incident owner, and change record; and
+- counsel, founder, operations, product, security, and support/incident
+  approvals for the exact promotion-manifest digest.
+
+Three promotion gates do not accept an opaque prose or `{ "passed": true }`
+placeholder as their first evidence reference:
+
+- `promotion.deployed_critical_journeys` parses
+  `repkey-deployed-critical-journeys-1`, including the exact synthetic-
+  Organization authorization, dedicated deployed spec, one attempt/no retries,
+  browser and test identities, cleanup, redaction, and candidate target;
+- `promotion.canary_window` parses `repkey-canary-window-1`, including a
+  reviewed versioned threshold profile, the approved duration, all nine signal
+  categories, expected/observed/missing samples, threshold breaches, and
+  release/config continuity; and
+- `promotion.restore_rollback` parses `repkey-recovery-rehearsal-1`, with
+  distinct compatible-image-rollback and incompatible-data-restore shapes.
+  Reverse DDL is always false; the restore shape requires a distinct sibling
+  Postgres service, three distinct fresh Redis services, measured RPO/RTO,
+  cutover/rollback read-backs, forward recovery, and zero data loss or unsafe
+  external effects.
+
+These are validation contracts, not live producers. Until the safe deployed
+runner, canary observer, and report-first recovery orchestration create real
+artifacts against the same manifest, these gates remain absent and Gate F is
+closed. Every digest named inside one of these summaries must also appear as a
+byte-verified sibling reference in that same gate; an unbacked digest string is
+rejected.
+
+The legal revision-set artifact must identify the exact reviewed document
+revisions and their effective/review/revalidation facts. Its bytes are hashed
+into the index, and both counsel and founder approvals must bind that same
+legal-revision digest as well as the promotion manifest. The repository
+validator does not create legal approval, attest that a person has authority,
+or infer live evidence from local tests.
+
+Validation fails closed for a missing/duplicate gate or approval, a non-US or
+non-production target, a changed/missing referenced artifact, a different
+promotion manifest or source SHA, any protected reachable High, an approval
+that predates the final decision evidence, or completion recorded before the
+approval artifacts exist. Do not create a passing template: absent live proof
+must remain absent and Gate F must remain closed.

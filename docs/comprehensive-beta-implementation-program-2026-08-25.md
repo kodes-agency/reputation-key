@@ -9,15 +9,15 @@
 
 ## 1. Outcome
 
-This program turns the review and the settled product decisions into 42 evidence-bound work packages for an invitation-only, real-Google, all-approved-region Railway beta.
+This program turns the review and the settled product decisions into 42 evidence-bound work packages for an invitation-only, real-Google, geographically broad beta running in one Railway US Data Cell.
 
-It is deliberately not a flat defect backlog. The critical path first makes the evidence trustworthy and removes reachable security/data-loss risks; it then establishes canonical domain contracts and durable facts; product lanes build against those contracts in parallel; finally, the same immutable artifact is promoted through every approved Railway Data Cell and proved with deployed journeys and recovery drills.
+It is deliberately not a flat defect backlog. The critical path first makes the evidence trustworthy and removes reachable security/data-loss risks; it then establishes canonical domain contracts and durable facts; product lanes build against those contracts in parallel; finally, one immutable artifact is promoted to `cell-us` and proved with deployed journeys and recovery drills.
 
 The target remains a **Regional Modular Monolith**:
 
-- the same web and worker codebase runs in every Data Cell;
+- the same web and worker codebase is kept portable to a future Data Cell;
 - each process owns exactly one Application Container; dependency injection remains explicit, but multiple complete containers in one process are not a supported runtime promise;
-- each Data Cell owns its PostgreSQL, Redis, object storage, queues, secrets, and content-bearing data;
+- the active `cell-us` owns its PostgreSQL, Redis, object storage, queues, secrets, and content-bearing data; any future cell must own the same boundaries independently;
 - web and worker are separate process types, not separate domains;
 - sidecars exist only for an actual credential, network, or provider trust boundary;
 - no microservice rewrite and no new bounded context is part of beta stabilization;
@@ -55,8 +55,8 @@ These decisions are inputs, not questions for implementers to reopen in individu
 2. Every Property has an initial immutable beta Data Cell selected by authoritative country/residency policy. Country and timezone remain editable business facts; changing them does not silently move data.
 3. There is no customer self-service Data Cell move. Exceptional relocation is operator-managed, audited, rehearsed, and reversible until final cutover.
 4. All approved geographic mappings ship. Geographic availability does not imply localization: the beta manager app and operational email are English; Unicode, provider translations, and RTL-safe foundations remain intact.
-5. Railway deployment uses the three settled logical cells `us`, `europe`, and `global`. The signed Data Cell catalogue binds them to current Railway physical regions and may change placement without changing the domain vocabulary. The initial intended placements are a selected US Metal region, EU West (Amsterdam), and Southeast Asia (Singapore). A second US Railway region is a scaling/DR placement, not a second logical residency class.
-6. A stateless multi-region replica connected to one remote database is not a Data Cell. Every cell has co-located stateful dependencies.
+5. Beta deploys exactly one logical cell, `us`, in Railway US West/California (`us-west2`) with its object bucket in Railway US West/California (`sjc`); neither identifier supports a more precise city claim. All 245 supported countries map explicitly to this cell. `europe` and `global` remain denied future identifiers with no beta countries, workloads, environments, or release obligations.
+6. A stateless multi-region replica connected to one remote database is not a Data Cell. The active cell has co-located stateful dependencies; any future cell must independently satisfy the same rule before activation.
 
 ### 3.3 Portal and Guest contract
 
@@ -120,7 +120,7 @@ These decisions are inputs, not questions for implementers to reopen in individu
 3. Durable consumers are tenant-scoped, idempotent, versioned, retryable, observable, and rebuildable. Facts are content-minimal. External effects record intent plus confirmed/failed/ambiguous outcome.
 4. Operational Action History is durable and access-controlled, but RepKey makes no “immutable” or “tamper-evident” claim until a real cryptographic design is implemented.
 5. `main` is protected. Required checks run on PRs. High-risk work receives recorded independent review; a solo beta may use a fresh-context review agent plus founder sign-off, but production requires human review.
-6. CI builds each image once from the merged SHA, publishes unique SHA tags/digests, and promotes exactly those bytes to every cell. `railway up` from a working tree is retired for production promotion.
+6. CI builds each image once from the merged SHA, publishes unique SHA tags/digests, and promotes exactly those bytes to `cell-us`. `railway up` from a working tree is retired for production promotion.
 7. The beta has no known reachable High defect in tenant isolation, authentication, user data, Google side effects, Portal/privacy paths, critical durability/recovery, or supported-browser critical workflows. Lower risk debt needs owner, impact, milestone, and sign-off. No arbitrary global 100% coverage claim is made.
 
 ## 4. Delivery rules
@@ -181,7 +181,7 @@ flowchart LR
   P --> G3
   M --> G3
   I --> G3
-  R --> G4{"Gate E: all cells recoverable"}
+  R --> G4{"Gate E: cell-us recoverable"}
   G3 --> RC["REL-01: immutable RC"]
   G4 --> RC
   L --> RC
@@ -200,7 +200,7 @@ flowchart LR
 | Portal and Guest            | POR-01, GST-01                     | public-edge safety + canonical facts | public beta Portal                 | Inbox, Google, people                       |
 | Metrics and management      | MET-01, GOA-01, REC-01             | fact and attribution contracts       | goals/dashboard; recognition later | Portal UI, Inbox UI                         |
 | AI capabilities             | AI-01..04                          | provider/Review/fact contracts       | AI-supported beta journeys         | Portal/Guest, Goals, regional IaC           |
-| Platform and release        | REG-01..04, REL-01                 | Data Cell ADR can start immediately  | all-region beta                    | every product lane until final promotion    |
+| Platform and release        | REG-01..04, REL-01                 | Data Cell ADR can start immediately  | single-US beta                     | every product lane until final promotion    |
 | Experience and operations   | ACT-01, EXP-01..03, OBS-01, LIF-01 | stable DTO/state contracts           | Gate D/E                           | feature backend work using mocks/contracts  |
 | Legal/privacy               | LEG-01                             | immediately                          | external beta only                 | all engineering                             |
 
@@ -215,9 +215,9 @@ flowchart LR
 7. No goal/dashboard/recognition activation before Metric governance and availability semantics pass parity tests.
 8. No Team deletion before Staff Participation, PropertyAccessGrant, Portal Responsibility, and Portal Responsible Manager reconciliation reaches zero unexplained rows.
 9. No Data Cell activation before routing, storage, queues, provider configuration, backups, and rollback are cell-local and a wrong-cell test fails closed.
-10. No multi-cell Google connection before credential-home/broker, permit, ephemeral-token, and no-content-crossing tests pass.
+10. Multi-cell Google connection is not a beta capability. A future activation still requires credential-home/broker, permit, ephemeral-token, and no-content-crossing tests.
 11. No AI capability activation before per-Property authorization/configuration, source prohibition, sidecar admission/egress, lifecycle erasure, and that capability's product evidence pass; Property Trends additionally waits for Review Analysis coverage semantics.
-12. No external beta before counsel approval, all-cell deployed journeys, backup restore, and the release acceptance bar pass together.
+12. No external beta before counsel approval, deployed `cell-us` journeys, backup restore, and the release acceptance bar pass together.
 
 ## 6. Wave 0 — trustworthy baseline and implementation authority
 
@@ -244,7 +244,7 @@ flowchart LR
 
 **Work**
 
-1. Accept a narrow set of ADRs (or explicit amendments) for: all-region Data Cells; current Inbox/Handling Cycle model; the shared Google Source Identity/Source Epoch/Observation contract used by both Integration and Review; stable Review/source-revision lifecycle; Portal/Guest gateway; people/access/attribution; durable-domain-fact policy; activity/action-history naming; Google discovery/reply reconciliation; AI authorization/capability lifecycle; and beta release profile.
+1. Accept a narrow set of ADRs (or explicit amendments) for: the single-US beta Data Cell and dormant expansion identifiers; current Inbox/Handling Cycle model; the shared Google Source Identity/Source Epoch/Observation contract used by both Integration and Review; stable Review/source-revision lifecycle; Portal/Guest gateway; people/access/attribution; durable-domain-fact policy; activity/action-history naming; Google discovery/reply reconciliation; AI authorization/capability lifecycle; and beta release profile.
 2. Add explicit `supersedes`, clause-level amendments, status, owner, and effective date. In particular, supersede ADR-0048's single-US-cell rule, ADR-0003's no-polling clause, stale Inbox ADR-0004 state terms, ADR-0045's unimplemented tamper-evidence claim, and obsolete authorization `can()` guidance.
 3. Add the documentation precedence rule to root guidance and mechanically reject references to archived/superseded rules as current authority.
 4. Publish a capability fate ledger with route/job/consumer/schedule/data dispositions:
@@ -407,9 +407,9 @@ through the durable credential lifecycle before those capabilities activate.
 
 **Dependencies/concurrency:** direct peer/config hardening may start immediately; durable invalidation and outcome facts depend on `ARC-01`; release identity joins `REG-03`.
 
-**Rollout/rollback:** deploy compatibility probes and dual-accept only for a bounded certificate migration; rotate clients; remove fallback. Provider route changes use sandbox/canary, then one beta connection, with capability kill switch. Never rollback to replay-unsafe provider behavior.
+**Rollout/rollback:** deploy compatibility probes and dual-accept only for a bounded certificate migration; rotate clients; remove fallback. Provider route changes use the local deterministic provider stub first, then an authorized non-customer Google Business Profile canary, then one beta connection, with a capability kill switch. Google Business Profile has no provider sandbox, so stub evidence must never be presented as live-provider evidence. Never rollback to replay-unsafe provider behavior.
 
-**Done:** mTLS negative matrix, real-Redis lease/fencing tests, provider ambiguous-outcome reconciliation, exact egress route inventory, secret/TLS scan, and live sandbox drill pass.
+**Done:** mTLS negative matrix, real-Redis lease/fencing tests, provider ambiguous-outcome reconciliation, exact egress route inventory, secret/TLS scan, and an authorized non-customer Google Business Profile live drill pass.
 
 ### SAFE-05 — Production artifact and validation containment (**BLK, CP; PAR**)
 
@@ -506,23 +506,23 @@ Gate C passes when active command/fact contracts, Review/Inbox/Portal/people voc
 
 ### REG-01 — Data Cell domain and routing contract (**BLK, CP; PAR**)
 
-**Covers:** `DEC-01`, ADR-0048 contradiction, Property move/data-cell findings, all-region session decisions.
+**Covers:** `DEC-01`, ADR-0048/0054 contradiction, Property move/data-cell findings, and the single-US beta decision in ADR 0057.
 
 **Work**
 
-1. Replace `ProcessingRegion` as an overloaded metadata/routing concept with an explicit signed `DataCellCatalogue`. Each cell has stable ID, residency class, Railway placement, state (`provisioning | accepting | draining | denied`), policy version, allowed countries/workloads, provider profile, domains, and resource references.
-2. Persist immutable `dataCellId` and `routingPolicyVersion` at Property creation/import. Country/timezone correction does not change it. Every Property-scoped command/fact/job/storage key carries or fresh-resolves the cell and fails closed on mismatch.
+1. Replace `ProcessingRegion` as an overloaded metadata/routing concept with an explicit signed `DataCellCatalogue`. Each stable identifier has a residency class, intended Railway placement, state (`provisioning | accepting | draining | denied`), policy version, allowed countries/workloads, provider profile, domains, and resource references. A separate explicit list determines which cells beta tooling may deploy.
+2. Persist immutable `dataCellId` and `routingPolicyVersion` at Property creation/import. For catalogue policy v3 every supported country maps explicitly to `us`; invalid/unsupported input remains unresolved rather than falling back. Country/timezone correction does not change an existing valid assignment. Every Property-scoped command/fact/job/storage key carries or fresh-resolves the cell and fails closed on mismatch.
 3. Define location for each data class: identity/Organization membership, Property/Portal/Guest/Review/Inbox, provider tokens, metrics/projections, action history, logs/telemetry, backups. Content-bearing records and credentials do not silently cross a Property's cell.
-4. Give every Organization an explicit `credentialHomeCellId`. The Organization-owned Google refresh credential has one encrypted canonical home there and is never copied into Property databases. A narrowly permissioned credential broker may issue short-lived access material only to an approved cell-local Google egress/admission pair under a signed Property/source/operation permit; access material is memory-only and never logged or persisted in the target cell. Review content is fetched directly into its Property cell and never traverses the credential home. Define key ownership, rotation, revocation, outage behavior, Pub/Sub routing, and legal approval before a multi-cell Organization is enabled.
-5. Establish the minimal content-free routing directory needed for invitation, Property, Portal token, Google binding, credential-home lookup, and webhook dispatch. It contains opaque routing IDs, cell, and policy version only; it is infrastructure, not a new business context.
-6. Make stable URLs routable without a content lookup in the wrong cell: use cell-aware signed/opaque token prefixes or cell-specific hostnames. A routing layer may choose a cell but may not inspect/relay tenant content.
-7. Define cross-cell Organization behavior. For beta, access tokens/claims are short-lived, signed, scoped to Organization/Property/action, and revalidated in the target cell; no service opens another cell's database. Fleet aggregates use approved content-free projections with explicit partial/unavailable state.
+4. Give every Organization an explicit `credentialHomeCellId`; beta homes are `us`. Keep refresh credentials encrypted and inside the active cell. The narrowly permissioned credential-broker contract and cross-cell permit tests remain dormant future-expansion safeguards, not beta infrastructure or a beta activation dependency.
+5. Route invitation, Property, Portal token, Google binding, and webhook work directly to `cell-us` for beta. A separate routing-directory service is unnecessary while one cell is deployable. If a future cell activates, add only a content-free opaque-ID/cell/policy directory under a new reviewed policy.
+6. Keep stable URLs independent of tenant content. Beta uses the one cell's host; future cell-aware token/host routing must not inspect or relay tenant content.
+7. No beta service opens another cell's database. Cross-cell Organization claims, broker operation, and fleet partial-state projection are post-beta activation concerns whose fail-closed contracts may remain tested while dormant.
 8. Deny self-service move. The exceptional operator move uses snapshot, checksum/count manifest, write fence, delta catch-up, provider/webhook switch, read verification, reversible routing flip, and final source retention/erasure evidence.
 9. Add wrong-cell tests at HTTP, server function, repository, queue, outbox, provider, credential broker, object storage, backup, and operator-command boundaries.
 
-**Dependencies/concurrency:** ADR/catalogue begins after `FND-02`; implementation overlaps Railway IaC. Property schema integration is serialized. Blocks any non-US data activation.
+**Dependencies/concurrency:** ADR/catalogue begins after `FND-02`; implementation overlaps Railway IaC. Property schema integration is serialized. `0140_single_us_beta_data_cell` is an expand-only durable fence/control migration and must run on the restored US database first. The separately audited `ops:cutover-single-us-data-cell` command then performs the report-first, exact-digest, bounded, checkpointed Property and Google credential-home transition. Its verified completion evidence blocks production traffic and worker promotion; deploy-time migration execution never performs the bulk rewrite.
 
-**Done:** `europe` and `global` no longer map to `us`; a property cannot read/write/queue/publish in the wrong cell; routing-directory content scan passes; all supported country rows resolve deterministically or stop for operator review.
+**Done:** all supported countries map deterministically to `us`; `europe` and `global` are known but denied with no countries/workloads; stale or wrong-cell facts cannot read/write/queue/publish; invalid country rows stop for operator review; the expand-only fence, exhaustive admission backstops, bounded resumable cutover, concurrent-writer proof, and zero-error completion evidence are implemented. Live execution and retained production evidence remain release gates.
 
 ### REG-02 — Railway topology as TypeScript Infrastructure as Code (**BLK, CP; PAR**)
 
@@ -530,28 +530,28 @@ Gate C passes when active command/fact contracts, Review/Inbox/Portal/people voc
 
 **Topology**
 
-- one production Railway project with isolated long-lived environments per Data Cell (`cell-us`, `cell-europe`, `cell-global`) and a separate non-production project;
-- each cell environment contains web, worker, regional PostgreSQL, Redis, object bucket, and only the Google/AI sidecars actually required for that trust boundary;
+- dedicated production project `reputation-key-us-beta` and rehearsal project `reputation-key-us-beta-rehearsal`, each with exactly one Railway environment total (`cell-us`, created by renaming the fresh default) and the same graph; the legacy `reputation-key` project is migration input, never a US promotion target;
+- `cell-us` contains web, worker, regional PostgreSQL, separate cache/queue Redis, object bucket, and only the Google/AI sidecars required for that trust boundary;
 - web/worker/sidecars are co-located with their database; private networking is used inside the environment;
 - a minimal content-free routing service/directory, if required, is separately permissioned and cannot access cell databases;
-- cells use the same service names, variable schema, health/readiness contract, and image digests.
+- a future cell must reuse the same service names, variable schema, health/readiness contract, and image digests, but is not provisioned for beta.
 
 **Work**
 
-1. Migrate the multiple service-level `railway*.json` files and dashboard-only state to `.railway/railway.ts`, because this is a TypeScript repository and project-wide resources need one reviewed graph. Do not keep dual ownership.
-2. Parameterize a cell module by logical cell and physical Railway region; declare services, Postgres, Redis, buckets, variables/references, domains, health checks, drain budgets, replicas, restart policy, and resource groups. Never commit UUIDs or secrets; use Railway references/preserved values.
+1. Migrate the multiple service-level `railway*.json` files and dashboard-only state to `.railway/railway.ts`, because this is a TypeScript repository and project-wide resources and service sources need one reviewed graph. Do not keep dual ownership. `railway service source connect` and dashboard source edits are prohibited.
+2. Render only the explicit beta-deployable-cell list (currently `us`) while retaining future catalogue metadata separately. Declare services, Postgres, Redis, buckets, variables/references, domains, health checks, drain budgets, replicas, restart policy, and resource groups. The source-less production foundation deliberately omits the custom domain because Railway cannot register a new custom domain through IaC; an exact-target reviewed domain intent registers `us.reputationkey.app` before promotion, and every promotion graph retains it. Never commit UUIDs or secrets; use Railway references/preserved values.
 3. Validate current Railway supported placements against the signed catalogue at implementation time. Current official region identifiers are documented at [Railway Regions](https://docs.railway.com/deployments/regions).
-4. Use `railway config plan --detailed-exit-code` in PR/CI as drift evidence. Apply is a separately approved operator action; destructive plans require explicit review.
-5. Define variable schemas per process and cell, secret owners/rotation, exact allowlists for sidecars, and configuration checksum/read-back. Web never receives worker/provider private secrets.
+4. Pin the one-time foundation/domain ceremonies to Railway CLI 5.45.2 exactly; ordinary promotion requires 5.45.2 or newer. The source-less foundation controller requires full-project account/workspace visibility and proves the exact project, its sole `cell-us` environment, and zero pre-existing services, service instances, buckets, volume instances, or unmerged changes before both saved planning and application of the reviewed SHA-256. Accept only the frozen exact 16-create graph, verify each apply operation, and finish every successful apply with the full source-less inventory plus a fresh non-mutating no-drift plan against the frozen placement/configuration graph; an ambiguous apply is resolved by reproducing those proofs without repeating the create. Bind later full-candidate `railway config plan --detailed-exit-code` evidence to the signed manifest, then make every source change through a private `config plan --out` artifact applied unchanged with `config apply --plan`. Apply is a separately approved operator action; destructive plans require explicit review.
+5. Define variable schemas per process in `cell-us`, secret owners/rotation, exact allowlists for sidecars, and configuration checksum/read-back. Web never receives worker/provider private secrets. Future cells must receive distinct credentials. Before any Google Content re-approval is activated, replace the retired implicit-environment updater with one exact-target, private-intent controller that coordinates both shared runtime values and database approval activation without a mismatch interval; until then the signer must refuse `--apply` before writing the database.
 6. Configure startup/liveness/readiness separately. Readiness proves regional DB/Redis/queues/migration head/provider control; liveness remains dependency-free. Add normal platform health endpoints for mTLS-only sidecars without weakening their protected port.
-7. Establish cell-specific custom domains/TLS and routing-token tests. A domain change cannot cause cross-cell fallback.
-8. Add a “new cell” dry-run: IaC plan, provision empty state, migrations, seed-free boot, restore fixture, provider sandbox, journeys, deny traffic, then approval to accept Properties.
+7. Establish the `cell-us` custom domain/TLS contract and dormant-cell refusal tests. Register production networking only through the canonical exact-ID `infra:railway:domain` ceremony after a fresh complete source-less foundation no-drift proof: create and verify the Railway probe first, register the custom hostname second, recover only from exact partial/final state, and require ACTIVE sync, DNS/certificate evidence, and a read-only Railway configuration import proving `web` retains `us.reputationkey.app:8080` before traffic cutover. A domain change cannot cause content-based routing or implicit fallback.
+8. Preserve a documented post-beta “new cell” checklist: new ADR/policy, IaC plan, empty state, migrations, seed-free boot, restore fixture, provider-stub journeys, authorized non-customer Google canary, denied allocation, and explicit approval before accepting Properties. Do not provision it during beta.
 
 **Dependencies/concurrency:** IaC authoring can overlap application routing after the topology contract freezes. It does not require product feature completion.
 
-**Rollout/rollback:** provision non-production mirror first; then empty production cells with `accepting=false`; run drills; onboard one internal Property per cell; only then enable allocation. IaC rollback uses a reviewed prior plan, never an automatic destructive revert.
+**Rollout/rollback:** provision the one-cell non-production mirror first; then fresh production `cell-us`; restore and run drills; onboard one internal Property; only then widen the cohort. IaC rollback uses a reviewed prior plan, never an automatic destructive revert.
 
-**Done:** a clean workspace can plan identical environments with no dashboard steps; drift check is green; wrong-region resource references are impossible in plan tests; each cell boots independently with another cell offline.
+**Done:** a clean workspace can render and plan `cell-us` with no dashboard-only steps; the dedicated-project inventory proves the exact eight source-managed services, three databases, three volumes, and bucket exist only in `cell-us`; the production hostname is bound through reviewed exact-ID Railway domain evidence and then retained by IaC; IaC exclusively owns exact-digest sources; drift check is green; Railway US West/California compute (`us-west2`) and bucket (`sjc`) placement is explicit; dormant environment names are refused; the complete single-cell graph boots independently.
 
 ### REG-03 — Immutable CI build, promotion, migration, and rollback (**BLK, CP; PAR**)
 
@@ -561,16 +561,16 @@ Gate C passes when active command/fact contracts, Review/Inbox/Portal/people voc
 
 1. Protect `main` and make required PR checks real: clean install, format/type/lint/governance, migration/schema parity, unit/integration/coverage, builds, bundle/artifact boundaries, E2E, simulation, dependency/license/secret/SAST/container scans, and high-risk review evidence.
 2. Build web, worker, Google sidecars, AI sidecars, and compatibility artifacts once from the merged SHA in CI. Tag uniquely by full SHA, record OCI source revision, SBOM, vulnerability result, signature/attestation, and immutable digest.
-3. Publish to a supported registry and have Railway pull that exact image. Private registry pull is supported on Railway Pro; public images work on other plans. Do not use mutable tags as release authority. See [Railway private registry deployment](https://docs.railway.com/guides/private-container-registry).
-4. Replace `scripts/release/deploy-beta.ts` working-tree `railway up` behavior with promotion of a signed release manifest. The manifest binds source SHA, every image digest, migration heads, config/IaC revision, capability set, provider approval evidence, and test evidence.
-5. Promotion is explicit and ordered: backup/preflight → migrate one canary cell → web/readiness → worker → trust-boundary sidecars → critical journeys → next cell. Do not auto-deploy every `main` push.
-6. Make migrations forward-compatible with both previous and next images. Pre-deploy checks backup/PITR health, locks migration authority, applies once per cell, verifies schema, and records evidence. Never let every web replica race migration.
+3. Publish to a supported registry and have Railway IaC own that exact image source. Private registry pull is supported on Railway Pro; public images work on other plans. Do not use mutable tags, out-of-band source attachment, or a second source owner as release authority. See [Railway private registry deployment](https://docs.railway.com/guides/private-container-registry).
+4. Replace `scripts/release/deploy-beta.ts` working-tree `railway up` behavior with promotion of a signed release manifest. The manifest binds source SHA, every image digest, migration heads, config/IaC revision, the deterministic release-controller authority digest, capability set, provider approval evidence, and test evidence. IaC agreement alone is insufficient: plan evidence and locally executing controller sources must match the signed controller digest before Cosign, Railway, or audit actions.
+5. Promotion is explicit and ordered: backup/preflight → migrate every signed candidate through `schema-migrator` → recapture the reviewed full-candidate plan → apply one saved source plan at a time → web/readiness → worker → trust-boundary sidecars → final no-drift plan → critical journeys → canary observation. Do not auto-deploy every `main` push.
+6. Make migrations forward-compatible with both previous and next images. Pre-deploy checks backup/PITR health, locks migration authority, applies once in `cell-us`, verifies schema, and records evidence. Never let every web replica race migration.
 7. Define rollback as prior verified image digest plus compatible schema/config. If schema is not backward-compatible, use forward fix or PITR/restore/cutover; do not pretend image rollback is sufficient.
 8. Emergency bypass requires named operator, reason, exact scope, log, time limit, and retrospective. It cannot waive tenant isolation or destructive-data controls.
 
 **Dependencies/concurrency:** build/publish workflow can start after `SAFE-05`; promotion needs `REG-02`; product journeys are added as their packages finish.
 
-**Done:** CI builds once; every cell reports the release manifest SHA and exact digests; no release command uploads a working tree; canary/promotion/rollback rehearsal is evidenced; stale/mixed-image cell is detected and blocks completion.
+**Done:** CI builds once; all seven serving services in `cell-us` report the release manifest SHA and exact digests; manifests contain only `us`; dormant cells are refused; no release command uploads a working tree; manifest, plan, and recomputed controller-source digests agree; canary/promotion/rollback rehearsal is evidenced; a stale controller or mixed-image service blocks completion.
 
 ### REG-04 — Backups, recovery, observability, and incident operation (**BLK; PAR**)
 
@@ -578,22 +578,22 @@ Gate C passes when active command/fact contracts, Review/Inbox/Portal/people voc
 
 **Work**
 
-1. Enable scheduled volume backups and PITR for each regional PostgreSQL service before customer data. Maintain encrypted logical exports outside the source project/account for catastrophic loss according to legal/residency policy.
+1. Enable scheduled volume backups and PITR for the `cell-us` PostgreSQL service before customer data. Maintain encrypted logical exports outside the source project/account for catastrophic loss according to legal/residency policy.
 2. Define RPO/RTO as internal operating targets, not customer SLA. Monitor backup age, WAL/PITR health, restore range, logical-export success, queue age, outbox lag, reply publication, Google sync freshness, error rate, and cell release/config drift.
 3. Run a restore into an isolated sibling service/cell; keep worker and external effects disabled; verify counts, tenant isolation, critical reads, migration head, and content retention; rehearse routing cutover and rollback. Railway restores create a new sibling database, so verification precedes any connection switch. See [Railway backup/restore guidance](https://docs.railway.com/guides/postgres-backups-restores).
 4. Before a restored service may accept traffic or start workers, run a recovery-fence phase: apply overdue retention/purge rules so expired contact, feedback, pseudonyms, and provider content cannot resurrect; invalidate restored sessions and consumed invitations against current security heads; rotate the restore generation; reconcile/fence pending outbox facts, jobs, permits, credential generations, and external-effect intents so old work cannot repeat. Prove the phase is idempotent and fails closed.
 5. Implement structured Queue/Worker/process error, unhandled rejection, fatal shutdown, and drain signals. Sidecar health reports post-boot dependency loss without exposing protected endpoints.
 6. Implement Germany-region Sentry ingestion with strict scrubbers and route exclusions; pseudonymous tenant/user IDs, release SHA, route template, browser/viewport, and correlation IDs only. Test scrubbers with seeded sensitive payloads.
-7. Create incident runbooks for auth compromise, cross-tenant suspicion, bad migration, queue/outbox stall, Google ambiguous publish, provider credential leak, regional outage, lost bucket object, and privacy request. Name incident commander and communication/support owner.
-8. Exercise regional isolation: one cell DB/Redis/provider unavailable must not redirect work/data to another cell; other cells remain healthy; the failed cell exposes honest unavailable state.
+7. Create incident runbooks for auth compromise, cross-tenant suspicion, bad migration, queue/outbox stall, Google ambiguous publish, provider credential leak, US regional outage, lost bucket object, and privacy request. Name incident commander and communication/support owner.
+8. Exercise honest single-cell outage behavior: unavailable DB/Redis/provider stops affected work and never redirects it to a dormant cell. Preserve the cross-cell negative matrix for future expansion.
 
 **Dependencies/concurrency:** infrastructure monitoring starts with `REG-02`; domain-specific signals are added per feature. Legal approves retention/export locations.
 
-**Done:** successful restore drill per cell; alerts page the named owner; runbooks contain executable verification; cross-cell fallback tests pass; Sentry scrub test proves prohibited data absent.
+**Done:** successful `cell-us` restore/fresh-Redis/cutover/rollback drill; alerts page the named owner; runbooks contain executable verification; dormant-cell fallback tests pass; Sentry scrub test proves prohibited data absent.
 
-### Gate E — All cells deployable and recoverable
+### Gate E — The beta cell is deployable and recoverable
 
-Gate E passes when all three logical cells are provisioned from reviewed IaC, can run the same candidate digests, fail closed across cells, have healthy backups/PITR, and each has a successful restore/failure drill. A region existing in Railway is not evidence that RepKey is region-ready.
+Gate E passes when dedicated project `reputation-key-us-beta` has exactly one environment (`cell-us`), provisioned from reviewed IaC in Railway US West/California with its `sjc` US West/California bucket; it runs the signed candidate digests, refuses dormant cells, has healthy backups/PITR, and has a successful restore/fresh-Redis/failure/rollback drill. A region existing in Railway is not evidence that RepKey is deployment-ready.
 
 ## 9. Wave 3 — canonical product vertical slices
 
@@ -641,7 +641,7 @@ Wave 3 begins as each relevant Gate C contract freezes. The three large product 
 
 **Work**
 
-1. Migrate Google Connection ownership from `private | organization` ambiguity to Organization-owned. Keep connector identity/time as audit provenance. AccountAdmin authorization uses ExecutionPolicy; manager reads remain Property-scoped. Implement the `REG-01` credential-home/broker contract before permitting one connection to operate Properties in multiple cells; no refresh-token replication or cross-cell database access is allowed.
+1. Migrate Google Connection ownership from `private | organization` ambiguity to Organization-owned. Keep connector identity/time as audit provenance. AccountAdmin authorization uses ExecutionPolicy; manager reads remain Property-scoped. Beta binds every active credential home directly to `us`; the `REG-01` broker remains a denied, tested future-expansion seam. A later multi-cell activation must complete its readiness contract before one connection may operate across cells; refresh-token replication and cross-cell database access remain prohibited.
 2. Replace/activate credential lifecycle: encrypted current generation, refresh generation CAS, distributed refresh single-flight/backoff, exact-token revoke/cleanup, reconnect/disconnect fencing, access invalidation, and operator recovery. Reconnect cannot silently strand/reuse a previous connector's token.
 3. Make connector offboarding a preflight: a departing `connectedBy` manager must complete fresh OAuth reauthorization by a remaining AccountAdmin or explicitly disconnect. Never transfer a credential by changing a user ID. Emergency/support removal enters `Reauthorization Required`, fences new provider calls/import/sync/performance, preserves RepKey workflow and only the last-verified Portal destination under Degraded rules, and notifies remaining AccountAdmins.
 4. Make “Select all eligible” a parent import saga that discovers every eligible location and creates resumable 100-item batches. Persist item state/checkpoint; support partial success, retry, cancellation, idempotency, and honest progress. Dispatcher enablement is a readiness precondition.
@@ -744,7 +744,7 @@ Wave 3 begins as each relevant Gate C contract freezes. The three large product 
 
 **Rollout/rollback:** audit existing authorization/config/derivatives; default every Property off; migrate exact rows, quarantine ambiguous consent; run sandbox/internal Property; independently enable each capability under allowlist. Kill switch/disable must leave ordinary Inbox and replies functional. Erasure has no rollback; verify scope before execution.
 
-**Done:** direct route/job/consumer/sidecar denial matrix; stale authorization/source/property-access races; prohibited-source exfiltration fixtures; disable/reauthorize/erase time tests; every cell and process reports the same capability/policy/release heads; no AI output mutates an operational aggregate.
+**Done:** direct route/job/consumer/sidecar denial matrix; stale authorization/source/property-access races; prohibited-source exfiltration fixtures; disable/reauthorize/erase time tests; every active `cell-us` process reports the same capability/policy/release heads; no AI output mutates an operational aggregate.
 
 ### AI-02 — Review Analysis and Enrollment Analysis Run (**BLK for Review Analysis beta; PAR after AI-01**)
 
@@ -820,6 +820,8 @@ Wave 3 begins as each relevant Gate C contract freezes. The three large product 
 **Rollout/rollback:** backfill notification state only where semantics are trustworthy; activate trigger families one at a time; compare recipient/dedupe dry runs; prove in-app plus required/default email before the owning feature opens. Channel-specific kill switches stop provider sends without discarding durable pending facts or disabling required in-app work. SMS/mobile push routes, jobs, schedules, and configuration remain denied.
 
 **Done:** four-class preference/channel matrix; recipient matrix covers Portal/Property/assignee/author/affected-user/removed/no-manager/admin-recovery/self-action; duplicate/replay/quiet-hours/digest-membership tests; in-app/email lag SLO evidence; Bell E2E contract; action vocabulary cannot drift; no notification loss after a command crash.
+
+**Implementation note (2026-08-28, readiness only):** the Service/security family now has an Organization-scoped, fail-closed lower-layer contract for exactly three durable Identity facts: invitation accepted, member role changed, and member removed. The schema-validated fact names the affected user; role-change delivery does not use the actor, and removal delivery does not require the removed user's now-ended membership. Each admitted fact deterministically materializes required in-app plus immediate email rows with no Property, preference, quiet-hours, digest, or unsubscribe path. Property settings and mutation DTOs reject this category, persistence enforces scope/cadence parity, and delivery-lag linkage is null-safe for Organization rows. This does **not** claim provider activation, deployment, allowlisting, or completion of the other NTF-01 source families; outbound sending remains under the existing execution/capability gates.
 
 ### ACT-01 — Recent Activity and Operational Action History separation (**BLK for enabled activity/audit claims; PAR**)
 
@@ -914,7 +916,7 @@ Wave 3 begins as each relevant Gate C contract freezes. The three large product 
 7. Enforce healthy lag targets: durable Portal response/Google review visible in Inbox p99 ≤30 seconds; Activity ≤5 minutes; local analytics/Goals/Recognition `Verified Through` ≤15 minutes behind Metric truth; Google analytics follows the documented discovery cadence. On lag, retain timestamped safe values, show gentle updating state, alert/repair, and never fabricate zero.
 8. Choose bounded projection strategy only for named readers. The anonymous lifetime aggregate is a named All Time reader and must have incremental/checkpoint/rebuild/parity/retention proof. Delete other rollup/materialized tables/jobs with zero readers after proof.
 9. Model `Private Feedback` as submitted feedback text during the reporting period, not a low rating. `Items to Triage` is current distinct Inbox work across sources; `Escalated Items` is a subset; `Needs Attention` is a set union, never a sum that double counts. Links and filters must match the displayed population.
-10. Unify duplicate rating-distribution/chart primitives and KPI formatting. Fleet/Property/Portal/Group views use the same definitions and show partial cross-cell evidence honestly.
+10. Unify duplicate rating-distribution/chart primitives and KPI formatting. Fleet/Property/Portal/Group views use the same definitions and show incomplete data states honestly. Partial cross-cell presentation becomes an activation requirement only if another cell is introduced later.
 11. Correct Dashboard attention/new-feedback labels and expensive fan-out; make instrumentation report real statements/latency rather than constants.
 
 **Dependencies/concurrency:** Guest fact and Portal group attribution contracts, `ARC-01/02`. Metric write model and UI evidence components can develop concurrently.
@@ -1070,8 +1072,37 @@ tags, a provider-neutral Sentry capture seam, feedback-specific outbound
 scrubbing, a private receipt, and an explicit privacy notice. It creates no
 GitHub issue and captures no screenshot or replay. OBS-01 remains open: the
 consented Bug-only capture/preview/remove/cancel contract, deployed Germany
-project evidence, triage/alert drill, retention approval, and synthetic
-exfiltration proof are still blocking closure.
+project evidence, triage/alert drill, retention approval, and deployed
+synthetic acceptance proof are still blocking closure.
+
+**Local privacy proof update (2026-08-28):** One synthetic secret, private
+review, and contact marker is now exercised through the repository-owned log,
+trace, Sentry, metric-label, durable-fact, and beta-feedback attachment
+boundaries by `src/shared/architecture/privacy-exfiltration-canary.test.ts`.
+The local canary is necessary evidence only: a deployed event per process,
+Germany-project inspection, source-map check, alert receipt, and retention
+approval remain external OBS-01 gates.
+
+**Local native-feedback and support update (2026-08-28):** The Bug-only
+attachment contract is now implemented as a bounded masked-layout wireframe,
+not an ordinary screenshot or replay. Checking consent captures nothing;
+**Create preview** begins geometry-only capture on allowlisted non-sensitive
+routes, and the manager can preview/remove it while cancel/unmount discards it.
+Suggestions remain strict text-only. The server renders the only provider SVG,
+rejects arbitrary bytes/pixels/text/values/images/media and lifetimes beyond 30
+days, and still installs no Replay integration. Migration `0165` adds a
+content-free local delivery receipt and revision-fenced triage authority with
+append-only transition evidence; report text and attachment bytes remain only
+in the restricted provider project. An audited report-first operator command,
+named support/incident/communications ownership, single-`cell-us` critical-
+journey signal registry, and explicit external-evidence register are present.
+The content-free `beta-feedback.triage-backlog` age/count observation and P2
+application alert are implemented locally, including fail-visible read handling
+and synthetic plus real-database injection tests. OBS-01 remains open: several
+journey synthetics are registered but not active, and Germany-project/provider configuration,
+per-process events, inbound scrubber/source-map inspection, attachment expiry,
+alert delivery drill, supported-device journey, and legal/retention approval
+are external gates. Local tests must not be presented as those proofs.
 
 **Work**
 
@@ -1192,20 +1223,20 @@ The exact executable gate list lives in CI and the release manifest; this prose 
 
 **Pre-production proof**
 
-1. Restore a production-shaped backup fixture into isolated mode in each cell and run migration plus critical read/invariant checks.
-2. Run provider sandbox journeys for OAuth/import/push/sync/reply publish/ambiguous reconcile/disconnect/reauthorize.
+1. Restore a production-shaped backup fixture into isolated `cell-us` mode and run migration plus critical read/invariant checks.
+2. Run deterministic provider-stub journeys for OAuth/import/push/sync/reply publish/ambiguous reconcile/disconnect/reauthorize, then repeat the required live-provider matrix with an authorized non-customer Google Business Profile. Google Business Profile has no sandbox; keep the two evidence classes explicit.
 3. Run public Portal abuse/cache/upload/privacy journeys and verify analytics/retention evidence.
 4. Run one full onboarding and core manager journey for both AccountAdmin and PropertyManager, including degraded and stale/concurrent cases.
 5. Inspect Sentry/log/metric/fact/notification data for prohibited content.
 
 **Promotion**
 
-1. Confirm IaC drift is zero and backup/PITR healthy for the canary Data Cell.
+1. Confirm IaC drift is zero and backup/PITR healthy for `cell-us`.
 2. Apply backward-compatible migration under one migration authority; verify head/schema/integrity.
 3. Promote exact web/worker/sidecar digests; verify release identity, liveness/readiness, queue/outbox state, and provider control heads.
 4. Run deployed critical journeys against the real Railway cell, then observe the defined canary window and operational thresholds.
-5. Repeat with the same release manifest for Europe and Global. A later cell may stop promotion; already healthy cells remain on the candidate unless rollback criteria require a coordinated revert.
-6. Verify every cell reports the same source/image set, with only approved cell-specific configuration differences.
+5. Verify every `cell-us` service reports the same source/manifest/image set and only approved process-specific configuration differences.
+6. Archive the canary-window, health, journey, provider, backup, and rollback evidence. Europe/Global remain denied and are not promoted.
 
 **Rollback/forward-fix triggers**
 
@@ -1218,17 +1249,17 @@ The exact executable gate list lives in CI and the release manifest; this prose 
 
 1. Counsel and founder sign the exact manifest/legal revisions.
 2. Operations confirms monitoring, incident owner, office-hours support, backup verification, and runbooks.
-3. Onboard one internal/synthetic Organization per Data Cell, then one design partner per cell, then widen in bounded cohorts.
+3. Onboard one internal/synthetic Organization in `cell-us`, then one design partner, then widen in bounded cohorts.
 4. Review incidents, support load, data freshness, publish success, Portal Google Review Action/Selection rate, private-feedback behavior, and user-reported friction before each widening. Never present the action/selection rate as completed or published Google reviews.
 5. Recognition stays off unless its separate `REC-01` activation gate is attached; post-core features do not delay a safe core cohort.
 
-**Dependencies/concurrency:** candidate creation waits for Gates B–D; promotion waits for Gate E and legal evidence. Cell verification may prepare in parallel, but release-manifest creation, migration authority, canary observation, and each promotion decision are serialized. No package may bypass this final join.
+**Dependencies/concurrency:** candidate creation waits for Gates B–D; promotion waits for Gate E and legal evidence. Infrastructure verification may prepare in parallel, but release-manifest creation, migration authority, promotion, and canary observation are serialized. No package may bypass this final join.
 
-**Done:** all three cells run the exact manifest; deployed critical journeys pass without retry; restore and rollback evidence exists; legal/operations/product/security sign-offs bind the manifest; no protected reachable High remains.
+**Done:** `cell-us` runs the exact one-cell manifest; deployed critical journeys pass without retry; restore and rollback evidence exists; dormant cells remain refused; legal/operations/product/security sign-offs bind the manifest; no protected reachable High remains.
 
 ### Gate F — External beta
 
-Gate F passes only when `REL-01` is complete against one immutable candidate manifest, counsel and operating owners have signed that exact behavior/configuration, all protected High findings are closed, and the first bounded cohort has a named support and incident owner. Passing a prior gate or one successful Data Cell cannot substitute for this final join.
+Gate F passes only when `REL-01` is complete against one immutable candidate manifest in `cell-us`, counsel and operating owners have signed that exact behavior/configuration, all protected High findings are closed, and the first bounded cohort has a named support and incident owner. A successful deploy without this complete evidence join cannot substitute for Gate F.
 
 ## 12. Gate definitions and evidence owners
 
@@ -1238,7 +1269,7 @@ Gate F passes only when `REL-01` is complete against one immutable candidate man
 | B — Safety floor        | Security + domain/data owners             | regression tests, tenant/session/public/provider/artifact negative evidence           | beta-active product integration |
 | C — Canonical contracts | Product/domain + architecture + data      | accepted ADRs/glossary, schemas, fact/write-path catalogue, migration strategy        | parallel feature implementation |
 | D — Core journeys       | Product + QA + engineering                | production-shaped API/UI/E2E, failure/concurrency/recovery, browser matrix            | release candidate               |
-| E — Regional recovery   | Platform + security + operations          | IaC, cell isolation, immutable promotion, backup/PITR/restore/failure drills          | all-region release              |
+| E — US cell recovery    | Platform + security + operations          | `cell-us` IaC, isolation, immutable promotion, backup/PITR/restore/failure drills     | beta release                    |
 | F — External beta       | Founder + counsel + security + operations | candidate manifest, legal approvals, no protected High, exceptions, support readiness | customer invitations            |
 
 One person may hold several roles during beta, but the evidence categories remain separate. “Author says it is done” is not independent review.
@@ -1272,7 +1303,7 @@ These are distinct migration PRs under the migration integrator. Contract tests 
 - Lane C: Staff Participant/responsibility → governed Metric readings/evidence → Dashboard and GOA (Property/Group/Portal) in parallel. Goals do not block the core Dashboard.
 - Lane D: AI Authorization → Review Analysis, Reply Drafting, and (after Analysis) Property Trends; capability UI/evaluation may overlap under frozen contracts.
 - Lane E, parallel: durable notification/Bell/email, Recent Activity, onboarding checklist, Sentry/feedback, UI primitives/query/form, browser automation.
-- Lane F, parallel: Railway cells, immutable image workflow, backup/restore, regional failure simulation.
+- Lane F, parallel: Railway `cell-us`, immutable image workflow, backup/restore, and US-cell failure simulation.
 
 ### Train 3 — cutover and contraction
 
@@ -1284,7 +1315,7 @@ These are distinct migration PRs under the migration integrator. Contract tests 
 
 ### Train 4 — candidate and cohorts
 
-Run `REL-01`, then widen by Data Cell/cohort. `REC-01` may start after Metric/people contracts but follows its own activation gate.
+Run `REL-01`, then widen the `cell-us` cohort. `REC-01` may start after Metric/people contracts but follows its own activation gate.
 
 ## 14. Finding-to-package traceability
 
@@ -1301,7 +1332,7 @@ This table is the minimum coverage map. `FND-01` replaces it with a row-level cu
 | `SEC-12`                    | `SAFE-02`, `ARC-03`                                        | beta-active sensitive path blocker                      |
 | `SEC-13..16`                | `SAFE-01`, `GST-01`                                        | public Portal blocker                                   |
 | `SEC-18`                    | `SAFE-05`, `GOV-01`                                        | production script/artifact gate                         |
-| `ARCH-01..04`               | `ARC-03`, `REG-01`                                         | staged; globals/isolation are regional blocker          |
+| `ARCH-01..04`               | `ARC-03`, `REG-01`                                         | staged; active-cell isolation is a beta blocker         |
 | `ARCH-05/06`                | `FND-03`, `ARC-01/02`                                      | durable active-path blocker                             |
 | `ARCH-07..10`               | `ARC-03`, `SAFE-04`                                        | refactor by seam; sidecar trust issues block provider   |
 | `ARCH-11`                   | `PPL-01`, `REV-01`, `GST-01`, `GOA-01`, `REC-01`, `CNV-01` | active dual truth blocks owning feature                 |
@@ -1350,7 +1381,7 @@ This table is the minimum coverage map. `FND-01` replaces it with a row-level cu
 | `OPS-07/08`                 | `REG-03`, `REL-01`                                         | release governance blocker                              |
 | `OPS-09`                    | `GOV-01`, `SAFE-05`                                        | reproducibility gate                                    |
 | `OPS-10/11`                 | `SAFE-04/05`, `REG-03`                                     | sidecar artifact gate                                   |
-| `OPS-12`                    | `REG-02/04`                                                | all-cell readiness blocker                              |
+| `OPS-12`                    | `REG-02/04`                                                | `cell-us` readiness blocker                             |
 | `OPS-13`                    | `FND-03`, `REG-03`                                         | CI reachability gate                                    |
 | `OPS-14`                    | `CNV-01`                                                   | cleanup, not beta blocker alone                         |
 | Stack §12                   | `SAFE-*`, `GOV-01`, feature owners                         | risk-ranked; version drift mechanically checked         |
@@ -1369,7 +1400,7 @@ This table is the minimum coverage map. `FND-01` replaces it with a row-level cu
 | ----------------------------------------------------------------- | ----------------------------- | ----------- |
 | Invitation-only, built-ins, one Organization, no Billing          | `SAFE-02`, `PPL-01`, `EXP-01` | Gates B/D/F |
 | Staff Participant vs Staff User; no Team                          | `PPL-01`, `CNV-01`            | Gates C/D   |
-| All-region immutable Property Data Cells on Railway               | `REG-01..04`                  | Gate E/F    |
+| All supported countries in one immutable Railway US Data Cell     | `REG-01..04`                  | Gate E/F    |
 | Portal review gateway, rating-first, Google for all, low feedback | `POR-01`, `GST-01`, `SAFE-01` | Gate D/F    |
 | Portal brand, EN/BG locales, stable address, publication snapshot | `POR-01`, `EXP-03`            | Gate D      |
 | Contact Request consent, reveal, purpose, expiry, withdrawal      | `GST-01`, `LIF-01`, `LEG-01`  | Gate D/F    |
@@ -1389,6 +1420,16 @@ This table is the minimum coverage map. `FND-01` replaces it with a row-level cu
 | Immutable CI promotion and honest beta bar                        | `REG-03`, `REL-01`            | Gate F      |
 
 ## 16. Package completion record
+
+Live progress is reported on three independent axes in the comprehensive
+program-status ledger: **Implementation** (`not_started | in_progress |
+complete`), **Repository Verification** (`not_started | in_progress | passed`),
+and **External Verification** (`not_required | not_started | in_progress |
+blocked | passed`). A package may therefore be implementation-complete while
+live deployment, provider, device, counsel, or independent-review evidence is
+still open. “Complete” is never inferred from one axis: formal closure requires
+implementation complete, repository verification passed, external verification
+passed or not required, and the completion record below.
 
 Every package closes with a machine-readable or tabular record containing:
 

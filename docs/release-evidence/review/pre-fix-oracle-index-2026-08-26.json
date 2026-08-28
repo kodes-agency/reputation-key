@@ -616,9 +616,19 @@
           "project": "unit",
           "contains": [
             "pins the known dark consumer/job pairings",
-            "'goal.event-handlers': 'goal.use'",
-            "'leaderboard.event-handlers': 'leaderboard.use'",
-            "keeps the inactive Goal and legacy Leaderboard runtime gaps explicit"
+            "expect(pairings).not.toHaveProperty('badge.event-handlers')",
+            "expect(pairings).not.toHaveProperty('leaderboard.event-handlers')",
+            "keeps the legacy Goal handler disconnected and Recognition consumers removed",
+            "expect(composition).not.toContain('registerGoalEventHandlers')"
+          ]
+        },
+        {
+          "path": "src/shared/architecture/legacy-recognition-active-surfaces.test.ts",
+          "project": "unit",
+          "contains": [
+            "retains only historical decoding and content-free inventory code",
+            "removes legacy network and consumer declarations completely",
+            "RETAINED_RECOGNITION_PRODUCTION_SOURCES"
           ]
         },
         {
@@ -629,9 +639,9 @@
       ],
       "resolution": "partial",
       "remaining": [
-        "Implement the accepted metric-goal runtime before activation; keep the legacy leaderboard runtime disabled unless it is redesigned."
+        "Keep the legacy Goal handler disconnected unless its event contract is deliberately completed; preserve Recognition historical decoding and data until export/restore evidence authorizes a separate schema decision."
       ],
-      "note": "Capability gates provide isolation while registration and identity gaps remain explicit."
+      "note": "The canonical Goal Program reads governed Metric sources and does not register the legacy Goal handler. Badge and Leaderboard server operations, consumers, jobs, and runtime mechanics are absent; only historical Badge decoding plus the content-free Recognition inventory/report remain while retained data awaits export/restore disposition."
     },
     {
       "id": "ARCHITECTURE_BOUNDARY_IMPORTS",
@@ -710,15 +720,14 @@
           "project": "unit",
           "contains": [
             "detects a deliberately exposed infrastructure repository",
-            "keeps the current Review repository exposure explicit until its public port migration"
+            "routes the AI server through context public APIs instead of the Review repository",
+            "keeps simulation tooling behind narrow capabilities instead of repositories"
           ]
         }
       ],
-      "resolution": "partial",
-      "remaining": [
-        "Move AI server reads behind Review public ports and remove the flat Review repository exposure from composition."
-      ],
-      "note": "Build and outbox negative controls are executable; the current composition exposure remains explicitly isolated as migration work."
+      "resolution": "closed",
+      "remaining": [],
+      "note": "Build and outbox negative controls are executable. AI server reads use Review public ports, and simulations receive only an explicitly enabled, narrow capability runtime; the composition container exposes no flat Review repository."
     },
     {
       "id": "PRODUCTION_ARTIFACT_BOUNDARY",
@@ -849,7 +858,7 @@
           "project": "unit",
           "contains": [
             "runs the changed-code budget on every check run",
-            "runs the coverage gate on main pushes only"
+            "runs the same coverage ratchet before merge and on main without a second unit run"
           ]
         }
       ],
