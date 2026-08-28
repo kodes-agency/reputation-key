@@ -5,6 +5,8 @@ or approval
 
 **Captured:** 2026-08-26
 
+**Last candidate-draft reconciliation:** 2026-08-28
+
 **Owner:** Product and Engineering
 
 **Release use:** Counsel and provider-review input only; do not publish this file
@@ -69,17 +71,17 @@ to every Property Manager.
 
 ### Guest data map
 
-| Data class                 | Current purpose and access                                                                                                                                                                                          | Current lifecycle authority                                                                                                                                                                                                                |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Visit/scan fact            | Portal, Property, source (`qr`, `nfc`, or `direct`), and time support always-on operational metrics.                                                                                                                | Session pseudonym is redacted after 24 hours and the rotating abuse pseudonym after 7 days. The base visit-fact horizon is not defined by the static registry and needs an explicit product/counsel decision.                              |
-| Private rating             | A 1–5 Portal rating supports manager metrics and the guest journey. It is distinct from a public Google Review rating.                                                                                              | The new canonical content-free response fact/tombstone expires after 24 calendar months. Legacy rating rows retain compatibility behavior; their final contraction/lifecycle must be resolved before the notice states one universal rule. |
-| Experience evidence        | Exact Portal publication version/digest, threshold, locale, language-pack version, and capture time explain which experience produced a rating. The guest browser does not receive internal identifiers or digests. | Stored with the response evidence; final legal characterization follows the response lifecycle and contraction decision.                                                                                                                   |
-| Private feedback text      | Optional text, maximum 2,000 characters, available only after an eligible rating and routed into manager workflow.                                                                                                  | Stored separately for at most 90 days. The same signed session may withdraw it for 24 hours; reads deny expired text even before the bounded sweep removes it.                                                                             |
-| Contact Request            | The capability is separately classified as controlled beta.                                                                                                                                                         | Current public submission paths hard-disable contact collection. Purpose, consent copy, encryption, access, retention, delivery channel, and withdrawal behavior must be accepted before activation. Phone collection remains excluded.    |
-| Guest session binding      | Supports duplicate prevention, correction/withdrawal, and first-action semantics without a Guest account.                                                                                                           | Maximum 24 hours, with an absolute deadline rather than a rolling extension.                                                                                                                                                               |
-| Network-abuse pseudonym    | A daily-salted hash supports rate limiting and abuse handling; raw Guest IP is not stored as the Guest interaction value. It is not an identity or staff-performance signal.                                        | Redacted after 7 days.                                                                                                                                                                                                                     |
-| Destination-action receipt | Records the first qualified Google or secondary-link selection for core analytics. A navigation-only redirect does not increment it.                                                                                | Session-bound deduplication receipt expires within 24 hours; the remaining content-free action fact needs the same explicit base-fact horizon decision as other Guest metrics.                                                             |
-| Guest media                | Compatibility rows may exist for audit/purge handling.                                                                                                                                                              | No public issuance or confirmation route exists in the first beta cohort.                                                                                                                                                                  |
+| Data class                 | Current purpose and access                                                                                                                                                                                                                                                                                                                     | Current lifecycle authority                                                                                                                                                                                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Visit/scan fact            | Portal, Property, source (`qr`, `nfc`, or `direct`), and time support always-on operational metrics.                                                                                                                                                                                                                                           | The legacy diagnostic session pseudonym is redacted after 24 hours. Network pressure is stored separately and deleted at exact seven-day expiry. The base visit-fact horizon is not defined by the static registry and needs an explicit product/counsel decision. |
+| Private rating             | A 1–5 Portal rating supports manager metrics and the guest journey. It is distinct from a public Google Review rating.                                                                                                                                                                                                                         | The new canonical content-free response fact/tombstone expires after 24 calendar months. Legacy rating rows retain compatibility behavior; their final contraction/lifecycle must be resolved before the notice states one universal rule.                         |
+| Experience evidence        | Exact Portal publication version/digest, threshold, locale, language-pack version, and capture time explain which experience produced a rating. The guest browser does not receive internal identifiers or digests.                                                                                                                            | Stored with the response evidence; final legal characterization follows the response lifecycle and contraction decision.                                                                                                                                           |
+| Private feedback text      | Optional text, maximum 2,000 characters, available only after an eligible rating and routed into manager workflow.                                                                                                                                                                                                                             | Stored separately for at most 90 days. The same signed session may withdraw it for 24 hours; reads deny expired text even before the bounded sweep removes it.                                                                                                     |
+| Contact Request            | The capability is separately classified as controlled beta.                                                                                                                                                                                                                                                                                    | Current public submission paths hard-disable contact collection. Purpose, consent copy, encryption, access, retention, delivery channel, and withdrawal behavior must be accepted before activation. Phone collection remains excluded.                            |
+| Guest session binding      | Supports duplicate prevention, correction/withdrawal, and first-action semantics without a Guest account.                                                                                                                                                                                                                                      | Maximum 24 hours, with an absolute deadline rather than a rolling extension.                                                                                                                                                                                       |
+| Network-pressure pseudonym | A keyed hash separated by Organization, Portal, action class, and UTC day supports pressure checks for ratings, private feedback, destination actions, and qualified scans. Raw Guest IP is never stored. The pseudonym contains no content/session/destination identity and is not an analytics, Guest-identity, or staff-performance signal. | The content-free authority row becomes unusable exactly seven days after observation; a bounded, restart-safe sweep deletes expired rows with content-free evidence. Legacy per-fact IP-hash columns are cleared without import and have no active writer.         |
+| Destination-action receipt | Records the first qualified Google or secondary-link selection for core analytics. A navigation-only redirect does not increment it.                                                                                                                                                                                                           | Session-bound deduplication receipt expires within 24 hours; the remaining content-free action fact needs the same explicit base-fact horizon decision as other Guest metrics.                                                                                     |
+| Guest media                | Compatibility rows may exist for audit/purge handling.                                                                                                                                                                                                                                                                                         | No public issuance or confirmation route exists in the first beta cohort.                                                                                                                                                                                          |
 
 Guests may withdraw the whole response for 24 hours after the initial rating.
 That removes the effective rating and any still-effective feedback while
@@ -122,19 +124,19 @@ for that source evidence.
 
 The scheduled registry currently enforces or records these main classes:
 
-| Class                                                                                  | Horizon/trigger                          |
-| -------------------------------------------------------------------------------------- | ---------------------------------------- |
-| Guest response session binding and destination-action receipt                          | Absolute expiry, maximum 24 hours        |
-| Guest private-feedback text                                                            | 90 days from submission                  |
-| Canonical de-identified Guest response fact/tombstone                                  | 24 calendar months from initial rating   |
-| Guest session pseudonyms                                                               | Redact after 24 hours                    |
-| Guest network-abuse pseudonyms                                                         | Redact after 7 days                      |
-| Published outbox facts, consumer receipts, sync/refresh runs, inbound webhook receipts | 30 days                                  |
-| Terminal notifications, terminal email work, and terminal digest evidence              | 90 days; open retry work is retained     |
-| Recent Activity storage                                                                | 90 days                                  |
-| Policy-decision and significant-action records                                         | 365 days                                 |
-| Expiring Google cache                                                                  | Per-row `expires_at`                     |
-| Retention-run evidence                                                                 | Indefinite by current engineering policy |
+| Class                                                                                  | Horizon/trigger                             |
+| -------------------------------------------------------------------------------------- | ------------------------------------------- |
+| Guest response session binding and destination-action receipt                          | Absolute expiry, maximum 24 hours           |
+| Guest private-feedback text                                                            | 90 days from submission                     |
+| Canonical de-identified Guest response fact/tombstone                                  | 24 calendar months from initial rating      |
+| Guest session pseudonyms                                                               | Redact after 24 hours                       |
+| Guest network-pressure records                                                         | Complete-row deletion at exact 7-day expiry |
+| Published outbox facts, consumer receipts, sync/refresh runs, inbound webhook receipts | 30 days                                     |
+| Terminal notifications, terminal email work, and terminal digest evidence              | 90 days; open retry work is retained        |
+| Recent Activity storage                                                                | 90 days                                     |
+| Policy-decision and significant-action records                                         | 365 days                                    |
+| Expiring Google cache                                                                  | Per-row `expires_at`                        |
+| Retention-run evidence                                                                 | Indefinite by current engineering policy    |
 
 Google import lifecycle, queue quarantine, Review source content, Property/
 Organization purge, AI derivatives, account/session data, logs, backups, and
@@ -145,21 +147,69 @@ manager-authored content, Portal configuration/publication history, Inbox
 content, Contact Requests, provider reply text, restored backups, and legacy
 compatibility rows.
 
+## 4A. Error monitoring and native beta feedback
+
+The repository requires error monitoring for production web, worker, and all
+four retained sidecars and rejects a non-Germany Sentry ingestion host. It
+scrubs request/response bodies, cookies, credentials, user/extra content,
+exception messages, source context, and unapproved tags. Replay integrations
+are removed. These are local implementation facts, not proof that the intended
+Germany project, inbound filters, source maps, operator access, alert routing,
+or retention are configured in a deployed environment.
+
+Authenticated native feedback has distinct Bug and Suggestion contracts.
+Suggestions are always text-only. A Bug on an allowlisted, non-sensitive route
+may include an optional layout only after a per-submission checkbox and a
+separate **Create preview** action. The browser collects only quantized
+rectangle geometry and one of five closed semantic block types; the server
+validates it and renders a fixed SVG. The contract cannot carry DOM text, input
+values, URLs, pixels, image/media bytes, an ordinary screenshot, or Replay.
+The manager can preview/remove it, and canceling the dialog discards it.
+
+The server assigns a local UUID before provider delivery. PostgreSQL stores a
+content-free receipt plus revision-fenced triage and append-only transition
+evidence; it stores no report text or attachment bytes. Suggestions cannot add
+an attachment at the schema boundary. A Bug attachment carries an expiry no
+later than 30 days, but that application envelope is not proof of provider
+deletion. The exact Sentry event horizon, attachment-retention setting, expiry
+test, notice text, subprocessor/region record, and lawful basis require live
+provider evidence and counsel approval.
+
+Local support policy assigns the beta triage, incident, and communications
+roles to Bozhidar Denev for the closed beta. Regular review is expected by the
+next business day without being a guarantee; privacy/security and unavailable
+critical journeys hand off immediately. The repository registers every
+critical journey for the single `cell-us`, while honestly marking remaining
+external synthetics, triage-backlog instrumentation, dashboards, alert drills,
+and owner receipts as incomplete external/release evidence.
+
 ## 5. Deployment and subprocessor facts
 
-The target deployment is a Railway data-cell design with independent `us`,
-`europe`, and `global` cells. Each cell has its own database, cache, queue,
-object storage, provider boundary, credentials, and release evidence. Work is
-never silently failed over or routed to another region.
+The target beta deployment is one Railway Data Cell: `cell-us`, with compute in
+Railway US West/California (`us-west2`) and object storage in Railway US
+West/California (`sjc`). Railway's published labels do not establish a more
+precise city. The cell has its own database, cache, queue, object storage,
+provider boundary, credentials, and release evidence. All 245 countries in the
+versioned supported-country set allocate explicitly there. `europe` and
+`global` are denied future identifiers, not beta processing locations.
+
+The target production project is the fresh, dedicated
+`reputation-key-us-beta`; the non-production rehearsal uses
+`reputation-key-us-beta-rehearsal`. Each has exactly one Railway environment
+total, named `cell-us`, and each managed service has exactly one instance there.
+The legacy `reputation-key` project is migration input, not the US release
+target. IaC is the sole service-source owner and promotes only signed immutable
+image digests through reviewed saved plans. The signed manifest and retained
+plan also bind the deterministic digest of the locally executing release
+authority; an IaC digest alone cannot authorize promotion.
 
 That target is **not** the current live topology. The repository's latest
-recorded observation says the legacy Railway project uses Amsterdam resources
-and does not yet match the three-cell graph. `europe` and `global` remain
-provisioning in the signed catalogue; repository tests are not evidence that a
-cell is live or accepting traffic. Live placement, domains, image digests,
-backups/PITR, restore results, log retention, object-store lifecycle, email,
-monitoring, and provider configuration must be captured from the platform for
-each cell before publication or release.
+recorded observation says the legacy `reputation-key` Railway project uses
+Amsterdam resources and does not yet match the US target graph. Repository
+tests are not evidence that `cell-us` is live or accepting traffic. Live
+placement, domains, image digests, backups/PITR, restore results, log retention,
+object-store lifecycle, email, monitoring, and provider configuration must be
+captured from the platform for `cell-us` before publication or release.
 
 Accordingly, the legal drafts must not currently claim Neon, a US-only runtime,
 an AWS bucket, active PITR/RPO, or a particular monitoring/email region solely
@@ -168,20 +218,20 @@ classes, processing location, transfer mechanism, retention, and activation
 state need a dated subprocessor record backed by live configuration and
 contracts.
 
-## 6. Known deltas in the existing drafts
+## 6. Candidate legal-draft reconciliation
 
-The three older files remain drafts and must not be published unchanged:
+The three candidate files were reconciled to this engineering fact map on
+2026-08-28. They remain non-publishable drafts because reconciliation is not
+legal, provider, product, or live-release acceptance:
 
-| Draft                         | Material deltas requiring review                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `privacy-notice.md`           | Describes Portal/Guest as future, lists Guest hashes at 90 days, lists action records at 90 rather than the split 90/365-day model, identifies Neon/US and AWS/Paris as live, states US-only processing, states PITR as active, and treats all AI as one inactive feature rather than three independently controlled capabilities. It omits Portal rating/feedback/action metrics, withdrawal behavior, assigned-manager access, Contact Request readiness, publication evidence, and unresolved base-fact horizons. |
-| `internal-beta-agreement.md`  | Lists Portal, Guest, Goals, email, and all AI as one disabled set; describes only a single-US-property rollout; identifies old providers/regions; states backup and recovery outcomes without current live evidence; and gives derived metrics/action records a blanket 90-day horizon.                                                                                                                                                                                                                              |
-| `google-access-disclosure.md` | Needs the exact written-confirmation artifact verified, current capability vocabulary aligned, production lifecycle activation caveat added, webhook behavior verified against the actual integration, derived-data horizons reconciled, and the final source link kept valid.                                                                                                                                                                                                                                       |
+| Draft                         | Repository reconciliation completed                                                                                                                                                                                                                     | Still required before publication                                                                                                                                                                    |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `privacy-notice.md`           | Portal/Guest, always-on core analytics, responsible-manager access, three independent AI capabilities, current repository retention classes, unresolved lifecycles, and the single target `cell-us` are represented without claiming a live deployment. | Accepted legal bases/roles/rights process, complete retention schedule, live subprocessor/transfer schedule, provider configuration, effective date, and counsel/release approval.                   |
+| `internal-beta-agreement.md`  | Core, controlled, unavailable, and excluded capabilities now follow the executable fate map; Portal/Guest/Goals/AI and staff-use limits are separated; provider/backup/recovery outcomes are not asserted from old infrastructure prose.                | Final parties, service/support/warranty/liability terms, enabled cohort schedule, lifecycle/rights commitments, manifest-bound operations evidence, and counsel acceptance.                          |
+| `google-access-disclosure.md` | Exact OAuth scope, Pub/Sub fast path, polling recovery, private-rating-first Portal behavior, observed-live reply semantics, current source-content posture, written Google response scope, and prohibited uses are represented.                        | Original correspondence provenance, current project/OAuth/Pub/Sub evidence, accepted source/derivative/backup lifecycle, AI provider evidence where enabled, and counsel/provider-policy acceptance. |
 
-`docs/operations/backup-and-lifecycle.md` also describes Portal upload as merely
-allowlist-controlled. The executable fate map is newer and classifies it as
-temporarily unavailable until its readiness package closes. That operational
-paragraph needs reconciliation in a separate documentation-consistency pass.
+An executable draft-consistency check prevents the previously identified stale
+provider, scope, capability, and deployment claims from silently returning.
 
 ## 7. Acceptance checklist outside Engineering authority
 
@@ -202,7 +252,7 @@ Before external beta or production, retain a dated record for each item:
 - named data-protection and incident contacts, response process, effective
   date, notice version, material-change procedure, approval date, review date,
   and expiry/revalidation date; and
-- per-cell platform evidence for placement, data flows, backups/recovery,
+- `cell-us` platform evidence for placement, data flows, backups/recovery,
   observability retention, and activated providers.
 
 Until those records exist, Engineering can make the behavior internally
