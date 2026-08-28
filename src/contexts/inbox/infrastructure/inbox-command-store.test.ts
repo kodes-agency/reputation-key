@@ -18,6 +18,7 @@ import { createSequentialInboxCommandStore } from '#/shared/testing/sequential-i
 import type { Database } from '#/shared/db'
 import {
   inboxAssignmentHistory,
+  inboxEscalationHistory,
   inboxHandlingCycleHeads,
   inboxHandlingCycleTransitions,
   inboxHandlingCycles,
@@ -253,6 +254,7 @@ function createMockDb(opts: {
   /** Whether an apply-once receipt reservation inserted a new row. */
   receiptReserved?: boolean
   assignmentHistoryRows?: Array<Record<string, unknown>>
+  escalationHistoryRows?: Array<Record<string, unknown>>
   handlingCycleInsertRows?: Array<Record<string, unknown>>
   handlingCycleHeadInsertRows?: Array<Record<string, unknown>>
   handlingCycleTransitionRows?: Array<Record<string, unknown>>
@@ -305,6 +307,14 @@ function createMockDb(opts: {
         return {
           values: vi.fn(async (row: Record<string, unknown>) => {
             opts.assignmentHistoryRows?.push(row)
+          }),
+        }
+      }
+      if (table === inboxEscalationHistory) {
+        order.push('tx.state')
+        return {
+          values: vi.fn(async (row: Record<string, unknown>) => {
+            opts.escalationHistoryRows?.push(row)
           }),
         }
       }
@@ -1426,11 +1436,16 @@ describe('createAtomicInboxCommandStore', () => {
   })
 
   describe('escalate / resolveEscalation', () => {
-    it('escalate commits flag update + escalated fact in one tx before emit', async () => {
+    it('escalate commits flag update + history row + escalated fact in one tx before emit', async () => {
       const order: string[] = []
+      const escalationHistoryRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
         order,
-        updateRows: [makeItemRow({ isEscalated: true, escalatedAt: NOW })],
+        updateRows: [
+          makeItemRow({ isEscalated: true, escalatedAt: NOW, commandRevision: 2 }),
+        ],
+        handlingCycleRows: [{ currentCycleNumber: 3 }],
+        escalationHistoryRows,
       })
       const events = makeEvents(order)
       const store = createAtomicInboxCommandStore(db, events)
@@ -1449,14 +1464,44 @@ describe('createAtomicInboxCommandStore', () => {
       )
 
       expect(result.isEscalated).toBe(true)
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      expect(escalationHistoryRows).toEqual([
+        {
+          inboxItemId: ITEM_ID,
+          resultingCommandRevision: 2,
+          organizationId: ORG_ID,
+          propertyId: PROP_ID,
+          handlingCycleNumber: 3,
+          kind: 'escalated',
+          actorUserId: USER_ID,
+          occurredAt: NOW,
+        },
+      ])
+      // The history row is appended AFTER the compare-and-swap and BEFORE the
+      // outbox fact, inside the same transaction.
+      expect(order).toEqual([
+        'tx.start',
+        'tx.state',
+        'tx.reselect',
+        'tx.state',
+        'tx.outbox',
+        'tx.commit',
+        'emit',
+      ])
     })
 
-    it('resolveEscalation commits flag clear + resolved fact in one tx before emit', async () => {
+    it('resolveEscalation commits flag clear + history row + resolved fact in one tx before emit', async () => {
       const order: string[] = []
+      const escalationHistoryRows: Array<Record<string, unknown>> = []
       const { db } = createMockDb({
         order,
-        updateRows: [makeItemRow({ isEscalated: false, escalationResolvedAt: NOW })],
+        updateRows: [
+          makeItemRow({
+            isEscalated: false,
+            escalationResolvedAt: NOW,
+            commandRevision: 3,
+          }),
+        ],
+        escalationHistoryRows,
       })
       const events = makeEvents(order)
       const store = createAtomicInboxCommandStore(db, events)
@@ -1474,7 +1519,29 @@ describe('createAtomicInboxCommandStore', () => {
         NOW,
       )
 
-      expect(order).toEqual(['tx.start', 'tx.state', 'tx.outbox', 'tx.commit', 'emit'])
+      // A missing Handling Cycle head must not block escalation evidence: the
+      // decision is still recorded, with an honest null cycle anchor.
+      expect(escalationHistoryRows).toEqual([
+        {
+          inboxItemId: ITEM_ID,
+          resultingCommandRevision: 3,
+          organizationId: ORG_ID,
+          propertyId: PROP_ID,
+          handlingCycleNumber: null,
+          kind: 'resolved',
+          actorUserId: USER_ID,
+          occurredAt: NOW,
+        },
+      ])
+      expect(order).toEqual([
+        'tx.start',
+        'tx.state',
+        'tx.reselect',
+        'tx.state',
+        'tx.outbox',
+        'tx.commit',
+        'emit',
+      ])
     })
   })
 

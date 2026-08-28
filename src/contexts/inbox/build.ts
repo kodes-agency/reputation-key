@@ -9,6 +9,10 @@
 
 import type { Database } from '#/shared/db'
 import type { ConsumerRegistry } from '#/shared/outbox'
+import {
+  createInboxAssignmentRuntime,
+  type InboxAssignmentRuntime,
+} from './application/inbox-assignment-runtime'
 import type { EventBus } from '#/shared/events/event-bus'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { CutoverFamily, CutoverState } from '#/shared/outbox/cutover-flags'
@@ -162,6 +166,14 @@ export type InboxContextApi = Readonly<{
   /** Context-owned worker registration; exposes no repositories or use cases. */
   worker: Readonly<{
     registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) => void
+  }>
+  /** ARC-03-T12: the named member-authority capability. Replaces the root's
+   * `inbox.internal.commandStore` reach-through. */
+  assignments: InboxAssignmentRuntime
+  /** ARC-03-T12: the scheduled reminder release Inbox contributes to the
+   * worker. Replaces the root's `inbox.internal.useCases` destructure. */
+  runtime: Readonly<{
+    releaseDueResponseTargetReminders: ReleaseDueResponseTargetReminders
   }>
   internal: Readonly<{
     repos: Readonly<{
@@ -351,6 +363,10 @@ export const buildInboxContext = (input: InboxContextBuildInput): InboxContextAp
     lifecycle,
     maintenance,
     worker: Object.freeze({ registerOutboxConsumers }),
+    assignments: createInboxAssignmentRuntime(commandStore),
+    runtime: Object.freeze({
+      releaseDueResponseTargetReminders: useCases.releaseDueResponseTargetReminders,
+    }),
     internal: {
       repos: {
         inboxRepo,

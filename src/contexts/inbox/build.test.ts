@@ -35,10 +35,13 @@ describe('buildInboxContext', () => {
     const context = build()
 
     expect(Object.keys(context).sort()).toEqual([
+      // ARC-03-T12: named member-authority and scheduled-release capabilities.
+      'assignments',
       'internal',
       'lifecycle',
       'maintenance',
       'publicApi',
+      'runtime',
       'worker',
     ])
     expect(Object.keys(context.lifecycle).sort()).toEqual([

@@ -39,6 +39,8 @@ import {
   inboxItemAssigned,
   inboxItemBulkStatusChanged,
   inboxItemCreated,
+  inboxItemEscalated,
+  inboxItemEscalationResolved,
   inboxItemStatusChanged,
 } from '../../domain/events'
 import {
@@ -53,6 +55,7 @@ import { createReviewRepository } from '#/contexts/review/infrastructure/reposit
 import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
+  readInboxEscalationHistory,
   type InboxCommandAuthority,
 } from '../inbox-command-store'
 import { createReviewSourceLookupAdapter } from '../adapters/review-source-lookup.adapter'
@@ -555,6 +558,182 @@ describe.sequential('inboxCommandStore applyOnce (integration)', () => {
         reason: 'claim',
       },
     ])
+  })
+
+  it('appends one escalation history row per decision, co-committed with the item and fact', async () => {
+    await seedReviewRevisionOne()
+    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const item = makeItem()
+    await store.createItem(item, null, { materialReviewRevision: 1 })
+
+    const escalated = await store.escalate(
+      item,
+      { escalatedBy: USER_A },
+      inboxItemEscalated({
+        inboxItemId: item.id,
+        organizationId: item.organizationId,
+        propertyId: item.propertyId,
+        userId: USER_A,
+        occurredAt: NOW,
+      }),
+      NOW,
+    )
+    const resolvedAt = new Date(NOW.getTime() + 60_000)
+    const resolved = await store.resolveEscalation(
+      escalated,
+      { resolvedBy: USER_B },
+      inboxItemEscalationResolved({
+        inboxItemId: item.id,
+        organizationId: item.organizationId,
+        propertyId: item.propertyId,
+        userId: USER_B,
+        occurredAt: resolvedAt,
+      }),
+      resolvedAt,
+    )
+
+    // Escalation stays orthogonal to status (ADR 0023).
+    expect(escalated.status).toBe('open')
+    expect(resolved.status).toBe('open')
+    expect(escalated.commandRevision).toBe(2)
+    expect(resolved.commandRevision).toBe(3)
+
+    const history = await pool.query(
+      `SELECT resulting_command_revision::text, handling_cycle_number::text,
+              kind, actor_user_id, occurred_at
+       FROM inbox_escalation_history
+       WHERE inbox_item_id = $1
+       ORDER BY resulting_command_revision`,
+      [item.id],
+    )
+    expect(history.rows).toEqual([
+      {
+        resulting_command_revision: '2',
+        handling_cycle_number: '1',
+        kind: 'escalated',
+        actor_user_id: USER_A,
+        occurred_at: NOW,
+      },
+      {
+        resulting_command_revision: '3',
+        handling_cycle_number: '1',
+        kind: 'resolved',
+        actor_user_id: USER_B,
+        occurred_at: resolvedAt,
+      },
+    ])
+
+    const facts = await pool.query(
+      `SELECT event_type FROM outbox_events
+       WHERE organization_id = $1 AND event_type LIKE 'inbox.inbox_item.escalat%'
+       ORDER BY event_type`,
+      [ORG_A],
+    )
+    expect(facts.rows.map((row) => String(row.event_type))).toEqual([
+      'inbox.inbox_item.escalated',
+      'inbox.inbox_item.escalation_resolved',
+    ])
+
+    const view = await readInboxEscalationHistory(db, {
+      id: item.id,
+      organizationId: item.organizationId,
+    })
+    expect(view.provenance).toBe('recorded')
+    expect(view.currentlyEscalated).toBe(false)
+    expect(view.entries.map((entry) => entry.kind)).toEqual(['escalated', 'resolved'])
+  })
+
+  it('rolls the escalation history row back with the item when the fact insert fails', async () => {
+    await seedReviewRevisionOne()
+    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const item = makeItem()
+    await store.createItem(item, null, { materialReviewRevision: 1 })
+
+    const ghost = {
+      ...inboxItemEscalated({
+        inboxItemId: item.id,
+        organizationId: item.organizationId,
+        propertyId: item.propertyId,
+        userId: USER_A,
+        occurredAt: NOW,
+      }),
+      _tag: 'inbox.inbox_item.ghost_escalated',
+    } as unknown as Parameters<typeof store.escalate>[2]
+
+    await expect(
+      store.escalate(item, { escalatedBy: USER_A }, ghost, NOW),
+    ).rejects.toThrow(/is not registered for the outbox/u)
+
+    const history = await pool.query(
+      'SELECT 1 FROM inbox_escalation_history WHERE inbox_item_id = $1',
+      [item.id],
+    )
+    expect(history.rows).toHaveLength(0)
+    const rows = await pool.query(
+      'SELECT is_escalated, command_revision::text FROM inbox_items WHERE id = $1',
+      [item.id],
+    )
+    expect(rows.rows[0]).toEqual({ is_escalated: false, command_revision: '1' })
+  })
+
+  it('classifies a pre-0169 escalated item as legacy_unknown instead of inventing evidence', async () => {
+    await seedReviewRevisionOne()
+    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const item = makeItem()
+    await store.createItem(item, null, { materialReviewRevision: 1 })
+    // Exactly what an item escalated before migration 0169 looks like: flags
+    // on the projection row, no history row anywhere.
+    await pool.query(
+      `UPDATE inbox_items
+       SET is_escalated = true, escalated_at = $2, escalated_by = $3
+       WHERE id = $1`,
+      [item.id, NOW, USER_A],
+    )
+
+    const view = await readInboxEscalationHistory(db, {
+      id: item.id,
+      organizationId: item.organizationId,
+    })
+
+    expect(view).toEqual({
+      provenance: 'legacy_unknown',
+      currentlyEscalated: true,
+      entries: [],
+    })
+  })
+
+  it('refuses a direct UPDATE, DELETE or TRUNCATE against escalation history', async () => {
+    await seedReviewRevisionOne()
+    const store = createAtomicInboxCommandStore(db, silentEvents)
+    const item = makeItem()
+    await store.createItem(item, null, { materialReviewRevision: 1 })
+    await store.escalate(
+      item,
+      { escalatedBy: USER_A },
+      inboxItemEscalated({
+        inboxItemId: item.id,
+        organizationId: item.organizationId,
+        propertyId: item.propertyId,
+        userId: USER_A,
+        occurredAt: NOW,
+      }),
+      NOW,
+    )
+
+    await expect(
+      pool.query(
+        `UPDATE inbox_escalation_history SET kind = 'resolved' WHERE inbox_item_id = $1`,
+        [item.id],
+      ),
+    ).rejects.toThrow(/inbox escalation history is immutable/u)
+    await expect(
+      pool.query('DELETE FROM inbox_escalation_history WHERE inbox_item_id = $1', [
+        item.id,
+      ]),
+    ).rejects.toThrow(/inbox escalation history is immutable/u)
+    await expect(pool.query('TRUNCATE inbox_escalation_history')).rejects.toThrow(
+      /inbox escalation history is immutable/u,
+    )
   })
 
   it('lets exactly one concurrent governed Review reopen advance the canonical head', async () => {
