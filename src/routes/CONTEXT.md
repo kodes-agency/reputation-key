@@ -55,6 +55,12 @@ This is the app shell. It:
 
 1. **`beforeLoad`** — calls `getSession()` (server function, not `authClient` — SSR can't forward cookies otherwise). Redirects to `/login` if no session. Resolves role and active organization. Returns `AuthRouteContext` with `{ user, role, activeOrganization }`.
 
+   A signed-in account without an active Organization redirects to the
+   `workspace_access` unavailable state before the authenticated loader runs.
+   Never default this state into the Staff shell: tenant-scoped loaders must
+   not run until the account has accepted an invitation and has an active
+   Organization binding.
+
 2. **`loader`** — loads organizations and properties in parallel (`Promise.allSettled`). Sets `staleTime: 5 * 60 * 1000` (5 min — structural data rarely changes).
 
 3. **Component** — renders `SidebarProvider` with role-based sidebar: `ManagerSidebar` for PropertyManager+, `StaffSidebar` for Staff, `SettingsSidebar` for `/settings` routes.

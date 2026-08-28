@@ -23,11 +23,11 @@ import { guestKeys } from '#/shared/queries/query-keys'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
 
-// `source` is an untrusted campaign hint, never authorization. An unrecognised or
-// missing value falls back to `direct` so a mangled QR query string still renders
-// the portal instead of throwing on search validation.
+// The public UUID is only a channel marker. The server binds it to the stable
+// address and exact live publication before it can qualify an observation.
 const portalSearchSchema = z.object({
-  source: z.enum(['qr', 'nfc', 'direct']).catch('direct'),
+  accessArtifact: z.uuid().optional().catch(undefined),
+  locale: z.enum(['en', 'bg']).optional().catch(undefined),
 })
 
 /**
@@ -56,12 +56,12 @@ function isUnavailablePosture(error: unknown): boolean {
   return typeof status === 'number' && unavailablePostureStatus[status] === true
 }
 
-const publicPortalQuery = (token: string) =>
+const publicPortalQuery = (token: string, locale?: 'en' | 'bg') =>
   queryOptions({
-    queryKey: guestKeys.publicPortal({ token }),
+    queryKey: guestKeys.publicPortal({ token, locale: locale ?? 'auto' }),
     queryFn: async () => {
       try {
-        return await getPublicPortal({ data: { token } })
+        return await getPublicPortal({ data: { token, locale } })
       } catch (error) {
         if (isUnavailablePosture(error)) return null
         throw error
@@ -89,9 +89,12 @@ const formAvailability: Readonly<
 
 export const Route = createFileRoute('/p/$token')({
   validateSearch: portalSearchSchema,
+  loaderDeps: ({ search }) => ({ locale: search.locale }),
   staleTime: 5 * 60 * 1000,
-  loader: async ({ context, params }): Promise<PublicPortalLoaderData | null> => {
-    return context.queryClient.ensureQueryData(publicPortalQuery(params.token))
+  loader: async ({ context, params, deps }): Promise<PublicPortalLoaderData | null> => {
+    return context.queryClient.ensureQueryData(
+      publicPortalQuery(params.token, deps.locale),
+    )
   },
   head: ({ loaderData }) => {
     // The opaque token is the entire access control for a guest portal, so the page
@@ -137,16 +140,20 @@ export const Route = createFileRoute('/p/$token')({
  */
 function PublicPortalPage() {
   const { token } = Route.useParams()
-  const { data } = useSuspenseQuery(publicPortalQuery(token))
+  const { locale } = Route.useSearch()
+  const { data } = useSuspenseQuery(publicPortalQuery(token, locale))
   if (!data) return <PortalUnavailable />
-  return <PublicPortalView token={token} data={data} />
+  // The file-route match is reused when only the token parameter changes.
+  // Remount the complete guest journey so a prior Portal's response receipt,
+  // CSRF nonce, rating draft, and analytics state cannot cross that boundary.
+  return <PublicPortalView key={token} token={token} data={data} />
 }
 
 function PublicPortalView({
   token,
   data,
 }: Readonly<{ token: string; data: PublicPortalLoaderData }>) {
-  const { source } = Route.useSearch()
+  const { accessArtifact, locale } = Route.useSearch()
   const queryClient = useQueryClient()
   const submitResponse = useAction(useServerFn(submitGuestResponseFn))
   const correctResponse = useAction(useServerFn(correctGuestResponseFn))
@@ -163,7 +170,7 @@ function PublicPortalView({
     async (input: Parameters<typeof startNewResponseAction>[0]) => {
       const nextSession = await startNewResponseAction(input)
       queryClient.setQueryData<PublicPortalLoaderData | null>(
-        guestKeys.publicPortal({ token }),
+        guestKeys.publicPortal({ token, locale: locale ?? 'auto' }),
         (cached) =>
           cached
             ? {
@@ -175,7 +182,7 @@ function PublicPortalView({
       )
       return nextSession
     },
-    [queryClient, startNewResponseAction, token],
+    [queryClient, startNewResponseAction, token, locale],
   )
 
   // Visit analytics is a core portal function. The disclosure invokes this once
@@ -183,20 +190,28 @@ function PublicPortalView({
   // layered abuse controls.
   const recordPortalVisit = useCallback(async () => {
     const result = await recordScan({
-      data: { token, csrfNonce, source },
+      data: { token, csrfNonce, accessArtifactId: accessArtifact ?? null },
     })
-    if (!result.success) throw new Error('Portal visit was not recorded')
-  }, [recordScan, token, csrfNonce, source])
+    if (result.success) return 'recorded' as const
+    return result.retryable ? ('retryable' as const) : ('settled' as const)
+  }, [recordScan, token, csrfNonce, accessArtifact])
 
   return (
     <>
-      <GuestAnalyticsNotice scopeKey={data.portal.id} onPortalVisit={recordPortalVisit} />
+      <GuestAnalyticsNotice
+        scopeKey={token}
+        locale={data.localization.selectedLocale}
+        languagePackVersion={data.localization.languagePackVersion}
+        onPortalVisit={recordPortalVisit}
+      />
       <PublicPortalContent
         token={token}
+        accessArtifactId={accessArtifact}
         portal={data.portal}
         categories={data.categories}
         links={data.links}
         reviewGateway={data.reviewGateway}
+        localization={data.localization}
         selectSecondaryLink={selectSecondaryLink}
         responseForm={{
           csrfNonce,

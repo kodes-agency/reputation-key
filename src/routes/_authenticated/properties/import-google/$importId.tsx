@@ -48,13 +48,12 @@ export const Route = createFileRoute(
   },
   staleTime: 0,
   loader: async ({ context, params: { importId } }) => {
-    const [progress, connections] = await Promise.all([
+    await Promise.all([
       context.queryClient.ensureQueryData(
         googleImportStatusQuery(importId, getPropertyImportV2Status),
       ),
       context.queryClient.ensureQueryData(connectionsQuery),
     ])
-    return { progress, connections: connections.connections }
   },
   component: ImportProgressPage,
 })
@@ -82,6 +81,7 @@ function ImportProgressPage() {
       />
 
       <GoogleImportManager
+        key={importId}
         organizationId={activeOrganization?.id ?? 'no-active-organization'}
         connections={connectionData.connections}
         initialProgress={progress}

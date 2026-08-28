@@ -54,8 +54,7 @@ export const Route = createFileRoute('/_authenticated/properties/import-google/'
   },
   staleTime: 60_000,
   loader: async ({ context }) => {
-    const result = await context.queryClient.ensureQueryData(connectionsQuery)
-    return { connections: result.connections }
+    await context.queryClient.ensureQueryData(connectionsQuery)
   },
   component: ImportPage,
 })

@@ -48,8 +48,7 @@ export const Route = createFileRoute('/accept-invitation')({
     }
   },
   loader: async ({ context }) => {
-    const invitations = await context.queryClient.ensureQueryData(invitationsQuery)
-    return { invitations }
+    await context.queryClient.ensureQueryData(invitationsQuery)
   },
   component: AcceptInvitationRoute,
 })

@@ -73,8 +73,8 @@ export async function handleGoogleOAuthCallback(request: Request): Promise<Respo
     const cookie = request.headers.get('cookie')
     if (cookie) headers.set('cookie', cookie)
     const session = await getSessionFromHeaders(headers)
-    const { useCases } = getContainer()
-    const preStateAdmission = await useCases.admitGoogleOAuthCallbackPreState({
+    const { integrationPublicApi } = getContainer()
+    const preStateAdmission = await integrationPublicApi.oauth.admitPreState({
       sessionId: session?.session.id ?? null,
       trustedSourceId: null,
       nowMs: Date.now(),
@@ -89,10 +89,10 @@ export async function handleGoogleOAuthCallback(request: Request): Promise<Respo
     }
     if (!state) return rejectState(env, 'missing')
     if (!state.startsWith('v2.')) return rejectState(env, 'malformed')
-    if (!session?.session.id || !useCases.redeemGoogleOAuthState) {
+    if (!session?.session.id || !integrationPublicApi.oauth.redeemState) {
       return rejectState(env, 'not_found')
     }
-    const redeemed = await useCases.redeemGoogleOAuthState({
+    const redeemed = await integrationPublicApi.oauth.redeemState({
       handle: state,
       organizationId: ctx.organizationId,
       userId: ctx.userId,
@@ -103,12 +103,34 @@ export async function handleGoogleOAuthCallback(request: Request): Promise<Respo
     const returnRoute = redeemed.returnRoute
 
     // Tenant quota is selected only after opaque state consumption.
-    const tenantAdmission = await useCases.admitGoogleOAuthCallbackTenant({
+    const tenantAdmission = await integrationPublicApi.oauth.admitResolvedTenant({
       organizationId: ctx.organizationId,
       userId: ctx.userId,
       nowMs: Date.now(),
     })
     if (!tenantAdmission.ok) return rejectState(env, 'abuse_denied')
+
+    if (redeemed.kind === 'recovery') {
+      try {
+        const connection = await integrationPublicApi.connections.resume(
+          { attemptId: redeemed.exchangeAttemptId },
+          ctx,
+        )
+        const importUrl = new URL(returnRoute, env.BETTER_AUTH_URL)
+        importUrl.searchParams.set('connectionId', connection.id)
+        return new Response(null, {
+          status: 302,
+          headers: { Location: importUrl.toString() },
+        })
+      } catch (e) {
+        const failureCode = connectFailureCode(e)
+        getLogger().error(
+          { security: true, reason: failureCode },
+          'Google OAuth recovery failed',
+        )
+        return redirectWithError(env, failureCode)
+      }
+    }
 
     // Provider denial consumes the legitimate state without a token call. Only the
     // OAuth 2.0 `access_denied` value means the user declined consent (RFC 6749
@@ -124,7 +146,7 @@ export async function handleGoogleOAuthCallback(request: Request): Promise<Respo
     }
     const connectInput: ConnectGoogleInput = buildOpaqueOAuthConnectInput(code, redeemed)
     try {
-      const connection = await useCases.connectGoogleAccount(connectInput, ctx)
+      const connection = await integrationPublicApi.connections.connect(connectInput, ctx)
 
       const importUrl = new URL(returnRoute, env.BETTER_AUTH_URL)
       importUrl.searchParams.set('connectionId', connection.id)

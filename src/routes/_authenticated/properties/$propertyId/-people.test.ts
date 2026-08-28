@@ -25,7 +25,7 @@ vi.mock('#/contexts/portal/server/portals', () => ({
 import { Route } from './people'
 
 describe('People route beta contract', () => {
-  it('loads Staff Participants and Portal Responsibility without Team', async () => {
+  it('primes Staff Participants and Portal Responsibility without a duplicate loader payload', async () => {
     const loader = Route.options.loader
     if (typeof loader !== 'function') {
       throw new Error('People route must define a loader function')
@@ -44,7 +44,8 @@ describe('People route beta contract', () => {
     expect(server.listStaffParticipations).toHaveBeenCalledOnce()
     expect(server.listMembers).toHaveBeenCalledOnce()
     expect(server.listPortals).toHaveBeenCalledOnce()
-    expect(result).not.toHaveProperty('teams')
-    expect(result).not.toHaveProperty('memberships')
+    // Query hydration owns these payloads. Returning another object here would
+    // serialize the same data twice and could accidentally revive Team fields.
+    expect(result).toBeUndefined()
   })
 })

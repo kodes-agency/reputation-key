@@ -34,8 +34,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
   loader: async ({ context, params: { propertyId } }) => {
     // Property detail is cached via Query (propertyQuery); Staff participation
     // is fetched by the People child route via useSuspenseQuery.
-    const result = await context.queryClient.ensureQueryData(propertyQuery(propertyId))
-    return { property: result.property }
+    await context.queryClient.ensureQueryData(propertyQuery(propertyId))
   },
   component: PropertyLayout,
 })
@@ -62,7 +61,13 @@ function PropertyLayout() {
 
   return (
     <div className={isFullHeight ? 'min-w-0 h-full overflow-hidden' : 'min-w-0 p-6'}>
-      <Outlet />
+      {/*
+        TanStack Router can retain the same file-route component when only the
+        dynamic Property parameter changes. Remount the complete child surface
+        so an open dialog, unsaved draft, or component-local workflow can never
+        cross from one Property into another.
+      */}
+      <Outlet key={propertyId} />
     </div>
   )
 }

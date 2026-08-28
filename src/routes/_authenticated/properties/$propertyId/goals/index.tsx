@@ -1,19 +1,23 @@
-import { createFileRoute, getRouteApi, Link, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { Plus, Target } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { listGoalPrograms } from '#/contexts/goal/server/goal-programs'
-import { goalKeys } from '#/shared/queries/query-keys'
+import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
+import { listPortals } from '#/contexts/portal/server/portals'
+import { buildGoalResultsMatrix } from '#/contexts/goal/application/public-api'
+import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { Button } from '#/components/ui/button'
 import { Badge } from '#/components/ui/badge'
 import { EmptyState } from '#/components/ui/empty-state'
+import { GoalResultsMatrix } from '#/components/goals/goal-results-matrix'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 
-const authRoute = getRouteApi('/_authenticated')
 const goalsSearchSchema = z.object({
   view: z.enum(['active', 'history']).default('active'),
 })
@@ -22,6 +26,17 @@ const goalsQuery = (propertyId: string) =>
     queryKey: goalKeys.list({ propertyId, model: 'program' }),
     queryFn: () => listGoalPrograms({ data: { propertyId } }),
     staleTime: 30_000,
+  })
+const subjectNamesQuery = (propertyId: string) =>
+  queryOptions({
+    queryKey: portalKeys.goalSubjectNames(propertyId),
+    queryFn: async () => {
+      const [groups, portals] = await Promise.all([
+        listPortalGroups({ data: { propertyId } }),
+        listPortals({ data: { propertyId } }),
+      ])
+      return { groups: groups.groups, portals: portals.portals }
+    },
   })
 
 const metricLabel = (metric: string) => {
@@ -44,20 +59,31 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
     }
   },
   validateSearch: goalsSearchSchema,
-  loader: async ({ params: { propertyId }, context }) =>
-    context.queryClient.ensureQueryData(goalsQuery(propertyId)),
+  loader: async ({ params: { propertyId }, context }) => {
+    await Promise.all([
+      context.queryClient.ensureQueryData(goalsQuery(propertyId)),
+      context.queryClient.ensureQueryData(subjectNamesQuery(propertyId)),
+    ])
+  },
   component: GoalsRoute,
 })
 
 function GoalsRoute() {
   const { propertyId } = Route.useParams()
   const { view } = Route.useSearch()
-  const ctx = authRoute.useRouteContext() as AuthRouteContext
+  const { can: canDo } = usePermissions()
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data } = useSuspenseQuery(goalsQuery(propertyId))
+  const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
   const goals = data.programs.filter(({ program }) =>
     view === 'active' ? program.status !== 'ended' : program.status === 'ended',
   )
+  const matrix = buildGoalResultsMatrix({
+    programs: data.programs,
+    property: { id: propertyId, name: propData.property.name },
+    portalGroups: subjectNames.groups,
+    portals: subjectNames.portals,
+  })
 
   return (
     <PageShell>
@@ -70,7 +96,7 @@ function GoalsRoute() {
           { label: 'Goals' },
         ]}
         actions={
-          can(ctx.role, 'goal.create') ? (
+          canDo('goal.create') ? (
             <Button asChild>
               <Link to="/properties/$propertyId/goals/new" params={{ propertyId }}>
                 <Plus data-icon="inline-start" /> New Goal
@@ -135,6 +161,7 @@ function GoalsRoute() {
           })}
         </div>
       )}
+      {canDo('goal.update') ? <GoalResultsMatrix matrix={matrix} /> : null}
     </PageShell>
   )
 }

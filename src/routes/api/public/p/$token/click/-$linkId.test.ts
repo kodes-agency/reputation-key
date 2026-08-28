@@ -33,6 +33,7 @@ describe('GET /api/public/p/$token/click/$linkId', () => {
     })
     expect(response.status).toBe(302)
     expect(response.headers.get('location')).toBe('https://reviews.example.com/r')
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
     expect(response.headers.get('referrer-policy')).toBe('no-referrer')
   })
 
@@ -46,10 +47,14 @@ describe('GET /api/public/p/$token/click/$linkId', () => {
 
     expect(response.status).toBe(404)
     expect(response.headers.get('location')).toBeNull()
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer')
   })
 
   it('does not disclose a retired token in logs or redirect effects', async () => {
-    mocks.resolvePublicPortalLink.mockRejectedValue(new Error('token unavailable'))
+    mocks.resolvePublicPortalLink.mockRejectedValue(
+      new Error('lookup failed for raw-secret-token'),
+    )
 
     const response = await handlePublicPortalClick({
       token: 'raw-secret-token',
@@ -58,5 +63,9 @@ describe('GET /api/public/p/$token/click/$linkId', () => {
 
     expect(response.status).toBe(404)
     expect(JSON.stringify(mocks.error.mock.calls)).not.toContain('raw-secret-token')
+    expect(mocks.error).toHaveBeenCalledWith(
+      { linkId: 'link-p1', errorCode: 'public_portal_click_unavailable' },
+      '[handler] public Portal click unavailable',
+    )
   })
 })

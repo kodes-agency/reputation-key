@@ -12,6 +12,9 @@ import {
   resolveEscalationFn,
   addInboxNoteFn,
   bulkUpdateInboxStatusFn,
+  bulkAssignInboxItemsFn,
+  markFeedbackHandledFn,
+  correctFeedbackHandlingOutcomeFn,
 } from '#/contexts/inbox/server/inbox'
 import { getActivityTimelineFn } from '#/contexts/activity/server/activity'
 import type { InboxServerFns } from '#/components/inbox/types'
@@ -29,5 +32,8 @@ export const inboxFns: InboxServerFns = {
   resolveEscalation: resolveEscalationFn,
   addInboxNote: addInboxNoteFn,
   bulkUpdateInboxStatus: bulkUpdateInboxStatusFn,
+  bulkAssignInboxItems: bulkAssignInboxItemsFn,
+  markFeedbackHandled: markFeedbackHandledFn,
+  correctFeedbackHandlingOutcome: correctFeedbackHandlingOutcomeFn,
   generateReplySuggestion: generateReplySuggestionFn,
 }

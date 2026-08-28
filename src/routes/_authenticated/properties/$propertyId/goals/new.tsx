@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useForm, useStore } from '@tanstack/react-form'
 import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -12,15 +12,20 @@ import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
-import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
 import { Textarea } from '#/components/ui/textarea'
+import { Field, FieldError, FieldLabel } from '#/components/ui/field'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { SubmitButton } from '#/components/forms/submit-button'
 import {
   GoalSubjectPicker,
+  goalSubjectKey,
   goalSubjectsFromKeys,
-  type GoalSubjectKey,
 } from '#/components/goals/goal-subject-picker'
+import {
+  createGoalProgramFormSchema,
+  type CreateGoalProgramFormInput,
+} from '#/contexts/goal/application/dto/goal-program.dto'
 
 const subjectsQuery = (propertyId: string) =>
   queryOptions({
@@ -74,12 +79,6 @@ function CreateGoalPage() {
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: subjects } = useSuspenseQuery(subjectsQuery(propertyId))
   const navigate = useNavigate()
-  const [metric, setMetric] =
-    useState<(typeof METRICS)[number]['id']>('portal_rating_count')
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [target, setTarget] = useState('')
-  const [selected, setSelected] = useState<GoalSubjectKey[]>([])
   const mutation = useActionMutation(createGoalProgram, {
     successMessage: 'Goal created',
     invalidateKeys: [goalKeys.all],
@@ -90,22 +89,28 @@ function CreateGoalPage() {
       })
     },
   })
-  const selectedMetric = METRICS.find((candidate) => candidate.id === metric)!
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const targetValue = Number(target)
-    if (!name.trim() || !Number.isFinite(targetValue) || selected.length === 0) return
-    mutation({
-      data: {
-        propertyId,
-        name,
-        description: description.trim() || null,
-        metric,
-        targetValue,
-        subjects: goalSubjectsFromKeys(selected),
-      },
-    })
+  const defaultValues: CreateGoalProgramFormInput = {
+    name: '',
+    description: '',
+    metric: 'portal_rating_count',
+    targetValue: 0,
+    subjects: [],
   }
+  const form = useForm({
+    defaultValues,
+    validators: { onSubmit: createGoalProgramFormSchema },
+    onSubmit: async ({ value }) => {
+      await mutation({
+        data: {
+          propertyId,
+          ...value,
+          description: value.description?.trim() || null,
+        },
+      })
+    },
+  })
+  const metric = useStore(form.store, (state) => state.values.metric)
+  const selectedMetric = METRICS.find((candidate) => candidate.id === metric)!
 
   return (
     <PageShell>
@@ -119,68 +124,109 @@ function CreateGoalPage() {
           { label: 'New Goal' },
         ]}
       />
-      <form className="grid max-w-5xl gap-4 lg:grid-cols-2" onSubmit={submit}>
+      <form
+        className="grid max-w-5xl gap-4 lg:grid-cols-2"
+        onSubmit={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          void form.handleSubmit()
+        }}
+      >
         <Card>
           <CardHeader>
             <CardTitle>Goal program</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="goal-name">Name</Label>
-              <Input
-                id="goal-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                required
-                maxLength={200}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="goal-description">Description (optional)</Label>
-              <Textarea
-                id="goal-description"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                maxLength={2_000}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="goal-metric">Metric</Label>
-              <select
-                id="goal-metric"
-                className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                value={metric}
-                onChange={(event) =>
-                  setMetric(event.target.value as (typeof METRICS)[number]['id'])
-                }
-              >
-                {METRICS.map((candidate) => (
-                  <option key={candidate.id} value={candidate.id}>
-                    {candidate.label}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-muted-foreground">
-                {selectedMetric.description}
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="goal-target">Monthly target</Label>
-              <Input
-                id="goal-target"
-                type="number"
-                min="1"
-                max={metric === 'portal_rating_average' ? 5 : undefined}
-                step={metric === 'portal_rating_average' ? 0.1 : 1}
-                value={target}
-                onChange={(event) => setTarget(event.target.value)}
-                required
-              />
-              <p className="text-xs text-muted-foreground">
-                Changes take effect from the next complete month in{' '}
-                {propData.property.name}’s timezone.
-              </p>
-            </div>
+            <form.Field name="name">
+              {(field) => (
+                <Field data-invalid={!field.state.meta.isValid}>
+                  <FieldLabel htmlFor="goal-name">Name</FieldLabel>
+                  <Input
+                    id="goal-name"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    aria-invalid={!field.state.meta.isValid}
+                    maxLength={200}
+                  />
+                  <FieldError errors={field.state.meta.errors} />
+                </Field>
+              )}
+            </form.Field>
+            <form.Field name="description">
+              {(field) => (
+                <Field data-invalid={!field.state.meta.isValid}>
+                  <FieldLabel htmlFor="goal-description">
+                    Description (optional)
+                  </FieldLabel>
+                  <Textarea
+                    id="goal-description"
+                    value={field.state.value ?? ''}
+                    onBlur={field.handleBlur}
+                    onChange={(event) => field.handleChange(event.target.value)}
+                    aria-invalid={!field.state.meta.isValid}
+                    maxLength={2_000}
+                  />
+                  <FieldError errors={field.state.meta.errors} />
+                </Field>
+              )}
+            </form.Field>
+            <form.Field name="metric">
+              {(field) => (
+                <Field data-invalid={!field.state.meta.isValid}>
+                  <FieldLabel htmlFor="goal-metric">Metric</FieldLabel>
+                  <select
+                    id="goal-metric"
+                    className="h-9 w-full rounded-md border bg-background px-3 text-sm"
+                    value={field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) =>
+                      field.handleChange(
+                        event.target.value as (typeof METRICS)[number]['id'],
+                      )
+                    }
+                    aria-invalid={!field.state.meta.isValid}
+                  >
+                    {METRICS.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>
+                        {candidate.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-muted-foreground">
+                    {selectedMetric.description}
+                  </p>
+                  <FieldError errors={field.state.meta.errors} />
+                </Field>
+              )}
+            </form.Field>
+            <form.Field name="targetValue">
+              {(field) => (
+                <Field data-invalid={!field.state.meta.isValid}>
+                  <FieldLabel htmlFor="goal-target">Monthly target</FieldLabel>
+                  <Input
+                    id="goal-target"
+                    type="number"
+                    min="1"
+                    max={metric === 'portal_rating_average' ? 5 : undefined}
+                    step={metric === 'portal_rating_average' ? 0.1 : 1}
+                    value={field.state.value === 0 ? '' : field.state.value}
+                    onBlur={field.handleBlur}
+                    onChange={(event) =>
+                      field.handleChange(
+                        event.target.value === '' ? 0 : Number(event.target.value),
+                      )
+                    }
+                    aria-invalid={!field.state.meta.isValid}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Changes take effect from the next complete month in{' '}
+                    {propData.property.name}’s timezone.
+                  </p>
+                  <FieldError errors={field.state.meta.errors} />
+                </Field>
+              )}
+            </form.Field>
           </CardContent>
         </Card>
 
@@ -189,16 +235,24 @@ function CreateGoalPage() {
             <CardTitle>Subjects</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
-            <GoalSubjectPicker
-              property={{ id: propertyId, name: propData.property.name }}
-              groups={subjects.groups}
-              portals={subjects.portals}
-              selected={selected}
-              onChange={setSelected}
-            />
-            <Button type="submit" disabled={mutation.isPending || selected.length === 0}>
-              {mutation.isPending ? 'Creating…' : 'Create goal'}
-            </Button>
+            <form.Field name="subjects">
+              {(field) => (
+                <Field data-invalid={!field.state.meta.isValid}>
+                  <GoalSubjectPicker
+                    property={{ id: propertyId, name: propData.property.name }}
+                    groups={subjects.groups}
+                    portals={subjects.portals}
+                    selected={field.state.value.map(goalSubjectKey)}
+                    onChange={(keys) => field.handleChange(goalSubjectsFromKeys(keys))}
+                  />
+                  <FieldError errors={field.state.meta.errors} />
+                </Field>
+              )}
+            </form.Field>
+            <FormErrorBanner error={mutation.error} />
+            <SubmitButton mutation={mutation} form={form}>
+              Create goal
+            </SubmitButton>
           </CardContent>
         </Card>
       </form>

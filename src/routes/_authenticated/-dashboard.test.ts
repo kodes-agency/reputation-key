@@ -2,6 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 import { Route } from './dashboard'
 
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000001'
+const COMPLETE_CHECKLIST = { state: 'complete' }
+
+function ensureRouteData(properties: readonly { id: string; name: string }[]) {
+  return vi.fn(async (options: { queryKey?: readonly unknown[] }) =>
+    options.queryKey?.includes('setup-checklist') ? COMPLETE_CHECKLIST : { properties },
+  )
+}
 
 const dashboardLoader = () => {
   const loader = Route.options.loader
@@ -19,9 +26,7 @@ describe('Dashboard route loader', () => {
       dashboardLoader()({
         context: {
           queryClient: {
-            ensureQueryData: vi.fn().mockResolvedValue({
-              properties: [{ id: PROPERTY_ID, name: 'Meridian' }],
-            }),
+            ensureQueryData: ensureRouteData([{ id: PROPERTY_ID, name: 'Meridian' }]),
             ensureInfiniteQueryData,
           },
         },
@@ -41,12 +46,10 @@ describe('Dashboard route loader', () => {
     await dashboardLoader()({
       context: {
         queryClient: {
-          ensureQueryData: vi.fn().mockResolvedValue({
-            properties: [
-              { id: PROPERTY_ID, name: 'Meridian' },
-              { id: '10000000-0000-4000-8000-000000000002', name: 'Harbor' },
-            ],
-          }),
+          ensureQueryData: ensureRouteData([
+            { id: PROPERTY_ID, name: 'Meridian' },
+            { id: '10000000-0000-4000-8000-000000000002', name: 'Harbor' },
+          ]),
           ensureInfiniteQueryData,
         },
       },
@@ -61,12 +64,28 @@ describe('Dashboard route loader', () => {
     await dashboardLoader()({
       context: {
         queryClient: {
-          ensureQueryData: vi.fn().mockResolvedValue({ properties: [] }),
+          ensureQueryData: ensureRouteData([]),
           ensureInfiniteQueryData,
         },
       },
     } as never)
 
+    expect(ensureInfiniteQueryData).not.toHaveBeenCalled()
+  })
+
+  it('keeps an incomplete single-property setup resumable on the Dashboard', async () => {
+    const ensureInfiniteQueryData = vi.fn()
+    const ensureQueryData = vi.fn(async (options: { queryKey?: readonly unknown[] }) =>
+      options.queryKey?.includes('setup-checklist')
+        ? { state: 'in_progress' }
+        : { properties: [{ id: PROPERTY_ID, name: 'Meridian' }] },
+    )
+
+    await expect(
+      dashboardLoader()({
+        context: { queryClient: { ensureQueryData, ensureInfiniteQueryData } },
+      } as never),
+    ).resolves.toBeUndefined()
     expect(ensureInfiniteQueryData).not.toHaveBeenCalled()
   })
 })

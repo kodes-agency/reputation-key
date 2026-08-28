@@ -30,8 +30,9 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/')(
   validateSearch: propertyDashboardSearch,
   staleTime: 60_000,
   loaderDeps: ({ search }) => ({ timeRange: search.timeRange }),
-  loader: ({ params: { propertyId }, deps: { timeRange }, context }) =>
-    context.queryClient.ensureQueryData(overviewQuery(propertyId, timeRange)),
+  loader: async ({ params: { propertyId }, deps: { timeRange }, context }) => {
+    await context.queryClient.ensureQueryData(overviewQuery(propertyId, timeRange))
+  },
   component: PropertyDashboardRoute,
 })
 

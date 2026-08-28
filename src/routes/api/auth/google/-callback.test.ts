@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   admitTenant: vi.fn(),
   redeemState: vi.fn(),
   connectGoogleAccount: vi.fn(),
+  resumeGoogleAccountConnection: vi.fn(),
   warn: vi.fn(),
   error: vi.fn(),
 }))
@@ -35,17 +36,24 @@ vi.mock('#/shared/auth/middleware', () => ({
 }))
 vi.mock('#/composition', () => ({
   getContainer: () => ({
-    useCases: {
-      admitGoogleOAuthCallbackPreState: mocks.admitPreState,
-      admitGoogleOAuthCallbackTenant: mocks.admitTenant,
-      redeemGoogleOAuthState: mocks.redeemState,
-      connectGoogleAccount: mocks.connectGoogleAccount,
+    integrationPublicApi: {
+      oauth: {
+        admitPreState: mocks.admitPreState,
+        admitResolvedTenant: mocks.admitTenant,
+        redeemState: mocks.redeemState,
+      },
+      connections: {
+        connect: mocks.connectGoogleAccount,
+        resume: mocks.resumeGoogleAccountConnection,
+      },
     },
   }),
 }))
 
 const redeemed = {
   ok: true as const,
+  kind: 'exchange' as const,
+  exchangeAttemptId: '60000000-0000-4000-8000-000000000001',
   visibility: 'private' as const,
   purpose: 'import_gbp_v2' as const,
   connectionMode: 'new' as const,
@@ -78,6 +86,7 @@ describe('GET /api/auth/google/callback', () => {
     mocks.admitTenant.mockResolvedValue({ ok: true })
     mocks.redeemState.mockResolvedValue(redeemed)
     mocks.connectGoogleAccount.mockResolvedValue({ id: 'connection-1' })
+    mocks.resumeGoogleAccountConnection.mockResolvedValue({ id: 'connection-1' })
   })
 
   it('admits before inspecting state and returns one indistinguishable failure', async () => {
@@ -157,12 +166,62 @@ describe('GET /api/auth/google/callback', () => {
     expect(mocks.connectGoogleAccount).toHaveBeenCalledWith(
       {
         code: 'provider-secret',
+        exchangeAttemptId: redeemed.exchangeAttemptId,
         visibility: 'private',
         purpose: 'import_gbp_v2',
         connectionMode: 'new',
         targetConnectionId: null,
         verifierMaterial: redeemed.verifierMaterial,
       },
+      { organizationId: 'org-1', userId: 'user-1' },
+    )
+    expect(response.headers.get('location')).toBe(
+      'https://app.example.test/properties/import-google?connectionId=connection-1',
+    )
+  })
+
+  it('preserves the exact reauthorization target through the callback', async () => {
+    mocks.redeemState.mockResolvedValue({
+      ...redeemed,
+      visibility: 'organization',
+      purpose: 'reviews',
+      connectionMode: 'reauth',
+      targetConnectionId: 'connection-7',
+    })
+
+    await handleGoogleOAuthCallback(
+      request('state=v2.v2.secret.handle&code=provider-secret'),
+    )
+
+    expect(mocks.connectGoogleAccount).toHaveBeenCalledWith(
+      {
+        code: 'provider-secret',
+        exchangeAttemptId: redeemed.exchangeAttemptId,
+        visibility: 'organization',
+        purpose: 'reviews',
+        connectionMode: 'reauth',
+        targetConnectionId: 'connection-7',
+        verifierMaterial: redeemed.verifierMaterial,
+      },
+      { organizationId: 'org-1', userId: 'user-1' },
+    )
+  })
+
+  it('resumes a preserved exchange from a recovery tombstone without reusing the provider code', async () => {
+    mocks.redeemState.mockResolvedValue({
+      ok: true,
+      kind: 'recovery',
+      exchangeAttemptId: redeemed.exchangeAttemptId,
+      returnRoute: redeemed.returnRoute,
+    })
+
+    const response = await handleGoogleOAuthCallback(
+      request('state=v2.v2.secret.handle&code=replayed-provider-secret'),
+    )
+
+    expect(mocks.connectGoogleAccount).not.toHaveBeenCalled()
+    expect(mocks.resumeGoogleAccountConnection).toHaveBeenCalledWith(
+      { attemptId: redeemed.exchangeAttemptId },
       { organizationId: 'org-1', userId: 'user-1' },
     )
     expect(response.headers.get('location')).toBe(

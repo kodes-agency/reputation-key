@@ -14,7 +14,6 @@ import { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 import { notificationFns } from '#/routes/-notification-fns'
 import type { Role } from '#/shared/domain/roles'
 import type { ClientAuthz } from '#/shared/domain/auth-context'
-import { EMPTY_CLIENT_AUTHZ } from '#/shared/domain/auth-context'
 import {
   EMPTY_CAPABILITY_SET,
   getCapabilitySet,
@@ -74,21 +73,19 @@ export const Route = createFileRoute('/_authenticated')({
       })
     }
 
-    let role: Role = 'Staff'
-    let authz: ClientAuthz = EMPTY_CLIENT_AUTHZ
-    let activeOrganization: {
-      id: string
-      name: string
-      slug: string
-      contactEmail: string | null
-    } | null = null
+    let resolvedOrganization: Readonly<{
+      role: Role
+      authz: ClientAuthz
+      activeOrganization: NonNullable<AuthRouteContext['activeOrganization']>
+    }>
 
     // Resolved in parallel with the organization lookup: it reads the tenant
     // from the same request headers and does not depend on that result.
     // Property-scoped when a property is in scope, because policy allowlists
-    // per property. A failure (no active org yet, transient) yields the empty
-    // posture rather than an error — this set is a navigation affordance, and
-    // the route gates remain the boundary.
+    // per property. A failure yields the empty posture rather than an error —
+    // this set is a navigation affordance, and the route gates remain the
+    // boundary. Missing active-Organization state is handled separately below
+    // before any tenant shell or loader can mount.
     const scopedPropertyId = propertyIdFromLocation(location.pathname, location.search)
     const capabilitiesPromise: Promise<CapabilityResolution> = getCapabilitySet({
       data: scopedPropertyId ? { propertyId: scopedPropertyId } : {},
@@ -101,25 +98,35 @@ export const Route = createFileRoute('/_authenticated')({
     //  1. isRedirect — always forward (e.g., auth middleware redirects).
     //  2. availability: disabled — the entire workspace is intentionally dark;
     //     redirect before rendering any authenticated surface.
-    //  3. no_active_org — expected for new users who haven't selected an org yet;
-    //     silently default to Staff role with no active organization.
+    //  3. no_active_org — expected for an account awaiting access; route to the
+    //     explicit invitation/support state before the tenant shell loads.
     //  4. Everything else — propagate to the route error boundary.
     try {
       const org = await getActiveOrganization()
       if (org.availability === 'disabled') {
         throw redirect({ to: '/unavailable', search: { feature: 'Workspace' } })
       }
-      if (org.role) {
-        role = org.role as Role
-      }
-      authz = org.authz
       if (org.organization) {
-        activeOrganization = {
-          id: org.organization.id,
-          name: org.organization.name,
-          slug: org.organization.slug,
-          contactEmail: org.organization.contactEmail,
+        resolvedOrganization = {
+          role: org.role ? (org.role as Role) : 'Staff',
+          authz: org.authz,
+          activeOrganization: {
+            id: org.organization.id,
+            name: org.organization.name,
+            slug: org.organization.slug,
+            contactEmail: org.organization.contactEmail,
+          },
         }
+      } else {
+        // A signed-in account without an active Organization must not fall
+        // through to the Staff shell. That shell immediately asks for
+        // tenant-scoped Properties and turns the expected invitation/no-access
+        // state into a failed loader. Keep it outside the tenant shell and
+        // point the person at the existing invitation recovery journey.
+        throw redirect({
+          to: '/unavailable',
+          search: { reason: 'workspace_access' },
+        })
       }
     } catch (e) {
       if (isRedirect(e)) throw e
@@ -131,7 +138,10 @@ export const Route = createFileRoute('/_authenticated')({
           ? (e as { code: string }).code
           : null
       if (errorCode === 'no_active_org') {
-        console.info('[beforeLoad] No active organization selected — using defaults')
+        throw redirect({
+          to: '/unavailable',
+          search: { reason: 'workspace_access' },
+        })
       } else {
         // Unexpected error — propagate to error boundary.
         throw e
@@ -150,17 +160,16 @@ export const Route = createFileRoute('/_authenticated')({
         email: session.user.email,
         image: session.user.image ?? null,
       },
-      role,
-      authz,
+      role: resolvedOrganization.role,
+      authz: resolvedOrganization.authz,
       capabilities: capabilityResolution.ok
         ? capabilityResolution.capabilities
         : EMPTY_CAPABILITY_SET,
-      activeOrganization,
+      activeOrganization: resolvedOrganization.activeOrganization,
     } satisfies AuthRouteContext
   },
   loader: async ({ context }) => {
-    const props = await context.queryClient.ensureQueryData(propertiesQuery)
-    return { properties: props.properties }
+    await context.queryClient.ensureQueryData(propertiesQuery)
   },
   // The property list rarely changes. It is cached via Query and refetched by
   // targeted invalidation after property mutations.

@@ -1,7 +1,7 @@
 // Property-scoped reviews = the inbox triage surface filtered by this property.
 // propertyId comes from the route param (path), NOT from search params.
 import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { InboxPageV2 } from '#/components/inbox/inbox-page-v2'
@@ -10,7 +10,11 @@ import {
   normalizeInboxRatingPreset,
 } from '#/components/inbox/inbox-search-schema'
 import { inboxFns } from '#/routes/_authenticated/-inbox-fns'
-import { propertiesQuery } from '#/routes/-queries/route-queries'
+import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
+import {
+  canListInboxAssignmentCandidates,
+  toInboxAssignmentOptions,
+} from '#/routes/_authenticated/inbox/-assignment-candidates'
 
 const authRoute = getRouteApi('/_authenticated')
 const propertyRoute = getRouteApi('/_authenticated/properties/$propertyId')
@@ -33,6 +37,11 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/rev
 function PropertyReviewsRoute() {
   const ctx = authRoute.useRouteContext() as AuthRouteContext
   const { data: propsData } = useSuspenseQuery(propertiesQuery)
+  const mayListAssignmentCandidates = canListInboxAssignmentCandidates(ctx.role)
+  const { data: membersData } = useQuery({
+    ...membersQuery,
+    enabled: mayListAssignmentCandidates,
+  })
   const { propertyId } = propertyRoute.useParams()
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
@@ -43,11 +52,13 @@ function PropertyReviewsRoute() {
       search={search}
       activePropertyId={propertyId}
       properties={propsData.properties}
+      assignmentOptions={toInboxAssignmentOptions(membersData?.members ?? [])}
       inboxFns={inboxFns}
       onNavigate={(opts) =>
         navigate({
           to: opts.to,
           search: opts.search(search),
+          replace: opts.replace,
         })
       }
       onPropertyChange={(id) => {

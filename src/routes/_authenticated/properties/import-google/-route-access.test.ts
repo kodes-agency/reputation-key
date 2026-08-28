@@ -3,21 +3,21 @@ import type { Role } from '#/shared/domain/roles'
 import { requireGoogleImportRole } from './-route-access'
 
 describe('requireGoogleImportRole', () => {
-  it.each<Role>(['AccountAdmin', 'PropertyManager'])(
-    'allows %s to enter every Google import route',
+  it('allows AccountAdmin to enter every Google import route', () => {
+    expect(() => requireGoogleImportRole('AccountAdmin')).not.toThrow()
+  })
+
+  it.each<Role>(['PropertyManager', 'Staff'])(
+    'redirects %s before an import detail route can load',
     (role) => {
-      expect(() => requireGoogleImportRole(role)).not.toThrow()
+      let thrown: unknown
+      try {
+        requireGoogleImportRole(role)
+      } catch (error) {
+        thrown = error
+      }
+
+      expect(thrown).toMatchObject({ options: { to: '/properties' } })
     },
   )
-
-  it('redirects Staff before an import detail route can load', () => {
-    let thrown: unknown
-    try {
-      requireGoogleImportRole('Staff')
-    } catch (error) {
-      thrown = error
-    }
-
-    expect(thrown).toMatchObject({ options: { to: '/properties' } })
-  })
 })

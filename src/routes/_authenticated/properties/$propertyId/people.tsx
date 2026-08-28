@@ -76,18 +76,11 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
   validateSearch: (search) => peopleSearchSchema.parse(search),
   staleTime: 30_000,
   loader: async ({ params: { propertyId }, context }) => {
-    const [{ participations, responsibilities }, { members }, portalResult] =
-      await Promise.all([
-        context.queryClient.ensureQueryData(participationsQuery(propertyId)),
-        context.queryClient.ensureQueryData(membersQuery),
-        context.queryClient.ensureQueryData(portalsQuery(propertyId)),
-      ])
-    return {
-      participations,
-      responsibilities,
-      members,
-      ...portalResult,
-    }
+    await Promise.all([
+      context.queryClient.ensureQueryData(participationsQuery(propertyId)),
+      context.queryClient.ensureQueryData(membersQuery),
+      context.queryClient.ensureQueryData(portalsQuery(propertyId)),
+    ])
   },
   component: PeopleRoute,
 })

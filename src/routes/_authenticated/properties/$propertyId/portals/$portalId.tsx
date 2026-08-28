@@ -12,14 +12,22 @@ import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import {
   completeContentReview,
+  approvePortalApprovedDestination,
+  disablePortalApprovedDestination,
   finalizeUpload,
+  getPropertyPortalExperience,
   getPortal,
   getPortalPublicationHistory,
   listPortals,
+  listPortalApprovedDestinations,
   issuePortalToken,
   requestUploadUrl,
+  requestPortalApprovedDestination,
   revokePortalTokens,
   rotatePortalToken,
+  savePortalLocalizedOverride,
+  savePropertyPortalBrandContent,
+  savePropertyPortalBrandProfile,
   updatePortal,
 } from '#/contexts/portal/server/portals'
 import { listPortalLinks } from '#/contexts/portal/server/portal-links'
@@ -96,6 +104,20 @@ const portalPublicationHistoryQuery = (portalId: string) =>
     staleTime: 30_000,
   })
 
+const portalExperienceQuery = (propertyId: string, portalId: string) =>
+  queryOptions({
+    queryKey: portalKeys.experience(propertyId, portalId),
+    queryFn: () => getPropertyPortalExperience({ data: { propertyId, portalId } }),
+    staleTime: 30_000,
+  })
+
+const portalApprovedDestinationsQuery = (portalId: string) =>
+  queryOptions({
+    queryKey: portalKeys.approvedDestinations(portalId),
+    queryFn: () => listPortalApprovedDestinations({ data: { portalId } }),
+    staleTime: 30_000,
+  })
+
 const membersQuery = queryOptions({
   queryKey: identityKeys.members(),
   queryFn: () => listMembers(),
@@ -158,7 +180,7 @@ export const Route = createFileRoute(
     // simply absent from this collection, so it lands here — identical to a
     // removed portal, which is the point.
     if (!portal) throw notFound()
-    const [, { categories, links }] = await Promise.all([
+    await Promise.all([
       // The detail entry is FETCHED, not seeded from the list row: `getPortal`
       // also returns `tokenStatus` (C2), which no list row carries, so a
       // hand-built `{ portal }` seed would leave the Share tab reading
@@ -168,13 +190,13 @@ export const Route = createFileRoute(
       context.queryClient.ensureQueryData(responsibleManagersQuery(params.portalId)),
       context.queryClient.ensureQueryData(membersQuery),
       context.queryClient.ensureQueryData(portalPublicationHistoryQuery(params.portalId)),
+      context.queryClient.ensureQueryData(
+        portalExperienceQuery(params.propertyId, params.portalId),
+      ),
+      context.queryClient.ensureQueryData(
+        portalApprovedDestinationsQuery(params.portalId),
+      ),
     ])
-    return {
-      portal,
-      categories,
-      links,
-      propertyId: params.propertyId,
-    }
   },
   component: PortalDetailRoute,
   pendingComponent: PortalDetailLoading,
@@ -259,6 +281,12 @@ function usePortalUpdateAction(propertyId: string, portalId: string) {
         queryClient.invalidateQueries({ queryKey: portalKeys.detail(portalId) }),
         queryClient.invalidateQueries({ queryKey: portalKeys.links(portalId) }),
         queryClient.invalidateQueries({ queryKey: portalKeys.list(propertyId) }),
+        queryClient.invalidateQueries({
+          queryKey: portalKeys.experience(propertyId, portalId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: portalKeys.publicationHistory(portalId),
+        }),
       ])
     },
   })
@@ -285,6 +313,13 @@ function PortalDetailRoute() {
   const { data: publicationHistory } = useSuspenseQuery(
     portalPublicationHistoryQuery(portalId),
   )
+  const { data: portalExperience } = useSuspenseQuery(
+    portalExperienceQuery(propertyId, portalId),
+  )
+  const { data: approvedDestinations } = useSuspenseQuery(
+    portalApprovedDestinationsQuery(portalId),
+  )
+  const loadMorePublicationHistory = useActionMutation(getPortalPublicationHistory)
   const { portal, tokenStatus } = portalData
   const { categories, links } = linksData
   const { property } = propData
@@ -318,6 +353,39 @@ function PortalDetailRoute() {
       ],
     },
   )
+  const experienceInvalidations = [
+    portalKeys.experience(propertyId, portalId),
+    portalKeys.publicationHistory(portalId),
+  ]
+  const saveProfileMutation = useActionMutation(savePropertyPortalBrandProfile, {
+    successMessage: 'Property brand saved',
+    invalidateKeys: experienceInvalidations,
+  })
+  const saveContentMutation = useActionMutation(savePropertyPortalBrandContent, {
+    successMessage: 'Guest content saved',
+    invalidateKeys: experienceInvalidations,
+  })
+  const saveOverrideMutation = useActionMutation(savePortalLocalizedOverride, {
+    successMessage: 'Portal wording saved',
+    invalidateKeys: experienceInvalidations,
+  })
+  const destinationInvalidations = [
+    portalKeys.approvedDestinations(portalId),
+    portalKeys.publicationHistory(portalId),
+    portalKeys.links(portalId),
+  ]
+  const requestDestinationMutation = useActionMutation(requestPortalApprovedDestination, {
+    successMessage: 'Destination added',
+    invalidateKeys: destinationInvalidations,
+  })
+  const approveDestinationMutation = useActionMutation(approvePortalApprovedDestination, {
+    successMessage: 'Destination approved',
+    invalidateKeys: destinationInvalidations,
+  })
+  const disableDestinationMutation = useActionMutation(disablePortalApprovedDestination, {
+    successMessage: 'Destination disabled',
+    invalidateKeys: destinationInvalidations,
+  })
   const requestUploadUrlFn = useServerFn(requestUploadUrl)
   const finalizeUploadFn = useServerFn(finalizeUpload)
 
@@ -342,6 +410,7 @@ function PortalDetailRoute() {
           retrievedAt: property.googleReviewDestination?.retrievedAt ?? null,
         }}
         publicationHistory={publicationHistory}
+        loadMorePublicationHistory={loadMorePublicationHistory}
         categories={categories}
         links={links}
         activeTab={tab}
@@ -363,6 +432,16 @@ function PortalDetailRoute() {
         responsibleManagers={responsibleManagers}
         responsibleManagerMembers={membersData.members}
         updateResponsibleManagersMutation={updateResponsibleManagersMutation}
+        portalExperience={portalExperience}
+        approvedDestinations={approvedDestinations}
+        portalExperienceActions={{
+          saveProfile: saveProfileMutation,
+          saveContent: saveContentMutation,
+          saveOverride: saveOverrideMutation,
+          requestDestination: requestDestinationMutation,
+          approveDestination: approveDestinationMutation,
+          disableDestination: disableDestinationMutation,
+        }}
       />
     </PageShell>
   )

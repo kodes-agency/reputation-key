@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createOneClickUnsubscribeToken } from '#/contexts/notification/application/one-click-unsubscribe-token'
-import { handleOneClickUnsubscribePost } from '#/contexts/notification/server/one-click-unsubscribe'
+import { createOneClickUnsubscribePostHandler } from '#/contexts/notification/server/one-click-unsubscribe'
 
 const KEYS = `v1:${'11'.repeat(32)}`
 const TARGET = {
@@ -14,18 +14,16 @@ const mocks = vi.hoisted(() => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }))
 
-vi.mock('#/shared/config/env', () => ({
-  getEnv: () => ({ NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS: mocks.keys.value }),
-}))
-vi.mock('#/composition', () => ({
-  getContainer: () => ({
-    notificationPublicApi: { oneClickUnsubscribe: mocks.apply },
-  }),
-}))
-vi.mock('#/shared/observability/logger', () => ({ getLogger: () => mocks.logger }))
 vi.mock('#/shared/observability/trace', () => ({
   trace: (_name: string, callback: () => Promise<unknown>) => callback(),
 }))
+
+const handleOneClickUnsubscribePost = (request: Request) =>
+  createOneClickUnsubscribePostHandler({
+    rawKeys: mocks.keys.value,
+    logger: mocks.logger as never,
+    oneClickUnsubscribe: mocks.apply,
+  })(request)
 
 function request(token: string, body = 'List-Unsubscribe=One-Click'): Request {
   return new Request(

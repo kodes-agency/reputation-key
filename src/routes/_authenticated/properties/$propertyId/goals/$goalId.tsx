@@ -3,6 +3,7 @@ import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import {
+  changeGoalProgramAssignments,
   changeGoalProgramStatus,
   getGoalProgram,
   reviseGoalProgram,
@@ -19,6 +20,7 @@ import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { GoalProgramRevisionDialog } from '#/components/goals/goal-program-revision-dialog'
+import { GoalProgramAssignmentsDialog } from '#/components/goals/goal-program-assignments-dialog'
 
 const authRoute = getRouteApi('/_authenticated')
 const goalQuery = (propertyId: string, programId: string) =>
@@ -102,7 +104,7 @@ function GoalDetailRoute() {
   }
 
   return (
-    <PageShell>
+    <PageShell key={`${propertyId}:${goalId}`}>
       <PageHeader
         title={program.name}
         description={program.description ?? 'Monthly Goal Program'}
@@ -115,6 +117,15 @@ function GoalDetailRoute() {
         actions={
           canManage && program.status !== 'ended' ? (
             <div className="flex gap-2">
+              <GoalProgramAssignmentsDialog
+                changeAssignmentsFn={changeGoalProgramAssignments}
+                property={{ id: propertyId, name: propData.property.name }}
+                programId={program.id}
+                currentVersion={version.version}
+                assignments={currentAssignments}
+                groups={subjectNames.groups}
+                portals={subjectNames.portals}
+              />
               <GoalProgramRevisionDialog
                 reviseGoalProgramFn={reviseGoalProgram}
                 property={{ id: propertyId, name: propData.property.name }}
@@ -232,6 +243,7 @@ function GoalDetailRoute() {
                       {resultVersion?.targetValue ?? '—'}
                     </p>
                     <Badge variant="outline">
+                      {result.revision ? 'Corrected · ' : ''}
                       {result.evaluation.state === 'eligible'
                         ? result.evaluation.achieved
                           ? 'Achieved'

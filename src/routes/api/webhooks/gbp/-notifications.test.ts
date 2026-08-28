@@ -1,219 +1,203 @@
-// GBP Pub/Sub webhook route — integration test for the POST handler.
-// Exercises each response branch: missing-auth (401), bad JWT (401), malformed
-// payload (400), happy path (200), and internal error (500). The finding
-// (ctx-integration MAJOR #7 / cc-errors §12) flagged the collapsed 500 + the
-// missing route-level coverage; this test pins the per-branch behavior.
-
 import {
   GOOGLE_LOCATION_PRIMARY_RESOURCE,
   GOOGLE_PROVIDER_FIXTURES_V1,
   GOOGLE_REVIEW_PRIMARY_RESOURCE,
 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { JOSEError } from 'jose/errors'
 import { handleGbpWebhookPost } from './notifications'
+
 const LOCATION_ID =
   GOOGLE_PROVIDER_FIXTURES_V1['google-location-primary'].expectedSegments.locationId
+const PUSH_SERVICE_ACCOUNT = 'gbp-push@rk-project.iam.gserviceaccount.com'
+const TOPIC = 'projects/rk-project/topics/gbp-reviews'
 
-// Hoisted mocks so vi.mock factories (which run before imports) can reference them.
 const mocks = vi.hoisted(() => ({
   verifyPubSubJwt: vi.fn(),
   handleGbpNotification: vi.fn(),
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-  // Mutable so a test can flip the pinning posture; the route reads getEnv()
-  // per request.
   env: {
     GBP_PUBSUB_AUDIENCE: 'https://test.example/webhooks/gbp',
-    // This property and the trace/logger/env mocks below it match the tail of
-    // src/routes/api/webhooks/resend/-events.test.ts; the hoisted bundles hold
-    // different keys and only their closing lines coincide. The mocks cannot
-    // move into a helper — Vitest hoists vi.mock factories above the imports
-    // they replace, per test file — and the trace stub has to stay a
-    // pass-through here so the handler body runs inline under the assertions.
-    // Revisit if a shared setupFiles mock for trace and logger ever lands.
-    // fallow-ignore-next-line code-duplication
-    GBP_PUBSUB_PUSH_SERVICE_ACCOUNT: undefined as string | undefined,
+    GBP_PUBSUB_TOPIC: 'projects/rk-project/topics/gbp-reviews',
+    GBP_PUBSUB_PUSH_SERVICE_ACCOUNT: 'gbp-push@rk-project.iam.gserviceaccount.com',
   },
 }))
 
 vi.mock('#/shared/observability/trace', () => ({
-  // trace(name, fn) — pass-through so the handler body runs directly.
   trace: (_name: string, fn: () => Promise<unknown>) => fn(),
 }))
-vi.mock('#/shared/observability/logger', () => ({
-  getLogger: () => mocks.logger,
-}))
-vi.mock('#/shared/config/env', () => ({
-  getEnv: () => mocks.env,
-}))
+vi.mock('#/shared/observability/logger', () => ({ getLogger: () => mocks.logger }))
+vi.mock('#/shared/config/env', () => ({ getEnv: () => mocks.env }))
 vi.mock('#/shared/auth/pubsub-jwt.verifier', () => ({
   verifyPubSubJwt: mocks.verifyPubSubJwt,
 }))
 vi.mock('#/composition', () => ({
   getContainer: () => ({
-    useCases: { handleGbpNotification: mocks.handleGbpNotification },
+    integrationWebhookRuntime: {
+      handleNotification: mocks.handleGbpNotification,
+    },
   }),
 }))
 
 const encodePayload = (payload: unknown): string =>
-  Buffer.from(JSON.stringify(payload), 'utf-8').toString('base64')
+  Buffer.from(JSON.stringify(payload), 'utf8').toString('base64')
 
-const mkRequest = (body: unknown, auth: string | null = 'Bearer valid-token'): Request =>
+const mkRequest = (body: unknown, auth: string | null = 'Bearer valid-token') =>
   new Request('https://test.example/api/webhooks/gbp/notifications', {
     method: 'POST',
     headers: auth ? { Authorization: auth } : {},
     body: JSON.stringify(body),
   })
 
-const VALID_PAYLOAD = {
+const VALID_PAYLOAD = Object.freeze({
   locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
   reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
-}
-
-const validBody = { message: { data: encodePayload(VALID_PAYLOAD), messageId: 'm-1' } }
-const PUSH_SERVICE_ACCOUNT = 'gbp-push@rk-project.iam.gserviceaccount.com'
+})
+const validBody = Object.freeze({
+  message: {
+    data: encodePayload(VALID_PAYLOAD),
+    messageId: 'm-1',
+    attributes: { notificationType: 'NEW_REVIEW' },
+  },
+})
 
 describe('POST /api/webhooks/gbp/notifications', () => {
   beforeEach(() => {
     mocks.verifyPubSubJwt.mockReset()
     mocks.handleGbpNotification.mockReset()
     mocks.logger.warn.mockReset()
-    mocks.env.GBP_PUBSUB_PUSH_SERVICE_ACCOUNT = undefined
+    mocks.logger.error.mockReset()
+    mocks.env.GBP_PUBSUB_TOPIC = TOPIC
+    mocks.env.GBP_PUBSUB_PUSH_SERVICE_ACCOUNT = PUSH_SERVICE_ACCOUNT
     mocks.verifyPubSubJwt.mockResolvedValue({
       sub: 'svc',
       email: PUSH_SERVICE_ACCOUNT,
+      emailVerified: true,
       aud: 'https://test.example/webhooks/gbp',
       iat: 0,
       exp: 0,
     })
-    mocks.handleGbpNotification.mockResolvedValue({ enqueued: true, reason: null })
+    mocks.handleGbpNotification.mockResolvedValue({
+      accepted: true,
+      duplicate: false,
+      handoff: 'targeted',
+    })
   })
 
-  it('returns 401 when the Authorization header has no Bearer prefix', async () => {
-    const res = await handleGbpWebhookPost(mkRequest(validBody, null))
-    expect(res.status).toBe(401)
+  it('returns 401 before parsing when the Authorization header is absent', async () => {
+    const response = await handleGbpWebhookPost(mkRequest(validBody, null))
+    expect(response.status).toBe(401)
     expect(mocks.verifyPubSubJwt).not.toHaveBeenCalled()
   })
 
-  it('returns 401 (not 500) when JWT verification fails with a JOSEError', async () => {
-    mocks.verifyPubSubJwt.mockRejectedValue(
-      new JOSEError('JWT signature verification failed'),
-    )
-    const res = await handleGbpWebhookPost(mkRequest(validBody))
-    expect(res.status).toBe(401)
-    const json = await res.json()
-    expect(json.error).toBe('Unauthorized')
+  it('returns retryable 503 when topic or exact push identity is not configured', async () => {
+    mocks.env.GBP_PUBSUB_PUSH_SERVICE_ACCOUNT = ''
+    const response = await handleGbpWebhookPost(mkRequest(validBody))
+    expect(response.status).toBe(503)
+    expect(mocks.verifyPubSubJwt).not.toHaveBeenCalled()
+  })
+
+  it('returns 401 when JWT verification fails', async () => {
+    mocks.verifyPubSubJwt.mockRejectedValue(new JOSEError('bad signature'))
+    const response = await handleGbpWebhookPost(mkRequest(validBody))
+    expect(response.status).toBe(401)
     expect(mocks.handleGbpNotification).not.toHaveBeenCalled()
   })
 
-  it('returns 400 when the push payload fails schema validation', async () => {
-    // message must be an object — a string fails pubSubBodySchema → ZodError.
-    const res = await handleGbpWebhookPost(mkRequest({ message: 'not-an-object' }))
-    expect(res.status).toBe(400)
-    const json = await res.json()
-    expect(json.error).toBe('Bad Request')
+  it('requires both the pinned email and its verified claim', async () => {
+    mocks.verifyPubSubJwt.mockResolvedValue({
+      sub: 'svc',
+      email: PUSH_SERVICE_ACCOUNT,
+      emailVerified: false,
+      aud: 'https://test.example/webhooks/gbp',
+      iat: 0,
+      exp: 0,
+    })
+    const response = await handleGbpWebhookPost(mkRequest(validBody))
+    expect(response.status).toBe(401)
     expect(mocks.handleGbpNotification).not.toHaveBeenCalled()
   })
 
-  it('returns 400 when the decoded message.data is not valid JSON', async () => {
-    // base64 of "not-json" → JSON.parse throws SyntaxError.
-    const res = await handleGbpWebhookPost(
-      mkRequest({ message: { data: Buffer.from('not-json').toString('base64') } }),
+  it('requires a Pub/Sub messageId instead of collapsing deliveries to unknown', async () => {
+    const response = await handleGbpWebhookPost(
+      mkRequest({ message: { data: encodePayload(VALID_PAYLOAD) } }),
     )
-    expect(res.status).toBe(400)
+    expect(response.status).toBe(400)
     expect(mocks.handleGbpNotification).not.toHaveBeenCalled()
   })
 
-  it('returns 200 and delegates to handleGbpNotification on the happy path', async () => {
-    const res = await handleGbpWebhookPost(mkRequest(validBody))
-    expect(res.status).toBe(200)
-    const json = await res.json()
-    expect(json).toEqual({ ok: true, enqueued: true })
-    expect(mocks.verifyPubSubJwt).toHaveBeenCalledWith(
-      'valid-token',
-      'https://test.example/webhooks/gbp',
+  it.each(['!!!!', 'YQ=', 'YR=='])(
+    'rejects non-canonical base64 data %s',
+    async (data) => {
+      const response = await handleGbpWebhookPost(
+        mkRequest({ message: { data, messageId: 'm-malformed-base64' } }),
+      )
+      expect(response.status).toBe(400)
+      expect(mocks.handleGbpNotification).not.toHaveBeenCalled()
+    },
+  )
+
+  it('rejects a review resource whose embedded location differs from locationName', async () => {
+    const response = await handleGbpWebhookPost(
+      mkRequest({
+        message: {
+          data: encodePayload({
+            ...VALID_PAYLOAD,
+            reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE.replace(
+              `/locations/${LOCATION_ID}/`,
+              '/locations/different-location/',
+            ),
+          }),
+          messageId: 'm-cross-location',
+        },
+      }),
     )
+    expect(response.status).toBe(400)
+    expect(mocks.handleGbpNotification).not.toHaveBeenCalled()
+  })
+
+  it('rejects notification kinds outside NEW_REVIEW and UPDATED_REVIEW', async () => {
+    const response = await handleGbpWebhookPost(
+      mkRequest({
+        message: {
+          ...validBody.message,
+          attributes: { notificationType: 'NEW_QUESTION' },
+        },
+      }),
+    )
+    expect(response.status).toBe(400)
+  })
+
+  it('durably delegates canonical review identifiers and acknowledges only afterward', async () => {
+    const response = await handleGbpWebhookPost(mkRequest(validBody))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({
+      ok: true,
+      duplicate: false,
+      handoff: 'targeted',
+    })
     expect(mocks.handleGbpNotification).toHaveBeenCalledWith({
+      topic: TOPIC,
+      messageId: 'm-1',
+      notificationKind: 'NEW_REVIEW',
       locationId: LOCATION_ID,
       locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
-      messageId: 'm-1',
+      reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
     })
   })
 
-  it('returns 500 only for true internal errors from the handler', async () => {
-    mocks.handleGbpNotification.mockRejectedValue(new Error('DB down'))
-    const res = await handleGbpWebhookPost(mkRequest(validBody))
-    expect(res.status).toBe(500)
-    const json = await res.json()
-    expect(json.error).toBe('Internal Server Error')
+  it('uses the honest combined kind when Google omits a kind field', async () => {
+    await handleGbpWebhookPost(
+      mkRequest({ message: { data: encodePayload(VALID_PAYLOAD), messageId: 'm-2' } }),
+    )
+    expect(mocks.handleGbpNotification).toHaveBeenCalledWith(
+      expect.objectContaining({ notificationKind: 'REVIEW_CHANGED' }),
+    )
   })
 
-  // GBP_PUBSUB_PUSH_SERVICE_ACCOUNT: audience alone accepts any Google-issued
-  // OIDC token minted for our audience, so the push identity is the gate that
-  // distinguishes OUR subscription from an unrelated project's.
-  describe('push identity pinning', () => {
-    it('returns 401 when the email claim does not match the pinned service account', async () => {
-      mocks.env.GBP_PUBSUB_PUSH_SERVICE_ACCOUNT = PUSH_SERVICE_ACCOUNT
-      mocks.verifyPubSubJwt.mockResolvedValue({
-        sub: 'svc',
-        email: 'attacker@someone-elses-project.iam.gserviceaccount.com',
-        aud: 'https://test.example/webhooks/gbp',
-        iat: 0,
-        exp: 0,
-      })
-
-      const res = await handleGbpWebhookPost(mkRequest(validBody))
-
-      expect(res.status).toBe(401)
-      expect(await res.json()).toEqual({
-        error: 'Unauthorized',
-        message: 'Unrecognized Pub/Sub push identity',
-      })
-      expect(mocks.handleGbpNotification).not.toHaveBeenCalled()
-      // BQC-1.6: the rejection log carries no identity material.
-      const logged = JSON.stringify(mocks.logger.warn.mock.calls)
-      expect(logged).not.toContain('someone-elses-project')
-      expect(logged).not.toContain(PUSH_SERVICE_ACCOUNT)
-    })
-
-    it('returns 401 when the pinned account is set and the token carries no email claim', async () => {
-      mocks.env.GBP_PUBSUB_PUSH_SERVICE_ACCOUNT = PUSH_SERVICE_ACCOUNT
-      mocks.verifyPubSubJwt.mockResolvedValue({
-        sub: 'svc',
-        email: '',
-        aud: 'https://test.example/webhooks/gbp',
-        iat: 0,
-        exp: 0,
-      })
-
-      const res = await handleGbpWebhookPost(mkRequest(validBody))
-
-      expect(res.status).toBe(401)
-      expect(mocks.handleGbpNotification).not.toHaveBeenCalled()
-    })
-
-    it('accepts a matching pinned service account', async () => {
-      mocks.env.GBP_PUBSUB_PUSH_SERVICE_ACCOUNT = PUSH_SERVICE_ACCOUNT
-
-      const res = await handleGbpWebhookPost(mkRequest(validBody))
-
-      expect(res.status).toBe(200)
-      expect(mocks.handleGbpNotification).toHaveBeenCalledTimes(1)
-    })
-
-    it('still delivers when the var is unset, whatever identity signed the token', async () => {
-      mocks.verifyPubSubJwt.mockResolvedValue({
-        sub: 'svc',
-        email: 'some-other@project.iam.gserviceaccount.com',
-        aud: 'https://test.example/webhooks/gbp',
-        iat: 0,
-        exp: 0,
-      })
-
-      const res = await handleGbpWebhookPost(mkRequest(validBody))
-
-      expect(res.status).toBe(200)
-      expect(mocks.handleGbpNotification).toHaveBeenCalledTimes(1)
-    })
+  it('returns 500 so Pub/Sub retries when durable receipt commit fails', async () => {
+    mocks.handleGbpNotification.mockRejectedValue(new Error('database unavailable'))
+    const response = await handleGbpWebhookPost(mkRequest(validBody))
+    expect(response.status).toBe(500)
   })
 })

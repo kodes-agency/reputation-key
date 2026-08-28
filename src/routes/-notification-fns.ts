@@ -2,7 +2,7 @@
 // Routes are the sanctioned site for importing server fns (CONTEXT.md:55);
 // components receive this bundle as a prop and never value-import server/.
 import {
-  getUnreadNotificationCountFn,
+  getNotificationFeedHeadFn,
   getNotificationsFn,
   markNotificationReadFn,
   markNotificationUnreadFn,
@@ -15,7 +15,7 @@ import {
 import type { NotificationServerFns } from '#/components/features/notification/types'
 
 export const notificationFns: NotificationServerFns = {
-  getUnreadCount: getUnreadNotificationCountFn,
+  getFeedHead: getNotificationFeedHeadFn,
   getList: getNotificationsFn,
   markRead: markNotificationReadFn,
   markUnread: markNotificationUnreadFn,

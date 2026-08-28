@@ -43,7 +43,6 @@ export const Route = createFileRoute('/_authenticated/settings/notifications')({
       context.queryClient.ensureQueryData(userSettingsQuery(organizationId)),
       context.queryClient.ensureQueryData(propertiesQuery),
     ])
-    return { organizationId }
   },
   staleTime: 60_000,
   component: NotificationsSettings,

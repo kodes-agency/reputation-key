@@ -1,9 +1,9 @@
 // Portal list — shows all portals for a property
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { listPortals, deletePortal } from '#/contexts/portal/server/portals'
+import { listPortals, updatePortal } from '#/contexts/portal/server/portals'
 import {
   addPortalToGroup,
   createPortalGroup,
@@ -20,6 +20,7 @@ import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { ErrorState, LoadingState } from '#/components/layout/page-states'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
+import { portalGroupCachePolicy } from '#/components/features/portal/portal-group-cache-policy'
 
 const portalsQuery = (propertyId: string) =>
   queryOptions({
@@ -49,15 +50,10 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/por
   },
   staleTime: 30_000,
   loader: async ({ params, context }) => {
-    const [{ portals }, { groups }] = await Promise.all([
+    await Promise.all([
       context.queryClient.ensureQueryData(portalsQuery(params.propertyId)),
       context.queryClient.ensureQueryData(portalGroupsQuery(params.propertyId)),
     ])
-    return {
-      portals,
-      groups,
-      propertyId: params.propertyId,
-    }
   },
   pendingComponent: PortalListLoading,
   errorComponent: PortalListError,
@@ -83,6 +79,7 @@ function PortalListError({ error }: { error: Error }) {
 
 function PortalListRoute() {
   const { propertyId } = Route.useParams()
+  const queryClient = useQueryClient()
   const { data: portalsData } = useSuspenseQuery(portalsQuery(propertyId))
   const { data: portalGroupsData } = useSuspenseQuery(portalGroupsQuery(propertyId))
   const { data: propsData } = useSuspenseQuery(propertiesQuery)
@@ -92,30 +89,33 @@ function PortalListRoute() {
   const property = properties?.find((p) => p.id === propertyId)
   const propertyName = property?.name ?? ''
 
-  const deleteMutation = useActionMutation(deletePortal, {
-    successMessage: 'Portal deleted',
+  const archiveMutation = useActionMutation(updatePortal, {
+    successMessage: 'Portal archived',
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
-  const groupInvalidationKeys = [portalKeys.groups(propertyId)]
+  const restoreMutation = useActionMutation(updatePortal, {
+    successMessage: 'Portal restored as Disabled',
+    invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
+  })
   const createGroupMutation = useActionMutation(createPortalGroup, {
     successMessage: 'Portal group created',
-    invalidateKeys: groupInvalidationKeys,
+    onSuccess: () => portalGroupCachePolicy.onGroupCreated(queryClient, propertyId),
   })
   const updateGroupMutation = useActionMutation(updatePortalGroup, {
     successMessage: 'Portal group updated',
-    invalidateKeys: groupInvalidationKeys,
+    onSuccess: () => portalGroupCachePolicy.onGroupUpdated(queryClient, propertyId),
   })
   const deleteGroupMutation = useActionMutation(softDeletePortalGroup, {
     successMessage: 'Portal group archived',
-    invalidateKeys: groupInvalidationKeys,
+    onSuccess: () => portalGroupCachePolicy.onGroupDeleted(queryClient, propertyId),
   })
   const addPortalToGroupMutation = useActionMutation(addPortalToGroup, {
     successMessage: 'Portal added to group',
-    invalidateKeys: groupInvalidationKeys,
+    onSuccess: () => portalGroupCachePolicy.onGroupMemberAdded(queryClient, propertyId),
   })
   const removePortalFromGroupMutation = useActionMutation(removePortalFromGroup, {
     successMessage: 'Portal removed from group',
-    invalidateKeys: groupInvalidationKeys,
+    onSuccess: () => portalGroupCachePolicy.onGroupMemberRemoved(queryClient, propertyId),
   })
 
   // `groups` is `PortalGroupWithPortals` (a flat PortalGroup plus `portalIds`),
@@ -130,7 +130,8 @@ function PortalListRoute() {
       portals={portals}
       propertyId={propertyId}
       propertyName={propertyName}
-      deleteMutation={deleteMutation}
+      archiveMutation={archiveMutation}
+      restoreMutation={restoreMutation}
       portalGroups={groups}
       createGroupMutation={createGroupMutation}
       updateGroupMutation={updateGroupMutation}
