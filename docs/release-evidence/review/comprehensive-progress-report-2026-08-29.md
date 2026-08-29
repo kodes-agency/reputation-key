@@ -285,6 +285,51 @@ four), or give the suite a scratch schema of its own. The
 `integration-organization-lifecycle` failure in the same job WAS this branch's
 own and is fixed.
 
+### `CodeQL`: an attempt that did not survive review
+
+The check gates on 12 alerts: eleven `js/file-system-race` across the release
+scripts, the local stack and the freeze baseline, and one
+`js/insufficient-password-hash`. Three patches were built and each faced two
+adversarial reviewers. **None was applied**, and the reasons are worth keeping
+because they are the reasons the review exists:
+
+- **The release scripts.** The rewrite claimed to close a containment race in
+  `validate-bundle.ts` and did not: `O_NOFOLLOW` constrains only the FINAL path
+  component, so an intermediate directory swapped for a symlink after the
+  containment check still resolves outside the evidence root and gets hashed —
+  reproduced end to end. The new comment asserted the opposite, which would
+  have misled the next reader of that control. Separately, the negative
+  controls offered as proof could not have produced their reported output: the
+  `perl` substitutions were regexes whose unescaped `|` is alternation, so one
+  rewrote a comment and the other matched nothing.
+- **The local stack and freeze baseline.** In `freeze-baseline.ts` a
+  non-regular file at a tracked path would produce a SILENTLY WRONG row in the
+  frozen release ledger — `O_RDONLY|O_NONBLOCK` on a FIFO returns EOF, so the
+  artifact records `bytes: 0` and the sha256 of the empty buffer where the old
+  code hung. A loud hang is bad; a quiet wrong digest in release evidence is
+  worse. `createSymmetricKey` also still had a blocking open on the one site
+  with no FIFO control.
+- **The OAuth record key.** The patch replaced the `createHash` at line 103.
+  The alert is at line **76**, and its source is the `sign(...)` call — so the
+  change probably would not have closed it, while making every `oauth-state`
+  record written before the deploy unreachable (a ten-minute window of flows
+  failing `not_found`).
+
+Two things to carry forward. First, the underlying finding about the OAuth
+record key is REAL and independent of the scanner: the handle is an OAuth
+`state` value that reaches redirect URLs, browser history, referrers and access
+logs, and an unkeyed digest of it lets anyone holding one of those compute the
+exact provider-ephemeral key holding that flow's code verifier and OIDC nonce.
+Deriving that key through the existing handle keyring is the right fix and
+deserves its own change, not a bundled one.
+
+Second, both `js/insufficient-password-hash` alerts point at line numbers that
+no longer contain the flagged code (`oauth-state-handle.ts:76` is a type
+declaration; `composition.ts:597` is unrelated). The alerts are stale against
+an older commit of this branch. Re-running the analysis is the first step
+before any further work here — some may already be closed by the HKDF change
+that landed earlier.
+
 ### `e2e`: five defects deep, one design conflict left
 
 The stack no longer fails at the first sidecar. Each fix uncovered the next
