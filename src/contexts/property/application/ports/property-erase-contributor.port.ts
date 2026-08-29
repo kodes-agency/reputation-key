@@ -16,7 +16,17 @@
 
 import type { Tx } from '#/shared/outbox/commit'
 
-/** The contexts that can own rows for a single Property. */
+/**
+ * The contexts that can own rows for a single Property.
+ *
+ * Every bounded context is registered. `identity` was absent until it was
+ * checked against `data-fate-authority.ts`, which names it the OWNER of seven
+ * Property-scoped tables — so its omission asserted, falsely, that Identity
+ * holds no rows for a Property. Four of those seven are erased by
+ * `identity-property-erase.adapter.ts`; the other three are
+ * `recoverable_archive` and are excluded there, by disposition and with the
+ * reason recorded at the exclusion.
+ */
 export const PROPERTY_ERASE_CONTEXTS = [
   'activity',
   'ai',
@@ -24,6 +34,7 @@ export const PROPERTY_ERASE_CONTEXTS = [
   'dashboard',
   'goal',
   'guest',
+  'identity',
   'inbox',
   'integration',
   'leaderboard',

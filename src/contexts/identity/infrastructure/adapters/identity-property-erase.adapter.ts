@@ -1,0 +1,129 @@
+// LIF-01-T19 — Identity's contribution to a permanent Property Erase.
+//
+// Identity was the one context missing from `PROPERTY_ERASE_CONTEXTS`, which
+// asserted by omission that it holds no rows for a Property. It does:
+// `data-fate-authority.ts` names Identity the owner of SEVEN Property-scoped
+// tables. Without this contributor, a permanent Property Erase left every one
+// of them behind — including `property_access_grants.reason`, a free-text
+// column, and the `user_id` / `granted_by` / `revoked_by` identifiers naming
+// who could reach the Property.
+//
+// WHICH OF THE SEVEN ARE ERASED IS NOT A JUDGEMENT MADE HERE. It follows the
+// disposition each table already carries in `data-fate-authority.ts`:
+//
+//   active_authority     -> erased. Live authority state for the Property:
+//                           property_access_grant, property_capability,
+//                           property_policy.
+//   bounded_contraction  -> erased. property_access_grants is the legacy
+//                           people-access table awaiting contraction, but it is
+//                           live today and its rows are this Property's.
+//   recoverable_archive  -> NOT erased, deliberately. See below.
+//
+// THE THREE DELIBERATE EXCLUSIONS, and why each would be wrong to erase:
+//
+//   backup_erasure_ledger  is the evidence that an erasure happened. Destroying
+//                          it as part of the erasure it records would remove the
+//                          only proof the work was done.
+//   privacy_requests       records data-subject access/erasure requests. The
+//                          proof that a request was honoured has to outlive the
+//                          data it was about.
+//   policy_decision_audit  is the authorization audit trail — what was decided
+//                          about this Property, and by whom.
+//
+// Those three are `recoverable_archive`, and their retention classes are
+// counsel-approved work that is still open (`approvalState: pending_counsel`).
+// Engineering deciding unilaterally to delete audit and data-subject-request
+// evidence during an erasure is exactly the call this program does not let
+// engineering make alone. If counsel later rules that some of them must go, the
+// change belongs in the retention registry and then here — not here first.
+//
+// Property-scoped, not Organization-scoped: every statement is bound to ONE
+// property_id, so erasing a Property leaves its siblings byte-identical.
+// `property_capability` and `property_policy` carry no organization_id at all,
+// so they are scoped by property_id alone — which is a UUID primary key
+// elsewhere, and so is not ambiguous across tenants.
+
+import { and, eq, sql } from 'drizzle-orm'
+import type {
+  PropertyEraseContributor,
+  PropertyEraseInventoryEntry,
+  PropertyEraseScope,
+} from '#/contexts/property/application/ports/property-erase-contributor.port'
+import { propertyAccessGrants } from '#/shared/db/schema/people-access.schema'
+import {
+  propertyAccessGrant,
+  propertyCapability,
+  propertyPolicy,
+} from '#/shared/db/schema/policy.schema'
+import type { Tx } from '#/shared/outbox/commit'
+
+/**
+ * The Identity tables a Property Erase removes, innermost dependency first.
+ *
+ * `organizationScoped` records whether the table carries an organization_id to
+ * narrow on. Where it does, the predicate uses BOTH columns: a property_id is
+ * globally unique, but a tenant-scoped predicate keeps the statement correct
+ * even if that ever stops being true.
+ */
+const IDENTITY_PROPERTY_ERASE_PLAN = Object.freeze([
+  {
+    table: propertyAccessGrants,
+    name: 'property_access_grants',
+    organizationScoped: true,
+  },
+  { table: propertyAccessGrant, name: 'property_access_grant', organizationScoped: true },
+  { table: propertyCapability, name: 'property_capability', organizationScoped: false },
+  { table: propertyPolicy, name: 'property_policy', organizationScoped: false },
+] as const)
+
+export const createIdentityPropertyEraseContributor = (): PropertyEraseContributor => ({
+  context: 'identity',
+
+  /**
+   * READ ONLY, and content-free by construction: a table name and a count.
+   * Nothing here can carry the `reason` text or a user identifier, which is
+   * what makes the preview safe to show before the AccountAdmin confirms.
+   */
+  inventory: async (
+    tx: Tx,
+    scope: PropertyEraseScope,
+  ): Promise<readonly PropertyEraseInventoryEntry[]> =>
+    await Promise.all(
+      IDENTITY_PROPERTY_ERASE_PLAN.map(async (entry) => {
+        const result = entry.organizationScoped
+          ? await tx.execute(sql`
+              SELECT COUNT(*)::int AS "rows" FROM ${entry.table}
+              WHERE organization_id = ${scope.organizationId}
+                AND property_id = ${scope.propertyId}::uuid
+            `)
+          : await tx.execute(sql`
+              SELECT COUNT(*)::int AS "rows" FROM ${entry.table}
+              WHERE property_id = ${scope.propertyId}::uuid
+            `)
+        return {
+          context: 'identity' as const,
+          table: entry.name,
+          rowCount: Number((result.rows[0] as { rows: number }).rows),
+        }
+      }),
+    ),
+
+  /** IRREVERSIBLE. Ordered so no statement depends on rows already removed. */
+  erase: async (tx: Tx, scope: PropertyEraseScope): Promise<number> => {
+    let erased = 0
+    for (const entry of IDENTITY_PROPERTY_ERASE_PLAN) {
+      const where = entry.organizationScoped
+        ? and(
+            eq(entry.table.organizationId, scope.organizationId),
+            eq(entry.table.propertyId, scope.propertyId),
+          )
+        : eq(entry.table.propertyId, scope.propertyId)
+      const removed = await tx
+        .delete(entry.table)
+        .where(where)
+        .returning({ propertyId: entry.table.propertyId })
+      erased += removed.length
+    }
+    return erased
+  },
+})
