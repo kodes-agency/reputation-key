@@ -83,9 +83,15 @@ export const PointInTimeBulkChange: Story = {
     await userEvent.click(canvas.getByRole('button', { name: 'Manage assignments' }))
     const dialog = within(await within(document.body).findByRole('dialog'))
 
-    await expect(
-      dialog.getByText(/takes a one-time snapshot when you submit/i),
-    ).toBeVisible()
+    // Retried, not asserted once. The dialog has only just been found, and
+    // Radix animates its content in from opacity: 0 — so a getByText resolved
+    // on the very next tick finds the node while it is still invisible, and a
+    // bare toBeVisible() fails intermittently on exactly that span.
+    await waitFor(() =>
+      expect(
+        dialog.getByText(/takes a one-time snapshot when you submit/i),
+      ).toBeVisible(),
+    )
     await userEvent.click(dialog.getByRole('checkbox', { name: /Lobby QR/i }))
     await userEvent.click(
       dialog.getByRole('checkbox', { name: /Select all current portals/i }),
