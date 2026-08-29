@@ -181,16 +181,21 @@ describe('legal document registry artifact', () => {
     }
   })
 
-  it('registers every counsel-owned document as an unapproved draft today', () => {
+  it('registers every customer-facing document as an unapproved draft today', () => {
+    // The three customer-facing documents are `operator_acknowledged` for the
+    // closed beta. The assertion is about their STATE — unapproved, no
+    // approver — which must hold whoever is entitled to approve them, so it
+    // matches on both kinds rather than on the one that happens to be current.
+    const customerFacing = (document: { kind: string }) =>
+      document.kind === 'counsel_approved' || document.kind === 'operator_acknowledged'
     expect(
       LEGAL_DOCUMENT_REGISTRY.documents.filter(
-        (document) =>
-          document.kind === 'counsel_approved' && document.status === 'approved',
+        (document) => customerFacing(document) && document.status === 'approved',
       ),
     ).toEqual([])
     expect(
       LEGAL_DOCUMENT_REGISTRY.documents
-        .filter((document) => document.kind === 'counsel_approved')
+        .filter(customerFacing)
         .map((document) => ({ id: document.id, approver: document.approver })),
     ).toEqual([
       { id: 'google-access-disclosure', approver: null },

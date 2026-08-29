@@ -34,9 +34,15 @@ if (!registryResult.ok) {
 }
 const registry = registryResult.registry
 
-/** Counsel-owned rows only: the fact map is engineering input, not legal text. */
+/**
+ * Customer-facing legal text, whoever approves it. The fact map is engineering
+ * input and stays out. `operator_acknowledged` is the closed-beta kind for the
+ * same three documents — the draft-consistency rules are about the PROSE, so
+ * they must not lapse just because the approver changed.
+ */
 const counselDocuments: readonly LegalDocument[] = registry.documents.filter(
-  (document) => document.kind === 'counsel_approved',
+  (document) =>
+    document.kind === 'counsel_approved' || document.kind === 'operator_acknowledged',
 )
 
 const draftPaths = counselDocuments.map((document) => resolve(ROOT, document.path))

@@ -222,9 +222,25 @@ function documentFailures(
   if (entry.kind === 'counsel_approved' && entry.approver.role !== 'external_counsel') {
     errors.push(`document ${entry.id} must be approved by external counsel`)
   }
-  for (const identity of [entry.approver.name, entry.approver.organization]) {
-    if (isProhibitedIdentity(identity)) {
-      errors.push(`document ${entry.id}: approver ${identity} cannot self-approve`)
+  // The mirror of the rule above, matching legal-approval-authority.ts: an
+  // operator-acknowledged document must not wear counsel's authority.
+  if (
+    entry.kind === 'operator_acknowledged' &&
+    entry.approver.role === 'external_counsel'
+  ) {
+    errors.push(
+      `document ${entry.id}: operator-acknowledged documents cannot claim an external counsel approver`,
+    )
+  }
+  // Self-approval is prohibited on COUNSEL-owned text specifically. An
+  // operator-acknowledged document is the case where the operator is the
+  // legitimate approver, so applying the prohibition there would make the kind
+  // unusable by the only person entitled to use it.
+  if (entry.kind !== 'operator_acknowledged') {
+    for (const identity of [entry.approver.name, entry.approver.organization]) {
+      if (isProhibitedIdentity(identity)) {
+        errors.push(`document ${entry.id}: approver ${identity} cannot self-approve`)
+      }
     }
   }
 

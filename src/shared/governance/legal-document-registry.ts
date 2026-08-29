@@ -301,7 +301,7 @@ export const LEGAL_DOCUMENT_REGISTRY: LegalDocumentRegistry = Object.freeze(
     documents: [
       {
         id: 'google-access-disclosure',
-        kind: 'counsel_approved',
+        kind: 'operator_acknowledged',
         title: 'Google Business Profile Access Disclosure',
         path: 'docs/legal/google-access-disclosure.md',
         version: '2.0-draft',
@@ -321,7 +321,7 @@ export const LEGAL_DOCUMENT_REGISTRY: LegalDocumentRegistry = Object.freeze(
       },
       {
         id: 'internal-beta-agreement',
-        kind: 'counsel_approved',
+        kind: 'operator_acknowledged',
         title: 'Closed Beta Participation Agreement — Reputation Key',
         path: 'docs/legal/internal-beta-agreement.md',
         version: '2.0-draft',
@@ -341,7 +341,7 @@ export const LEGAL_DOCUMENT_REGISTRY: LegalDocumentRegistry = Object.freeze(
       },
       {
         id: 'privacy-notice',
-        kind: 'counsel_approved',
+        kind: 'operator_acknowledged',
         title: 'Privacy Notice — Reputation Key Closed Beta',
         path: 'docs/legal/privacy-notice.md',
         version: '2.0-draft',

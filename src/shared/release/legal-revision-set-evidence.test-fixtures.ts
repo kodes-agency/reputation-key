@@ -84,6 +84,11 @@ export function approvedLegalDocumentsFixture(): LegalDocumentsFixture {
     files.set(source.path, encoder.encode(body))
     return {
       ...source,
+      // Declared, not inherited from the shipped registry. These rows exist to
+      // prove the COUNSEL path — external approver, self-approval prohibition —
+      // so they must keep testing it regardless of which kind the live registry
+      // currently carries for these three documents.
+      kind: 'counsel_approved' as const,
       version: '2.0',
       status: 'approved' as const,
       sha256: legalDocumentSha256(body),
