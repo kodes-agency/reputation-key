@@ -95,6 +95,10 @@ describe('buildCellEnv', () => {
   })
 
   it('pins every Google/Resend endpoint at the cell stubs (no real provider)', () => {
+    // Without the explicit profile the composition root refuses these
+    // overrides outright — the cell is NODE_ENV=production by design.
+    expect(env.GOOGLE_PROVIDER_ENDPOINT_PROFILE).toBe('local-sandbox')
+    expect(env).not.toHaveProperty('RELEASE_MANIFEST_SHA256')
     expect(env.GBP_API_BASE_URL).toBe('http://localhost:4150')
     expect(env.GBP_REVIEWS_API_BASE_URL).toBe('http://localhost:4150')
     expect(env.GBP_NOTIFICATIONS_API_BASE_URL).toBe('http://localhost:4150')

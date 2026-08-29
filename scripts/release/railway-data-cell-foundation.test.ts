@@ -1,7 +1,8 @@
+import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createRailwayContext } from 'railway/iac'
 import { buildRailwayProject } from '../../.railway/railway'
@@ -446,6 +447,51 @@ describe('single-US Railway foundation controller', () => {
     ).toBe(1)
     expect(railway).toHaveBeenCalledTimes(1)
     expect(stderr.mock.calls.flat().join('')).toContain('pinned to CLI 5.45.2')
+  })
+
+  it('refuses a non-regular plan path before invoking Railway', () => {
+    const planPath = temporaryPlanPath()
+    execFileSync('mkfifo', [planPath])
+    const railway = vi.fn()
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+    // A FIFO opened non-blocking reads as EOF, so without the descriptor guard
+    // the command would take an empty buffer for the reviewed artifact and
+    // reject it as invalid JSON rather than refusing the path.
+    expect(
+      runRailwayDataCellFoundationCli(
+        [...args('apply', planPath), '--plan-sha256', 'a'.repeat(64)],
+        { railway },
+      ),
+    ).toBe(1)
+    expect(railway).not.toHaveBeenCalled()
+    expect(stderr.mock.calls.flat().join('')).toContain(
+      'Railway Data Cell foundation refused: Railway foundation plan must be a regular file',
+    )
+  })
+
+  it('refuses a symlinked plan path before invoking Railway', () => {
+    const planPath = temporaryPlanPath()
+    const reviewed = join(dirname(planPath), 'reviewed.plan')
+    writeFileSync(reviewed, savedFoundationPlan(), 'utf8')
+    symlinkSync(reviewed, planPath)
+    const railway = vi.fn()
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+    expect(
+      runRailwayDataCellFoundationCli(
+        [
+          ...args('apply', planPath),
+          '--plan-sha256',
+          createHash('sha256').update(readFileSync(reviewed)).digest('hex'),
+        ],
+        { railway },
+      ),
+    ).toBe(1)
+    expect(railway).not.toHaveBeenCalled()
+    expect(stderr.mock.calls.flat().join('')).toContain(
+      'Railway Data Cell foundation refused: Railway foundation plan must be a regular file',
+    )
   })
 
   it('refuses a digest-valid non-foundation saved plan before Railway', () => {

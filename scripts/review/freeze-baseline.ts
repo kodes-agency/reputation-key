@@ -1,24 +1,16 @@
 import { execFileSync, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import {
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readFileSync,
-  readlinkSync,
-  readdirSync,
-  writeFileSync,
-} from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  classifyArtifact,
   discoverEntryPoints,
   extractFunctionLikeSymbols,
   extractImports,
   parseFindingRegister,
   parseTraceabilityMap,
 } from './baseline-inventory'
+import { readTrackedArtifact, trackedArtifactLedgerRow } from './tracked-artifact'
 
 type Options = Readonly<{
   evidenceRoot: string
@@ -236,39 +228,31 @@ function main(): void {
   const evidenceDir = join(options.evidenceRoot, sha, environmentId(process.version))
   assertEmptyDirectory(evidenceDir)
 
+  // Every tracked path is opened exactly ONCE, by `readTrackedArtifact`. The
+  // ledger row and the parsed source below are both projections of that single
+  // read, so a second `lstat`/`readFileSync` of the same path — the CodeQL
+  // js/file-system-race pairing — has nowhere to reappear: `kind` decides which
+  // files are source, and the source text is the buffer that was hashed. Only
+  // code files are retained, so this holds the parsed subset in memory, not the
+  // whole tree.
   const files = trackedFiles(options.sourceRoot)
+  const codeSources = new Map<string, string>()
   const artifacts = files.map((file) => {
-    const absolute = join(options.sourceRoot, file)
-    const stats = lstatSync(absolute)
-    const symlinkTarget = stats.isSymbolicLink() ? readlinkSync(absolute) : undefined
-    const contents = symlinkTarget ? Buffer.from(symlinkTarget) : readFileSync(absolute)
-    return {
-      bytes: stats.size,
-      class: classifyArtifact(file),
-      kind: stats.isSymbolicLink() ? 'symlink' : 'file',
-      path: file,
-      sha256: sha256(contents),
-      ...(symlinkTarget ? { symlinkTarget } : {}),
+    const artifact = readTrackedArtifact(options.sourceRoot, file)
+    if (artifact.kind === 'file' && CODE_EXTENSIONS.has(extension(file))) {
+      codeSources.set(file, artifact.contents.toString('utf8'))
     }
+    return trackedArtifactLedgerRow(file, artifact)
   })
-  const codeFiles = files.filter((file) => {
-    return (
-      CODE_EXTENSIONS.has(extension(file)) &&
-      lstatSync(join(options.sourceRoot, file)).isFile()
-    )
-  })
-  const imports = codeFiles.map((file) => ({
-    imports: extractImports(file, readFileSync(join(options.sourceRoot, file), 'utf8')),
+  const imports = [...codeSources].map(([file, source]) => ({
+    imports: extractImports(file, source),
     path: file,
   }))
-  const symbols = codeFiles.flatMap((file) => {
-    return extractFunctionLikeSymbols(
-      file,
-      readFileSync(join(options.sourceRoot, file), 'utf8'),
-    )
+  const symbols = [...codeSources].flatMap(([file, source]) => {
+    return extractFunctionLikeSymbols(file, source)
   })
-  const entryPoints = codeFiles.flatMap((file) => {
-    return discoverEntryPoints(file, readFileSync(join(options.sourceRoot, file), 'utf8'))
+  const entryPoints = [...codeSources].flatMap(([file, source]) => {
+    return discoverEntryPoints(file, source)
   })
 
   const plan = readFileSync(options.plan, 'utf8')
@@ -333,12 +317,18 @@ function main(): void {
       files: files.length,
       findings: findingRegister.length,
       imports: imports.reduce((total, row) => total + row.imports.length, 0),
-      sourceFiles: codeFiles.length,
+      sourceFiles: codeSources.size,
       symbols: symbols.length,
       unmappedFindings: findingRegister
         .filter((finding) => finding.targetPackages.length === 0)
         .map((finding) => finding.id),
     },
+    // Every first-party module that determines a byte of this bundle is pinned
+    // here. `tracked-artifact.ts` decides the `kind`, `bytes` and `sha256` of
+    // EVERY artifact-ledger row, so without its digest two bundles whose
+    // hashing path differs would carry byte-identical provenance and an auditor
+    // diffing them could not see the change. Adding a module to this directory
+    // that the tool imports means adding its digest here.
     provenance: {
       inventoryLibrarySha256: sha256(
         readFileSync(join(dirname(THIS_FILE), 'baseline-inventory.ts')),
@@ -348,6 +338,9 @@ function main(): void {
       planSha256: sha256(plan),
       report: options.report,
       reportSha256: sha256(report),
+      trackedArtifactReaderSha256: sha256(
+        readFileSync(join(dirname(THIS_FILE), 'tracked-artifact.ts')),
+      ),
     },
     capturedAt: new Date().toISOString(),
   }

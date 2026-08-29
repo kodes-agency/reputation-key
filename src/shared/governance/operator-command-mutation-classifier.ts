@@ -66,6 +66,7 @@ const PURE_DIAGNOSTIC_COMMANDS = [
   'scripts/ci/check-typescript-project-coverage.ts',
   'scripts/ci/check-product-state-consistency.ts',
   'scripts/review/baseline-inventory.ts',
+  'scripts/review/tracked-artifact.ts',
   'scripts/review/comprehensive-program-status.ts',
   'scripts/review/finding-revalidation.ts',
   'scripts/review/finding-revalidation-fragment.ts',

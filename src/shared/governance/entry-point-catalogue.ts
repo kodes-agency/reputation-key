@@ -5578,6 +5578,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
         'review baseline support library: deterministic source classification, symbol/import discovery, entry-point inventory, and prior-finding parsing; imported by freeze-baseline, not a standalone mutator',
     },
   ),
+  ops(
+    'scripts/review/tracked-artifact.ts',
+    'scripts/review/tracked-artifact.ts',
+    'none',
+    {
+      notes:
+        'review baseline support library: turns one tracked path into its frozen ledger row, hashing a regular file from the single O_NOFOLLOW descriptor it opened, recording a symlink by its target rather than following or refusing it, and refusing any other irregular file by name; imported by freeze-baseline, not a standalone mutator',
+    },
+  ),
   ops('scripts/review/freeze-baseline.ts', 'scripts/review/freeze-baseline.ts', 'none', {
     notes:
       'review:freeze-baseline — writes a release-SHA-bound, hashed review evidence bundle from tracked source, plan, consolidated report, validation gates, and repository governance state',

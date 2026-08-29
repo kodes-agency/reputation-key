@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { lstatSync, readFileSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -16,6 +16,7 @@ import {
   railwayFullProjectStatusArgs,
 } from '../../src/shared/release/railway-project-service-isolation'
 import { railwayPlanArgs } from '../../src/shared/release/railway-plan-evidence'
+import { readOnce } from '../../src/shared/release/read-once'
 import { railwayTargetEnvironment } from './railway-data-cell-plan'
 import { assertSingleUsBetaRailwayFoundationNoDriftOutput } from './railway-data-cell-foundation'
 import {
@@ -204,12 +205,14 @@ function nonEmptyString(value: unknown, label: string): string {
   return value.trim()
 }
 
+// The reviewed intent is read through one path resolution, so the inode whose
+// bytes are hashed is the inode that passed the regular-file guard. That sha256
+// is exactly what apply compares against the digest the operator reviewed.
+// `readOnce` documents what this does and does not contain.
+const INTENT_NOT_REGULAR = 'Railway domain intent must be a regular file'
+
 function parseIntent(path: string): Readonly<{ intent: DomainIntent; sha256: string }> {
-  const stat = lstatSync(path)
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    throw new Error('Railway domain intent must be a regular file')
-  }
-  const bytes = readFileSync(path)
+  const bytes = readOnce(path, INTENT_NOT_REGULAR)
   let value: unknown
   try {
     value = JSON.parse(bytes.toString('utf8'))

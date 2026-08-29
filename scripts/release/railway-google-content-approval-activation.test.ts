@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { createHash, generateKeyPairSync, sign } from 'node:crypto'
 import {
   existsSync,
@@ -5,6 +6,7 @@ import {
   readFileSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -578,6 +580,64 @@ describe('Railway Google Content approval activation', () => {
     expect(
       railway.commands.some(({ args }) => args.join(' ').startsWith('environment edit ')),
     ).toBe(false)
+  })
+
+  it('refuses a non-regular bundle path instead of reading it as zero bytes', async () => {
+    const directory = temporaryDirectory()
+    const intentPath = join(directory, 'activation-intent.json')
+    const inputs = writeInputs(directory)
+    const fifoPath = join(directory, 'bundle-fifo.json')
+    execFileSync('mkfifo', [fifoPath])
+    const railway = railwayHarness()
+    const database = databaseHarness()
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+    // A FIFO opened non-blocking reads as EOF, so without the descriptor guard
+    // the command would take an empty buffer for the approval bundle and reject
+    // it as invalid JSON rather than refusing the path.
+    await expect(
+      runRailwayGoogleContentApprovalActivationCli(
+        planArgs(intentPath, {
+          ...inputs,
+          bundlePaths: [fifoPath, ...inputs.bundlePaths.slice(1)],
+        }),
+        { railway: railway.railway, database: database.database, clock: () => NOW },
+      ),
+    ).resolves.toBe(1)
+    expect(stderr.mock.calls.flat().join('')).toContain(
+      'Railway Google Content approval activation refused: Google Content bundle must be a bounded regular file',
+    )
+    expect(existsSync(intentPath)).toBe(false)
+    expect(database.installed.size).toBe(0)
+    expect(
+      railway.commands.some(({ args }) => args.join(' ').startsWith('environment edit ')),
+    ).toBe(false)
+  })
+
+  it('refuses a symlinked bundle path, so a relinked approval cannot be planned', async () => {
+    const directory = temporaryDirectory()
+    const intentPath = join(directory, 'activation-intent.json')
+    const inputs = writeInputs(directory)
+    const linkPath = join(directory, 'bundle-link.json')
+    symlinkSync(inputs.bundlePaths[0]!, linkPath)
+    const railway = railwayHarness()
+    const database = databaseHarness()
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
+
+    await expect(
+      runRailwayGoogleContentApprovalActivationCli(
+        planArgs(intentPath, {
+          ...inputs,
+          bundlePaths: [linkPath, ...inputs.bundlePaths.slice(1)],
+        }),
+        { railway: railway.railway, database: database.database, clock: () => NOW },
+      ),
+    ).resolves.toBe(1)
+    expect(stderr.mock.calls.flat().join('')).toContain(
+      'Railway Google Content approval activation refused: Google Content bundle must be a bounded regular file',
+    )
+    expect(existsSync(intentPath)).toBe(false)
+    expect(database.installed.size).toBe(0)
   })
 
   it('installs every approval before one two-variable Railway commit and verifies exact readback', async () => {

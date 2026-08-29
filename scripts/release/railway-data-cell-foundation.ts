@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, lstatSync, readFileSync } from 'node:fs'
+import { existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
@@ -29,6 +29,7 @@ import {
   railwayFullProjectStatusArgs,
 } from '../../src/shared/release/railway-project-service-isolation'
 import { railwayPlanArgs } from '../../src/shared/release/railway-plan-evidence'
+import { readOnce } from '../../src/shared/release/read-once'
 import { railwayTargetEnvironment } from './railway-data-cell-plan'
 import {
   MINIMUM_PINNED_PLAN_RAILWAY_CLI_VERSION,
@@ -277,15 +278,18 @@ function expectedFoundationChanges(options: FoundationOptions): readonly JsonRec
   )
 }
 
+// The reviewed plan is read through one path resolution, so the inode whose
+// bytes are hashed is the inode that passed the regular-file guard. That sha256
+// is exactly what `assertReviewedPlanUnchanged` compares against the reviewed
+// digest before apply. `readOnce` documents what this does and does not
+// contain.
+const PLAN_NOT_REGULAR = 'Railway foundation plan must be a regular file'
+
 function parseFoundationPlan(
   planPath: string,
   options: FoundationOptions,
 ): FoundationPlanEvidence {
-  const stat = lstatSync(planPath)
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    throw new Error('Railway foundation plan must be a regular file')
-  }
-  const bytes = readFileSync(planPath)
+  const bytes = readOnce(planPath, PLAN_NOT_REGULAR)
   let value: unknown
   try {
     value = JSON.parse(bytes.toString('utf8'))

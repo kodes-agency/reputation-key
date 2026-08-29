@@ -3,7 +3,6 @@ import {
   copyFileSync,
   existsSync,
   mkdirSync,
-  readFileSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -35,6 +34,10 @@ import { AI_GATEWAY_BUILD_ATTESTATION_DIGEST } from '../../src/shared/ai-gateway
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '../../src/shared/ai-operation-profiles'
 import { AI_RUNTIME_CAPABILITIES_V1_DIGEST } from '../../src/shared/ai-runtime-capability-contract'
 import { selectProbeEvidence } from '#/shared/testing/probe-evidence'
+import {
+  readLocalStackFile,
+  readOptionalLocalStackFile,
+} from '../../src/shared/testing/local-stack-artifact-file'
 import {
   buildLocalStackEnv,
   createMigrationHeadProof,
@@ -765,31 +768,36 @@ type LocalApprovalRoleKeys = Readonly<
   Record<GoogleContentApprovalRole, Readonly<{ publicKey: string; privateKey: string }>>
 >
 
+function generateLocalApprovalRoleKeyPair(
+  publicPath: string,
+  privatePath: string,
+): Readonly<{ publicKey: string; privateKey: string }> {
+  const pair = generateKeyPairSync('ed25519')
+  const publicKey = pair.publicKey.export({ type: 'spki', format: 'pem' }).toString()
+  const privateKey = pair.privateKey.export({ type: 'pkcs8', format: 'pem' }).toString()
+  writeFileSync(publicPath, publicKey, { mode: 0o644 })
+  writeFileSync(privatePath, privateKey, { mode: 0o600 })
+  return { publicKey, privateKey }
+}
+
 function prepareLocalApprovalRoleKeys(state: StackPaths): LocalApprovalRoleKeys {
   const entries = GOOGLE_CONTENT_APPROVAL_ROLES.map((role) => {
     const stem = `approval-${role.replaceAll('/', '-')}`
     const publicPath = resolve(state.googleRuntime, `${stem}.pub.pem`)
     const privatePath = resolve(state.googleRuntime, `${stem}.key.pem`)
-    if (!existsSync(publicPath) || !existsSync(privatePath)) {
-      const pair = generateKeyPairSync('ed25519')
-      writeFileSync(publicPath, pair.publicKey.export({ type: 'spki', format: 'pem' }), {
-        mode: 0o644,
-      })
-      writeFileSync(
-        privatePath,
-        pair.privateKey.export({ type: 'pkcs8', format: 'pem' }),
-        { mode: 0o600 },
-      )
-    }
+    // The PEM the caller gets is the buffer these opens produced, or the PEM
+    // this pass just generated. The previous shape checked both paths with
+    // `existsSync` and then read them again, so a swap in between handed the
+    // stack approval keys it had never inspected.
+    const storedPublicKey = readOptionalLocalStackFile(publicPath)?.toString('utf8')
+    const storedPrivateKey = readOptionalLocalStackFile(privatePath)?.toString('utf8')
+    const material =
+      storedPublicKey === undefined || storedPrivateKey === undefined
+        ? generateLocalApprovalRoleKeyPair(publicPath, privatePath)
+        : { publicKey: storedPublicKey, privateKey: storedPrivateKey }
     chmodSync(publicPath, 0o644)
     chmodSync(privatePath, 0o600)
-    return [
-      role,
-      {
-        publicKey: readFileSync(publicPath, 'utf8'),
-        privateKey: readFileSync(privatePath, 'utf8'),
-      },
-    ] as const
+    return [role, material] as const
   })
   return Object.fromEntries(entries) as LocalApprovalRoleKeys
 }
@@ -948,7 +956,7 @@ function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, 
     if (privateKey.byteLength !== 48) {
       throw new Error(`Local ${label} signing key fixture is invalid`)
     }
-    const existing = existsSync(path) ? readFileSync(path) : null
+    const existing = readOptionalLocalStackFile(path)
     if (existing === null || !existing.equals(privateKey)) {
       writeFileSync(path, privateKey, { mode: 0o600 })
     }
@@ -956,11 +964,14 @@ function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, 
     chmodSync(path, 0o600)
   }
   const createSymmetricKey = (path: string): void => {
-    if (!existsSync(path)) {
+    // One open answers both questions this used to ask the path separately —
+    // "does it exist" and "what is in it". The freshly generated case needs no
+    // read-back: `randomBytes(32)` is 32 bytes by construction, so the length
+    // guard only ever has an already-present key to judge.
+    const existing = readOptionalLocalStackFile(path)
+    if (existing === null) {
       writeFileSync(path, randomBytes(32), { mode: 0o600 })
-    }
-    const key = readFileSync(path)
-    if (key.byteLength !== 32) {
+    } else if (existing.byteLength !== 32) {
       throw new Error('Local AI symmetric key is invalid')
     }
     chmodSync(path, 0o600)
@@ -979,11 +990,12 @@ function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, 
   createSymmetricKey(safetyIdentifierKeyPath)
   createSymmetricKey(subjectHmacKeyPath)
 
-  const privateKeyBase64 = (path: string): string => readFileSync(path).toString('base64')
+  const privateKeyBase64 = (path: string): string =>
+    readLocalStackFile(path).toString('base64')
   const publicKeyBase64 = (path: string): string =>
     createPublicKey(
       createPrivateKey({
-        key: readFileSync(path),
+        key: readLocalStackFile(path),
         format: 'der',
         type: 'pkcs8',
       }),
@@ -991,7 +1003,7 @@ function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, 
       .export({ format: 'der', type: 'spki' })
       .toString('base64')
   const encoded = (name: string): string =>
-    readFileSync(resolve(state.aiRuntime, name)).toString('base64')
+    readLocalStackFile(resolve(state.aiRuntime, name)).toString('base64')
   const admissionKid = 'admission-v1'
   const provenanceKid = 'provenance-v1'
   return {
@@ -1006,9 +1018,9 @@ function prepareLocalAiAdmissionEnv(state: StackPaths): Readonly<Record<string, 
     AI_WEB_INTERNAL_MTLS_KEY_B64: encoded('repkey-web.key'),
     AI_WORKER_INTERNAL_MTLS_CERT_B64: encoded('repkey-worker.crt'),
     AI_WORKER_INTERNAL_MTLS_KEY_B64: encoded('repkey-worker.key'),
-    AI_REQUEST_BINDING_HMAC_KEYS: `request-v1:${readFileSync(requestBindingKeyPath).toString('hex')}`,
-    AI_SAFETY_IDENTIFIER_HMAC_KEYS: `safety-v1:${readFileSync(safetyIdentifierKeyPath).toString('hex')}`,
-    AI_SUBJECT_HMAC_KEYS: `subject-v1:${readFileSync(subjectHmacKeyPath).toString('hex')}`,
+    AI_REQUEST_BINDING_HMAC_KEYS: `request-v1:${readLocalStackFile(requestBindingKeyPath).toString('hex')}`,
+    AI_SAFETY_IDENTIFIER_HMAC_KEYS: `safety-v1:${readLocalStackFile(safetyIdentifierKeyPath).toString('hex')}`,
+    AI_SUBJECT_HMAC_KEYS: `subject-v1:${readLocalStackFile(subjectHmacKeyPath).toString('hex')}`,
     AI_ADMISSION_ED25519_KID: admissionKid,
     AI_ADMISSION_ED25519_PRIVATE_KEY_B64: privateKeyBase64(admissionPrivateKeyPath),
     AI_ADMISSION_ED25519_PUBLIC_KEYS_JSON: JSON.stringify({
@@ -1943,8 +1955,12 @@ async function cleanSmoke(
   }
 }
 
+function parseJsonBytes(bytes: Buffer): unknown {
+  return JSON.parse(bytes.toString('utf8')) as unknown
+}
+
 function readJson(path: string): unknown {
-  return JSON.parse(readFileSync(path, 'utf8')) as unknown
+  return parseJsonBytes(readLocalStackFile(path))
 }
 
 async function scale(mode: LocalStackMode, preserveArtifacts = false): Promise<string> {
@@ -1997,18 +2013,22 @@ async function scale(mode: LocalStackMode, preserveArtifacts = false): Promise<s
     ])
     const scaleEvidencePath = resolve(state.artifacts, 'perf/scale-dataset.json')
     const fleetEvidencePath = resolve(state.artifacts, 'perf/fleet-fixture.json')
-    const scaleEvidence = readJson(scaleEvidencePath)
-    const fleetEvidence = readJson(fleetEvidencePath)
+    // Each fixture is read once and both the embedded value and the recorded
+    // digest come from that one buffer. Reading the path twice — once to parse,
+    // once to hash — let the evidence claim a sha256 over bytes it did not
+    // actually publish.
+    const scaleEvidenceBytes = readLocalStackFile(scaleEvidencePath)
+    const fleetEvidenceBytes = readLocalStackFile(fleetEvidencePath)
     return writeEvidence(state, 'scale', {
       schemaVersion: 'beta-local-1',
       evidenceKind: 'synthetic-local-scale-and-bounded-query',
       sourceRevision: revision(),
       sanitation,
       migrationHead: migrationHeadProof(mode, state, 'clean'),
-      scaleFixture: scaleEvidence,
-      scaleFixtureFileSha256: sha256(readFileSync(scaleEvidencePath)),
-      fleetFixture: fleetEvidence,
-      fleetFixtureFileSha256: sha256(readFileSync(fleetEvidencePath)),
+      scaleFixture: parseJsonBytes(scaleEvidenceBytes),
+      scaleFixtureFileSha256: sha256(scaleEvidenceBytes),
+      fleetFixture: parseJsonBytes(fleetEvidenceBytes),
+      fleetFixtureFileSha256: sha256(fleetEvidenceBytes),
       exclusions: ['hosted-capacity', 'managed-pitr', 'production-region'],
     })
   } finally {
@@ -2496,7 +2516,13 @@ async function upgrade(
     buildImages(mode, state)
     startDependencies(mode, state)
     const sanitation = sanitationEvidence(mode, state)
-    const dumpSha256 = sha256(readFileSync(dumpPath))
+    // Symlinks are allowed here: the dump path comes from the operator's own
+    // `--pre-cutover-dump` flag and pointing it at a `latest.dump` link is
+    // ordinary usage. The descriptor read is still what stops a FIFO at that
+    // path from hanging the upgrade run. It does not make this digest a proof
+    // of what `restoreDump` copies — that step resolves the path again through
+    // `docker cp`, which takes a path and not this descriptor.
+    const dumpSha256 = sha256(readLocalStackFile(dumpPath, { allowSymlink: true }))
     restoreDump(mode, state, dumpPath)
     const preCutoverHead = unverifiedMigrationHead(mode, state)
     const legacyBefore = legacyFixtureState(mode, state)
@@ -2569,7 +2595,7 @@ async function acceptance(mode: LocalStackMode, dumpPath: string): Promise<void>
     upgradeDigest,
     cleanMigrationHead: clean.migrationHead,
     upgradeMigrationHead: upgraded.upgradedHead,
-    stackContractSha256: sha256(readFileSync(COMPOSE_FILE)),
+    stackContractSha256: sha256(readLocalStackFile(COMPOSE_FILE)),
     scaleFixtureSha256: scaleEvidence.scaleFixtureFileSha256,
     fleetFixtureSha256: scaleEvidence.fleetFixtureFileSha256,
     images: upgraded.images,

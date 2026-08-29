@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { lstatSync, readFileSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
@@ -40,6 +40,7 @@ import {
   railwayFullProjectStatusArgs,
 } from '../../src/shared/release/railway-project-service-isolation'
 import { railwayPlanArgs } from '../../src/shared/release/railway-plan-evidence'
+import { readOnce } from '../../src/shared/release/read-once'
 import { railwayTargetEnvironment } from './railway-data-cell-plan'
 import { assertSingleUsBetaRailwayFoundationNoDriftOutput } from './railway-data-cell-foundation'
 import {
@@ -293,12 +294,17 @@ function assertExactRailwayCliVersion(output: string): void {
   }
 }
 
+// These bytes decide everything downstream: the bundle and intent readers hash
+// them against a digest the operator reviewed, and the public-keys reader hands
+// them to the role signature verifier. Reading them through one path resolution
+// makes the inode that passed the bounded-regular-file guard the inode whose
+// bytes are used. `readOnce` documents what this does and does not contain.
+//
+// The `byteLength` re-check stays because the size bound is the one thing the
+// descriptor does not pin: the same inode can be appended to between the
+// descriptor `fstat` and the read.
 function readRegularFile(path: string, maxBytes: number, label: string): Buffer {
-  const metadata = lstatSync(path)
-  if (!metadata.isFile() || metadata.isSymbolicLink() || metadata.size > maxBytes) {
-    throw new Error(`${label} must be a bounded regular file`)
-  }
-  const bytes = readFileSync(path)
+  const bytes = readOnce(path, `${label} must be a bounded regular file`, maxBytes)
   if (bytes.byteLength > maxBytes) throw new Error(`${label} is too large`)
   return bytes
 }

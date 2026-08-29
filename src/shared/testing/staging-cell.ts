@@ -135,6 +135,12 @@ export function buildCellEnv(input: CellEnvInput): Record<string, string> {
     // Deploy identity: the pack binds runs to the same sha.
     RELEASE_SHA: input.releaseSha,
     // Sandbox pins — the real adapters/clients talk to the cell stubs only.
+    // The profile is REQUIRED, not decorative: this cell is production-shaped
+    // (NODE_ENV=production above), and provider-runtime.ts refuses endpoint
+    // overrides for any production process that is not explicitly on the
+    // local-sandbox profile. It is also never a deployed cell — no
+    // RELEASE_MANIFEST_SHA256 — which is what keeps the profile itself legal.
+    GOOGLE_PROVIDER_ENDPOINT_PROFILE: 'local-sandbox',
     GBP_API_BASE_URL: gbpBase,
     GBP_REVIEWS_API_BASE_URL: gbpBase,
     GBP_NOTIFICATIONS_API_BASE_URL: gbpBase,

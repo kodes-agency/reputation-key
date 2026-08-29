@@ -1,8 +1,11 @@
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { disarmPathSwap } from '../../src/shared/testing/descriptor-race.test-harness'
+import { armRebindOnFirstCheck } from '../../src/shared/testing/descriptor-rebind.test-harness'
 import {
   assertPinnedRailwayApplyResult,
   assertRailwayCliSupportsPinnedPlans,
@@ -36,6 +39,18 @@ import {
 import { PRODUCTION_RAILWAY_PROJECT_NAME } from '../../src/shared/release/railway-deployment-profile'
 import { SINGLE_US_BETA_RAILWAY_SERVICE_NAMES } from '../../src/shared/release/railway-project-service-isolation'
 import { RAILWAY_SOURCE_MANAGED_SERVICES } from '../../.railway/service-source-map'
+
+// Lets a test rebind a path the instant the reader first checks or opens it,
+// which is the only way to tell a path-based file-shape guard apart from one
+// that guards the open descriptor. Disarmed by default, so every other test in
+// this file runs against unmodified `node:fs`.
+vi.mock('node:fs', async () => {
+  const { withPathSwapRace } =
+    await import('../../src/shared/testing/descriptor-race.test-harness')
+  return withPathSwapRace(await vi.importActual<typeof import('node:fs')>('node:fs'))
+})
+
+afterEach(disarmPathSwap)
 
 const digest = (character: string): `sha256:${string}` => `sha256:${character.repeat(64)}`
 
@@ -432,6 +447,126 @@ describe('staged Railway source promotion', () => {
           'schema-migrator',
         ),
       ).toThrow('does not match the inspected safe plan')
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('refuses a symlinked or FIFO saved plan at open time', () => {
+    // Both shapes were already refused by the path `lstatSync` this reader
+    // replaced, so the refusals below characterize behaviour rather than
+    // demonstrate descriptor identity — the rebind test that follows carries
+    // that. What IS new is where the refusal comes from. The symlink is now
+    // rejected by O_NOFOLLOW on the open itself, so the plan-shape error
+    // carries the open's ELOOP as its cause (asserted below; the removed path
+    // check produced a bare error). The FIFO is refused by an fstat on a
+    // descriptor opened non-blocking, so the refusal arrives promptly instead
+    // of hanging on a writer that never comes, and the apply step is never
+    // bound to the SHA-256 of the zero bytes such a FIFO reads as.
+    const candidate = fullRailwayServiceSourceInput(manifest())
+    const current = {}
+    const staged = stagedRailwayServiceSourceInput(current, candidate, 'schema-migrator')
+    const emptySha256 = createHash('sha256').update(Buffer.alloc(0)).digest('hex')
+    const directory = mkdtempSync(join(tmpdir(), 'repkey-saved-plan-shape-'))
+    try {
+      const real = join(directory, 'saved-plan.json')
+      writeFileSync(real, '{}')
+      const link = join(directory, 'linked-plan.json')
+      symlinkSync(real, link)
+      const fifo = join(directory, 'fifo-plan.json')
+      expect(spawnSync('mkfifo', [fifo]).status).toBe(0)
+
+      for (const planPath of [link, fifo]) {
+        expect(() =>
+          bindRailwaySavedPlanArtifact(
+            planPath,
+            '{}',
+            target,
+            current,
+            staged,
+            'schema-migrator',
+          ),
+        ).toThrow('Railway saved plan must be a regular file')
+        expect(() =>
+          assertRailwaySavedPlanArtifactUnchanged(planPath, emptySha256),
+        ).toThrow('Railway saved plan must remain a regular file')
+      }
+
+      let symlinkRefusal: unknown
+      try {
+        bindRailwaySavedPlanArtifact(
+          link,
+          '{}',
+          target,
+          current,
+          staged,
+          'schema-migrator',
+        )
+      } catch (error) {
+        symlinkRefusal = error
+      }
+      expect(symlinkRefusal).toBeInstanceOf(Error)
+      expect((symlinkRefusal as Error).message).toBe(
+        'Railway saved plan must be a regular file',
+      )
+      expect(
+        ((symlinkRefusal as Error).cause as NodeJS.ErrnoException | undefined)?.code,
+      ).toBe('ELOOP')
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('hashes the saved-plan bytes it opened when the plan path is rebound mid-read', () => {
+    // The defect the descriptor-based reader closes is a REBIND, not a file
+    // shape: `lstatSync(planPath)` approves one inode and `readFileSync(
+    // planPath)` then hashes whatever the name points at by the time the read
+    // runs. Rebinding the plan the instant the reader first touches it makes
+    // that gap decide the digest — and this digest is the whole binding
+    // between the plan a human inspected and the plan Railway applies.
+    const candidate = fullRailwayServiceSourceInput(manifest())
+    const current = {}
+    const staged = stagedRailwayServiceSourceInput(current, candidate, 'schema-migrator')
+    const image = staged.sources['schema-migrator'] ?? ''
+    const output = planJson({
+      currentSources: current,
+      desiredSources: staged.sources,
+      changes: [sourceChange('schema-migrator', undefined, image)],
+    })
+    const artifact = (changes: readonly unknown[]) =>
+      JSON.stringify({
+        kind: 'railway.config.plan',
+        version: 1,
+        environmentId: target.environmentId,
+        destructive: false,
+        changeSet: { changes },
+      })
+    const saved = artifact([rawSourceChange('schema-migrator', undefined, image)])
+    // A plan that applies NOTHING: the outcome an attacker wants pinned, and
+    // one this module already rejects when it is read honestly.
+    const decoy = artifact([])
+    const expectedSha256 = createHash('sha256').update(saved).digest('hex')
+    const directory = mkdtempSync(join(tmpdir(), 'repkey-saved-plan-rebind-'))
+    const planPath = join(directory, 'saved-plan.json')
+    try {
+      writeFileSync(planPath, saved)
+      armRebindOnFirstCheck(planPath, decoy)
+      expect(
+        bindRailwaySavedPlanArtifact(
+          planPath,
+          output,
+          target,
+          current,
+          staged,
+          'schema-migrator',
+        ),
+      ).toBe(expectedSha256)
+
+      writeFileSync(planPath, saved)
+      armRebindOnFirstCheck(planPath, decoy)
+      expect(() =>
+        assertRailwaySavedPlanArtifactUnchanged(planPath, expectedSha256),
+      ).not.toThrow()
     } finally {
       rmSync(directory, { recursive: true, force: true })
     }

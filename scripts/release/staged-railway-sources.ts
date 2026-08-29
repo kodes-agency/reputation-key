@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { lstatSync, readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
 import { isDeepStrictEqual } from 'node:util'
 import {
@@ -18,6 +18,7 @@ import {
   type PromotionManifest,
   type RailwayApplicationService,
 } from '../../src/shared/release/promotion-manifest'
+import { readOnce } from '../../src/shared/release/read-once'
 
 export const MINIMUM_PINNED_PLAN_RAILWAY_CLI_VERSION = '5.45.2' as const
 
@@ -521,11 +522,7 @@ export function bindRailwaySavedPlanArtifact(
   desired: RailwayServiceSourceInput,
   serviceName: RailwaySourceManagedService,
 ): string {
-  const stat = lstatSync(planPath)
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    throw new Error('Railway saved plan must be a regular file')
-  }
-  const bytes = readFileSync(planPath)
+  const bytes = readOnce(planPath, 'Railway saved plan must be a regular file')
   const saved = parseJson(bytes.toString('utf8'), 'Railway saved plan artifact')
   const disposition = inspectStagedRailwayPlan(
     plannedOutput,
@@ -556,15 +553,18 @@ export function bindRailwaySavedPlanArtifact(
   return createHash('sha256').update(bytes).digest('hex')
 }
 
+// This is the apply-time digest check: it is the last thing standing between
+// the artifact an operator inspected and the bytes Railway applies, so the
+// inode it hashes must be the inode it guarded. A `lstatSync(planPath)`
+// followed by `readFileSync(planPath)` resolved the path twice and could hash
+// an inode the guard never saw — the failure mode this function exists to
+// report.
 export function assertRailwaySavedPlanArtifactUnchanged(
   planPath: string,
   expectedSha256: string,
 ): void {
-  const stat = lstatSync(planPath)
-  if (!stat.isFile() || stat.isSymbolicLink()) {
-    throw new Error('Railway saved plan must remain a regular file')
-  }
-  const observed = createHash('sha256').update(readFileSync(planPath)).digest('hex')
+  const bytes = readOnce(planPath, 'Railway saved plan must remain a regular file')
+  const observed = createHash('sha256').update(bytes).digest('hex')
   if (observed !== expectedSha256) {
     throw new Error('Railway saved plan artifact changed between inspection and apply')
   }
