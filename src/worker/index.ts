@@ -456,7 +456,37 @@ async function main() {
   )
 }
 
+/**
+ * Say what the worker died of, on stderr, before anything else runs.
+ *
+ * The structured logger redacts free text, because a message logged during
+ * normal operation can carry tenant content. That is right in general and
+ * wrong here: this handler only ever runs BEFORE the worker has started, so
+ * there is no tenant data to leak, and the redacted form is unusable —
+ * `{"err":{"name":"Error"}}` names no cause at all, which is exactly what a
+ * failing container produced in CI.
+ *
+ * Mirrors `emitStartupFailure` in services/sidecar-operational-runtime.ts,
+ * which exists for the same reason and was added after the same symptom.
+ */
+function emitWorkerStartupFailure(error: unknown): void {
+  const named = error instanceof Error ? error : undefined
+  const code = (error as { code?: unknown } | null)?.code
+  process.stderr.write(
+    `${JSON.stringify({
+      event: 'worker.startup_failed',
+      name: named?.name ?? typeof error,
+      ...(typeof code === 'string' || typeof code === 'number' ? { code } : {}),
+      message: named?.message ?? String(error),
+      stack: named?.stack,
+    })}\n`,
+  )
+}
+
 main().catch(async (err) => {
+  // stderr FIRST: the two calls below both depend on configuration that may be
+  // the very thing that failed, so neither is allowed to swallow the diagnosis.
+  emitWorkerStartupFailure(err)
   captureObservabilityException(err, {
     source: 'worker-startup',
     trigger: 'startup',
