@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { createVersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
 import { createInMemoryProviderEphemeralStore } from '#/shared/provider-ephemeral/in-memory-store'
@@ -178,6 +179,91 @@ describe('OAuth state handles', () => {
     await expect(
       expiredService.redeem({ ...input, handle: expiredHandle, nowMs: now.value }),
     ).resolves.toEqual({ ok: false, code: 'not_found' })
+  })
+
+  it('holds the ceremony record under a keyring-derived key, not a digest of the handle', async () => {
+    const now = { value: 1_000 }
+    const store = createInMemoryProviderEphemeralStore(() => now.value)
+    const handleKeys = createVersionedHmacKeyring(`v2:${KEY_A},v1:${KEY_B}`)
+    const service = createOAuthStateHandleService({
+      store,
+      handleKeys,
+      sessionKeys: createVersionedHmacKeyring(`v3:${KEY_B},v2:${KEY_A}`),
+      random: () => Buffer.alloc(32, 7),
+      newExchangeAttemptId: () => '60000000-0000-4000-8000-000000000001',
+    })
+    const handle = await issue(service, now.value)
+
+    // The handle reaches Google in a redirect URL, so anyone who later reads it
+    // out of history or a log must not be able to compute the store key.
+    const unkeyed = createHash('sha256').update(handle).digest('base64url')
+    await expect(store.read('oauth-state', unkeyed)).resolves.toBeUndefined()
+
+    const derived = handleKeys.derive('google-oauth-state-record-key', handle, 'v2')!
+    const stored = await store.read('oauth-state', derived)
+    expect(stored).toBeDefined()
+    expect(JSON.parse(stored!)).toMatchObject({
+      state: 'issued',
+      codeVerifier: 'v'.repeat(43),
+      oidcNonce: 'n'.repeat(43),
+    })
+  })
+
+  it('does not fall back to the pre-cutover unkeyed record key', async () => {
+    const now = { value: 1_000 }
+    const store = createInMemoryProviderEphemeralStore(() => now.value)
+    const handleKeys = createVersionedHmacKeyring(`v2:${KEY_A}`)
+    const service = createOAuthStateHandleService({
+      store,
+      handleKeys,
+      sessionKeys: createVersionedHmacKeyring(`v3:${KEY_B}`),
+      random: () => Buffer.alloc(32, 7),
+      newExchangeAttemptId: () => '60000000-0000-4000-8000-000000000001',
+    })
+    const handle = await issue(service, now.value)
+
+    // Restage the record exactly where a pre-cutover release wrote it. An
+    // OAuth ceremony that spans the deploy fails closed and restartable; it
+    // never resolves through the guessable key.
+    const derived = handleKeys.derive('google-oauth-state-record-key', handle, 'v2')!
+    const stored = await store.read('oauth-state', derived)
+    expect(stored).toBeDefined()
+    await store.remove('oauth-state', derived)
+    await store.putIfAbsent(
+      'oauth-state',
+      createHash('sha256').update(handle).digest('base64url'),
+      stored!,
+      600,
+    )
+
+    await expect(
+      service.redeem({
+        handle,
+        organizationId: 'org-1',
+        userId: 'user-1',
+        sessionId: 'session-secret-1',
+        nowMs: now.value,
+      }),
+    ).resolves.toEqual({ ok: false, code: 'not_found' })
+  })
+
+  it('refuses to issue when the injected nonce source does not yield a 32-byte nonce', async () => {
+    const now = { value: 1_000 }
+    const service = createOAuthStateHandleService({
+      store: createInMemoryProviderEphemeralStore(() => now.value),
+      handleKeys: createVersionedHmacKeyring(`v2:${KEY_A}`),
+      sessionKeys: createVersionedHmacKeyring(`v3:${KEY_B}`),
+      // A 10-byte nonce base64url-encodes to 14 characters, so the handle the
+      // signer produces no longer satisfies `recordKey`'s nonce shape. This is
+      // the one seam that reaches the issue-time derivability guard; with the
+      // default `randomBytes` it cannot fire.
+      random: () => Buffer.alloc(10, 7),
+      newExchangeAttemptId: () => '60000000-0000-4000-8000-000000000001',
+    })
+
+    await expect(issue(service, now.value)).rejects.toThrow(
+      'OAuth state record key is not derivable',
+    )
   })
 
   it('accepts retained handle signing keys during rotation', async () => {

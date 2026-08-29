@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID } from 'node:crypto'
+import { randomBytes, randomUUID } from 'node:crypto'
 import { z } from 'zod/v4'
 import type { ProviderEphemeralStore } from '#/shared/provider-ephemeral/provider-ephemeral-store'
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
@@ -98,10 +98,7 @@ export type OAuthStateHandleService = Readonly<{
 
 const HANDLE_AUDIENCE = 'google-oauth-state-handle'
 const SESSION_AUDIENCE = 'oauth-session-binding'
-
-function recordKey(handle: string): string {
-  return createHash('sha256').update(handle).digest('base64url')
-}
+const RECORD_KEY_AUDIENCE = 'google-oauth-state-record-key'
 
 export function createOAuthStateHandleService(
   deps: Readonly<{
@@ -116,19 +113,36 @@ export function createOAuthStateHandleService(
   const random = deps.random ?? randomBytes
   const newExchangeAttemptId = deps.newExchangeAttemptId ?? randomUUID
 
-  const parseHandle = (handle: string): boolean => {
+  /**
+   * Verify a handle and derive the provider-ephemeral key that holds its
+   * record, or null when the handle does not verify under a held key version.
+   *
+   * The handle is the OAuth `state` value, so it travels in redirect URLs and
+   * persists in browser history, `Referer` headers, and access logs. Deriving
+   * the record key through the handle keyring means holding a leaked state
+   * value is not by itself enough to compute the key that holds that ceremony's
+   * PKCE verifier and OIDC nonce; an unkeyed digest of the handle would be.
+   * Derivation uses the handle's own key version, so ceremonies issued before a
+   * rotation stay readable while that version is retained.
+   */
+  const recordKey = (handle: string): string | null => {
     const parts = handle.split('.')
-    if (parts.length !== 4 || parts[0] !== 'v2') return false
+    if (parts.length !== 4 || parts[0] !== 'v2') return null
     const [, keyVersion, nonce, digest] = parts
     if (!keyVersion || !nonce || !digest || !/^[A-Za-z0-9_-]{43}$/.test(nonce)) {
-      return false
+      return null
     }
-    return deps.handleKeys.verify(
-      HANDLE_AUDIENCE,
-      `v2.${keyVersion}.${nonce}`,
-      keyVersion,
-      digest,
-    )
+    if (
+      !deps.handleKeys.verify(
+        HANDLE_AUDIENCE,
+        `v2.${keyVersion}.${nonce}`,
+        keyVersion,
+        digest,
+      )
+    ) {
+      return null
+    }
+    return deps.handleKeys.derive(RECORD_KEY_AUDIENCE, handle, keyVersion)
   }
 
   const parseRecord = (
@@ -155,6 +169,17 @@ export function createOAuthStateHandleService(
         throw new Error('OAuth handle keyring active version changed during issuance')
       }
       const handle = `${prefix}.${signed.digest}`
+      // Deriving through `recordKey` keeps issue and redeem on one code path,
+      // so the written key and the read key cannot drift apart. Under the
+      // default `randomBytes` this guard cannot fire: the handle was just
+      // built to satisfy every check `recordKey` makes. It is reachable only
+      // through the injected `random` seam yielding other than 32 bytes —
+      // covered by "refuses to issue when the injected nonce source does not
+      // yield a 32-byte nonce". It is not what stops a bad write: the store's
+      // own key validation rejects a null key regardless. The guard buys a
+      // precise error at this layer and the `string` narrowing below.
+      const key = recordKey(handle)
+      if (key === null) throw new Error('OAuth state record key is not derivable')
       const sessionBinding = deps.sessionKeys.sign(SESSION_AUDIENCE, input.sessionId)
       if (
         (input.connectionMode === 'new' && input.targetConnectionId !== null) ||
@@ -183,7 +208,7 @@ export function createOAuthStateHandleService(
       }
       const inserted = await deps.store.putIfAbsent(
         'oauth-state',
-        recordKey(handle),
+        key,
         JSON.stringify(record),
         600,
       )
@@ -193,8 +218,8 @@ export function createOAuthStateHandleService(
 
     redeem: async (input) => {
       await deps.ensureRuntimeReady?.()
-      if (!parseHandle(input.handle)) return { ok: false, code: 'malformed' }
       const key = recordKey(input.handle)
+      if (key === null) return { ok: false, code: 'malformed' }
       const encoded = await deps.store.read('oauth-state', key)
       if (!encoded) return { ok: false, code: 'not_found' }
       const record = parseRecord(encoded)
