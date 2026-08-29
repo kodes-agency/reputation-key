@@ -1,10 +1,16 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import {
+  renderSharedBoundaryPolicies,
+  SHARED_BOUNDARY_POLICY_MARKERS,
+  SHARED_DEPENDENCY_POLICY,
+} from './shared-dependency-policy'
 
 const ROOT = resolve(import.meta.dirname, '../../..')
 const SHARED_ROOT = resolve(ROOT, 'src/shared')
 const SHARED_CONTEXT = resolve(SHARED_ROOT, 'CONTEXT.md')
+const ESLINT_CONFIG = resolve(ROOT, 'eslint.config.js')
 
 const AREA_TABLE_START = '<!-- shared-first-level-ownership:start -->'
 const AREA_TABLE_END = '<!-- shared-first-level-ownership:end -->'
@@ -15,6 +21,8 @@ type OwnershipRow = Readonly<{
   key: string
   purpose: string
   ownershipRule: string
+  /** Only the first-level area table carries a 4th column (ARC-03-T3). */
+  permittedDependencies?: readonly string[]
 }>
 
 function ownershipRowsBetween(start: string, end: string): readonly OwnershipRow[] {
@@ -40,16 +48,28 @@ function ownershipRowsBetween(start: string, end: string): readonly OwnershipRow
   if (headers[1] !== 'Purpose' || headers[2] !== 'Owner and placement rule') {
     throw new Error(`Shared ownership table ${start} must name purpose and owner`)
   }
+  // ARC-03-T3: the area table also declares the permitted-dependency graph.
+  const columns = headers[3] === 'Permitted dependencies' ? 4 : 3
+  if (start === AREA_TABLE_START && columns !== 4) {
+    throw new Error('Shared area table must declare Permitted dependencies')
+  }
 
   return tableLines.slice(2).map((line) => {
     const cells = line
       .slice(1, -1)
       .split('|')
       .map((cell) => cell.trim().replaceAll('`', ''))
-    if (cells.length !== 3 || cells.some((cell) => cell.length === 0)) {
+    if (cells.length !== columns || cells.some((cell) => cell.length === 0)) {
       throw new Error(`Shared ownership row is incomplete: ${line}`)
     }
-    return { key: cells[0]!, purpose: cells[1]!, ownershipRule: cells[2]! }
+    return {
+      key: cells[0]!,
+      purpose: cells[1]!,
+      ownershipRule: cells[2]!,
+      ...(columns === 4
+        ? { permittedDependencies: cells[3]!.split(',').map((entry) => entry.trim()) }
+        : {}),
+    }
   })
 }
 
@@ -121,6 +141,37 @@ describe('shared context ownership documentation', () => {
     ).toEqual([])
     expect(rows.every(({ purpose }) => purpose.length >= 20)).toBe(true)
     expect(rows.every(({ ownershipRule }) => ownershipRule.length >= 20)).toBe(true)
+  })
+
+  it('documents the permitted-dependency graph exactly as the policy declares it', () => {
+    const documented = ownershipRowsBetween(AREA_TABLE_START, AREA_TABLE_END).map(
+      ({ key, permittedDependencies }) => ({ area: key, allows: permittedDependencies }),
+    )
+    const declared = SHARED_DEPENDENCY_POLICY.map(({ area, allows }) => ({
+      area,
+      allows: [...allows],
+    }))
+
+    // Both directions: the table may not add an area the policy omits, and the
+    // policy may not add an edge the table never disclosed to its owner.
+    expect(documented).toEqual(declared)
+    expect(declared).toEqual(documented)
+  })
+
+  it('keeps the linter byte-identical to the declared policy', () => {
+    // eslint.config.js cannot import a TypeScript module, so the derived
+    // policies are pasted into it. This is what stops the paste from drifting:
+    // the generated text must appear verbatim between the markers.
+    const config = readFileSync(ESLINT_CONFIG, 'utf8')
+    const { start, end } = SHARED_BOUNDARY_POLICY_MARKERS
+    const startIndex = config.indexOf(start)
+    const endIndex = config.indexOf(end)
+    expect(startIndex, 'policy start marker').toBeGreaterThan(-1)
+    expect(endIndex, 'policy end marker').toBeGreaterThan(startIndex)
+
+    const indent = startIndex - (config.lastIndexOf('\n', startIndex) + 1)
+    const inConfig = config.slice(startIndex - indent, endIndex + end.length + 1)
+    expect(inConfig).toBe(renderSharedBoundaryPolicies(indent))
   })
 
   it('rejects a future undocumented area and root production category', () => {

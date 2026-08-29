@@ -14,8 +14,7 @@
 // Raw SQL fragments remain only for aggregate expressions; table/column
 // identity comes from schema imports.
 
-import type { OutboxRepository } from '#/shared/outbox'
-import { DEFAULT_LEASE_DURATION_MS } from '#/shared/outbox/infrastructure/outbox-repository'
+import { DEFAULT_LEASE_DURATION_MS, type OutboxRepository } from '#/shared/outbox'
 import type { Database } from '#/shared/db'
 import { sql } from 'drizzle-orm'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'

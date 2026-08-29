@@ -1,6 +1,10 @@
-import { createHmac } from 'node:crypto'
+import { betaFeedbackPseudonym } from '#/contexts/identity/application/beta-feedback-pseudonym'
 import { throwContextError } from '#/shared/auth/server-errors'
 import type { RateLimiter } from '#/shared/rate-limit/middleware'
+
+// Re-exported so the existing server-side consumers (and their module mocks)
+// keep a single import site; the derivation itself now lives in application/.
+export { betaFeedbackPseudonym }
 
 const ACTOR_LIMIT = Object.freeze({
   maxRequests: 5,
@@ -11,31 +15,12 @@ const ORGANIZATION_LIMIT = Object.freeze({
   windowSeconds: 24 * 60 * 60,
 })
 
-type PseudonymAudience =
-  | 'rate-limit-actor'
-  | 'rate-limit-organization'
-  | 'telemetry-actor'
-  | 'telemetry-organization'
-  | 'triage-operator'
-  | 'triage-owner'
-
 type Input = Readonly<{
   rateLimiter: RateLimiter
   actorId: string
   organizationId: string
   keyHmacSecret: string
 }>
-
-export function betaFeedbackPseudonym(
-  secret: string,
-  audience: PseudonymAudience,
-  value: string,
-): string {
-  return createHmac('sha256', secret)
-    .update(`repkey:beta-feedback:${audience}:v1\0`)
-    .update(value)
-    .digest('hex')
-}
 
 function throwRateLimited(): never {
   throwContextError(

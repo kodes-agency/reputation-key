@@ -7,7 +7,7 @@ import { getDb } from '../../src/shared/db'
 import { getEnv } from '../../src/shared/config/env'
 import { parseBetaFeedbackTriageInvocation } from '../../src/contexts/identity/application/beta-feedback-triage-invocation'
 import { BetaFeedbackTriageRepository } from '../../src/contexts/identity/infrastructure/beta-feedback-triage.repository'
-import { betaFeedbackPseudonym } from '../../src/contexts/identity/server/beta-feedback-rate-limit.server'
+import { betaFeedbackPseudonym } from '../../src/contexts/identity/application/beta-feedback-pseudonym'
 import { runOperatorCommand } from './operator-command'
 
 const COMMAND = 'ops:triage-beta-feedback'

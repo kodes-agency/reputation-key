@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from 'node:fs'
-import { dirname, relative, resolve } from 'node:path'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { dirname, join, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const source = (path: string) => readFileSync(path, 'utf8')
@@ -10,6 +10,56 @@ const RUNTIMES = [
   'services/ai-execution-admission/index.ts',
   'services/ai-egress-gateway/bootstrap.ts',
 ] as const
+
+/**
+ * ARC-03-T2: the only `src/shared/` surface a separately deployed sidecar may
+ * link. A trailing `-` or `/` marks a family; every other entry is an exact
+ * module. Mirrored by the `shared-provider-kernel` file category in
+ * eslint.config.js and by "Trust-boundary sidecar kernel" in
+ * src/shared/CONTEXT.md — all three are asserted equal below, because a fence
+ * that only exists in one of the three is a fence someone deletes by accident.
+ */
+const SIDECAR_SHARED_KERNEL = [
+  'src/shared/ai-',
+  'src/shared/canonical-json',
+  'src/shared/closed-json-contract',
+  'src/shared/config/release-identity',
+  'src/shared/ed25519-key-material',
+  'src/shared/google-provider-control/',
+  'src/shared/merchant-ai-',
+  'src/shared/observability/telemetry',
+  'src/shared/openai-',
+  'src/shared/provider-ephemeral/runtime-verification',
+  'src/shared/security/versioned-hmac-keyring',
+] as const
+
+function sidecarModules(directory = 'services'): readonly string[] {
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name)
+    if (entry.isDirectory()) return sidecarModules(path)
+    if (!entry.name.endsWith('.ts') || entry.name.endsWith('.test.ts')) return []
+    return [path]
+  })
+}
+
+/** Every `src/shared/...` specifier in a module, normalized to a repo path. */
+function sharedSpecifiers(contents: string): readonly string[] {
+  return [...contents.matchAll(/from\s+'([^']+)'|import\('([^']+)'\)/gu)]
+    .map((match) => match[1] ?? match[2]!)
+    .filter((specifier) => specifier.includes('src/shared/'))
+    .map((specifier) => specifier.slice(specifier.indexOf('src/shared/')))
+}
+
+function outsideKernel(contents: string): readonly string[] {
+  return sharedSpecifiers(contents).filter(
+    (specifier) =>
+      !SIDECAR_SHARED_KERNEL.some((entry) =>
+        entry.endsWith('-') || entry.endsWith('/')
+          ? specifier.startsWith(entry)
+          : specifier === entry,
+      ),
+  )
+}
 
 describe('sidecar executable operational wiring', () => {
   it('preloads monitoring before each protected runtime module', () => {
@@ -115,6 +165,63 @@ describe('sidecar executable operational wiring', () => {
     ]) {
       expect([...reachable(entry)], entry).toContain(TELEMETRY)
     }
+  })
+
+  it('links only the named shared provider kernel, never the application runtime', () => {
+    const escapes = sidecarModules()
+      .map((path) => ({ path, outside: outsideKernel(source(path)) }))
+      .filter(({ outside }) => outside.length > 0)
+    expect(escapes).toEqual([])
+
+    // The walk has to actually see something, or an empty glob would pass.
+    const linked = new Set(
+      sidecarModules().flatMap((path) => sharedSpecifiers(source(path))),
+    )
+    expect(linked.size).toBeGreaterThan(10)
+  })
+
+  it('fails when a sidecar module reaches the application database', () => {
+    // The control the assertion above is worthless without: an injected module
+    // that opens the application database must be reported, not tolerated.
+    const injected = [
+      "import { getDb } from '../../src/shared/db'",
+      "import { INTERNAL_TRANSPORT } from '../../src/shared/ai-internal-transport-contract'",
+    ].join('\n')
+    expect(outsideKernel(injected)).toEqual(['src/shared/db'])
+  })
+
+  it('keeps the kernel identical in the linter, the documentation and this test', () => {
+    const eslintConfig = source('eslint.config.js')
+    const category = eslintConfig.slice(
+      eslintConfig.indexOf("category: 'shared-provider-kernel'"),
+    )
+    const patterns = category
+      .slice(0, category.indexOf('],'))
+      .split('\n')
+      .map((line) => /'([^']+)'/u.exec(line.trim())?.[1])
+      .filter((pattern): pattern is string => Boolean(pattern?.startsWith('src/shared/')))
+    expect([...patterns].sort()).toEqual(
+      SIDECAR_SHARED_KERNEL.map((entry) =>
+        entry.endsWith('/')
+          ? `${entry}**`
+          : entry.endsWith('-')
+            ? `${entry}*`
+            : `${entry}.ts`,
+      )
+        .slice()
+        .sort(),
+    )
+
+    const context = source('src/shared/CONTEXT.md')
+    const documented = context
+      .slice(
+        context.indexOf('<!-- sidecar-shared-kernel:start -->'),
+        context.indexOf('<!-- sidecar-shared-kernel:end -->'),
+      )
+      .split('\n')
+      .map((line) => /`(src\/shared\/[^`]+)`/u.exec(line)?.[1])
+      .filter((entry): entry is string => Boolean(entry))
+    expect([...documented].sort()).toEqual([...SIDECAR_SHARED_KERNEL].sort())
   })
 
   it('keeps temporary Railway configs and runtime images on the same port contract', () => {
