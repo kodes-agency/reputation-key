@@ -103,7 +103,7 @@ export class GuestResponseLifecycleError extends Error {
 
 /** Exported for the server boundary, which mirrors a submitted view's shape. */
 export const CORRECTION_WINDOW_MS = 60 * 60 * 1000
-export const FEEDBACK_WITHDRAWAL_WINDOW_MS = DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS
+const FEEDBACK_WITHDRAWAL_WINDOW_MS = DEFAULT_FEEDBACK_WITHDRAWAL_WINDOW_MS
 export const RESPONSE_WITHDRAWAL_WINDOW_MS = DEFAULT_RESPONSE_WITHDRAWAL_WINDOW_MS
 
 function factRetentionDeadline(from: Date): Date {

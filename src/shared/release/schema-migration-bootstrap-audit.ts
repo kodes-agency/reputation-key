@@ -4,8 +4,7 @@ import { RAILWAY_DEPLOYMENT_PROFILES } from './railway-deployment-profile'
 
 export const SCHEMA_MIGRATION_BOOTSTRAP_AUDIT_VERSION =
   'repkey-schema-migration-bootstrap-authorization-2' as const
-export const SCHEMA_MIGRATION_BOOTSTRAP_POLICY_VERSION =
-  'schema-bootstrap-artifact-1' as const
+const SCHEMA_MIGRATION_BOOTSTRAP_POLICY_VERSION = 'schema-bootstrap-artifact-1' as const
 
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/u)
 const imageDigest = z.string().regex(/^sha256:[0-9a-f]{64}$/u)

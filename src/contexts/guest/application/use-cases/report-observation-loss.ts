@@ -12,7 +12,7 @@ export type ReportGuestObservationLossDeps = Readonly<{
 }>
 
 /** The monitor is evidence, never part of the public journey's latency budget. */
-export const GUEST_OBSERVATION_LOSS_REPORT_BUDGET_MS = 250
+const GUEST_OBSERVATION_LOSS_REPORT_BUDGET_MS = 250
 
 async function recordWithinBudget(
   write: Promise<void>,

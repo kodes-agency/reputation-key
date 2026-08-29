@@ -250,7 +250,7 @@ type BetaNotificationReadinessRequirement = Readonly<{
  * Canonical Goal Programs close `goal.monthly_result.closed:v1`; the legacy
  * `goal.completed` producer is compatibility-only and must never be revived.
  */
-export const BETA_NOTIFICATION_READINESS_REQUIREMENTS = [
+const BETA_NOTIFICATION_READINESS_REQUIREMENTS = [
   {
     eventType: 'goal.monthly_result.closed',
     version: 1,

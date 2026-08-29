@@ -33,9 +33,6 @@ import {
 
 export const CANDIDATE_FREEZE_RECORD_VERSION = 'repkey-candidate-freeze-1' as const
 
-/** Beta is exactly one logical US Data Cell. */
-export const CANDIDATE_FREEZE_CELLS = ['us'] as const
-
 /**
  * The generated-artifact gates that must be re-run at freeze time. A freeze
  * taken while a generated fixture is stale pins a candidate that CI will

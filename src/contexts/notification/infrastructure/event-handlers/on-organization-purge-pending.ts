@@ -23,7 +23,7 @@ import type { UserLookupPort } from '../../application/ports/user-lookup.port'
 import { INSERT_NOTIFICATION_JOB_NAME } from '../jobs/insert-notification.job'
 import type { NotificationJobEnqueuePort } from '../inbox-notification-fanout'
 
-export const ORGANIZATION_PURGE_PENDING_NOTIFICATION_TYPE =
+const ORGANIZATION_PURGE_PENDING_NOTIFICATION_TYPE =
   'account.organization_purge_pending' as const
 
 export type OrganizationPurgePendingNotificationDeps = Readonly<{

@@ -24,8 +24,8 @@ import {
 export const DEFECT_DISPOSITION_EVIDENCE_VERSION =
   LIVE_EVIDENCE_VERSIONS['candidate.defect_disposition']
 
-export const DEFECT_SEVERITIES = ['critical', 'high', 'medium', 'low'] as const
-export const DEFECT_DISPOSITIONS = [
+const DEFECT_SEVERITIES = ['critical', 'high', 'medium', 'low'] as const
+const DEFECT_DISPOSITIONS = [
   'fixed_in_candidate',
   'accepted_risk',
   'deferred',

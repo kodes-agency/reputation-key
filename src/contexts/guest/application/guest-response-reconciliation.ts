@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-export const GUEST_RESPONSE_RECONCILIATION_VERSION =
+const GUEST_RESPONSE_RECONCILIATION_VERSION =
   'repkey-guest-response-reconciliation-2' as const
 
 export const GUEST_RESPONSE_RECONCILIATION_REASON_CODES = [

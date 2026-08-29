@@ -25,8 +25,6 @@
  * failure mode this authority exists to remove.
  */
 
-export const PUBLIC_API_HEADING = '## Public API'
-
 export type ProseTerm = Readonly<{
   directory: string
   term: string

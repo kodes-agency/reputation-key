@@ -99,7 +99,7 @@ export const LEG_01_FACT_SOURCE_CATEGORIES = {
  * Markers a candidate draft carries. An approved checklist that still ships a
  * document containing one of these is approving a draft.
  */
-export const LEGAL_DRAFT_MARKERS: readonly RegExp[] = Object.freeze([
+const LEGAL_DRAFT_MARKERS: readonly RegExp[] = Object.freeze([
   /Candidate draft/u,
   /do not publish/iu,
   /not for publication/iu,

@@ -3,7 +3,7 @@ import { activityError } from '../../domain/errors'
 import { RECENT_ACTIVITY_REPLAY_RETENTION_MS } from '../../domain/recent-activity-replay-fact'
 import type { RecentActivityPrivacyStore } from '../../ports/recent-activity-privacy-store.port'
 
-export const RECENT_ACTIVITY_REDACTION_BATCH_MAX = 100
+const RECENT_ACTIVITY_REDACTION_BATCH_MAX = 100
 
 export type RedactRecentActivityActorLabelsInput = Readonly<{
   organizationId: OrganizationId

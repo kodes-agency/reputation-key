@@ -48,7 +48,7 @@ export const betaFeedbackCustomerResponseSchema = z.enum([
 const pseudonymSchema = z.string().regex(/^[a-f0-9]{64}$/u)
 const safeReferenceSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$/u)
 
-export const betaFeedbackTriageTransitionSchema = z
+const betaFeedbackTriageTransitionSchema = z
   .object({
     expectedRevision: z.int().min(0),
     toState: betaFeedbackTriageStateSchema,

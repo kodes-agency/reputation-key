@@ -192,7 +192,7 @@ export const POLICY_DENIAL_DRIFT_WINDOW_MS = 60 * 60 * 1000
 export const BETA_FEEDBACK_TRIAGE_BACKLOG_ALERT_MS = 72 * 60 * 60 * 1000
 
 /** Redis monitor retention/read window for suppressed Guest observations. */
-export const GUEST_OBSERVATION_LOSS_ALERT_WINDOW_MS = 24 * 60 * 60 * 1000
+const GUEST_OBSERVATION_LOSS_ALERT_WINDOW_MS = 24 * 60 * 60 * 1000
 
 /** The health-check evaluation cadence (the job's 5-min schedule). */
 const EVAL_CADENCE_MS = 5 * 60 * 1000

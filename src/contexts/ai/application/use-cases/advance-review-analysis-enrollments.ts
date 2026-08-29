@@ -8,7 +8,7 @@ import type {
 import { resolveAiExecutionStopFence } from '../ai-workflow-support'
 
 /** Enrollment heads visited per recovery tick. */
-export const AI_REVIEW_ANALYSIS_ENROLLMENT_SWEEP_BATCH_SIZE = 50
+const AI_REVIEW_ANALYSIS_ENROLLMENT_SWEEP_BATCH_SIZE = 50
 
 export type AdvanceReviewAnalysisEnrollmentSweepResult = Readonly<{
   enrollmentsVisited: number

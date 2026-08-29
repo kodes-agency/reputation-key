@@ -3,13 +3,9 @@
 import { z } from 'zod/v4'
 import { isValidExternalUrl } from '../../domain/rules'
 
-export const portalLinkLabelSchema = z
-  .string()
-  .trim()
-  .min(1, 'Label is required')
-  .max(100)
+const portalLinkLabelSchema = z.string().trim().min(1, 'Label is required').max(100)
 
-export const portalLinkUrlSchema = z
+const portalLinkUrlSchema = z
   .string()
   .trim()
   .min(1, 'URL is required')

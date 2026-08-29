@@ -26,7 +26,7 @@
 import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
 
-export const LEGAL_DOCUMENT_REGISTRY_VERSION = 'repkey-legal-document-registry-1' as const
+const LEGAL_DOCUMENT_REGISTRY_VERSION = 'repkey-legal-document-registry-1' as const
 
 export const LEGAL_DOCUMENT_REGISTRY_PATH = 'docs/legal/legal-document-registry.json'
 

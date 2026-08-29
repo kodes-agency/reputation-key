@@ -56,7 +56,7 @@ export const liveEvidenceTextSchema = z.string().trim().min(1).max(1024)
  * `capturedBy !== attestedBy` is enforced by every importer: a single person
  * cannot both produce and attest a release proof.
  */
-export const liveEvidenceAuthoritySchema = z
+const liveEvidenceAuthoritySchema = z
   .object({
     capturedBy: releaseEvidenceIdentitySchema,
     attestedBy: releaseEvidenceIdentitySchema,
@@ -69,7 +69,7 @@ export const liveEvidenceAuthoritySchema = z
  * Redaction counters. `prohibitedFieldOccurrences` counts customer-identifying
  * fields that reached the captured artifact; a passing artifact must be zero.
  */
-export const liveEvidenceRedactionSchema = z
+const liveEvidenceRedactionSchema = z
   .object({
     reportSha256: releaseEvidenceSha256Schema,
     prohibitedFieldOccurrences: z.number().int().safe().nonnegative(),
@@ -77,7 +77,7 @@ export const liveEvidenceRedactionSchema = z
   })
   .strict()
 
-export const liveEvidenceFailureSchema = z.array(z.string().trim().min(1).max(1024))
+const liveEvidenceFailureSchema = z.array(z.string().trim().min(1).max(1024))
 
 /**
  * The fields every live-evidence artifact carries. Built as a factory rather

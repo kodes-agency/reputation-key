@@ -245,7 +245,7 @@ export type GoogleContentApprovalInstaller = Readonly<{
   >
 }>
 
-export function createGoogleContentApprovalInstaller<Tx>(
+function createGoogleContentApprovalInstaller<Tx>(
   deps: Readonly<{
     store: Pick<GoogleContentAuthorityStore<Tx>, 'transaction' | 'appendApproval'>
     clock: Clock

@@ -42,7 +42,7 @@ import {
   type ReleaseCandidateBinding,
 } from './candidate-bound-evidence'
 
-export const RECOVERY_REHEARSAL_PLAN_VERSION = 'repkey-recovery-rehearsal-plan-1' as const
+const RECOVERY_REHEARSAL_PLAN_VERSION = 'repkey-recovery-rehearsal-plan-1' as const
 
 export const RECOVERY_REHEARSAL_PHASES = [
   'plan',
@@ -63,7 +63,7 @@ export type RecoveryPath = RecoveryRehearsalEvidence['recoveryPath']
  * specific to schema-destructive DDL: "stop customer traffic" must not trip,
  * "drop column" must.
  */
-export const FORBIDDEN_RECOVERY_STATEMENT_PATTERNS: ReadonlyArray<
+const FORBIDDEN_RECOVERY_STATEMENT_PATTERNS: ReadonlyArray<
   Readonly<{ name: string; pattern: RegExp }>
 > = [
   {

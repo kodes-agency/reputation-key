@@ -1,6 +1,6 @@
-export const PORTAL_HEALTH_STATUSES = ['healthy', 'degraded', 'unavailable'] as const
+const PORTAL_HEALTH_STATUSES = ['healthy', 'degraded', 'unavailable'] as const
 
-export const PORTAL_HEALTH_REASONS = [
+const PORTAL_HEALTH_REASONS = [
   'operational',
   'publication_draft',
   'publication_disabled',
@@ -14,7 +14,7 @@ export const PORTAL_HEALTH_REASONS = [
 ] as const
 
 /** Only automatic states that give a manager a concrete recovery action. */
-export const ACTIONABLE_PORTAL_HEALTH_REASONS = [
+const ACTIONABLE_PORTAL_HEALTH_REASONS = [
   'property_unavailable',
   'publication_snapshot_unavailable',
   'public_address_unavailable',

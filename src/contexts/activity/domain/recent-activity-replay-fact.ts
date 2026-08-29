@@ -115,7 +115,7 @@ const sourceTime = (value: Date | string | undefined): Date => {
   return parsed
 }
 
-export const assertContentFreeRecentActivityInput = (
+const assertContentFreeRecentActivityInput = (
   input: RecentActivityProjectionInput,
 ): void => {
   if (!SAFE_SUBJECTS.has(input.payload.subject)) {

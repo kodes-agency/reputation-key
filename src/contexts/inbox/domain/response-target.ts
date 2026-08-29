@@ -1,7 +1,7 @@
 import { inboxError } from './errors'
 
 export const DEFAULT_RESPONSE_TARGET_MINUTES = 48 * 60
-export const RESPONSE_TARGET_POLICY_VERSION = 1
+const RESPONSE_TARGET_POLICY_VERSION = 1
 
 export type ResponseTargetKind = 'google_review_response' | 'private_feedback_handling'
 

@@ -28,8 +28,8 @@ export const RAILWAY_PLAN_EVIDENCE_VERSION = 'repkey-railway-plan-5' as const
 export const RAILWAY_PLAN_EVIDENCE_MAX_AGE_MS = 60 * 60 * 1000
 
 /** Exit contract of `railway config plan --detailed-exit-code`. */
-export const RAILWAY_PLAN_EXIT_NO_DRIFT = 0
-export const RAILWAY_PLAN_EXIT_PENDING_CHANGES = 2
+const RAILWAY_PLAN_EXIT_NO_DRIFT = 0
+const RAILWAY_PLAN_EXIT_PENDING_CHANGES = 2
 
 export type RailwayPlanOutcome = 'no-drift' | 'pending-changes'
 
@@ -38,7 +38,7 @@ export type RailwayPlanOutcome = 'no-drift' | 'pending-changes'
  * fingerprinted. These are placement and identity fields the operator must be
  * able to read to review a plan; none of them carry credentials.
  */
-export const RAILWAY_PLAN_STRUCTURAL_KEYS: ReadonlySet<string> = new Set([
+const RAILWAY_PLAN_STRUCTURAL_KEYS: ReadonlySet<string> = new Set([
   'action',
   'domain',
   'environment',

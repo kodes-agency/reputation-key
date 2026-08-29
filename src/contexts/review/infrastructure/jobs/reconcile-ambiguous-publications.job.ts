@@ -40,7 +40,7 @@ import type { PublicationReconciliationRunLease } from '../../application/ports/
 
 const DEFAULT_BATCH_SIZE = 500
 const DEFAULT_MAX_BATCHES = 10
-export const RECONCILIATION_MAX_RUN_MS = 240_000
+const RECONCILIATION_MAX_RUN_MS = 240_000
 
 type ReconcileSweepDeps = Readonly<{
   replyRepo: ReplyRepository

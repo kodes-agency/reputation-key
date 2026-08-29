@@ -82,12 +82,12 @@ import { PRODUCTION_RAILWAY_PROJECT_NAME } from './railway-deployment-profile'
 
 const digest = (value: string): string => value.repeat(64).slice(0, 64)
 
-export const COMPLETE_BUNDLE_CAPTURED_AT = '2026-08-28T10:00:00.000Z'
-export const COMPLETE_BUNDLE_APPROVED_AT = '2026-08-28T11:00:00.000Z'
-export const COMPLETE_BUNDLE_APPROVAL_ARTIFACT_AT = '2026-08-28T11:01:00.000Z'
-export const COMPLETE_BUNDLE_COMPLETED_AT = '2026-08-28T12:00:00.000Z'
+const COMPLETE_BUNDLE_CAPTURED_AT = '2026-08-28T10:00:00.000Z'
+const COMPLETE_BUNDLE_APPROVED_AT = '2026-08-28T11:00:00.000Z'
+const COMPLETE_BUNDLE_APPROVAL_ARTIFACT_AT = '2026-08-28T11:01:00.000Z'
+const COMPLETE_BUNDLE_COMPLETED_AT = '2026-08-28T12:00:00.000Z'
 
-export function completeBundlePromotionManifest(): PromotionManifest {
+function completeBundlePromotionManifest(): PromotionManifest {
   const releaseSha = 'a'.repeat(40)
   return {
     version: PROMOTION_MANIFEST_VERSION,
@@ -461,11 +461,6 @@ export function completeGateFBundle(
     keyRing,
     decisionSha256,
   }
-}
-
-/** The legal-document fixture bytes the checklist is built against. */
-export function completeBundleLegalDocuments() {
-  return approvedLegalDocumentsFixture()
 }
 
 export function completeGateFBundleReader(

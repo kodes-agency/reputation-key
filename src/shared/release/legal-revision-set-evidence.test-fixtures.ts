@@ -29,13 +29,13 @@ import {
   type LegalRevisionSetEvidence,
 } from './legal-revision-set-evidence'
 
-export const LEGAL_FIXTURE_COUNSEL: LegalApprover = Object.freeze({
+const LEGAL_FIXTURE_COUNSEL: LegalApprover = Object.freeze({
   name: 'Ada Lovelace-Marín',
   role: 'external_counsel',
   organization: 'Marín & Partners LLP',
 })
 
-export const LEGAL_FIXTURE_APPROVAL_DATES = Object.freeze({
+const LEGAL_FIXTURE_APPROVAL_DATES = Object.freeze({
   effectiveFrom: '2026-08-01',
   reviewDueOn: '2027-02-01',
   expiresOn: '2027-08-01',

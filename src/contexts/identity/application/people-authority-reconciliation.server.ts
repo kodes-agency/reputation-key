@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-export const PEOPLE_AUTHORITY_RECONCILIATION_VERSION =
+const PEOPLE_AUTHORITY_RECONCILIATION_VERSION =
   'repkey-people-authority-reconciliation-2' as const
 
 export type PeopleAuthorityReconciliationOutcome =

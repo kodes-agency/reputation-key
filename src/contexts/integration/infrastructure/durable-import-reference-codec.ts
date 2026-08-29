@@ -4,7 +4,6 @@ import type {
   ImportDiscoveryAuthorization,
   ResolvedImportCandidate,
 } from '../application/ports/google-import-reference-store.port'
-import type { DurableImportReferenceAudience } from './durable-import-reference-keys'
 
 const providerSuffix = z
   .string()
@@ -100,19 +99,6 @@ export const durableCandidatePayloadSchema = z.object({
 })
 
 export type DurableCandidatePayload = z.infer<typeof durableCandidatePayloadSchema>
-
-export const parseDurablePayload = (
-  audience: DurableImportReferenceAudience,
-  payload: unknown,
-) => {
-  if (audience === 'account_selection')
-    return durableAccountPayloadSchema.safeParse(payload)
-  if (audience === 'accounts_cursor')
-    return durableAccountsCursorPayloadSchema.safeParse(payload)
-  if (audience === 'locations_cursor')
-    return durableLocationsCursorPayloadSchema.safeParse(payload)
-  return durableCandidatePayloadSchema.safeParse(payload)
-}
 
 export const sameDurableAuthorization = (
   stored: ImportDiscoveryAuthorization,

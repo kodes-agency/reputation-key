@@ -39,9 +39,9 @@ export const BUILT_IN_ROLE_NAMES: ReadonlyArray<string> = Object.freeze(
   Object.keys(BUILT_IN_ROLE_SCOPE).sort(),
 )
 
-export const CUSTOM_ROLE_REPORT_SUBJECT = 'legacy.custom_roles' as const
-export const MULTI_ORG_REPORT_SUBJECT = 'legacy.multi_organization' as const
-export const GUEST_COMPATIBILITY_REPORT_SUBJECT = 'legacy.guest_compatibility' as const
+const CUSTOM_ROLE_REPORT_SUBJECT = 'legacy.custom_roles' as const
+const MULTI_ORG_REPORT_SUBJECT = 'legacy.multi_organization' as const
+const GUEST_COMPATIBILITY_REPORT_SUBJECT = 'legacy.guest_compatibility' as const
 
 const REPORT_VERSION = 1
 

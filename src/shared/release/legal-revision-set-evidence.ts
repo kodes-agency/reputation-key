@@ -50,6 +50,7 @@ import {
   LEGAL_DOCUMENT_REGISTRY_PATH,
   LEGAL_DOCUMENT_STATUSES,
   canonicalLegalDocumentRegistry,
+  findLegalDocument,
   legalDocumentSha256,
   type LegalDocument,
   type LegalDocumentRegistry,
@@ -237,7 +238,7 @@ function documentFailures(
     errors.push(`document ${entry.id}: approval recorded after release capture`)
   }
 
-  const row = context.registry.documents.find((document) => document.id === entry.id)
+  const row = findLegalDocument(entry.id, context.registry)
   if (row === undefined) {
     errors.push(`document ${entry.id} is not registered in the legal document registry`)
     return errors
@@ -260,7 +261,7 @@ function documentFailures(
  * Every reason this revision set is not a valid release proof. An empty list
  * is the only state in which `outcome: 'passed'` is representable.
  */
-export function legalRevisionSetFailures(
+function legalRevisionSetFailures(
   evidence: LegalRevisionSetEvidence,
   context: LegalRevisionSetContext = DEFAULT_LEGAL_REVISION_SET_CONTEXT,
 ): readonly string[] {

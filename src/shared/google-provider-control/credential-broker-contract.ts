@@ -9,7 +9,7 @@ import {
   type GoogleProviderRouteKey,
 } from './contracts'
 
-export const GOOGLE_CREDENTIAL_BROKER_CONTRACT_VERSION = 'v1' as const
+const GOOGLE_CREDENTIAL_BROKER_CONTRACT_VERSION = 'v1' as const
 export const GOOGLE_CREDENTIAL_BROKER_MAX_TTL_MS = 30_000
 const REQUEST_AUDIENCE = 'google-credential-broker-request-v1'
 const GRANT_AUDIENCE = 'google-credential-broker-grant-v1'

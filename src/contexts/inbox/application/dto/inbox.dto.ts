@@ -14,11 +14,11 @@ const handlingRevisionSchema = z.number().int().positive().max(Number.MAX_SAFE_I
 const opaqueUserIdSchema = z
   .string()
   .regex(SAFE_OPAQUE_IDENTIFIER_PATTERN, 'Invalid user identifier')
-export const feedbackHandlingOutcomeSchema = z.enum(PRIVATE_FEEDBACK_HANDLING_OUTCOMES)
-export const feedbackHandlingInternalNoteTextSchema = z
+const feedbackHandlingOutcomeSchema = z.enum(PRIVATE_FEEDBACK_HANDLING_OUTCOMES)
+const feedbackHandlingInternalNoteTextSchema = z
   .string()
   .max(2_000, 'Keep the internal note under 2,000 characters')
-export const inboxManualReopenReasonSchema = z.enum([
+const inboxManualReopenReasonSchema = z.enum([
   'guest_follow_up_still_needed',
   'internal_follow_up_still_needed',
   'new_information',
@@ -169,7 +169,7 @@ export const bulkAssignInboxItemsDto = z.object({
   assignedToUserId: opaqueUserIdSchema.nullable(),
 })
 
-export const inboxNoteTextSchema = z
+const inboxNoteTextSchema = z
   .string()
   .trim()
   .min(1, 'Write a note before adding it')
@@ -285,7 +285,6 @@ export type BulkUpdateStatusInput = z.infer<typeof bulkUpdateStatusDto>
 export type EscalateInboxItemInput = z.infer<typeof escalateInboxItemDto>
 export type ResolveEscalationInput = z.infer<typeof resolveEscalationDto>
 export type AssignInboxItemInput = z.infer<typeof assignInboxItemDto>
-export type BulkAssignInboxItemsInput = z.infer<typeof bulkAssignInboxItemsDto>
 export type AddInboxNoteInput = z.infer<typeof addInboxNoteDto>
 export type MarkFeedbackHandledDtoInput = z.infer<typeof markFeedbackHandledDto>
 export type CorrectFeedbackHandlingOutcomeDtoInput = z.infer<

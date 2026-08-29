@@ -12,7 +12,7 @@ export const SINGLE_US_BETA_RAILWAY_SERVICE_NAMES = Object.freeze([
 export type SingleUsBetaRailwayServiceName =
   (typeof SINGLE_US_BETA_RAILWAY_SERVICE_NAMES)[number]
 
-export const SINGLE_US_BETA_RAILWAY_DATABASE_SERVICE_NAMES = Object.freeze([
+const SINGLE_US_BETA_RAILWAY_DATABASE_SERVICE_NAMES = Object.freeze([
   'Postgres',
   'Cache Redis',
   'Queue Redis',
@@ -302,7 +302,7 @@ function assertUniqueValues(values: readonly string[], label: string): void {
  * releases share this identity/isolation boundary; the latter add service
  * instance checks below.
  */
-export function assertSingleUsBetaRailwayProjectTargetIsolation(
+function assertSingleUsBetaRailwayProjectTargetIsolation(
   inventory: RailwayProjectServiceInventory,
   target: Readonly<{
     projectId: string

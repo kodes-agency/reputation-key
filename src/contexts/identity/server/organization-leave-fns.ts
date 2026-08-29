@@ -25,7 +25,7 @@ import { throwIdentityError } from './organizations.errors.server'
 import { OFFBOARDING_RESPONSIBILITY_KINDS } from '../application/ports/member-offboarding.port'
 import { OutstandingResponsibilitiesError } from '../application/use-cases/leave-organization'
 
-export const leaveOrganizationInputSchema = z.object({
+const leaveOrganizationInputSchema = z.object({
   transfers: z
     .array(
       z.object({

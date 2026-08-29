@@ -47,7 +47,7 @@ export const CANARY_THRESHOLD_DECISION_RECORD_PATH =
  * `engineering` is included on purpose: the producing role cannot ratify the
  * gate it produces.
  */
-export const CANARY_PLACEHOLDER_APPROVER_MARKERS = [
+const CANARY_PLACEHOLDER_APPROVER_MARKERS = [
   '<',
   '>',
   'tbd',

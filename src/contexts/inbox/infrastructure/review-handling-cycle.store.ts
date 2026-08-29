@@ -132,27 +132,6 @@ const conflict = (
     },
   })
 
-/**
- * Seed cycle one in the caller's Inbox-item creation transaction. This helper
- * is intentionally exported only to the Inbox command store so item, opening
- * fact, and CAS head appear atomically.
- */
-export async function insertInitialReviewHandlingCycle(
-  tx: Tx,
-  item: InboxItem,
-  materialReviewRevision: number,
-): Promise<void> {
-  if (item.sourceType !== 'review') {
-    throw inboxError('invalid_input', 'A Review Handling Cycle requires a Review item')
-  }
-  await insertInitialHandlingCycle(tx, item, {
-    sourceRevision: materialReviewRevision,
-    openedReason: 'review_observed',
-    actorType: 'provider',
-    triggerEventId: null,
-  })
-}
-
 export type InitialHandlingCycleAnchor = Readonly<{
   sourceRevision: number
   openedReason: Extract<

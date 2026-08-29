@@ -5,7 +5,7 @@ import {
 } from './portal-publication-snapshot'
 import { portalError } from './errors'
 
-export const ACTIVE_PORTAL_GUEST_LOCALES = ['en', 'bg'] as const
+const ACTIVE_PORTAL_GUEST_LOCALES = ['en', 'bg'] as const
 
 function channel(hex: string): number {
   const value = Number.parseInt(hex, 16) / 255

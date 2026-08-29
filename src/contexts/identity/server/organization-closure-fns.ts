@@ -105,7 +105,7 @@ function newOperationId(): string {
  * to the archive. Checksums and coverage ARE shown — they are how a tenant
  * verifies what they downloaded.
  */
-export function toExportView(
+function toExportView(
   status: OrganizationExportStatus | null,
 ): OrganizationExportView | null {
   if (!status) return null
@@ -121,7 +121,7 @@ export function toExportView(
   }
 }
 
-export function toClosureCenterView(
+function toClosureCenterView(
   input: Readonly<{
     organizationName: string
     status: OrganizationLifecycleStatus

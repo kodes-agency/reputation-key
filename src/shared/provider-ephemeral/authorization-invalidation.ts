@@ -6,7 +6,7 @@ const DEDUPE_TTL_SECONDS = 86_400
 const PROCESSING_LEASE_MS = 30_000
 const OWNER = /^[A-Za-z0-9_-]{43}$/
 const HANDLER_ID = /^[a-z][a-z0-9_-]{0,63}$/
-export const PROVIDER_AUTHORIZATION_INVALIDATION_HANDLER_SET_VERSION =
+const PROVIDER_AUTHORIZATION_INVALIDATION_HANDLER_SET_VERSION =
   'provider-authorization-invalidation-v1' as const
 
 const invalidationSchema = z

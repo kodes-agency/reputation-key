@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { z } from 'zod/v4'
 import { SINGLE_US_BETA_CUTOVER_KEY } from '#/shared/db/data-cell-topology-fence'
 
-export const DATA_CELL_CUTOVER_EVIDENCE_VERSION = 'repkey-data-cell-cutover-1' as const
+const DATA_CELL_CUTOVER_EVIDENCE_VERSION = 'repkey-data-cell-cutover-1' as const
 
 const sha256 = z.string().regex(/^[a-f0-9]{64}$/u)
 const evidenceSchema = z

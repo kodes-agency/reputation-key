@@ -33,7 +33,7 @@ import {
 } from '#/shared/db/contraction-schema-modules'
 import { DATA_FATE_AUTHORITY } from './data-fate-authority'
 
-export const CONTRACTION_DISPOSITIONS = Object.freeze([
+const CONTRACTION_DISPOSITIONS = Object.freeze([
   'bounded_contraction',
   'compatibility_read',
 ] as const)

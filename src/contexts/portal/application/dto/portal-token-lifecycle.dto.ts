@@ -1,12 +1,12 @@
 import { z } from 'zod/v4'
 
-export const portalTokenPortalIdSchema = z.string().min(1, 'Portal ID is required')
+const portalTokenPortalIdSchema = z.string().min(1, 'Portal ID is required')
 
 export const issuePortalTokenInputSchema = z.object({
   portalId: portalTokenPortalIdSchema,
 })
 
-export const portalTokenGracePeriodDaysSchema = z
+const portalTokenGracePeriodDaysSchema = z
   .number()
   .int('Transition period must be a whole number')
   .min(1, 'Transition period must be at least 1 day')
@@ -30,7 +30,7 @@ export const rotatePortalTokenInputSchema = issuePortalTokenInputSchema
     },
   )
 
-export const portalTokenRevokeReasonSchema = z
+const portalTokenRevokeReasonSchema = z
   .string()
   .trim()
   .min(1, 'Reason is required')

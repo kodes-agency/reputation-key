@@ -16,8 +16,8 @@ import type { UnpublishedEvent } from './infrastructure/outbox-repository'
 import { sanitizeIdentityInvitationQueuePayload } from './identity-invitation-fact-contract'
 import { dataCellById, type DataCellId } from '#/shared/domain/data-cell-catalogue'
 
-export const DURABLE_COMMAND_CLASSIFICATION = 'durable_domain_fact_required' as const
-export const IDENTIFIER_ONLY_CONTENT_CLASSIFICATION = 'identifier_only' as const
+const DURABLE_COMMAND_CLASSIFICATION = 'durable_domain_fact_required' as const
+const IDENTIFIER_ONLY_CONTENT_CLASSIFICATION = 'identifier_only' as const
 
 /**
  * Durable job payload delivered on the domain-events queue.

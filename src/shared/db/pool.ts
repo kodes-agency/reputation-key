@@ -59,7 +59,7 @@ export function isTransientConnectionError(err: unknown): boolean {
 }
 
 /** Total connection-acquisition attempts, including the initial try. */
-export const CONNECTION_ACQUISITION_MAX_ATTEMPTS = 3
+const CONNECTION_ACQUISITION_MAX_ATTEMPTS = 3
 
 /** Retry connection acquisition on transient connection errors. */
 async function retryTransient<T>(

@@ -83,7 +83,7 @@ const AUTHORITY_STATE_BY_PHASE = Object.freeze({
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu
 const CONTENT_FREE_EVIDENCE_REF = /^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$/u
 
-export const LIFECYCLE_AUTHORITY_CHANGED = 'lifecycle contribution authority changed'
+const LIFECYCLE_AUTHORITY_CHANGED = 'lifecycle contribution authority changed'
 
 /**
  * The fingerprint pins the receipt to the exact request that produced it.

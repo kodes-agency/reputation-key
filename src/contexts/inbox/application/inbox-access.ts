@@ -13,12 +13,12 @@ import { isPropertyAccessibleForPermission } from '#/shared/domain/property-acce
 import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import { inboxError } from '../domain/errors'
 
-export const SOURCE_READ_PERMISSION = {
+const SOURCE_READ_PERMISSION = {
   review: 'review.read',
   feedback: 'feedback.read',
 } as const satisfies Readonly<Record<SourceType, Permission>>
 
-export const SOURCE_HANDLE_PERMISSION = {
+const SOURCE_HANDLE_PERMISSION = {
   review: 'review.read',
   feedback: 'feedback.handle',
 } as const satisfies Readonly<Record<SourceType, Permission>>

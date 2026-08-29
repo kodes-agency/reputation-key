@@ -62,7 +62,7 @@ export type RetentionDataClass = (typeof RETENTION_DATA_CLASSES)[number]
  * subject to the "reading never extends a deadline" rule — an operational saga
  * fence keyed on `updated_at` is a state clock, not a content deadline.
  */
-export const CONTENT_DEADLINE_CLASSES: ReadonlyArray<RetentionDataClass> = Object.freeze([
+const CONTENT_DEADLINE_CLASSES: ReadonlyArray<RetentionDataClass> = Object.freeze([
   'google_source_content',
   'guest_optional_contact',
   'guest_private_feedback_text',

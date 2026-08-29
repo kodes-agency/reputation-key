@@ -7,21 +7,21 @@ import {
 
 const uuid = z.uuid()
 
-export const goalProgramMetricSchema = z.enum(GOAL_METRICS)
+const goalProgramMetricSchema = z.enum(GOAL_METRICS)
 
-export const goalProgramSubjectSchema = z.discriminatedUnion('kind', [
+const goalProgramSubjectSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('property'), propertyId: uuid }),
   z.object({ kind: z.literal('portal_group'), portalGroupId: uuid }),
   z.object({ kind: z.literal('portal'), portalId: uuid }),
 ])
 
-export const goalProgramReasonSchema = z
+const goalProgramReasonSchema = z
   .string()
   .trim()
   .min(1, 'Enter a reason for this change')
   .max(500, 'Keep the reason under 500 characters')
 
-export const goalProgramSubjectSelectionSchema = z
+const goalProgramSubjectSelectionSchema = z
   .array(goalProgramSubjectSchema)
   .min(1, 'Select at least one subject')
   .max(MAX_GOAL_ASSIGNMENT_SELECTIONS)

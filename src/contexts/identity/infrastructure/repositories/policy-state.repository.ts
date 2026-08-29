@@ -40,20 +40,6 @@ export async function getPolicyVersion(db: Database): Promise<number> {
   return (await getPolicyControlVersion(db)).version
 }
 
-/** Membership check for policy administration (grants require org membership). */
-export async function isOrgMember(
-  db: Database,
-  organizationId: string,
-  userId: string,
-): Promise<boolean> {
-  const rows = await db.execute(sql`
-    SELECT 1 AS one FROM member
-    WHERE "organizationId" = ${organizationId} AND "userId" = ${userId}
-    LIMIT 1
-  `)
-  return rows.rows.length > 0
-}
-
 /** The member's role in an org (for the read-only decision diagnostic). */
 export async function getMemberRole(
   db: Database,

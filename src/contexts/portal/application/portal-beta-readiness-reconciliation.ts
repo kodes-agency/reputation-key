@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 
-export const PORTAL_BETA_READINESS_REPORT_VERSION =
+const PORTAL_BETA_READINESS_REPORT_VERSION =
   'repkey-portal-beta-readiness-reconciliation-1' as const
 
 export const PORTAL_BETA_READINESS_REASON_CODES = [

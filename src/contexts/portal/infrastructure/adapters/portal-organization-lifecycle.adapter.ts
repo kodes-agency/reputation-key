@@ -100,7 +100,7 @@ function count(row: Record<string, unknown> | undefined, key: string): number {
   return Number(row?.[key] ?? 0)
 }
 
-export const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze({
+const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze({
   withdrawPublicAvailability: async (tx, request) => {
     // Public resolution requires BOTH a published Portal row AND an activation
     // with `deactivated_at IS NULL`. Deactivating the activation is therefore a

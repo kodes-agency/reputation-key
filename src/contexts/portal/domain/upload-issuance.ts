@@ -1,10 +1,10 @@
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 
-export const PORTAL_HERO_UPLOAD_PURPOSE = 'hero_image' as const
+const PORTAL_HERO_UPLOAD_PURPOSE = 'hero_image' as const
 export const PORTAL_HERO_UPLOAD_MAX_BYTES = 10 * 1024 * 1024
-export const PORTAL_HERO_UPLOAD_TTL_MS = 15 * 60 * 1000
+const PORTAL_HERO_UPLOAD_TTL_MS = 15 * 60 * 1000
 
-export const PORTAL_HERO_UPLOAD_CONTENT_TYPES = {
+const PORTAL_HERO_UPLOAD_CONTENT_TYPES = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
@@ -65,7 +65,7 @@ export function isPortalHeroUploadContentType(
  * The browser never chooses or receives this key as API data. Its opaque
  * issuance identifier is the only caller-facing reference.
  */
-export function portalHeroSourceObjectKey(
+function portalHeroSourceObjectKey(
   issuanceId: string,
   contentType: PortalHeroUploadContentType,
 ): string {

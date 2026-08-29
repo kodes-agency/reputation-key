@@ -326,9 +326,7 @@ export function canonicalGateFEvidence(value: GateFEvidence): string {
  * a document that contains it, and because each role must sign the same bytes
  * regardless of who else has signed yet.
  */
-export function gateFDecisionDocument(
-  value: GateFEvidence,
-): Readonly<Record<string, unknown>> {
+function gateFDecisionDocument(value: GateFEvidence): Readonly<Record<string, unknown>> {
   const { approvals: _approvals, ...decision } = value
   return decision
 }

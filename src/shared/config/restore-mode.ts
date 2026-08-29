@@ -110,7 +110,7 @@ function nonEmpty(value: string | undefined): value is string {
 }
 
 /** True only for Railway's generated PITR sibling service-name shape. */
-export function isRailwayPitrServiceName(value: string | undefined): value is string {
+function isRailwayPitrServiceName(value: string | undefined): value is string {
   return nonEmpty(value) && RAILWAY_PITR_SERVICE_NAME.test(value)
 }
 

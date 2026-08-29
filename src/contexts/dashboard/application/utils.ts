@@ -38,7 +38,7 @@ export function computeTrend(current: number, prior: number): number | null {
   return Number.isFinite(result) ? Math.round(result) : null
 }
 
-export const MIN_RATING_COMPARISON_SAMPLE = 10
+const MIN_RATING_COMPARISON_SAMPLE = 10
 export const RATING_DROP_THRESHOLD = 0.3
 
 /** Absolute star delta, available only for statistically usable periods. */

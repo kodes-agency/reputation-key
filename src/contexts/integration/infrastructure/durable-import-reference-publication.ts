@@ -26,7 +26,7 @@ import {
   type DurableImportRecord,
 } from './durable-import-reference-persistence'
 
-export const DURABLE_GOOGLE_IMPORT_DISCOVERY_TTL_MS = 24 * 60 * 60_000
+const DURABLE_GOOGLE_IMPORT_DISCOVERY_TTL_MS = 24 * 60 * 60_000
 const MAX_PAGE_BYTES = 1024 * 1024
 const MAX_PUBLICATION_ATTEMPTS = 3
 

@@ -83,10 +83,9 @@ import {
 import { createNotificationOrganizationExportContributor } from './infrastructure/adapters/notification-organization-export.adapter'
 import { createNotificationOrganizationLifecycleContributor } from './infrastructure/adapters/notification-organization-lifecycle.adapter'
 
-export const NOTIFICATION_DELIVERY_LAG_GRACE_MS = 60_000
-export const NOTIFICATION_DELIVERY_LAG_LOOKBACK_MS = 24 * 60 * 60 * 1000
-export const NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT =
-  MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT
+const NOTIFICATION_DELIVERY_LAG_GRACE_MS = 60_000
+const NOTIFICATION_DELIVERY_LAG_LOOKBACK_MS = 24 * 60 * 60 * 1000
+const NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT = MAX_NOTIFICATION_DELIVERY_LAG_SCAN_LIMIT
 
 type BuildInput = Readonly<{
   db: Database

@@ -109,7 +109,7 @@ export const VALID_METRIC_AGGREGATIONS: Readonly<
 /**
  * Default aggregation selected automatically per metric key in the create form.
  */
-export const DEFAULT_AGGREGATION: Readonly<Record<MetricKey, AggregationFunction>> = {
+const DEFAULT_AGGREGATION: Readonly<Record<MetricKey, AggregationFunction>> = {
   'portal.scan': 'sum',
   'portal.rating': 'avg',
   'portal.qualified_scan': 'sum',

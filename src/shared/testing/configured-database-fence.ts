@@ -131,7 +131,7 @@ export function parseConfiguredDatabaseIdentities(
 let cached: readonly DatabaseIdentity[] | undefined
 
 /** The configured development databases for this checkout, read once. */
-export function configuredDatabaseIdentities(): readonly DatabaseIdentity[] {
+function configuredDatabaseIdentities(): readonly DatabaseIdentity[] {
   if (cached) return cached
   const contents: string[] = []
   for (const file of CONFIGURED_DATABASE_ENV_FILES) {
@@ -143,11 +143,6 @@ export function configuredDatabaseIdentities(): readonly DatabaseIdentity[] {
   }
   cached = parseConfiguredDatabaseIdentities(contents)
   return cached
-}
-
-/** Test seam: forget the memoized refusal set. */
-export function resetConfiguredDatabaseIdentitiesCache(): void {
-  cached = undefined
 }
 
 /**

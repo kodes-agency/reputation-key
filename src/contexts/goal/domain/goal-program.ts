@@ -1,8 +1,6 @@
 import { calendarPeriodRange } from '#/shared/domain/period-range'
 import { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
 
-export { GOAL_RECONCILIATION_DELAY_MS } from '#/shared/domain/metric-governance'
-
 export const GOAL_METRICS = [
   'qualified_scans',
   'portal_rating_count',
@@ -40,7 +38,7 @@ export type GoalAssignmentWindow = Readonly<{
   effectiveTo: Date | null
 }>
 
-export const RATING_AVERAGE_MINIMUM_SAMPLE = 10
+const RATING_AVERAGE_MINIMUM_SAMPLE = 10
 export const MAX_GOAL_ASSIGNMENT_SELECTIONS = 250
 export type GoalTargetValidation =
   | Readonly<{ ok: true; normalizedTarget: number }>

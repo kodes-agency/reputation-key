@@ -45,7 +45,7 @@ import {
  * `merchant-ai-notice-v1\0` prefix in `merchant-ai-notice-contract.ts`: a
  * digest for one artifact kind can never be replayed as another.
  */
-export const IN_PRODUCT_NOTICE_DIGEST_DOMAIN = 'repkey-in-product-notice-v1\0'
+const IN_PRODUCT_NOTICE_DIGEST_DOMAIN = 'repkey-in-product-notice-v1\0'
 
 export type InProductCopySnapshot = Readonly<{
   literals: Readonly<Record<string, string>>

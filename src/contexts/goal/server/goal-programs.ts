@@ -21,9 +21,7 @@ import {
 } from '../application/dto/goal-program.dto'
 export {
   changeGoalProgramAssignmentsSchema,
-  changeGoalProgramStatusSchema,
   createGoalProgramSchema,
-  reviseGoalProgramSchema,
 } from '../application/dto/goal-program.dto'
 import type {
   GoalProgramBundle,

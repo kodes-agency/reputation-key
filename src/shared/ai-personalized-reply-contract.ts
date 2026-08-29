@@ -18,7 +18,6 @@ import {
 export {
   AI_PERSONALIZED_REPLY_LANGUAGES,
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,
-  personalizedReplyDraftOutputSchema,
   type PersonalizedReplyDraft,
   type PersonalizedReplyTone,
 } from './ai-personalized-reply-profile'

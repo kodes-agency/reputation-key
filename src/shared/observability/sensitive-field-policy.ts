@@ -92,7 +92,7 @@ const SENSITIVE_SUFFIXES = [
   'verifier',
 ] as const
 
-export function normalizeObservabilityFieldName(key: string): string {
+function normalizeObservabilityFieldName(key: string): string {
   return key.toLowerCase().replaceAll(/[^a-z0-9]/g, '')
 }
 

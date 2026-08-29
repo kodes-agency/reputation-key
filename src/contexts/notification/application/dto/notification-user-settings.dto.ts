@@ -3,7 +3,7 @@ import { z } from 'zod/v4'
 const localeLanguagePattern = /^[A-Za-z]{2,3}$/
 const localeSubtagPattern = /^[A-Za-z0-9]{2,8}$/
 
-export function isSupportedNotificationLocale(locale: string): boolean {
+function isSupportedNotificationLocale(locale: string): boolean {
   const [language, ...subtags] = locale.split('-')
   return (
     localeLanguagePattern.test(language ?? '') &&
@@ -11,7 +11,7 @@ export function isSupportedNotificationLocale(locale: string): boolean {
   )
 }
 
-export function isSupportedNotificationTimezone(timezone: string): boolean {
+function isSupportedNotificationTimezone(timezone: string): boolean {
   try {
     new Intl.DateTimeFormat('en', { timeZone: timezone }).format()
     return true

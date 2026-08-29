@@ -2,9 +2,9 @@ import { Redis } from 'ioredis'
 import { getEnv } from '#/shared/config/env'
 import { getJobRedisUrl } from './redis-topology'
 
-export const JOB_REDIS_MINIMUM_VERSION = '6.2.0' as const
-export const JOB_REDIS_INSPECTION_TIMEOUT_MS = 5_000
-export const JOB_REDIS_HEALTH_TIMEOUT_MS = 1_500
+const JOB_REDIS_MINIMUM_VERSION = '6.2.0' as const
+const JOB_REDIS_INSPECTION_TIMEOUT_MS = 5_000
+const JOB_REDIS_HEALTH_TIMEOUT_MS = 1_500
 
 export type JobRedisReadinessCode =
   | 'inspection_unavailable'

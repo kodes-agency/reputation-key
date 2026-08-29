@@ -40,7 +40,7 @@ export const propertyEraseCommandSpec: OperatorCommandSpec = Object.freeze({
     '--reason <text> --ticket <ref> --apply --yes ops:property-erase]',
 })
 
-export const PROPERTY_ERASE_MODES = [
+const PROPERTY_ERASE_MODES = [
   'report',
   'request',
   'preview',

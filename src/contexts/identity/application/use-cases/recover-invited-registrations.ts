@@ -6,9 +6,9 @@ import type {
   ReconcileInvitedRegistrationResult,
 } from '../ports/invited-registration-store.port'
 
-export const INVITED_REGISTRATION_RECOVERY_BATCH_SIZE = 100
-export const INVITED_REGISTRATION_RECOVERY_LEASE_MS = 60_000
-export const INVITED_REGISTRATION_RECOVERY_RETRY_MS = 5 * 60_000
+const INVITED_REGISTRATION_RECOVERY_BATCH_SIZE = 100
+const INVITED_REGISTRATION_RECOVERY_LEASE_MS = 60_000
+const INVITED_REGISTRATION_RECOVERY_RETRY_MS = 5 * 60_000
 
 export type RecoverInvitedRegistrationsResult = Readonly<{
   claimed: number

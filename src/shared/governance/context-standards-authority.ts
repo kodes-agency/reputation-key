@@ -1,6 +1,6 @@
 import type { Capability } from '#/shared/auth/beta-capabilities'
 
-export const REQUIRED_CONTEXT_HEADINGS = Object.freeze([
+const REQUIRED_CONTEXT_HEADINGS = Object.freeze([
   '## Bounded context',
   '## Invariants',
   '## Events produced',

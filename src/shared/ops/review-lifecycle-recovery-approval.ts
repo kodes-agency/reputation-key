@@ -185,7 +185,7 @@ export function loadReviewLifecycleRecoveryApprovalPublicKeys(
   }
 }
 
-export function reviewLifecycleRecoveryApprovalRequestSha256(
+function reviewLifecycleRecoveryApprovalRequestSha256(
   request: ReviewLifecycleRecoveryApprovalRequest,
 ): string {
   return sha256Hex(canonicalizeRfc8785(request))

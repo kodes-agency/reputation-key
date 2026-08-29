@@ -51,8 +51,6 @@ export const PROPERTY_ERASE_STATES = [
   'cancelled',
 ] as const
 
-export type PropertyEraseState = (typeof PROPERTY_ERASE_STATES)[number]
-
 const stateList = PROPERTY_ERASE_STATES.map((state) => `'${state}'`).join(', ')
 
 export const propertyEraseAuthorities = pgTable(

@@ -12,7 +12,7 @@ export const REHEARSAL_RAILWAY_PROJECT_NAME = 'reputation-key-us-beta-rehearsal'
  */
 export const REPKEY_RAILWAY_PROJECT_NAME_ENV = 'REPKEY_RAILWAY_PROJECT_NAME' as const
 
-export function isRailwayDeploymentProfile(
+function isRailwayDeploymentProfile(
   value: string | undefined,
 ): value is RailwayDeploymentProfile {
   return RAILWAY_DEPLOYMENT_PROFILES.includes(value as RailwayDeploymentProfile)

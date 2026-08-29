@@ -38,13 +38,7 @@ export const privacyRequestCommandSpec: OperatorCommandSpec = Object.freeze({
     '--apply --yes ops:privacy-request]',
 })
 
-export const PRIVACY_REQUEST_MODES = [
-  'report',
-  'receive',
-  'verify',
-  'fulfil',
-  'refuse',
-] as const
+const PRIVACY_REQUEST_MODES = ['report', 'receive', 'verify', 'fulfil', 'refuse'] as const
 
 export type PrivacyRequestMode = (typeof PRIVACY_REQUEST_MODES)[number]
 

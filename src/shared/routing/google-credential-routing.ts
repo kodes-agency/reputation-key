@@ -13,8 +13,8 @@ export {
   type GoogleCredentialHome,
 } from '#/shared/domain/google-credential-home'
 
-export const GOOGLE_CREDENTIAL_ROUTING_CONTRACT_VERSION = 'v1' as const
-export const GOOGLE_CREDENTIAL_ROUTING_SIGNATURE_AUDIENCE =
+const GOOGLE_CREDENTIAL_ROUTING_CONTRACT_VERSION = 'v1' as const
+const GOOGLE_CREDENTIAL_ROUTING_SIGNATURE_AUDIENCE =
   'google-credential-routing-directory-v1' as const
 export const MAX_GOOGLE_CREDENTIAL_ROUTING_TTL_MS = 5 * 60_000
 

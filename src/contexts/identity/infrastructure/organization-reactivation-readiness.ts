@@ -37,7 +37,7 @@ import {
  * anything at all. A quarantined member of this set means the workspace would
  * come back inert.
  */
-export const REACTIVATION_REQUIRED_SCHEDULES = Object.freeze([
+const REACTIVATION_REQUIRED_SCHEDULES = Object.freeze([
   'advance-organization-lifecycle',
   'import-gbp-property-item-v2',
   'sync-property-reviews',

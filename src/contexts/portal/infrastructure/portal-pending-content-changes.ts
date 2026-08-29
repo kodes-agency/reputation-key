@@ -93,29 +93,3 @@ export async function resolvePortalPendingContentChanges(
     .returning({ id: portalPendingContentChanges.id })
   return rows.length
 }
-
-export async function listOpenPortalPendingContentChanges(
-  tx: Tx,
-  input: Readonly<{
-    organizationId: string
-    propertyId: string
-    portalId: string
-  }>,
-) {
-  return tx
-    .select({
-      kind: portalPendingContentChanges.changeKind,
-      key: portalPendingContentChanges.changeKey,
-      sourceVersion: portalPendingContentChanges.sourceVersion,
-      changedAt: portalPendingContentChanges.changedAt,
-    })
-    .from(portalPendingContentChanges)
-    .where(
-      and(
-        eq(portalPendingContentChanges.organizationId, input.organizationId),
-        eq(portalPendingContentChanges.propertyId, input.propertyId),
-        eq(portalPendingContentChanges.portalId, input.portalId),
-        isNull(portalPendingContentChanges.resolvedAt),
-      ),
-    )
-}

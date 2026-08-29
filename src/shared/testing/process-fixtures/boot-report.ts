@@ -13,11 +13,11 @@
 
 import { z } from 'zod/v4'
 
-export const BOOT_REPORT_MARKER = '__REPKEY_BOOT_REPORT__ '
+const BOOT_REPORT_MARKER = '__REPKEY_BOOT_REPORT__ '
 
 const nameList = z.array(z.string()).readonly()
 
-export const bootReportSchema = z
+const bootReportSchema = z
   .object({
     /** Which deployable this process is. */
     deployable: z.enum(['web', 'worker', 'operator', 'sidecar', 'simulation']),
@@ -44,7 +44,7 @@ export type BootReport = z.infer<typeof bootReportSchema>
  * consumer registered for three event types is still one consumer: the SET of
  * names is the fact this report states.
  */
-export function normalizeBootReport(report: BootReport): BootReport {
+function normalizeBootReport(report: BootReport): BootReport {
   const sorted = (values: readonly string[]): readonly string[] =>
     [...new Set(values)].sort()
   return Object.freeze({

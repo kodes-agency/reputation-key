@@ -33,8 +33,7 @@ import {
   type LegalDocumentRegistry,
 } from './legal-document-registry'
 
-export const COUNSEL_DECISION_CHECKLIST_VERSION =
-  'repkey-counsel-decision-checklist-1' as const
+const COUNSEL_DECISION_CHECKLIST_VERSION = 'repkey-counsel-decision-checklist-1' as const
 
 export const COUNSEL_DECISION_CHECKLIST_PATH =
   'docs/legal/counsel-decision-checklist.json'
@@ -53,14 +52,14 @@ export const COUNSEL_DECISION_CATEGORIES = [
 
 export type CounselDecisionCategory = (typeof COUNSEL_DECISION_CATEGORIES)[number]
 
-export const CAPABILITY_POSTURES = ['core', 'controlled', 'dark'] as const
+const CAPABILITY_POSTURES = ['core', 'controlled', 'dark'] as const
 
 /**
  * Capabilities that have no activation path in beta. The patterns are
  * deliberately broad: a false positive costs one honest `dark` tag, a false
  * negative lets an approval read as an activation.
  */
-export const DARK_CAPABILITY_TOPICS = Object.freeze([
+const DARK_CAPABILITY_TOPICS = Object.freeze([
   { capability: 'Contact Request', pattern: /Contact Requests?/u },
   { capability: 'Portal upload', pattern: /Portal (?:image )?upload/iu },
   { capability: 'Recognition', pattern: /Badge|Leaderboard|Recognition/u },

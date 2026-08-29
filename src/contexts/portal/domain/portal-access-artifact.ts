@@ -6,7 +6,7 @@ import type {
   PropertyId,
 } from '#/shared/domain/ids'
 
-export const PORTAL_ACCESS_ARTIFACT_CHANNELS = ['qr', 'nfc'] as const
+const PORTAL_ACCESS_ARTIFACT_CHANNELS = ['qr', 'nfc'] as const
 export type PortalAccessArtifactChannel = (typeof PORTAL_ACCESS_ARTIFACT_CHANNELS)[number]
 
 export type PortalAccessArtifact = Readonly<{

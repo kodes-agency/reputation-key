@@ -51,7 +51,7 @@ export type GateFApprovalRole = (typeof GATE_F_APPROVAL_ROLES)[number]
  * counsel signature is the one that says the beta is lawful to run, and an
  * engineer signing it is self-approval regardless of intent.
  */
-export const GATE_F_ENGINEERING_ROLES = ['operations', 'product', 'security'] as const
+const GATE_F_ENGINEERING_ROLES = ['operations', 'product', 'security'] as const
 
 /** The exact signed field set. Order is irrelevant; the encoder sorts keys. */
 export const GATE_F_APPROVAL_SIGNED_FIELDS = [

@@ -8,8 +8,8 @@ export const AI_PROPERTY_TREND_DEFINITION_VERSION =
 export const AI_TREND_RENDER_PROFILE_VERSION = 'trend-render-v1' as const
 export const AI_PROPERTY_TREND_MINIMUM_ANALYZED_PER_WINDOW = 20 as const
 export const AI_PROPERTY_TREND_MINIMUM_COVERAGE_BASIS_POINTS = 9_000 as const
-export const AI_PROPERTY_TREND_MINIMUM_CHANGE_PERCENTAGE_POINTS = 15 as const
-export const AI_PROPERTY_TREND_CATEGORY_MINIMUM_SHARE_PERCENT = 10 as const
+const AI_PROPERTY_TREND_MINIMUM_CHANGE_PERCENTAGE_POINTS = 15 as const
+const AI_PROPERTY_TREND_CATEGORY_MINIMUM_SHARE_PERCENT = 10 as const
 
 export type ClosedTrendSignalId =
   | `sentiment.${'positive' | 'neutral' | 'negative' | 'mixed'}.${'up' | 'down'}`

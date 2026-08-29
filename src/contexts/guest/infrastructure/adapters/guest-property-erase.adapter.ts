@@ -33,7 +33,7 @@ import {
 import type { Tx } from '#/shared/outbox/commit'
 
 /** Property-scoped Guest tables, innermost dependency first. */
-export const GUEST_PROPERTY_ERASE_PLAN = Object.freeze([
+const GUEST_PROPERTY_ERASE_PLAN = Object.freeze([
   'guest_contact_request_reveal_audits',
   'guest_contact_requests',
   'guest_response_private_feedback',

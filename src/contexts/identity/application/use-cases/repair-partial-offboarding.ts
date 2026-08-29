@@ -31,7 +31,6 @@ import {
 } from '../../domain/partialOffboarding'
 
 export {
-  PARTIAL_OFFBOARDING_FINDINGS,
   PARTIAL_OFFBOARDING_GRANT_REASON,
   classifyPartialOffboarding,
 } from '../../domain/partialOffboarding'

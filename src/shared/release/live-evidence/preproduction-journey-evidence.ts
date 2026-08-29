@@ -31,7 +31,7 @@ import {
 export const PREPRODUCTION_JOURNEY_EVIDENCE_VERSION =
   LIVE_EVIDENCE_VERSIONS['preproduction.provider_stub_journeys']
 
-export const PREPRODUCTION_JOURNEY_CLASSES = [
+const PREPRODUCTION_JOURNEY_CLASSES = [
   'provider_stub',
   'portal_privacy',
   'manager',

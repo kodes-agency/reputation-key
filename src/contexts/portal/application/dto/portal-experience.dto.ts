@@ -2,7 +2,7 @@ import { z } from 'zod/v4'
 import { validatePortalDestinationUri } from '../../domain/approved-destination'
 import { contrastRatio } from '../../domain/portal-experience'
 
-export const portalGuestLocaleSchema = z.enum(['en', 'bg'])
+const portalGuestLocaleSchema = z.enum(['en', 'bg'])
 
 const portalExperienceScopeSchema = z.object({
   propertyId: z.string().min(1, 'Property ID is required'),
@@ -11,13 +11,13 @@ const portalExperienceScopeSchema = z.object({
 
 export const propertyPortalExperienceInputSchema = portalExperienceScopeSchema
 
-export const portalBrandDisplayNameSchema = z
+const portalBrandDisplayNameSchema = z
   .string()
   .trim()
   .min(1, 'Public display name is required')
   .max(120)
 
-export const portalBrandColorSchema = z
+const portalBrandColorSchema = z
   .string()
   .regex(/^#[0-9a-f]{6}$/iu, 'Choose a valid six-digit colour')
 
@@ -47,13 +47,13 @@ export const propertyPortalBrandProfileInputSchema = portalExperienceScopeSchema
   })
   .and(portalBrandFormInputSchema)
 
-export const portalGuestTitleSchema = z
+const portalGuestTitleSchema = z
   .string()
   .trim()
   .min(1, 'Guest title is required')
   .max(120)
 
-export const portalGuestDescriptionSchema = z
+const portalGuestDescriptionSchema = z
   .string()
   .trim()
   .min(1, 'Guest description is required')
@@ -94,7 +94,7 @@ export const portalApprovedDestinationListInputSchema = z.object({
   portalId: z.string().min(1, 'Portal ID is required'),
 })
 
-export const portalApprovedDestinationUriSchema = z
+const portalApprovedDestinationUriSchema = z
   .string()
   .trim()
   .min(1, 'HTTPS destination is required')

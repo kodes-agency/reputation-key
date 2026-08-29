@@ -1,6 +1,6 @@
 import type { ContactRequestRepository } from '../ports/contact-request.repository'
 
-export const DEFAULT_CONTACT_REQUEST_RETENTION_MAX_BATCHES = 100
+const DEFAULT_CONTACT_REQUEST_RETENTION_MAX_BATCHES = 100
 
 export type ContactRequestRetentionSweepResult = Readonly<{
   batches: number

@@ -229,10 +229,6 @@ export function isAmbientRuntimeReadDeclared(file: string): boolean {
   return BY_FILE.has(file)
 }
 
-export function ambientRuntimeRead(file: string): AmbientRuntimeRead | undefined {
-  return BY_FILE.get(file)
-}
-
 /** Prefixes whose files may never appear in the authority. */
 export const AMBIENT_RUNTIME_READ_FORBIDDEN_PREFIXES = [
   'src/routes/',

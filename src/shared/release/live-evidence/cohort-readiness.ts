@@ -36,7 +36,7 @@ export const COHORT_READINESS_EVIDENCE_VERSION =
  * `@`, or a corporate suffix is a real-world identity and is refused by
  * construction rather than by a blocklist.
  */
-export const COHORT_PSEUDONYM_PATTERN = /^design-partner-[0-9a-f]{8}$/u
+const COHORT_PSEUDONYM_PATTERN = /^design-partner-[0-9a-f]{8}$/u
 
 /** Corporate suffixes that betray a legal name even inside a slug. */
 const LEGAL_NAME_MARKERS = [

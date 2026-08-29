@@ -25,7 +25,7 @@ import type {
 
 /** Durable pre-confirmation checkpoint window; current authorization is still
  * revalidated on every page, lease renewal, and confirmation claim. */
-export const GOOGLE_IMPORT_DISCOVERY_CONTENT_TTL_MS = 24 * 60 * 60_000
+const GOOGLE_IMPORT_DISCOVERY_CONTENT_TTL_MS = 24 * 60 * 60_000
 
 export type GoogleImportAuthorizationPropertySnapshot = Readonly<{
   propertyId: PropertyId

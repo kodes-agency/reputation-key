@@ -28,7 +28,7 @@ export type DurableImportRecord = Readonly<{
 export class DurableImportReferenceCollision extends Error {}
 export class DurableImportReferenceInvalidated extends Error {}
 
-export const durableImportRowToRecord = (
+const durableImportRowToRecord = (
   row: typeof googleImportDiscoveryRecords.$inferSelect,
 ): DurableImportRecord => ({
   referenceKey: row.referenceKey,

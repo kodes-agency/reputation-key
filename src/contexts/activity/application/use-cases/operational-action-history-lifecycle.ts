@@ -9,10 +9,9 @@ import {
 import type { OperationalActionHistoryStore } from '../../ports/operational-action-history-store.port'
 
 const DAY_MS = 24 * 60 * 60 * 1_000
-export const OPERATIONAL_ACTION_HISTORY_RETENTION_MS = 365 * DAY_MS
-export const OPERATIONAL_ACTION_HISTORY_RETENTION_MODE =
-  'report_only_pending_counsel' as const
-export const OPERATIONAL_ACTION_HISTORY_BATCH_MAX = 100
+const OPERATIONAL_ACTION_HISTORY_RETENTION_MS = 365 * DAY_MS
+const OPERATIONAL_ACTION_HISTORY_RETENTION_MODE = 'report_only_pending_counsel' as const
+const OPERATIONAL_ACTION_HISTORY_BATCH_MAX = 100
 
 export type OperationalActionHistoryLifecycleDeps = Readonly<{
   store: OperationalActionHistoryStore

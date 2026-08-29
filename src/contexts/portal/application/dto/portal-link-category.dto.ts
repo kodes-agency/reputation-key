@@ -2,7 +2,7 @@
 
 import { z } from 'zod/v4'
 
-export const portalLinkCategoryTitleSchema = z
+const portalLinkCategoryTitleSchema = z
   .string()
   .trim()
   .min(1, 'Title is required')

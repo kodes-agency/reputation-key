@@ -64,7 +64,7 @@ export const PROMOTION_READBACK_SERVICES = Object.freeze(
 )
 
 /** The four `/api/health` probes the release controller requires green. */
-export const PROMOTION_HEALTH_PROBES = ['db', 'redis', 'migrations', 'policy'] as const
+const PROMOTION_HEALTH_PROBES = ['db', 'redis', 'migrations', 'policy'] as const
 
 /** Beta is exactly one logical US Data Cell; every other id must be denied. */
 export const DORMANT_DATA_CELL_IDS = Object.freeze(
