@@ -424,6 +424,36 @@ const baseEnvSchema = z.object({
   GOOGLE_OAUTH_REVOKE_URL: z.url().optional(),
 })
 
+/**
+ * Whether a production auth origin is safe to put session cookies on.
+ *
+ * HTTPS everywhere it can be reached over a network — that is the whole point
+ * of the check below. The exception is a LOOPBACK origin, and it is not a
+ * loosening: traffic to 127.0.0.1 / [::1] / localhost never leaves the machine,
+ * so there is no plaintext transport to protect. Browsers reason the same way,
+ * treating loopback as a potentially-trustworthy origin (W3C Secure Contexts)
+ * and honouring `Secure` cookies on it.
+ *
+ * Without this, the local Compose stack cannot exist: it runs the PRODUCTION
+ * images (`NODE_ENV=production` is baked into them) against
+ * `http://127.0.0.1:3000`, because terminating TLS in front of a loopback
+ * rehearsal buys nothing. The e2e stack refused to seed for exactly this
+ * reason. A deployed cell is unaffected — its origin is a public hostname, and
+ * a public hostname on `http:` is still refused.
+ */
+function isSecureAuthOrigin(origin: URL): boolean {
+  if (origin.protocol === 'https:') return true
+  if (origin.protocol !== 'http:') return false
+  const host = origin.hostname.toLowerCase()
+  return (
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === '[::1]' ||
+    host === '::1' ||
+    host.endsWith('.localhost')
+  )
+}
+
 const envSchema = baseEnvSchema
   .superRefine((env, context) => {
     if (env.NODE_ENV === 'production' && !env.PROCESSING_CELL) {
@@ -449,7 +479,7 @@ const envSchema = baseEnvSchema
     // cookies eligible for plaintext transport.
     if (
       env.NODE_ENV === 'production' &&
-      new URL(env.BETTER_AUTH_URL).protocol !== 'https:'
+      !isSecureAuthOrigin(new URL(env.BETTER_AUTH_URL))
     ) {
       context.addIssue({
         code: 'custom',

@@ -75,10 +75,28 @@ describe('Auth configuration', () => {
     const { resetEnv } = await import('#/shared/config/env')
     resetEnv()
     process.env.NODE_ENV = 'production'
-    process.env.BETTER_AUTH_URL = 'http://127.0.0.1:3000'
+    // A ROUTABLE http origin. Loopback is covered separately below, and a
+    // hostname that merely ends in something loopback-shaped is not loopback.
+    process.env.BETTER_AUTH_URL = 'http://app.reputationkey.app'
 
     const { createAuth } = await import('#/shared/auth/auth')
     expect(() => createAuth()).toThrow(/BETTER_AUTH_URL.*HTTPS|HTTPS.*BETTER_AUTH_URL/i)
+  })
+
+  it('allows a loopback HTTP origin in production, without the Secure attribute', async () => {
+    // The local Compose stack runs the production images against
+    // http://127.0.0.1:3000; traffic that never leaves the machine has no
+    // plaintext transport to protect. The cookie must still tell the truth
+    // about that: `Secure` stays off, because the origin is not https.
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+    process.env.NODE_ENV = 'production'
+    process.env.BETTER_AUTH_URL = 'http://127.0.0.1:3000'
+
+    const { createAuth } = await import('#/shared/auth/auth')
+    const auth = createAuth()
+
+    expect(auth.options.advanced?.defaultCookieAttributes?.secure).toBe(false)
   })
 
   it('marks auth cookies Secure for a production HTTPS origin', async () => {

@@ -76,3 +76,49 @@ describe('environment parsing', () => {
     ).toThrow(/REVIEW_LIFECYCLE_RECOVERY_APPROVAL_BUNDLE_JSON: Too small/)
   })
 })
+
+describe('production auth transport policy', () => {
+  const cell = { ...productionEnvironment, PROCESSING_CELL: 'us' as const }
+
+  it('refuses a plaintext auth origin that can be reached over a network', () => {
+    // The reason the rule exists: a production auth origin decides
+    // trusted-origin checks, callback URLs and the Secure attribute on session
+    // cookies. On a routable host, http means those cookies are eligible for
+    // plaintext transport.
+    for (const origin of [
+      'http://app.reputationkey.app',
+      'http://10.0.0.5:3000',
+      'http://beta.internal',
+      // Not loopback, however much it looks like it.
+      'http://localhost.attacker.test',
+      'http://127.0.0.1.attacker.test',
+    ]) {
+      expect(() => parseEnvironment({ ...cell, BETTER_AUTH_URL: origin })).toThrow(
+        'Production BETTER_AUTH_URL must use HTTPS',
+      )
+    }
+  })
+
+  it('allows a LOOPBACK origin, because there is no transport to protect', () => {
+    // The local Compose stack runs the production images against
+    // http://127.0.0.1:3000 — traffic that never leaves the machine, which is
+    // why browsers treat loopback as a potentially-trustworthy origin too.
+    for (const origin of [
+      'http://127.0.0.1:3000',
+      'http://localhost:3000',
+      'http://[::1]:3000',
+      'http://web.localhost:3000',
+    ]) {
+      expect(parseEnvironment({ ...cell, BETTER_AUTH_URL: origin }).BETTER_AUTH_URL).toBe(
+        origin,
+      )
+    }
+  })
+
+  it('still prefers HTTPS, and accepts it anywhere', () => {
+    expect(
+      parseEnvironment({ ...cell, BETTER_AUTH_URL: 'https://app.reputationkey.app' })
+        .BETTER_AUTH_URL,
+    ).toBe('https://app.reputationkey.app')
+  })
+})
