@@ -18,7 +18,14 @@ export type PortalMetricSumRow = Readonly<{
   count: number
 }>
 
-export type PortalMetricEvidence = Readonly<{
+/**
+ * The repository-facing evidence row, distinct from the domain's
+ * `PortalMetricEvidence` in ../../domain/types: this one is what an adapter
+ * returns (definitionVersionId always present, a narrower state union, no
+ * basis or sampleCount), and the domain type is what the use case builds from
+ * it. They shared a name until Fallow flagged the duplicate export.
+ */
+export type PortalMetricEvidenceRead = Readonly<{
   definitionVersionId: string
   state: 'ready' | 'updating' | 'unavailable'
   verifiedThrough: Date | null
@@ -30,10 +37,10 @@ export type PortalMetricEvidence = Readonly<{
 }>
 
 export type PortalMetricEvidenceSet = Readonly<{
-  scans: PortalMetricEvidence
-  privateRatings: PortalMetricEvidence
-  privateFeedback: PortalMetricEvidence
-  reviewLinkClicks: PortalMetricEvidence
+  scans: PortalMetricEvidenceRead
+  privateRatings: PortalMetricEvidenceRead
+  privateFeedback: PortalMetricEvidenceRead
+  reviewLinkClicks: PortalMetricEvidenceRead
 }>
 
 export type PortalMetricsPort = Readonly<{

@@ -23,7 +23,7 @@ import type {
   FeedbackHandlingStore,
 } from '../application/ports/feedback-handling.store'
 import {
-  correctFeedbackHandlingOutcome,
+  correctFeedbackHandlingOutcomeFact,
   recordFeedbackHandlingOutcome,
   type FeedbackHandlingOutcomeFact,
 } from '../domain/feedback-handling'
@@ -462,7 +462,7 @@ export const createFeedbackHandlingStore = (
             recordedAt: command.recordedAt,
           })
           await assertManagerHandlingStillHonest(tx, headFromRow(locked.head))
-          const corrected = correctFeedbackHandlingOutcome({
+          const corrected = correctFeedbackHandlingOutcomeFact({
             id: command.outcomeId,
             current: headFromRow(locked.head),
             previous: outcomeFromRow(latestRow),

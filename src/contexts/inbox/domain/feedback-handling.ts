@@ -122,7 +122,14 @@ export function recordFeedbackHandlingOutcome(
   })
 }
 
-export function correctFeedbackHandlingOutcome(
+/**
+ * The pure correction rule. Named ...Fact to distinguish it from the
+ * application use case of the same intent in
+ * ../application/use-cases/correct-feedback-handling-outcome.ts, which
+ * orchestrates authorization and persistence around this. They shared one
+ * name until Fallow flagged the duplicate export.
+ */
+export function correctFeedbackHandlingOutcomeFact(
   input: CorrectFeedbackHandlingOutcomeInput,
 ): Result<FeedbackHandlingOutcomeFact, InboxError> {
   const cycle = assertFeedbackCycle(input.current, 'closed')

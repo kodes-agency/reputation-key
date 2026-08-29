@@ -9,7 +9,7 @@ import type {
   PortalKPIs,
 } from '../../domain/types'
 import type {
-  PortalMetricEvidence as SourceMetricEvidence,
+  PortalMetricEvidenceRead as SourceMetricEvidence,
   PortalMetricsPort,
   PortalMetricSumRow,
 } from '../ports/portal-metrics.port'

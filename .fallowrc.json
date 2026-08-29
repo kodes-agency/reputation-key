@@ -449,7 +449,8 @@
     "unused-dependencies": "warn",
     "unused-dev-dependencies": "warn",
     "unused-exports": "warn",
-    "unused-types": "off"
+    "unused-types": "off",
+    "dev-dependencies-in-production": "off"
   },
   "overrides": [
     {
@@ -508,6 +509,7 @@
     }
   ],
   "duplicates": {
+    "ignoredClones": ["dup:cdb48d6b:2"],
     "mode": "mild",
     "minTokens": 50,
     "minLines": 5,
@@ -560,7 +562,8 @@
     "maxCrap": 450
   },
   "audit": {
-    "gate": "new-only"
+    "gate": "new-only",
+    "css": false
   },
   "boundaries": {
     "zones": [

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  correctFeedbackHandlingOutcome,
+  correctFeedbackHandlingOutcomeFact,
   recordFeedbackHandlingOutcome,
 } from './feedback-handling'
 import {
@@ -87,7 +87,7 @@ describe('private-feedback handling outcomes', () => {
     expect(original.isOk()).toBe(true)
     if (original.isErr()) return
 
-    const corrected = correctFeedbackHandlingOutcome({
+    const corrected = correctFeedbackHandlingOutcomeFact({
       id: '550e8400-e29b-41d4-a716-446655440008',
       current: feedbackHead('closed'),
       previous: original.value,
@@ -122,7 +122,7 @@ describe('private-feedback handling outcomes', () => {
     expect(original.isOk()).toBe(true)
     if (original.isErr()) return
 
-    const openCycle = correctFeedbackHandlingOutcome({
+    const openCycle = correctFeedbackHandlingOutcomeFact({
       id: '550e8400-e29b-41d4-a716-446655440010',
       current: feedbackHead('open'),
       previous: original.value,
@@ -131,7 +131,7 @@ describe('private-feedback handling outcomes', () => {
       recordedBy: ACTOR_ID,
       recordedAt: CORRECTED_AT,
     })
-    const laterCycle = correctFeedbackHandlingOutcome({
+    const laterCycle = correctFeedbackHandlingOutcomeFact({
       id: '550e8400-e29b-41d4-a716-446655440011',
       current: { ...feedbackHead('closed'), currentCycleNumber: 3 },
       previous: original.value,
