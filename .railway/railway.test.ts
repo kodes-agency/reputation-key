@@ -492,6 +492,54 @@ describe.each(RAILWAY_CELL_ENVIRONMENTS)('%s Railway graph', (environment) => {
     })
   })
 
+  // D1 (owner ruling, 2026-08-29): the runtime denial of the local-sandbox
+  // provider profile keys on RELEASE_MANIFEST_SHA256, which is absent until a
+  // service's first promotion. These two literals are what the process reads
+  // inside that dark window. The profile does NOT select endpoint URLs — those
+  // come from providerConfigFor('gbp-default') plus the GBP_*_BASE_URL /
+  // GOOGLE_OAUTH_*_URL overrides, none of which this file declares. What the
+  // profile does select is (a) the production route target in
+  // google-provider-authority.ts, whose local_sandbox alternative bypasses
+  // GOOGLE_PROVIDER_PRODUCTION_ORIGINS, (b) the 'production' runtime-isolation
+  // attestation expectation in composition.ts, and (c) together with
+  // NODE_ENV=production, the conjunct that makes provider-runtime.ts refuse
+  // endpoint overrides before the first promotion. The profile is pinned here
+  // because nothing else holds it in that window. NODE_ENV is pinned here IN
+  // ADDITION to the runtime images, which bake it in (Dockerfile `FROM base AS
+  // web` and Dockerfile.worker `FROM base AS worker`, both `ENV
+  // NODE_ENV=production`), so this pin is redundancy rather than sole cover.
+  it('pins the production-fixed provider profile and NODE_ENV on web and worker', () => {
+    const web = resource(definition, 'service', 'web') as ServiceNode
+    const worker = resource(definition, 'service', 'worker') as ServiceNode
+    expect(web.variables?.GOOGLE_PROVIDER_ENDPOINT_PROFILE).toMatchObject({
+      type: 'literal',
+      value: 'production-fixed',
+    })
+    expect(worker.variables?.GOOGLE_PROVIDER_ENDPOINT_PROFILE).toEqual(
+      web.variables?.GOOGLE_PROVIDER_ENDPOINT_PROFILE,
+    )
+    expect(web.variables?.NODE_ENV).toMatchObject({
+      type: 'literal',
+      value: 'production',
+    })
+    expect(worker.variables?.NODE_ENV).toEqual(web.variables?.NODE_ENV)
+    // The overrides the profile is often assumed to gate are simply absent
+    // from IaC — asserted so a later addition has to revisit this reasoning.
+    for (const name of [
+      'GBP_API_BASE_URL',
+      'GBP_ACCOUNT_MANAGEMENT_BASE_URL',
+      'GBP_PERFORMANCE_BASE_URL',
+      'GBP_REVIEWS_API_BASE_URL',
+      'GBP_NOTIFICATIONS_API_BASE_URL',
+      'GOOGLE_OAUTH_TOKEN_URL',
+      'GOOGLE_OAUTH_JWKS_URL',
+      'GOOGLE_OAUTH_REVOKE_URL',
+    ]) {
+      expect(web.variables, name).not.toHaveProperty(name)
+      expect(worker.variables, name).not.toHaveProperty(name)
+    }
+  })
+
   it('keeps worker-only pseudonym authorities out of web', () => {
     const web = resource(definition, 'service', 'web') as ServiceNode
     const worker = resource(definition, 'service', 'worker') as ServiceNode

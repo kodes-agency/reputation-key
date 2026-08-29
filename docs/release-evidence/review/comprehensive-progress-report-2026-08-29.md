@@ -343,6 +343,28 @@ the PULL REQUEST check run
 against the merge commit. The repository alert list answers a different
 question and will silently disagree.
 
+> **Correction (2026-08-29).** The premise above is right and the conclusion is
+> wrong; both paragraphs' line-number claims are retracted. The alerts ARE
+> pinned to an older commit — `most_recent_instance.commit_sha` is
+> `4d531c9791cf79b972a4853f90b9e61cdb5e779e` — but the line numbers above were
+> resolved against branch HEAD instead of against that commit. Resolved against
+> `4d531c9`, both alerts land on the flagged code exactly:
+> `oauth-state-handle.ts:76` cols 38-44 is the `handle)` argument of
+> `return createHash('sha256').update(handle).digest('base64url')` ("Password
+> from a call to sign is hashed insecurely"), and `composition.ts:597` cols
+> 53-75 is `env.OAUTH_STATE_SECRET)` inside
+> `createHash('sha256').update(env.OAUTH_STATE_SECRET).digest('hex')` ("Password
+> from an access to OAUTH_STATE_SECRET is hashed insecurely"). So the OAuth
+> bullet's "the change probably would not have closed it" does not follow: the
+> `createHash` that patch replaced IS the flagged sink, and `sign(...)` is the
+> alert's SOURCE, not its sink. Verified from the code-scanning API, not from a
+> re-run; whether removing the sink actually closes the alert is still
+> unconfirmed, because the keyed replacement routes the same value through
+> `createHmac('sha256', ...)`. Always resolve a code-scanning line number
+> against the alert's own `commit_sha`. See
+> `docs/operations/oauth-state-record-key-cutover.md` for the full evidence and
+> the reproduction command.
+
 ### `e2e`: five defects deep, one design conflict left
 
 The stack no longer fails at the first sidecar. Each fix uncovered the next

@@ -90,6 +90,11 @@ const baseEnvSchema = z.object({
   // REG-03: digest of the canonical, Sigstore-verified promotion manifest.
   // Optional during local development and the pre-promotion compatibility
   // window; every digest-promoted Railway service receives the exact value.
+  // D1 (2026-08-29): PRESENCE alone is also the composition root's
+  // deployed-cell signal — applyProviderEndpointOverrides denies the
+  // local-sandbox provider profile and every endpoint override on it. Never
+  // set this outside a promotion: doing so breaks the local Compose stack,
+  // which rehearses the production images against the sandbox on purpose.
   RELEASE_MANIFEST_SHA256: z
     .string()
     .regex(/^[0-9a-f]{64}$/)

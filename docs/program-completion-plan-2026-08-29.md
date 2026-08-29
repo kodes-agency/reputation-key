@@ -78,8 +78,15 @@ costs ~20 minutes and must confirm, not iterate.
    with owner and reason — the honest classification for a type-only file,
    not a shortcut around the gate.
 2. CodeQL — re-run the analysis before touching any code: the open set already
-   shrank against the last gating run (`js/file-system-race` 11 → 5) and two
-   alerts point at lines that no longer hold the flagged code. Then, in
+   shrank against the last gating run (`js/file-system-race` 11 → 5). The
+   claim that two alerts "point at lines that no longer hold the flagged code"
+   is RETRACTED — those line numbers were resolved against branch HEAD instead
+   of against each alert's own `most_recent_instance.commit_sha`; against
+   `4d531c9` both `js/insufficient-password-hash` alerts land on the flagged
+   code exactly. Resolve every alert line against its own commit before
+   concluding it is stale. Re-running still matters, but as confirmation of
+   closure rather than of location — see
+   `docs/operations/oauth-state-record-key-cutover.md`. Then, in
    parallel lanes: the OAuth record-key derivation through the handle keyring
    as its own commit, handling the pre-deploy record window; full-chain
    containment for the remaining file-system-race sites, avoiding both flaws

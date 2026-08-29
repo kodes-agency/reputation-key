@@ -94,16 +94,59 @@ export function applyProviderEndpointOverrides(
     env.GOOGLE_OAUTH_JWKS_URL,
     env.GOOGLE_OAUTH_REVOKE_URL,
   ]
+  // D1 (owner ruling, 2026-08-29): the local-sandbox PROFILE denial keys on a
+  // DEPLOYED-CELL signal, NOT on NODE_ENV. The local Compose stack rehearses
+  // the exact production images — so it sets NODE_ENV=production — against a
+  // sandbox on a private network, which means NODE_ENV cannot tell a promoted
+  // cell apart from that rehearsal. RELEASE_MANIFEST_SHA256 can: it is the
+  // signed promotion-manifest digest the release controller writes onto every
+  // service of a promotion (deploy-beta.ts `deployPlan` over ALL_SERVICES, the
+  // seven RAILWAY_SERVICE_IMAGE_ROLES keys), declared `preserve()` in
+  // `.railway/railway.ts` so a config apply never drops it. compose.local.yml
+  // and the Playwright sandbox env never set it.
+  //
+  // DARK WINDOW — what the IaC pin does and does not cover. The digest is
+  // optional in the schema (see env.ts) for local development and the
+  // documented pre-promotion compatibility window, so a service that has not
+  // yet been through a promotion runs with the deployed-cell denials DARK.
+  // What holds the profile inside that window is `.railway/railway.ts`, the
+  // only service-source owner, which pins GOOGLE_PROVIDER_ENDPOINT_PROFILE to
+  // 'production-fixed' and NODE_ENV to 'production' on web and worker (both
+  // asserted in railway.test.ts). That pin covers the PROFILE ONLY:
+  // `.railway/railway.ts` declares no GBP_*_BASE_URL or GOOGLE_OAUTH_*_URL
+  // variable at all, so IaC holds nothing under the endpoint overrides. That
+  // is why the override denial below keeps its own NODE_ENV + profile conjunct
+  // rather than resting on the deployed-cell signal alone — a profile-blind
+  // override denial would let a not-yet-promoted production cell point
+  // GOOGLE_OAUTH_TOKEN_URL (which carries the client secret and the auth code
+  // — see contexts/integration/build.ts) at an arbitrary host.
+  //
+  // THE PROFILE IS ALSO A DOWNSTREAM SELECTOR, and the denial here is not what
+  // constrains it. 'local-sandbox' makes google-provider-authority.ts choose
+  // routeTarget `{ kind: 'local_sandbox', simulatorOrigin }`; route-catalogue's
+  // targetRouteUrl then rewrites every credentialed provider request onto that
+  // origin WITHOUT consulting GOOGLE_PROVIDER_PRODUCTION_ORIGINS, and
+  // composition.ts validates the runtime-isolation attestation against
+  // 'local_sandbox' instead of 'production'. In the dark window the IaC pin is
+  // the only thing standing between a production cell and that selection.
+  const deployedCell = env.RELEASE_MANIFEST_SHA256 !== undefined
+  if (deployedCell && env.GOOGLE_PROVIDER_ENDPOINT_PROFILE === 'local-sandbox') {
+    throw new Error('deployed-cell local-sandbox profile is unavailable')
+  }
+  const hasOverride = overrides.some((value) => value !== undefined)
+  if (deployedCell && hasOverride) {
+    throw new Error('provider endpoint overrides are unavailable in a deployed cell')
+  }
+  // Outside a deployed cell the override exemption is exactly the Compose
+  // rehearsal: production images plus an explicit local-sandbox profile. Every
+  // other production process still refuses overrides, so relaxing the profile
+  // denial to the deployed-cell signal did not widen this seam.
   if (
     env.NODE_ENV === 'production' &&
-    env.GOOGLE_PROVIDER_ENDPOINT_PROFILE === 'local-sandbox'
+    env.GOOGLE_PROVIDER_ENDPOINT_PROFILE !== 'local-sandbox' &&
+    hasOverride
   ) {
-    throw new Error('production local-sandbox profile is unavailable')
-  }
-  if (env.NODE_ENV === 'production' && overrides.some((value) => value !== undefined)) {
-    throw new Error(
-      'provider endpoint overrides require a non-production local-sandbox profile',
-    )
+    throw new Error('provider endpoint overrides require the local-sandbox profile')
   }
   return {
     gbpApiBaseUrl: env.GBP_API_BASE_URL ?? endpoints.gbpApiBaseUrl,
