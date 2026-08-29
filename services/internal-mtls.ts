@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from 'node:fs'
+import { closeSync, constants, fstatSync, openSync, readFileSync } from 'node:fs'
 import {
   Agent as HttpsAgent,
   createServer,
@@ -29,12 +29,30 @@ export type InternalPeerIdentityResolver = (
   certificate: DetailedPeerCertificate,
 ) => string | null
 
+// Stat the descriptor, not the path. A `statSync(path)` followed by a
+// `readFileSync(path)` checks one inode and reads another if the path is
+// swapped in between — a mount or secret-rotation symlink flip is enough — so
+// the size bound that was checked is not the size bound that was read. Opening
+// once and validating the open descriptor makes the checked object and the read
+// object the same by construction.
+//
+// O_NONBLOCK is what keeps that safe. The `isFile()` guard can only run AFTER
+// the open, and a plain `O_RDONLY` open of a FIFO blocks until a writer
+// appears — so the same swapped path that motivates this fix could point at a
+// FIFO and hang the process forever, where the old path-stat rejected it
+// immediately. With O_NONBLOCK the open returns, `fstat` reports the FIFO, and
+// the guard refuses it. It has no effect on a regular file.
 function readTlsFile(path: string): Buffer {
-  const stat = statSync(path)
-  if (!stat.isFile() || stat.size < 1 || stat.size > 1024 * 1024) {
-    throw new Error('internal mTLS material is invalid')
+  const descriptor = openSync(path, constants.O_RDONLY | constants.O_NONBLOCK)
+  try {
+    const stat = fstatSync(descriptor)
+    if (!stat.isFile() || stat.size < 1 || stat.size > 1024 * 1024) {
+      throw new Error('internal mTLS material is invalid')
+    }
+    return readFileSync(descriptor)
+  } finally {
+    closeSync(descriptor)
   }
-  return readFileSync(path)
 }
 
 class InternalRequestRejectedError extends Error {}

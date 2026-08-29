@@ -22,8 +22,19 @@ import type { Page } from '@playwright/test'
 import { testEnvironment } from '../../src/shared/testing/test-environment'
 import { computeAiReviewSourceProvenance } from '../../src/contexts/review/application/ai-review-source'
 
-/** Unique-per-run marker for every fixture-created external identifier. */
-export const e2eRunId = `r${Date.now().toString(36)}${Math.floor(Math.random() * 1296).toString(36)}`
+/**
+ * Unique-per-run marker for every fixture-created external identifier.
+ *
+ * Playwright workers fork together, so the millisecond prefix routinely ties
+ * and the suffix is the only thing separating two workers. The suffix was
+ * `Math.floor(Math.random() * 1296).toString(36)`: 1296 values, and only ONE
+ * character whenever the draw landed below 36, so the id was not even a fixed
+ * width. Two random bytes give a uniform 4 characters and 65536 values. A tie
+ * here does not fail as a tie — it surfaces as an unrelated unique-constraint
+ * violation in whichever spec loses the race, which is why it is worth the
+ * widening rather than the explanation.
+ */
+export const e2eRunId = `r${Date.now().toString(36)}${randomBytes(2).toString('hex')}`
 
 const TEST_ENV = testEnvironment()
 
