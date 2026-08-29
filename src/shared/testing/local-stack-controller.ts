@@ -181,6 +181,11 @@ export function buildLocalStackEnv(
     AI_ADMISSION_ED25519_KID: 'admission-v1',
     REVIEW_PROVIDER_SUBJECT_HMAC_KEYS: reviewProviderSubjectKeys,
     REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS: reviewProviderSubjectKeys,
+    // The worker enables notification.send_email, and bootstrap refuses that
+    // capability without this key. The env schema only DEFAULTS it outside
+    // production, and the local stack runs NODE_ENV=production on purpose —
+    // so nothing supplied it and the worker exited at boot.
+    NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS: `local:${secret(input.revision, 'notification-unsubscribe')}`,
     GUEST_CONTACT_ENCRYPTION_KEY: secret(input.revision, 'guest-contact'),
     GUEST_SESSION_SALT: secret(input.revision, 'guest-session'),
     GUEST_ABUSE_HASH_SECRET: secret(input.revision, 'guest-abuse'),
