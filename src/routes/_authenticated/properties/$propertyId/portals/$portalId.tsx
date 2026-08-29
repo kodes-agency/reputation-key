@@ -1,66 +1,32 @@
 import { createFileRoute, Link, notFound, redirect } from '@tanstack/react-router'
-import {
-  queryOptions,
-  useMutation,
-  useQueryClient,
-  useSuspenseQuery,
-  type QueryClient,
-} from '@tanstack/react-query'
 import { z } from 'zod/v4'
-import { toast } from 'sonner'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import {
-  completeContentReview,
-  approvePortalApprovedDestination,
-  disablePortalApprovedDestination,
-  finalizeUpload,
-  getPropertyPortalExperience,
-  getPortal,
-  getPortalPublicationHistory,
-  listPortals,
-  listPortalApprovedDestinations,
-  issuePortalToken,
-  requestUploadUrl,
-  requestPortalApprovedDestination,
-  revokePortalTokens,
-  rotatePortalToken,
-  savePortalLocalizedOverride,
-  savePropertyPortalBrandContent,
-  savePropertyPortalBrandProfile,
-  updatePortal,
-} from '#/contexts/portal/server/portals'
-import { listPortalLinks } from '#/contexts/portal/server/portal-links'
 import { getPortalAnalyticsFn } from '#/contexts/dashboard/server/portal-analytics'
 import {
   PORTAL_DETAIL_TABS,
   PortalDetailPage,
   type PortalDetailTab,
 } from '#/components/features/portal'
-import type { Action } from '#/components/hooks/use-action'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { useServerFn } from '@tanstack/react-start'
-import { portalKeys, identityKeys } from '#/shared/queries/query-keys'
-import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { ErrorState, LoadingState } from '#/components/layout/page-states'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Button } from '#/components/ui/button'
 import { AlertCircle } from 'lucide-react'
-import type { Portal, PortalTokenStatus } from '#/contexts/portal/application/public-api'
-import type { UpdatePortalVariables } from '#/components/features/portal/shared/types'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
+import { membersQuery } from '#/routes/-queries/route-queries'
+import { usePortalDetailActions } from './-portal-detail-actions'
 import {
-  listPortalResponsibleManagers,
-  updatePortalResponsibleManagers,
-} from '#/contexts/portal/server/portal-responsible-managers'
-import { listMembers } from '#/contexts/identity/server/organizations'
-
-type PortalQueryResult = Readonly<{
-  portal: Portal | null
-  tokenStatus: PortalTokenStatus
-}>
+  findAuthorizedPortal,
+  portalApprovedDestinationsQuery,
+  portalExperienceQuery,
+  portalLinksQuery,
+  portalPublicationHistoryQuery,
+  portalQuery,
+  responsibleManagersQuery,
+  usePortalDetailData,
+} from './-portal-detail-data'
 
 const portalDetailSearchSchema = z.object({
   tab: z.enum(PORTAL_DETAIL_TABS).catch('settings').default('settings'),
@@ -68,86 +34,6 @@ const portalDetailSearchSchema = z.object({
 
 const normalizePortalDetailSearch = (search: unknown): { tab: PortalDetailTab } =>
   portalDetailSearchSchema.parse(search)
-
-const portalQuery = (portalId: string) =>
-  queryOptions({
-    queryKey: portalKeys.detail(portalId),
-    queryFn: () => getPortal({ data: { portalId } }),
-    staleTime: 30_000,
-  })
-
-const propertyPortalsQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: portalKeys.list(propertyId),
-    queryFn: () => listPortals({ data: { propertyId } }),
-    staleTime: 30_000,
-  })
-
-const portalLinksQuery = (portalId: string) =>
-  queryOptions({
-    queryKey: portalKeys.links(portalId),
-    queryFn: () => listPortalLinks({ data: { portalId } }),
-    staleTime: 30_000,
-  })
-
-const responsibleManagersQuery = (portalId: string) =>
-  queryOptions({
-    queryKey: portalKeys.responsibleManagers(portalId),
-    queryFn: () => listPortalResponsibleManagers({ data: { portalId } }),
-    staleTime: 30_000,
-  })
-
-const portalPublicationHistoryQuery = (portalId: string) =>
-  queryOptions({
-    queryKey: portalKeys.publicationHistory(portalId),
-    queryFn: () => getPortalPublicationHistory({ data: { portalId } }),
-    staleTime: 30_000,
-  })
-
-const portalExperienceQuery = (propertyId: string, portalId: string) =>
-  queryOptions({
-    queryKey: portalKeys.experience(propertyId, portalId),
-    queryFn: () => getPropertyPortalExperience({ data: { propertyId, portalId } }),
-    staleTime: 30_000,
-  })
-
-const portalApprovedDestinationsQuery = (portalId: string) =>
-  queryOptions({
-    queryKey: portalKeys.approvedDestinations(portalId),
-    queryFn: () => listPortalApprovedDestinations({ data: { portalId } }),
-    staleTime: 30_000,
-  })
-
-const membersQuery = queryOptions({
-  queryKey: identityKeys.members(),
-  queryFn: () => listMembers(),
-  staleTime: 30_000,
-})
-
-/**
- * Resolve the portal through the URL property's AUTHORIZED collection, so a
- * portal in another property or organization is reported exactly like one that
- * no longer exists — a direct URL never reveals that it exists elsewhere.
- *
- * The list is refetched ONCE before concluding the portal is gone. `invalidate`
- * after a create only refetches ACTIVE queries, and this list has no observer
- * while the user is on `../portals/new`, so the cache still held the
- * pre-creation list: a portal created a second earlier was reported unavailable.
- * The refetch costs nothing in the happy path — it runs only on a cache miss —
- * and removes that whole class of false negative for any stale list.
- */
-const findAuthorizedPortal = async (
-  queryClient: QueryClient,
-  propertyId: string,
-  portalId: string,
-): Promise<Portal | null> => {
-  const options = propertyPortalsQuery(propertyId)
-  const cached = await queryClient.ensureQueryData(options)
-  const hit = cached.portals.find((candidate) => String(candidate.id) === portalId)
-  if (hit) return hit
-  const fresh = await queryClient.fetchQuery({ ...options, staleTime: 0 })
-  return fresh.portals.find((candidate) => String(candidate.id) === portalId) ?? null
-}
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId',
@@ -253,141 +139,17 @@ function PortalDetailError({ error }: { error: Error }) {
   )
 }
 
-function usePortalUpdateAction(propertyId: string, portalId: string) {
-  const queryClient = useQueryClient()
-  const mutation = useMutation({
-    mutationFn: (input: UpdatePortalVariables) => updatePortal(input),
-    onMutate: async (input: UpdatePortalVariables) => {
-      const queryKey = portalKeys.detail(portalId)
-      await queryClient.cancelQueries({ queryKey })
-      const previous = queryClient.getQueryData<PortalQueryResult>(queryKey)
-      const { portalId: _portalId, ...patch } = input.data
-      void _portalId
-      queryClient.setQueryData<PortalQueryResult>(queryKey, (current) =>
-        current?.portal
-          ? { ...current, portal: { ...current.portal, ...patch } }
-          : current,
-      )
-      return { previous }
-    },
-    onError: async (_error, _input, context) => {
-      const queryKey = portalKeys.detail(portalId)
-      queryClient.setQueryData(queryKey, context?.previous)
-      await queryClient.refetchQueries({ queryKey, exact: true })
-    },
-    onSuccess: async () => {
-      toast.success('Portal updated')
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: portalKeys.detail(portalId) }),
-        queryClient.invalidateQueries({ queryKey: portalKeys.links(portalId) }),
-        queryClient.invalidateQueries({ queryKey: portalKeys.list(propertyId) }),
-        queryClient.invalidateQueries({
-          queryKey: portalKeys.experience(propertyId, portalId),
-        }),
-        queryClient.invalidateQueries({
-          queryKey: portalKeys.publicationHistory(portalId),
-        }),
-      ])
-    },
-  })
-
-  return Object.assign(mutation.mutateAsync, {
-    isPending: mutation.isPending,
-    error: mutation.error,
-    isSuccess: mutation.isSuccess,
-    data: mutation.data ?? null,
-  }) as Action<UpdatePortalVariables>
-}
-
 function PortalDetailRoute() {
   const { propertyId, portalId } = Route.useParams()
   const { tab } = Route.useSearch()
   const navigate = Route.useNavigate()
-  const { data: portalData } = useSuspenseQuery(portalQuery(portalId))
-  const { data: linksData } = useSuspenseQuery(portalLinksQuery(portalId))
-  const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
-  const { data: responsibleManagers } = useSuspenseQuery(
-    responsibleManagersQuery(portalId),
-  )
-  const { data: membersData } = useSuspenseQuery(membersQuery)
-  const { data: publicationHistory } = useSuspenseQuery(
-    portalPublicationHistoryQuery(portalId),
-  )
-  const { data: portalExperience } = useSuspenseQuery(
-    portalExperienceQuery(propertyId, portalId),
-  )
-  const { data: approvedDestinations } = useSuspenseQuery(
-    portalApprovedDestinationsQuery(portalId),
-  )
-  const loadMorePublicationHistory = useActionMutation(getPortalPublicationHistory)
-  const { portal, tokenStatus } = portalData
-  const { categories, links } = linksData
-  const { property } = propData
+  const data = usePortalDetailData(propertyId, portalId)
+  const { portal, tokenStatus } = data.portalData
+  const { categories, links } = data.linksData
+  const { property } = data.propData
   if (!portal) throw notFound()
   const ctx = Route.useRouteContext()
-
-  const mutation = usePortalUpdateAction(propertyId, portalId)
-  const issueTokenMutation = useActionMutation(issuePortalToken, {
-    successMessage: 'Public link generated',
-  })
-  const rotateTokenMutation = useActionMutation(rotatePortalToken, {
-    successMessage: 'Public link rotated',
-  })
-  const revokeTokenMutation = useActionMutation(revokePortalTokens, {
-    successMessage: 'Public links revoked',
-  })
-  // The only producer of the governed portal.content_review.completed /
-  // configuration_completeness / approved_destination_ratio facts. Legacy
-  // recognition projections stay inactive; active Goal consumers observe the fact.
-  const completeReviewMutation = useActionMutation(completeContentReview, {
-    successMessage: 'Content review recorded',
-    invalidateKeys: [portalKeys.detail(portalId)],
-  })
-  const updateResponsibleManagersMutation = useActionMutation(
-    updatePortalResponsibleManagers,
-    {
-      successMessage: 'Responsible managers updated',
-      invalidateKeys: [
-        portalKeys.detail(portalId),
-        portalKeys.responsibleManagers(portalId),
-      ],
-    },
-  )
-  const experienceInvalidations = [
-    portalKeys.experience(propertyId, portalId),
-    portalKeys.publicationHistory(portalId),
-  ]
-  const saveProfileMutation = useActionMutation(savePropertyPortalBrandProfile, {
-    successMessage: 'Property brand saved',
-    invalidateKeys: experienceInvalidations,
-  })
-  const saveContentMutation = useActionMutation(savePropertyPortalBrandContent, {
-    successMessage: 'Guest content saved',
-    invalidateKeys: experienceInvalidations,
-  })
-  const saveOverrideMutation = useActionMutation(savePortalLocalizedOverride, {
-    successMessage: 'Portal wording saved',
-    invalidateKeys: experienceInvalidations,
-  })
-  const destinationInvalidations = [
-    portalKeys.approvedDestinations(portalId),
-    portalKeys.publicationHistory(portalId),
-    portalKeys.links(portalId),
-  ]
-  const requestDestinationMutation = useActionMutation(requestPortalApprovedDestination, {
-    successMessage: 'Destination added',
-    invalidateKeys: destinationInvalidations,
-  })
-  const approveDestinationMutation = useActionMutation(approvePortalApprovedDestination, {
-    successMessage: 'Destination approved',
-    invalidateKeys: destinationInvalidations,
-  })
-  const disableDestinationMutation = useActionMutation(disablePortalApprovedDestination, {
-    successMessage: 'Destination disabled',
-    invalidateKeys: destinationInvalidations,
-  })
-  const requestUploadUrlFn = useServerFn(requestUploadUrl)
-  const finalizeUploadFn = useServerFn(finalizeUpload)
+  const actions = usePortalDetailActions(propertyId, portalId)
 
   return (
     <PageShell>
@@ -409,8 +171,8 @@ function PortalDetailRoute() {
           state: property.googleReviewDestination?.state ?? 'unavailable',
           retrievedAt: property.googleReviewDestination?.retrievedAt ?? null,
         }}
-        publicationHistory={publicationHistory}
-        loadMorePublicationHistory={loadMorePublicationHistory}
+        publicationHistory={data.publicationHistory}
+        loadMorePublicationHistory={data.loadMorePublicationHistory}
         categories={categories}
         links={links}
         activeTab={tab}
@@ -420,28 +182,21 @@ function PortalDetailRoute() {
           // Deep links via ?tab= are unaffected.
           void navigate({ search: { tab: nextTab } })
         }}
-        updateMutation={mutation}
+        updateMutation={actions.update}
         organizationName={ctx.activeOrganization?.name ?? 'Your Organization'}
-        issueTokenMutation={issueTokenMutation}
-        rotateTokenMutation={rotateTokenMutation}
-        revokeTokenMutation={revokeTokenMutation}
-        requestUploadUrl={requestUploadUrlFn}
-        finalizeUpload={finalizeUploadFn}
+        issueTokenMutation={actions.issueToken}
+        rotateTokenMutation={actions.rotateToken}
+        revokeTokenMutation={actions.revokeToken}
+        requestUploadUrl={actions.requestUploadUrlFn}
+        finalizeUpload={actions.finalizeUploadFn}
         getPortalAnalytics={getPortalAnalyticsFn}
-        completeReviewMutation={completeReviewMutation}
-        responsibleManagers={responsibleManagers}
-        responsibleManagerMembers={membersData.members}
-        updateResponsibleManagersMutation={updateResponsibleManagersMutation}
-        portalExperience={portalExperience}
-        approvedDestinations={approvedDestinations}
-        portalExperienceActions={{
-          saveProfile: saveProfileMutation,
-          saveContent: saveContentMutation,
-          saveOverride: saveOverrideMutation,
-          requestDestination: requestDestinationMutation,
-          approveDestination: approveDestinationMutation,
-          disableDestination: disableDestinationMutation,
-        }}
+        completeReviewMutation={actions.completeReview}
+        responsibleManagers={data.responsibleManagers}
+        responsibleManagerMembers={data.membersData.members}
+        updateResponsibleManagersMutation={actions.updateResponsibleManagers}
+        portalExperience={data.portalExperience}
+        approvedDestinations={data.approvedDestinations}
+        portalExperienceActions={actions.experience}
       />
     </PageShell>
   )

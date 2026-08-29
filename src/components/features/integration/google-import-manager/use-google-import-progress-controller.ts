@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useRef } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type {
   ImportProgressDto,
@@ -11,11 +11,12 @@ import type {
   GoogleImportManagerProps,
   GoogleImportStep,
 } from './google-import-manager-contract'
-import {
-  googleImportProgressPollInterval,
-  googleImportStatusQuery,
-} from './google-import-progress-query'
+import { googleImportStatusQuery } from './google-import-progress-query'
 import { isImportParentTerminal } from './google-import-progress-model'
+import {
+  useGoogleImportProgressQuery,
+  useTerminalImportInvalidation,
+} from './use-google-import-progress-query'
 
 type RetryRequest = Readonly<{
   retryRevision: number
@@ -63,22 +64,8 @@ export function useGoogleImportProgressController({
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const retryRequests = useRef(new Map<string, RetryRequest>())
-  const invalidatedTerminalRevision = useRef<string | null>(null)
-  const [loadedImportId, setLoadedImportId] = useState<string | null>(null)
-  const initialImportId = initialProgress?.importJobId ?? null
-  const activeImportId = initialImportId ?? loadedImportId
-  const progressQuery = useQuery({
-    ...googleImportStatusQuery(
-      activeImportId ?? 'inactive-google-import',
-      getImportStatus,
-    ),
-    enabled: activeImportId !== null && step === 'progress',
-    initialData:
-      initialProgress?.importJobId === activeImportId ? initialProgress : undefined,
-    refetchInterval: (query) =>
-      googleImportProgressPollInterval(query.state.data, step === 'progress'),
-    refetchIntervalInBackground: false,
-  })
+  const { activeImportId, progressQuery, setLoadedImportId } =
+    useGoogleImportProgressQuery({ initialProgress, getImportStatus, step })
 
   const invalidateCompletedImport = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: propertyKeys.list() })
@@ -94,7 +81,10 @@ export function useGoogleImportProgressController({
         params: { importId: importJobId },
       })
     },
-    [getImportStatus, navigate, queryClient, setStep],
+    // `setLoadedImportId` is the `useState` setter returned by
+    // `useGoogleImportProgressQuery` — stable for the hook's lifetime, but it
+    // arrives through a custom hook so the lint rule cannot infer that.
+    [getImportStatus, navigate, queryClient, setLoadedImportId, setStep],
   )
 
   const refresh = useCallback(async (): Promise<ImportProgressDto | null> => {
@@ -170,14 +160,7 @@ export function useGoogleImportProgressController({
     },
   })
 
-  useEffect(() => {
-    const progress = progressQuery.data
-    if (!progress || !isImportParentTerminal(progress.status)) return
-    const revision = `${progress.importJobId}:${progress.updatedAt}`
-    if (invalidatedTerminalRevision.current === revision) return
-    invalidatedTerminalRevision.current = revision
-    void invalidateCompletedImport()
-  }, [invalidateCompletedImport, progressQuery.data])
+  useTerminalImportInvalidation(progressQuery.data, invalidateCompletedImport)
 
   const retry = useCallback(
     (item: ImportProgressItemDto) => {

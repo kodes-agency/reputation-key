@@ -1,10 +1,9 @@
-import { AlertCircle, Loader2, MapPin, Search } from 'lucide-react'
+import { AlertCircle, MapPin, Search } from 'lucide-react'
 import type {
   ImportAccountDto,
   ImportCandidateDto,
 } from '#/contexts/integration/application/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
-import { Button } from '#/components/ui/button'
 import {
   Card,
   CardContent,
@@ -14,8 +13,8 @@ import {
 } from '#/components/ui/card'
 import { Input } from '#/components/ui/input'
 import { GoogleImportAccountList } from './google-import-account-list'
-import { GoogleImportCandidateList } from './google-import-candidate-list'
-import { GoogleImportLoadingRows } from './google-import-loading-rows'
+import { GoogleImportCandidateResults } from './google-import-candidate-results'
+import { GoogleImportSelectionFooter } from './google-import-selection-footer'
 
 type Props = Readonly<{
   accounts: readonly ImportAccountDto[]
@@ -104,78 +103,26 @@ export function GoogleImportDiscoveryPanel(props: Props) {
                 </Alert>
               ) : null}
 
-              {props.candidatesError ? (
-                <Alert variant="destructive">
-                  <AlertCircle aria-hidden="true" />
-                  <AlertTitle>Locations unavailable</AlertTitle>
-                  <AlertDescription>{props.candidatesError}</AlertDescription>
-                </Alert>
-              ) : props.isLoadingCandidates ? (
-                <GoogleImportLoadingRows label="Loading Google locations" />
-              ) : props.candidates.length === 0 ? (
-                <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  No matching loaded locations. Clear the search or load another page.
-                </p>
-              ) : (
-                <GoogleImportCandidateList
-                  candidates={props.candidates}
-                  selectedIds={props.selectedIds}
-                  onToggleCandidate={props.onToggleCandidate}
-                  onToggleLoaded={props.onToggleLoaded}
-                />
-              )}
+              <GoogleImportCandidateResults
+                candidates={props.candidates}
+                selectedIds={props.selectedIds}
+                isLoading={props.isLoadingCandidates}
+                error={props.candidatesError}
+                onToggleCandidate={props.onToggleCandidate}
+                onToggleLoaded={props.onToggleLoaded}
+              />
 
-              <div className="flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-                <div aria-live="polite" className="text-sm text-muted-foreground">
-                  <p>
-                    {props.selectedIds.size} selected · {props.candidates.length} matching
-                    loaded
-                  </p>
-                  <p className="mt-0.5 text-xs">
-                    Select all eligible loads every remaining Google page first.
-                  </p>
-                </div>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={
-                      props.isSelectingAll ||
-                      props.isLoadingCandidates ||
-                      props.candidates.length === 0
-                    }
-                    onClick={props.onSelectAllEligible}
-                  >
-                    {props.isSelectingAll ? (
-                      <Loader2 className="animate-spin" aria-hidden="true" />
-                    ) : null}
-                    {props.isSelectingAll
-                      ? 'Loading all locations…'
-                      : 'Select all eligible locations'}
-                  </Button>
-                  {props.hasMoreCandidates ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={props.isLoadingMoreCandidates}
-                      onClick={props.onLoadMoreCandidates}
-                    >
-                      {props.isLoadingMoreCandidates ? (
-                        <Loader2 className="animate-spin" aria-hidden="true" />
-                      ) : null}
-                      Load more locations
-                    </Button>
-                  ) : null}
-                  <Button
-                    type="button"
-                    disabled={props.selectedIds.size === 0}
-                    onClick={props.onReview}
-                  >
-                    Review {props.selectedIds.size || ''}{' '}
-                    {props.selectedIds.size === 1 ? 'property' : 'properties'}
-                  </Button>
-                </div>
-              </div>
+              <GoogleImportSelectionFooter
+                selectedCount={props.selectedIds.size}
+                loadedCount={props.candidates.length}
+                isLoadingCandidates={props.isLoadingCandidates}
+                isLoadingMoreCandidates={props.isLoadingMoreCandidates}
+                hasMoreCandidates={props.hasMoreCandidates}
+                isSelectingAll={props.isSelectingAll}
+                onSelectAllEligible={props.onSelectAllEligible}
+                onLoadMoreCandidates={props.onLoadMoreCandidates}
+                onReview={props.onReview}
+              />
             </>
           )}
         </CardContent>

@@ -21,6 +21,44 @@ function patchPage(page: NotificationPage, patch: RowPatch): NotificationPage {
   return { ...page, notifications }
 }
 
+/** `clearContinuation` pins `hasMore` off so a drained feed stops paginating. */
+function patchCachedPage(
+  page: NotificationPage,
+  patch: RowPatch,
+  clearContinuation: boolean | undefined,
+): NotificationPage {
+  const patched = patchPage(page, patch)
+  return clearContinuation ? { ...patched, hasMore: false } : patched
+}
+
+/** How one row moves the unread tally: `-1` read/removed, `+1` unread, else `0`. */
+function rowUnreadDelta(row: Notification, patched: Notification | null): number {
+  const wasUnread = row.status === 'unread'
+  if (patched === null) return wasUnread ? -1 : 0
+  if (wasUnread === (patched.status === 'unread')) return 0
+  return wasUnread ? -1 : 1
+}
+
+/**
+ * Sum the unread movement across the de-duplicated union of the supplied pages,
+ * so a row on the head/history boundary is counted exactly once.
+ */
+function unreadDeltaAcross(
+  pages: ReadonlyArray<NotificationPage>,
+  patch: RowPatch,
+): number {
+  const seen = new Set<string>()
+  let delta = 0
+  for (const page of pages) {
+    for (const row of page.notifications) {
+      if (seen.has(row.id)) continue
+      seen.add(row.id)
+      delta += rowUnreadDelta(row, patch(row))
+    }
+  }
+  return delta
+}
+
 /**
  * Optimistically patch the refreshed head and every loaded history page. The
  * unread count is derived from their de-duplicated union, so a boundary row is
@@ -40,41 +78,24 @@ export function patchNotificationFeedCache(
   const previousHead = qc.getQueryData<NotificationFeedHead>(headKey)
   if (!previousPages && !previousHead) return undefined
 
-  let unreadDelta = 0
-  const seen = new Set<string>()
-  const cachedPages = [
-    ...(previousHead ? [previousHead.page] : []),
-    ...(previousPages?.pages ?? []),
-  ]
-  for (const page of cachedPages) {
-    for (const row of page.notifications) {
-      if (seen.has(row.id)) continue
-      seen.add(row.id)
-      const patched = patch(row)
-      const wasUnread = row.status === 'unread'
-      if (patched === null) {
-        if (wasUnread) unreadDelta -= 1
-      } else if (wasUnread !== (patched.status === 'unread')) {
-        unreadDelta += wasUnread ? -1 : 1
-      }
-    }
-  }
+  const unreadDelta = unreadDeltaAcross(
+    [...(previousHead ? [previousHead.page] : []), ...(previousPages?.pages ?? [])],
+    patch,
+  )
 
   if (previousHead) {
-    const patchedPage = patchPage(previousHead.page, patch)
     qc.setQueryData<NotificationFeedHead>(headKey, {
       ...previousHead,
-      page: options.clearContinuation ? { ...patchedPage, hasMore: false } : patchedPage,
+      page: patchCachedPage(previousHead.page, patch, options.clearContinuation),
       unreadCount:
         options.unreadCount ?? Math.max(0, previousHead.unreadCount + unreadDelta),
     })
   }
 
   if (previousPages) {
-    const pages = previousPages.pages.map((page) => {
-      const patchedPage = patchPage(page, patch)
-      return options.clearContinuation ? { ...patchedPage, hasMore: false } : patchedPage
-    })
+    const pages = previousPages.pages.map((page) =>
+      patchCachedPage(page, patch, options.clearContinuation),
+    )
     qc.setQueryData<FeedPages>(listKey, { ...previousPages, pages })
   }
   return () => {

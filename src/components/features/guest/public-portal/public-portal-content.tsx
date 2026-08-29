@@ -9,8 +9,10 @@ import {
   type PortalLinkItem,
 } from './portal-secondary-links'
 import type { PublicGoogleReviewDestination } from '#/contexts/portal/application/public-api'
-import { readableForegroundOn } from './portal-contrast'
 import { getGuestPortalCopy } from './guest-language-pack'
+import { PortalLanguageNav } from './portal-language-nav'
+import { resolvePortalLocale, type PortalLocalization } from './portal-localization'
+import { resolvePortalThemeStyle } from './portal-theme-style'
 
 export type { PortalCategory, PortalLinkItem } from './portal-secondary-links'
 
@@ -33,12 +35,7 @@ export type PublicPortalContentProps = Readonly<{
     privateFeedbackThreshold: number
     googleReview: Readonly<{ status: PublicGoogleReviewDestination['status'] }>
   }>
-  localization?: Readonly<{
-    selectedLocale: 'en' | 'bg'
-    primaryLocale: 'en' | 'bg'
-    availableLocales: readonly ('en' | 'bg')[]
-    languagePackVersion?: 'guest-ui-en-v1' | 'guest-ui-bg-v1'
-  }>
+  localization?: PortalLocalization
   selectSecondaryLink?: GuestResponseAction<
     { token: string; csrfNonce: string; linkId: string },
     { url: string }
@@ -49,12 +46,10 @@ export type PublicPortalContentProps = Readonly<{
   >
 }>
 
-/** Secondary text. See `--portal-text-muted` for why this is not `opacity-*`. */
-const LANGUAGE_LINK_STYLE = {
-  color: 'var(--portal-text)',
-  borderColor: 'var(--portal-accent-border)',
-}
-
+/**
+ * Secondary text. See `resolvePortalThemeStyle` for why `--portal-text-muted`
+ * is an opaque mixed colour rather than an `opacity-*` utility.
+ */
 const MUTED_STYLE = { color: 'var(--portal-text-muted)' }
 
 export function PublicPortalContent({
@@ -68,41 +63,9 @@ export function PublicPortalContent({
   selectSecondaryLink,
   responseForm,
 }: PublicPortalContentProps) {
-  // The stored theme is an open JSON record, so each colour is narrowed rather
-  // than asserted; the fallbacks match the domain default theme (#6366F1).
-  const primaryColor =
-    typeof portal.theme?.primaryColor === 'string' ? portal.theme.primaryColor : '#6366F1'
-  const backgroundColor =
-    typeof portal.theme?.backgroundColor === 'string'
-      ? portal.theme.backgroundColor
-      : '#ffffff'
-  const textColor =
-    typeof portal.theme?.textColor === 'string' ? portal.theme.textColor : '#111827'
-  const selectedLocale = localization?.selectedLocale ?? 'en'
-  const languagePackVersion =
-    localization?.languagePackVersion ??
-    (selectedLocale === 'bg' ? 'guest-ui-bg-v1' : 'guest-ui-en-v1')
+  const { selectedLocale, languagePackVersion } = resolvePortalLocale(localization)
   const copy = getGuestPortalCopy(selectedLocale, languagePackVersion)
-
-  const themeStyle = {
-    '--portal-primary': primaryColor,
-    // Chosen by luminance, not assumed: a light brand colour (the Dark palette
-    // preset ships #a5b4fc) made the hardcoded white button text 1.99:1.
-    '--portal-on-primary': readableForegroundOn(primaryColor),
-    '--portal-bg': backgroundColor,
-    '--portal-text': textColor,
-    // Derived tints so surfaces and rules track the accent instead of the
-    // hardcoded grays that used to make the Dark palette unreadable.
-    '--portal-accent-soft': `color-mix(in srgb, ${primaryColor} 12%, transparent)`,
-    '--portal-accent-border': `color-mix(in srgb, ${primaryColor} 40%, transparent)`,
-    // Secondary text is mixed toward the portal's OWN background rather than
-    // dimmed with `opacity-*`. Opacity composites against whatever happens to
-    // be painted behind the element, so a preview rendered on a dark surface
-    // produced dark-on-dark text (axe measured 1.08:1). Mixing on the
-    // text→background axis yields an opaque colour whose contrast is a property
-    // of the palette, not of the container.
-    '--portal-text-muted': `color-mix(in srgb, ${textColor} 72%, ${backgroundColor})`,
-  }
+  const themeStyle = resolvePortalThemeStyle(portal.theme)
 
   const secondaryLinks =
     links.length > 0
@@ -136,33 +99,12 @@ export function PublicPortalContent({
       }}
     >
       <div className="mx-auto max-w-lg space-y-8 px-4 py-8">
-        {token && localization && localization.availableLocales.length > 1 && (
-          <nav
-            aria-label={copy.languageNavigationLabel}
-            className="flex justify-end gap-2 text-sm"
-          >
-            {localization.availableLocales.map((locale) => (
-              <a
-                key={locale}
-                href={`/p/${encodeURIComponent(token)}?locale=${locale}${
-                  accessArtifactId
-                    ? `&accessArtifact=${encodeURIComponent(accessArtifactId)}`
-                    : ''
-                }`}
-                hrefLang={locale}
-                aria-current={locale === localization.selectedLocale ? 'page' : undefined}
-                // The guest portal must not inherit app chrome colours: the
-                // global bare-anchor rule paints links with `--accent`, which
-                // measures 3.88:1 on white. Portal chrome uses the PORTAL's
-                // palette, whose contrast is the palette's own contract.
-                className="rounded-md border px-2 py-1"
-                style={LANGUAGE_LINK_STYLE}
-              >
-                {locale === 'bg' ? 'Български' : 'English'}
-              </a>
-            ))}
-          </nav>
-        )}
+        <PortalLanguageNav
+          token={token}
+          accessArtifactId={accessArtifactId}
+          localization={localization}
+          navigationLabel={copy.languageNavigationLabel}
+        />
         {portal.logoUrl && (
           <img
             src={portal.logoUrl}
