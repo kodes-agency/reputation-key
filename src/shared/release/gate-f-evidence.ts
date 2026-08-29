@@ -36,6 +36,7 @@ import {
 import { LIVE_EVIDENCE_PARSERS, type LiveEvidenceGateId } from './live-evidence'
 import {
   parseGateFApprovalEnvelope,
+  type GateFApprovalRole,
   type GateFApprovalVerifier,
 } from './gate-f-approval-envelope'
 
@@ -77,7 +78,7 @@ export const GATE_F_REQUIRED_GATE_IDS = [
  * moment someone other than the operator's own staff can reach the product —
  * the full set is required again, with no one needing to remember to re-arm it.
  */
-export const RELEASE_POSTURES = ['closed-beta', 'open-beta', 'ga'] as const
+const RELEASE_POSTURES = ['closed-beta', 'open-beta', 'ga'] as const
 
 export type ReleasePosture = (typeof RELEASE_POSTURES)[number]
 
@@ -122,8 +123,6 @@ export function gateFApprovalRolesFor(
  * approvals a bundle must carry, not which roles can exist.
  */
 export const GATE_F_REQUIRED_APPROVAL_ROLES = FULL_APPROVAL_ROLES
-
-export type GateFApprovalRole = (typeof FULL_APPROVAL_ROLES)[number]
 
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/u)
 const sourceRevision = z.string().regex(/^[0-9a-f]{40}$/u)

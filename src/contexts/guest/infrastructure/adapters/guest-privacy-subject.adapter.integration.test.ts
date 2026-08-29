@@ -136,8 +136,18 @@ async function seed(tx: Tx): Promise<Fixture> {
       ${fixture.portalId}::uuid, ${fixture.responseId}::uuid, ${snapshotId}::uuid, 1,
       ${DIGEST}, true, 'guest-contact-notice', 'v1', ${NOTICE_DIGEST}, 'en',
       'guest-contact-retention-30d-v1', 'manager_follow_up', true,
-      ${CONTACT_CIPHERTEXT}, 'guest-contact-v1', 'active', clock_timestamp(),
-      clock_timestamp() + interval '30 days', clock_timestamp(), clock_timestamp()
+      -- now(), not clock_timestamp(). The table carries
+      -- guest_contact_requests_retention_exact:
+      --   CHECK (expires_at = submitted_at + '720:00:00'::interval)
+      -- and clock_timestamp() ADVANCES within a transaction, so reading it
+      -- separately for submitted_at and expires_at made the two disagree by
+      -- however long the row took to build. It passed whenever those reads
+      -- landed in the same microsecond and failed under load, which is what
+      -- made this look like test-ordering flake in CI. now() is the
+      -- transaction timestamp and is stable, so the pair is equal by
+      -- construction.
+      ${CONTACT_CIPHERTEXT}, 'guest-contact-v1', 'active', now(),
+      now() + interval '30 days', now(), now()
     )
   `)
   await tx.execute(sql`
