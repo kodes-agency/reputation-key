@@ -73,7 +73,12 @@ describe('Contact Request beta containment', () => {
       'src/shared/events',
       'src/shared/observability',
       'src/shared/outbox',
-      'src/shared/projections',
+      // `src/shared/projections` is deliberately absent from this list: the
+      // projection authority was retired, and scanning a directory that no
+      // longer exists threw ENOENT on a fresh checkout while passing on a
+      // developer machine that still had the empty folder. Its containment is
+      // covered by retired-runtime-authorities.test.ts, which fails if either
+      // projection file comes back at all.
       'src/shared/queries',
     ].flatMap((path) => sourceFiles(join(ROOT, path)))
 
