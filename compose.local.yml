@@ -947,7 +947,14 @@ services:
         SOURCE_REVISION: ${SOURCE_REVISION}
     environment:
       <<: *app-environment
-      BETTER_AUTH_URL: http://web:3000
+      # The worker never CONNECTS to this origin — it reads it as `appBaseUrl`
+      # to build the links inside digest and urgent emails (see
+      # digest-notification.job.ts / urgent-email.job.ts). So it must be the
+      # origin a recipient can actually open, not the compose service name:
+      # an email carrying http://web:3000 is broken for whoever receives it.
+      # It is also why the production HTTPS guard refused this container while
+      # the loopback origin the other services use is accepted.
+      BETTER_AUTH_URL: http://127.0.0.1:3000
       BETA_E2E_GLOBAL_CAPABILITIES: ''
       BETA_E2E_EXECUTION_IDENTITY: ''
       GOOGLE_EGRESS_GATEWAY_ORIGIN: https://google-egress-gateway:8443
@@ -1010,7 +1017,10 @@ services:
     command: [sleep, infinity]
     environment:
       <<: *app-environment
-      BETTER_AUTH_URL: http://web:3000
+      # Same reason as the worker: BETTER_AUTH_URL is a link-building origin and
+      # must be recipient-openable. E2E_BASE_URL is different — that IS a dial
+      # target, so it keeps the in-network service name.
+      BETTER_AUTH_URL: http://127.0.0.1:3000
       E2E_BASE_URL: http://web:3000
       PERF_ARTIFACT_DIR: /artifacts/perf
     volumes:
