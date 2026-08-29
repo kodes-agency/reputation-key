@@ -1,5 +1,4 @@
 import { randomBytes } from 'node:crypto'
-import { readFileSync } from 'node:fs'
 import { Pool } from 'pg'
 import Redis from 'ioredis'
 import {
@@ -41,23 +40,6 @@ function requiredEnv(name: string): string {
   return value
 }
 
-function providerRedisTlsOptions(
-  secrets: Readonly<{
-    PROVIDER_REDIS_TLS_CA_PEM?: string
-    PROVIDER_REDIS_TLS_CA_PATH?: string
-  }>,
-): Readonly<{ tls?: { ca: string } }> {
-  if (secrets.PROVIDER_REDIS_TLS_CA_PEM) {
-    return { tls: { ca: secrets.PROVIDER_REDIS_TLS_CA_PEM } }
-  }
-  if (secrets.PROVIDER_REDIS_TLS_CA_PATH) {
-    // A mount point named by this sidecar's own allowlisted environment and
-    // read once at boot — never request input.
-    return { tls: { ca: readFileSync(secrets.PROVIDER_REDIS_TLS_CA_PATH, 'utf8') } }
-  }
-  return {}
-}
-
 const { databaseTls, grantKeyring, pool, redis } = consumeGoogleAdmissionRuntimeSecrets(
   process.env,
   (secrets) => {
@@ -95,9 +77,9 @@ const { databaseTls, grantKeyring, pool, redis } = consumeGoogleAdmissionRuntime
           connectTimeout: 5_000,
           commandTimeout: 5_000,
           disableClientInfo: true,
-          // The PEM when a deployed cell injects one, the mounted file when a
-          // compose stack cannot (an env file has no multi-line values).
-          ...providerRedisTlsOptions(secrets),
+          ...(secrets.PROVIDER_REDIS_TLS_CA_PEM
+            ? { tls: { ca: secrets.PROVIDER_REDIS_TLS_CA_PEM } }
+            : {}),
         }),
       }
     } catch (error) {

@@ -111,11 +111,6 @@ describe('Google execution-admission startup isolation', () => {
     expect(names).not.toContain('GOOGLE_INTERNAL_MTLS_CA_B64')
     expect(names).not.toContain('GOOGLE_INTERNAL_MTLS_CERT_B64')
     expect(names).not.toContain('GOOGLE_INTERNAL_MTLS_KEY_B64')
-    // The compose stack mounts its TLS material and names the file; a deployed
-    // cell injects the bytes. Same duality for the provider Redis CA, and for
-    // the same reason: an env file cannot carry a multi-line PEM.
-    expect(names).toContain('PROVIDER_REDIS_TLS_CA_PATH')
-    expect(names).not.toContain('PROVIDER_REDIS_TLS_CA_PEM')
     expect(names.sort()).toEqual(
       [
         ...GOOGLE_ADMISSION_REQUIRED_ENVIRONMENT_NAMES.filter(
@@ -125,7 +120,6 @@ describe('Google execution-admission startup isolation', () => {
         'GOOGLE_INTERNAL_MTLS_CA_PATH',
         'GOOGLE_INTERNAL_MTLS_CERT_PATH',
         'GOOGLE_INTERNAL_MTLS_KEY_PATH',
-        'PROVIDER_REDIS_TLS_CA_PATH',
       ].sort(),
     )
   })
