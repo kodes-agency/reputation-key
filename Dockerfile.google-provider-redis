@@ -3,7 +3,11 @@
 # a non-default ACL user, persistence/replication disabled, bounded memory,
 # and denied persistence/admin commands. This image is built, scanned, signed,
 # and promoted with the rest of the release candidate.
-FROM redis:7.4.7-alpine@sha256:02f2cc4882f8bf87c79a220ac958f58c700bdec0dfb9b9ea61b62fb0e8f1bfcf
+# Digest-pinned; the tag is the comment. Bumped 2026-08-29 from 7.4.7 (built
+# 2026-01-28) because grype began failing this image at HIGH: the seven-month-old
+# build sat eight Alpine packages behind, openssl/libcrypto3 3.3.6 among them.
+# 7.4.11 is the newest 7.4.x build (2026-08-18) and carries the patched set.
+FROM redis:7.4.11-alpine@sha256:ff02b58f971e7d7d156a1267e283fcbbeee91773b6aa36c49dac28ecfe28eadf
 
 ARG SOURCE_REVISION
 ENV IMAGE_SOURCE_REVISION=$SOURCE_REVISION
