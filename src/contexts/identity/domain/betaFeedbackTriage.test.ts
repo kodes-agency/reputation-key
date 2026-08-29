@@ -154,3 +154,63 @@ describe('beta feedback triage state', () => {
     }
   })
 })
+
+describe('beta feedback triage refusals', () => {
+  it('refuses to triage feedback that was prepared but never delivered', () => {
+    // Triage is a record about a report the team actually received. Triaging an
+    // undelivered one would produce a decision about nothing.
+    expect(() =>
+      assertBetaFeedbackTriageTransition(
+        { ...current, deliveryState: 'prepared' },
+        screened,
+      ),
+    ).toThrow('Only delivered feedback can enter triage')
+  })
+
+  it('refuses a stale revision rather than overwriting a concurrent decision', () => {
+    expect(() =>
+      assertBetaFeedbackTriageTransition(current, { ...screened, expectedRevision: 7 }),
+    ).toThrow('revision is stale')
+  })
+
+  it('refuses a duplicate that links to nothing, or to itself', () => {
+    const asDuplicate = {
+      ...screened,
+      reproduction: 'not_reproduced' as const,
+      dedupeDisposition: 'duplicate' as const,
+    }
+    expect(() =>
+      assertBetaFeedbackTriageTransition(current, {
+        ...asDuplicate,
+        duplicateOfReference: null,
+      }),
+    ).toThrow('must link a different feedback reference')
+    expect(() =>
+      assertBetaFeedbackTriageTransition(current, {
+        ...asDuplicate,
+        duplicateOfReference: current.reference,
+      }),
+    ).toThrow('must link a different feedback reference')
+  })
+
+  it('refuses escalated privacy feedback parked in an ordinary support queue', () => {
+    // An escalation that stays in the support queue is an escalation nobody
+    // owns; the privacy and security queues are the ones that answer for it.
+    expect(() =>
+      assertBetaFeedbackTriageTransition(current, {
+        ...screened,
+        privacyClass: 'escalated',
+        ownerQueue: 'beta_support',
+      }),
+    ).toThrow('requires the privacy or security queue')
+  })
+
+  it('refuses an engineering issue link before the report is accepted', () => {
+    expect(() =>
+      assertBetaFeedbackTriageTransition(current, {
+        ...screened,
+        engineeringIssueRef: 'ENG-1234',
+      }),
+    ).toThrow('only after acceptance')
+  })
+})

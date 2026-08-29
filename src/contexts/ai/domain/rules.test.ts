@@ -493,6 +493,36 @@ describe('AI execution binding fail-closed validation', () => {
     expect(parseAiExecutionBinding(createBinding()).isOk()).toBe(true)
   })
 
+  it('accepts a reply grounded in a brand profile, and only when BOTH halves are present', () => {
+    // The grounded pair had no coverage at all: every fixture left
+    // replyBrandProfileVersion null, so the four operands that check a real
+    // brand version and its display-name digest never ran. A binding that
+    // names a brand profile without the digest it was rendered from — or the
+    // digest without the version — is not grounded, and must be refused.
+    const grounded = {
+      ...makeReplyBinding(),
+      replyBrandProfileVersion: 3,
+      replyBrandDisplayNameDigest: DIGEST,
+    }
+    expect(parseAiExecutionBinding(grounded).isOk()).toBe(true)
+
+    expect(
+      parseAiExecutionBinding({ ...grounded, replyBrandDisplayNameDigest: null }).isErr(),
+    ).toBe(true)
+    expect(
+      parseAiExecutionBinding({ ...grounded, replyBrandProfileVersion: null }).isErr(),
+    ).toBe(true)
+    expect(
+      parseAiExecutionBinding({ ...grounded, replyBrandProfileVersion: 0 }).isErr(),
+    ).toBe(true)
+    expect(
+      parseAiExecutionBinding({
+        ...grounded,
+        replyBrandDisplayNameDigest: 'not-a-digest',
+      }).isErr(),
+    ).toBe(true)
+  })
+
   it.each([
     [
       'authorization lineage',

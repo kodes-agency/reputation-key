@@ -3,6 +3,8 @@ import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import {
   OPERATIONAL_ACTION_KINDS,
   createOperationalActionRecord,
+  isOperationalAction,
+  isOperationalActionResourceType,
   operationalActionHistoryRecordId,
 } from './operational-action-history'
 
@@ -124,5 +126,37 @@ describe('Operational Action History record contract', () => {
       },
     })
     expect(publicDecision.isOk()).toBe(true)
+  })
+})
+
+describe('operational action guards', () => {
+  it('accepts exactly the catalogued actions and resource types', () => {
+    // The guards exist so an untrusted string — a stored row, an operator
+    // argument — cannot widen the catalogue by being cast. They must answer
+    // from the catalogue itself, not from a shape check.
+    for (const { action, resourceType } of OPERATIONAL_ACTION_KINDS) {
+      expect(isOperationalAction(action), action).toBe(true)
+      expect(isOperationalActionResourceType(resourceType), resourceType).toBe(true)
+    }
+  })
+
+  it.each(['', 'property.erase.', 'PROPERTY.ERASE', 'not.an.action'])(
+    'refuses %o as an action',
+    (value) => {
+      expect(isOperationalAction(value)).toBe(false)
+    },
+  )
+
+  it.each(['', 'Property', 'not-a-resource'])(
+    'refuses %o as a resource type',
+    (value) => {
+      expect(isOperationalActionResourceType(value)).toBe(false)
+    },
+  )
+
+  it('does not accept an action as a resource type, or the reverse', () => {
+    const { action, resourceType } = OPERATIONAL_ACTION_KINDS[0]!
+    expect(isOperationalActionResourceType(action)).toBe(false)
+    expect(isOperationalAction(resourceType)).toBe(false)
   })
 })
