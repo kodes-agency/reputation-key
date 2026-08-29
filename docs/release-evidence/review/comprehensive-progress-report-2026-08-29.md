@@ -244,12 +244,46 @@ Still red, with corrected attribution:
 | `audit`  | **Correction.** The earlier entry called this a property of the diff. It is not: Fallow reports `introduced` separately from `inherited`, and 501 of the findings are introduced — 241 dead code, 235 complexity, 24 styling. | This branch's own debt. Most of the dead exports are surfaces built ahead of composition (the destructive lifecycle contributors are deliberately uncomposed); separating those from genuinely dead code is per-symbol work. |
 | `docker` | A base-image CVE published after the pin. `redis:7.4.7-alpine` is eight packages behind, including OpenSSL 3.3.6 → 3.3.7.                                                                                                     | Not this branch. Needs a digest bump to the newest `redis:7.4-alpine` build and a rerun of the scan to confirm — the practice `.grype.yaml`'s own header describes.                                                          |
 | `e2e`    | The Google execution admission sidecar refuses its Redis at boot — see below. It never started on this branch, so no e2e test has run against these images.                                                                   | This branch. The sidecar and its compose wiring are both new here; they disagree with each other.                                                                                                                            |
+| `check`  | Two integration suites assert TABLE-WIDE counts — see below. They pass on a fresh database and fail in CI, because vitest runs integration files sequentially but not in a pinned order.                                      | This branch's suites, but a latent isolation defect rather than a regression: the coverage gate had been failing first, so integration had not run in CI on this branch until now.                                           |
 | `CodeQL` | Open alerts on the repository, most predating this branch (`js/insecure-randomness` in e2e specs, `js/request-forgery` in the control proxy, `js/file-system-race` in the local stack).                                       | Mixed. The three this branch owned — the LIKE escaping, the shared-secret key derivation, the artifact write races — are fixed and their threads resolved.                                                                   |
 
 **Correction to the earlier `storybook-test` row.** It called the failures
 pre-existing. Ten of the twelve failing story files were new or substantially
 changed on this branch; only two were untouched. They were this branch's, and
 they are fixed.
+
+### `check`: two order-dependent integration suites
+
+The coverage gate is green — tier-1 domain rules are back at exact 100% and
+every tier-2 domain floor is met, answered with tests rather than a lower
+floor. What now fails is further down the same job:
+
+- `single-us-beta-data-cell-migration.integration.test.ts` (5 tests). The
+  cutover report counts the WHOLE `properties` table, so a Property another
+  integration file left behind is "remaining" work: a `batchSize: 1` batch
+  processes THAT row instead of the fixture's, and every count shifts. The
+  suite already baselines `unresolvedProperties` for this reason; the other
+  three counts are absolute.
+- `review-organization-export.adapter.integration.test.ts` (4 tests), which
+  fails on `review_provider_subject_one_active_idx` — another file leaves an
+  active provider-subject row for the same subject.
+
+Both pass on a fresh database, including in a full 239-file run, and fail in
+CI: vitest runs integration files sequentially but not in a pinned order.
+
+Two fixes were tried and reverted rather than shipped half-right. Updating the
+foreign rows in place is impossible by design — `data_cell_id` is immutable
+outside an operator move, and a test that reached around that trigger would be
+proving something the deployment cannot do. Draining them through the
+production path does not converge either: a Property left in `europe` requires
+an operator region move, which a cutover batch will not perform, so it stays
+"remaining" forever.
+
+What is left is a deliberate isolation decision for whoever owns these suites:
+make every count baseline-relative (the file already does this for one of
+four), or give the suite a scratch schema of its own. The
+`integration-organization-lifecycle` failure in the same job WAS this branch's
+own and is fixed.
 
 ### `e2e`: the specified fix, not attempted
 
