@@ -5,6 +5,8 @@
 **Progress report:** [`comprehensive-progress-report-2026-08-29.md`](release-evidence/review/comprehensive-progress-report-2026-08-29.md)
 **Scope:** finish the 42-package beta implementation program, through deployment
 and external verification, to formal closure.
+**Revised:** same day, to fold the parallel-execution and sanctioned-shortcut
+levers into Phases 1–2 and the timeline.
 
 ## 1. What changed since v1
 
@@ -58,35 +60,50 @@ start immediately and run in parallel with everything below.
 
 Owner-side items are marked **(owner)**; everything else is agent work.
 
-### Phase 1 — CI to green (~2–4 working days)
+### Phase 1 — CI to green (~1 day wall-clock, parallel)
 
-1. `check:changed-code` — runtime contract evidence for the 11 named files:
-   `apply-ai-authorization-lifecycle.ts`, `password-reset.dto.ts`,
-   `partial-offboarding.lookup.ts`, `inbox-feedback-handling.ts`,
-   `inbox-response-targets.ts`, `durable-import-reference-persistence.ts`,
-   `legacy-gbp-compatibility-inventory.repository.ts`,
-   `escalation-resolution-lookup.adapter.ts`,
-   `portal-responsibility-runtime.ts`, `manage-portal-experience.ts`,
-   `property-erase-contributor.port.ts`.
-2. CodeQL — re-run the analysis first; the open set has already shrunk against
-   the last gating run (`js/file-system-race` 11 → 5) and two alerts point at
-   lines that no longer hold the flagged code. Then: the OAuth record-key
-   derivation through the handle keyring as its own commit, handling the
-   pre-deploy record window; the remaining file-system-race sites with
-   full-chain containment, avoiding both flaws the adversarial review rejected
-   (an `O_NOFOLLOW` claim that guards only the final path component, and a
-   silent wrong digest for a non-regular file); recorded dismissals for the
-   test-only `js/insecure-randomness` findings in e2e specs.
-3. `audit` — 344 introduced findings. Model the deliberately-uncomposed
-   lifecycle surfaces as analyser configuration (the `CNV-01`-sanctioned
-   route), delete what is genuinely dead, and work the ~236 complexity findings
-   down within the gate's own rules.
-4. `e2e` — implement D1.
-5. The five `ARC-03` boundary tasks, once D3's exemption exists **(owner)**.
+v1 estimated this phase serially at 2–4 days. The lanes are independent of one
+another, so it runs instead as a parallel agent fan-out in isolated worktrees,
+under two disciplines that are not optional. First, every fix faces an
+adversarial review before it lands — the three rejected CodeQL patches are the
+standing argument for that pass. Second, every sub-gate is verified locally and
+work reaches CI in two or three consolidated batches, because a CI round trip
+costs ~20 minutes and must confirm, not iterate.
 
-### Phase 2 — Pre-freeze hardening (~1–2 days, overlaps Phase 1)
+1. `check:changed-code` — now 13 files; the base moved and
+   `container-lifecycle.ts` and `notification-delivery-runtime.ts` joined the
+   eleven from v1. One agent per file. Files with real behavior get a runtime
+   contract test; pure ports and DTOs (`property-erase-contributor.port.ts`,
+   `password-reset.dto.ts`) take the gate's own registered-exemption route
+   with owner and reason — the honest classification for a type-only file,
+   not a shortcut around the gate.
+2. CodeQL — re-run the analysis before touching any code: the open set already
+   shrank against the last gating run (`js/file-system-race` 11 → 5) and two
+   alerts point at lines that no longer hold the flagged code. Then, in
+   parallel lanes: the OAuth record-key derivation through the handle keyring
+   as its own commit, handling the pre-deploy record window; full-chain
+   containment for the remaining file-system-race sites, avoiding both flaws
+   the adversarial review rejected (an `O_NOFOLLOW` claim that guards only the
+   final path component, and a silent wrong digest for a non-regular file);
+   and recorded dismissals — not fixes — for the test-only
+   `js/insecure-randomness` findings in e2e specs.
+3. `audit` — 344 introduced findings, sharded by file across the fan-out. The
+   ~83 dead exports are mostly deliberately-uncomposed lifecycle surfaces and
+   collapse into a few analyser-configuration entries (the
+   `CNV-01`-sanctioned blind-spot modeling), not 83 code edits; the remainder
+   is genuine deletion. The ~236 complexity findings are this phase's residual
+   risk: each needs a behavior-preserving refactor, and any that resist one
+   are taken through the analyser's own waiver mechanism with a written
+   reason, or named explicitly as carried debt — never absorbed silently.
+4. `e2e` — implement D1: one guard change plus its test, a single lane.
+5. The five `ARC-03` boundary tasks, once D3's exemption exists **(owner)** —
+   the one lane no fan-out can start.
 
-The five open independent-review findings, HIGHs first: an out-of-cell copy or
+### Phase 2 — Pre-freeze hardening (a sixth lane inside Phase 1's fan-out)
+
+The five open independent-review findings are independent of the CI lanes and
+of each other, so they join the same fan-out rather than waiting for it.
+HIGHs first: an out-of-cell copy or
 pre-restore export for the backup-erasure ledger; a reconciliation path for an
 export stranded in `delete_pending`; the `runPhase` connection-pool budget; the
 Gate F approved-bytes/on-disk-bytes binding; the Property Erase receipt claim.
@@ -160,10 +177,15 @@ ADR 0059 ratification and counsel package.
 
 ## 6. Timeline
 
-Everything under direct control is ~5–8 working days to "frozen, deployed to
-`cell-us`, repository-verified, Railway lanes closed." Full 42/42 formal
-closure lands when counsel, the device pass and the signatures do — which is
-why Lane A starts on day one rather than after Phase 5.
+With Phases 1 and 2 running as one parallel fan-out, everything under direct
+control is ~3–5 working days to "frozen, deployed to `cell-us`,
+repository-verified, Railway lanes closed" — and the ratified 24-hour canary
+window is now a meaningful share of that. The honest bound is the ~236
+complexity findings: if they resist quick refactors, the estimate reverts
+toward v1's 5–8 days, and this plan says so here rather than discovering it
+later. Full 42/42 formal closure still lands when counsel, the device pass and
+the signatures do — which is why Lane A starts on day one rather than after
+Phase 5.
 
 ## 7. What this plan still refuses to do
 
