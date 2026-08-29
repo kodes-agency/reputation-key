@@ -181,17 +181,74 @@ therefore surfaced a backlog of failures at once. Fixed so far:
 - **Three Inbox Storybook stories** that regressed in this session, confirmed
   against the pre-session tree where they passed.
 
-Still red at the time of writing, with attribution:
+### The rest of the backlog, diagnosed
 
-| Job              | Cause                                                                                                                                                            | Attribution                                                                                           |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `audit`          | The Fallow `new-only` gate counts findings new **in changed files**. This branch changes 3,706 files, so the entire accepted 331-finding residual counts as new. | Property of the diff. Resolving it means landing the `CNV-01` deletion slices, not widening the gate. |
-| `simulate`       | `review-inbox-consistency` reports reviews without an Inbox item — a different failure from the one fixed, and it does not reproduce locally.                    | Under investigation.                                                                                  |
-| `docker`         | The image smoke check (contract, non-root, prod-deps purity) now fails where the build previously did.                                                           | Under investigation.                                                                                  |
-| `storybook-test` | Several stories outside the Inbox set, including two verified to fail identically at the pre-session SHA.                                                        | Pre-existing.                                                                                         |
+Everything below was still red when the first list was written. Each one had a
+cause, and in every case the gate was right.
 
-None of these is a reason to treat the repository work as unfinished, and none
-should be resolved by relaxing the gate that found it.
+**`simulate` — the simulation was answering to another container.** ARC-03-T8
+made the ExecutionPolicy, DelayedExecutionPolicy and CapabilityPolicyStore the
+answer of exactly one named owner per process. The web, worker and operator
+processes each name theirs; the simulation named none, so the first
+policy-gated read inside an event handler fell through to the WEB cold-boot
+fallback, which builds a SECOND container from ambient environment. With a
+developer's `.env` present that build succeeded and the simulation silently
+decided against a different container's audit sink. In CI, which sets only the
+eight variables the job declares, it threw — so every handler threw, no Inbox
+item was ever created, and the container was rebuilt on every single event: 78
+boots in one run. `createSimulationContainer` now binds its own. Proven by a
+spawned-process fixture, because a shared vitest worker cannot show it.
+
+**`docker` — the AI egress boundary was linking a monitoring SDK.** The image
+gate refuses an AI bundle containing `node_modules/@sentry/`, because those two
+sidecars decide what may leave the cell and an SDK opening its own outbound
+connection from inside that decision is a hole in it. The sidecar runtime
+hardening imported telemetry at module scope for a default, and `noExternal`
+bundles everything reachable. The monitoring client is a required parameter
+now, with a Sentry-free implementation for the AI pair, and a graph walk that
+fails in milliseconds instead of after a docker build.
+
+**`e2e` — the Google admission image could not be parsed.** The tsup banner
+declared `import { createRequire } from 'node:module'`, and esbuild hoisted a
+bundled dependency's own `createRequire` import beside it: two top-level
+declarations of one name, and the container exited 1 on a `SyntaxError` before
+a test ran. Every banner now imports under a name no source can use, and the
+Google bundle verifier does what the AI one always did — `node --check` on the
+artifact, so a bundle that cannot parse fails the build rather than the
+container. The failure after that was silent, which was its own defect: the
+startup boundary handed the error to a monitoring client that is switched off
+outside a deployed cell. It writes to stderr first now.
+
+**`storybook-test` — three real defects and one race, not "flaky tests".** The
+public portal painted its CTA with the tenant's brand colour and hardcoded
+white text: 1.99:1 on the Dark palette preset, and 4.47:1 — below AA — on the
+default indigo. The language links inherited app chrome at 3.88:1. The Inbox
+filter popover and its Select were an unnamed `role="dialog"` and an unnamed
+`role="listbox"`. One story asserted a tab list that the domain had correctly
+grown. The remainder were a genuine race: while a Radix overlay is open or
+closing it marks the rest of the page `aria-hidden` and animates content in
+from `opacity: 0`, so a query issued in the next tick sees neither. 553/553.
+
+**`check` — two masked failures.** `lint:ci` rejects a bare `.toThrow()`, and
+three had landed; eslint failing first in the same chain had been hiding them.
+Each names its error now, two of them by Postgres code on the wrapped cause,
+because Drizzle replaces the message. Separately a containment test scanned
+`src/shared/projections`, retired on this branch but still present locally as
+an empty untracked folder — it read something here and nothing on a fresh
+checkout.
+
+Still red, with corrected attribution:
+
+| Job      | Cause                                                                                                                                                                                                                         | Attribution                                                                                                                                                                                                                  |
+| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `audit`  | **Correction.** The earlier entry called this a property of the diff. It is not: Fallow reports `introduced` separately from `inherited`, and 501 of the findings are introduced — 241 dead code, 235 complexity, 24 styling. | This branch's own debt. Most of the dead exports are surfaces built ahead of composition (the destructive lifecycle contributors are deliberately uncomposed); separating those from genuinely dead code is per-symbol work. |
+| `docker` | A base-image CVE published after the pin. `redis:7.4.7-alpine` is eight packages behind, including OpenSSL 3.3.6 → 3.3.7.                                                                                                     | Not this branch. Needs a digest bump to the newest `redis:7.4-alpine` build and a rerun of the scan to confirm — the practice `.grype.yaml`'s own header describes.                                                          |
+| `CodeQL` | Open alerts on the repository, most predating this branch (`js/insecure-randomness` in e2e specs, `js/request-forgery` in the control proxy, `js/file-system-race` in the local stack).                                       | Mixed. The three this branch owned — the LIKE escaping, the shared-secret key derivation, the artifact write races — are fixed and their threads resolved.                                                                   |
+
+**Correction to the earlier `storybook-test` row.** It called the failures
+pre-existing. Ten of the twelve failing story files were new or substantially
+changed on this branch; only two were untouched. They were this branch's, and
+they are fixed.
 
 ## Still blocked, and why
 

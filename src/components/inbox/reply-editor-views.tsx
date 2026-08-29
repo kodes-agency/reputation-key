@@ -18,6 +18,8 @@ import {
 import { MAX_REPLY_LENGTH } from '#/contexts/review/application/public-api'
 import { formatDateTime } from './utils'
 
+const HEADING_ID = 'reply-editor-published-heading'
+
 type ReplyView = Readonly<{
   text: string
   publishedAt: Date | null
@@ -93,10 +95,16 @@ export function ReviewReplyPublishedEditor({
   return (
     <div className="space-y-3 border-t pt-4">
       <div className="flex items-center gap-2">
-        <h2 className="text-sm font-medium">Edit published reply</h2>
+        <h2 id={HEADING_ID} className="text-sm font-medium">
+          Edit published reply
+        </h2>
         <Badge variant="outline">Republishes to Google</Badge>
       </div>
+      {/* The heading IS the label. Without the association the field is an
+          unlabelled form control: a screen reader announces "edit text" and
+          nothing about which reply is being republished to Google. */}
       <Textarea
+        aria-labelledby={HEADING_ID}
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={4}
