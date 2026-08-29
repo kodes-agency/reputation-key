@@ -32,6 +32,7 @@ import type { OrganizationId, ReviewId } from '#/shared/domain/ids'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
 import { reviewFromRow, reviewToRow } from '../mappers/review.mapper'
 import { reviewError } from '../../domain/errors'
+import { escapeLikePattern } from '#/shared/db/like-pattern'
 import { trace } from '#/shared/observability/trace'
 import type {
   AiReviewSourceDenial,
@@ -761,7 +762,7 @@ export const createReviewRepository = (
       if (filter.ratingMax !== undefined)
         conditions.push(lte(reviews.rating, filter.ratingMax))
       if (filter.textQuery) {
-        const escaped = filter.textQuery.replace(/%/g, '\\%').replace(/_/g, '\\_')
+        const escaped = escapeLikePattern(filter.textQuery)
         conditions.push(sql`${reviews.text} ilike ${'%' + escaped + '%'}`)
       }
       const rows = await db

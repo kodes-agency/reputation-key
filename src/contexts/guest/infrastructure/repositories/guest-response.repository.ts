@@ -12,6 +12,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { escapeLikePattern } from '#/shared/db/like-pattern'
 import {
   guestResponseExperienceSnapshots,
   guestResponseMedia,
@@ -262,7 +263,7 @@ export const createGuestResponseRepository = (
         )
       }
       if (filter.textQuery) {
-        const escaped = filter.textQuery.replace(/%/g, '\\%').replace(/_/g, '\\_')
+        const escaped = escapeLikePattern(filter.textQuery)
         conditions.push(
           eq(guestResponses.textConsent, true),
           sql`${guestResponses.status} <> 'moderated'`,

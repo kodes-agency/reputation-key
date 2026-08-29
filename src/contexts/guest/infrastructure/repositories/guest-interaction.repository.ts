@@ -11,6 +11,7 @@ import {
   feedbackFromRow,
   ratingFromRow,
 } from '../mappers/guest.mapper'
+import { escapeLikePattern } from '#/shared/db/like-pattern'
 import { trace } from '#/shared/observability/trace'
 import { unbrand } from '#/shared/domain/ids'
 import type { FeedbackId, OrganizationId, RatingId } from '#/shared/domain/ids'
@@ -188,14 +189,7 @@ export const createGuestInteractionRepository = (
         if (filter.ratingMax !== undefined)
           conditions.push(lte(ratings.value, filter.ratingMax))
         if (filter.textQuery) {
-          // The backslash must be escaped FIRST. Escaping `%` and `_` before it
-          // turns a literal backslash in the input into an escape character:
-          // `\%` would become `\\%`, which reads as an escaped backslash
-          // followed by an UNESCAPED wildcard, so the search silently widens.
-          const escaped = filter.textQuery
-            .replace(/\\/g, '\\\\')
-            .replace(/%/g, '\\%')
-            .replace(/_/g, '\\_')
+          const escaped = escapeLikePattern(filter.textQuery)
           conditions.push(sql`${feedback.comment} ilike ${'%' + escaped + '%'}`)
         }
         const rows = await db
