@@ -74,6 +74,65 @@
   ],
   "ignoreExports": [
     {
+      "file": "src/contexts/activity/domain/recent-activity-replay-fact.ts",
+      "exports": ["RECENT_ACTIVITY_REPLAY_SOURCE_KINDS"]
+    },
+    {
+      "file": "src/contexts/goal/application/use-cases/goal-programs.ts",
+      "exports": ["GoalProgramMaintenanceError"]
+    },
+    {
+      "file": "src/contexts/identity/domain/organization-lifecycle.ts",
+      "exports": ["ORGANIZATION_LIFECYCLE_RECEIPT_PHASES"]
+    },
+    {
+      "file": "src/contexts/inbox/infrastructure/inbox-command-store.ts",
+      "exports": ["INBOX_ESCALATION_HISTORY_KINDS"]
+    },
+    {
+      "file": "src/contexts/inbox/infrastructure/repositories/inbox-handling-cutover.repository.ts",
+      "exports": ["INBOX_CUTOVER_OUTCOME_ELIGIBILITIES", "INBOX_CUTOVER_TARGET_STATES"]
+    },
+    {
+      "file": "src/contexts/integration/application/google-provider-contract.ts",
+      "exports": ["GOOGLE_PROVIDER_ROUTE_CATALOG_VERSION"]
+    },
+    {
+      "file": "src/contexts/integration/application/public-api.ts",
+      "exports": ["GOOGLE_PROVIDER_ROUTE_CATALOG_VERSION"]
+    },
+    {
+      "file": "src/contexts/property/domain/google-review-destination.ts",
+      "exports": ["GOOGLE_REVIEW_DESTINATION_STATES"]
+    },
+    {
+      "file": "src/contexts/review/infrastructure/jobs/purge-expired-reviews.job.ts",
+      "exports": ["DEFAULT_BATCH_SIZE", "DEFAULT_MAX_BATCHES"]
+    },
+    {
+      "file": "src/contexts/staff/application/use-cases/create-staff-assignment.ts",
+      "exports": ["createStaffAssignmentSystem"]
+    },
+    {
+      "file": "src/shared/ai-property-trend-contract.ts",
+      "exports": ["encodeCanonicalAiPropertyTrendSource"]
+    },
+    {
+      "file": "src/shared/db/schema/context-organization-lifecycle-receipts.schema.ts",
+      "exports": [
+        "CONTEXT_LIFECYCLE_RECEIPT_OUTCOMES",
+        "CONTEXT_LIFECYCLE_RECEIPT_PHASES"
+      ]
+    },
+    {
+      "file": "src/shared/testing/inbox-replay-fixtures.ts",
+      "exports": [
+        "INBOX_REPLAY_GUEST_DELIVERIES",
+        "INBOX_REPLAY_REVIEW_DELIVERIES",
+        "INBOX_REPLAY_WITHDRAWAL_DELIVERIES"
+      ]
+    },
+    {
       "file": "src/contexts/notification/application/portal-health-notification.ts",
       "exports": ["isPortalHealthReason", "isPortalHealthStatus"]
     },
@@ -393,6 +452,12 @@
     "unused-types": "off"
   },
   "overrides": [
+    {
+      "files": [
+        "src/contexts/portal/infrastructure/repositories/link-resolver.repository.ts"
+      ],
+      "rules": { "unused-files": "off" }
+    },
     {
       "files": [
         "server/plugins/production-secret-guard.ts",
