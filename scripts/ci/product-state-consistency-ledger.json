@@ -174,12 +174,12 @@
       "policy": "The generic adapter accepts typed QueryKey values supplied through invalidateKeys; feature routes remain responsible for building those values from an owned shared factory, while this loop performs only the declared targeted invalidations."
     },
     {
-      "id": "src/routes/_authenticated/properties/$propertyId/portals/$portalId.tsx:queryKey#9",
+      "id": "src/routes/_authenticated/properties/$propertyId/portals/-portal-detail-actions.ts:queryKey#1",
       "owner": "Portal optimistic-update transaction",
       "policy": "The block-local queryKey alias is portalKeys.detail(portalId); it is cancelled and snapshotted before the optimistic write."
     },
     {
-      "id": "src/routes/_authenticated/properties/$propertyId/portals/$portalId.tsx:queryKey#10",
+      "id": "src/routes/_authenticated/properties/$propertyId/portals/-portal-detail-actions.ts:queryKey#2",
       "owner": "Portal optimistic-update rollback",
       "policy": "The error block recreates the same portalKeys.detail(portalId) alias, restores its snapshot, and refetches only that exact detail."
     }
