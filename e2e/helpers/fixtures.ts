@@ -816,13 +816,28 @@ export async function seedInboxHandlingCycle(input: {
      ) VALUES ($1, $2, $3, $4, 1, $5, 1, 'open', $6, $7, $8, $9, $9)`,
     scope,
   )
+  // Numbered for THIS statement rather than reusing `scope` positionally.
+  // The transitions table has no review_id or material_review_revision, so the
+  // shared array's $4 and $5 appear nowhere in the text — and a parameter that
+  // is never referenced has no type to infer, which Postgres rejects outright
+  // with "could not determine data type of parameter $4".
   await dbQuery(
     `INSERT INTO inbox_handling_cycle_transitions (
        inbox_item_id, state_revision, cycle_number, organization_id, property_id,
        source_type, source_id, source_revision, kind, transition_reason,
        actor_type, transitioned_at
-     ) VALUES ($1, 1, 1, $2, $3, $6, $7, $8, 'opened', $10, $11, $9)`,
-    [...scope, openedReason, actorType],
+     ) VALUES ($1, 1, 1, $2, $3, $4, $5, $6, 'opened', $7, $8, $9)`,
+    [
+      input.inboxItemId,
+      input.organizationId,
+      input.propertyId,
+      input.sourceType,
+      input.sourceId,
+      sourceRevision,
+      openedReason,
+      actorType,
+      openedAt,
+    ],
   )
 }
 
