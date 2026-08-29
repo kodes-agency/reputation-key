@@ -81,6 +81,108 @@ function flagValue(args: OperatorArgs, name: string): string | undefined {
   return found?.slice(prefix.length)
 }
 
+type PropertyEraseFlags = Readonly<{
+  supportAuthorizationRef: string | undefined
+  identityVerificationRef: string | undefined
+  requestedByUserId: string | undefined
+  typedConfirmation: string | undefined
+  inventoryRevisionRaw: string | undefined
+  authorityId: string | undefined
+  reasonCode: string | undefined
+}>
+
+function readPropertyEraseFlags(args: OperatorArgs): PropertyEraseFlags {
+  return {
+    supportAuthorizationRef: flagValue(args, 'support-authorization'),
+    identityVerificationRef: flagValue(args, 'identity-verification'),
+    requestedByUserId: flagValue(args, 'requested-by'),
+    typedConfirmation: flagValue(args, 'typed-confirmation'),
+    inventoryRevisionRaw: flagValue(args, 'inventory-revision'),
+    authorityId: flagValue(args, 'authority'),
+    reasonCode: flagValue(args, 'reason-code'),
+  }
+}
+
+/**
+ * Both references are mandatory and must be independent: the support
+ * authorization is what makes this support-MEDIATED rather than a tenant
+ * self-service delete wearing an operator's name.
+ */
+function requestModeError(flags: PropertyEraseFlags): string | null {
+  const { supportAuthorizationRef, identityVerificationRef } = flags
+  if (!supportAuthorizationRef || !CONTENT_FREE_REF.test(supportAuthorizationRef)) {
+    return 'support-authorization=<ref> is required and must be a content-free token'
+  }
+  if (!identityVerificationRef || !CONTENT_FREE_REF.test(identityVerificationRef)) {
+    return 'identity-verification=<ref> is required and must be a content-free token'
+  }
+  if (supportAuthorizationRef === identityVerificationRef) {
+    return 'support authorization must be independent of the requester identity verification'
+  }
+  if (!flags.requestedByUserId) {
+    return 'requested-by=<user-id> is required (the AccountAdmin)'
+  }
+  return null
+}
+
+function confirmModeError(flags: PropertyEraseFlags): string | null {
+  if (!flags.typedConfirmation) {
+    return 'typed-confirmation="ERASE PROPERTY <property-id>" is required'
+  }
+  const inventoryRevision = Number(flags.inventoryRevisionRaw)
+  if (!Number.isSafeInteger(inventoryRevision) || inventoryRevision < 1) {
+    return 'inventory-revision=<n> is required (the revision shown)'
+  }
+  return null
+}
+
+/** What each mutating mode additionally requires. `null` means complete. */
+function propertyEraseModeError(
+  mode: PropertyEraseMode,
+  flags: PropertyEraseFlags,
+  dryRun: boolean,
+): string | null {
+  if (mode === 'request' && !dryRun) return requestModeError(flags)
+  if (mode === 'confirm' && !dryRun) {
+    const confirmError = confirmModeError(flags)
+    if (confirmError) return confirmError
+  }
+  if (
+    (mode === 'preview' || mode === 'confirm' || mode === 'cancel') &&
+    !flags.authorityId
+  ) {
+    return 'authority=<id> is required for this mode'
+  }
+  return null
+}
+
+function propertyErasePlan(
+  base: Readonly<{
+    mode: PropertyEraseMode
+    organizationId: string
+    propertyId: string
+    reportOnly: boolean
+  }>,
+  flags: PropertyEraseFlags,
+): PropertyEraseCommandPlan {
+  return {
+    ...base,
+    ...(flags.supportAuthorizationRef
+      ? { supportAuthorizationRef: flags.supportAuthorizationRef }
+      : {}),
+    ...(flags.identityVerificationRef
+      ? { identityVerificationRef: flags.identityVerificationRef }
+      : {}),
+    ...(flags.requestedByUserId ? { requestedByUserId: flags.requestedByUserId } : {}),
+    ...(flags.typedConfirmation ? { typedConfirmation: flags.typedConfirmation } : {}),
+    ...(flags.inventoryRevisionRaw
+      ? { inventoryRevision: Number(flags.inventoryRevisionRaw) }
+      : {}),
+    ...(flags.authorityId ? { authorityId: flags.authorityId } : {}),
+    ...(flags.reasonCode ? { reasonCode: flags.reasonCode } : {}),
+  }
+}
+
 /**
  * Turn a validated operator invocation into an explicit plan.
  *
@@ -101,81 +203,20 @@ export function planPropertyEraseCommand(
     return { ok: false, error: '--org and --property are required' }
   }
 
-  const base = {
-    mode,
-    organizationId: ctx.organizationId,
-    propertyId: ctx.propertyId,
-    reportOnly: ctx.dryRun,
-  }
-  const supportAuthorizationRef = flagValue(args, 'support-authorization')
-  const identityVerificationRef = flagValue(args, 'identity-verification')
-  const requestedByUserId = flagValue(args, 'requested-by')
-  const typedConfirmation = flagValue(args, 'typed-confirmation')
-  const inventoryRevisionRaw = flagValue(args, 'inventory-revision')
-  const authorityId = flagValue(args, 'authority')
-  const reasonCode = flagValue(args, 'reason-code')
-
-  if (mode === 'request' && !ctx.dryRun) {
-    // Both references are mandatory and must be independent: the support
-    // authorization is what makes this support-MEDIATED rather than a tenant
-    // self-service delete wearing an operator's name.
-    if (!supportAuthorizationRef || !CONTENT_FREE_REF.test(supportAuthorizationRef)) {
-      return {
-        ok: false,
-        error: 'support-authorization=<ref> is required and must be a content-free token',
-      }
-    }
-    if (!identityVerificationRef || !CONTENT_FREE_REF.test(identityVerificationRef)) {
-      return {
-        ok: false,
-        error: 'identity-verification=<ref> is required and must be a content-free token',
-      }
-    }
-    if (supportAuthorizationRef === identityVerificationRef) {
-      return {
-        ok: false,
-        error:
-          'support authorization must be independent of the requester identity verification',
-      }
-    }
-    if (!requestedByUserId) {
-      return { ok: false, error: 'requested-by=<user-id> is required (the AccountAdmin)' }
-    }
-  }
-
-  if (mode === 'confirm' && !ctx.dryRun) {
-    if (!typedConfirmation) {
-      return {
-        ok: false,
-        error: 'typed-confirmation="ERASE PROPERTY <property-id>" is required',
-      }
-    }
-    const inventoryRevision = Number(inventoryRevisionRaw)
-    if (!Number.isSafeInteger(inventoryRevision) || inventoryRevision < 1) {
-      return {
-        ok: false,
-        error: 'inventory-revision=<n> is required (the revision shown)',
-      }
-    }
-  }
-
-  if ((mode === 'preview' || mode === 'confirm' || mode === 'cancel') && !authorityId) {
-    return { ok: false, error: 'authority=<id> is required for this mode' }
-  }
+  const flags = readPropertyEraseFlags(args)
+  const modeError = propertyEraseModeError(mode, flags, ctx.dryRun)
+  if (modeError) return { ok: false, error: modeError }
 
   return {
     ok: true,
-    plan: {
-      ...base,
-      ...(supportAuthorizationRef ? { supportAuthorizationRef } : {}),
-      ...(identityVerificationRef ? { identityVerificationRef } : {}),
-      ...(requestedByUserId ? { requestedByUserId } : {}),
-      ...(typedConfirmation ? { typedConfirmation } : {}),
-      ...(inventoryRevisionRaw
-        ? { inventoryRevision: Number(inventoryRevisionRaw) }
-        : {}),
-      ...(authorityId ? { authorityId } : {}),
-      ...(reasonCode ? { reasonCode } : {}),
-    },
+    plan: propertyErasePlan(
+      {
+        mode,
+        organizationId: ctx.organizationId,
+        propertyId: ctx.propertyId,
+        reportOnly: ctx.dryRun,
+      },
+      flags,
+    ),
   }
 }

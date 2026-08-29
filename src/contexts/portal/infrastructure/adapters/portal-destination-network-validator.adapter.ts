@@ -129,6 +129,24 @@ type AdapterDeps = Readonly<{
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308])
 
+type UnsafeReason = Extract<
+  PortalDestinationNetworkValidation,
+  { outcome: 'unsafe' }
+>['reason']
+type UnavailableReason = Extract<
+  PortalDestinationNetworkValidation,
+  { outcome: 'unavailable' }
+>['reason']
+
+/** One hop either yields a response to classify, or settles the whole validation. */
+type HopFetch =
+  | Readonly<{ ok: true; response: PinnedResponse }>
+  | Readonly<{ ok: false; validation: PortalDestinationNetworkValidation }>
+
+type RedirectTarget =
+  | Readonly<{ ok: true; uri: string }>
+  | Readonly<{ ok: false; validation: PortalDestinationNetworkValidation }>
+
 /**
  * Validates every DNS answer and pins each outbound connection to an answer
  * that was checked before the socket opens. Redirects are followed manually,
@@ -144,66 +162,83 @@ export const createPortalDestinationNetworkValidator = (
     ((uri: string, address: ResolvedAddress) => pinnedHead(uri, address, timeoutMs))
   const maxRedirects = deps.maxRedirects ?? 5
 
+  const unsafe = (reason: UnsafeReason): PortalDestinationNetworkValidation => ({
+    outcome: 'unsafe',
+    reason,
+    observedAt: deps.clock(),
+  })
+  const unavailable = (
+    reason: UnavailableReason,
+  ): PortalDestinationNetworkValidation => ({
+    outcome: 'unavailable',
+    reason,
+    observedAt: deps.clock(),
+  })
+
+  /**
+   * Resolves the hop's hostname, rejects the hop unless every DNS answer is
+   * public, then requests through the first answer that connects.
+   */
+  const fetchThroughVettedAddress = async (currentUri: string): Promise<HopFetch> => {
+    let addresses: readonly ResolvedAddress[]
+    try {
+      addresses = await resolve(new URL(currentUri).hostname)
+    } catch {
+      return { ok: false, validation: unavailable('dns_unavailable') }
+    }
+    if (
+      addresses.length === 0 ||
+      addresses.some((address) => !isPublicPortalDestinationAddress(address.address))
+    ) {
+      return { ok: false, validation: unsafe('dns_non_public') }
+    }
+    for (const address of addresses) {
+      try {
+        return { ok: true, response: await request(currentUri, address) }
+      } catch {
+        // Try another already-vetted address. A later DNS lookup is never
+        // performed inside the HTTP connector.
+      }
+    }
+    return { ok: false, validation: unavailable('request_unavailable') }
+  }
+
+  /** A redirect may not leave the originally approved host. */
+  const resolveRedirectTarget = (
+    location: string | null,
+    currentUri: string,
+    originalHostname: string,
+  ): RedirectTarget => {
+    if (!location) return { ok: false, validation: unavailable('invalid_response') }
+    let next
+    try {
+      next = validatePortalDestinationUri(new URL(location, currentUri).toString())
+    } catch {
+      return { ok: false, validation: unsafe('redirect_target_invalid') }
+    }
+    if (next.hostname !== originalHostname) {
+      return { ok: false, validation: unsafe('redirect_host_changed') }
+    }
+    return { ok: true, uri: next.normalizedUri }
+  }
+
   return {
     async validate(uri): Promise<PortalDestinationNetworkValidation> {
       let admitted
       try {
         admitted = validatePortalDestinationUri(uri)
       } catch {
-        return {
-          outcome: 'unsafe',
-          reason: 'redirect_target_invalid',
-          observedAt: deps.clock(),
-        }
+        return unsafe('redirect_target_invalid')
       }
       const originalHostname = admitted.hostname
       let currentUri = admitted.normalizedUri
       for (let redirectCount = 0; redirectCount <= maxRedirects; redirectCount += 1) {
-        const current = new URL(currentUri)
-        let addresses: readonly ResolvedAddress[]
-        try {
-          addresses = await resolve(current.hostname)
-        } catch {
-          return {
-            outcome: 'unavailable',
-            reason: 'dns_unavailable',
-            observedAt: deps.clock(),
-          }
-        }
-        if (
-          addresses.length === 0 ||
-          addresses.some((address) => !isPublicPortalDestinationAddress(address.address))
-        ) {
-          return {
-            outcome: 'unsafe',
-            reason: 'dns_non_public',
-            observedAt: deps.clock(),
-          }
-        }
-        let response: PinnedResponse | null = null
-        for (const address of addresses) {
-          try {
-            response = await request(currentUri, address)
-            break
-          } catch {
-            // Try another already-vetted address. A later DNS lookup is never
-            // performed inside the HTTP connector.
-          }
-        }
-        if (!response) {
-          return {
-            outcome: 'unavailable',
-            reason: 'request_unavailable',
-            observedAt: deps.clock(),
-          }
-        }
+        const hop = await fetchThroughVettedAddress(currentUri)
+        if (!hop.ok) return hop.validation
+        const { response } = hop
         if (!REDIRECT_STATUSES.has(response.status)) {
           if (response.status < 100 || response.status > 599) {
-            return {
-              outcome: 'unavailable',
-              reason: 'invalid_response',
-              observedAt: deps.clock(),
-            }
+            return unavailable('invalid_response')
           }
           return {
             outcome: 'safe',
@@ -212,46 +247,16 @@ export const createPortalDestinationNetworkValidator = (
             redirectCount,
           }
         }
-        if (redirectCount === maxRedirects) {
-          return {
-            outcome: 'unsafe',
-            reason: 'redirect_limit_exceeded',
-            observedAt: deps.clock(),
-          }
-        }
-        if (!response.location) {
-          return {
-            outcome: 'unavailable',
-            reason: 'invalid_response',
-            observedAt: deps.clock(),
-          }
-        }
-        let next
-        try {
-          next = validatePortalDestinationUri(
-            new URL(response.location, currentUri).toString(),
-          )
-        } catch {
-          return {
-            outcome: 'unsafe',
-            reason: 'redirect_target_invalid',
-            observedAt: deps.clock(),
-          }
-        }
-        if (next.hostname !== originalHostname) {
-          return {
-            outcome: 'unsafe',
-            reason: 'redirect_host_changed',
-            observedAt: deps.clock(),
-          }
-        }
-        currentUri = next.normalizedUri
+        if (redirectCount === maxRedirects) return unsafe('redirect_limit_exceeded')
+        const next = resolveRedirectTarget(
+          response.location,
+          currentUri,
+          originalHostname,
+        )
+        if (!next.ok) return next.validation
+        currentUri = next.uri
       }
-      return {
-        outcome: 'unsafe',
-        reason: 'redirect_limit_exceeded',
-        observedAt: deps.clock(),
-      }
+      return unsafe('redirect_limit_exceeded')
     },
   }
 }

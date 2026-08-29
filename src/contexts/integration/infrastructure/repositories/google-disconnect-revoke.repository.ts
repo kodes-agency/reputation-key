@@ -74,6 +74,109 @@ function exactScope(
   )
 }
 
+type AttemptRow = typeof googleDisconnectRevokeAttempts.$inferSelect
+type ConnectionRow = typeof googleConnections.$inferSelect
+type PermitRow = typeof authorizationExecutionPermits.$inferSelect
+type PrepareInput = Parameters<GoogleDisconnectRevokeStore['prepare']>[0]
+type AcquireDispatchInput = Parameters<GoogleDisconnectRevokeStore['acquireDispatch']>[0]
+
+/** The request must be well formed and identical to the authorization it carries. */
+function isWellFormedPrepareRequest(input: PrepareInput): boolean {
+  const disconnectRevoke = input.authorization.disconnectRevoke
+  return (
+    UUID.test(input.attemptId) &&
+    SHA256.test(input.credentialBinding) &&
+    input.authorization.propertyId === null &&
+    Boolean(disconnectRevoke) &&
+    disconnectRevoke.attemptId === input.attemptId &&
+    disconnectRevoke.cleanupDeadlineAtMs === input.cleanupDeadlineAt.getTime() &&
+    input.cleanupDeadlineAt > input.now &&
+    input.cleanupDeadlineAt.getTime() - input.now.getTime() <=
+      GOOGLE_DISCONNECT_REVOKE_WINDOW_MS
+  )
+}
+
+function connectionMatchesFrozenVersions(
+  connection: ConnectionRow,
+  versions: FrozenVersions,
+): boolean {
+  return (
+    connection.status === 'active' &&
+    connection.credentialUseState === 'active' &&
+    connection.lifecycleVersion === versions.lifecycleVersion &&
+    connection.accessVersion === versions.accessVersion &&
+    connection.credentialGeneration === versions.credentialGeneration
+  )
+}
+
+/** The row that survived the insert race must be exactly the one this call asked for. */
+function attemptMatchesPrepare(
+  attempt: AttemptRow,
+  input: PrepareInput,
+  versions: FrozenVersions,
+): boolean {
+  return (
+    exactScope(attempt, {
+      organizationId: input.authorization.organizationId,
+      connectionId: input.authorization.connectionId,
+      initiatorUserId: input.authorization.initiatorUserId,
+    }) &&
+    attempt.state === 'active' &&
+    attempt.expectedLifecycleVersion === versions.lifecycleVersion &&
+    attempt.expectedAccessVersion === versions.accessVersion &&
+    attempt.expectedCredentialGeneration === versions.credentialGeneration &&
+    attempt.credentialBinding === input.credentialBinding &&
+    attempt.cleanupDeadlineAt.getTime() === input.cleanupDeadlineAt.getTime()
+  )
+}
+
+function isWellFormedDispatchRequest(input: AcquireDispatchInput): boolean {
+  const disconnectRevoke = input.authorization.disconnectRevoke
+  return (
+    UUID.test(input.cleanupWorkPermitId) &&
+    SHA256.test(input.credentialBinding) &&
+    Boolean(disconnectRevoke) &&
+    disconnectRevoke.attemptId === input.attemptId
+  )
+}
+
+function attemptIsDispatchable(
+  attempt: AttemptRow,
+  input: AcquireDispatchInput,
+  versions: FrozenVersions,
+): boolean {
+  return (
+    attempt.state === 'active' &&
+    attempt.credentialBinding === input.credentialBinding &&
+    attempt.expectedLifecycleVersion === versions.lifecycleVersion &&
+    attempt.expectedAccessVersion === versions.accessVersion &&
+    attempt.expectedCredentialGeneration === versions.credentialGeneration
+  )
+}
+
+/** The cleanup permit must be admitted for exactly this route, scope and credential. */
+function permitBindsCleanupWork(
+  permit: PermitRow | undefined,
+  attempt: AttemptRow,
+  credentialBinding: string,
+  versions: FrozenVersions,
+): boolean {
+  return (
+    permit !== undefined &&
+    permit.state === 'admitted' &&
+    permit.capability === 'property.import_gbp_v2' &&
+    permit.operationKey === 'provider.oauth.revoke' &&
+    permit.routeKey === 'oauth.revoke' &&
+    permit.organizationId === attempt.organizationId &&
+    permit.connectionId === attempt.connectionId &&
+    permit.initiatorUserId === attempt.initiatorUserId &&
+    permit.authorizationVector.credentialBinding === credentialBinding &&
+    permit.authorizationVector.connectionLifecycleVersion === versions.lifecycleVersion &&
+    permit.authorizationVector.connectionAccessVersion === versions.accessVersion &&
+    permit.authorizationVector.credentialGeneration === versions.credentialGeneration
+  )
+}
+
 async function redactConnection(
   tx: Tx,
   attempt: typeof googleDisconnectRevokeAttempts.$inferSelect,
@@ -201,19 +304,7 @@ export const createGoogleDisconnectRevokeRepository = (
     prepare: (input) =>
       db.transaction(async (tx) => {
         const versions = frozenVersions(input.authorization)
-        if (
-          !versions ||
-          !UUID.test(input.attemptId) ||
-          !SHA256.test(input.credentialBinding) ||
-          input.authorization.propertyId !== null ||
-          !input.authorization.disconnectRevoke ||
-          input.authorization.disconnectRevoke.attemptId !== input.attemptId ||
-          input.authorization.disconnectRevoke.cleanupDeadlineAtMs !==
-            input.cleanupDeadlineAt.getTime() ||
-          input.cleanupDeadlineAt <= input.now ||
-          input.cleanupDeadlineAt.getTime() - input.now.getTime() >
-            GOOGLE_DISCONNECT_REVOKE_WINDOW_MS
-        ) {
+        if (!versions || !isWellFormedPrepareRequest(input)) {
           return fail('invalid_transition')
         }
         const [connection] = await tx
@@ -228,13 +319,7 @@ export const createGoogleDisconnectRevokeRepository = (
           .for('update')
           .limit(1)
         if (!connection) return fail('not_found')
-        if (
-          connection.status !== 'active' ||
-          connection.credentialUseState !== 'active' ||
-          connection.lifecycleVersion !== versions.lifecycleVersion ||
-          connection.accessVersion !== versions.accessVersion ||
-          connection.credentialGeneration !== versions.credentialGeneration
-        ) {
+        if (!connectionMatchesFrozenVersions(connection, versions)) {
           return fail('scope_mismatch')
         }
         await tx
@@ -262,17 +347,7 @@ export const createGoogleDisconnectRevokeRepository = (
           .for('update')
           .limit(1)
         if (!attempt) return fail('concurrent_attempt')
-        return exactScope(attempt, {
-          organizationId: input.authorization.organizationId,
-          connectionId: input.authorization.connectionId,
-          initiatorUserId: input.authorization.initiatorUserId,
-        }) &&
-          attempt.state === 'active' &&
-          attempt.expectedLifecycleVersion === versions.lifecycleVersion &&
-          attempt.expectedAccessVersion === versions.accessVersion &&
-          attempt.expectedCredentialGeneration === versions.credentialGeneration &&
-          attempt.credentialBinding === input.credentialBinding &&
-          attempt.cleanupDeadlineAt.getTime() === input.cleanupDeadlineAt.getTime()
+        return attemptMatchesPrepare(attempt, input, versions)
           ? success({ prepared: true as const })
           : fail('concurrent_attempt')
       }),
@@ -280,13 +355,7 @@ export const createGoogleDisconnectRevokeRepository = (
     acquireDispatch: (input) =>
       db.transaction(async (tx) => {
         const versions = frozenVersions(input.authorization)
-        if (
-          !versions ||
-          !UUID.test(input.cleanupWorkPermitId) ||
-          !SHA256.test(input.credentialBinding) ||
-          !input.authorization.disconnectRevoke ||
-          input.authorization.disconnectRevoke.attemptId !== input.attemptId
-        ) {
+        if (!versions || !isWellFormedDispatchRequest(input)) {
           return fail('invalid_transition')
         }
         const [attempt] = await tx
@@ -306,13 +375,7 @@ export const createGoogleDisconnectRevokeRepository = (
           return fail('scope_mismatch')
         }
         if (attempt.cleanupDeadlineAt <= input.now) return fail('deadline_exceeded')
-        if (
-          attempt.state !== 'active' ||
-          attempt.credentialBinding !== input.credentialBinding ||
-          attempt.expectedLifecycleVersion !== versions.lifecycleVersion ||
-          attempt.expectedAccessVersion !== versions.accessVersion ||
-          attempt.expectedCredentialGeneration !== versions.credentialGeneration
-        ) {
+        if (!attemptIsDispatchable(attempt, input, versions)) {
           return fail('invalid_transition')
         }
         const [permit] = await tx
@@ -321,22 +384,7 @@ export const createGoogleDisconnectRevokeRepository = (
           .where(eq(authorizationExecutionPermits.id, input.cleanupWorkPermitId))
           .for('update')
           .limit(1)
-        if (
-          !permit ||
-          permit.state !== 'admitted' ||
-          permit.capability !== 'property.import_gbp_v2' ||
-          permit.operationKey !== 'provider.oauth.revoke' ||
-          permit.routeKey !== 'oauth.revoke' ||
-          permit.organizationId !== attempt.organizationId ||
-          permit.connectionId !== attempt.connectionId ||
-          permit.initiatorUserId !== attempt.initiatorUserId ||
-          permit.authorizationVector.credentialBinding !== input.credentialBinding ||
-          permit.authorizationVector.connectionLifecycleVersion !==
-            versions.lifecycleVersion ||
-          permit.authorizationVector.connectionAccessVersion !== versions.accessVersion ||
-          permit.authorizationVector.credentialGeneration !==
-            versions.credentialGeneration
-        ) {
+        if (!permitBindsCleanupWork(permit, attempt, input.credentialBinding, versions)) {
           return fail('scope_mismatch')
         }
         const connections = await tx

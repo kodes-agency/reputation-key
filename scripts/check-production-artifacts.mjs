@@ -77,6 +77,48 @@ async function filesBelow(root) {
   return found.sort()
 }
 
+/**
+ * A source map that cannot be read is itself a violation: an unreadable map
+ * cannot prove that no forbidden source was bundled.
+ */
+function collectSourceMapViolations(name, contents, violations) {
+  let sourceMap
+  try {
+    sourceMap = JSON.parse(contents)
+  } catch {
+    violations.push(`${name}: invalid source map JSON`)
+    return
+  }
+  if (!Array.isArray(sourceMap.sources)) {
+    violations.push(`${name}: source map has no sources array`)
+    return
+  }
+  for (const source of sourceMap.sources) {
+    if (typeof source !== 'string') {
+      violations.push(`${name}: source map contains a non-string source`)
+      continue
+    }
+    for (const rule of FORBIDDEN_SOURCES) {
+      if (rule.pattern.test(source)) {
+        violations.push(`${name}: ${rule.label} (${source})`)
+      }
+    }
+  }
+}
+
+/** Grade one artifact by its name, and — when it is text — by its contents. */
+function collectFileViolations(name, path, bytes, violations) {
+  for (const pattern of FORBIDDEN_NAMES) {
+    if (pattern.test(name)) violations.push(`${name}: forbidden executable/source name`)
+  }
+  if (!TEXT_EXTENSIONS.has(extname(path))) return
+  const contents = bytes.toString('utf8')
+  for (const rule of FORBIDDEN_CONTENT) {
+    if (rule.pattern.test(contents)) violations.push(`${name}: ${rule.label}`)
+  }
+  if (extname(path) === '.map') collectSourceMapViolations(name, contents, violations)
+}
+
 async function inspect(roots) {
   const digest = createHash('sha256')
   const violations = []
@@ -88,39 +130,7 @@ async function inspect(roots) {
       const bytes = await readFile(path)
       digest.update(`${name}\0`)
       digest.update(bytes)
-      for (const pattern of FORBIDDEN_NAMES) {
-        if (pattern.test(name))
-          violations.push(`${name}: forbidden executable/source name`)
-      }
-      if (!TEXT_EXTENSIONS.has(extname(path))) continue
-      const contents = bytes.toString('utf8')
-      for (const rule of FORBIDDEN_CONTENT) {
-        if (rule.pattern.test(contents)) violations.push(`${name}: ${rule.label}`)
-      }
-      if (extname(path) === '.map') {
-        let sourceMap
-        try {
-          sourceMap = JSON.parse(contents)
-        } catch {
-          violations.push(`${name}: invalid source map JSON`)
-          continue
-        }
-        if (!Array.isArray(sourceMap.sources)) {
-          violations.push(`${name}: source map has no sources array`)
-          continue
-        }
-        for (const source of sourceMap.sources) {
-          if (typeof source !== 'string') {
-            violations.push(`${name}: source map contains a non-string source`)
-            continue
-          }
-          for (const rule of FORBIDDEN_SOURCES) {
-            if (rule.pattern.test(source)) {
-              violations.push(`${name}: ${rule.label} (${source})`)
-            }
-          }
-        }
-      }
+      collectFileViolations(name, path, bytes, violations)
     }
   }
   if (fileCount === 0) throw new Error('Artifact roots contain no files')

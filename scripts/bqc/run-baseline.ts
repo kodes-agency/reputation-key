@@ -110,14 +110,18 @@ function sh(command: string): string {
   return execSync(command, { encoding: 'utf8' }).trim()
 }
 
-function main(): void {
+function selectedGates(): readonly Gate[] {
   const onlyArg = process.argv.find((a) => a.startsWith('--only='))
-  const only = onlyArg ? new Set(onlyArg.slice('--only='.length).split(',')) : undefined
+  if (!onlyArg) return GATES
+  const only = new Set(onlyArg.slice('--only='.length).split(','))
+  return GATES.filter((gate) => only.has(gate.id))
+}
 
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
-  const evidenceDir = resolve(ROOT, 'evidence', `baseline-${stamp}`)
-  mkdirSync(evidenceDir, { recursive: true })
-
+/**
+ * Pin the exact revision and toolchain the battery ran against. A checkout that
+ * is not clean, or is not the expected SHA, cannot produce a baseline at all.
+ */
+function captureEnvironment() {
   const sha = sh('git rev-parse HEAD')
   const expectedSha = process.env.BQC_EXPECTED_SHA
   if (expectedSha && sha !== expectedSha) {
@@ -136,14 +140,13 @@ function main(): void {
   const journal = JSON.parse(
     readFileSync(resolve(process.cwd(), 'drizzle/meta/_journal.json'), 'utf8'),
   ) as { entries: Array<{ tag: string }> }
-  const migrationVersion = journal.entries.at(-1)?.tag ?? 'unknown'
 
-  const environment = {
+  return {
     sha,
     branch: sh('git rev-parse --abbrev-ref HEAD'),
     lockfileSha256,
     routeTreeSha256,
-    migrationVersion,
+    migrationVersion: journal.entries.at(-1)?.tag ?? 'unknown',
     node: process.version,
     pnpm: sh('pnpm --version'),
     platform: `${process.platform}/${process.arch}`,
@@ -157,61 +160,63 @@ function main(): void {
     ),
     capturedAt: new Date().toISOString(),
   }
+}
 
-  console.log(`BQC-0.5 baseline @ ${sha.slice(0, 9)} → ${evidenceDir}`)
-
-  const results: GateResult[] = []
-  for (const gate of GATES) {
-    if (only && !only.has(gate.id)) continue
-    if (gate.requiresEnv && !process.env[gate.requiresEnv]) {
-      console.log(`── ${gate.id}: SKIPPED (missing ${gate.requiresEnv})`)
-      results.push({
-        id: gate.id,
-        command: gate.command,
-        skipped: true,
-        skipReason: `missing env ${gate.requiresEnv}`,
-        result: 'skipped',
-      })
-      continue
-    }
-
-    const startedAt = new Date()
-    process.stdout.write(`── ${gate.id}: running… `)
-    const proc = spawnSync(gate.command, {
-      shell: true,
-      env: { ...process.env, ...gate.env },
-      encoding: 'utf8',
-      maxBuffer: 64 * 1024 * 1024,
-    })
-    const durationMs = Date.now() - startedAt.getTime()
-    const exitCode = proc.status ?? 1
-
-    const logPath = resolve(evidenceDir, `${gate.id}.log`)
-    writeFileSync(
-      logPath,
-      [
-        `$ ${gate.command}`,
-        `started: ${startedAt.toISOString()}  durationMs: ${durationMs}  exit: ${exitCode}`,
-        '',
-        proc.stdout ?? '',
-        proc.stderr ?? '',
-      ].join('\n'),
-    )
-
-    const result = exitCode === 0 ? 'pass' : 'fail'
-    console.log(`${result} (${Math.round(durationMs / 1000)}s)`)
-    results.push({
-      id: gate.id,
-      command: gate.command,
-      skipped: false,
-      startedAt: startedAt.toISOString(),
-      durationMs,
-      exitCode,
-      result,
-      logPath,
-    })
+function skippedGateResult(gate: Gate, missingEnv: string): GateResult {
+  return {
+    id: gate.id,
+    command: gate.command,
+    skipped: true,
+    skipReason: `missing env ${missingEnv}`,
+    result: 'skipped',
   }
+}
 
+/** Run one gate, retain its full log, and record the outcome VERBATIM. */
+function runGate(gate: Gate, evidenceDir: string): GateResult {
+  const startedAt = new Date()
+  process.stdout.write(`── ${gate.id}: running… `)
+  const proc = spawnSync(gate.command, {
+    shell: true,
+    env: { ...process.env, ...gate.env },
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  const durationMs = Date.now() - startedAt.getTime()
+  const exitCode = proc.status ?? 1
+
+  const logPath = resolve(evidenceDir, `${gate.id}.log`)
+  writeFileSync(
+    logPath,
+    [
+      `$ ${gate.command}`,
+      `started: ${startedAt.toISOString()}  durationMs: ${durationMs}  exit: ${exitCode}`,
+      '',
+      proc.stdout ?? '',
+      proc.stderr ?? '',
+    ].join('\n'),
+  )
+
+  const result = exitCode === 0 ? 'pass' : 'fail'
+  console.log(`${result} (${Math.round(durationMs / 1000)}s)`)
+  return {
+    id: gate.id,
+    command: gate.command,
+    skipped: false,
+    startedAt: startedAt.toISOString(),
+    durationMs,
+    exitCode,
+    result,
+    logPath,
+  }
+}
+
+/** Write baseline.json and return the process exit code the battery earned. */
+function writeBaselineManifest(
+  evidenceDir: string,
+  environment: ReturnType<typeof captureEnvironment>,
+  results: readonly GateResult[],
+): number {
   const failed = results.filter((r) => r.result === 'fail')
   const manifest = {
     schemaVersion: 1,
@@ -237,7 +242,28 @@ function main(): void {
       `\nManifest: ${manifestPath}`,
   )
   // Non-zero exit when any gate failed, so CI/operators can rely on it.
-  process.exit(failed.length ? 1 : 0)
+  return failed.length ? 1 : 0
+}
+
+function main(): void {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
+  const evidenceDir = resolve(ROOT, 'evidence', `baseline-${stamp}`)
+  mkdirSync(evidenceDir, { recursive: true })
+
+  const environment = captureEnvironment()
+  console.log(`BQC-0.5 baseline @ ${environment.sha.slice(0, 9)} → ${evidenceDir}`)
+
+  const results: GateResult[] = []
+  for (const gate of selectedGates()) {
+    if (gate.requiresEnv && !process.env[gate.requiresEnv]) {
+      console.log(`── ${gate.id}: SKIPPED (missing ${gate.requiresEnv})`)
+      results.push(skippedGateResult(gate, gate.requiresEnv))
+      continue
+    }
+    results.push(runGate(gate, evidenceDir))
+  }
+
+  process.exit(writeBaselineManifest(evidenceDir, environment, results))
 }
 
 main()

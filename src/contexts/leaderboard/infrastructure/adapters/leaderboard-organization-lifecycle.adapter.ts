@@ -99,6 +99,8 @@ const LEADERBOARD_TENANT_TABLES: readonly LeaderboardLifecycleTable[] = Object.f
  */
 const PURGE_ORDER_NOTE = 'badge_awards_before_recognition_board_snapshots' as const
 
+export { PURGE_ORDER_NOTE as LEADERBOARD_PURGE_ORDER_NOTE }
+
 /**
  * Append-only guards that block a tenant purge (migration 0025).
  *
@@ -267,8 +269,6 @@ export const leaderboardPurge = async (
 export const LEADERBOARD_LIFECYCLE_TABLES: readonly string[] = Object.freeze(
   LEADERBOARD_TENANT_TABLES.map(({ table }) => table),
 )
-
-export { PURGE_ORDER_NOTE as LEADERBOARD_PURGE_ORDER_NOTE }
 
 /** The append-only guards the purge lifts, for the contract tests. */
 export const LEADERBOARD_LIFECYCLE_APPEND_ONLY_GUARDS: readonly string[] = Object.freeze(

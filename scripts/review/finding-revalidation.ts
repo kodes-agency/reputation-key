@@ -151,6 +151,71 @@ function assertContains(
   }
 }
 
+type RevalidatedFinding = z.infer<typeof revalidatedFinding>
+
+function assertPackageAssignment(
+  finding: RevalidatedFinding,
+  original: z.infer<typeof baselineFinding>,
+  packages: ReadonlySet<string>,
+): void {
+  if (
+    JSON.stringify(finding.targetPackages) !== JSON.stringify(original.targetPackages)
+  ) {
+    throw new Error(`${finding.id} target packages differ from the frozen register`)
+  }
+  if (!finding.targetPackages.includes(finding.ownerPackage)) {
+    throw new Error(`${finding.id} ownerPackage must be one of its targetPackages`)
+  }
+  for (const target of finding.targetPackages) {
+    if (!packages.has(target)) {
+      throw new Error(`${finding.id} references unknown implementation package ${target}`)
+    }
+  }
+}
+
+function assertFrozenEvidence(
+  finding: RevalidatedFinding,
+  readers: RevalidationReaders,
+): void {
+  for (const proof of finding.frozenEvidence) {
+    if (proof.kind === 'git_source') {
+      assertContains(
+        `${finding.id} frozen source ${proof.path}`,
+        readers.readFrozenSource(proof.path),
+        proof.contains,
+        proof.omits,
+      )
+      continue
+    }
+    const bytes = readers.readCurrentFile(proof.path)
+    if (sha256(bytes) !== proof.sha256) {
+      throw new Error(`${finding.id} retained evidence digest differs for ${proof.path}`)
+    }
+    assertContains(
+      `${finding.id} retained evidence ${proof.path}`,
+      bytes.toString('utf8'),
+      proof.contains,
+    )
+  }
+}
+
+function assertClosure(finding: RevalidatedFinding, readers: RevalidationReaders): void {
+  if (finding.closure.kind === 'current_test') {
+    assertContains(
+      `${finding.id} closure test ${finding.closure.path}`,
+      readers.readCurrentFile(finding.closure.path).toString('utf8'),
+      finding.closure.contains,
+    )
+    return
+  }
+  if (
+    finding.closure.kind === 'planned_in_package' &&
+    !finding.targetPackages.includes(finding.closure.package)
+  ) {
+    throw new Error(`${finding.id} closure package is not assigned to the finding`)
+  }
+}
+
 export function validateFindingRevalidation(
   input: unknown,
   sourceRegisterText: string,
@@ -175,58 +240,9 @@ export function validateFindingRevalidation(
   if (packages.size === 0) throw new Error('implementation plan contains no packages')
 
   for (const [position, finding] of index.findings.entries()) {
-    const original = baseline[position]!
-    if (
-      JSON.stringify(finding.targetPackages) !== JSON.stringify(original.targetPackages)
-    ) {
-      throw new Error(`${finding.id} target packages differ from the frozen register`)
-    }
-    if (!finding.targetPackages.includes(finding.ownerPackage)) {
-      throw new Error(`${finding.id} ownerPackage must be one of its targetPackages`)
-    }
-    for (const target of finding.targetPackages) {
-      if (!packages.has(target)) {
-        throw new Error(
-          `${finding.id} references unknown implementation package ${target}`,
-        )
-      }
-    }
-
-    for (const proof of finding.frozenEvidence) {
-      if (proof.kind === 'git_source') {
-        assertContains(
-          `${finding.id} frozen source ${proof.path}`,
-          readers.readFrozenSource(proof.path),
-          proof.contains,
-          proof.omits,
-        )
-        continue
-      }
-      const bytes = readers.readCurrentFile(proof.path)
-      if (sha256(bytes) !== proof.sha256) {
-        throw new Error(
-          `${finding.id} retained evidence digest differs for ${proof.path}`,
-        )
-      }
-      assertContains(
-        `${finding.id} retained evidence ${proof.path}`,
-        bytes.toString('utf8'),
-        proof.contains,
-      )
-    }
-
-    if (finding.closure.kind === 'current_test') {
-      assertContains(
-        `${finding.id} closure test ${finding.closure.path}`,
-        readers.readCurrentFile(finding.closure.path).toString('utf8'),
-        finding.closure.contains,
-      )
-    } else if (
-      finding.closure.kind === 'planned_in_package' &&
-      !finding.targetPackages.includes(finding.closure.package)
-    ) {
-      throw new Error(`${finding.id} closure package is not assigned to the finding`)
-    }
+    assertPackageAssignment(finding, baseline[position]!, packages)
+    assertFrozenEvidence(finding, readers)
+    assertClosure(finding, readers)
   }
 
   return actualIds

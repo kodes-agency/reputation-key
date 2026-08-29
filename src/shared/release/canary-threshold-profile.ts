@@ -219,6 +219,55 @@ export function canaryThresholdSignalReadPlan(
 }
 
 /**
+ * Signal-shape rules that do not depend on the duration are enforced even while
+ * the duration is open, so an open profile is still a reviewed one.
+ */
+function canarySignalShapeErrors(
+  authority: CanaryThresholdProfileAuthority,
+): readonly string[] {
+  const errors: string[] = []
+  const names = authority.signals.map(({ name }) => name)
+  if (new Set(names).size !== names.length) {
+    errors.push('signals: signal names must be unique')
+  }
+  const sortedNames = [...names].sort((left, right) => left.localeCompare(right))
+  if (names.some((name, index) => name !== sortedNames[index])) {
+    errors.push('signals: signal profiles must use canonical name order')
+  }
+  for (const category of CANARY_REQUIRED_SIGNAL_CATEGORIES) {
+    if (!authority.signals.some((signal) => signal.category === category)) {
+      errors.push(`signals: missing required canary category ${category}`)
+    }
+  }
+  for (const [index, signal] of authority.signals.entries()) {
+    if (!CANARY_AUTHORITATIVE_SOURCES[signal.category].includes(signal.source)) {
+      errors.push(
+        `signals.${index}.source: source is not authoritative for ${signal.category}`,
+      )
+    }
+  }
+  return errors
+}
+
+/** A ratified profile needs a real approver and an approval that already happened. */
+function canaryRatificationErrors(
+  ratification: Readonly<{ approvedBy: string; approvedAt: string }>,
+  now: number,
+): readonly string[] {
+  const errors: string[] = []
+  const lowered = ratification.approvedBy.toLowerCase()
+  if (CANARY_PLACEHOLDER_APPROVER_MARKERS.some((marker) => lowered.includes(marker))) {
+    errors.push(
+      `ratification.approvedBy: ${ratification.approvedBy} is a placeholder identity, not a ratifying operating owner`,
+    )
+  }
+  if (Date.parse(ratification.approvedAt) > now) {
+    errors.push('ratification.approvedAt: must not be dated in the future')
+  }
+  return errors
+}
+
+/**
  * Parse the tracked authority document.
  *
  * `options.decisionRecordSha256`, when supplied, is the digest the caller
@@ -251,28 +300,7 @@ export function parseCanaryThresholdProfile(
     )
   }
 
-  // Signal-shape rules that do not depend on the duration are enforced even
-  // while the duration is open, so an open profile is still a reviewed one.
-  const names = authority.signals.map(({ name }) => name)
-  if (new Set(names).size !== names.length) {
-    errors.push('signals: signal names must be unique')
-  }
-  const sortedNames = [...names].sort((left, right) => left.localeCompare(right))
-  if (names.some((name, index) => name !== sortedNames[index])) {
-    errors.push('signals: signal profiles must use canonical name order')
-  }
-  for (const category of CANARY_REQUIRED_SIGNAL_CATEGORIES) {
-    if (!authority.signals.some((signal) => signal.category === category)) {
-      errors.push(`signals: missing required canary category ${category}`)
-    }
-  }
-  for (const [index, signal] of authority.signals.entries()) {
-    if (!CANARY_AUTHORITATIVE_SOURCES[signal.category].includes(signal.source)) {
-      errors.push(
-        `signals.${index}.source: source is not authoritative for ${signal.category}`,
-      )
-    }
-  }
+  errors.push(...canarySignalShapeErrors(authority))
 
   if (authority.ratification.state === 'open') {
     if (errors.length > 0) return { ok: false, errors }
@@ -285,16 +313,12 @@ export function parseCanaryThresholdProfile(
   }
 
   const ratification = authority.ratification
-  const lowered = ratification.approvedBy.toLowerCase()
-  if (CANARY_PLACEHOLDER_APPROVER_MARKERS.some((marker) => lowered.includes(marker))) {
-    errors.push(
-      `ratification.approvedBy: ${ratification.approvedBy} is a placeholder identity, not a ratifying operating owner`,
-    )
-  }
-  const now = Date.parse(options.now ?? new Date().toISOString())
-  if (Date.parse(ratification.approvedAt) > now) {
-    errors.push('ratification.approvedAt: must not be dated in the future')
-  }
+  errors.push(
+    ...canaryRatificationErrors(
+      ratification,
+      Date.parse(options.now ?? new Date().toISOString()),
+    ),
+  )
 
   const profile = canaryThresholdProfileSchema.safeParse(
     derivedProfile(authority, ratification),

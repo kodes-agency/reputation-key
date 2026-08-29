@@ -110,31 +110,48 @@ function csvField(value: ExportScalar | undefined): string {
   return /[",\r\n]/u.test(text) ? `"${text.replaceAll('"', '""')}"` : text
 }
 
+/**
+ * Every record class writes the same nine summary columns, but each one draws
+ * from a different column in its own table. These lists are the per-column
+ * source precedence: the first present value wins, exactly as a `??` chain.
+ */
+const SUMMARY_SOURCE_FIELDS = {
+  recordId: ['id', 'inbox_item_id', 'organization_id'],
+  cycleNumber: ['cycle_number', 'handling_cycle_number'],
+  actorUserId: ['actor_user_id', 'author_user_id', 'recorded_by'],
+  label: ['status', 'kind', 'outcome', 'reason'],
+  state: ['opened_reason', 'transition_reason', 'target_kind', 'result'],
+  occurredAt: [
+    'occurred_at',
+    'transitioned_at',
+    'opened_at',
+    'recorded_at',
+    'created_at',
+  ],
+} as const satisfies Readonly<Record<string, readonly string[]>>
+
+function firstPresent(
+  record: ExportRecord,
+  fields: readonly string[],
+  fallback: ExportScalar,
+): ExportScalar {
+  for (const field of fields) {
+    const value: ExportScalar | undefined = record[field]
+    if (value !== undefined && value !== null) return value
+  }
+  return fallback
+}
+
 function csvSummary(type: string, record: ExportRecord): readonly ExportScalar[] {
-  const id = record.id ?? record.inbox_item_id ?? record.organization_id ?? ''
-  const label = record.status ?? record.kind ?? record.outcome ?? record.reason ?? ''
-  const state =
-    record.opened_reason ??
-    record.transition_reason ??
-    record.target_kind ??
-    record.result ??
-    'recorded'
-  const occurredAt =
-    record.occurred_at ??
-    record.transitioned_at ??
-    record.opened_at ??
-    record.recorded_at ??
-    record.created_at ??
-    ''
   return [
     type,
-    id,
+    firstPresent(record, SUMMARY_SOURCE_FIELDS.recordId, ''),
     record.property_id ?? '',
-    record.cycle_number ?? record.handling_cycle_number ?? '',
-    record.actor_user_id ?? record.author_user_id ?? record.recorded_by ?? '',
-    label,
-    state,
-    occurredAt,
+    firstPresent(record, SUMMARY_SOURCE_FIELDS.cycleNumber, ''),
+    firstPresent(record, SUMMARY_SOURCE_FIELDS.actorUserId, ''),
+    firstPresent(record, SUMMARY_SOURCE_FIELDS.label, ''),
+    firstPresent(record, SUMMARY_SOURCE_FIELDS.state, 'recorded'),
+    firstPresent(record, SUMMARY_SOURCE_FIELDS.occurredAt, ''),
     canonicalizeRfc8785(record),
   ]
 }

@@ -10,6 +10,7 @@ import {
   CONTEXT_STANDARDS_MATRIX,
   summarizeContextStandardsMatrix,
   validateContextStandardsMatrixStructure,
+  type ContextStandardEvidence,
 } from './context-standards-matrix'
 
 const ROOT = process.cwd()
@@ -34,6 +35,21 @@ function productionTypescriptFiles(directory: string): readonly string[] {
     if (entry.isDirectory()) return productionTypescriptFiles(path)
     return entry.name.endsWith('.ts') && !entry.name.includes('.test.') ? [path] : []
   })
+}
+
+/** One evidence pointer must be repo-relative and resolve to what it claims. */
+function expectEvidenceResolves(cell: string, evidence: ContextStandardEvidence): void {
+  expect(evidence.path.startsWith('/') || evidence.path.includes('..')).toBe(false)
+  const path = join(ROOT, evidence.path)
+  if (evidence.kind === 'absent') {
+    expect(existsSync(path), `${cell}: ${evidence.path}`).toBe(false)
+    return
+  }
+  expect(existsSync(path), `${cell}: ${evidence.path}`).toBe(true)
+  expect(statSync(path).isFile(), evidence.path).toBe(evidence.kind === 'file')
+  if (evidence.kind !== 'file') return
+  const body = readFileSync(path, 'utf8')
+  for (const marker of evidence.contains ?? []) expect(body).toContain(marker)
 }
 
 function eventsSection(body: string): string {
@@ -95,26 +111,7 @@ describe('17-context by 11-rule standards matrix', () => {
     for (const row of CONTEXT_STANDARDS_MATRIX) {
       for (const dimension of DIMENSIONS) {
         for (const evidence of row.standards[dimension].evidence) {
-          expect(evidence.path.startsWith('/') || evidence.path.includes('..')).toBe(
-            false,
-          )
-          const path = join(ROOT, evidence.path)
-          if (evidence.kind === 'absent') {
-            expect(
-              existsSync(path),
-              `${row.directory}/${dimension}: ${evidence.path}`,
-            ).toBe(false)
-            continue
-          }
-          expect(
-            existsSync(path),
-            `${row.directory}/${dimension}: ${evidence.path}`,
-          ).toBe(true)
-          expect(statSync(path).isFile(), evidence.path).toBe(evidence.kind === 'file')
-          if (evidence.kind === 'file') {
-            const body = readFileSync(path, 'utf8')
-            for (const marker of evidence.contains ?? []) expect(body).toContain(marker)
-          }
+          expectEvidenceResolves(`${row.directory}/${dimension}`, evidence)
         }
       }
     }

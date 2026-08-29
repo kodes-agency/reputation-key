@@ -225,66 +225,92 @@ export type CounselDecisionValidationInput = Readonly<{
 export type CounselDecisionValidationResult =
   Readonly<{ ok: true }> | Readonly<{ ok: false; errors: readonly string[] }>
 
-export function validateCounselDecisionChecklist(
-  input: CounselDecisionValidationInput,
-): CounselDecisionValidationResult {
+/** Every decision category must retain at least one open extracted decision. */
+function categoryCoverageErrors(checklist: CounselDecisionChecklist): readonly string[] {
   const errors: string[] = []
-  const documentText = new Map<string, string>()
-
   for (const category of COUNSEL_DECISION_CATEGORIES) {
-    const open = input.checklist.items.filter(
+    const open = checklist.items.filter(
       (item) => item.category === category && item.status === 'open',
     )
     if (open.length === 0) {
       errors.push(`category ${category} has no extracted decision`)
     }
   }
+  return errors
+}
 
+/** Rules one checklist item must satisfy independently of its source document. */
+function itemPolicyErrors(
+  item: CounselDecisionItem,
+  registeredIds: ReadonlySet<string>,
+): readonly string[] {
+  const errors: string[] = []
+  for (const documentId of item.blocksDocuments) {
+    if (!registeredIds.has(documentId)) {
+      errors.push(`checklist item ${item.id} blocks unknown document ${documentId}`)
+    }
+  }
+
+  const text = `${item.question} ${item.sourceAnchor}`
+  if (SECOND_DATA_CELL_PATTERNS.some((pattern) => pattern.test(text))) {
+    errors.push(`checklist item ${item.id} must not propose a second data cell`)
+  }
+  if (item.capabilityPosture !== 'dark') {
+    for (const topic of DARK_CAPABILITY_TOPICS) {
+      if (topic.pattern.test(text)) {
+        errors.push(
+          `checklist item ${item.id} must be tagged capabilityPosture 'dark' (covers ${topic.capability})`,
+        )
+      }
+    }
+  }
+  return errors
+}
+
+/**
+ * The item's anchor must be quotable from its registered source document.
+ * `documentText` caches each decoded document across items.
+ */
+function itemAnchorErrors(
+  item: CounselDecisionItem,
+  input: CounselDecisionValidationInput,
+  documentText: Map<string, string>,
+): readonly string[] {
+  const source = input.registry.documents.find(
+    (document) => document.id === item.sourceDocument,
+  )
+  if (source === undefined) {
+    return [
+      `checklist item ${item.id} references unknown document ${item.sourceDocument}`,
+    ]
+  }
+  let body = documentText.get(source.path)
+  if (body === undefined) {
+    try {
+      body = normalizeProse(new TextDecoder().decode(input.readDocument(source.path)))
+    } catch {
+      return [`checklist item ${item.id} cannot read ${source.path}`]
+    }
+    documentText.set(source.path, body)
+  }
+  if (!body.includes(normalizeProse(item.sourceAnchor))) {
+    return [`checklist item ${item.id} anchor not found in ${item.sourceDocument}`]
+  }
+  return []
+}
+
+export function validateCounselDecisionChecklist(
+  input: CounselDecisionValidationInput,
+): CounselDecisionValidationResult {
+  const errors: string[] = [...categoryCoverageErrors(input.checklist)]
+  const documentText = new Map<string, string>()
   const registeredIds = new Set(input.registry.documents.map((document) => document.id))
 
   for (const item of input.checklist.items) {
-    for (const documentId of item.blocksDocuments) {
-      if (!registeredIds.has(documentId)) {
-        errors.push(`checklist item ${item.id} blocks unknown document ${documentId}`)
-      }
-    }
-
-    const text = `${item.question} ${item.sourceAnchor}`
-    if (SECOND_DATA_CELL_PATTERNS.some((pattern) => pattern.test(text))) {
-      errors.push(`checklist item ${item.id} must not propose a second data cell`)
-    }
-    if (item.capabilityPosture !== 'dark') {
-      for (const topic of DARK_CAPABILITY_TOPICS) {
-        if (topic.pattern.test(text)) {
-          errors.push(
-            `checklist item ${item.id} must be tagged capabilityPosture 'dark' (covers ${topic.capability})`,
-          )
-        }
-      }
-    }
-
-    const source = input.registry.documents.find(
-      (document) => document.id === item.sourceDocument,
+    errors.push(
+      ...itemPolicyErrors(item, registeredIds),
+      ...itemAnchorErrors(item, input, documentText),
     )
-    if (source === undefined) {
-      errors.push(
-        `checklist item ${item.id} references unknown document ${item.sourceDocument}`,
-      )
-      continue
-    }
-    let body = documentText.get(source.path)
-    if (body === undefined) {
-      try {
-        body = normalizeProse(new TextDecoder().decode(input.readDocument(source.path)))
-      } catch {
-        errors.push(`checklist item ${item.id} cannot read ${source.path}`)
-        continue
-      }
-      documentText.set(source.path, body)
-    }
-    if (!body.includes(normalizeProse(item.sourceAnchor))) {
-      errors.push(`checklist item ${item.id} anchor not found in ${item.sourceDocument}`)
-    }
   }
 
   return errors.length > 0 ? { ok: false, errors } : { ok: true }

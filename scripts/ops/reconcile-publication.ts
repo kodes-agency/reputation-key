@@ -210,15 +210,21 @@ function assertProgressingBatch(
   }
 }
 
+type PublicationSweepPlan = Readonly<{
+  cursor: PublicationSweepCursor | null
+  mode: 'dry_run' | 'apply'
+  dueThrough: Date
+}>
+
 /**
- * Reconcile one keyset page. This dependency surface deliberately exposes
- * only the provider-read reconciliation use case; there is no publication
- * command or provider-write port available to the operator sweep.
+ * Resolve the bounded page this invocation may sweep. A resume token freezes
+ * both the due-through boundary and the mode, so a page cannot be resumed into
+ * a different invocation shape.
  */
-export async function runAmbiguousPublicationSweepPage(
+function resolveSweepPlan(
   deps: PublicationSweepDeps,
   input: PublicationSweepInput,
-): Promise<PublicationSweepReport> {
+): PublicationSweepPlan {
   if (!Number.isSafeInteger(input.batchSize) || input.batchSize < 1) {
     throw new Error('publication sweep batch size must be a positive integer')
   }
@@ -233,6 +239,73 @@ export async function runAmbiguousPublicationSweepPage(
   if (Number.isNaN(dueThrough.getTime())) {
     throw new Error('publication sweep clock returned an invalid time')
   }
+  return { cursor, mode, dueThrough }
+}
+
+type PublicationSweepRowOutcome = PublicationSweepReport['rows'][number]['outcome']
+
+type PublicationSweepRowResult = Readonly<{
+  outcome: PublicationSweepRowOutcome
+  detail: string | null
+}>
+
+/**
+ * Re-read provider truth for one candidate. A provider-read/infrastructure
+ * exception is one failed row, not permission to abandon the page and starve
+ * every later keyset row. No raw error is returned because operator output is
+ * content-free.
+ */
+async function reconcileSweepCandidate(
+  deps: PublicationSweepDeps,
+  candidate: AmbiguousPublicationReconciliationCandidate,
+): Promise<PublicationSweepRowResult> {
+  try {
+    const reconciled = await deps.reconcile({
+      replyId: candidate.replyId,
+      organizationId: candidate.organizationId,
+    })
+    if (reconciled.isErr()) return { outcome: 'failed', detail: reconciled.error.code }
+    if (reconciled.value.outcome === 'confirmed_on_google') {
+      return { outcome: 'confirmed_on_google', detail: null }
+    }
+    return { outcome: 'not_confirmed', detail: reconciled.value.outcome }
+  } catch {
+    return { outcome: 'failed', detail: 'unexpected_error' }
+  }
+}
+
+/** Rows are evaluated strictly in keyset order; a dry run evaluates none. */
+async function evaluateSweepBatch(
+  deps: PublicationSweepDeps,
+  batch: readonly AmbiguousPublicationReconciliationCandidate[],
+  dryRun: boolean,
+): Promise<readonly PublicationSweepRowResult[]> {
+  if (dryRun)
+    return batch.map(() => ({ outcome: 'not_evaluated' as const, detail: null }))
+  const outcomes: PublicationSweepRowResult[] = []
+  for (const candidate of batch) {
+    outcomes.push(await reconcileSweepCandidate(deps, candidate))
+  }
+  return outcomes
+}
+
+function countOutcome(
+  rowOutcomes: readonly PublicationSweepRowResult[],
+  outcome: PublicationSweepRowOutcome,
+): number {
+  return rowOutcomes.filter((row) => row.outcome === outcome).length
+}
+
+/**
+ * Reconcile one keyset page. This dependency surface deliberately exposes
+ * only the provider-read reconciliation use case; there is no publication
+ * command or provider-write port available to the operator sweep.
+ */
+export async function runAmbiguousPublicationSweepPage(
+  deps: PublicationSweepDeps,
+  input: PublicationSweepInput,
+): Promise<PublicationSweepReport> {
+  const { cursor, mode, dueThrough } = resolveSweepPlan(deps, input)
   const batch = await deps.findCandidates({
     dueThrough,
     after: cursor
@@ -242,48 +315,9 @@ export async function runAmbiguousPublicationSweepPage(
   })
   assertProgressingBatch(batch, dueThrough, cursor)
 
-  let confirmedOnGoogle = 0
-  let notConfirmed = 0
-  let failed = 0
-  const rowOutcomes: Array<
-    Readonly<{
-      outcome: 'not_evaluated' | 'confirmed_on_google' | 'not_confirmed' | 'failed'
-      detail: string | null
-    }>
-  > = []
-  if (!input.dryRun) {
-    for (const candidate of batch) {
-      try {
-        const reconciled = await deps.reconcile({
-          replyId: candidate.replyId,
-          organizationId: candidate.organizationId,
-        })
-        if (reconciled.isErr()) {
-          failed++
-          rowOutcomes.push({ outcome: 'failed', detail: reconciled.error.code })
-        } else if (reconciled.value.outcome === 'confirmed_on_google') {
-          confirmedOnGoogle++
-          rowOutcomes.push({ outcome: 'confirmed_on_google', detail: null })
-        } else {
-          notConfirmed++
-          rowOutcomes.push({
-            outcome: 'not_confirmed',
-            detail: reconciled.value.outcome,
-          })
-        }
-      } catch {
-        // A provider-read/infrastructure exception is one failed row, not
-        // permission to abandon the page and starve every later keyset row.
-        // No raw error is returned because operator output is content-free.
-        failed++
-        rowOutcomes.push({ outcome: 'failed', detail: 'unexpected_error' })
-      }
-    }
-  } else {
-    rowOutcomes.push(
-      ...batch.map(() => ({ outcome: 'not_evaluated' as const, detail: null })),
-    )
-  }
+  const rowOutcomes = await evaluateSweepBatch(deps, batch, input.dryRun)
+  const notConfirmed = countOutcome(rowOutcomes, 'not_confirmed')
+  const failed = countOutcome(rowOutcomes, 'failed')
 
   const last = batch.at(-1)
   const nextResumeToken =
@@ -307,7 +341,7 @@ export async function runAmbiguousPublicationSweepPage(
     seen: batch.length,
     attempted: input.dryRun ? 0 : batch.length,
     notEvaluated: input.dryRun ? batch.length : 0,
-    confirmedOnGoogle,
+    confirmedOnGoogle: countOutcome(rowOutcomes, 'confirmed_on_google'),
     notConfirmed,
     failed,
     unresolvedInPage: input.dryRun ? batch.length : notConfirmed + failed,

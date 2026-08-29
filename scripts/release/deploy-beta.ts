@@ -1058,6 +1058,70 @@ function deploymentStatus(
   return { status: row?.status ?? 'UNKNOWN', deploymentId: row?.id }
 }
 
+function plannedImageDigest(
+  plans: readonly ServicePlan[],
+  service: string,
+): string | undefined {
+  return plans.find((plan) => plan.service === service)?.imageDigest
+}
+
+/**
+ * Observe one pending service. A settled service leaves `pending` — with a
+ * failure recorded when it did not end SUCCESS — and a service that has only
+ * just revealed its deployment id is written back so later polls reuse it.
+ */
+function pollPendingService(
+  service: string,
+  deployment: Deployment,
+  context: Readonly<{
+    plans: readonly ServicePlan[]
+    environment: string
+    pending: Map<string, Deployment>
+    failures: string[]
+  }>,
+): void {
+  const { plans, environment, pending, failures } = context
+  const observation = deploymentStatus(
+    deployment,
+    environment,
+    plannedImageDigest(plans, service),
+  )
+  const observedDeployment = observation.deploymentId
+    ? { ...deployment, deploymentId: observation.deploymentId }
+    : deployment
+  if (observation.deploymentId && !deployment.deploymentId) {
+    pending.set(service, observedDeployment)
+  }
+  const status = observation.status
+  if (!TERMINAL_STATUSES.has(status)) return
+  pending.delete(service)
+  out(
+    `  ${service.padEnd(28)} ${status} (${observedDeployment.deploymentId ?? 'deployment unavailable'})`,
+  )
+  if (status !== 'SUCCESS') {
+    failures.push(
+      `${service}: deployment ${observedDeployment.deploymentId ?? '(unavailable)'} ended ${status}`,
+    )
+  }
+}
+
+/** Record one failure per service that never reached a terminal state in time. */
+function reportUnsettledServices(
+  pending: ReadonlyMap<string, Deployment>,
+  plans: readonly ServicePlan[],
+  environment: string,
+  timeoutMs: number,
+  failures: string[],
+): void {
+  for (const [service, deployment] of pending) {
+    const expectedDigest = plannedImageDigest(plans, service)
+    const observation = deploymentStatus(deployment, environment, expectedDigest)
+    failures.push(
+      `${service}: deployment ${observation.deploymentId ?? `(new digest ${expectedDigest ?? 'unknown'})`} still ${observation.status} after ${String(Math.round(timeoutMs / 1000))}s`,
+    )
+  }
+}
+
 /**
  * Block until every deployment reaches a terminal state. Returns the failures,
  * so one bad service is reported alongside the rest rather than hiding them.
@@ -1075,35 +1139,11 @@ async function awaitSettlement(
   out('waiting for deployments to settle:')
   while (pending.size > 0) {
     for (const [service, deployment] of [...pending]) {
-      const expectedDigest = plans.find((plan) => plan.service === service)?.imageDigest
-      const observation = deploymentStatus(deployment, environment, expectedDigest)
-      const observedDeployment = observation.deploymentId
-        ? { ...deployment, deploymentId: observation.deploymentId }
-        : deployment
-      if (observation.deploymentId && !deployment.deploymentId) {
-        pending.set(service, observedDeployment)
-      }
-      const status = observation.status
-      if (!TERMINAL_STATUSES.has(status)) continue
-      pending.delete(service)
-      out(
-        `  ${service.padEnd(28)} ${status} (${observedDeployment.deploymentId ?? 'deployment unavailable'})`,
-      )
-      if (status !== 'SUCCESS') {
-        failures.push(
-          `${service}: deployment ${observedDeployment.deploymentId ?? '(unavailable)'} ended ${status}`,
-        )
-      }
+      pollPendingService(service, deployment, { plans, environment, pending, failures })
     }
     if (pending.size === 0) break
     if (Date.now() > deadline) {
-      for (const [service, deployment] of pending) {
-        const expectedDigest = plans.find((plan) => plan.service === service)?.imageDigest
-        const observation = deploymentStatus(deployment, environment, expectedDigest)
-        failures.push(
-          `${service}: deployment ${observation.deploymentId ?? `(new digest ${expectedDigest ?? 'unknown'})`} still ${observation.status} after ${String(Math.round(timeoutMs / 1000))}s`,
-        )
-      }
+      reportUnsettledServices(pending, plans, environment, timeoutMs, failures)
       break
     }
     await new Promise((done) => setTimeout(done, POLL_INTERVAL_MS))

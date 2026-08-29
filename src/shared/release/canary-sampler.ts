@@ -127,9 +127,12 @@ function scheduleFor(
   )
 }
 
-export async function observeCanaryWindow(
-  input: CanaryWindowInput,
-): Promise<CanaryWindowResult> {
+/**
+ * Setup problems that make sampling meaningless before it starts: a read plan
+ * that does not match the ratified signal order, or a threshold authority the
+ * observer was never handed.
+ */
+function canaryObserverSetupErrors(input: CanaryWindowInput): readonly string[] {
   const setupErrors: string[] = []
   if (input.readPlan.length !== input.profile.signals.length) {
     setupErrors.push('read plan does not cover every approved signal')
@@ -159,13 +162,21 @@ export async function observeCanaryWindow(
       )
     }
   }
-  if (setupErrors.length > 0) return { ok: false, errors: setupErrors }
+  return setupErrors
+}
 
-  const startedAtMs = Date.parse(input.startedAt)
-  const schedules = input.profile.signals.map((signal) =>
-    scheduleFor(startedAtMs, input.profile.durationMs, signal.sampleIntervalMs),
-  )
-  const timeline = schedules
+type TimelineSlot = Readonly<{
+  at: number
+  scheduledAt: string
+  signalIndex: number
+  sampleIndex: number
+}>
+
+/** Every signal's schedule interleaved into one wall-clock-ordered timeline. */
+function canarySampleTimeline(
+  schedules: readonly (readonly string[])[],
+): readonly TimelineSlot[] {
+  return schedules
     .flatMap((schedule, signalIndex) =>
       schedule.map((scheduledAt, sampleIndex) => ({
         at: Date.parse(scheduledAt),
@@ -175,7 +186,123 @@ export async function observeCanaryWindow(
       })),
     )
     .sort((left, right) => left.at - right.at || left.signalIndex - right.signalIndex)
+}
 
+/** A read that throws is a missing sample, never an absent one. */
+async function readCanarySample(
+  input: CanaryWindowInput,
+  plan: CanarySignalRead,
+  slot: TimelineSlot,
+): Promise<CanarySampleReading> {
+  try {
+    return await input.read({
+      signal: plan,
+      sampleIndex: slot.sampleIndex,
+      scheduledAt: slot.scheduledAt,
+    })
+  } catch (error) {
+    return { ok: false, reason: error instanceof Error ? error.message : String(error) }
+  }
+}
+
+function identityDrifted(
+  identity: Readonly<{ releaseSha?: string; releaseManifestSha256?: string }> | undefined,
+  candidate: ReleaseCandidateBinding,
+): boolean {
+  if (!identity) return false
+  return (
+    (identity.releaseSha !== undefined && identity.releaseSha !== candidate.releaseSha) ||
+    (identity.releaseManifestSha256 !== undefined &&
+      identity.releaseManifestSha256 !== candidate.releaseManifestSha256)
+  )
+}
+
+type SampleOutcome = Readonly<{
+  record: SampleRecord
+  failures: readonly string[]
+  readError: boolean
+  identityMismatch: boolean
+  configurationHeadMismatch: boolean
+  /** The window's continuity head after this reading. */
+  configurationHead: string | undefined
+}>
+
+/** Score one reading against its signal's threshold and the window's continuity. */
+function evaluateCanaryReading(
+  signal: CanaryThresholdProfile['signals'][number],
+  slot: TimelineSlot,
+  reading: CanarySampleReading,
+  candidate: ReleaseCandidateBinding,
+  configurationHead: string | undefined,
+): SampleOutcome {
+  const at = `${signal.name} @ ${slot.scheduledAt}`
+  if (!reading.ok) {
+    return {
+      record: {
+        sampleIndex: slot.sampleIndex,
+        scheduledAt: slot.scheduledAt,
+        observed: false,
+        value: null,
+        breached: false,
+        reason: reading.reason,
+      },
+      failures: [`${at}: ${reading.reason}`],
+      readError: true,
+      identityMismatch: false,
+      configurationHeadMismatch: false,
+      configurationHead,
+    }
+  }
+
+  const failures: string[] = []
+  const breached = !satisfiesThreshold(signal.comparator, reading.value, signal.threshold)
+  if (breached) {
+    failures.push(
+      `${at}: ${reading.value} ${signal.unit} breaches ${signal.comparator} ${signal.threshold}`,
+    )
+  }
+  const identityMismatch = identityDrifted(reading.identity, candidate)
+  if (identityMismatch) {
+    failures.push(`${at}: RELEASE_SHA/RELEASE_MANIFEST_SHA256 drifted from the candidate`)
+  }
+  const head = configurationHead ?? reading.configurationHead
+  const configurationHeadMismatch =
+    reading.configurationHead !== undefined && reading.configurationHead !== head
+  if (configurationHeadMismatch) {
+    failures.push(`${at}: configuration head drifted mid-window`)
+  }
+
+  return {
+    record: {
+      sampleIndex: slot.sampleIndex,
+      scheduledAt: slot.scheduledAt,
+      observed: true,
+      value: reading.value,
+      breached,
+      reason: null,
+    },
+    failures,
+    readError: false,
+    identityMismatch,
+    configurationHeadMismatch,
+    configurationHead: head,
+  }
+}
+
+type WindowTally = Readonly<{
+  records: readonly (readonly SampleRecord[])[]
+  failures: readonly string[]
+  releaseIdentityMismatches: number
+  configurationHeadMismatches: number
+  observerReadErrors: number
+  configurationHead: string | undefined
+}>
+
+/** Walk the timeline, waiting for each slot and scoring what it read. */
+async function sampleCanaryWindow(
+  input: CanaryWindowInput,
+  timeline: readonly TimelineSlot[],
+): Promise<WindowTally> {
   const records: SampleRecord[][] = input.profile.signals.map(() => [])
   const failures: string[] = []
   let releaseIdentityMismatches = 0
@@ -189,86 +316,45 @@ export async function observeCanaryWindow(
     if (!signal || !plan) continue
     await input.waitUntil(slot.scheduledAt)
 
-    let reading: CanarySampleReading
-    try {
-      reading = await input.read({
-        signal: plan,
-        sampleIndex: slot.sampleIndex,
-        scheduledAt: slot.scheduledAt,
-      })
-    } catch (error) {
-      reading = {
-        ok: false,
-        reason: error instanceof Error ? error.message : String(error),
-      }
-    }
-
-    if (!reading.ok) {
-      observerReadErrors += 1
-      failures.push(`${signal.name} @ ${slot.scheduledAt}: ${reading.reason}`)
-      records[slot.signalIndex]?.push({
-        sampleIndex: slot.sampleIndex,
-        scheduledAt: slot.scheduledAt,
-        observed: false,
-        value: null,
-        breached: false,
-        reason: reading.reason,
-      })
-      continue
-    }
-
-    const breached = !satisfiesThreshold(
-      signal.comparator,
-      reading.value,
-      signal.threshold,
+    const reading = await readCanarySample(input, plan, slot)
+    const outcome = evaluateCanaryReading(
+      signal,
+      slot,
+      reading,
+      input.candidate,
+      configurationHead,
     )
-    if (breached) {
-      failures.push(
-        `${signal.name} @ ${slot.scheduledAt}: ${reading.value} ${signal.unit} breaches ${signal.comparator} ${signal.threshold}`,
-      )
-    }
-    if (
-      reading.identity &&
-      ((reading.identity.releaseSha !== undefined &&
-        reading.identity.releaseSha !== input.candidate.releaseSha) ||
-        (reading.identity.releaseManifestSha256 !== undefined &&
-          reading.identity.releaseManifestSha256 !==
-            input.candidate.releaseManifestSha256))
-    ) {
-      releaseIdentityMismatches += 1
-      failures.push(
-        `${signal.name} @ ${slot.scheduledAt}: RELEASE_SHA/RELEASE_MANIFEST_SHA256 drifted from the candidate`,
-      )
-    }
-    if (reading.configurationHead !== undefined) {
-      configurationHead ??= reading.configurationHead
-      if (reading.configurationHead !== configurationHead) {
-        configurationHeadMismatches += 1
-        failures.push(
-          `${signal.name} @ ${slot.scheduledAt}: configuration head drifted mid-window`,
-        )
-      }
-    }
-    records[slot.signalIndex]?.push({
-      sampleIndex: slot.sampleIndex,
-      scheduledAt: slot.scheduledAt,
-      observed: true,
-      value: reading.value,
-      breached,
-      reason: null,
-    })
+    failures.push(...outcome.failures)
+    if (outcome.readError) observerReadErrors += 1
+    if (outcome.identityMismatch) releaseIdentityMismatches += 1
+    if (outcome.configurationHeadMismatch) configurationHeadMismatches += 1
+    configurationHead = outcome.configurationHead
+    records[slot.signalIndex]?.push(outcome.record)
   }
 
-  if (configurationHead === undefined) {
-    return {
-      ok: false,
-      errors: [
-        'no configuration head was observed during the window; refusing to emit canary evidence with an invented continuity digest',
-      ],
-    }
+  return {
+    records,
+    failures,
+    releaseIdentityMismatches,
+    configurationHeadMismatches,
+    observerReadErrors,
+    configurationHead,
   }
+}
 
-  const dependencies: CanaryDependencyFile[] = [...input.authorities]
+type CanaryObservationBuild = Readonly<{
+  observations: CanaryWindowEvidence['observations']
+  /** Source artifact and sample binding for each signal, in signal order. */
+  dependencies: readonly CanaryDependencyFile[]
+}>
+
+/** Summarize each signal's samples and retain the files those summaries name. */
+function buildCanaryObservations(
+  input: CanaryWindowInput,
+  schedules: readonly (readonly string[])[],
+  records: readonly (readonly SampleRecord[])[],
+): CanaryObservationBuild {
+  const dependencies: CanaryDependencyFile[] = []
   const observations = input.profile.signals.map((signal, index) => {
     const schedule = schedules[index] ?? []
     const samples = records[index] ?? []
@@ -303,11 +389,39 @@ export async function observeCanaryWindow(
       sampleBindingSha256: releaseEvidenceSha256(sampleBinding),
     }
   })
+  return { observations, dependencies }
+}
 
+export async function observeCanaryWindow(
+  input: CanaryWindowInput,
+): Promise<CanaryWindowResult> {
+  const setupErrors = canaryObserverSetupErrors(input)
+  if (setupErrors.length > 0) return { ok: false, errors: setupErrors }
+
+  const startedAtMs = Date.parse(input.startedAt)
+  const schedules = input.profile.signals.map((signal) =>
+    scheduleFor(startedAtMs, input.profile.durationMs, signal.sampleIntervalMs),
+  )
+  const tally = await sampleCanaryWindow(input, canarySampleTimeline(schedules))
+
+  const { configurationHead } = tally
+  if (configurationHead === undefined) {
+    return {
+      ok: false,
+      errors: [
+        'no configuration head was observed during the window; refusing to emit canary evidence with an invented continuity digest',
+      ],
+    }
+  }
+
+  const built = buildCanaryObservations(input, schedules, tally.records)
   const configurationHeadSha256 = releaseEvidenceSha256(configurationHead)
-  dependencies.push({ sha256: configurationHeadSha256, content: configurationHead })
+  const dependencies: readonly CanaryDependencyFile[] = [
+    ...input.authorities,
+    ...built.dependencies,
+    { sha256: configurationHeadSha256, content: configurationHead },
+  ]
 
-  const outcome = failures.length === 0 ? 'passed' : 'failed'
   const evidence: CanaryWindowEvidence = {
     version: 'repkey-canary-window-1',
     evidenceKind: 'canary-window',
@@ -317,17 +431,17 @@ export async function observeCanaryWindow(
     completedAt: new Date(startedAtMs + input.profile.durationMs).toISOString(),
     capturedAt: input.now(),
     profile: input.profile,
-    observations,
+    observations: built.observations,
     continuity: {
-      releaseIdentityMismatches,
-      configurationHeadMismatches,
-      observerReadErrors,
+      releaseIdentityMismatches: tally.releaseIdentityMismatches,
+      configurationHeadMismatches: tally.configurationHeadMismatches,
+      observerReadErrors: tally.observerReadErrors,
       configurationHeadSha256,
     },
     attempts: 1,
     retries: 0,
-    outcome,
-    failures,
+    outcome: tally.failures.length === 0 ? 'passed' : 'failed',
+    failures: [...tally.failures],
   }
 
   // Emit only what the Gate F parser accepts. A summary this module builds but

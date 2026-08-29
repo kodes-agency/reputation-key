@@ -144,15 +144,12 @@ function sortForeignKeys(
   })
 }
 
-export function buildLegacyImportControlInventoryReport(
-  input: LegacyImportControlInventoryInput,
-): LegacyImportControlInventoryReport {
-  if (!Number.isSafeInteger(input.evaluatedAt.getTime())) {
-    throw new Error('legacy_import_control_inventory_time_invalid')
-  }
-
+/** Exactly one count per retained table, each a safe non-negative integer. */
+function collectTableCounts(
+  tableRows: LegacyImportControlInventoryInput['tableRows'],
+): Map<LegacyImportControlTableName, number> {
   const counts = new Map<LegacyImportControlTableName, number>()
-  for (const row of input.tableRows) {
+  for (const row of tableRows) {
     assertSafeCount(row.rowCount)
     if (!TABLE_NAMES.has(row.tableName) || counts.has(row.tableName)) {
       throw new Error('legacy_import_control_inventory_table_mismatch')
@@ -162,29 +159,72 @@ export function buildLegacyImportControlInventoryReport(
   if (counts.size !== LEGACY_IMPORT_CONTROL_TABLES.length) {
     throw new Error('legacy_import_control_inventory_table_mismatch')
   }
+  return counts
+}
+
+/**
+ * A SET column list is only meaningful for SET NULL/DEFAULT, and every column it
+ * names must be a distinct, safe member of the constraint's source columns.
+ */
+function hasWellFormedOnDeleteSetColumns(row: LegacyImportControlForeignKey): boolean {
+  if (row.onDeleteSetColumns === null) return true
+  return (
+    (row.onDelete === 'set_null' || row.onDelete === 'set_default') &&
+    row.onDeleteSetColumns.length > 0 &&
+    new Set(row.onDeleteSetColumns).size === row.onDeleteSetColumns.length &&
+    row.onDeleteSetColumns.every(
+      (column) => isSafeOpaqueIdentifier(column) && row.sourceColumns.includes(column),
+    )
+  )
+}
+
+/** Flat, independent shape rules for one reported foreign key. */
+function isWellFormedForeignKey(row: LegacyImportControlForeignKey): boolean {
+  return (
+    isSafeOpaqueIdentifier(row.constraintName) &&
+    isSafeOpaqueIdentifier(row.sourceSchema) &&
+    isSafeOpaqueIdentifier(row.sourceTable) &&
+    isSafeOpaqueIdentifier(row.targetSchema) &&
+    isSafeOpaqueIdentifier(row.targetTable) &&
+    row.sourceColumns.length > 0 &&
+    row.sourceColumns.length === row.targetColumns.length &&
+    row.sourceColumns.every((column) => isSafeOpaqueIdentifier(column)) &&
+    row.targetColumns.every((column) => isSafeOpaqueIdentifier(column)) &&
+    hasWellFormedOnDeleteSetColumns(row) &&
+    (!row.initiallyDeferred || row.deferrable) &&
+    (isLegacyImportControlTable(row.sourceSchema, row.sourceTable) ||
+      isLegacyImportControlTable(row.targetSchema, row.targetTable))
+  )
+}
+
+function inventoryBlockers(
+  input: Readonly<{
+    totalRows: number
+    externalInboundDependencies: readonly LegacyImportControlForeignKey[]
+    foreignKeys: readonly LegacyImportControlForeignKey[]
+  }>,
+): LegacyImportControlInventoryBlocker[] {
+  const blockers: LegacyImportControlInventoryBlocker[] = []
+  if (input.totalRows > 0) blockers.push('retained_rows_require_export_restore')
+  if (input.externalInboundDependencies.length > 0) {
+    blockers.push('external_foreign_key_dependencies_require_disposition')
+  }
+  if (input.foreignKeys.some(({ validated }) => !validated)) {
+    blockers.push('unvalidated_foreign_keys_require_repair')
+  }
+  return blockers
+}
+
+export function buildLegacyImportControlInventoryReport(
+  input: LegacyImportControlInventoryInput,
+): LegacyImportControlInventoryReport {
+  if (!Number.isSafeInteger(input.evaluatedAt.getTime())) {
+    throw new Error('legacy_import_control_inventory_time_invalid')
+  }
+
+  const counts = collectTableCounts(input.tableRows)
   for (const row of input.foreignKeys) {
-    if (
-      !isSafeOpaqueIdentifier(row.constraintName) ||
-      !isSafeOpaqueIdentifier(row.sourceSchema) ||
-      !isSafeOpaqueIdentifier(row.sourceTable) ||
-      !isSafeOpaqueIdentifier(row.targetSchema) ||
-      !isSafeOpaqueIdentifier(row.targetTable) ||
-      row.sourceColumns.length === 0 ||
-      row.sourceColumns.length !== row.targetColumns.length ||
-      row.sourceColumns.some((column) => !isSafeOpaqueIdentifier(column)) ||
-      row.targetColumns.some((column) => !isSafeOpaqueIdentifier(column)) ||
-      (row.onDeleteSetColumns !== null &&
-        ((row.onDelete !== 'set_null' && row.onDelete !== 'set_default') ||
-          row.onDeleteSetColumns.length === 0 ||
-          new Set(row.onDeleteSetColumns).size !== row.onDeleteSetColumns.length ||
-          row.onDeleteSetColumns.some(
-            (column) =>
-              !isSafeOpaqueIdentifier(column) || !row.sourceColumns.includes(column),
-          ))) ||
-      (row.initiallyDeferred && !row.deferrable) ||
-      (!isLegacyImportControlTable(row.sourceSchema, row.sourceTable) &&
-        !isLegacyImportControlTable(row.targetSchema, row.targetTable))
-    ) {
+    if (!isWellFormedForeignKey(row)) {
       throw new Error('legacy_import_control_inventory_foreign_key_invalid')
     }
   }
@@ -208,14 +248,11 @@ export function buildLegacyImportControlInventoryReport(
       isLegacyImportControlTable(sourceSchema, sourceTable) &&
       !isLegacyImportControlTable(targetSchema, targetTable),
   )
-  const blockers: LegacyImportControlInventoryBlocker[] = []
-  if (totalRows > 0) blockers.push('retained_rows_require_export_restore')
-  if (externalInboundDependencies.length > 0) {
-    blockers.push('external_foreign_key_dependencies_require_disposition')
-  }
-  if (foreignKeys.some(({ validated }) => !validated)) {
-    blockers.push('unvalidated_foreign_keys_require_repair')
-  }
+  const blockers = inventoryBlockers({
+    totalRows,
+    externalInboundDependencies,
+    foreignKeys,
+  })
 
   const evidence = {
     version: 'legacy-import-control-inventory-v1' as const,

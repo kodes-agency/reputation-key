@@ -19,29 +19,49 @@ function digestConfiguration(configuration: PortalPublicationConfiguration): str
     .digest('hex')
 }
 
-function assertPublicationInput(
-  input: Readonly<{
-    id: string
-    portalId: string
-    organizationId: string
-    propertyId: string
-    version: number
-    source: PortalPublicationSource
-    destination: VerifiedPublicationDestination
-    createdBy: string
-    createdAt: Date
-  }>,
-): void {
-  if (
-    input.id.length === 0 ||
-    input.portalId.length === 0 ||
-    input.organizationId.length === 0 ||
-    input.propertyId.length === 0 ||
-    input.createdBy.length === 0 ||
-    input.source.portal.id !== input.portalId ||
-    input.source.organizationId !== input.organizationId ||
-    input.source.propertyId !== input.propertyId
-  ) {
+type PublicationInput = Readonly<{
+  id: string
+  portalId: string
+  organizationId: string
+  propertyId: string
+  version: number
+  source: PortalPublicationSource
+  destination: VerifiedPublicationDestination
+  createdBy: string
+  createdAt: Date
+}>
+
+/** Every identifier is present and the source agrees with the declared scope. */
+function hasConsistentPublicationScope(input: PublicationInput): boolean {
+  return (
+    input.id.length > 0 &&
+    input.portalId.length > 0 &&
+    input.organizationId.length > 0 &&
+    input.propertyId.length > 0 &&
+    input.createdBy.length > 0 &&
+    input.source.portal.id === input.portalId &&
+    input.source.organizationId === input.organizationId &&
+    input.source.propertyId === input.propertyId
+  )
+}
+
+/** Every field of the verified Google destination binding is present and in range. */
+function isCompleteVerifiedDestination(
+  destination: VerifiedPublicationDestination,
+): boolean {
+  return (
+    destination.state === 'verified' &&
+    destination.uri.length > 0 &&
+    !Number.isNaN(destination.retrievedAt.getTime()) &&
+    Number.isSafeInteger(destination.sourceEpoch) &&
+    destination.sourceEpoch >= 0 &&
+    Number.isSafeInteger(destination.profileVersion) &&
+    destination.profileVersion >= 1
+  )
+}
+
+function assertPublicationInput(input: PublicationInput): void {
+  if (!hasConsistentPublicationScope(input)) {
     throw portalError(
       'publication_snapshot_unavailable',
       'Portal publication scope is incomplete or inconsistent',
@@ -64,13 +84,7 @@ function assertPublicationInput(
     )
   }
   if (
-    input.destination.state !== 'verified' ||
-    input.destination.uri.length === 0 ||
-    Number.isNaN(input.destination.retrievedAt.getTime()) ||
-    !Number.isSafeInteger(input.destination.sourceEpoch) ||
-    input.destination.sourceEpoch < 0 ||
-    !Number.isSafeInteger(input.destination.profileVersion) ||
-    input.destination.profileVersion < 1 ||
+    !isCompleteVerifiedDestination(input.destination) ||
     Number.isNaN(input.createdAt.getTime())
   ) {
     throw portalError(
@@ -84,17 +98,7 @@ function assertPublicationInput(
 }
 
 export function buildPortalPublicationSnapshot(
-  input: Readonly<{
-    id: string
-    portalId: string
-    organizationId: string
-    propertyId: string
-    version: number
-    source: PortalPublicationSource
-    destination: VerifiedPublicationDestination
-    createdBy: string
-    createdAt: Date
-  }>,
+  input: PublicationInput,
 ): PortalPublicationSnapshot {
   assertPublicationInput(input)
   const common = {
@@ -157,12 +161,10 @@ export function buildPortalPublicationSnapshot(
   }
 }
 
-/** Fail-closed integrity check for content read back from durable storage. */
-export function verifyPortalPublicationSnapshot(
-  snapshot: PortalPublicationSnapshot,
-): boolean {
+/** Scope, review-gateway range and destination binding all agree with the snapshot row. */
+function hasConsistentSnapshotBinding(snapshot: PortalPublicationSnapshot): boolean {
   const configuration = snapshot.configuration
-  const commonIsValid =
+  return (
     snapshot.id.length > 0 &&
     snapshot.portalId.length > 0 &&
     snapshot.organizationId.length > 0 &&
@@ -182,31 +184,44 @@ export function verifyPortalPublicationSnapshot(
     configuration.googleReviewBinding.profileVersion ===
       snapshot.destinationProfileVersion &&
     !Number.isNaN(snapshot.createdAt.getTime())
-  if (!commonIsValid) return false
+  )
+}
+
+/** The content required by the configuration's own schema version is present and complete. */
+function hasCompleteSchemaVersionedContent(
+  configuration: PortalPublicationConfiguration,
+): boolean {
   if (configuration.schemaVersion === LEGACY_PORTAL_PUBLICATION_SCHEMA_VERSION) {
-    if (
-      configuration.guestLocale !== PRIMARY_GUEST_LOCALE ||
-      configuration.languagePackVersion !== PRIMARY_GUEST_LANGUAGE_PACK_VERSION
-    ) {
-      return false
-    }
-  } else if (configuration.schemaVersion === PORTAL_PUBLICATION_SCHEMA_VERSION) {
-    try {
-      assertCompletePortalPublicationExperience({
-        primaryGuestLocale: configuration.guestLocale,
-        localeSet: configuration.localeSet,
-        languagePackVersions: {
-          en: configuration.languagePackVersions.en ?? '',
-          bg: configuration.languagePackVersions.bg ?? '',
-        },
-        localizedContent: configuration.localizedContent,
-        brandProfile: configuration.brandProfile,
-      })
-    } catch {
-      return false
-    }
-  } else {
+    return (
+      configuration.guestLocale === PRIMARY_GUEST_LOCALE &&
+      configuration.languagePackVersion === PRIMARY_GUEST_LANGUAGE_PACK_VERSION
+    )
+  }
+  // Fail closed on any schema version this build does not know how to check.
+  if (configuration.schemaVersion !== PORTAL_PUBLICATION_SCHEMA_VERSION) return false
+  try {
+    assertCompletePortalPublicationExperience({
+      primaryGuestLocale: configuration.guestLocale,
+      localeSet: configuration.localeSet,
+      languagePackVersions: {
+        en: configuration.languagePackVersions.en ?? '',
+        bg: configuration.languagePackVersions.bg ?? '',
+      },
+      localizedContent: configuration.localizedContent,
+      brandProfile: configuration.brandProfile,
+    })
+    return true
+  } catch {
     return false
   }
+}
+
+/** Fail-closed integrity check for content read back from durable storage. */
+export function verifyPortalPublicationSnapshot(
+  snapshot: PortalPublicationSnapshot,
+): boolean {
+  if (!hasConsistentSnapshotBinding(snapshot)) return false
+  const configuration = snapshot.configuration
+  if (!hasCompleteSchemaVersionedContent(configuration)) return false
   return digestConfiguration(configuration) === snapshot.configurationDigest
 }

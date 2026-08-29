@@ -164,6 +164,126 @@ async function reconcileItemBatch(
   }
 }
 
+/** Pass A: walk every existing review-sourced item in keyset-bounded batches. */
+async function reconcileExistingItems(
+  deps: RebuildInboxProjectionDeps,
+  input: RebuildInboxProjectionInput,
+  sourceById: ReadonlyMap<string, ReviewSourceMeta>,
+  seenSourceIds: Set<string>,
+  counters: Counters,
+  now: Date,
+  batchSize: number,
+): Promise<void> {
+  let cursor: InboxItemId | undefined
+  for (;;) {
+    const batch = await deps.repo.scanReviewItems(input.organizationId, {
+      propertyId: input.propertyId,
+      cursor,
+      limit: batchSize,
+    })
+    if (batch.length === 0) break
+    await reconcileItemBatch(
+      deps,
+      batch,
+      sourceById,
+      seenSourceIds,
+      counters,
+      now,
+      input.dryRun,
+    )
+    cursor = batch[batch.length - 1]!.id
+    if (batch.length < batchSize) break
+  }
+}
+
+/**
+ * Pass B, one review: materialize metadata plus an OPEN initial cycle. A review
+ * without a stable material revision, or one the constructor rejects, is
+ * reported and skipped rather than guessed at.
+ */
+async function materializeMissingItem(
+  deps: RebuildInboxProjectionDeps,
+  input: RebuildInboxProjectionInput,
+  src: ReviewSourceMeta,
+  milestones: ReadonlyMap<string, ReplyMilestones>,
+  counters: Counters,
+): Promise<void> {
+  if (src.materialReviewRevision === null) {
+    deps.logger.warn(
+      {},
+      'rebuildInboxProjection: skipping review without a stable material revision',
+    )
+    return
+  }
+  const built = buildInboxItem({
+    id: deps.idGen(),
+    organizationId: input.organizationId,
+    propertyId: src.propertyId,
+    sourceType: 'review',
+    sourceId: src.id,
+    sourceDate: src.sourceDate,
+    platform: src.platform,
+    assignedTo: null,
+    clock: deps.clock,
+  })
+  if (built.isErr()) {
+    deps.logger.warn(
+      { err: built.error },
+      'rebuildInboxProjection: skipping review — item construction failed',
+    )
+    return
+  }
+
+  const reply = milestones.get(src.id as string)
+  const item: InboxItem = {
+    ...built.value,
+    status: 'open',
+    closedAt: null,
+    firstReplySubmittedAt: reply?.firstSubmittedAt ?? null,
+    firstReplyPublishedAt: reply?.firstPublishedAt ?? null,
+  }
+
+  counters.created += 1
+  if (item.firstReplySubmittedAt ?? item.firstReplyPublishedAt) {
+    counters.milestones += 1
+  }
+  if (input.dryRun) return
+  // Idempotent create, NO created/status fact — rebuild is repair, not
+  // new information; the durable record is this report.
+  await deps.commandStore.createItem(item, null, {
+    materialReviewRevision: src.materialReviewRevision,
+  })
+}
+
+/**
+ * Pass B: canonical reviews with no inbox item. Reply milestones resolve in
+ * bounded chunks. This repair path cannot infer a current handling outcome from
+ * expiry or historical Reply milestones.
+ */
+async function materializeMissingItems(
+  deps: RebuildInboxProjectionDeps,
+  input: RebuildInboxProjectionInput,
+  missingSources: ReadonlyArray<ReviewSourceMeta>,
+  counters: Counters,
+  batchSize: number,
+): Promise<void> {
+  for (let offset = 0; offset < missingSources.length; offset += batchSize) {
+    const batch = missingSources.slice(offset, offset + batchSize)
+    const liveIds = batch.map((source) => source.id)
+    const milestones =
+      liveIds.length > 0
+        ? await deps.replyLookup.getReplyMilestonesByReviewIds(
+            liveIds,
+            input.organizationId,
+          )
+        : new Map<string, ReplyMilestones>()
+
+    for (const src of batch) {
+      await materializeMissingItem(deps, input, src, milestones, counters)
+    }
+  }
+}
+
 export const rebuildInboxProjection =
   (deps: RebuildInboxProjectionDeps): RebuildInboxProjection =>
   async (input) => {
@@ -178,96 +298,21 @@ export const rebuildInboxProjection =
     const sourceById = new Map(sources.map((s) => [s.id as string, s]))
     const seenSourceIds = new Set<string>()
 
-    // Pass A — existing review-sourced items, keyset-bounded batches.
-    let cursor: InboxItemId | undefined
-    for (;;) {
-      const batch = await deps.repo.scanReviewItems(input.organizationId, {
-        propertyId: input.propertyId,
-        cursor,
-        limit: batchSize,
-      })
-      if (batch.length === 0) break
-      await reconcileItemBatch(
-        deps,
-        batch,
-        sourceById,
-        seenSourceIds,
-        counters,
-        now,
-        input.dryRun,
-      )
-      cursor = batch[batch.length - 1]!.id
-      if (batch.length < batchSize) break
-    }
+    await reconcileExistingItems(
+      deps,
+      input,
+      sourceById,
+      seenSourceIds,
+      counters,
+      now,
+      batchSize,
+    )
 
-    // Pass B — canonical reviews with no inbox item. Resolve reply milestones
-    // in bounded chunks, then materialize metadata plus an OPEN initial cycle.
-    // This repair path cannot infer a current handling outcome from expiry or
-    // historical Reply milestones.
     counters.scanned += sources.length
     const missingSources = sources.filter(
       (source) => !seenSourceIds.has(source.id as string),
     )
-    for (let offset = 0; offset < missingSources.length; offset += batchSize) {
-      const batch = missingSources.slice(offset, offset + batchSize)
-      const liveIds = batch.map((source) => source.id)
-      const milestones =
-        liveIds.length > 0
-          ? await deps.replyLookup.getReplyMilestonesByReviewIds(
-              liveIds,
-              input.organizationId,
-            )
-          : new Map<string, ReplyMilestones>()
-
-      for (const src of batch) {
-        if (src.materialReviewRevision === null) {
-          deps.logger.warn(
-            {},
-            'rebuildInboxProjection: skipping review without a stable material revision',
-          )
-          continue
-        }
-        const built = buildInboxItem({
-          id: deps.idGen(),
-          organizationId: input.organizationId,
-          propertyId: src.propertyId,
-          sourceType: 'review',
-          sourceId: src.id,
-          sourceDate: src.sourceDate,
-          platform: src.platform,
-          assignedTo: null,
-          clock: deps.clock,
-        })
-        if (built.isErr()) {
-          deps.logger.warn(
-            { err: built.error },
-            'rebuildInboxProjection: skipping review — item construction failed',
-          )
-          continue
-        }
-
-        const reply = milestones.get(src.id as string)
-        const item: InboxItem = {
-          ...built.value,
-          status: 'open',
-          closedAt: null,
-          firstReplySubmittedAt: reply?.firstSubmittedAt ?? null,
-          firstReplyPublishedAt: reply?.firstPublishedAt ?? null,
-        }
-
-        counters.created += 1
-        if (item.firstReplySubmittedAt ?? item.firstReplyPublishedAt) {
-          counters.milestones += 1
-        }
-        if (!input.dryRun) {
-          // Idempotent create, NO created/status fact — rebuild is repair, not
-          // new information; the durable record is this report.
-          await deps.commandStore.createItem(item, null, {
-            materialReviewRevision: src.materialReviewRevision,
-          })
-        }
-      }
-    }
+    await materializeMissingItems(deps, input, missingSources, counters, batchSize)
 
     return { ...counters, dryRun: input.dryRun }
   }

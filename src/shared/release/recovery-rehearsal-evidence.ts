@@ -156,6 +156,154 @@ const incompatibleDataRestoreSchema = commonSchema.extend({
     .strict(),
 })
 
+type CompatibleImageRollbackEvidence = z.infer<typeof compatibleImageRollbackSchema>
+type IncompatibleDataRestoreEvidence = z.infer<typeof incompatibleDataRestoreSchema>
+
+/**
+ * The rehearsal clock must run review → compatibility decision → start →
+ * completion → capture. Anything else means the record was assembled after the
+ * fact rather than observed.
+ */
+function refineRehearsalTiming(
+  value: Readonly<{
+    capturedAt: string
+    operator: Readonly<{ reviewedAt: string }>
+    compatibilityDecision: Readonly<{ capturedAt: string }>
+  }>,
+  startedAt: number,
+  completedAt: number,
+  context: z.RefinementCtx,
+): void {
+  if (completedAt < startedAt) {
+    context.addIssue({
+      code: 'custom',
+      path: ['completedAt'],
+      message: 'completion predates rehearsal start',
+    })
+  }
+  if (Date.parse(value.capturedAt) < completedAt) {
+    context.addIssue({
+      code: 'custom',
+      path: ['capturedAt'],
+      message: 'capture predates rehearsal completion',
+    })
+  }
+  if (Date.parse(value.operator.reviewedAt) > startedAt) {
+    context.addIssue({
+      code: 'custom',
+      path: ['operator', 'reviewedAt'],
+      message: 'independent review must precede rehearsal mutation',
+    })
+  }
+  if (Date.parse(value.compatibilityDecision.capturedAt) > startedAt) {
+    context.addIssue({
+      code: 'custom',
+      path: ['compatibilityDecision', 'capturedAt'],
+      message: 'compatibility decision must precede rehearsal mutation',
+    })
+  }
+}
+
+/** Reports issues and returns whether every rollback-path invariant held. */
+function refineCompatibleImageRollback(
+  value: CompatibleImageRollbackEvidence,
+  startedAt: number,
+  context: z.RefinementCtx,
+): boolean {
+  if (value.priorRelease.manifestSha256 === value.candidate.releaseManifestSha256) {
+    context.addIssue({
+      code: 'custom',
+      path: ['priorRelease', 'manifestSha256'],
+      message: 'rollback target must be a distinct prior release manifest',
+    })
+  }
+  if (
+    Date.parse(value.priorRelease.fullCandidatePlan.capturedAt) > startedAt ||
+    Date.parse(value.priorRelease.reviewedPlanApproval.capturedAt) > startedAt
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['priorRelease'],
+      message: 'reviewed rollback plan must precede rehearsal mutation',
+    })
+  }
+  return (
+    value.verification.releaseIdentityConsistent &&
+    value.verification.queueOutboxConsistent &&
+    value.verification.committedDataLossCount === 0 &&
+    value.verification.duplicateExternalEffectCount === 0 &&
+    value.verification.unsafeExternalEffectCount === 0
+  )
+}
+
+/** Reports issues and returns whether every restore-path invariant held. */
+function refineIncompatibleDataRestore(
+  value: IncompatibleDataRestoreEvidence,
+  startedAt: number,
+  context: z.RefinementCtx,
+): boolean {
+  if (value.restore.sourcePostgresServiceId === value.restore.siblingPostgresServiceId) {
+    context.addIssue({
+      code: 'custom',
+      path: ['restore', 'siblingPostgresServiceId'],
+      message: 'restore target must be a distinct sibling Postgres service',
+    })
+  }
+  if (
+    Date.parse(value.restore.reviewedRestorePlan.capturedAt) > startedAt ||
+    Date.parse(value.restore.reviewedPlanApproval.capturedAt) > startedAt
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['restore'],
+      message: 'reviewed restore plan must precede rehearsal mutation',
+    })
+  }
+  const redisIds = Object.values(value.restore.freshRedis).map(
+    ({ serviceId }) => serviceId,
+  )
+  if (new Set(redisIds).size !== redisIds.length) {
+    context.addIssue({
+      code: 'custom',
+      path: ['restore', 'freshRedis'],
+      message: 'cache, queue, and provider Redis services must be distinct',
+    })
+  }
+  if (
+    Date.parse(value.restore.latestCommittedAt) -
+      Date.parse(value.restore.restorePointAt) !==
+    value.objectives.rpoMs
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['objectives', 'rpoMs'],
+      message: 'RPO must equal the measured restore-point data-loss interval',
+    })
+  }
+  if (
+    Date.parse(value.restore.readinessRecoveredAt) -
+      Date.parse(value.restore.restoreStartedAt) !==
+    value.objectives.rtoMs
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['objectives', 'rtoMs'],
+      message: 'RTO must equal the measured restore-to-readiness interval',
+    })
+  }
+  return (
+    value.objectives.rpoMs <= RECOVERY_RPO_TARGET_MS &&
+    value.objectives.rtoMs <= RECOVERY_RTO_TARGET_MS &&
+    value.verification.readinessGreen &&
+    value.verification.canaryReadPassed &&
+    value.verification.queueOutboxConsistent &&
+    value.verification.committedSourceIntegrityPassed &&
+    value.verification.committedDataLossCount === 0 &&
+    value.verification.duplicateExternalEffectCount === 0 &&
+    value.verification.unsafeExternalEffectCount === 0
+  )
+}
+
 const recoveryRehearsalEvidenceSchema = z
   .discriminatedUnion('recoveryPath', [
     compatibleImageRollbackSchema,
@@ -164,123 +312,12 @@ const recoveryRehearsalEvidenceSchema = z
   .superRefine((value, context) => {
     const startedAt = Date.parse(value.startedAt)
     const completedAt = Date.parse(value.completedAt)
-    if (completedAt < startedAt) {
-      context.addIssue({
-        code: 'custom',
-        path: ['completedAt'],
-        message: 'completion predates rehearsal start',
-      })
-    }
-    if (Date.parse(value.capturedAt) < completedAt) {
-      context.addIssue({
-        code: 'custom',
-        path: ['capturedAt'],
-        message: 'capture predates rehearsal completion',
-      })
-    }
-    if (Date.parse(value.operator.reviewedAt) > startedAt) {
-      context.addIssue({
-        code: 'custom',
-        path: ['operator', 'reviewedAt'],
-        message: 'independent review must precede rehearsal mutation',
-      })
-    }
-    if (Date.parse(value.compatibilityDecision.capturedAt) > startedAt) {
-      context.addIssue({
-        code: 'custom',
-        path: ['compatibilityDecision', 'capturedAt'],
-        message: 'compatibility decision must precede rehearsal mutation',
-      })
-    }
+    refineRehearsalTiming(value, startedAt, completedAt, context)
 
-    let passing: boolean
-    if (value.recoveryPath === 'compatible_image_rollback') {
-      if (value.priorRelease.manifestSha256 === value.candidate.releaseManifestSha256) {
-        context.addIssue({
-          code: 'custom',
-          path: ['priorRelease', 'manifestSha256'],
-          message: 'rollback target must be a distinct prior release manifest',
-        })
-      }
-      if (
-        Date.parse(value.priorRelease.fullCandidatePlan.capturedAt) > startedAt ||
-        Date.parse(value.priorRelease.reviewedPlanApproval.capturedAt) > startedAt
-      ) {
-        context.addIssue({
-          code: 'custom',
-          path: ['priorRelease'],
-          message: 'reviewed rollback plan must precede rehearsal mutation',
-        })
-      }
-      passing =
-        value.verification.releaseIdentityConsistent &&
-        value.verification.queueOutboxConsistent &&
-        value.verification.committedDataLossCount === 0 &&
-        value.verification.duplicateExternalEffectCount === 0 &&
-        value.verification.unsafeExternalEffectCount === 0
-    } else {
-      if (
-        value.restore.sourcePostgresServiceId === value.restore.siblingPostgresServiceId
-      ) {
-        context.addIssue({
-          code: 'custom',
-          path: ['restore', 'siblingPostgresServiceId'],
-          message: 'restore target must be a distinct sibling Postgres service',
-        })
-      }
-      if (
-        Date.parse(value.restore.reviewedRestorePlan.capturedAt) > startedAt ||
-        Date.parse(value.restore.reviewedPlanApproval.capturedAt) > startedAt
-      ) {
-        context.addIssue({
-          code: 'custom',
-          path: ['restore'],
-          message: 'reviewed restore plan must precede rehearsal mutation',
-        })
-      }
-      const redisIds = Object.values(value.restore.freshRedis).map(
-        ({ serviceId }) => serviceId,
-      )
-      if (new Set(redisIds).size !== redisIds.length) {
-        context.addIssue({
-          code: 'custom',
-          path: ['restore', 'freshRedis'],
-          message: 'cache, queue, and provider Redis services must be distinct',
-        })
-      }
-      if (
-        Date.parse(value.restore.latestCommittedAt) -
-          Date.parse(value.restore.restorePointAt) !==
-        value.objectives.rpoMs
-      ) {
-        context.addIssue({
-          code: 'custom',
-          path: ['objectives', 'rpoMs'],
-          message: 'RPO must equal the measured restore-point data-loss interval',
-        })
-      }
-      if (
-        Date.parse(value.restore.readinessRecoveredAt) -
-          Date.parse(value.restore.restoreStartedAt) !==
-        value.objectives.rtoMs
-      ) {
-        context.addIssue({
-          code: 'custom',
-          path: ['objectives', 'rtoMs'],
-          message: 'RTO must equal the measured restore-to-readiness interval',
-        })
-      }
-      passing =
-        value.objectives.rpoMs <= RECOVERY_RPO_TARGET_MS &&
-        value.objectives.rtoMs <= RECOVERY_RTO_TARGET_MS &&
-        value.verification.readinessGreen &&
-        value.verification.canaryReadPassed &&
-        value.verification.queueOutboxConsistent &&
-        value.verification.committedSourceIntegrityPassed &&
-        value.verification.committedDataLossCount === 0 &&
-        value.verification.duplicateExternalEffectCount === 0 &&
-        value.verification.unsafeExternalEffectCount === 0
-    }
+    const passing =
+      value.recoveryPath === 'compatible_image_rollback'
+        ? refineCompatibleImageRollback(value, startedAt, context)
+        : refineIncompatibleDataRestore(value, startedAt, context)
 
     if (value.outcome === 'passed' && (!passing || value.failures.length !== 0)) {
       context.addIssue({

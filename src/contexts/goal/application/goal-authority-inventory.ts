@@ -391,6 +391,38 @@ const allowedLegacyPosture: Readonly<Record<GoalAuthorityKind, GoalAuthorityPost
   ui: 'not_routed',
 }
 
+/** The canonical family: every entry must be beta-active and canonical. */
+function canonicalEntryViolations(entry: GoalAuthorityEntry): readonly string[] {
+  return entry.betaPosture !== 'active' || entry.dataDisposition !== 'canonical'
+    ? [`${entry.id}: canonical Goal Program entry must be active`]
+    : []
+}
+
+/**
+ * A retained legacy entry must stay switched off, keep its data retained, and
+ * carry the disabled posture its kind prescribes — a read may instead be
+ * denied at the entry point.
+ */
+function legacyEntryViolations(entry: GoalAuthorityEntry): readonly string[] {
+  const violations: string[] = []
+  if (entry.betaPosture === 'active') {
+    violations.push(`${entry.id}: retained legacy entry cannot be beta-active`)
+  }
+  if (entry.dataDisposition !== 'retained') {
+    violations.push(`${entry.id}: retained historical data must remain retained`)
+  }
+  const expectedPosture = allowedLegacyPosture[entry.kind]
+  if (
+    entry.betaPosture !== expectedPosture &&
+    !(entry.kind === 'read' && entry.betaPosture === 'denied_at_entry')
+  ) {
+    violations.push(
+      `${entry.id}: ${entry.kind} must be ${expectedPosture}${entry.kind === 'read' ? ' or denied_at_entry' : ''}`,
+    )
+  }
+  return violations
+}
+
 export function goalBetaAuthorityViolations(
   entries: readonly GoalAuthorityEntry[] = [
     ...RETAINED_LEGACY_GOAL_AUTHORITY,
@@ -406,28 +438,11 @@ export function goalBetaAuthorityViolations(
     seen.add(entry.id)
 
     if (entry.betaPosture === 'active') activeFamilies.add(entry.family)
-    if (entry.family === 'goal_program') {
-      if (entry.betaPosture !== 'active' || entry.dataDisposition !== 'canonical') {
-        violations.push(`${entry.id}: canonical Goal Program entry must be active`)
-      }
-      continue
-    }
-
-    if (entry.betaPosture === 'active') {
-      violations.push(`${entry.id}: retained legacy entry cannot be beta-active`)
-    }
-    if (entry.dataDisposition !== 'retained') {
-      violations.push(`${entry.id}: retained historical data must remain retained`)
-    }
-    const expectedPosture = allowedLegacyPosture[entry.kind]
-    if (
-      entry.betaPosture !== expectedPosture &&
-      !(entry.kind === 'read' && entry.betaPosture === 'denied_at_entry')
-    ) {
-      violations.push(
-        `${entry.id}: ${entry.kind} must be ${expectedPosture}${entry.kind === 'read' ? ' or denied_at_entry' : ''}`,
-      )
-    }
+    violations.push(
+      ...(entry.family === 'goal_program'
+        ? canonicalEntryViolations(entry)
+        : legacyEntryViolations(entry)),
+    )
   }
 
   if (activeFamilies.size !== 1 || !activeFamilies.has('goal_program')) {

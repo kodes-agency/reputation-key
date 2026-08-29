@@ -136,7 +136,7 @@ const checklistFactSchema = z
   })
   .strict()
 
-const legalApprovalChecklistSchema = z
+const legalApprovalChecklistObjectSchema = z
   .object({
     version: z.literal(LEGAL_APPROVAL_CHECKLIST_VERSION),
     evidenceKind: z.literal('legal-approval-checklist'),
@@ -155,7 +155,118 @@ const legalApprovalChecklistSchema = z
     failures: z.array(z.string().trim().min(1).max(1024)),
   })
   .strict()
-  .superRefine((value, context) => {
+
+type LegalApprovalChecklistShape = z.infer<typeof legalApprovalChecklistObjectSchema>
+
+/** Every required legal document must be listed once, at its tracked path. */
+function refineChecklistDocuments(
+  value: LegalApprovalChecklistShape,
+  context: z.RefinementCtx,
+): void {
+  const documentIds = value.documents.map(({ documentId }) => documentId)
+  if (new Set(documentIds).size !== documentIds.length) {
+    context.addIssue({
+      code: 'custom',
+      path: ['documents'],
+      message: 'duplicate legal document id',
+    })
+  }
+  for (const required of LEGAL_CHECKLIST_DOCUMENTS) {
+    const entry = value.documents.find(
+      (document) => document.documentId === required.documentId,
+    )
+    if (!entry) {
+      context.addIssue({
+        code: 'custom',
+        path: ['documents'],
+        message: `missing required legal document ${required.documentId}`,
+      })
+      continue
+    }
+    if (entry.path !== required.path) {
+      context.addIssue({
+        code: 'custom',
+        path: ['documents'],
+        message: `document ${required.documentId} must be ${required.path}`,
+      })
+    }
+    if (Date.parse(entry.expiresAt) <= Date.parse(entry.effectiveAt)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['documents'],
+        message: `document ${required.documentId}: expiry must postdate the effective date`,
+      })
+    }
+  }
+}
+
+/** Every LEG-01 fact must be decided once, before counsel approved. */
+function refineChecklistFacts(
+  value: LegalApprovalChecklistShape,
+  context: z.RefinementCtx,
+): void {
+  const factKeys = value.facts.map(({ key }) => key)
+  if (new Set(factKeys).size !== factKeys.length) {
+    context.addIssue({
+      code: 'custom',
+      path: ['facts'],
+      message: 'duplicate LEG-01 fact key',
+    })
+  }
+  for (const key of LEG_01_REQUIRED_FACT_KEYS) {
+    const fact = value.facts.find((entry) => entry.key === key)
+    if (!fact) {
+      context.addIssue({
+        code: 'custom',
+        path: ['facts'],
+        message: `missing required LEG-01 fact ${key}`,
+      })
+      continue
+    }
+    if (!fact.decided) {
+      context.addIssue({
+        code: 'custom',
+        path: ['facts'],
+        message: `LEG-01 fact ${key} is undecided`,
+      })
+    }
+    if (Date.parse(fact.decidedAt) > Date.parse(value.approvedAt)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['facts'],
+        message: `LEG-01 fact ${key} was decided after counsel approval`,
+      })
+    }
+  }
+}
+
+/** Approval must fall inside its own validity window, and precede capture. */
+function refineChecklistApprovalWindow(
+  value: LegalApprovalChecklistShape,
+  context: z.RefinementCtx,
+): void {
+  const approvedAt = Date.parse(value.approvedAt)
+  if (
+    approvedAt < Date.parse(value.effectiveAt) ||
+    approvedAt > Date.parse(value.expiresAt)
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['approvedAt'],
+      message: 'counsel approval falls outside the [effectiveAt, expiresAt] window',
+    })
+  }
+  if (Date.parse(value.capturedAt) < approvedAt) {
+    context.addIssue({
+      code: 'custom',
+      path: ['capturedAt'],
+      message: 'capture predates counsel approval',
+    })
+  }
+}
+
+const legalApprovalChecklistSchema = legalApprovalChecklistObjectSchema.superRefine(
+  (value, context) => {
     if (value.outcome === 'passed' && value.failures.length !== 0) {
       context.addIssue({
         code: 'custom',
@@ -171,95 +282,11 @@ const legalApprovalChecklistSchema = z
       })
     }
 
-    const documentIds = value.documents.map(({ documentId }) => documentId)
-    if (new Set(documentIds).size !== documentIds.length) {
-      context.addIssue({
-        code: 'custom',
-        path: ['documents'],
-        message: 'duplicate legal document id',
-      })
-    }
-    for (const required of LEGAL_CHECKLIST_DOCUMENTS) {
-      const entry = value.documents.find(
-        (document) => document.documentId === required.documentId,
-      )
-      if (!entry) {
-        context.addIssue({
-          code: 'custom',
-          path: ['documents'],
-          message: `missing required legal document ${required.documentId}`,
-        })
-        continue
-      }
-      if (entry.path !== required.path) {
-        context.addIssue({
-          code: 'custom',
-          path: ['documents'],
-          message: `document ${required.documentId} must be ${required.path}`,
-        })
-      }
-      if (Date.parse(entry.expiresAt) <= Date.parse(entry.effectiveAt)) {
-        context.addIssue({
-          code: 'custom',
-          path: ['documents'],
-          message: `document ${required.documentId}: expiry must postdate the effective date`,
-        })
-      }
-    }
-
-    const factKeys = value.facts.map(({ key }) => key)
-    if (new Set(factKeys).size !== factKeys.length) {
-      context.addIssue({
-        code: 'custom',
-        path: ['facts'],
-        message: 'duplicate LEG-01 fact key',
-      })
-    }
-    for (const key of LEG_01_REQUIRED_FACT_KEYS) {
-      const fact = value.facts.find((entry) => entry.key === key)
-      if (!fact) {
-        context.addIssue({
-          code: 'custom',
-          path: ['facts'],
-          message: `missing required LEG-01 fact ${key}`,
-        })
-        continue
-      }
-      if (!fact.decided) {
-        context.addIssue({
-          code: 'custom',
-          path: ['facts'],
-          message: `LEG-01 fact ${key} is undecided`,
-        })
-      }
-      if (Date.parse(fact.decidedAt) > Date.parse(value.approvedAt)) {
-        context.addIssue({
-          code: 'custom',
-          path: ['facts'],
-          message: `LEG-01 fact ${key} was decided after counsel approval`,
-        })
-      }
-    }
-
-    const approvedAt = Date.parse(value.approvedAt)
-    if (
-      approvedAt < Date.parse(value.effectiveAt) ||
-      approvedAt > Date.parse(value.expiresAt)
-    ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['approvedAt'],
-        message: 'counsel approval falls outside the [effectiveAt, expiresAt] window',
-      })
-    }
-    if (Date.parse(value.capturedAt) < approvedAt) {
-      context.addIssue({
-        code: 'custom',
-        path: ['capturedAt'],
-        message: 'capture predates counsel approval',
-      })
-    }
-  })
+    refineChecklistDocuments(value, context)
+    refineChecklistFacts(value, context)
+    refineChecklistApprovalWindow(value, context)
+  },
+)
 
 export type LegalApprovalChecklist = z.infer<typeof legalApprovalChecklistSchema>
 

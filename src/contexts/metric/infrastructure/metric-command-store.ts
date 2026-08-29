@@ -69,6 +69,271 @@ const portalLifetimeFactsEqual = (
   right: PortalLifetimeFact | null,
 ): boolean => JSON.stringify(left ?? null) === JSON.stringify(right)
 
+type MetricTx = Parameters<Parameters<Database['transaction']>[0]>[0]
+
+/** The negative lifetime contribution a superseded reading must give back. */
+function priorPortalLifetimeRetraction(
+  prior: Readonly<{
+    metricKey: string
+    exactValue: unknown
+    portalDestinationKind: string | null
+    propertyLocalDate: string | null
+  }>,
+): PortalLifetimeChange | null {
+  if (prior.exactValue === null || prior.exactValue === undefined) return null
+  const priorFact = portalLifetimeFactForMetric({
+    metricKey: prior.metricKey,
+    value: Number(prior.exactValue),
+    destinationKind:
+      prior.portalDestinationKind === 'google_review' ||
+      prior.portalDestinationKind === 'secondary_link'
+        ? prior.portalDestinationKind
+        : null,
+  })
+  if (!priorFact) return null
+  if (!prior.propertyLocalDate) {
+    throw new Error('Portal lifetime source reading has no Property-local date')
+  }
+  return {
+    fact: priorFact,
+    multiplier: -1,
+    propertyLocalDate: prior.propertyLocalDate,
+  }
+}
+
+type SupersededReadingResolution =
+  | Readonly<{ kind: 'quarantined' }>
+  | Readonly<{
+      kind: 'resolved'
+      correctedReadingId: string
+      correctedPortalLifetimeChange: PortalLifetimeChange | null
+    }>
+
+/**
+ * Locate the reading a correction supersedes. A missing source reading is
+ * quarantined rather than silently replaced.
+ */
+async function resolveSupersededReading(
+  tx: MetricTx,
+  command: RecordMetricCommand,
+  supersedesSourceEventId: string,
+): Promise<SupersededReadingResolution> {
+  const prior = await tx
+    .select({
+      id: metricReadings.id,
+      organizationId: metricReadings.organizationId,
+      propertyId: metricReadings.propertyId,
+      metricKey: metricReadings.metricKey,
+      exactValue: metricReadings.exactValue,
+      portalDestinationKind: metricReadings.portalDestinationKind,
+      propertyLocalDate: metricReadings.propertyLocalDate,
+      attributedStaffParticipantId: metricReadings.attributedStaffParticipantId,
+      attributedStaffParticipationId: metricReadings.attributedStaffParticipationId,
+      attributionResponsibilityId: metricReadings.attributionResponsibilityId,
+      staffAttributionEffectiveFrom: metricReadings.staffAttributionEffectiveFrom,
+      staffAttributionEffectiveTo: metricReadings.staffAttributionEffectiveTo,
+    })
+    .from(metricReadings)
+    .where(
+      and(
+        eq(metricReadings.definitionVersionId, command.reading.definitionVersionId),
+        eq(metricReadings.sourceEventId, supersedesSourceEventId),
+        eq(metricReadings.organizationId, unbrand(command.reading.organizationId)),
+        eq(metricReadings.propertyId, unbrand(command.reading.propertyId)),
+        command.reading.portalId
+          ? eq(metricReadings.portalId, unbrand(command.reading.portalId))
+          : isNull(metricReadings.portalId),
+        command.reading.portalGroupId
+          ? eq(metricReadings.groupId, unbrand(command.reading.portalGroupId))
+          : isNull(metricReadings.groupId),
+      ),
+    )
+    .limit(1)
+  const priorRow = prior[0]
+  const correctedReadingId = priorRow?.id ?? null
+  const correctedStaffAttribution = priorRow
+    ? staffAttributionFromColumns(priorRow)
+    : null
+  const correctedPortalLifetimeChange = priorRow
+    ? priorPortalLifetimeRetraction(priorRow)
+    : null
+
+  if (!correctedReadingId) {
+    const payloadHash = createHash('sha256')
+      .update(
+        JSON.stringify({
+          definitionVersionId: command.reading.definitionVersionId,
+          sourceEventId: command.reading.sourceEventId,
+          supersedesSourceEventId,
+          organizationId: command.reading.organizationId,
+          propertyId: command.reading.propertyId,
+        }),
+      )
+      .digest('hex')
+    await tx
+      .insert(metricQuarantine)
+      .values({
+        sourceEventId: command.reading.sourceEventId,
+        organizationId: unbrand(command.reading.organizationId),
+        propertyId: unbrand(command.reading.propertyId),
+        definitionVersionId: command.reading.definitionVersionId,
+        sourcePolicy: command.reading.sourcePolicy,
+        reason: 'superseded_reading_not_found',
+        payloadHash,
+        eventAt: command.reading.occurredAt,
+      })
+      .onConflictDoNothing()
+    return { kind: 'quarantined' }
+  }
+
+  if (
+    !primaryStaffAttributionEquals(
+      correctedStaffAttribution,
+      command.reading.staffAttribution,
+    )
+  ) {
+    throw new Error(
+      'Replacement metric Staff attribution does not match its source reading',
+    )
+  }
+
+  return {
+    kind: 'resolved',
+    correctedReadingId,
+    correctedPortalLifetimeChange,
+  }
+}
+
+/** The lifetime contribution this reading must carry, cross-checked with the command. */
+function expectedPortalLifetimeFactFor(
+  command: RecordMetricCommand,
+): PortalLifetimeFact | null {
+  const expectedPortalLifetimeFact = portalLifetimeFactForMetric({
+    metricKey: command.reading.metricKey,
+    value: command.reading.value,
+    destinationKind: command.portalLifetimeFact?.destinationKind ?? null,
+  })
+  if (!portalLifetimeFactsEqual(command.portalLifetimeFact, expectedPortalLifetimeFact)) {
+    throw new Error('Portal lifetime contribution does not match its reading')
+  }
+  if (expectedPortalLifetimeFact && command.reading.portalId === null) {
+    throw new Error('Portal lifetime contribution has no Portal scope')
+  }
+  return expectedPortalLifetimeFact
+}
+
+type ReadingInsertion =
+  Readonly<{ inserted: true }> | Readonly<{ inserted: false; existingReadingId: string }>
+
+/**
+ * Insert the governed reading. A conflicting row is only a duplicate when it
+ * carries the same Staff attribution.
+ */
+async function insertReadingOrDescribeDuplicate(
+  tx: MetricTx,
+  command: RecordMetricCommand,
+): Promise<ReadingInsertion> {
+  const rows = await tx
+    .insert(metricReadings)
+    .values({
+      id: unbrand(command.reading.id),
+      organizationId: unbrand(command.reading.organizationId),
+      propertyId: unbrand(command.reading.propertyId),
+      portalId: command.reading.portalId ? unbrand(command.reading.portalId) : null,
+      groupId: command.reading.portalGroupId
+        ? unbrand(command.reading.portalGroupId)
+        : null,
+      metricKey: command.reading.metricKey,
+      value: command.reading.value,
+      definitionVersionId: command.reading.definitionVersionId,
+      sourceEventId: command.reading.sourceEventId,
+      sourcePolicy: command.reading.sourcePolicy,
+      exactValue: command.reading.value,
+      numerator: command.reading.numerator,
+      denominator: command.reading.denominator,
+      sampleCount: command.reading.sampleCount,
+      attributionQuality: command.reading.attributionQuality,
+      eventAt: command.reading.occurredAt,
+      occurredAt: command.reading.recordedAt,
+      propertyLocalDate: command.reading.propertyLocalDate,
+      dataQuality: command.reading.dataQuality,
+      retentionClass: command.reading.retentionClass,
+      portalDestinationKind: command.portalLifetimeFact?.destinationKind ?? null,
+      ...staffAttributionColumns(command.reading.staffAttribution),
+    })
+    .onConflictDoNothing()
+    .returning({ id: metricReadings.id })
+  if (rows[0]) return { inserted: true }
+
+  const existing = await tx
+    .select({
+      id: metricReadings.id,
+      attributedStaffParticipantId: metricReadings.attributedStaffParticipantId,
+      attributedStaffParticipationId: metricReadings.attributedStaffParticipationId,
+      attributionResponsibilityId: metricReadings.attributionResponsibilityId,
+      staffAttributionEffectiveFrom: metricReadings.staffAttributionEffectiveFrom,
+      staffAttributionEffectiveTo: metricReadings.staffAttributionEffectiveTo,
+    })
+    .from(metricReadings)
+    .where(
+      and(
+        eq(metricReadings.definitionVersionId, command.reading.definitionVersionId),
+        eq(metricReadings.sourceEventId, command.reading.sourceEventId),
+      ),
+    )
+    .limit(1)
+  if (
+    existing[0] &&
+    !primaryStaffAttributionEquals(
+      staffAttributionFromColumns(existing[0]),
+      command.reading.staffAttribution,
+    )
+  ) {
+    throw new Error('Duplicate metric reading Staff attribution does not match')
+  }
+  return {
+    inserted: false,
+    existingReadingId: existing[0]?.id ?? unbrand(command.reading.id),
+  }
+}
+
+/** Retract the superseded reading and describe the correction for the outbox. */
+async function recordRetractionCorrection(
+  tx: MetricTx,
+  correctionId: string,
+  command: RecordMetricCommand,
+  correctedReadingId: string,
+  supersedesSourceEventId: string,
+): Promise<MetricCorrected> {
+  await tx.insert(metricCorrections).values({
+    id: correctionId,
+    readingId: correctedReadingId,
+    sourceEventId: `${command.reading.sourceEventId}:retract`,
+    kind: 'retract',
+    reason: 'source_reconciliation',
+    actorType: 'system',
+    actorId: 'portal-workflow',
+    exactDelta: null,
+    replacementValue: null,
+    eventAt: command.reading.occurredAt,
+    supersedesCorrectionId: null,
+    recordedAt: command.reading.recordedAt,
+    ...staffAttributionColumns(command.reading.staffAttribution),
+  })
+  return metricCorrected({
+    correctionId,
+    correctedReadingId: metricReadingId(correctedReadingId),
+    replacementReadingId: command.reading.id,
+    organizationId: command.reading.organizationId,
+    propertyId: command.reading.propertyId,
+    definitionVersionId: command.reading.definitionVersionId,
+    sourceEventId: command.reading.sourceEventId,
+    supersededSourceEventId: supersedesSourceEventId,
+    occurredAt: command.reading.occurredAt,
+    staffAttribution: command.reading.staffAttribution,
+  })
+}
+
 export const createAtomicMetricCommandStore = (
   db: Database,
   events: EventBus,
@@ -86,207 +351,31 @@ export const createAtomicMetricCommandStore = (
           throw new Error('Metric fact Staff attribution does not match its reading')
         }
         const committed = await db.transaction(async (tx) => {
-          let correctedReadingId: string | null = null
-          let correctedPortalLifetimeChange: PortalLifetimeChange | null = null
-          if (command.supersedesSourceEventId) {
-            const prior = await tx
-              .select({
-                id: metricReadings.id,
-                organizationId: metricReadings.organizationId,
-                propertyId: metricReadings.propertyId,
-                metricKey: metricReadings.metricKey,
-                exactValue: metricReadings.exactValue,
-                portalDestinationKind: metricReadings.portalDestinationKind,
-                propertyLocalDate: metricReadings.propertyLocalDate,
-                attributedStaffParticipantId: metricReadings.attributedStaffParticipantId,
-                attributedStaffParticipationId:
-                  metricReadings.attributedStaffParticipationId,
-                attributionResponsibilityId: metricReadings.attributionResponsibilityId,
-                staffAttributionEffectiveFrom:
-                  metricReadings.staffAttributionEffectiveFrom,
-                staffAttributionEffectiveTo: metricReadings.staffAttributionEffectiveTo,
-              })
-              .from(metricReadings)
-              .where(
-                and(
-                  eq(
-                    metricReadings.definitionVersionId,
-                    command.reading.definitionVersionId,
-                  ),
-                  eq(metricReadings.sourceEventId, command.supersedesSourceEventId),
-                  eq(
-                    metricReadings.organizationId,
-                    unbrand(command.reading.organizationId),
-                  ),
-                  eq(metricReadings.propertyId, unbrand(command.reading.propertyId)),
-                  command.reading.portalId
-                    ? eq(metricReadings.portalId, unbrand(command.reading.portalId))
-                    : isNull(metricReadings.portalId),
-                  command.reading.portalGroupId
-                    ? eq(metricReadings.groupId, unbrand(command.reading.portalGroupId))
-                    : isNull(metricReadings.groupId),
-                ),
-              )
-              .limit(1)
-            correctedReadingId = prior[0]?.id ?? null
-            const correctedStaffAttribution = prior[0]
-              ? staffAttributionFromColumns(prior[0])
-              : null
-            if (prior[0]?.exactValue !== null && prior[0]?.exactValue !== undefined) {
-              const priorFact = portalLifetimeFactForMetric({
-                metricKey: prior[0].metricKey,
-                value: Number(prior[0].exactValue),
-                destinationKind:
-                  prior[0].portalDestinationKind === 'google_review' ||
-                  prior[0].portalDestinationKind === 'secondary_link'
-                    ? prior[0].portalDestinationKind
-                    : null,
-              })
-              if (priorFact) {
-                if (!prior[0].propertyLocalDate) {
-                  throw new Error(
-                    'Portal lifetime source reading has no Property-local date',
-                  )
-                }
-                correctedPortalLifetimeChange = {
-                  fact: priorFact,
-                  multiplier: -1,
-                  propertyLocalDate: prior[0].propertyLocalDate,
-                }
-              }
-            }
-            if (!correctedReadingId) {
-              const payloadHash = createHash('sha256')
-                .update(
-                  JSON.stringify({
-                    definitionVersionId: command.reading.definitionVersionId,
-                    sourceEventId: command.reading.sourceEventId,
-                    supersedesSourceEventId: command.supersedesSourceEventId,
-                    organizationId: command.reading.organizationId,
-                    propertyId: command.reading.propertyId,
-                  }),
-                )
-                .digest('hex')
-              await tx
-                .insert(metricQuarantine)
-                .values({
-                  sourceEventId: command.reading.sourceEventId,
-                  organizationId: unbrand(command.reading.organizationId),
-                  propertyId: unbrand(command.reading.propertyId),
-                  definitionVersionId: command.reading.definitionVersionId,
-                  sourcePolicy: command.reading.sourcePolicy,
-                  reason: 'superseded_reading_not_found',
-                  payloadHash,
-                  eventAt: command.reading.occurredAt,
-                })
-                .onConflictDoNothing()
-              return {
-                result: {
-                  status: 'quarantined' as const,
-                  reason: 'superseded_reading_not_found',
-                  sourceEventId: command.reading.sourceEventId,
-                },
-                correctionEvent: null,
-              }
-            }
-            if (
-              !primaryStaffAttributionEquals(
-                correctedStaffAttribution,
-                command.reading.staffAttribution,
-              )
-            ) {
-              throw new Error(
-                'Replacement metric Staff attribution does not match its source reading',
-              )
+          const superseded = command.supersedesSourceEventId
+            ? await resolveSupersededReading(tx, command, command.supersedesSourceEventId)
+            : null
+          if (superseded?.kind === 'quarantined') {
+            return {
+              result: {
+                status: 'quarantined' as const,
+                reason: 'superseded_reading_not_found',
+                sourceEventId: command.reading.sourceEventId,
+              },
+              correctionEvent: null,
             }
           }
+          const correctedReadingId = superseded?.correctedReadingId ?? null
+          const correctedPortalLifetimeChange =
+            superseded?.correctedPortalLifetimeChange ?? null
 
-          const expectedPortalLifetimeFact = portalLifetimeFactForMetric({
-            metricKey: command.reading.metricKey,
-            value: command.reading.value,
-            destinationKind: command.portalLifetimeFact?.destinationKind ?? null,
-          })
-          if (
-            !portalLifetimeFactsEqual(
-              command.portalLifetimeFact,
-              expectedPortalLifetimeFact,
-            )
-          ) {
-            throw new Error('Portal lifetime contribution does not match its reading')
-          }
-          if (expectedPortalLifetimeFact && command.reading.portalId === null) {
-            throw new Error('Portal lifetime contribution has no Portal scope')
-          }
+          const expectedPortalLifetimeFact = expectedPortalLifetimeFactFor(command)
 
-          const rows = await tx
-            .insert(metricReadings)
-            .values({
-              id: unbrand(command.reading.id),
-              organizationId: unbrand(command.reading.organizationId),
-              propertyId: unbrand(command.reading.propertyId),
-              portalId: command.reading.portalId
-                ? unbrand(command.reading.portalId)
-                : null,
-              groupId: command.reading.portalGroupId
-                ? unbrand(command.reading.portalGroupId)
-                : null,
-              metricKey: command.reading.metricKey,
-              value: command.reading.value,
-              definitionVersionId: command.reading.definitionVersionId,
-              sourceEventId: command.reading.sourceEventId,
-              sourcePolicy: command.reading.sourcePolicy,
-              exactValue: command.reading.value,
-              numerator: command.reading.numerator,
-              denominator: command.reading.denominator,
-              sampleCount: command.reading.sampleCount,
-              attributionQuality: command.reading.attributionQuality,
-              eventAt: command.reading.occurredAt,
-              occurredAt: command.reading.recordedAt,
-              propertyLocalDate: command.reading.propertyLocalDate,
-              dataQuality: command.reading.dataQuality,
-              retentionClass: command.reading.retentionClass,
-              portalDestinationKind: command.portalLifetimeFact?.destinationKind ?? null,
-              ...staffAttributionColumns(command.reading.staffAttribution),
-            })
-            .onConflictDoNothing()
-            .returning({ id: metricReadings.id })
-
-          if (!rows[0]) {
-            const existing = await tx
-              .select({
-                id: metricReadings.id,
-                attributedStaffParticipantId: metricReadings.attributedStaffParticipantId,
-                attributedStaffParticipationId:
-                  metricReadings.attributedStaffParticipationId,
-                attributionResponsibilityId: metricReadings.attributionResponsibilityId,
-                staffAttributionEffectiveFrom:
-                  metricReadings.staffAttributionEffectiveFrom,
-                staffAttributionEffectiveTo: metricReadings.staffAttributionEffectiveTo,
-              })
-              .from(metricReadings)
-              .where(
-                and(
-                  eq(
-                    metricReadings.definitionVersionId,
-                    command.reading.definitionVersionId,
-                  ),
-                  eq(metricReadings.sourceEventId, command.reading.sourceEventId),
-                ),
-              )
-              .limit(1)
-            if (
-              existing[0] &&
-              !primaryStaffAttributionEquals(
-                staffAttributionFromColumns(existing[0]),
-                command.reading.staffAttribution,
-              )
-            ) {
-              throw new Error('Duplicate metric reading Staff attribution does not match')
-            }
+          const insertion = await insertReadingOrDescribeDuplicate(tx, command)
+          if (!insertion.inserted) {
             return {
               result: {
                 status: 'duplicate' as const,
-                existingReadingId: existing[0]?.id ?? unbrand(command.reading.id),
+                existingReadingId: insertion.existingReadingId,
               },
               correctionEvent: null,
             }
@@ -294,34 +383,13 @@ export const createAtomicMetricCommandStore = (
 
           let correctionEvent: MetricCorrected | null = null
           if (correctedReadingId && command.supersedesSourceEventId) {
-            const correctionId = idGen()
-            await tx.insert(metricCorrections).values({
-              id: correctionId,
-              readingId: correctedReadingId,
-              sourceEventId: `${command.reading.sourceEventId}:retract`,
-              kind: 'retract',
-              reason: 'source_reconciliation',
-              actorType: 'system',
-              actorId: 'portal-workflow',
-              exactDelta: null,
-              replacementValue: null,
-              eventAt: command.reading.occurredAt,
-              supersedesCorrectionId: null,
-              recordedAt: command.reading.recordedAt,
-              ...staffAttributionColumns(command.reading.staffAttribution),
-            })
-            correctionEvent = metricCorrected({
-              correctionId,
-              correctedReadingId: metricReadingId(correctedReadingId),
-              replacementReadingId: command.reading.id,
-              organizationId: command.reading.organizationId,
-              propertyId: command.reading.propertyId,
-              definitionVersionId: command.reading.definitionVersionId,
-              sourceEventId: command.reading.sourceEventId,
-              supersededSourceEventId: command.supersedesSourceEventId,
-              occurredAt: command.reading.occurredAt,
-              staffAttribution: command.reading.staffAttribution,
-            })
+            correctionEvent = await recordRetractionCorrection(
+              tx,
+              idGen(),
+              command,
+              correctedReadingId,
+              command.supersedesSourceEventId,
+            )
           }
 
           if (expectedPortalLifetimeFact && command.reading.portalId) {

@@ -29,6 +29,7 @@
 //   rolled_back      — terminal record
 
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { OrganizationId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
 import {
   pauseQueueForQuarantine,
@@ -128,6 +129,66 @@ function firstLine(error: string): string {
   return (error.split('\n')[0] ?? '').trim().slice(0, 200)
 }
 
+function moveStateUpdate(
+  move: RegionMoveRecord,
+  input: AdvanceRegionMoveInput,
+  now: Date,
+): RegionMoveStateUpdate {
+  return {
+    expectedState: move.state,
+    expectedStateRevision: move.stateRevision,
+    state: input.toState,
+    requestedBy: input.confirmedBy,
+    stateChangedAt: now,
+    ...(input.toState === 'completed' ? { completedAt: now } : {}),
+    ...(input.toState === 'failed' ? { error: firstLine(input.error ?? '') } : {}),
+  }
+}
+
+function movedRecord(
+  move: RegionMoveRecord,
+  update: RegionMoveStateUpdate,
+): RegionMoveRecord {
+  return {
+    ...move,
+    state: update.state,
+    stateRevision: move.stateRevision + 1,
+    requestedBy: update.requestedBy,
+    stateChangedAt: update.stateChangedAt,
+    ...(update.completedAt !== undefined ? { completedAt: update.completedAt } : {}),
+    ...(update.error !== undefined ? { error: update.error } : {}),
+  }
+}
+
+/**
+ * The CAS lost. A concurrent step that already reached the requested state is
+ * the same idempotent retry the pre-write check handles; anything else is a
+ * genuine conflict.
+ */
+async function reconcileStaleMove(
+  deps: AdvanceRegionMoveDeps,
+  organizationId: OrganizationId,
+  input: AdvanceRegionMoveInput,
+  move: RegionMoveRecord,
+): Promise<AdvanceRegionMoveResult> {
+  const current = await deps.moveStore.findMoveById(organizationId, input.moveId)
+  if (current?.state === input.toState) {
+    if (input.toState === 'rolling_back') await resumeMoveQueues(deps)
+    return { move: current, advanced: false, note: 'already_in_state' }
+  }
+  throw propertyError(
+    'region_move_conflict',
+    'region move changed while this step was being committed',
+    {
+      moveId: input.moveId,
+      expectedState: move.state,
+      expectedStateRevision: move.stateRevision,
+      currentState: current?.state ?? null,
+      currentStateRevision: current?.stateRevision ?? null,
+    },
+  )
+}
+
 export const advanceRegionMove =
   (deps: AdvanceRegionMoveDeps) =>
   async (
@@ -158,49 +219,17 @@ export const advanceRegionMove =
     const note = await applyStepEffect(deps, input.toState)
     if (note) return { move, advanced: false, note }
 
-    const update: RegionMoveStateUpdate = {
-      expectedState: move.state,
-      expectedStateRevision: move.stateRevision,
-      state: input.toState,
-      requestedBy: input.confirmedBy,
-      stateChangedAt: now,
-      ...(input.toState === 'completed' ? { completedAt: now } : {}),
-      ...(input.toState === 'failed' ? { error: firstLine(input.error ?? '') } : {}),
-    }
+    const update = moveStateUpdate(move, input, now)
     const outcome = await deps.moveStore.updateMoveState(
       ctx.organizationId,
       input.moveId,
       update,
     )
     if (outcome === 'stale') {
-      const current = await deps.moveStore.findMoveById(ctx.organizationId, input.moveId)
-      if (current?.state === input.toState) {
-        if (input.toState === 'rolling_back') await resumeMoveQueues(deps)
-        return { move: current, advanced: false, note: 'already_in_state' }
-      }
-      throw propertyError(
-        'region_move_conflict',
-        'region move changed while this step was being committed',
-        {
-          moveId: input.moveId,
-          expectedState: move.state,
-          expectedStateRevision: move.stateRevision,
-          currentState: current?.state ?? null,
-          currentStateRevision: current?.stateRevision ?? null,
-        },
-      )
+      return reconcileStaleMove(deps, ctx.organizationId, input, move)
     }
     if (input.toState === 'rolling_back') await resumeMoveQueues(deps)
-    const nextMove: RegionMoveRecord = {
-      ...move,
-      state: update.state,
-      stateRevision: move.stateRevision + 1,
-      requestedBy: update.requestedBy,
-      stateChangedAt: update.stateChangedAt,
-      ...(update.completedAt !== undefined ? { completedAt: update.completedAt } : {}),
-      ...(update.error !== undefined ? { error: update.error } : {}),
-    }
-    return { move: nextMove, advanced: true, note: null }
+    return { move: movedRecord(move, update), advanced: true, note: null }
   }
 
 export type AdvanceRegionMove = ReturnType<typeof advanceRegionMove>

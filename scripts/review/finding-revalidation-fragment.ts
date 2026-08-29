@@ -248,14 +248,24 @@ function validateProof(
   }
 }
 
-export function validateFindingRevalidationFragment(
-  input: unknown,
+type Fragment = z.infer<typeof fragmentSchema>
+type FragmentFinding = z.infer<typeof finding>
+type ExpectedFinding = Readonly<{
+  row: z.infer<typeof baselineFinding>
+  position: number
+}>
+/** Resolves an evidence id in the named catalogue and records that it was used. */
+type EvidenceResolver = (
+  catalogue: 'frozen' | 'current',
+  id: string,
+) => z.infer<typeof immutableProof>
+
+function assertFragmentHeader(
+  fragment: Fragment,
+  selectedFamilies: readonly string[],
   sourceRegisterText: string,
-  plan: string,
-  readers: FragmentReaders = defaultReaders,
-): readonly string[] {
-  const fragment = fragmentSchema.parse(input)
-  const selectedFamilies = familiesForFragment(fragment.fragmentId)
+  readers: FragmentReaders,
+): void {
   if (JSON.stringify(fragment.families) !== JSON.stringify(selectedFamilies)) {
     throw new Error('fragment families must match its governed fragment identifier')
   }
@@ -265,13 +275,126 @@ export function validateFindingRevalidationFragment(
   if (fragment.sourceRegisterSha256 !== sha256(sourceRegisterText)) {
     throw new Error('source finding-register digest does not match')
   }
+}
 
-  const register = z.array(baselineFinding).parse(JSON.parse(sourceRegisterText))
-  const expected = register
+/** The frozen register rows this fragment is responsible for, in register order. */
+function expectedFindings(
+  sourceRegisterText: string,
+  selectedFamilies: readonly string[],
+): readonly ExpectedFinding[] {
+  return z
+    .array(baselineFinding)
+    .parse(JSON.parse(sourceRegisterText))
     .map((row, index) => ({ row, position: index + 1 }))
     .filter(({ row }) =>
       selectedFamilies.some((family) => row.id.startsWith(`${family}-`)),
     )
+}
+
+function assertFrozenFieldsUnchanged(
+  entry: FragmentFinding,
+  original: ExpectedFinding,
+): void {
+  if (
+    entry.frozenPosition !== original.position ||
+    entry.frozenSeverity !== original.row.severity ||
+    entry.frozenSourceLine !== original.row.sourceLine ||
+    entry.frozenSummary !== original.row.summary
+  ) {
+    throw new Error(`${entry.id} frozen register fields differ`)
+  }
+  if (
+    JSON.stringify(entry.targetPackages) !== JSON.stringify(original.row.targetPackages)
+  ) {
+    throw new Error(`${entry.id} target packages differ from the frozen register`)
+  }
+}
+
+function assertPackageAssignment(
+  entry: FragmentFinding,
+  packages: ReadonlySet<string>,
+): void {
+  if (!entry.targetPackages.includes(entry.ownerPackage)) {
+    throw new Error(`${entry.id} ownerPackage must be one of its targetPackages`)
+  }
+  for (const target of entry.targetPackages) {
+    if (!packages.has(target)) {
+      throw new Error(`${entry.id} references unknown implementation package ${target}`)
+    }
+  }
+}
+
+function assertDisposition(entry: FragmentFinding): void {
+  if (entry.disposition === 'closed') {
+    if (entry.reachability !== 'not_reachable') {
+      throw new Error(`${entry.id} closed finding must be not_reachable`)
+    }
+    if (entry.closure.kind !== 'verified_current') {
+      throw new Error(`${entry.id} closed finding requires verified current evidence`)
+    }
+  }
+  if (entry.disposition === 'superseded' && entry.reachability !== 'not_reachable') {
+    throw new Error(`${entry.id} superseded finding must be not_reachable`)
+  }
+}
+
+function assertClosure(entry: FragmentFinding, resolveProof: EvidenceResolver): void {
+  if (entry.closure.kind === 'verified_current') {
+    for (const id of entry.closure.evidence) {
+      resolveProof('current', id)
+      if (!entry.currentEvidence.includes(id)) {
+        throw new Error(`${entry.id} closure evidence is not current finding evidence`)
+      }
+    }
+    return
+  }
+  if (
+    entry.closure.kind === 'planned_in_package' &&
+    !entry.targetPackages.includes(entry.closure.package)
+  ) {
+    throw new Error(`${entry.id} closure package is not assigned to the finding`)
+  }
+}
+
+function assertFinding(
+  entry: FragmentFinding,
+  original: ExpectedFinding,
+  packages: ReadonlySet<string>,
+  resolveProof: EvidenceResolver,
+): void {
+  assertFrozenFieldsUnchanged(entry, original)
+  assertPackageAssignment(entry, packages)
+  for (const id of entry.frozenEvidence) resolveProof('frozen', id)
+  for (const id of entry.currentEvidence) resolveProof('current', id)
+  assertDisposition(entry)
+  assertClosure(entry, resolveProof)
+}
+
+/** Every catalogued proof must be referenced by a finding and still hash true. */
+function assertCatalogue(
+  catalogue: Readonly<Record<string, z.infer<typeof immutableProof>>>,
+  used: ReadonlySet<string>,
+  label: 'frozen' | 'current',
+  revision: string,
+  readers: FragmentReaders,
+): void {
+  for (const [id, proof] of Object.entries(catalogue)) {
+    if (!used.has(id)) throw new Error(`unused ${label} evidence ${id}`)
+    validateProof(id, proof, revision, readers)
+  }
+}
+
+export function validateFindingRevalidationFragment(
+  input: unknown,
+  sourceRegisterText: string,
+  plan: string,
+  readers: FragmentReaders = defaultReaders,
+): readonly string[] {
+  const fragment = fragmentSchema.parse(input)
+  const selectedFamilies = familiesForFragment(fragment.fragmentId)
+  assertFragmentHeader(fragment, selectedFamilies, sourceRegisterText, readers)
+
+  const expected = expectedFindings(sourceRegisterText, selectedFamilies)
   const actualIds = fragment.findings.map(({ id }) => id)
   if (JSON.stringify(actualIds) !== JSON.stringify(expected.map(({ row }) => row.id))) {
     throw new Error(
@@ -284,7 +407,7 @@ export function validateFindingRevalidationFragment(
 
   const usedFrozen = new Set<string>()
   const usedCurrent = new Set<string>()
-  const proofFor = (catalogue: 'frozen' | 'current', id: string) => {
+  const resolveProof: EvidenceResolver = (catalogue, id) => {
     if (!id.startsWith(`${catalogue}.`)) {
       throw new Error(`${id} is referenced from the wrong evidence catalogue`)
     }
@@ -295,67 +418,23 @@ export function validateFindingRevalidationFragment(
   }
 
   for (const [index, entry] of fragment.findings.entries()) {
-    const original = expected[index]!
-    if (
-      entry.frozenPosition !== original.position ||
-      entry.frozenSeverity !== original.row.severity ||
-      entry.frozenSourceLine !== original.row.sourceLine ||
-      entry.frozenSummary !== original.row.summary
-    ) {
-      throw new Error(`${entry.id} frozen register fields differ`)
-    }
-    if (
-      JSON.stringify(entry.targetPackages) !== JSON.stringify(original.row.targetPackages)
-    ) {
-      throw new Error(`${entry.id} target packages differ from the frozen register`)
-    }
-    if (!entry.targetPackages.includes(entry.ownerPackage)) {
-      throw new Error(`${entry.id} ownerPackage must be one of its targetPackages`)
-    }
-    for (const target of entry.targetPackages) {
-      if (!packages.has(target)) {
-        throw new Error(`${entry.id} references unknown implementation package ${target}`)
-      }
-    }
-
-    for (const id of entry.frozenEvidence) proofFor('frozen', id)
-    for (const id of entry.currentEvidence) proofFor('current', id)
-
-    if (entry.disposition === 'closed') {
-      if (entry.reachability !== 'not_reachable') {
-        throw new Error(`${entry.id} closed finding must be not_reachable`)
-      }
-      if (entry.closure.kind !== 'verified_current') {
-        throw new Error(`${entry.id} closed finding requires verified current evidence`)
-      }
-    }
-    if (entry.disposition === 'superseded' && entry.reachability !== 'not_reachable') {
-      throw new Error(`${entry.id} superseded finding must be not_reachable`)
-    }
-
-    if (entry.closure.kind === 'verified_current') {
-      for (const id of entry.closure.evidence) {
-        proofFor('current', id)
-        if (!entry.currentEvidence.includes(id)) {
-          throw new Error(`${entry.id} closure evidence is not current finding evidence`)
-        }
-      }
-    } else if (
-      entry.closure.kind === 'planned_in_package' &&
-      !entry.targetPackages.includes(entry.closure.package)
-    ) {
-      throw new Error(`${entry.id} closure package is not assigned to the finding`)
-    }
+    assertFinding(entry, expected[index]!, packages, resolveProof)
   }
 
-  for (const [id, proof] of Object.entries(fragment.evidence.frozen)) {
-    if (!usedFrozen.has(id)) throw new Error(`unused frozen evidence ${id}`)
-    validateProof(id, proof, fragment.frozenSha, readers)
-  }
-  for (const [id, proof] of Object.entries(fragment.evidence.current)) {
-    if (!usedCurrent.has(id)) throw new Error(`unused current evidence ${id}`)
-    validateProof(id, proof, fragment.comparisonSha, readers)
-  }
+  assertCatalogue(
+    fragment.evidence.frozen,
+    usedFrozen,
+    'frozen',
+    fragment.frozenSha,
+    readers,
+  )
+  assertCatalogue(
+    fragment.evidence.current,
+    usedCurrent,
+    'current',
+    fragment.comparisonSha,
+    readers,
+  )
 
   return actualIds
 }

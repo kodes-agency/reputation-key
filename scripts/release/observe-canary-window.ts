@@ -318,14 +318,21 @@ async function sleepUntil(scheduledAt: string): Promise<void> {
   await new Promise((done) => setTimeout(done, delay))
 }
 
-export async function runObserveCanaryWindowCli(
-  args: readonly string[],
-  deps: ObserveCanaryWindowDeps = {},
-): Promise<number> {
-  const io = deps.io ?? consoleIo
-  const env = deps.env ?? process.env
+/** Either a usable stage result, or the exit code the CLI must return instead. */
+type Stage<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; code: number }>
 
-  // 1. Retries are refused before anything else: the flag itself is the defect.
+const REQUIRED_FLAGS = [
+  '--app-origin',
+  '--release-sha',
+  '--release-manifest',
+  '--release-manifest-sha256',
+  '--project-id',
+  '--environment-id',
+  '--output',
+] as const
+
+/** Refusals 1-2: the retry flag itself, missing flags, and a non-production origin. */
+function refusedArgument(args: readonly string[], io: CanaryCliIo): number | undefined {
   const retryFlag = args.find(
     (arg) => arg === '--retries' || arg.startsWith('--retries='),
   )
@@ -337,16 +344,7 @@ export async function runObserveCanaryWindowCli(
     return 2
   }
 
-  const required = [
-    '--app-origin',
-    '--release-sha',
-    '--release-manifest',
-    '--release-manifest-sha256',
-    '--project-id',
-    '--environment-id',
-    '--output',
-  ]
-  const missing = required.filter((flag) => flagValue(args, flag) === undefined)
+  const missing = REQUIRED_FLAGS.filter((flag) => flagValue(args, flag) === undefined)
   if (missing.length > 0) {
     io.err(`${COMMAND_NAME} needs ${missing.join(', ')}.`)
     io.err(observeCanaryWindowUsage())
@@ -361,16 +359,18 @@ export async function runObserveCanaryWindowCli(
     )
     return 2
   }
+  return undefined
+}
 
-  const outputPath = resolve(flagValue(args, '--output') ?? '')
-
+/** Refusal 4: the declared manifest digest must equal the file's actual digest. */
+function resolveManifestDigest(args: readonly string[], io: CanaryCliIo): Stage<string> {
   const manifestPath = resolve(flagValue(args, '--release-manifest') ?? '')
   let manifestDigest: string
   try {
     manifestDigest = createHash('sha256').update(readFileSync(manifestPath)).digest('hex')
   } catch (error) {
     io.err(`${COMMAND_NAME}: ${error instanceof Error ? error.message : String(error)}`)
-    return 2
+    return { ok: false, code: 2 }
   }
   const declaredManifestDigest = flagValue(args, '--release-manifest-sha256')
   if (declaredManifestDigest !== manifestDigest) {
@@ -378,9 +378,23 @@ export async function runObserveCanaryWindowCli(
       `${COMMAND_NAME}: --release-manifest-sha256=${declaredManifestDigest} does not match ` +
         `${manifestPath} (${manifestDigest}).`,
     )
-    return 2
+    return { ok: false, code: 2 }
   }
+  return { ok: true, value: manifestDigest }
+}
 
+type RatifiedProfile = Readonly<{
+  profile: CanaryThresholdProfile
+  readPlan: readonly CanarySignalRead[]
+  decisionRecord: string
+  decisionRecordSha256: string
+}>
+
+/** Refusal 5: the threshold profile must parse and must be ratified (ADR 0059). */
+function loadRatifiedProfile(
+  args: readonly string[],
+  io: CanaryCliIo,
+): Stage<RatifiedProfile> {
   const decisionRecordPath = resolve(
     flagValue(args, '--decision-record') ?? CANARY_THRESHOLD_DECISION_RECORD_PATH,
   )
@@ -394,7 +408,7 @@ export async function runObserveCanaryWindowCli(
     profileDocument = readFileSync(profilePath, 'utf8')
   } catch (error) {
     io.err(`${COMMAND_NAME}: ${error instanceof Error ? error.message : String(error)}`)
-    return 1
+    return { ok: false, code: 1 }
   }
   const decisionRecordSha256 = releaseEvidenceSha256(decisionRecord)
 
@@ -404,7 +418,7 @@ export async function runObserveCanaryWindowCli(
   if (!profileResult.ok) {
     io.err(`${COMMAND_NAME}: ${profilePath} is not a usable threshold profile:`)
     for (const error of profileResult.errors) io.err(`  ${error}`)
-    return 1
+    return { ok: false, code: 1 }
   }
   if (profileResult.state === 'open') {
     io.err(
@@ -413,10 +427,27 @@ export async function runObserveCanaryWindowCli(
         `${CANARY_THRESHOLD_DECISION_RECORD_PATH}. An unratified window is a closed gate; ` +
         'there is no default duration.',
     )
-    return 1
+    return { ok: false, code: 1 }
   }
-  const profile: CanaryThresholdProfile = profileResult.profile
+  return {
+    ok: true,
+    value: {
+      profile: profileResult.profile,
+      readPlan: canaryThresholdSignalReadPlan(profileResult.authority),
+      decisionRecord,
+      decisionRecordSha256,
+    },
+  }
+}
 
+/** Refusal 6: every signal in the read plan must have a reachable source. */
+function resolveSampleReader(
+  args: readonly string[],
+  env: NodeJS.ProcessEnv,
+  readPlan: readonly CanarySignalRead[],
+  fetchImpl: typeof fetch,
+  io: CanaryCliIo,
+): Stage<CanarySampleReader> {
   const opsToken = env.OPS_METRICS_TOKEN
   if (!opsToken) {
     io.err(
@@ -424,18 +455,15 @@ export async function runObserveCanaryWindowCli(
         'answers 404 to every sample. Refusing to start rather than recording a window of ' +
         'missing samples.',
     )
-    return 1
+    return { ok: false, code: 1 }
   }
 
   const endpointResult = readEndpoints(flagValue(args, '--source-endpoints'), env)
   if (!endpointResult.ok) {
     for (const error of endpointResult.errors) io.err(`${COMMAND_NAME}: ${error}`)
-    return 1
+    return { ok: false, code: 1 }
   }
 
-  const readPlan: readonly CanarySignalRead[] = canaryThresholdSignalReadPlan(
-    profileResult.authority,
-  )
   const unreachable = readPlan.filter(
     (signal) =>
       signal.source !== 'application_metrics' &&
@@ -449,46 +477,35 @@ export async function runObserveCanaryWindowCli(
         .join(', ')}. Supply --source-endpoints; a signal that cannot be read is not ` +
         'observed, it is missing.',
     )
-    return 1
+    return { ok: false, code: 1 }
   }
 
-  const startedAt = (deps.now ?? (() => new Date().toISOString()))()
-  const result = await observeCanaryWindow({
-    candidate: {
-      releaseSha: flagValue(args, '--release-sha') ?? '',
-      releaseManifestSha256: manifestDigest,
-      cell: 'us',
-      environment: 'cell-us',
-      deploymentProfile: 'production',
-      projectName: PRODUCTION_RAILWAY_PROJECT_NAME,
-      projectId: flagValue(args, '--project-id') ?? '',
-      environmentId: flagValue(args, '--environment-id') ?? '',
-      appOrigin: PRODUCTION_APP_ORIGIN,
-    },
-    profile,
-    readPlan,
-    runId: randomUUID(),
-    startedAt,
-    read: createCanarySampleReader({
+  return {
+    ok: true,
+    value: createCanarySampleReader({
       appOrigin: PRODUCTION_APP_ORIGIN,
       opsToken,
       endpoints: endpointResult.endpoints,
-      fetchImpl: deps.fetchImpl ?? fetch,
+      fetchImpl,
     }),
-    waitUntil: deps.waitUntil ?? sleepUntil,
-    now: deps.now ?? (() => new Date().toISOString()),
-    authorities: [{ sha256: decisionRecordSha256, content: decisionRecord }],
-  })
-
-  if (!result.ok) {
-    io.err(`${COMMAND_NAME}: refusing to emit canary evidence:`)
-    for (const error of result.errors) io.err(`  ${error}`)
-    return 1
   }
+}
 
-  const dependencyDir = resolve(
-    flagValue(args, '--dependency-dir') ?? dirname(outputPath),
-  )
+type ObservedWindow = Extract<
+  Awaited<ReturnType<typeof observeCanaryWindow>>,
+  { ok: true }
+>
+
+/**
+ * Refusal 3: every artifact is created exclusively, so an output path that is
+ * already there ends the run rather than being replaced.
+ */
+function emitCanaryArtifacts(
+  result: ObservedWindow,
+  outputPath: string,
+  dependencyDir: string,
+  io: CanaryCliIo,
+): number {
   for (const dependency of result.dependencies) {
     const path = resolve(dependencyDir, `${dependency.sha256}.dependency`)
     // The filename is the digest, so a sibling that is already there holds
@@ -515,6 +532,65 @@ export async function runObserveCanaryWindowCli(
   io.out(`canary window ${result.evidence.outcome}: ${outputPath}`)
   io.out(`retained ${result.dependencies.length} dependency files in ${dependencyDir}`)
   return result.evidence.outcome === 'passed' ? 0 : 1
+}
+
+export async function runObserveCanaryWindowCli(
+  args: readonly string[],
+  deps: ObserveCanaryWindowDeps = {},
+): Promise<number> {
+  const io = deps.io ?? consoleIo
+  const env = deps.env ?? process.env
+
+  const refusal = refusedArgument(args, io)
+  if (refusal !== undefined) return refusal
+
+  const outputPath = resolve(flagValue(args, '--output') ?? '')
+
+  const manifest = resolveManifestDigest(args, io)
+  if (!manifest.ok) return manifest.code
+
+  const ratified = loadRatifiedProfile(args, io)
+  if (!ratified.ok) return ratified.code
+  const { profile, readPlan, decisionRecord, decisionRecordSha256 } = ratified.value
+
+  const reader = resolveSampleReader(args, env, readPlan, deps.fetchImpl ?? fetch, io)
+  if (!reader.ok) return reader.code
+
+  const now = deps.now ?? (() => new Date().toISOString())
+  const result = await observeCanaryWindow({
+    candidate: {
+      releaseSha: flagValue(args, '--release-sha') ?? '',
+      releaseManifestSha256: manifest.value,
+      cell: 'us',
+      environment: 'cell-us',
+      deploymentProfile: 'production',
+      projectName: PRODUCTION_RAILWAY_PROJECT_NAME,
+      projectId: flagValue(args, '--project-id') ?? '',
+      environmentId: flagValue(args, '--environment-id') ?? '',
+      appOrigin: PRODUCTION_APP_ORIGIN,
+    },
+    profile,
+    readPlan,
+    runId: randomUUID(),
+    startedAt: now(),
+    read: reader.value,
+    waitUntil: deps.waitUntil ?? sleepUntil,
+    now,
+    authorities: [{ sha256: decisionRecordSha256, content: decisionRecord }],
+  })
+
+  if (!result.ok) {
+    io.err(`${COMMAND_NAME}: refusing to emit canary evidence:`)
+    for (const error of result.errors) io.err(`  ${error}`)
+    return 1
+  }
+
+  return emitCanaryArtifacts(
+    result,
+    outputPath,
+    resolve(flagValue(args, '--dependency-dir') ?? dirname(outputPath)),
+    io,
+  )
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : undefined

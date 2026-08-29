@@ -57,28 +57,31 @@ function sourceContentState(value: string): ReviewSourceContentState {
   return value
 }
 
-function findingsFor(row: InspectionRow): ReviewSourceContentShadowFinding[] {
-  if (row.sourceContentState === 'active') {
-    const findings: ReviewSourceContentShadowFinding[] = []
-    if (!row.sourceCachePresent) findings.push('active_source_cache_missing')
-    else if (!row.compatibilityMatches) findings.push('active_compatibility_drift')
-    if (!row.observationPresent) findings.push('active_observation_missing')
-    else if (!row.observationMatches) findings.push('active_observation_drift')
-    if (!row.materialRevisionPresent) {
-      findings.push('active_material_revision_missing')
-    } else if (!row.materialRevisionMatches) {
-      findings.push('active_material_revision_drift')
-    }
-    if (row.activeGoogleSyncReplyPresent) {
-      findings.push(
-        row.activeGovernedGoogleReplyHeadPresent
-          ? 'active_google_sync_reply_redundant'
-          : 'active_google_sync_reply_unreconciled',
-      )
-    }
-    return findings
+/** Live source content: every governed copy must be present and must agree with
+ * the canonical cache, and no legacy google_sync reply may remain unreconciled. */
+function activeFindings(row: InspectionRow): ReviewSourceContentShadowFinding[] {
+  const findings: ReviewSourceContentShadowFinding[] = []
+  if (!row.sourceCachePresent) findings.push('active_source_cache_missing')
+  else if (!row.compatibilityMatches) findings.push('active_compatibility_drift')
+  if (!row.observationPresent) findings.push('active_observation_missing')
+  else if (!row.observationMatches) findings.push('active_observation_drift')
+  if (!row.materialRevisionPresent) {
+    findings.push('active_material_revision_missing')
+  } else if (!row.materialRevisionMatches) {
+    findings.push('active_material_revision_drift')
   }
+  if (row.activeGoogleSyncReplyPresent) {
+    findings.push(
+      row.activeGovernedGoogleReplyHeadPresent
+        ? 'active_google_sync_reply_redundant'
+        : 'active_google_sync_reply_unreconciled',
+    )
+  }
+  return findings
+}
 
+/** Erased source content: any surviving copy of provider text is a leak. */
+function tombstoneFindings(row: InspectionRow): ReviewSourceContentShadowFinding[] {
   const findings: ReviewSourceContentShadowFinding[] = []
   if (row.sourceCachePresent) findings.push('tombstone_source_cache_present')
   if (row.tombstoneCompatibilityContentPresent) {
@@ -97,6 +100,12 @@ function findingsFor(row: InspectionRow): ReviewSourceContentShadowFinding[] {
     findings.push('tombstone_google_sync_reply_present')
   }
   return findings
+}
+
+function findingsFor(row: InspectionRow): ReviewSourceContentShadowFinding[] {
+  return row.sourceContentState === 'active'
+    ? activeFindings(row)
+    : tombstoneFindings(row)
 }
 
 function toInspection(row: InspectionRow): ReviewSourceContentLifecycleInspection {
@@ -192,6 +201,246 @@ function lockedRowMatchesScope(
     case 'organization':
       return row.organizationId === scope.organizationId
   }
+}
+
+type ApplyRecoveryExecution = NonNullable<
+  Parameters<
+    ReviewSourceContentLifecycleStore['applyLifecycleBatch']
+  >[0]['recoveryExecution']
+>
+type ApplyCursor = Parameters<
+  ReviewSourceContentLifecycleStore['applyLifecycleBatch']
+>[0]['after']
+
+function recoveryExecutionCondition(recoveryExecution: ApplyRecoveryExecution) {
+  return and(
+    eq(reviewLifecycleRecoveryExecutions.id, recoveryExecution.recoveryRunId),
+    eq(
+      reviewLifecycleRecoveryExecutions.recoveryGeneration,
+      recoveryExecution.recoveryGeneration,
+    ),
+    eq(reviewLifecycleRecoveryExecutions.approvalId, recoveryExecution.approvalId),
+    eq(
+      reviewLifecycleRecoveryExecutions.approvalBundleSha256,
+      recoveryExecution.approvalBundleSha256,
+    ),
+  )
+}
+
+/** A restore-only receipt may only drive the page it is currently parked on:
+ * it must be locked in `applying` state and its checkpoint must equal this
+ * page's cursor. */
+async function assertRecoveryReceiptClaimable(
+  tx: Tx,
+  recoveryExecution: ApplyRecoveryExecution,
+  after: ApplyCursor,
+): Promise<void> {
+  const execution = await tx
+    .select({
+      state: reviewLifecycleRecoveryExecutions.state,
+      checkpointCreatedAt: reviewLifecycleRecoveryExecutions.checkpointCreatedAt,
+      checkpointReviewId: reviewLifecycleRecoveryExecutions.checkpointReviewId,
+    })
+    .from(reviewLifecycleRecoveryExecutions)
+    .where(recoveryExecutionCondition(recoveryExecution))
+    .for('update')
+    .limit(1)
+  const receipt = execution[0]
+  const checkpointMatches =
+    receipt != null &&
+    ((after == null &&
+      receipt.checkpointCreatedAt == null &&
+      receipt.checkpointReviewId == null) ||
+      (after != null &&
+        receipt.checkpointCreatedAt != null &&
+        receipt.checkpointReviewId === after.reviewId &&
+        receipt.checkpointCreatedAt.getTime() === after.createdAt.getTime()))
+  if (receipt?.state !== 'applying' || !checkpointMatches) {
+    throw new Error(
+      'Review lifecycle recovery receipt is missing, stale, or already advanced',
+    )
+  }
+}
+
+/** The frozen apply window must not be ahead of the database's own clock, or
+ * the page would redact Reviews against a future deadline. */
+async function assertApplyWindowIsPast(tx: Tx, evaluatedAt: Date): Promise<void> {
+  const clockResult = await tx.execute(
+    sql`SELECT transaction_timestamp() AS database_now`,
+  )
+  const clockValue = clockResult.rows[0]?.database_now
+  const databaseNow =
+    clockValue instanceof Date ? clockValue : new Date(String(clockValue ?? ''))
+  if (Number.isNaN(databaseNow.getTime())) {
+    throw new Error('Review lifecycle database clock is invalid')
+  }
+  if (evaluatedAt > databaseNow) {
+    throw new Error('Review lifecycle apply window is ahead of the database clock')
+  }
+}
+
+/** Advance the durable restore cursor in the same transaction as the page it
+ * describes, so a crash can never lose or double-count applied evidence. */
+async function advanceRecoveryReceipt(
+  tx: Tx,
+  recoveryExecution: ApplyRecoveryExecution,
+  progress: Readonly<{
+    hasMore: boolean
+    last: ReviewSourceContentLifecycleInspection | undefined
+    pages: number
+    scanned: number
+    rowsRedacted: number
+    legacyGoogleRepliesReconciled: number
+  }>,
+): Promise<void> {
+  const { hasMore, last } = progress
+  if (hasMore && last == null) {
+    throw new Error('Review lifecycle recovery checkpoint did not advance')
+  }
+  const updated = await tx
+    .update(reviewLifecycleRecoveryExecutions)
+    .set({
+      state: hasMore ? 'applying' : 'lifecycle_applied',
+      checkpointCreatedAt: hasMore ? last!.createdAt : null,
+      checkpointReviewId: hasMore ? last!.reviewId : null,
+      pages: sql`${reviewLifecycleRecoveryExecutions.pages} + ${progress.pages}`,
+      scanned: sql`${reviewLifecycleRecoveryExecutions.scanned} + ${progress.scanned}`,
+      rowsRedacted: sql`${reviewLifecycleRecoveryExecutions.rowsRedacted} + ${progress.rowsRedacted}`,
+      legacyGoogleRepliesReconciled: sql`${reviewLifecycleRecoveryExecutions.legacyGoogleRepliesReconciled} + ${progress.legacyGoogleRepliesReconciled}`,
+      errorCode: null,
+      updatedAt: sql`clock_timestamp()`,
+    })
+    .where(
+      and(
+        recoveryExecutionCondition(recoveryExecution),
+        eq(reviewLifecycleRecoveryExecutions.state, 'applying'),
+      ),
+    )
+    .returning({ id: reviewLifecycleRecoveryExecutions.id })
+  if (!updated[0]) {
+    throw new Error('Review lifecycle recovery receipt changed during apply')
+  }
+}
+
+function selectLockedLifecycleRows(tx: Tx, pageIds: ReadonlyArray<string>) {
+  return tx
+    .select({
+      id: reviews.id,
+      organizationId: reviews.organizationId,
+      propertyId: reviews.propertyId,
+      googleConnectionId: reviews.googleConnectionId,
+      sourceCacheConnectionId: reviewSourceContents.googleConnectionId,
+      sourceEpoch: reviews.sourceEpoch,
+      sourceRevision: reviews.sourceRevision,
+      sourceContentState: reviews.sourceContentState,
+    })
+    .from(reviews)
+    .leftJoin(reviewSourceContents, eq(reviewSourceContents.reviewId, reviews.id))
+    .where(inArray(reviews.id, [...pageIds]))
+    .orderBy(asc(reviews.id))
+    .for('update', { of: reviews })
+}
+
+type LockedLifecycleRow = Awaited<ReturnType<typeof selectLockedLifecycleRows>>[number]
+
+type LifecycleApplyDelta = Readonly<{
+  rowsRedacted: number
+  legacyGoogleRepliesReconciled: number
+}>
+
+const NO_LIFECYCLE_CHANGE: LifecycleApplyDelta = {
+  rowsRedacted: 0,
+  legacyGoogleRepliesReconciled: 0,
+}
+
+/**
+ * Apply the lifecycle decision for one locked Review. Expiring or repairing a
+ * tombstone redacts the source content; otherwise the only remaining work is
+ * removing a legacy google_sync reply the governed head already supersedes.
+ */
+async function applyLifecycleToReview(
+  tx: Tx,
+  row: LockedLifecycleRow,
+  inspection: ReviewSourceContentLifecycleInspection,
+  context: Readonly<{
+    scope: ReviewSourceContentLifecycleScope
+    evaluatedAt: Date
+    propertyEpochs: ReadonlyMap<string, number>
+  }>,
+): Promise<LifecycleApplyDelta> {
+  if (!lockedRowMatchesScope(row, context.scope)) return NO_LIFECYCLE_CHANGE
+
+  const shouldExpire =
+    row.sourceContentState === 'active' &&
+    (context.scope.kind !== 'expired' ||
+      (inspection.lifecycleClock != null &&
+        inspection.lifecycleClock <= context.evaluatedAt))
+  const shouldRepairTombstone =
+    row.sourceContentState !== 'active' && inspection.shadowFindings.length > 0
+
+  if (shouldExpire || shouldRepairTombstone) {
+    const erased = await eraseReviewSourceContent(tx, {
+      reviewId: reviewId(row.id),
+      organizationId: organizationId(row.organizationId),
+      propertyId: propertyId(row.propertyId),
+      sourceEpoch: row.sourceEpoch,
+      expectedSourceRevision: row.sourceRevision,
+      state:
+        row.sourceContentState === 'provider_deleted'
+          ? 'provider_deleted'
+          : 'source_expired',
+    })
+    if (!erased) {
+      throw new Error('Review changed during lifecycle batch apply')
+    }
+    if (shouldExpire) {
+      await tx
+        .update(reviewProviderSubjects)
+        .set({
+          state: 'source_expired',
+          unlinkedAt: sql`transaction_timestamp()`,
+          unlinkExpiresAt: sql`transaction_timestamp() + interval '2 years'`,
+          updatedAt: sql`transaction_timestamp()`,
+        })
+        .where(
+          and(
+            eq(reviewProviderSubjects.organizationId, row.organizationId),
+            eq(reviewProviderSubjects.propertyId, row.propertyId),
+            eq(reviewProviderSubjects.sourceEpoch, row.sourceEpoch),
+            eq(reviewProviderSubjects.reviewId, row.id),
+            eq(reviewProviderSubjects.state, 'linked'),
+          ),
+        )
+      if (
+        context.propertyEpochs.get(`${row.organizationId}\0${row.propertyId}`) ===
+        row.sourceEpoch
+      ) {
+        await recordSourceExpiredFact(tx, row)
+      }
+    }
+    return { rowsRedacted: 1, legacyGoogleRepliesReconciled: 0 }
+  }
+
+  if (
+    row.sourceContentState === 'active' &&
+    inspection.shadowFindings.includes('active_google_sync_reply_redundant')
+  ) {
+    const reconciled = await tx
+      .delete(replies)
+      .where(
+        and(
+          eq(replies.organizationId, row.organizationId),
+          eq(replies.reviewId, row.id),
+          eq(replies.source, 'google_sync'),
+        ),
+      )
+      .returning({ id: replies.id })
+    return {
+      rowsRedacted: reconciled.length > 0 ? 1 : 0,
+      legacyGoogleRepliesReconciled: reconciled.length,
+    }
+  }
+  return NO_LIFECYCLE_CHANGE
 }
 
 async function recordSourceExpiredFact(
@@ -461,61 +710,9 @@ export const createReviewSourceContentLifecycleStore = (
 
       return db.transaction(async (tx) => {
         if (recoveryExecution != null) {
-          const execution = await tx
-            .select({
-              state: reviewLifecycleRecoveryExecutions.state,
-              checkpointCreatedAt: reviewLifecycleRecoveryExecutions.checkpointCreatedAt,
-              checkpointReviewId: reviewLifecycleRecoveryExecutions.checkpointReviewId,
-            })
-            .from(reviewLifecycleRecoveryExecutions)
-            .where(
-              and(
-                eq(reviewLifecycleRecoveryExecutions.id, recoveryExecution.recoveryRunId),
-                eq(
-                  reviewLifecycleRecoveryExecutions.recoveryGeneration,
-                  recoveryExecution.recoveryGeneration,
-                ),
-                eq(
-                  reviewLifecycleRecoveryExecutions.approvalId,
-                  recoveryExecution.approvalId,
-                ),
-                eq(
-                  reviewLifecycleRecoveryExecutions.approvalBundleSha256,
-                  recoveryExecution.approvalBundleSha256,
-                ),
-              ),
-            )
-            .for('update')
-            .limit(1)
-          const receipt = execution[0]
-          const checkpointMatches =
-            receipt != null &&
-            ((after == null &&
-              receipt.checkpointCreatedAt == null &&
-              receipt.checkpointReviewId == null) ||
-              (after != null &&
-                receipt.checkpointCreatedAt != null &&
-                receipt.checkpointReviewId === after.reviewId &&
-                receipt.checkpointCreatedAt.getTime() === after.createdAt.getTime()))
-          if (receipt?.state !== 'applying' || !checkpointMatches) {
-            throw new Error(
-              'Review lifecycle recovery receipt is missing, stale, or already advanced',
-            )
-          }
+          await assertRecoveryReceiptClaimable(tx, recoveryExecution, after)
         }
-
-        const clockResult = await tx.execute(
-          sql`SELECT transaction_timestamp() AS database_now`,
-        )
-        const clockValue = clockResult.rows[0]?.database_now
-        const databaseNow =
-          clockValue instanceof Date ? clockValue : new Date(String(clockValue ?? ''))
-        if (Number.isNaN(databaseNow.getTime())) {
-          throw new Error('Review lifecycle database clock is invalid')
-        }
-        if (evaluatedAt > databaseNow) {
-          throw new Error('Review lifecycle apply window is ahead of the database clock')
-        }
+        await assertApplyWindowIsPast(tx, evaluatedAt)
         const effectiveEvaluatedAt = evaluatedAt
 
         // Discovery is non-locking; every discovered Property and Review is
@@ -576,28 +773,8 @@ export const createReviewSourceContentLifecycleStore = (
           )
         }
 
-        const lockedRows =
-          pageIds.length === 0
-            ? []
-            : await tx
-                .select({
-                  id: reviews.id,
-                  organizationId: reviews.organizationId,
-                  propertyId: reviews.propertyId,
-                  googleConnectionId: reviews.googleConnectionId,
-                  sourceCacheConnectionId: reviewSourceContents.googleConnectionId,
-                  sourceEpoch: reviews.sourceEpoch,
-                  sourceRevision: reviews.sourceRevision,
-                  sourceContentState: reviews.sourceContentState,
-                })
-                .from(reviews)
-                .leftJoin(
-                  reviewSourceContents,
-                  eq(reviewSourceContents.reviewId, reviews.id),
-                )
-                .where(inArray(reviews.id, pageIds))
-                .orderBy(asc(reviews.id))
-                .for('update', { of: reviews })
+        const lockedRows: LockedLifecycleRow[] =
+          pageIds.length === 0 ? [] : await selectLockedLifecycleRows(tx, pageIds)
         const lockedById = new Map(lockedRows.map((row) => [row.id, row]))
         if (lockedById.size !== pageIds.length) {
           throw new Error('Review lifecycle page changed during lock acquisition')
@@ -623,80 +800,14 @@ export const createReviewSourceContentLifecycleStore = (
         let rowsRedacted = 0
         let legacyGoogleRepliesReconciled = 0
         for (const candidate of page) {
-          const row = lockedById.get(candidate.id)!
-          const inspection = inspectionById.get(reviewId(candidate.id))!
-          if (!lockedRowMatchesScope(row, scope)) continue
-
-          const shouldExpire =
-            row.sourceContentState === 'active' &&
-            (scope.kind !== 'expired' ||
-              (inspection.lifecycleClock != null &&
-                inspection.lifecycleClock <= effectiveEvaluatedAt))
-          const shouldRepairTombstone =
-            row.sourceContentState !== 'active' && inspection.shadowFindings.length > 0
-
-          if (shouldExpire || shouldRepairTombstone) {
-            const erased = await eraseReviewSourceContent(tx, {
-              reviewId: reviewId(row.id),
-              organizationId: organizationId(row.organizationId),
-              propertyId: propertyId(row.propertyId),
-              sourceEpoch: row.sourceEpoch,
-              expectedSourceRevision: row.sourceRevision,
-              state:
-                row.sourceContentState === 'provider_deleted'
-                  ? 'provider_deleted'
-                  : 'source_expired',
-            })
-            if (!erased) {
-              throw new Error('Review changed during lifecycle batch apply')
-            }
-            rowsRedacted += 1
-
-            if (shouldExpire) {
-              await tx
-                .update(reviewProviderSubjects)
-                .set({
-                  state: 'source_expired',
-                  unlinkedAt: sql`transaction_timestamp()`,
-                  unlinkExpiresAt: sql`transaction_timestamp() + interval '2 years'`,
-                  updatedAt: sql`transaction_timestamp()`,
-                })
-                .where(
-                  and(
-                    eq(reviewProviderSubjects.organizationId, row.organizationId),
-                    eq(reviewProviderSubjects.propertyId, row.propertyId),
-                    eq(reviewProviderSubjects.sourceEpoch, row.sourceEpoch),
-                    eq(reviewProviderSubjects.reviewId, row.id),
-                    eq(reviewProviderSubjects.state, 'linked'),
-                  ),
-                )
-              if (
-                propertyEpochs.get(`${row.organizationId}\0${row.propertyId}`) ===
-                row.sourceEpoch
-              ) {
-                await recordSourceExpiredFact(tx, row)
-              }
-            }
-            continue
-          }
-
-          if (
-            row.sourceContentState === 'active' &&
-            inspection.shadowFindings.includes('active_google_sync_reply_redundant')
-          ) {
-            const reconciled = await tx
-              .delete(replies)
-              .where(
-                and(
-                  eq(replies.organizationId, row.organizationId),
-                  eq(replies.reviewId, row.id),
-                  eq(replies.source, 'google_sync'),
-                ),
-              )
-              .returning({ id: replies.id })
-            legacyGoogleRepliesReconciled += reconciled.length
-            if (reconciled.length > 0) rowsRedacted += 1
-          }
+          const delta = await applyLifecycleToReview(
+            tx,
+            lockedById.get(candidate.id)!,
+            inspectionById.get(reviewId(candidate.id))!,
+            { scope, evaluatedAt: effectiveEvaluatedAt, propertyEpochs },
+          )
+          rowsRedacted += delta.rowsRedacted
+          legacyGoogleRepliesReconciled += delta.legacyGoogleRepliesReconciled
         }
 
         await tx.insert(retentionRuns).values({
@@ -713,45 +824,14 @@ export const createReviewSourceContentLifecycleStore = (
         })
 
         if (recoveryExecution != null) {
-          const last = inspections.at(-1)
-          if (hasMore && last == null) {
-            throw new Error('Review lifecycle recovery checkpoint did not advance')
-          }
-          const updated = await tx
-            .update(reviewLifecycleRecoveryExecutions)
-            .set({
-              state: hasMore ? 'applying' : 'lifecycle_applied',
-              checkpointCreatedAt: hasMore ? last!.createdAt : null,
-              checkpointReviewId: hasMore ? last!.reviewId : null,
-              pages: sql`${reviewLifecycleRecoveryExecutions.pages} + ${page.length === 0 ? 0 : 1}`,
-              scanned: sql`${reviewLifecycleRecoveryExecutions.scanned} + ${inspections.length}`,
-              rowsRedacted: sql`${reviewLifecycleRecoveryExecutions.rowsRedacted} + ${rowsRedacted}`,
-              legacyGoogleRepliesReconciled: sql`${reviewLifecycleRecoveryExecutions.legacyGoogleRepliesReconciled} + ${legacyGoogleRepliesReconciled}`,
-              errorCode: null,
-              updatedAt: sql`clock_timestamp()`,
-            })
-            .where(
-              and(
-                eq(reviewLifecycleRecoveryExecutions.id, recoveryExecution.recoveryRunId),
-                eq(
-                  reviewLifecycleRecoveryExecutions.recoveryGeneration,
-                  recoveryExecution.recoveryGeneration,
-                ),
-                eq(
-                  reviewLifecycleRecoveryExecutions.approvalId,
-                  recoveryExecution.approvalId,
-                ),
-                eq(
-                  reviewLifecycleRecoveryExecutions.approvalBundleSha256,
-                  recoveryExecution.approvalBundleSha256,
-                ),
-                eq(reviewLifecycleRecoveryExecutions.state, 'applying'),
-              ),
-            )
-            .returning({ id: reviewLifecycleRecoveryExecutions.id })
-          if (!updated[0]) {
-            throw new Error('Review lifecycle recovery receipt changed during apply')
-          }
+          await advanceRecoveryReceipt(tx, recoveryExecution, {
+            hasMore,
+            last: inspections.at(-1),
+            pages: page.length === 0 ? 0 : 1,
+            scanned: inspections.length,
+            rowsRedacted,
+            legacyGoogleRepliesReconciled,
+          })
         }
 
         return {

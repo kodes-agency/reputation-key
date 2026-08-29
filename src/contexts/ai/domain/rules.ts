@@ -331,7 +331,26 @@ function validStopFence(value: unknown): boolean {
   )
 }
 
-function commonBindingValid(value: Readonly<Record<string, unknown>>): boolean {
+// Split in two halves, not extracted into per-field helpers. The contract is a
+// flat transcription of BINDING_KEYS and its review value is that a reader sees
+// every field beside that array — scattering it would cost exactly that. The
+// halves stay adjacent and in the original order, so the whole contract is
+// still read top to bottom; only the `&&` count per function drops.
+//
+// The reply-brand pair invariant is the one genuinely compound clause, so it is
+// named rather than left inline.
+function replyBrandPairValid(value: Readonly<Record<string, unknown>>): boolean {
+  const versionAbsent = value.replyBrandProfileVersion === null
+  const digestAbsent = value.replyBrandDisplayNameDigest === null
+  if (versionAbsent && digestAbsent) return true
+  return (
+    isPositiveSafeInteger(value.replyBrandProfileVersion) &&
+    typeof value.replyBrandDisplayNameDigest === 'string' &&
+    SHA256.test(value.replyBrandDisplayNameDigest)
+  )
+}
+
+function commonBindingIdentityValid(value: Readonly<Record<string, unknown>>): boolean {
   return (
     UUID.test(String(value.authorizationLineageId)) &&
     nonEmptyString(value.noticeVersion, 100) &&
@@ -345,13 +364,14 @@ function commonBindingValid(value: Readonly<Record<string, unknown>>): boolean {
     (value.replyBrandProfileVersion === null ||
       isPositiveSafeInteger(value.replyBrandProfileVersion)) &&
     validDigestOrNull(value.replyBrandDisplayNameDigest) &&
-    ((value.replyBrandProfileVersion === null &&
-      value.replyBrandDisplayNameDigest === null) ||
-      (isPositiveSafeInteger(value.replyBrandProfileVersion) &&
-        typeof value.replyBrandDisplayNameDigest === 'string' &&
-        SHA256.test(value.replyBrandDisplayNameDigest))) &&
+    replyBrandPairValid(value) &&
     isPositiveSafeInteger(value.routingPolicyVersion) &&
-    nonEmptyString(value.sourcePolicyId, 150) &&
+    nonEmptyString(value.sourcePolicyId, 150)
+  )
+}
+
+function commonBindingProfileValid(value: Readonly<Record<string, unknown>>): boolean {
+  return (
     typeof value.sourceCanonicalizerDigest === 'string' &&
     SHA256.test(value.sourceCanonicalizerDigest) &&
     nonEmptyString(value.redactionProfileVersion, 100) &&
@@ -366,6 +386,10 @@ function commonBindingValid(value: Readonly<Record<string, unknown>>): boolean {
     validDigestOrNull(value.replyTemplateCatalogueDigest) &&
     validStopFence(value.stopFence)
   )
+}
+
+function commonBindingValid(value: Readonly<Record<string, unknown>>): boolean {
+  return commonBindingIdentityValid(value) && commonBindingProfileValid(value)
 }
 
 function allNull(

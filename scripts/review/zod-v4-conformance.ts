@@ -60,6 +60,105 @@ function sourceLocation(sourceFile: ts.SourceFile, node: ts.Node) {
   }
 }
 
+function isZodModule(moduleName: string): boolean {
+  return moduleName === 'zod' || moduleName.startsWith('zod/')
+}
+
+/**
+ * The zod-family specifier of a statement that re-exports or `import =`s zod.
+ * These forms introduce no local `z` binding, so they only need pin checking.
+ */
+function zodReExportSpecifier(statement: ts.Statement): ts.StringLiteral | undefined {
+  if (ts.isExportDeclaration(statement)) {
+    const specifier = statement.moduleSpecifier
+    return specifier && ts.isStringLiteral(specifier) && isZodModule(specifier.text)
+      ? specifier
+      : undefined
+  }
+  if (
+    ts.isImportEqualsDeclaration(statement) &&
+    ts.isExternalModuleReference(statement.moduleReference) &&
+    statement.moduleReference.expression &&
+    ts.isStringLiteral(statement.moduleReference.expression) &&
+    isZodModule(statement.moduleReference.expression.text)
+  ) {
+    return statement.moduleReference.expression
+  }
+  return undefined
+}
+
+type ZodImport = Readonly<{
+  specifier: ts.StringLiteral
+  clause: ts.ImportClause | undefined
+}>
+
+/** The zod-family specifier and clause of a top-level `import ... from 'zod...'`. */
+function zodImport(statement: ts.Statement): ZodImport | undefined {
+  if (!ts.isImportDeclaration(statement)) return undefined
+  const specifier = statement.moduleSpecifier
+  return ts.isStringLiteral(specifier) && isZodModule(specifier.text)
+    ? { specifier, clause: statement.importClause }
+    : undefined
+}
+
+/** Records every local name that can stand for the zod namespace or its `z` export. */
+function collectZodBindings(
+  clause: ts.ImportClause | undefined,
+  into: Set<string>,
+): void {
+  if (!clause) return
+  if (clause.name) into.add(clause.name.text)
+  const named = clause.namedBindings
+  if (named && ts.isNamespaceImport(named)) {
+    into.add(named.name.text)
+    return
+  }
+  if (!named || !ts.isNamedImports(named)) return
+  for (const element of named.elements) {
+    if ((element.propertyName ?? element.name).text === 'z') into.add(element.name.text)
+  }
+}
+
+/** The zod-family specifier of a dynamic `import()` or `require()` call. */
+function dynamicZodModuleSpecifier(node: ts.Node): ts.StringLiteral | undefined {
+  if (!ts.isCallExpression(node)) return undefined
+  const isModuleLoad =
+    node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+    (ts.isIdentifier(node.expression) && node.expression.text === 'require')
+  if (!isModuleLoad || node.arguments.length !== 1) return undefined
+  const argument = node.arguments[0]!
+  return ts.isStringLiteral(argument) && isZodModule(argument.text) ? argument : undefined
+}
+
+/** The deprecated format name of a `<zod>.string().<format>()` chain, if any. */
+function deprecatedStringFormat(
+  node: ts.Node,
+  zodBindings: ReadonlySet<string>,
+): string | undefined {
+  if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression)) {
+    return undefined
+  }
+  const format = node.expression.name.text
+  const stringCall = node.expression.expression
+  if (
+    !DEPRECATED_STRING_FORMATS.has(format) ||
+    !ts.isCallExpression(stringCall) ||
+    !ts.isPropertyAccessExpression(stringCall.expression) ||
+    stringCall.expression.name.text !== 'string' ||
+    !ts.isIdentifier(stringCall.expression.expression) ||
+    !zodBindings.has(stringCall.expression.expression.text)
+  ) {
+    return undefined
+  }
+  return format
+}
+
+function deprecatedFormatMessage(format: string): string {
+  return format === 'datetime'
+    ? 'Use z.iso.datetime(); the chained string datetime format is deprecated.'
+    : `Use z.${format}() instead of the deprecated chained string format.`
+}
+
 export function findZodV4ConformanceViolations(
   source: string,
   fileName = 'fixture.ts',
@@ -74,97 +173,37 @@ export function findZodV4ConformanceViolations(
   const violations: ZodV4ConformanceViolation[] = []
   const zodBindings = new Set<string>()
 
-  function recordMixedImport(moduleSpecifier: ts.StringLiteralLike) {
+  const recordUnlessPinned = (specifier: ts.StringLiteralLike): void => {
+    if (specifier.text === 'zod/v4') return
     violations.push({
-      ...sourceLocation(sourceFile, moduleSpecifier),
+      ...sourceLocation(sourceFile, specifier),
       kind: 'mixed-import',
       message: "Import the pinned API explicitly from 'zod/v4'.",
     })
   }
 
-  function isZodModule(moduleName: string) {
-    return moduleName === 'zod' || moduleName.startsWith('zod/')
-  }
-
   for (const statement of sourceFile.statements) {
-    if (
-      ts.isExportDeclaration(statement) &&
-      statement.moduleSpecifier &&
-      ts.isStringLiteral(statement.moduleSpecifier) &&
-      isZodModule(statement.moduleSpecifier.text) &&
-      statement.moduleSpecifier.text !== 'zod/v4'
-    ) {
-      recordMixedImport(statement.moduleSpecifier)
+    const reExported = zodReExportSpecifier(statement)
+    if (reExported) {
+      recordUnlessPinned(reExported)
       continue
     }
-    if (
-      ts.isImportEqualsDeclaration(statement) &&
-      ts.isExternalModuleReference(statement.moduleReference) &&
-      statement.moduleReference.expression &&
-      ts.isStringLiteral(statement.moduleReference.expression) &&
-      isZodModule(statement.moduleReference.expression.text) &&
-      statement.moduleReference.expression.text !== 'zod/v4'
-    ) {
-      recordMixedImport(statement.moduleReference.expression)
-      continue
-    }
-    if (
-      !ts.isImportDeclaration(statement) ||
-      !ts.isStringLiteral(statement.moduleSpecifier) ||
-      !isZodModule(statement.moduleSpecifier.text)
-    ) {
-      continue
-    }
-    const moduleName = statement.moduleSpecifier.text
-    if (moduleName !== 'zod/v4') recordMixedImport(statement.moduleSpecifier)
-
-    const clause = statement.importClause
-    if (!clause) continue
-    if (clause.name) zodBindings.add(clause.name.text)
-    if (clause.namedBindings && ts.isNamespaceImport(clause.namedBindings)) {
-      zodBindings.add(clause.namedBindings.name.text)
-    } else if (clause.namedBindings && ts.isNamedImports(clause.namedBindings)) {
-      for (const element of clause.namedBindings.elements) {
-        if ((element.propertyName ?? element.name).text === 'z') {
-          zodBindings.add(element.name.text)
-        }
-      }
-    }
+    const imported = zodImport(statement)
+    if (!imported) continue
+    recordUnlessPinned(imported.specifier)
+    collectZodBindings(imported.clause, zodBindings)
   }
 
-  function visit(node: ts.Node) {
-    if (
-      ts.isCallExpression(node) &&
-      (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-        (ts.isIdentifier(node.expression) && node.expression.text === 'require')) &&
-      node.arguments.length === 1 &&
-      ts.isStringLiteral(node.arguments[0]) &&
-      isZodModule(node.arguments[0].text) &&
-      node.arguments[0].text !== 'zod/v4'
-    ) {
-      recordMixedImport(node.arguments[0])
-    }
-
-    if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
-      const format = node.expression.name.text
-      const stringCall = node.expression.expression
-      if (
-        DEPRECATED_STRING_FORMATS.has(format) &&
-        ts.isCallExpression(stringCall) &&
-        ts.isPropertyAccessExpression(stringCall.expression) &&
-        stringCall.expression.name.text === 'string' &&
-        ts.isIdentifier(stringCall.expression.expression) &&
-        zodBindings.has(stringCall.expression.expression.text)
-      ) {
-        violations.push({
-          ...sourceLocation(sourceFile, node),
-          kind: 'deprecated-string-format',
-          message:
-            format === 'datetime'
-              ? 'Use z.iso.datetime(); the chained string datetime format is deprecated.'
-              : `Use z.${format}() instead of the deprecated chained string format.`,
-        })
-      }
+  const visit = (node: ts.Node): void => {
+    const dynamic = dynamicZodModuleSpecifier(node)
+    if (dynamic) recordUnlessPinned(dynamic)
+    const format = deprecatedStringFormat(node, zodBindings)
+    if (format !== undefined) {
+      violations.push({
+        ...sourceLocation(sourceFile, node),
+        kind: 'deprecated-string-format',
+        message: deprecatedFormatMessage(format),
+      })
     }
     ts.forEachChild(node, visit)
   }

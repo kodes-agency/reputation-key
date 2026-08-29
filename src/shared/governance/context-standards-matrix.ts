@@ -272,22 +272,58 @@ const evidencedRationale: Partial<Record<ContextStandardDimension, string>> = {
     'No legacy export-function create factory exists in production infrastructure.',
 }
 
+function eventDimensionEvidence(
+  context: string,
+  directory: string,
+  dimension: ContextStandardDimension,
+): readonly ContextStandardEvidence[] {
+  if (EVENTLESS.has(directory)) {
+    return [{ path: `${context}/domain/events.ts`, kind: 'absent' }]
+  }
+  const evidence: ContextStandardEvidence[] = [
+    { path: `${context}/domain/events.ts`, kind: 'file' },
+  ]
+  if (dimension === 'union') {
+    evidence.push({ path: 'src/shared/events/events.ts', kind: 'file' })
+  }
+  return evidence
+}
+
+function repositoryEvidence(
+  context: string,
+  directory: string,
+): readonly ContextStandardEvidence[] {
+  if (CONTRACTED_RUNTIME_CONTEXTS.has(directory)) {
+    return [{ path: `${context}/build.ts`, kind: 'file', contains: ['repos: {}'] }]
+  }
+  if (directory === 'activity') {
+    return [
+      {
+        path: `${context}/ports/recent-activity-repository.port.ts`,
+        kind: 'file',
+      },
+      { path: `${context}/infrastructure/repositories`, kind: 'directory' },
+    ]
+  }
+  if (directory === 'identity') {
+    return [{ path: `${context}/application/ports`, kind: 'directory' }]
+  }
+  return [
+    { path: `${context}/application/ports`, kind: 'directory' },
+    {
+      path: `${context}/infrastructure/repositories`,
+      kind: directory === 'ai' ? 'absent' : 'directory',
+    },
+  ]
+}
+
 function evidenceFor(
   directory: string,
   dimension: ContextStandardDimension,
 ): readonly ContextStandardEvidence[] {
   const context = `src/contexts/${directory}`
   if (['tags', 'envelope', 'assert', 'union'].includes(dimension)) {
-    if (EVENTLESS.has(directory)) {
-      return [{ path: `${context}/domain/events.ts`, kind: 'absent' }]
-    }
-    const evidence: ContextStandardEvidence[] = [
-      { path: `${context}/domain/events.ts`, kind: 'file' },
-    ]
-    if (dimension === 'union') {
-      evidence.push({ path: 'src/shared/events/events.ts', kind: 'file' })
-    }
-    return evidence
+    return eventDimensionEvidence(context, directory, dimension)
   }
   if (dimension === 'triple')
     return CONTRACTED_RUNTIME_CONTEXTS.has(directory)
@@ -302,35 +338,42 @@ function evidenceFor(
     return [
       { path: `${context}/CONTEXT.md`, kind: 'file', contains: ['## Events produced'] },
     ]
-  if (dimension === 'repositories') {
-    if (CONTRACTED_RUNTIME_CONTEXTS.has(directory)) {
-      return [{ path: `${context}/build.ts`, kind: 'file', contains: ['repos: {}'] }]
-    }
-    if (directory === 'activity') {
-      return [
-        {
-          path: `${context}/ports/recent-activity-repository.port.ts`,
-          kind: 'file',
-        },
-        { path: `${context}/infrastructure/repositories`, kind: 'directory' },
-      ]
-    }
-    if (directory === 'identity') {
-      return [{ path: `${context}/application/ports`, kind: 'directory' }]
-    }
-    return [
-      { path: `${context}/application/ports`, kind: 'directory' },
-      {
-        path: `${context}/infrastructure/repositories`,
-        kind: directory === 'ai' ? 'absent' : 'directory',
-      },
-    ]
-  }
+  if (dimension === 'repositories') return repositoryEvidence(context, directory)
   if (dimension === 'files') return [{ path: context, kind: 'directory' }]
   if (dimension === 'factories' && directory === 'badge') {
     return [{ path: `${context}/build.ts`, kind: 'file', contains: ['repos: {}'] }]
   }
   return [{ path: `${context}/infrastructure`, kind: 'directory' }]
+}
+
+function notApplicableRationale(
+  directory: string,
+  dimension: ContextStandardDimension,
+): string {
+  if (CONTRACTED_RUNTIME_CONTEXTS.has(directory)) {
+    return 'REC-01 retains no product use case, error flow, or entity repository in this context; its inert build and content-free compatibility boundary are governed separately.'
+  }
+  if (dimension !== 'repositories') return 'This context produces no domain events.'
+  if (directory === 'ai') {
+    return 'AI owns store and adapter ports rather than entity repository ports.'
+  }
+  return 'Identity owns authorization, command-store, and lifecycle-authority ports rather than an entity repository contract.'
+}
+
+function acceptedExceptionRationale(dimension: ContextStandardDimension): string {
+  if (dimension === 'tags') {
+    return 'Portal retains its published legacy tag vocabulary until every durable consumer can migrate through a versioned compatibility window.'
+  }
+  if (dimension === 'triple') {
+    return 'The exact legacy use-case export variance is pinned by the exhaustive checker and migrates only when each public caller is changed with it.'
+  }
+  if (dimension === 'files') {
+    return 'The exact legacy layer filename and mirrored-test variance is pinned by the exhaustive checker; renames occur only with bounded ownership-aware changes.'
+  }
+  if (dimension === 'repositories') {
+    return 'The exact legacy repository-port placement is pinned while its imports and implementing adapters await an owner-scoped rename.'
+  }
+  return 'The exact legacy application Result or native domain-error variance is pinned; changing its caller-visible failure contract requires a bounded behavioral migration.'
 }
 
 function cellFor(
@@ -342,28 +385,13 @@ function cellFor(
     return {
       applicability: 'not_applicable',
       resolution: null,
-      rationale: CONTRACTED_RUNTIME_CONTEXTS.has(directory)
-        ? 'REC-01 retains no product use case, error flow, or entity repository in this context; its inert build and content-free compatibility boundary are governed separately.'
-        : dimension === 'repositories'
-          ? directory === 'ai'
-            ? 'AI owns store and adapter ports rather than entity repository ports.'
-            : 'Identity owns authorization, command-store, and lifecycle-authority ports rather than an entity repository contract.'
-          : 'This context produces no domain events.',
+      rationale: notApplicableRationale(directory, dimension),
       evidence,
     }
   }
   const exceptionId = ACCEPTED_EXCEPTIONS[dimension]?.[directory]
   if (exceptionId !== undefined) {
-    const rationale =
-      dimension === 'tags'
-        ? 'Portal retains its published legacy tag vocabulary until every durable consumer can migrate through a versioned compatibility window.'
-        : dimension === 'triple'
-          ? 'The exact legacy use-case export variance is pinned by the exhaustive checker and migrates only when each public caller is changed with it.'
-          : dimension === 'files'
-            ? 'The exact legacy layer filename and mirrored-test variance is pinned by the exhaustive checker; renames occur only with bounded ownership-aware changes.'
-            : dimension === 'repositories'
-              ? 'The exact legacy repository-port placement is pinned while its imports and implementing adapters await an owner-scoped rename.'
-              : 'The exact legacy application Result or native domain-error variance is pinned; changing its caller-visible failure contract requires a bounded behavioral migration.'
+    const rationale = acceptedExceptionRationale(dimension)
     return {
       applicability: 'applicable',
       resolution: 'accepted_exception',
@@ -437,6 +465,67 @@ type StructuralRow = Readonly<{
   standards: Readonly<Partial<Record<string, unknown>>>
 }>
 
+/**
+ * The single applicability/resolution problem a cell has, if any. The rules are
+ * mutually exclusive: the first one that matches is the cell's verdict.
+ */
+function cellApplicabilityIssue(
+  label: string,
+  value: Partial<ContextStandardCell>,
+): string | null {
+  if (value.applicability === 'not_applicable' && value.resolution !== null) {
+    return `${label}: not-applicable cell has a resolution`
+  }
+  if (value.applicability === 'applicable' && value.resolution === 'accepted_exception') {
+    const exceptionId = 'exceptionId' in value ? value.exceptionId : undefined
+    const hasId =
+      typeof exceptionId === 'string' && /^STD-(?:INV|MAINT)-\d{3}$/u.test(exceptionId)
+    return hasId ? null : `${label}: accepted exception lacks an id`
+  }
+  if (
+    value.applicability === 'applicable' &&
+    value.resolution !== 'evidenced' &&
+    value.resolution !== 'unresolved' &&
+    value.resolution !== 'accepted_exception'
+  ) {
+    return `${label}: applicable cell lacks a resolution`
+  }
+  if (value.applicability !== 'applicable' && value.applicability !== 'not_applicable') {
+    return `${label}: invalid applicability`
+  }
+  return null
+}
+
+function cellStructureIssues(label: string, cell: unknown): readonly string[] {
+  if (!cell || typeof cell !== 'object') return [`${label}: invalid cell`]
+  const value = cell as Partial<ContextStandardCell>
+  const issues: string[] = []
+  const applicabilityIssue = cellApplicabilityIssue(label, value)
+  if (applicabilityIssue) issues.push(applicabilityIssue)
+  if (!Array.isArray(value.evidence) || value.evidence.length === 0) {
+    issues.push(`${label}: evidence is empty`)
+  }
+  return issues
+}
+
+function rowStructureIssues(row: StructuralRow): readonly string[] {
+  const issues: string[] = []
+  const dimensions = new Set(CONTEXT_STANDARD_DIMENSIONS.map(({ id }) => id))
+  for (const key of Object.keys(row.standards)) {
+    if (!dimensions.has(key as ContextStandardDimension)) {
+      issues.push(`${row.directory}: unexpected dimension ${key}`)
+    }
+  }
+  for (const { id } of CONTEXT_STANDARD_DIMENSIONS) {
+    if (!(id in row.standards)) {
+      issues.push(`${row.directory}: missing dimension ${id}`)
+      continue
+    }
+    issues.push(...cellStructureIssues(`${row.directory}/${id}`, row.standards[id]))
+  }
+  return issues
+}
+
 export function validateContextStandardsMatrixStructure(
   rows: readonly StructuralRow[],
   expectedDirectories: readonly string[],
@@ -446,54 +535,6 @@ export function validateContextStandardsMatrixStructure(
   if (actualDirectories.join('|') !== expectedDirectories.join('|')) {
     issues.push('context rows do not match authority order')
   }
-  for (const row of rows) {
-    const dimensions = new Set(CONTEXT_STANDARD_DIMENSIONS.map(({ id }) => id))
-    for (const key of Object.keys(row.standards)) {
-      if (!dimensions.has(key as ContextStandardDimension)) {
-        issues.push(`${row.directory}: unexpected dimension ${key}`)
-      }
-    }
-    for (const { id } of CONTEXT_STANDARD_DIMENSIONS) {
-      if (!(id in row.standards)) {
-        issues.push(`${row.directory}: missing dimension ${id}`)
-        continue
-      }
-      const cell = row.standards[id]
-      if (!cell || typeof cell !== 'object') {
-        issues.push(`${row.directory}/${id}: invalid cell`)
-        continue
-      }
-      const value = cell as Partial<ContextStandardCell>
-      if (value.applicability === 'not_applicable' && value.resolution !== null) {
-        issues.push(`${row.directory}/${id}: not-applicable cell has a resolution`)
-      } else if (
-        value.applicability === 'applicable' &&
-        value.resolution === 'accepted_exception'
-      ) {
-        const exceptionId = 'exceptionId' in value ? value.exceptionId : undefined
-        if (
-          typeof exceptionId !== 'string' ||
-          !/^STD-(?:INV|MAINT)-\d{3}$/u.test(exceptionId)
-        ) {
-          issues.push(`${row.directory}/${id}: accepted exception lacks an id`)
-        }
-      } else if (
-        value.applicability === 'applicable' &&
-        value.resolution !== 'evidenced' &&
-        value.resolution !== 'unresolved' &&
-        value.resolution !== 'accepted_exception'
-      ) {
-        issues.push(`${row.directory}/${id}: applicable cell lacks a resolution`)
-      } else if (
-        value.applicability !== 'applicable' &&
-        value.applicability !== 'not_applicable'
-      ) {
-        issues.push(`${row.directory}/${id}: invalid applicability`)
-      }
-      if (!Array.isArray(value.evidence) || value.evidence.length === 0) {
-        issues.push(`${row.directory}/${id}: evidence is empty`)
-      }
-    }
-  }
+  for (const row of rows) issues.push(...rowStructureIssues(row))
   return issues
 }

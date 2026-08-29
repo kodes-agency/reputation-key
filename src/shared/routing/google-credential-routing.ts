@@ -181,23 +181,30 @@ export function signGoogleCredentialRoutingDirectory(
   })
 }
 
-export function validateGoogleCredentialRoutingDirectory(
-  input: unknown,
+type RoutingHome = Readonly<{ homeCellId: DataCellId; authorityGeneration: number }>
+
+type RoutingDirectoryIndex = Readonly<{
+  organizationHomes: ReadonlyMap<string, RoutingHome>
+  connectionHomes: ReadonlyMap<string, RoutingHome>
+  propertyTargets: ReadonlyMap<string, DataCellId>
+}>
+
+/**
+ * Envelope rules: the bytes hash to their digest, the signature verifies, the
+ * directory is inside its own TTL, and its rows are sorted and unique. `null`
+ * means the envelope is admissible.
+ */
+function routingDirectoryEnvelopeDenial(
+  directory: SignedGoogleCredentialRoutingDirectory,
   options: Readonly<{
     keys: VersionedHmacKeyring
     nowMs: number
     minimumRevision: number
     expectedCataloguePolicyVersion?: number
-    isAcceptingCell?: (cellId: string) => boolean
   }>,
-):
-  | Readonly<{ ok: true; value: ValidatedGoogleCredentialRoutingDirectory }>
-  | Readonly<{ ok: false; code: GoogleCredentialRoutingDirectoryDenyCode }> {
-  const parsed = signedDirectorySchema.safeParse(input)
-  if (!parsed.success) return { ok: false, code: 'malformed' }
-  const directory = parsed.data
+): GoogleCredentialRoutingDirectoryDenyCode | null {
   if (digestPayload(payloadOf(directory)) !== directory.digestSha256) {
-    return { ok: false, code: 'digest_mismatch' }
+    return 'digest_mismatch'
   }
   if (
     !options.keys.verify(
@@ -207,24 +214,22 @@ export function validateGoogleCredentialRoutingDirectory(
       directory.signature,
     )
   ) {
-    return { ok: false, code: 'signature_invalid' }
+    return 'signature_invalid'
   }
-  if (directory.issuedAtMs > options.nowMs) return { ok: false, code: 'not_yet_valid' }
-  if (directory.expiresAtMs <= options.nowMs) return { ok: false, code: 'expired' }
+  if (directory.issuedAtMs > options.nowMs) return 'not_yet_valid'
+  if (directory.expiresAtMs <= options.nowMs) return 'expired'
   if (
     directory.expiresAtMs <= directory.issuedAtMs ||
     directory.expiresAtMs - directory.issuedAtMs > MAX_GOOGLE_CREDENTIAL_ROUTING_TTL_MS
   ) {
-    return { ok: false, code: 'ttl_exceeded' }
+    return 'ttl_exceeded'
   }
-  if (directory.revision < options.minimumRevision) {
-    return { ok: false, code: 'stale_revision' }
-  }
+  if (directory.revision < options.minimumRevision) return 'stale_revision'
   if (
     directory.cataloguePolicyVersion !==
     (options.expectedCataloguePolicyVersion ?? DATA_CELL_CATALOGUE_POLICY_VERSION)
   ) {
-    return { ok: false, code: 'policy_mismatch' }
+    return 'policy_mismatch'
   }
   if (
     !sortedUnique(directory.organizationHomes, (entry) => entry.organizationId) ||
@@ -237,9 +242,21 @@ export function validateGoogleCredentialRoutingDirectory(
       (entry) => `${entry.organizationId}\0${entry.connectionId}\0${entry.propertyId}`,
     )
   ) {
-    return { ok: false, code: 'unsorted_or_duplicate' }
+    return 'unsorted_or_duplicate'
   }
-  const accepting = options.isAcceptingCell ?? isDataCellAccepting
+  return null
+}
+
+/**
+ * Index the directory for exact lookup, refusing any row whose cell is not
+ * accepting or whose parent row is missing or disagrees.
+ */
+function indexRoutingDirectory(
+  directory: SignedGoogleCredentialRoutingDirectory,
+  accepting: (cellId: string) => boolean,
+):
+  | Readonly<{ ok: true; index: RoutingDirectoryIndex }>
+  | Readonly<{ ok: false; code: GoogleCredentialRoutingDirectoryDenyCode }> {
   const organizationHomes = new Map(
     directory.organizationHomes.map((entry) => [
       entry.organizationId,
@@ -249,10 +266,7 @@ export function validateGoogleCredentialRoutingDirectory(
       }),
     ]),
   )
-  const connectionHomes = new Map<
-    string,
-    Readonly<{ homeCellId: DataCellId; authorityGeneration: number }>
-  >()
+  const connectionHomes = new Map<string, RoutingHome>()
   for (const entry of directory.organizationHomes) {
     if (!accepting(entry.homeCellId)) return { ok: false, code: 'cell_not_accepting' }
   }
@@ -285,6 +299,35 @@ export function validateGoogleCredentialRoutingDirectory(
       entry.targetCellId,
     )
   }
+  return { ok: true, index: { organizationHomes, connectionHomes, propertyTargets } }
+}
+
+export function validateGoogleCredentialRoutingDirectory(
+  input: unknown,
+  options: Readonly<{
+    keys: VersionedHmacKeyring
+    nowMs: number
+    minimumRevision: number
+    expectedCataloguePolicyVersion?: number
+    isAcceptingCell?: (cellId: string) => boolean
+  }>,
+):
+  | Readonly<{ ok: true; value: ValidatedGoogleCredentialRoutingDirectory }>
+  | Readonly<{ ok: false; code: GoogleCredentialRoutingDirectoryDenyCode }> {
+  const parsed = signedDirectorySchema.safeParse(input)
+  if (!parsed.success) return { ok: false, code: 'malformed' }
+  const directory = parsed.data
+
+  const envelopeDenial = routingDirectoryEnvelopeDenial(directory, options)
+  if (envelopeDenial) return { ok: false, code: envelopeDenial }
+
+  const indexed = indexRoutingDirectory(
+    directory,
+    options.isAcceptingCell ?? isDataCellAccepting,
+  )
+  if (!indexed.ok) return indexed
+  const { organizationHomes, connectionHomes, propertyTargets } = indexed.index
+
   return {
     ok: true,
     value: Object.freeze({

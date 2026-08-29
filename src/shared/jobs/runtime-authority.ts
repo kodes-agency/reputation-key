@@ -116,6 +116,50 @@ function assertNonEmpty(value: string, label: string, jobName: string): void {
   }
 }
 
+/** Every field one contract must declare, independent of the other contracts. */
+function assertJobOperationalContract(contract: JobOperationalContract): void {
+  assertNonEmpty(contract.owner, 'owner', contract.jobName)
+  assertNonEmpty(contract.processor, 'processor', contract.jobName)
+  assertNonEmpty(contract.action, 'action', contract.jobName)
+  assertNonEmpty(contract.runbook, 'runbook', contract.jobName)
+  assertNonEmpty(contract.repairCommand, 'repair command', contract.jobName)
+  if (contract.posture === 'active' && contract.repairCommand === 'none') {
+    throw new Error(`${contract.jobName}: active work requires a repair command`)
+  }
+  if (!isPositiveSafeInteger(contract.maximumQueueAgeMs)) {
+    throw new Error(`${contract.jobName}: maximum queue age must be positive`)
+  }
+  if (!isPositiveSafeInteger(contract.retryAttempts)) {
+    throw new Error(`${contract.jobName}: retry attempts must be positive`)
+  }
+  if (!/^(?:exponential|fixed):[1-9]\d*$/.test(contract.retryBackoff)) {
+    throw new Error(`${contract.jobName}: retry backoff is malformed`)
+  }
+  if (!isPositiveSafeInteger(contract.timeoutMs)) {
+    throw new Error(`${contract.jobName}: timeout must be positive`)
+  }
+  if (!isPositiveSafeInteger(contract.workerConcurrency)) {
+    throw new Error(`${contract.jobName}: worker concurrency must be positive`)
+  }
+  if (!/^completed:[1-9]\d*,failed:[1-9]\d*$/.test(contract.retention)) {
+    throw new Error(`${contract.jobName}: retention is malformed`)
+  }
+  if (
+    contract.lastSuccessObjectiveMs !== null &&
+    !isPositiveSafeInteger(contract.lastSuccessObjectiveMs)
+  ) {
+    throw new Error(`${contract.jobName}: last-success objective must be positive`)
+  }
+  if (isScheduled(contract.schedule) && contract.lastSuccessObjectiveMs === null) {
+    throw new Error(
+      `${contract.jobName}: scheduled work requires a last-success objective`,
+    )
+  }
+  if (!isValidSchedule(contract.schedule)) {
+    throw new Error(`${contract.jobName}: malformed schedule '${contract.schedule}'`)
+  }
+}
+
 /** Fail fast before any queue, worker, or scheduler is created. */
 export function validateJobOperationalContracts(
   contracts: readonly JobOperationalContract[],
@@ -127,47 +171,7 @@ export function validateJobOperationalContracts(
       throw new Error(`duplicate job operational contract: ${contract.jobName}`)
     }
     names.add(contract.jobName)
-
-    assertNonEmpty(contract.owner, 'owner', contract.jobName)
-    assertNonEmpty(contract.processor, 'processor', contract.jobName)
-    assertNonEmpty(contract.action, 'action', contract.jobName)
-    assertNonEmpty(contract.runbook, 'runbook', contract.jobName)
-    assertNonEmpty(contract.repairCommand, 'repair command', contract.jobName)
-    if (contract.posture === 'active' && contract.repairCommand === 'none') {
-      throw new Error(`${contract.jobName}: active work requires a repair command`)
-    }
-    if (!isPositiveSafeInteger(contract.maximumQueueAgeMs)) {
-      throw new Error(`${contract.jobName}: maximum queue age must be positive`)
-    }
-    if (!isPositiveSafeInteger(contract.retryAttempts)) {
-      throw new Error(`${contract.jobName}: retry attempts must be positive`)
-    }
-    if (!/^(?:exponential|fixed):[1-9]\d*$/.test(contract.retryBackoff)) {
-      throw new Error(`${contract.jobName}: retry backoff is malformed`)
-    }
-    if (!isPositiveSafeInteger(contract.timeoutMs)) {
-      throw new Error(`${contract.jobName}: timeout must be positive`)
-    }
-    if (!isPositiveSafeInteger(contract.workerConcurrency)) {
-      throw new Error(`${contract.jobName}: worker concurrency must be positive`)
-    }
-    if (!/^completed:[1-9]\d*,failed:[1-9]\d*$/.test(contract.retention)) {
-      throw new Error(`${contract.jobName}: retention is malformed`)
-    }
-    if (
-      contract.lastSuccessObjectiveMs !== null &&
-      !isPositiveSafeInteger(contract.lastSuccessObjectiveMs)
-    ) {
-      throw new Error(`${contract.jobName}: last-success objective must be positive`)
-    }
-    if (isScheduled(contract.schedule) && contract.lastSuccessObjectiveMs === null) {
-      throw new Error(
-        `${contract.jobName}: scheduled work requires a last-success objective`,
-      )
-    }
-    if (!isValidSchedule(contract.schedule)) {
-      throw new Error(`${contract.jobName}: malformed schedule '${contract.schedule}'`)
-    }
+    assertJobOperationalContract(contract)
   }
 }
 
@@ -216,6 +220,49 @@ function appendWorkHealthReasons(
   if (observation.deadLetterCount > 0) reasons.push('dead_letter_present')
 }
 
+/** Dark work must be inert: nothing registered, queued, or executed since boot. */
+function darkPostureReasons(
+  observation: JobRuntimeObservation,
+  runtimeStartedAt: Date,
+): JobRuntimeReadinessReason[] {
+  const reasons: JobRuntimeReadinessReason[] = []
+  if (observation.handlerRegistered) reasons.push('dark_handler_registered')
+  if (observation.schedulerRegistered) reasons.push('dark_scheduler_registered')
+  if (observation.oldestWaitingAt !== null) reasons.push('dark_queue_work_present')
+  if (
+    observation.lastStartedAt !== null &&
+    observation.lastStartedAt.getTime() >= runtimeStartedAt.getTime()
+  ) {
+    reasons.push('dark_execution_observed')
+  }
+  if (observation.deadLetterCount > 0) reasons.push('dead_letter_present')
+  return reasons
+}
+
+/**
+ * A never-observed success is only a miss once the objective has elapsed since
+ * this process started, so a fresh boot is not reported as a missed objective.
+ */
+function appendSuccessObjectiveReasons(
+  contract: JobOperationalContract,
+  observation: JobRuntimeObservation,
+  runtimeStartedAt: Date,
+  now: Date,
+  reasons: JobRuntimeReadinessReason[],
+): void {
+  const objective = contract.lastSuccessObjectiveMs
+  if (objective === null) return
+  if (observation.lastSucceededAt === null) {
+    if (now.getTime() - runtimeStartedAt.getTime() > objective) {
+      reasons.push('success_never_observed')
+    }
+    return
+  }
+  if (now.getTime() - observation.lastSucceededAt.getTime() > objective) {
+    reasons.push('last_success_objective_missed')
+  }
+}
+
 /**
  * Derive worker readiness from the declared contract and one durable cell head.
  * A process restart supplies a new `runtimeStartedAt`, while the observation
@@ -230,7 +277,6 @@ export function assessJobRuntime(
   }>,
 ): JobRuntimeReadiness {
   const { contract, observation, runtimeStartedAt, now } = input
-  const reasons: JobRuntimeReadinessReason[] = []
 
   if (observation === null || observation.jobName !== contract.jobName) {
     return { ready: false, reasons: ['observation_missing'] }
@@ -243,18 +289,11 @@ export function assessJobRuntime(
   }
 
   if (contract.posture === 'dark') {
-    if (observation.handlerRegistered) reasons.push('dark_handler_registered')
-    if (observation.schedulerRegistered) reasons.push('dark_scheduler_registered')
-    if (observation.oldestWaitingAt !== null) reasons.push('dark_queue_work_present')
-    if (
-      observation.lastStartedAt !== null &&
-      observation.lastStartedAt.getTime() >= runtimeStartedAt.getTime()
-    ) {
-      reasons.push('dark_execution_observed')
-    }
-    if (observation.deadLetterCount > 0) reasons.push('dead_letter_present')
-    return { ready: reasons.length === 0, reasons }
+    const darkReasons = darkPostureReasons(observation, runtimeStartedAt)
+    return { ready: darkReasons.length === 0, reasons: darkReasons }
   }
+
+  const reasons: JobRuntimeReadinessReason[] = []
   if (contract.posture === 'quarantined') {
     if (observation.schedulerRegistered) reasons.push('quarantined_scheduler_registered')
     appendWorkHealthReasons(contract, observation, now, reasons)
@@ -265,18 +304,7 @@ export function assessJobRuntime(
   if (isScheduled(contract.schedule) && !observation.schedulerRegistered) {
     reasons.push('scheduler_missing')
   }
-
-  const objective = contract.lastSuccessObjectiveMs
-  if (objective !== null) {
-    if (observation.lastSucceededAt === null) {
-      if (now.getTime() - runtimeStartedAt.getTime() > objective) {
-        reasons.push('success_never_observed')
-      }
-    } else if (now.getTime() - observation.lastSucceededAt.getTime() > objective) {
-      reasons.push('last_success_objective_missed')
-    }
-  }
-
+  appendSuccessObjectiveReasons(contract, observation, runtimeStartedAt, now, reasons)
   appendWorkHealthReasons(contract, observation, now, reasons)
 
   return { ready: reasons.length === 0, reasons }

@@ -249,57 +249,67 @@ function validateGateFIndex(
   }
 }
 
-export function runReleaseValidationCli(args: readonly string[]): number {
-  const releaseSha = argValue(args, '--release-sha')
-  const releaseId = argValue(args, '--release-id')
-  const gateFIndex = argValue(args, '--gate-f-index')
-  const expectedManifestSha256 = argValue(args, '--manifest-sha256')
-  const evidenceRoot = argValue(args, '--evidence-root')
-  const approvalRoles = argValue(args, '--approval-roles')
-  const legalRoot = argValue(args, '--legal-root')
-  const selectedModes = [releaseSha, releaseId, gateFIndex].filter(
+type ReleaseValidationArgs = Readonly<{
+  releaseSha: string | undefined
+  releaseId: string | undefined
+  gateFIndex: string | undefined
+  expectedManifestSha256: string | undefined
+  evidenceRoot: string | undefined
+  approvalRoles: string | undefined
+  legalRoot: string | undefined
+}>
+
+function readReleaseValidationArgs(args: readonly string[]): ReleaseValidationArgs {
+  return {
+    releaseSha: argValue(args, '--release-sha'),
+    releaseId: argValue(args, '--release-id'),
+    gateFIndex: argValue(args, '--gate-f-index'),
+    expectedManifestSha256: argValue(args, '--manifest-sha256'),
+    evidenceRoot: argValue(args, '--evidence-root'),
+    approvalRoles: argValue(args, '--approval-roles'),
+    legalRoot: argValue(args, '--legal-root'),
+  }
+}
+
+/** Exactly one mode may be selected, and each modifier belongs to one mode. */
+function hasWellFormedModeSelection(parsed: ReleaseValidationArgs): boolean {
+  const selectedModes = [parsed.releaseSha, parsed.releaseId, parsed.gateFIndex].filter(
     (value) => value != null,
   )
+  if (selectedModes.length !== 1) return false
+  if (parsed.expectedManifestSha256 != null && parsed.releaseSha == null) return false
+  const gateFModifiers = [parsed.evidenceRoot, parsed.approvalRoles, parsed.legalRoot]
+  return parsed.gateFIndex != null || gateFModifiers.every((value) => value == null)
+}
+
+function validatePromotedLocalRelease(
+  releaseSha: string,
+  expectedManifestSha256: string | undefined,
+): number {
   if (
-    selectedModes.length !== 1 ||
-    (expectedManifestSha256 != null && releaseSha == null) ||
-    (evidenceRoot != null && gateFIndex == null) ||
-    (approvalRoles != null && gateFIndex == null) ||
-    (legalRoot != null && gateFIndex == null)
+    !RELEASE_SHA_PATTERN.test(releaseSha) ||
+    (expectedManifestSha256 != null &&
+      !MANIFEST_DIGEST_PATTERN.test(expectedManifestSha256))
   ) {
     console.error(
-      'Usage: choose exactly one of --release-sha=<sha>, --release-id=<id>, or --gate-f-index=<path>',
+      'Usage: --release-sha=<lowercase hex revision> [--manifest-sha256=<lowercase sha256>]',
     )
     return 2
   }
-  if (gateFIndex) {
-    return validateGateFIndex(gateFIndex, evidenceRoot, approvalRoles, legalRoot)
+  const result = validatePromotedLocalEvidence({
+    releaseDir: resolve(EVIDENCE_ROOT, 'local', releaseSha),
+    expectedManifestSha256,
+  })
+  if (!result.ok) {
+    console.error(`beta-local-1 evidence ${releaseSha} is invalid:`)
+    for (const error of result.errors) console.error(`  - ${error}`)
+    return 1
   }
+  console.log(`beta-local-1 evidence ${releaseSha}/${result.manifestSha256}: valid`)
+  return 0
+}
 
-  if (releaseSha) {
-    if (
-      !RELEASE_SHA_PATTERN.test(releaseSha) ||
-      (expectedManifestSha256 != null &&
-        !MANIFEST_DIGEST_PATTERN.test(expectedManifestSha256))
-    ) {
-      console.error(
-        'Usage: --release-sha=<lowercase hex revision> [--manifest-sha256=<lowercase sha256>]',
-      )
-      return 2
-    }
-    const result = validatePromotedLocalEvidence({
-      releaseDir: resolve(EVIDENCE_ROOT, 'local', releaseSha),
-      expectedManifestSha256,
-    })
-    if (!result.ok) {
-      console.error(`beta-local-1 evidence ${releaseSha} is invalid:`)
-      for (const error of result.errors) console.error(`  - ${error}`)
-      return 1
-    }
-    console.log(`beta-local-1 evidence ${releaseSha}/${result.manifestSha256}: valid`)
-    return 0
-  }
-
+function validateHistoricalReviewerBundle(releaseId: string | undefined): number {
   if (!releaseId || !RELEASE_ID_PATTERN.test(releaseId)) {
     console.error(
       'Usage: --release-sha=<sha> or --release-id=<letters, numbers, dot, underscore, or hyphen>',
@@ -328,6 +338,28 @@ export function runReleaseValidationCli(args: readonly string[]): number {
 
   console.log(`BQC-8.8 release bundle ${releaseId}: valid`)
   return 0
+}
+
+export function runReleaseValidationCli(args: readonly string[]): number {
+  const parsed = readReleaseValidationArgs(args)
+  if (!hasWellFormedModeSelection(parsed)) {
+    console.error(
+      'Usage: choose exactly one of --release-sha=<sha>, --release-id=<id>, or --gate-f-index=<path>',
+    )
+    return 2
+  }
+  if (parsed.gateFIndex) {
+    return validateGateFIndex(
+      parsed.gateFIndex,
+      parsed.evidenceRoot,
+      parsed.approvalRoles,
+      parsed.legalRoot,
+    )
+  }
+  if (parsed.releaseSha) {
+    return validatePromotedLocalRelease(parsed.releaseSha, parsed.expectedManifestSha256)
+  }
+  return validateHistoricalReviewerBundle(parsed.releaseId)
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : undefined

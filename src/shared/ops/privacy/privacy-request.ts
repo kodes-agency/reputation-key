@@ -87,11 +87,6 @@ export const privacyRequestError = createErrorFactory<
   PrivacyRequestError['code']
 >('PrivacyRequestError')
 
-export const isPrivacyRequestError = (error: unknown): error is PrivacyRequestError =>
-  typeof error === 'object' &&
-  error !== null &&
-  (error as { _tag?: string })._tag === 'PrivacyRequestError'
-
 export function isValidPrivacyRequestTransition(
   from: PrivacyRequestState,
   to: PrivacyRequestState,

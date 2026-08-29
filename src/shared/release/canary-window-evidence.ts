@@ -132,7 +132,7 @@ const observationSchema = z
   })
   .strict()
 
-const canaryWindowEvidenceSchema = z
+const canaryWindowEvidenceObjectSchema = z
   .object({
     version: z.literal(CANARY_WINDOW_EVIDENCE_VERSION),
     evidenceKind: z.literal('canary-window'),
@@ -157,98 +157,140 @@ const canaryWindowEvidenceSchema = z
     failures: z.array(z.string().trim().min(1).max(1024)),
   })
   .strict()
-  .superRefine((value, context) => {
+
+type CanaryWindowEvidenceShape = z.infer<typeof canaryWindowEvidenceObjectSchema>
+
+/** The window must have run for the approved duration, before it was captured. */
+function refineCanaryWindowTiming(
+  value: CanaryWindowEvidenceShape,
+  startedAt: number,
+  completedAt: number,
+  context: z.RefinementCtx,
+): void {
+  if (completedAt < startedAt) {
+    context.addIssue({
+      code: 'custom',
+      path: ['completedAt'],
+      message: 'completion predates start',
+    })
+  }
+  if (Date.parse(value.capturedAt) < completedAt) {
+    context.addIssue({
+      code: 'custom',
+      path: ['capturedAt'],
+      message: 'capture predates completion',
+    })
+  }
+  if (Date.parse(value.profile.approvedAt) > startedAt) {
+    context.addIssue({
+      code: 'custom',
+      path: ['profile', 'approvedAt'],
+      message: 'threshold profile approval must not postdate the run start',
+    })
+  }
+  if (completedAt - startedAt < value.profile.durationMs) {
+    context.addIssue({
+      code: 'custom',
+      path: ['completedAt'],
+      message: 'observation ended before the approved canary duration elapsed',
+    })
+  }
+}
+
+/** One observation's sample accounting against the signal profile that ratified it. */
+function refineCanaryObservation(
+  observation: CanaryWindowEvidenceShape['observations'][number],
+  index: number,
+  requiredSamples: number,
+  window: Readonly<{ startedAt: number; completedAt: number }>,
+  context: z.RefinementCtx,
+): void {
+  if (observation.expectedSamples < requiredSamples) {
+    context.addIssue({
+      code: 'custom',
+      path: ['observations', index, 'expectedSamples'],
+      message: 'expected sample count does not cover the approved duration',
+    })
+  }
+  if (
+    observation.observedSamples + observation.missingSamples !==
+    observation.expectedSamples
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['observations', index],
+      message: 'observed and missing samples must reconcile to expected samples',
+    })
+  }
+  if (
+    Date.parse(observation.firstSampleAt) < window.startedAt ||
+    Date.parse(observation.lastSampleAt) > window.completedAt ||
+    Date.parse(observation.lastSampleAt) < Date.parse(observation.firstSampleAt)
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['observations', index],
+      message: 'sample range must be ordered within the observation window',
+    })
+  }
+}
+
+/** Every ratified signal must have exactly one observation, in profile order. */
+function refineCanaryObservations(
+  value: CanaryWindowEvidenceShape,
+  startedAt: number,
+  completedAt: number,
+  context: z.RefinementCtx,
+): void {
+  const profiles = value.profile.signals
+  if (value.observations.length !== profiles.length) {
+    context.addIssue({
+      code: 'custom',
+      path: ['observations'],
+      message: 'every threshold profile must have exactly one observation',
+    })
+  }
+  for (const [index, profile] of profiles.entries()) {
+    const observation = value.observations[index]
+    if (!observation || observation.name !== profile.name) {
+      context.addIssue({
+        code: 'custom',
+        path: ['observations', index],
+        message: 'observations must match the canonical profile order',
+      })
+      continue
+    }
+    refineCanaryObservation(
+      observation,
+      index,
+      Math.ceil(value.profile.durationMs / profile.sampleIntervalMs),
+      { startedAt, completedAt },
+      context,
+    )
+  }
+}
+
+/** `passed` is only representable when nothing was missed, breached or drifted. */
+function isPassingCanaryWindow(value: CanaryWindowEvidenceShape): boolean {
+  return (
+    value.observations.every(
+      ({ missingSamples, breachCount }) => missingSamples === 0 && breachCount === 0,
+    ) &&
+    value.continuity.releaseIdentityMismatches === 0 &&
+    value.continuity.configurationHeadMismatches === 0 &&
+    value.continuity.observerReadErrors === 0 &&
+    value.failures.length === 0
+  )
+}
+
+const canaryWindowEvidenceSchema = canaryWindowEvidenceObjectSchema.superRefine(
+  (value, context) => {
     const startedAt = Date.parse(value.startedAt)
     const completedAt = Date.parse(value.completedAt)
-    if (completedAt < startedAt) {
-      context.addIssue({
-        code: 'custom',
-        path: ['completedAt'],
-        message: 'completion predates start',
-      })
-    }
-    if (Date.parse(value.capturedAt) < completedAt) {
-      context.addIssue({
-        code: 'custom',
-        path: ['capturedAt'],
-        message: 'capture predates completion',
-      })
-    }
-    if (Date.parse(value.profile.approvedAt) > startedAt) {
-      context.addIssue({
-        code: 'custom',
-        path: ['profile', 'approvedAt'],
-        message: 'threshold profile approval must not postdate the run start',
-      })
-    }
-    if (completedAt - startedAt < value.profile.durationMs) {
-      context.addIssue({
-        code: 'custom',
-        path: ['completedAt'],
-        message: 'observation ended before the approved canary duration elapsed',
-      })
-    }
+    refineCanaryWindowTiming(value, startedAt, completedAt, context)
+    refineCanaryObservations(value, startedAt, completedAt, context)
 
-    const profiles = value.profile.signals
-    if (value.observations.length !== profiles.length) {
-      context.addIssue({
-        code: 'custom',
-        path: ['observations'],
-        message: 'every threshold profile must have exactly one observation',
-      })
-    }
-    for (const [index, profile] of profiles.entries()) {
-      const observation = value.observations[index]
-      if (!observation || observation.name !== profile.name) {
-        context.addIssue({
-          code: 'custom',
-          path: ['observations', index],
-          message: 'observations must match the canonical profile order',
-        })
-        continue
-      }
-      const requiredSamples = Math.ceil(
-        value.profile.durationMs / profile.sampleIntervalMs,
-      )
-      if (observation.expectedSamples < requiredSamples) {
-        context.addIssue({
-          code: 'custom',
-          path: ['observations', index, 'expectedSamples'],
-          message: 'expected sample count does not cover the approved duration',
-        })
-      }
-      if (
-        observation.observedSamples + observation.missingSamples !==
-        observation.expectedSamples
-      ) {
-        context.addIssue({
-          code: 'custom',
-          path: ['observations', index],
-          message: 'observed and missing samples must reconcile to expected samples',
-        })
-      }
-      if (
-        Date.parse(observation.firstSampleAt) < startedAt ||
-        Date.parse(observation.lastSampleAt) > completedAt ||
-        Date.parse(observation.lastSampleAt) < Date.parse(observation.firstSampleAt)
-      ) {
-        context.addIssue({
-          code: 'custom',
-          path: ['observations', index],
-          message: 'sample range must be ordered within the observation window',
-        })
-      }
-    }
-
-    const passing =
-      value.observations.every(
-        ({ missingSamples, breachCount }) => missingSamples === 0 && breachCount === 0,
-      ) &&
-      value.continuity.releaseIdentityMismatches === 0 &&
-      value.continuity.configurationHeadMismatches === 0 &&
-      value.continuity.observerReadErrors === 0 &&
-      value.failures.length === 0
-    if (value.outcome === 'passed' && !passing) {
+    if (value.outcome === 'passed' && !isPassingCanaryWindow(value)) {
       context.addIssue({
         code: 'custom',
         path: ['outcome'],
@@ -262,7 +304,8 @@ const canaryWindowEvidenceSchema = z
         message: 'failed outcome requires at least one failure',
       })
     }
-  })
+  },
+)
 
 export type CanaryThresholdProfile = z.infer<typeof canaryThresholdProfileSchema>
 export type CanaryWindowEvidence = z.infer<typeof canaryWindowEvidenceSchema>

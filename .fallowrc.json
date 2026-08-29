@@ -74,6 +74,157 @@
   ],
   "ignoreExports": [
     {
+      "file": "src/contexts/notification/application/portal-health-notification.ts",
+      "exports": ["isPortalHealthReason", "isPortalHealthStatus"]
+    },
+    {
+      "file": "src/contexts/activity/infrastructure/outbox-consumers.ts",
+      "exports": [
+        "DURABLE_OPERATIONAL_ACTION_HISTORY_EVENT_TYPES",
+        "DURABLE_RECENT_ACTIVITY_EVENT_TYPES"
+      ]
+    },
+    {
+      "file": "src/contexts/goal/application/dto/goal.dto.ts",
+      "exports": [
+        "cancelGoalSchema",
+        "createGoalSchema",
+        "getGoalSchema",
+        "listGoalsSchema",
+        "updateGoalSchema"
+      ]
+    },
+    {
+      "file": "src/contexts/identity/domain/partialOffboarding.ts",
+      "exports": ["PARTIAL_OFFBOARDING_FINDINGS"]
+    },
+    {
+      "file": "src/shared/release/gate-f-approval-envelope.ts",
+      "exports": ["GATE_F_APPROVAL_FAILURE_CODES"]
+    },
+    {
+      "file": "services/ai-egress-gateway/bootstrap.ts",
+      "exports": ["startAiEgressGateway"]
+    },
+    {
+      "file": "src/contexts/activity/server/activity.ts",
+      "exports": [
+        "exportOperationalActionHistoryFn",
+        "listOperationalActionHistoryFn",
+        "listRecentActivityFn"
+      ]
+    },
+    {
+      "file": "src/contexts/badge/infrastructure/adapters/badge-organization-lifecycle.adapter.ts",
+      "exports": ["BADGE_PURGE_ORDER_NOTE"]
+    },
+    {
+      "file": "src/contexts/dashboard/server/dashboard.ts",
+      "exports": ["getDashboardDataFn"]
+    },
+    {
+      "file": "src/contexts/goal/application/public-api.ts",
+      "exports": [
+        "goalMonthlyResultClosed",
+        "goalMonthlyResultReconciled",
+        "goalMonthlyResultRevised"
+      ]
+    },
+    { "file": "src/contexts/goal/domain/errors.ts", "exports": ["isGoalError"] },
+    {
+      "file": "src/contexts/guest/application/public-api.ts",
+      "exports": [
+        "guestFeedbackRetracted",
+        "guestQualifiedScanRecorded",
+        "guestQualifiedScanRetracted",
+        "guestRatingRetracted"
+      ]
+    },
+    {
+      "file": "src/contexts/identity/application/public-api.ts",
+      "exports": ["identityOrganizationLifecycleChanged"]
+    },
+    {
+      "file": "src/contexts/identity/server/organizations.query.ts",
+      "exports": ["listUserOrganizations"]
+    },
+    {
+      "file": "src/contexts/identity/server/organizations.registration.ts",
+      "exports": ["setActiveOrganization"]
+    },
+    {
+      "file": "src/contexts/inbox/application/inbox-handling-cutover.ts",
+      "exports": [
+        "INBOX_HANDLING_CUTOVER_REPORT_VERSION",
+        "INBOX_LEGACY_CLASSIFICATIONS",
+        "INBOX_LEGACY_REASON_CODES"
+      ]
+    },
+    {
+      "file": "src/contexts/inbox/application/public-api.ts",
+      "exports": [
+        "INBOX_HANDLING_CUTOVER_REPORT_VERSION",
+        "INBOX_HISTORY_KINDS",
+        "INBOX_LEGACY_CLASSIFICATIONS",
+        "INBOX_LEGACY_REASON_CODES",
+        "classifyInboxLegacyRelationship"
+      ]
+    },
+    {
+      "file": "src/contexts/inbox/domain/handling-history.ts",
+      "exports": ["INBOX_HISTORY_KINDS"]
+    },
+    { "file": "src/contexts/inbox/server/inbox.ts", "exports": ["assignInboxItemFn"] },
+    {
+      "file": "src/contexts/integration/application/public-api.ts",
+      "exports": [
+        "GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION",
+        "GOOGLE_REPLY_PUBLICATION_SYSTEM_PERMISSION_DIGEST",
+        "GOOGLE_REPLY_PUBLICATION_SYSTEM_PRINCIPAL",
+        "GOOGLE_REVIEW_SYNC_SYSTEM_PERMISSION_DIGEST",
+        "GOOGLE_REVIEW_SYNC_SYSTEM_PRINCIPAL",
+        "createGoogleReplyPublicationAuthorizer",
+        "createGoogleReviewSyncAuthorizer"
+      ]
+    },
+    {
+      "file": "src/contexts/leaderboard/application/public-api.ts",
+      "exports": ["LEGACY_RECOGNITION_TABLES", "buildLegacyRecognitionInventoryReport"]
+    },
+    {
+      "file": "src/contexts/leaderboard/infrastructure/adapters/leaderboard-organization-lifecycle.adapter.ts",
+      "exports": ["LEADERBOARD_PURGE_ORDER_NOTE"]
+    },
+    {
+      "file": "src/contexts/notification/application/public-api.ts",
+      "exports": ["NOTIFICATION_CATEGORIES", "notificationScopeForType"]
+    },
+    {
+      "file": "src/contexts/portal/server/portals.ts",
+      "exports": ["rollbackPortalPublication"]
+    },
+    {
+      "file": "src/contexts/property/server/properties.ts",
+      "exports": ["deleteProperty"]
+    },
+    {
+      "file": "src/contexts/review/application/public-api.ts",
+      "exports": [
+        "GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID",
+        "reviewGoogleReputationSnapshotVerified",
+        "reviewReplyObserved",
+        "reviewReplyPublicationRequested"
+      ]
+    },
+    {
+      "file": "src/contexts/staff/infrastructure/adapters/staff-organization-lifecycle.adapter.ts",
+      "exports": ["STAFF_PURGE_ORDER_NOTE"]
+    },
+    {
+      "file": "src/shared/db/schema/property-erase.schema.ts",
+      "exports": ["propertyEraseAuthorities"]
+    },
+    {
       "file": "src/shared/config/local-stack-contract.ts",
       "exports": ["SEED_BETA_CAPABILITIES"]
     },
@@ -300,6 +451,47 @@
   "health": {
     "maxCyclomatic": 22,
     "maxCognitive": 20,
+    "thresholdOverrides": [
+      {
+        "files": ["src/shared/google-provider-control/route-catalogue.ts"],
+        "functions": ["compileParts"],
+        "maxCyclomatic": 30,
+        "reason": "This is an exhaustive `switch (descriptor.routeKey)` over a closed 13-member union \u2014 the flat-not-nested shape the brief names as the legitimate waiver case. Only cyclomatic (26) exceeds; cognitive is 16, comfortably under the 20 ceiling, because there is no nesting: each arm is a sibling `case` tha"
+      },
+      {
+        "files": ["src/contexts/review/infrastructure/reply-observation-authority.ts"],
+        "functions": ["isExactCurrentObservation"],
+        "maxCyclomatic": 28,
+        "reason": "The function is a single flat conjunction of ~20 independent equality checks \u2014 head identity, Review source position, head/observation denormalization agreement, the five decision fields, three enum-membership checks and the measured/startAt pairing \u2014 all compared against one expectation object. The"
+      },
+      {
+        "files": ["src/contexts/portal/infrastructure/portal-command-store.ts"],
+        "functions": ["assertPortalContentCommand"],
+        "maxCyclomatic": 34,
+        "reason": "This is the task brief's own canonical waiver shape: an exhaustive switch over a closed union of seven event tags, where each arm is a flat two-to-five-term conjunction that reads trivially. Cognitive is 10 \u2014 a third of the ceiling \u2014 which is the tell that the code is flat, not nested; only cyclomat"
+      },
+      {
+        "files": [
+          "src/contexts/identity/infrastructure/identity-organization-export-contributor.ts"
+        ],
+        "functions": ["csvSummary"],
+        "maxCyclomatic": 26,
+        "reason": "The function is 26 lines with ZERO control-flow statements \u2014 no if, no loop, no ternary. All 22 counted branches are `??` operators forming five field-precedence lists (`record.name ?? record.email ?? record.role ?? ...`). Cognitive complexity is 7 of a 20 ceiling, i.e. the metric that measures unde"
+      },
+      {
+        "files": ["src/contexts/metric/infrastructure/guest-outbox-consumers.ts"],
+        "functions": ["guestMetricDomainEvent"],
+        "maxCyclomatic": 38,
+        "maxCognitive": 40,
+        "reason": "This is the exhaustive-switch-over-a-closed-union archetype: eight sibling arms, each a guard plus an object literal, maximum nesting depth 2. I measured where the 38 cognitive points come from \u2014 33 of them are the +2/+3 nesting penalty applied to the single `if` inside each arm, not genuine interle"
+      },
+      {
+        "files": ["src/contexts/activity/infrastructure/outbox-consumers.ts"],
+        "functions": ["mapRecentActivityFact"],
+        "maxCyclomatic": 45,
+        "reason": "cyclomatic=41 comes entirely from 40 sibling `case` arms of an exhaustive switch over the closed set of durable source-event types; cognitive=5 proves it is flat, not nested \u2014 each arm is an independent, trivially readable object literal, and the `default` arm throws on anything unregistered. Extrac"
+      }
+    ],
     "maxCrap": 450
   },
   "audit": {

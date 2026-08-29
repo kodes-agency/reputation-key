@@ -200,19 +200,39 @@ function requiredFlag(args: readonly string[], name: string): string {
   return nonEmptyString(flagValue(args, name), name)
 }
 
-function parseOptions(args: readonly string[]): ActivationOptions {
+function parseActivationMode(args: readonly string[]): ActivationMode {
   const mode = args[0]
   if (mode !== 'plan' && mode !== 'apply' && mode !== 'recover' && mode !== 'verify') {
     throw new Error('first argument must be plan, apply, recover, or verify')
   }
+  return mode
+}
+
+/** This command only ever addresses the single production cell-us environment. */
+function assertProductionCellUs(args: readonly string[]): void {
   if (flagValue(args, '--cell') !== 'us') throw new Error('--cell must be us')
   if (flagValue(args, '--deployment-profile') !== 'production') {
     throw new Error('--deployment-profile must be production')
   }
+}
+
+/** Every mode but `plan` runs against an already-reviewed intent digest. */
+function parseReviewedIntentDigest(
+  args: readonly string[],
+  mode: ActivationMode,
+): string | undefined {
   const intentSha256 = flagValue(args, '--intent-sha256')
   if (mode !== 'plan' && (!intentSha256 || !SHA256.test(intentSha256))) {
     throw new Error('--intent-sha256 must be the reviewed lowercase sha256')
   }
+  return intentSha256
+}
+
+/** The signed bundles are inputs to `plan` alone; later modes read the intent. */
+function parseBundlePaths(
+  args: readonly string[],
+  mode: ActivationMode,
+): readonly string[] {
   const bundlePaths = flagValues(args, '--bundle').map((path) => resolve(path))
   if (mode === 'plan' && bundlePaths.length !== GOOGLE_CONTENT_CAPABILITIES.length) {
     throw new Error(
@@ -222,28 +242,45 @@ function parseOptions(args: readonly string[]): ActivationOptions {
   if (mode !== 'plan' && bundlePaths.length !== 0) {
     throw new Error('--bundle is accepted only while creating the canonical intent')
   }
+  return bundlePaths
+}
+
+function parsePublicKeysPath(
+  args: readonly string[],
+  mode: ActivationMode,
+): string | undefined {
   const publicKeys = flagValue(args, '--public-keys')
   if (mode === 'plan' && !publicKeys) throw new Error('--public-keys is required')
   if (mode !== 'plan' && publicKeys) {
     throw new Error('--public-keys is accepted only while creating the canonical intent')
   }
+  return publicKeys
+}
+
+function parseOptions(args: readonly string[]): ActivationOptions {
+  const mode = parseActivationMode(args)
+  assertProductionCellUs(args)
+  const intentSha256 = parseReviewedIntentDigest(args, mode)
+  const bundlePaths = parseBundlePaths(args, mode)
+  const publicKeys = parsePublicKeysPath(args, mode)
   const ticket = flagValue(args, '--ticket')
   if (mode === 'plan' && !ticket) throw new Error('--ticket is required')
+  const projectId = requiredFlag(args, '--project-id')
+  const environmentId = requiredFlag(args, '--environment-id')
+  const intentPath = resolve(requiredFlag(args, '--intent'))
+  const operator = flagValue(args, '--operator')
+  const reason = flagValue(args, '--reason')
   return Object.freeze({
     mode,
-    projectId: requiredFlag(args, '--project-id'),
-    environmentId: requiredFlag(args, '--environment-id'),
-    intentPath: resolve(requiredFlag(args, '--intent')),
+    projectId,
+    environmentId,
+    intentPath,
     bundlePaths: Object.freeze(bundlePaths),
     ...(intentSha256 ? { intentSha256 } : {}),
     ...(ticket ? { ticket: nonEmptyString(ticket, '--ticket') } : {}),
     ...(publicKeys ? { publicKeysPath: resolve(publicKeys) } : {}),
-    ...(flagValue(args, '--operator')
-      ? { operator: nonEmptyString(flagValue(args, '--operator'), '--operator') }
-      : {}),
-    ...(flagValue(args, '--reason')
-      ? { reason: nonEmptyString(flagValue(args, '--reason'), '--reason', 500) }
-      : {}),
+    ...(operator ? { operator: nonEmptyString(operator, '--operator') } : {}),
+    ...(reason ? { reason: nonEmptyString(reason, '--reason', 500) } : {}),
   })
 }
 
@@ -991,6 +1028,148 @@ async function performActivation(
   assertDatabaseSafe(inspection, parsed.intent, true)
 }
 
+type ActivationSession = Readonly<{
+  options: ActivationOptions
+  railway: RailwayGoogleContentApprovalActivationExecutor
+  database: GoogleContentApprovalActivationDatabase
+  environment: NodeJS.ProcessEnv
+  clock: () => Date
+}>
+
+/**
+ * Build the canonical private intent from the four signed bundles and retain it
+ * exclusively, so a later apply can only ever act on reviewed bytes.
+ */
+async function runActivationPlanMode(session: ActivationSession): Promise<number> {
+  const { options, railway, database, environment, clock } = session
+  const publicKeys = parseInputPublicKeys(options.publicKeysPath!)
+  const bundleEntries = options.bundlePaths
+    .map(parseInputBundle)
+    .sort(
+      (left, right) =>
+        GOOGLE_CONTENT_CAPABILITIES.indexOf(left.bundle.candidate.binding.capability) -
+        GOOGLE_CONTENT_CAPABILITIES.indexOf(right.bundle.candidate.binding.capability),
+    )
+  const runtimeBindings = validateBundleSet(
+    bundleEntries.map(({ bundle }) => bundle),
+    publicKeys,
+    clock(),
+  )
+  const live = assertRailwayTarget(railway, options, environment)
+  assertSafeKeyRotation(live, runtimeBindings, publicKeys)
+  const expected = expectedConfiguration(
+    live,
+    expectedVariableValues({ runtimeBindings, rolePublicKeys: publicKeys }),
+  )
+  const intent: ActivationIntent = Object.freeze({
+    version: INTENT_VERSION,
+    ticket: options.ticket!,
+    deploymentProfile: 'production',
+    cell: 'us',
+    project: Object.freeze({
+      id: options.projectId,
+      name: PRODUCTION_RAILWAY_PROJECT_NAME,
+    }),
+    environment: Object.freeze({ id: options.environmentId, name: 'cell-us' }),
+    rolePublicKeys: publicKeys,
+    runtimeBindings,
+    bundles: Object.freeze(bundleEntries),
+    baseline: Object.freeze({
+      configurationSha256: jsonSha256(live),
+      expectedConfigurationSha256: jsonSha256(expected),
+      unrelatedConfigurationSha256: jsonSha256(unrelatedConfiguration(live)),
+    }),
+  })
+  const inspection = await database.inspect(runtimeBindings)
+  assertDatabaseSafe(inspection, intent, false)
+  const bytes = intentBytes(intent)
+  // The exclusive create IS the refusal. `wx` fails with EEXIST atomically,
+  // so an existsSync pre-check would only add a window in which the path
+  // can appear between the check and the write. Translating EEXIST here
+  // keeps the same operator-facing message with one syscall and no window.
+  // `src/shared/release/write-once.ts` cannot carry the 0o600 mode, and the
+  // private intent must never exist group- or world-readable, so the mode
+  // has to be set by the same call that creates the file.
+  try {
+    writeFileSync(options.intentPath, bytes, { mode: 0o600, flag: 'wx' })
+  } catch (error) {
+    if ((error as { code?: unknown } | null)?.code !== 'EEXIST') throw error
+    throw new Error('activation intent path already exists', { cause: error })
+  }
+  process.stdout.write(
+    `${JSON.stringify({
+      intentPath: options.intentPath,
+      sha256: sha256Bytes(bytes),
+      projectId: options.projectId,
+      environmentId: options.environmentId,
+      capabilities: GOOGLE_CONTENT_CAPABILITIES,
+    })}\n`,
+  )
+  process.stderr.write(
+    `Google Content activation intent retained at ${options.intentPath}; sha256=${sha256Bytes(bytes)}. Review the private all-capability intent before apply.\n`,
+  )
+  return 0
+}
+
+/** The retained intent must still hash to the reviewed digest and name these IDs. */
+function assertReviewedActivationIntent(
+  options: ActivationOptions,
+  parsed: ParsedIntent,
+): void {
+  if (parsed.sha256 !== options.intentSha256) {
+    throw new Error('activation intent changed after review')
+  }
+  if (
+    parsed.intent.project.id !== options.projectId ||
+    parsed.intent.environment.id !== options.environmentId
+  ) {
+    throw new Error('activation intent does not target the reviewed IDs')
+  }
+  if (options.ticket && options.ticket !== parsed.intent.ticket) {
+    throw new Error('--ticket does not match the reviewed activation intent')
+  }
+}
+
+async function runActivationVerifyMode(
+  session: ActivationSession,
+  parsed: ParsedIntent,
+): Promise<number> {
+  const live = assertRailwayTarget(session.railway, session.options, session.environment)
+  if (assertLiveConfigurationState(live, parsed) !== 'target') {
+    throw new Error('Railway Google Content configuration is not active')
+  }
+  const inspection = await session.database.inspect(parsed.intent.runtimeBindings)
+  assertDatabaseSafe(inspection, parsed.intent, true)
+  process.stderr.write(
+    'Verified all four exact retained approvals and the two reviewed cell-us shared values; unrelated Railway configuration is unchanged.\n',
+  )
+  return 0
+}
+
+/** Apply or recover: an audited mutation that needs operator, reason, and ticket. */
+async function runActivationMutationMode(
+  session: ActivationSession,
+  parsed: ParsedIntent,
+  mutation: GoogleContentApprovalActivationMutationRunner,
+): Promise<number> {
+  const { options, railway, database, environment } = session
+  const operator = nonEmptyString(options.operator, '--operator')
+  const reason = nonEmptyString(options.reason, '--reason', 500)
+  const ticket = nonEmptyString(options.ticket, '--ticket')
+  if (ticket !== parsed.intent.ticket) {
+    throw new Error('--ticket does not match the reviewed activation intent')
+  }
+  const exitCode = await mutation({ operator, reason, ticket }, () =>
+    performActivation(options, parsed, railway, database, environment),
+  )
+  if (exitCode === 0) {
+    process.stderr.write(
+      `${options.mode === 'recover' ? 'Recovered' : 'Applied'} the reviewed Google Content approval activation for production/cell-us. The signed release controller remains the only authority that may start web or worker sources.\n`,
+    )
+  }
+  return exitCode
+}
+
 export async function runRailwayGoogleContentApprovalActivationCli(
   args: readonly string[],
   dependencies: ActivationDependencies = {},
@@ -1007,125 +1186,26 @@ export async function runRailwayGoogleContentApprovalActivationCli(
 
     const database = dependencies.database ?? createDefaultDatabase()
     ownsDatabase = dependencies.database === undefined
-
-    if (options.mode === 'plan') {
-      const publicKeys = parseInputPublicKeys(options.publicKeysPath!)
-      const bundleEntries = options.bundlePaths
-        .map(parseInputBundle)
-        .sort(
-          (left, right) =>
-            GOOGLE_CONTENT_CAPABILITIES.indexOf(
-              left.bundle.candidate.binding.capability,
-            ) -
-            GOOGLE_CONTENT_CAPABILITIES.indexOf(
-              right.bundle.candidate.binding.capability,
-            ),
-        )
-      const runtimeBindings = validateBundleSet(
-        bundleEntries.map(({ bundle }) => bundle),
-        publicKeys,
-        clock(),
-      )
-      const live = assertRailwayTarget(railway, options, environment)
-      assertSafeKeyRotation(live, runtimeBindings, publicKeys)
-      const targetValues = expectedVariableValues({
-        runtimeBindings,
-        rolePublicKeys: publicKeys,
-      })
-      const expected = expectedConfiguration(live, targetValues)
-      const intent: ActivationIntent = Object.freeze({
-        version: INTENT_VERSION,
-        ticket: options.ticket!,
-        deploymentProfile: 'production',
-        cell: 'us',
-        project: Object.freeze({
-          id: options.projectId,
-          name: PRODUCTION_RAILWAY_PROJECT_NAME,
-        }),
-        environment: Object.freeze({ id: options.environmentId, name: 'cell-us' }),
-        rolePublicKeys: publicKeys,
-        runtimeBindings,
-        bundles: Object.freeze(bundleEntries),
-        baseline: Object.freeze({
-          configurationSha256: jsonSha256(live),
-          expectedConfigurationSha256: jsonSha256(expected),
-          unrelatedConfigurationSha256: jsonSha256(unrelatedConfiguration(live)),
-        }),
-      })
-      const inspection = await database.inspect(runtimeBindings)
-      assertDatabaseSafe(inspection, intent, false)
-      const bytes = intentBytes(intent)
-      // The exclusive create IS the refusal. `wx` fails with EEXIST atomically,
-      // so an existsSync pre-check would only add a window in which the path
-      // can appear between the check and the write. Translating EEXIST here
-      // keeps the same operator-facing message with one syscall and no window.
-      // `src/shared/release/write-once.ts` cannot carry the 0o600 mode, and the
-      // private intent must never exist group- or world-readable, so the mode
-      // has to be set by the same call that creates the file.
-      try {
-        writeFileSync(options.intentPath, bytes, { mode: 0o600, flag: 'wx' })
-      } catch (error) {
-        if ((error as { code?: unknown } | null)?.code !== 'EEXIST') throw error
-        throw new Error('activation intent path already exists', { cause: error })
-      }
-      process.stdout.write(
-        `${JSON.stringify({
-          intentPath: options.intentPath,
-          sha256: sha256Bytes(bytes),
-          projectId: options.projectId,
-          environmentId: options.environmentId,
-          capabilities: GOOGLE_CONTENT_CAPABILITIES,
-        })}\n`,
-      )
-      process.stderr.write(
-        `Google Content activation intent retained at ${options.intentPath}; sha256=${sha256Bytes(bytes)}. Review the private all-capability intent before apply.\n`,
-      )
-      return 0
+    const session: ActivationSession = {
+      options,
+      railway,
+      database,
+      environment,
+      clock,
     }
+
+    if (options.mode === 'plan') return await runActivationPlanMode(session)
 
     const parsed = parseIntent(options.intentPath, clock())
-    if (parsed.sha256 !== options.intentSha256) {
-      throw new Error('activation intent changed after review')
-    }
-    if (
-      parsed.intent.project.id !== options.projectId ||
-      parsed.intent.environment.id !== options.environmentId
-    ) {
-      throw new Error('activation intent does not target the reviewed IDs')
-    }
-    if (options.ticket && options.ticket !== parsed.intent.ticket) {
-      throw new Error('--ticket does not match the reviewed activation intent')
-    }
+    assertReviewedActivationIntent(options, parsed)
 
-    if (options.mode === 'verify') {
-      const live = assertRailwayTarget(railway, options, environment)
-      if (assertLiveConfigurationState(live, parsed) !== 'target') {
-        throw new Error('Railway Google Content configuration is not active')
-      }
-      const inspection = await database.inspect(parsed.intent.runtimeBindings)
-      assertDatabaseSafe(inspection, parsed.intent, true)
-      process.stderr.write(
-        'Verified all four exact retained approvals and the two reviewed cell-us shared values; unrelated Railway configuration is unchanged.\n',
-      )
-      return 0
-    }
+    if (options.mode === 'verify') return await runActivationVerifyMode(session, parsed)
 
-    const mutation = dependencies.runMutation ?? defaultMutationRunner
-    const operator = nonEmptyString(options.operator, '--operator')
-    const reason = nonEmptyString(options.reason, '--reason', 500)
-    const ticket = nonEmptyString(options.ticket, '--ticket')
-    if (ticket !== parsed.intent.ticket) {
-      throw new Error('--ticket does not match the reviewed activation intent')
-    }
-    const exitCode = await mutation({ operator, reason, ticket }, () =>
-      performActivation(options, parsed, railway, database, environment),
+    return await runActivationMutationMode(
+      session,
+      parsed,
+      dependencies.runMutation ?? defaultMutationRunner,
     )
-    if (exitCode === 0) {
-      process.stderr.write(
-        `${options.mode === 'recover' ? 'Recovered' : 'Applied'} the reviewed Google Content approval activation for production/cell-us. The signed release controller remains the only authority that may start web or worker sources.\n`,
-      )
-    }
-    return exitCode
   } catch (error) {
     process.stderr.write(
       `Railway Google Content approval activation refused: ${error instanceof Error ? error.message : String(error)}\n`,

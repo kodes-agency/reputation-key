@@ -25,6 +25,61 @@ const aggregatesMatch = (
   current.averageRating === incoming.averageRating &&
   current.evaluatedAt.getTime() === incoming.evaluatedAt.getTime()
 
+type SnapshotTx = Parameters<Parameters<Database['transaction']>[0]>[0]
+
+/** Close out this consumer's receipt without applying the fact. */
+async function markReceipt(
+  tx: SnapshotTx,
+  eventId: string,
+  status: 'duplicate' | 'obsolete',
+): Promise<void> {
+  await tx
+    .update(eventConsumerReceipts)
+    .set({ status })
+    .where(
+      and(
+        eq(eventConsumerReceipts.eventId, eventId),
+        eq(eventConsumerReceipts.consumerName, CURRENT_GOOGLE_REPUTATION_CONSUMER),
+      ),
+    )
+}
+
+/**
+ * Compare an incoming fact with the stored snapshot. Throws when the two are
+ * contradictory rather than merely ordered.
+ */
+function decideAgainstCurrentSnapshot(
+  current: typeof metricCurrentGoogleReputationSnapshots.$inferSelect,
+  incoming: VerifiedGoogleReputationSnapshotFact,
+): 'apply' | 'duplicate' | 'obsolete' {
+  if (current.organizationId !== incoming.organizationId) {
+    throw new Error('Current Google snapshot tenant attribution drifted')
+  }
+  if (current.sourceEventId === incoming.eventId) {
+    if (!aggregatesMatch(current, incoming)) {
+      throw new Error('Replayed Google snapshot payload drifted')
+    }
+    return 'duplicate'
+  }
+  if (current.sourceRunId === incoming.runId) {
+    throw new Error('One verified Google snapshot run emitted conflicting facts')
+  }
+  if (
+    incoming.sourceEpoch < current.sourceEpoch ||
+    (incoming.sourceEpoch === current.sourceEpoch &&
+      incoming.evaluatedAt.getTime() < current.evaluatedAt.getTime())
+  ) {
+    return 'obsolete'
+  }
+  if (
+    incoming.sourceEpoch === current.sourceEpoch &&
+    incoming.evaluatedAt.getTime() === current.evaluatedAt.getTime()
+  ) {
+    throw new Error('Verified Google snapshot version is ambiguous')
+  }
+  return 'apply'
+}
+
 export const createCurrentGoogleReputationSnapshotRepository = (
   db: Database,
 ): CurrentGoogleReputationSnapshotStore => ({
@@ -53,15 +108,7 @@ export const createCurrentGoogleReputationSnapshotRepository = (
         .for('update')
       const property = propertyRows[0]
       if (property == null || input.sourceEpoch < property.sourceEpoch) {
-        await tx
-          .update(eventConsumerReceipts)
-          .set({ status: 'obsolete' })
-          .where(
-            and(
-              eq(eventConsumerReceipts.eventId, input.eventId),
-              eq(eventConsumerReceipts.consumerName, CURRENT_GOOGLE_REPUTATION_CONSUMER),
-            ),
-          )
+        await markReceipt(tx, input.eventId, 'obsolete')
         return 'obsolete'
       }
       if (input.sourceEpoch > property.sourceEpoch) {
@@ -75,54 +122,10 @@ export const createCurrentGoogleReputationSnapshotRepository = (
         .for('update')
       const current = currentRows[0]
       if (current) {
-        if (current.organizationId !== input.organizationId) {
-          throw new Error('Current Google snapshot tenant attribution drifted')
-        }
-        if (current.sourceEventId === input.eventId) {
-          if (!aggregatesMatch(current, input)) {
-            throw new Error('Replayed Google snapshot payload drifted')
-          }
-          await tx
-            .update(eventConsumerReceipts)
-            .set({ status: 'duplicate' })
-            .where(
-              and(
-                eq(eventConsumerReceipts.eventId, input.eventId),
-                eq(
-                  eventConsumerReceipts.consumerName,
-                  CURRENT_GOOGLE_REPUTATION_CONSUMER,
-                ),
-              ),
-            )
-          return 'duplicate'
-        }
-        if (current.sourceRunId === input.runId) {
-          throw new Error('One verified Google snapshot run emitted conflicting facts')
-        }
-        if (
-          input.sourceEpoch < current.sourceEpoch ||
-          (input.sourceEpoch === current.sourceEpoch &&
-            input.evaluatedAt.getTime() < current.evaluatedAt.getTime())
-        ) {
-          await tx
-            .update(eventConsumerReceipts)
-            .set({ status: 'obsolete' })
-            .where(
-              and(
-                eq(eventConsumerReceipts.eventId, input.eventId),
-                eq(
-                  eventConsumerReceipts.consumerName,
-                  CURRENT_GOOGLE_REPUTATION_CONSUMER,
-                ),
-              ),
-            )
-          return 'obsolete'
-        }
-        if (
-          input.sourceEpoch === current.sourceEpoch &&
-          input.evaluatedAt.getTime() === current.evaluatedAt.getTime()
-        ) {
-          throw new Error('Verified Google snapshot version is ambiguous')
+        const decision = decideAgainstCurrentSnapshot(current, input)
+        if (decision !== 'apply') {
+          await markReceipt(tx, input.eventId, decision)
+          return decision
         }
       }
 

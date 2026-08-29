@@ -9,6 +9,11 @@ import type { MetricRepository } from '../../application/ports/metric.repository
 import { unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
+/** Aggregate columns come back as driver-typed values; an absent row reads as zero. */
+function numberOrZero(value: unknown): number {
+  return Number(value ?? 0)
+}
+
 function dateOrNull(value: unknown): Date | null {
   if (value === null || value === undefined) return null
   const parsed = value instanceof Date ? value : new Date(String(value))
@@ -101,10 +106,10 @@ export const createMetricRepository = (
         .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
         .where(and(...conditions))
 
-      const sum = Number(rows[0]?.sum ?? 0)
-      const count = Number(rows[0]?.count ?? 0)
-      const max = Number(rows[0]?.max ?? 0)
-      const sampleCount = Number(rows[0]?.sampleCount ?? 0)
+      const sum = numberOrZero(rows[0]?.sum)
+      const count = numberOrZero(rows[0]?.count)
+      const max = numberOrZero(rows[0]?.max)
+      const sampleCount = numberOrZero(rows[0]?.sampleCount)
       const minimumSample = Number(rows[0]?.minimumSample ?? 1)
       const available = sampleCount >= minimumSample
 
@@ -206,16 +211,16 @@ export const createMetricRepository = (
         .where(and(...conditions))
 
       return {
-        sum: Number(row?.sum ?? 0),
-        weightedSum: Number(row?.weightedSum ?? 0),
-        sampleCount: Number(row?.sampleCount ?? 0),
-        readingCount: Number(row?.readingCount ?? 0),
-        approximateCount: Number(row?.approximateCount ?? 0),
-        updatingCount: Number(row?.updatingCount ?? 0),
-        invalidQualityCount: Number(row?.invalidQualityCount ?? 0),
-        invalidSampleCount: Number(row?.invalidSampleCount ?? 0),
-        invalidSourceCount: Number(row?.invalidSourceCount ?? 0),
-        invalidDefinitionCount: Number(row?.invalidDefinitionCount ?? 0),
+        sum: numberOrZero(row?.sum),
+        weightedSum: numberOrZero(row?.weightedSum),
+        sampleCount: numberOrZero(row?.sampleCount),
+        readingCount: numberOrZero(row?.readingCount),
+        approximateCount: numberOrZero(row?.approximateCount),
+        updatingCount: numberOrZero(row?.updatingCount),
+        invalidQualityCount: numberOrZero(row?.invalidQualityCount),
+        invalidSampleCount: numberOrZero(row?.invalidSampleCount),
+        invalidSourceCount: numberOrZero(row?.invalidSourceCount),
+        invalidDefinitionCount: numberOrZero(row?.invalidDefinitionCount),
         correctionHead: dateOrNull(row?.correctionHead),
       }
     }),

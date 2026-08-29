@@ -127,70 +127,96 @@ const matchesStemAndSuffix = (
   return style === 'camel' ? isCamelStem(stem) : isKebabStem(stem)
 }
 
-const fileNameIssue = (path: string): string | null => {
+/** Context-root files that carry no layer naming rule. */
+const CONTEXT_ROOT_FILES = new Set([
+  'build.ts',
+  'build.test.ts',
+  'application/public-api.ts',
+  'application/public-api.test.ts',
+])
+
+type LayerNamingRule = Readonly<{
+  /** Context-relative directory prefixes the rule governs. */
+  prefixes: readonly string[]
+  style: 'camel' | 'kebab'
+  /** Required filename suffixes; omitted means any suffix-free stem. */
+  suffixes?: readonly string[]
+  /** Layer entry points exempt from the stem rule. */
+  exempt?: readonly string[]
+  message: string
+}>
+
+const LAYER_NAMING_RULES: readonly LayerNamingRule[] = [
+  {
+    prefixes: ['domain/'],
+    style: 'camel',
+    message: 'domain files use camelCase and tests mirror source',
+  },
+  {
+    prefixes: ['application/use-cases/'],
+    style: 'kebab',
+    message: 'use-case files use kebab-case and tests mirror source',
+  },
+  {
+    prefixes: ['application/ports/'],
+    style: 'kebab',
+    suffixes: ['.repository', '.port'],
+    message: 'port files end in .repository.ts or .port.ts and tests mirror source',
+  },
+  {
+    prefixes: ['infrastructure/repositories/'],
+    style: 'kebab',
+    suffixes: ['.repository'],
+    message: 'repository files end in .repository.ts and tests mirror source',
+  },
+  {
+    prefixes: ['infrastructure/adapters/'],
+    style: 'kebab',
+    suffixes: ['.adapter'],
+    message: 'adapter files end in .adapter.ts and tests mirror source',
+  },
+  {
+    prefixes: ['infrastructure/mappers/'],
+    style: 'kebab',
+    suffixes: ['.mapper'],
+    message: 'mapper files end in .mapper.ts and tests mirror source',
+  },
+  {
+    prefixes: ['infrastructure/jobs/'],
+    style: 'kebab',
+    suffixes: ['.job'],
+    message: 'job files end in .job.ts and tests mirror source',
+  },
+  {
+    prefixes: ['infrastructure/event-handlers/', 'server/'],
+    style: 'kebab',
+    exempt: ['index.ts', 'index.test.ts'],
+    message: 'handler/server files use kebab-case and tests mirror source',
+  },
+]
+
+/** Strip everything up to and including `src/contexts/<context>/`. */
+const contextRelativePath = (path: string): string => {
   const marker = '/src/contexts/'
   const normalized = path.startsWith('src/contexts/')
     ? `/${path}`
     : path.includes(marker)
       ? path.slice(path.indexOf(marker))
       : `/${path}`
-  const relative = normalized.split('/').slice(4).join('/')
+  return normalized.split('/').slice(4).join('/')
+}
+
+const fileNameIssue = (path: string): string | null => {
+  const relative = contextRelativePath(path)
   const name = relative.split('/').at(-1) ?? ''
 
-  if (
-    relative === 'build.ts' ||
-    relative === 'build.test.ts' ||
-    relative === 'application/public-api.ts' ||
-    relative === 'application/public-api.test.ts'
-  ) {
-    return null
-  }
-  if (relative.startsWith('domain/')) {
-    return matchesStemAndSuffix(name, 'camel')
-      ? null
-      : 'domain files use camelCase and tests mirror source'
-  }
-  if (relative.startsWith('application/use-cases/')) {
-    return matchesStemAndSuffix(name, 'kebab')
-      ? null
-      : 'use-case files use kebab-case and tests mirror source'
-  }
-  if (relative.startsWith('application/ports/')) {
-    return matchesStemAndSuffix(name, 'kebab', ['.repository', '.port'])
-      ? null
-      : 'port files end in .repository.ts or .port.ts and tests mirror source'
-  }
-  if (relative.startsWith('infrastructure/repositories/')) {
-    return matchesStemAndSuffix(name, 'kebab', ['.repository'])
-      ? null
-      : 'repository files end in .repository.ts and tests mirror source'
-  }
-  if (relative.startsWith('infrastructure/adapters/')) {
-    return matchesStemAndSuffix(name, 'kebab', ['.adapter'])
-      ? null
-      : 'adapter files end in .adapter.ts and tests mirror source'
-  }
-  if (relative.startsWith('infrastructure/mappers/')) {
-    return matchesStemAndSuffix(name, 'kebab', ['.mapper'])
-      ? null
-      : 'mapper files end in .mapper.ts and tests mirror source'
-  }
-  if (relative.startsWith('infrastructure/jobs/')) {
-    return matchesStemAndSuffix(name, 'kebab', ['.job'])
-      ? null
-      : 'job files end in .job.ts and tests mirror source'
-  }
-  if (
-    relative.startsWith('infrastructure/event-handlers/') ||
-    relative.startsWith('server/')
-  ) {
-    return name === 'index.ts' ||
-      name === 'index.test.ts' ||
-      matchesStemAndSuffix(name, 'kebab')
-      ? null
-      : 'handler/server files use kebab-case and tests mirror source'
-  }
-  return null
+  if (CONTEXT_ROOT_FILES.has(relative)) return null
+  const rule = LAYER_NAMING_RULES.find(({ prefixes }) =>
+    prefixes.some((prefix) => relative.startsWith(prefix)),
+  )
+  if (rule === undefined) return null
+  if (rule.exempt?.includes(name)) return null
+  return matchesStemAndSuffix(name, rule.style, rule.suffixes) ? null : rule.message
 }
 
 export const auditContextFileNames = (

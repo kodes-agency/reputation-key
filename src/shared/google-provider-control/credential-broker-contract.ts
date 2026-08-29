@@ -207,31 +207,32 @@ function sameAuthorization(
   )
 }
 
-export function validateGoogleCredentialBrokerGrant(
-  input: unknown,
-  expected: Readonly<{
-    keys: VersionedHmacKeyring
-    nowMs: number
-    localTargetCellId: DataCellId
-    homeCellId: DataCellId
-    targetGatewayIdentity: string
-    organizationId: string
-    connectionId: string
-    propertyId: string
-    routeKey: GoogleProviderRouteKey
-    authorization: GoogleCredentialBrokerAuthorization
-    requestBindingSha256: string
-    credentialBinding: string
-    routingDirectoryRevision: number
-    routingPolicyVersion: number
-    isAcceptingCell: (cellId: string) => boolean
-  }>,
-):
-  | Readonly<{ ok: true; value: GoogleCredentialBrokerGrant }>
-  | Readonly<{ ok: false; code: GoogleCredentialBrokerDenyCode }> {
-  const parsed = grantSchema.safeParse(input)
-  if (!parsed.success) return { ok: false, code: 'malformed' }
-  const grant = parsed.data
+type GoogleCredentialBrokerExpectation = Readonly<{
+  keys: VersionedHmacKeyring
+  nowMs: number
+  localTargetCellId: DataCellId
+  homeCellId: DataCellId
+  targetGatewayIdentity: string
+  organizationId: string
+  connectionId: string
+  propertyId: string
+  routeKey: GoogleProviderRouteKey
+  authorization: GoogleCredentialBrokerAuthorization
+  requestBindingSha256: string
+  credentialBinding: string
+  routingDirectoryRevision: number
+  routingPolicyVersion: number
+  isAcceptingCell: (cellId: string) => boolean
+}>
+
+/**
+ * Envelope rules: both signatures verify, the grant covers this exact request,
+ * and both documents are inside their own bounded TTL windows.
+ */
+function brokerEnvelopeDenial(
+  grant: GoogleCredentialBrokerGrant,
+  expected: GoogleCredentialBrokerExpectation,
+): GoogleCredentialBrokerDenyCode | null {
   const request = grant.request
   if (
     !expected.keys.verify(
@@ -247,16 +248,14 @@ export function validateGoogleCredentialBrokerGrant(
       grant.signature,
     )
   ) {
-    return { ok: false, code: 'signature_invalid' }
+    return 'signature_invalid'
   }
-  if (grant.requestDigestSha256 !== requestDigest(request)) {
-    return { ok: false, code: 'request_mismatch' }
-  }
+  if (grant.requestDigestSha256 !== requestDigest(request)) return 'request_mismatch'
   if (request.issuedAtMs > expected.nowMs || grant.issuedAtMs > expected.nowMs) {
-    return { ok: false, code: 'not_yet_valid' }
+    return 'not_yet_valid'
   }
   if (request.expiresAtMs <= expected.nowMs || grant.expiresAtMs <= expected.nowMs) {
-    return { ok: false, code: 'expired' }
+    return 'expired'
   }
   if (
     request.expiresAtMs <= request.issuedAtMs ||
@@ -265,50 +264,81 @@ export function validateGoogleCredentialBrokerGrant(
     grant.expiresAtMs - grant.issuedAtMs > GOOGLE_CREDENTIAL_BROKER_MAX_TTL_MS ||
     grant.expiresAtMs > request.expiresAtMs
   ) {
-    return { ok: false, code: 'ttl_exceeded' }
+    return 'ttl_exceeded'
   }
-  if (request.homeCellId === request.targetCellId) return { ok: false, code: 'same_cell' }
+  return null
+}
+
+/** The request must name this exact cross-cell route and tenant scope. */
+function brokerRouteDenial(
+  request: GoogleCredentialBrokerRequest,
+  expected: GoogleCredentialBrokerExpectation,
+): GoogleCredentialBrokerDenyCode | null {
+  if (request.homeCellId === request.targetCellId) return 'same_cell'
   if (
     !expected.isAcceptingCell(request.homeCellId) ||
     !expected.isAcceptingCell(request.targetCellId)
   ) {
-    return { ok: false, code: 'cell_not_accepting' }
+    return 'cell_not_accepting'
   }
-  if (request.homeCellId !== expected.homeCellId) return { ok: false, code: 'wrong_home' }
-  if (request.targetCellId !== expected.localTargetCellId) {
-    return { ok: false, code: 'wrong_target' }
-  }
+  if (request.homeCellId !== expected.homeCellId) return 'wrong_home'
+  if (request.targetCellId !== expected.localTargetCellId) return 'wrong_target'
   if (request.targetGatewayIdentity !== expected.targetGatewayIdentity) {
-    return { ok: false, code: 'wrong_gateway' }
+    return 'wrong_gateway'
   }
-  if (request.organizationId !== expected.organizationId) {
-    return { ok: false, code: 'wrong_organization' }
-  }
-  if (request.connectionId !== expected.connectionId) {
-    return { ok: false, code: 'wrong_connection' }
-  }
-  if (request.propertyId !== expected.propertyId) {
-    return { ok: false, code: 'wrong_property' }
-  }
-  if (request.routeKey !== expected.routeKey) return { ok: false, code: 'wrong_route' }
+  if (request.organizationId !== expected.organizationId) return 'wrong_organization'
+  if (request.connectionId !== expected.connectionId) return 'wrong_connection'
+  if (request.propertyId !== expected.propertyId) return 'wrong_property'
+  if (request.routeKey !== expected.routeKey) return 'wrong_route'
+  return null
+}
+
+/**
+ * The grant must still bind the authorization, request and credential material
+ * the caller is holding — anything that moved underneath it is a denial.
+ */
+function brokerBindingDenial(
+  grant: GoogleCredentialBrokerGrant,
+  expected: GoogleCredentialBrokerExpectation,
+): GoogleCredentialBrokerDenyCode | null {
+  const request = grant.request
   if (!sameAuthorization(request.authorization, expected.authorization)) {
-    return { ok: false, code: 'authorization_changed' }
+    return 'authorization_changed'
   }
   if (request.requestBindingSha256 !== expected.requestBindingSha256) {
-    return { ok: false, code: 'request_mismatch' }
+    return 'request_mismatch'
   }
   if (request.credentialBinding !== expected.credentialBinding) {
-    return { ok: false, code: 'credential_mismatch' }
+    return 'credential_mismatch'
   }
   if (
     request.routingDirectoryRevision !== expected.routingDirectoryRevision ||
     request.routingPolicyVersion !== expected.routingPolicyVersion
   ) {
-    return { ok: false, code: 'routing_changed' }
+    return 'routing_changed'
   }
   if (grant.materialReference.bindingSha256 !== request.credentialBinding) {
-    return { ok: false, code: 'material_mismatch' }
+    return 'material_mismatch'
   }
+  return null
+}
+
+export function validateGoogleCredentialBrokerGrant(
+  input: unknown,
+  expected: GoogleCredentialBrokerExpectation,
+):
+  | Readonly<{ ok: true; value: GoogleCredentialBrokerGrant }>
+  | Readonly<{ ok: false; code: GoogleCredentialBrokerDenyCode }> {
+  const parsed = grantSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, code: 'malformed' }
+  const grant = parsed.data
+
+  const denial =
+    brokerEnvelopeDenial(grant, expected) ??
+    brokerRouteDenial(grant.request, expected) ??
+    brokerBindingDenial(grant, expected)
+  if (denial) return { ok: false, code: denial }
+
   return { ok: true, value: grant }
 }
 

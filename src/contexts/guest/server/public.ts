@@ -123,16 +123,68 @@ function lifecycleFailure(error: unknown): never {
   )
 }
 
+type GuestRateLimitAction =
+  | 'submit'
+  | 'correct'
+  | 'feedback'
+  | 'feedback_withdraw'
+  | 'response_withdraw'
+  | 'new_response'
+  | 'google'
+  | 'secondary'
+
+type GuestRateLimitWindow = Readonly<{ maxRequests: number; windowSeconds: number }>
+
+type GuestRateLimitBudget = Readonly<{
+  session: GuestRateLimitWindow
+  networkPortal: GuestRateLimitWindow
+}>
+
+function rateLimitBudgetFor(action: GuestRateLimitAction): GuestRateLimitBudget {
+  switch (action) {
+    case 'submit':
+      return {
+        session: { maxRequests: 2, windowSeconds: 60 * 60 },
+        networkPortal: { maxRequests: 5, windowSeconds: 60 * 60 },
+      }
+    case 'new_response':
+      // A shared device may legitimately serve another visitor, but
+      // rotation must not become an unbounded response-farming primitive.
+      // The network+Portal layer survives the new session identity.
+      return {
+        session: { maxRequests: 2, windowSeconds: 24 * 60 * 60 },
+        networkPortal: { maxRequests: 5, windowSeconds: 24 * 60 * 60 },
+      }
+    case 'correct':
+    case 'feedback':
+    case 'feedback_withdraw':
+    case 'response_withdraw':
+      // The aggregate enforces one successful correction/feedback. A
+      // small attempt budget still permits retry after a transient fault
+      // or compare-and-set race instead of making the UI's retry copy false.
+      return {
+        session: { maxRequests: 3, windowSeconds: 60 * 60 },
+        networkPortal: { maxRequests: 10, windowSeconds: 60 * 60 },
+      }
+    case 'google':
+    case 'secondary':
+      // PostgreSQL owns exact once-per-session/destination semantics.
+      // This small abuse budget allows a retry after transient
+      // observation loss while the navigation itself remains fail-open.
+      return {
+        session: { maxRequests: 3, windowSeconds: 24 * 60 * 60 },
+        networkPortal: { maxRequests: 50, windowSeconds: 60 * 60 },
+      }
+    default:
+      return {
+        session: { maxRequests: 10, windowSeconds: 60 * 60 },
+        networkPortal: { maxRequests: 50, windowSeconds: 60 * 60 },
+      }
+  }
+}
+
 async function rateLimit(
-  action:
-    | 'submit'
-    | 'correct'
-    | 'feedback'
-    | 'feedback_withdraw'
-    | 'response_withdraw'
-    | 'new_response'
-    | 'google'
-    | 'secondary',
+  action: GuestRateLimitAction,
   sessionId: string,
   scope: GuestResponseScope,
   headers: Headers,
@@ -142,6 +194,8 @@ async function rateLimit(
   const container = getContainer()
   const useCases = container.guestPublicApi.requests
   const { rateLimiter, clock } = container
+  // Kept beside the limiter it feeds: the guest-request → durable
+  // network-pressure authority map, null for requests that have none.
   const pressureActionByRequest = {
     submit: 'rating',
     correct: 'rating',
@@ -155,43 +209,7 @@ async function rateLimit(
       : null
   const pseudonymAction =
     pressureAction ?? (action === 'feedback_withdraw' ? 'private_feedback' : 'rating')
-  const limits =
-    action === 'submit'
-      ? {
-          session: { maxRequests: 2, windowSeconds: 60 * 60 },
-          networkPortal: { maxRequests: 5, windowSeconds: 60 * 60 },
-        }
-      : action === 'new_response'
-        ? {
-            // A shared device may legitimately serve another visitor, but
-            // rotation must not become an unbounded response-farming primitive.
-            // The network+Portal layer survives the new session identity.
-            session: { maxRequests: 2, windowSeconds: 24 * 60 * 60 },
-            networkPortal: { maxRequests: 5, windowSeconds: 24 * 60 * 60 },
-          }
-        : action === 'correct' ||
-            action === 'feedback' ||
-            action === 'feedback_withdraw' ||
-            action === 'response_withdraw'
-          ? {
-              // The aggregate enforces one successful correction/feedback. A
-              // small attempt budget still permits retry after a transient fault
-              // or compare-and-set race instead of making the UI's retry copy false.
-              session: { maxRequests: 3, windowSeconds: 60 * 60 },
-              networkPortal: { maxRequests: 10, windowSeconds: 60 * 60 },
-            }
-          : action === 'google' || action === 'secondary'
-            ? {
-                // PostgreSQL owns exact once-per-session/destination semantics.
-                // This small abuse budget allows a retry after transient
-                // observation loss while the navigation itself remains fail-open.
-                session: { maxRequests: 3, windowSeconds: 24 * 60 * 60 },
-                networkPortal: { maxRequests: 50, windowSeconds: 60 * 60 },
-              }
-            : {
-                session: { maxRequests: 10, windowSeconds: 60 * 60 },
-                networkPortal: { maxRequests: 50, windowSeconds: 60 * 60 },
-              }
+  const limits = rateLimitBudgetFor(action)
   const keyKind = action === 'google' || action === 'secondary' ? 'click' : 'response'
   const portalId = scope.portalId
   const observedAt = clock()

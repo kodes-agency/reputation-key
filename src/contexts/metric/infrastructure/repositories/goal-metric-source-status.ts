@@ -6,6 +6,7 @@ import type {
   GoalMetricSourceStatus,
   GoalMetricSourceStatusPort,
 } from '../../application/ports/goal-metric-source-status.port'
+import type { GoalMetricAggregateQuery } from '../../application/ports/metric.repository'
 
 type SourceRow = Readonly<{
   event_id: unknown
@@ -84,6 +85,131 @@ function parseRow(row: SourceRow): ParsedSourceRow | null {
   }
 }
 
+type RelevantSourceRow = ParsedSourceRow & Readonly<{ expectedGroupId: string | null }>
+
+type ParseOutcome =
+  | Readonly<{ kind: 'parsed'; rows: readonly ParsedSourceRow[] }>
+  | Readonly<{ kind: 'invalid'; relevantFactCount: number }>
+
+/** Every source fact must parse; the first unreadable one quarantines the answer. */
+function parseSourceRows(rawRows: readonly SourceRow[]): ParseOutcome {
+  const parsed: ParsedSourceRow[] = []
+  for (const rawRow of rawRows) {
+    const row = parseRow(rawRow)
+    if (!row) return { kind: 'invalid', relevantFactCount: parsed.length + 1 }
+    parsed.push(row)
+  }
+  return { kind: 'parsed', rows: parsed }
+}
+
+type GroupScope =
+  | Readonly<{ kind: 'included'; expectedGroupId: string | null }>
+  | Readonly<{ kind: 'excluded' }>
+  | Readonly<{ kind: 'unavailable' }>
+
+/**
+ * Group membership for one fact: captured attribution wins, otherwise the
+ * Portal's group as of the fact. An unanswerable lookup is not an exclusion.
+ */
+async function resolveGroupScope(
+  portalGroups: PortalGroupPublicApi,
+  organizationId: Parameters<PortalGroupPublicApi['findGroupForPortal']>[0],
+  targetGroupId: string,
+  row: ParsedSourceRow,
+): Promise<GroupScope> {
+  if (row.hasCapturedPortalGroup) {
+    if (row.capturedPortalGroupId !== targetGroupId) return { kind: 'excluded' }
+    return { kind: 'included', expectedGroupId: row.capturedPortalGroupId }
+  }
+  let group
+  try {
+    group = await portalGroups.findGroupForPortal(
+      organizationId,
+      portalId(row.portalId),
+      row.occurredAt,
+    )
+  } catch {
+    return { kind: 'unavailable' }
+  }
+  if (!group || group.id !== targetGroupId) return { kind: 'excluded' }
+  return { kind: 'included', expectedGroupId: group.id }
+}
+
+type RelevantOutcome =
+  | Readonly<{ kind: 'relevant'; rows: readonly RelevantSourceRow[] }>
+  | Readonly<{ kind: 'unavailable'; relevantFactCount: number }>
+
+/** Narrow the parsed facts to the ones the queried subject actually covers. */
+async function selectRelevantRows(
+  query: GoalMetricAggregateQuery,
+  portalGroups: PortalGroupPublicApi,
+  parsed: readonly ParsedSourceRow[],
+): Promise<RelevantOutcome> {
+  const relevant: RelevantSourceRow[] = []
+  for (const row of parsed) {
+    if (query.subject.kind === 'portal' && row.portalId !== query.subject.portalId) {
+      continue
+    }
+    if (query.subject.kind === 'portal_group') {
+      const scope = await resolveGroupScope(
+        portalGroups,
+        query.organizationId,
+        query.subject.portalGroupId,
+        row,
+      )
+      if (scope.kind === 'unavailable') {
+        return { kind: 'unavailable', relevantFactCount: relevant.length + 1 }
+      }
+      if (scope.kind === 'excluded') continue
+      relevant.push({ ...row, expectedGroupId: scope.expectedGroupId })
+      continue
+    }
+    relevant.push({ ...row, expectedGroupId: null })
+  }
+  return { kind: 'relevant', rows: relevant }
+}
+
+/** The first governance failure an applied fact exhibits, or null when settled. */
+function factFailureReason(
+  row: RelevantSourceRow,
+  subjectIsPortalGroup: boolean,
+): string | null {
+  if (row.quarantined) return 'source_fact_quarantined'
+  const isRetraction = row.eventType.endsWith('.retracted')
+  if (isRetraction) return row.correctionPresent ? null : 'projection_missing'
+  if (row.readingPortalId !== row.portalId) return 'portal_attribution_mismatch'
+  if (subjectIsPortalGroup && row.readingGroupId !== row.expectedGroupId) {
+    return 'group_attribution_mismatch'
+  }
+  if (row.supersedesSourceEventId && !row.replacementCorrectionPresent) {
+    return 'correction_missing'
+  }
+  return null
+}
+
+/** Fold receipt state and projection completeness into the reported status. */
+function evaluateRelevantRows(
+  relevant: readonly RelevantSourceRow[],
+  subjectIsPortalGroup: boolean,
+): GoalMetricSourceStatus {
+  let pending = 0
+  for (const row of relevant) {
+    if (row.receiptStatus === 'obsolete') {
+      return result('unavailable', relevant.length, pending, 'source_fact_obsolete')
+    }
+    if (row.receiptStatus !== 'applied' && row.receiptStatus !== 'duplicate') {
+      pending += 1
+      continue
+    }
+    const failure = factFailureReason(row, subjectIsPortalGroup)
+    if (failure) return result('quarantined', relevant.length, pending, failure)
+  }
+
+  return pending > 0
+    ? result('pending', relevant.length, pending, 'consumer_receipt_pending')
+    : result('complete', relevant.length, 0, null)
+}
+
 export const createGoalMetricSourceStatus = (
   db: Database,
   portalGroups: PortalGroupPublicApi,
@@ -157,97 +283,22 @@ export const createGoalMetricSourceStatus = (
         ORDER BY source.created_at, source.id
       `)
 
-      const parsed: ParsedSourceRow[] = []
-      for (const rawRow of raw.rows as SourceRow[]) {
-        const row = parseRow(rawRow)
-        if (!row)
-          return result('quarantined', parsed.length + 1, 0, 'invalid_source_fact')
-        parsed.push(row)
+      const parsed = parseSourceRows(raw.rows as SourceRow[])
+      if (parsed.kind === 'invalid') {
+        return result('quarantined', parsed.relevantFactCount, 0, 'invalid_source_fact')
       }
 
-      const relevant: Array<ParsedSourceRow & { expectedGroupId: string | null }> = []
-      for (const row of parsed) {
-        if (query.subject.kind === 'portal' && row.portalId !== query.subject.portalId) {
-          continue
-        }
-        if (query.subject.kind === 'portal_group') {
-          if (row.hasCapturedPortalGroup) {
-            if (row.capturedPortalGroupId !== query.subject.portalGroupId) continue
-            relevant.push({ ...row, expectedGroupId: row.capturedPortalGroupId })
-            continue
-          }
-          let group
-          try {
-            group = await portalGroups.findGroupForPortal(
-              query.organizationId,
-              portalId(row.portalId),
-              row.occurredAt,
-            )
-          } catch {
-            return result(
-              'unavailable',
-              relevant.length + 1,
-              0,
-              'source_attribution_unavailable',
-            )
-          }
-          if (!group || group.id !== query.subject.portalGroupId) continue
-          relevant.push({ ...row, expectedGroupId: group.id })
-          continue
-        }
-        relevant.push({ ...row, expectedGroupId: null })
+      const relevant = await selectRelevantRows(query, portalGroups, parsed.rows)
+      if (relevant.kind === 'unavailable') {
+        return result(
+          'unavailable',
+          relevant.relevantFactCount,
+          0,
+          'source_attribution_unavailable',
+        )
       }
 
-      let pending = 0
-      for (const row of relevant) {
-        if (row.receiptStatus === 'obsolete') {
-          return result('unavailable', relevant.length, pending, 'source_fact_obsolete')
-        }
-        if (row.receiptStatus !== 'applied' && row.receiptStatus !== 'duplicate') {
-          pending += 1
-          continue
-        }
-        if (row.quarantined) {
-          return result(
-            'quarantined',
-            relevant.length,
-            pending,
-            'source_fact_quarantined',
-          )
-        }
-        const isRetraction = row.eventType.endsWith('.retracted')
-        if (isRetraction && !row.correctionPresent) {
-          return result('quarantined', relevant.length, pending, 'projection_missing')
-        }
-        if (!isRetraction) {
-          if (row.readingPortalId !== row.portalId) {
-            return result(
-              'quarantined',
-              relevant.length,
-              pending,
-              'portal_attribution_mismatch',
-            )
-          }
-          if (
-            query.subject.kind === 'portal_group' &&
-            row.readingGroupId !== row.expectedGroupId
-          ) {
-            return result(
-              'quarantined',
-              relevant.length,
-              pending,
-              'group_attribution_mismatch',
-            )
-          }
-          if (row.supersedesSourceEventId && !row.replacementCorrectionPresent) {
-            return result('quarantined', relevant.length, pending, 'correction_missing')
-          }
-        }
-      }
-
-      return pending > 0
-        ? result('pending', relevant.length, pending, 'consumer_receipt_pending')
-        : result('complete', relevant.length, 0, null)
+      return evaluateRelevantRows(relevant.rows, query.subject.kind === 'portal_group')
     },
   }
 }

@@ -122,173 +122,213 @@ function requireString(value: unknown, label: string, violations: string[]): str
   return ''
 }
 
-function validateAuthorityShape(value: unknown): readonly string[] {
-  const violations: string[] = []
-  const root = record(value)
-  if (!root) return ['technology-stack authority must be an object']
-  if (root.version !== 1) violations.push('technology-stack authority version must be 1')
+function rows(value: unknown): readonly unknown[] {
+  return Array.isArray(value) ? value : []
+}
 
+function collectReviewWindowViolations(
+  root: Record<string, unknown>,
+  violations: string[],
+): void {
+  if (root.version !== 1) violations.push('technology-stack authority version must be 1')
   for (const field of ['reviewedAt', 'nextReviewBy'] as const) {
     const date = requireString(root[field], field, violations)
     if (date && !DATE.test(date)) violations.push(`${field} must use YYYY-MM-DD`)
   }
-  if (typeof root.nextReviewBy === 'string') {
-    const expiry = Date.parse(`${root.nextReviewBy}T23:59:59Z`)
-    if (!Number.isNaN(expiry) && expiry < Date.now()) {
-      violations.push(`technology-stack authority review expired on ${root.nextReviewBy}`)
-    }
+  if (typeof root.nextReviewBy !== 'string') return
+  const expiry = Date.parse(`${root.nextReviewBy}T23:59:59Z`)
+  if (!Number.isNaN(expiry) && expiry < Date.now()) {
+    violations.push(`technology-stack authority review expired on ${root.nextReviewBy}`)
   }
+}
 
-  const owners = record(root.owners)
+function collectOwnerViolations(
+  owners: Record<string, unknown> | undefined,
+  violations: string[],
+): void {
   if (!owners || Object.keys(owners).length === 0) {
     violations.push('technology-stack authority requires named owners')
   }
   for (const [name, owner] of Object.entries(owners ?? {})) {
     requireString(owner, `owners.${name}`, violations)
   }
+}
 
-  const runtime = record(root.runtime)
+const RUNTIME_FIELDS = [
+  'nodeVersion',
+  'nodeTypeSurfaceVersion',
+  'packageManager',
+  'packageManagerVersion',
+  'runtimePackageManifest',
+  'containerPolicy',
+] as const
+
+function collectRuntimeViolations(value: unknown, violations: string[]): void {
+  const runtime = record(value)
   if (!runtime) violations.push('technology-stack authority requires runtime')
-  for (const field of [
-    'nodeVersion',
-    'nodeTypeSurfaceVersion',
-    'packageManager',
-    'packageManagerVersion',
-    'runtimePackageManifest',
-    'containerPolicy',
-  ]) {
+  for (const field of RUNTIME_FIELDS) {
     requireString(runtime?.[field], `runtime.${field}`, violations)
   }
+}
 
-  if (!Array.isArray(root.packages) || root.packages.length === 0) {
+function collectPackageRowViolations(
+  row: Record<string, unknown>,
+  index: number,
+  seen: Set<string>,
+  violations: string[],
+): void {
+  const name = requireString(row.package, `packages[${index}].package`, violations)
+  const version = requireString(row.version, `packages[${index}].version`, violations)
+  requireString(row.role, `packages[${index}].role`, violations)
+  if (row.section !== 'dependencies' && row.section !== 'devDependencies') {
+    violations.push(`packages[${index}].section is invalid`)
+  }
+  if (version && !EXACT_VERSION.test(version)) {
+    violations.push(`packages[${index}].version must be exact`)
+  }
+  if (name && seen.has(name)) violations.push(`duplicate package authority ${name}`)
+  seen.add(name)
+}
+
+function collectPackageViolations(value: unknown, violations: string[]): void {
+  if (!Array.isArray(value) || value.length === 0) {
     violations.push('technology-stack authority requires package rows')
   }
-  const packageNames = new Set<string>()
-  for (const [index, candidate] of (Array.isArray(root.packages)
-    ? root.packages
-    : []
-  ).entries()) {
+  const seen = new Set<string>()
+  for (const [index, candidate] of rows(value).entries()) {
     const row = record(candidate)
     if (!row) {
       violations.push(`packages[${index}] must be an object`)
       continue
     }
-    const name = requireString(row.package, `packages[${index}].package`, violations)
-    const version = requireString(row.version, `packages[${index}].version`, violations)
-    requireString(row.role, `packages[${index}].role`, violations)
-    if (row.section !== 'dependencies' && row.section !== 'devDependencies') {
-      violations.push(`packages[${index}].section is invalid`)
-    }
-    if (version && !EXACT_VERSION.test(version)) {
-      violations.push(`packages[${index}].version must be exact`)
-    }
-    if (name && packageNames.has(name))
-      violations.push(`duplicate package authority ${name}`)
-    packageNames.add(name)
+    collectPackageRowViolations(row, index, seen, violations)
   }
+}
 
-  if (!Array.isArray(root.externalContainerBases)) {
+function collectContainerBaseRowViolations(
+  row: Record<string, unknown>,
+  index: number,
+  violations: string[],
+): void {
+  const label = `externalContainerBases[${index}]`
+  const reference = requireString(row.reference, `${label}.reference`, violations)
+  if (reference && !IMAGE_DIGEST.test(reference)) {
+    violations.push(`${label}.reference must be digest-pinned`)
+  }
+  requireString(row.runtimeVersion, `${label}.runtimeVersion`, violations)
+  requireString(row.owner, `${label}.owner`, violations)
+  requireString(row.updateMonitor, `${label}.updateMonitor`, violations)
+}
+
+function collectContainerBaseViolations(value: unknown, violations: string[]): void {
+  if (!Array.isArray(value)) {
     violations.push('technology-stack authority requires externalContainerBases')
   }
-  for (const [index, candidate] of (Array.isArray(root.externalContainerBases)
-    ? root.externalContainerBases
-    : []
-  ).entries()) {
+  for (const [index, candidate] of rows(value).entries()) {
     const row = record(candidate)
     if (!row) {
       violations.push(`externalContainerBases[${index}] must be an object`)
       continue
     }
-    const reference = requireString(
-      row.reference,
-      `externalContainerBases[${index}].reference`,
-      violations,
-    )
-    if (reference && !IMAGE_DIGEST.test(reference)) {
-      violations.push(`externalContainerBases[${index}].reference must be digest-pinned`)
-    }
-    requireString(
-      row.runtimeVersion,
-      `externalContainerBases[${index}].runtimeVersion`,
-      violations,
-    )
-    requireString(row.owner, `externalContainerBases[${index}].owner`, violations)
-    requireString(
-      row.updateMonitor,
-      `externalContainerBases[${index}].updateMonitor`,
-      violations,
-    )
+    collectContainerBaseRowViolations(row, index, violations)
   }
+}
 
-  if (!Array.isArray(root.githubActions) || root.githubActions.length === 0) {
+function collectActionRowViolations(
+  row: Record<string, unknown>,
+  index: number,
+  seen: Set<string>,
+  violations: string[],
+): void {
+  const label = `githubActions[${index}]`
+  const repository = requireString(row.repository, `${label}.repository`, violations)
+  const ref = requireString(row.ref, `${label}.ref`, violations)
+  const display = requireString(row.displayVersion, `${label}.displayVersion`, violations)
+  if (ref && !ACTION_SHA.test(ref))
+    violations.push(`${repository} ref must be a full SHA`)
+  if (display && !/^v\d+\S*$/u.test(display)) {
+    violations.push(`${repository} displayVersion must start with v and a digit`)
+  }
+  if (repository && seen.has(repository)) {
+    violations.push(`duplicate action authority ${repository}`)
+  }
+  seen.add(repository)
+}
+
+function collectActionAuthorityViolations(value: unknown, violations: string[]): void {
+  if (!Array.isArray(value) || value.length === 0) {
     violations.push('technology-stack authority requires githubActions')
   }
-  const actionRepositories = new Set<string>()
-  for (const [index, candidate] of (Array.isArray(root.githubActions)
-    ? root.githubActions
-    : []
-  ).entries()) {
+  const seen = new Set<string>()
+  for (const [index, candidate] of rows(value).entries()) {
     const row = record(candidate)
     if (!row) {
       violations.push(`githubActions[${index}] must be an object`)
       continue
     }
-    const repository = requireString(
-      row.repository,
-      `githubActions[${index}].repository`,
-      violations,
-    )
-    const ref = requireString(row.ref, `githubActions[${index}].ref`, violations)
-    const display = requireString(
-      row.displayVersion,
-      `githubActions[${index}].displayVersion`,
-      violations,
-    )
-    if (ref && !ACTION_SHA.test(ref))
-      violations.push(`${repository} ref must be a full SHA`)
-    if (display && !/^v\d+\S*$/u.test(display)) {
-      violations.push(`${repository} displayVersion must start with v and a digit`)
-    }
-    if (repository && actionRepositories.has(repository)) {
-      violations.push(`duplicate action authority ${repository}`)
-    }
-    actionRepositories.add(repository)
+    collectActionRowViolations(row, index, seen, violations)
   }
+}
 
-  const exceptions = Array.isArray(root.exceptions) ? root.exceptions : []
-  const exceptionIds = new Set<string>()
+function collectExceptionRowViolations(
+  row: Record<string, unknown>,
+  index: number,
+  seen: Set<string>,
+  ownerNames: ReadonlySet<string>,
+  violations: string[],
+): void {
+  const label = `exceptions[${index}]`
+  const id = requireString(row.id, `${label}.id`, violations)
+  requireString(row.scope, `${label}.scope`, violations)
+  const owner = requireString(row.owner, `${label}.owner`, violations)
+  const expiresOn = requireString(row.expiresOn, `${label}.expiresOn`, violations)
+  requireString(row.reason, `${label}.reason`, violations)
+  if (id && seen.has(id)) violations.push(`duplicate stack exception ${id}`)
+  seen.add(id)
+  if (owner && !ownerNames.has(owner)) {
+    violations.push(`stack exception ${id} has unknown owner ${owner}`)
+  }
+  if (expiresOn && !DATE.test(expiresOn)) {
+    violations.push(`stack exception ${id} expiry must use YYYY-MM-DD`)
+  } else if (expiresOn && Date.parse(`${expiresOn}T23:59:59Z`) < Date.now()) {
+    violations.push(`stack exception ${id} expired on ${expiresOn}`)
+  }
+}
+
+function collectExceptionViolations(
+  value: unknown,
+  owners: Record<string, unknown> | undefined,
+  violations: string[],
+): void {
   const ownerNames = new Set(
     Object.values(owners ?? {}).filter(
       (owner): owner is string => typeof owner === 'string',
     ),
   )
-  for (const [index, candidate] of exceptions.entries()) {
+  const seen = new Set<string>()
+  for (const [index, candidate] of rows(value).entries()) {
     const row = record(candidate)
     if (!row) {
       violations.push(`exceptions[${index}] must be an object`)
       continue
     }
-    const id = requireString(row.id, `exceptions[${index}].id`, violations)
-    requireString(row.scope, `exceptions[${index}].scope`, violations)
-    const owner = requireString(row.owner, `exceptions[${index}].owner`, violations)
-    const expiresOn = requireString(
-      row.expiresOn,
-      `exceptions[${index}].expiresOn`,
-      violations,
-    )
-    requireString(row.reason, `exceptions[${index}].reason`, violations)
-    if (id && exceptionIds.has(id)) violations.push(`duplicate stack exception ${id}`)
-    exceptionIds.add(id)
-    if (owner && !ownerNames.has(owner)) {
-      violations.push(`stack exception ${id} has unknown owner ${owner}`)
-    }
-    if (expiresOn && !DATE.test(expiresOn)) {
-      violations.push(`stack exception ${id} expiry must use YYYY-MM-DD`)
-    } else if (expiresOn && Date.parse(`${expiresOn}T23:59:59Z`) < Date.now()) {
-      violations.push(`stack exception ${id} expired on ${expiresOn}`)
-    }
+    collectExceptionRowViolations(row, index, seen, ownerNames, violations)
   }
+}
 
+export function validateAuthorityShape(value: unknown): readonly string[] {
+  const root = record(value)
+  if (!root) return ['technology-stack authority must be an object']
+
+  const violations: string[] = []
+  const owners = record(root.owners)
+  collectReviewWindowViolations(root, violations)
+  collectOwnerViolations(owners, violations)
+  collectRuntimeViolations(root.runtime, violations)
+  collectPackageViolations(root.packages, violations)
+  collectContainerBaseViolations(root.externalContainerBases, violations)
+  collectActionAuthorityViolations(root.githubActions, violations)
+  collectExceptionViolations(root.exceptions, owners, violations)
   return violations
 }
 
@@ -378,6 +418,36 @@ function actionRepository(actionPath: string): string {
   return actionPath.split('/').slice(0, 2).join('/')
 }
 
+/**
+ * Grades a single `uses:` invocation, recording the repository in `used` when it
+ * resolves to a known authority row. Returns the violation, if any.
+ */
+function actionInvocationViolation(
+  workflowPath: string,
+  invocation: string,
+  displayVersion: string,
+  expected: ReadonlyMap<string, ActionAuthority>,
+  used: Set<string>,
+): string | undefined {
+  if (invocation.startsWith('./')) return undefined
+  if (invocation.startsWith('docker://')) {
+    return IMAGE_DIGEST.test(invocation)
+      ? undefined
+      : `${workflowPath}: docker action ${invocation} is not digest-pinned`
+  }
+  const separator = invocation.lastIndexOf('@')
+  const ref = separator >= 0 ? invocation.slice(separator + 1) : ''
+  if (!ACTION_SHA.test(ref)) {
+    return `${workflowPath}: action ${invocation} is not pinned to a full commit SHA`
+  }
+  const repository = actionRepository(invocation.slice(0, separator))
+  const allowed = expected.get(repository)
+  if (!allowed) return `${workflowPath}: action ${repository} is absent from authority`
+  used.add(repository)
+  if (allowed.ref === ref && allowed.displayVersion === displayVersion) return undefined
+  return `${workflowPath}: action ${repository} must use ${allowed.ref} # ${allowed.displayVersion}`
+}
+
 export function validateActionAuthority(
   authority: TechnologyStackAuthority,
   workflows: readonly TextSurface[],
@@ -391,38 +461,14 @@ export function validateActionAuthority(
     for (const match of workflow.content.matchAll(
       /^\s*-?\s*uses:\s*([^\s#]+)(?:\s*#\s*(\S+))?\s*$/gmu,
     )) {
-      const invocation = match[1]!
-      if (invocation.startsWith('./')) continue
-      if (invocation.startsWith('docker://')) {
-        if (!IMAGE_DIGEST.test(invocation)) {
-          violations.push(
-            `${workflow.path}: docker action ${invocation} is not digest-pinned`,
-          )
-        }
-        continue
-      }
-      const separator = invocation.lastIndexOf('@')
-      const actionPath = invocation.slice(0, separator)
-      const ref = separator >= 0 ? invocation.slice(separator + 1) : ''
-      const repository = actionRepository(actionPath)
-      if (!ACTION_SHA.test(ref)) {
-        violations.push(
-          `${workflow.path}: action ${invocation} is not pinned to a full commit SHA`,
-        )
-        continue
-      }
-      const displayVersion = match[2] ?? ''
-      const allowed = expected.get(repository)
-      if (!allowed) {
-        violations.push(`${workflow.path}: action ${repository} is absent from authority`)
-        continue
-      }
-      used.add(repository)
-      if (allowed.ref !== ref || allowed.displayVersion !== displayVersion) {
-        violations.push(
-          `${workflow.path}: action ${repository} must use ${allowed.ref} # ${allowed.displayVersion}`,
-        )
-      }
+      const violation = actionInvocationViolation(
+        workflow.path,
+        match[1]!,
+        match[2] ?? '',
+        expected,
+        used,
+      )
+      if (violation !== undefined) violations.push(violation)
     }
   }
   for (const repository of expected.keys()) {
@@ -431,64 +477,99 @@ export function validateActionAuthority(
   return violations
 }
 
+type DockerBaseScan = Readonly<{
+  authority: TechnologyStackAuthority
+  allowed: ReadonlySet<string>
+  used: Set<string>
+  violations: string[]
+}>
+
+function collectNodeBaseViolations(
+  dockerfile: string,
+  content: string,
+  scan: DockerBaseScan,
+): void {
+  const { nodeVersion, packageManagerVersion } = scan.authority.runtime
+  if (!content.includes(`node:'${nodeVersion}'`)) {
+    scan.violations.push(
+      `${dockerfile}: Node base does not assert runtime ${nodeVersion}`,
+    )
+  }
+  const pinnedPnpm = `pnpm@${packageManagerVersion}`
+  const packageManagedPnpm =
+    content.includes('COPY package.json') &&
+    content.includes('pnpm install --frozen-lockfile')
+  if (!content.includes(pinnedPnpm) && !packageManagedPnpm) {
+    scan.violations.push(
+      `${dockerfile}: pnpm must come from ${pinnedPnpm} or the copied packageManager authority`,
+    )
+  }
+}
+
+function collectBaseImageViolations(
+  dockerfile: string,
+  image: string,
+  content: string,
+  scan: DockerBaseScan,
+): void {
+  if (!IMAGE_DIGEST.test(image)) {
+    scan.violations.push(`${dockerfile}: external base ${image} is not digest-pinned`)
+  } else if (!scan.allowed.has(image)) {
+    scan.violations.push(
+      `${dockerfile}: external base ${image} is absent from the technology-stack authority`,
+    )
+  } else {
+    scan.used.add(image)
+  }
+  if (image.startsWith('node:')) collectNodeBaseViolations(dockerfile, content, scan)
+}
+
+/** Grades every distinct `FROM` base, skipping references to earlier stages. */
+function collectDockerfileBaseViolations(
+  dockerfile: string,
+  content: string,
+  scan: DockerBaseScan,
+): void {
+  const stages = new Set<string>()
+  for (const match of content.matchAll(/^FROM\s+(\S+)(?:\s+AS\s+(\S+))?/gimu)) {
+    const image = match[1]!
+    if (!stages.has(image)) {
+      collectBaseImageViolations(dockerfile, image, content, scan)
+    }
+    if (match[2]) stages.add(match[2])
+  }
+}
+
 export function validateDockerBaseAuthority(
   authority: TechnologyStackAuthority,
   policy: ContainerImagePolicy,
   dockerfiles: readonly TextSurface[],
 ): readonly string[] {
-  const violations: string[] = []
   const contentByPath = new Map(dockerfiles.map((file) => [file.path, file.content]))
   const allowed = new Set(
     authority.externalContainerBases.map(({ reference }) => reference),
   )
-  const used = new Set<string>()
+  const scan: DockerBaseScan = {
+    authority,
+    allowed,
+    used: new Set<string>(),
+    violations: [],
+  }
   for (const { dockerfile } of policy.images) {
     const content = contentByPath.get(dockerfile)
     if (content === undefined) {
-      violations.push(
+      scan.violations.push(
         `${dockerfile}: Dockerfile content is missing from stack validation`,
       )
       continue
     }
-    const stages = new Set<string>()
-    for (const match of content.matchAll(/^FROM\s+(\S+)(?:\s+AS\s+(\S+))?/gimu)) {
-      const image = match[1]!
-      if (!stages.has(image)) {
-        if (!IMAGE_DIGEST.test(image)) {
-          violations.push(`${dockerfile}: external base ${image} is not digest-pinned`)
-        } else if (!allowed.has(image)) {
-          violations.push(
-            `${dockerfile}: external base ${image} is absent from the technology-stack authority`,
-          )
-        } else {
-          used.add(image)
-        }
-        if (image.startsWith('node:')) {
-          const probe = `node:'${authority.runtime.nodeVersion}'`
-          if (!content.includes(probe)) {
-            violations.push(
-              `${dockerfile}: Node base does not assert runtime ${authority.runtime.nodeVersion}`,
-            )
-          }
-          const pinnedPnpm = `pnpm@${authority.runtime.packageManagerVersion}`
-          const packageManagedPnpm =
-            content.includes('COPY package.json') &&
-            content.includes('pnpm install --frozen-lockfile')
-          if (!content.includes(pinnedPnpm) && !packageManagedPnpm) {
-            violations.push(
-              `${dockerfile}: pnpm must come from ${pinnedPnpm} or the copied packageManager authority`,
-            )
-          }
-        }
-      }
-      if (match[2]) stages.add(match[2])
-    }
+    collectDockerfileBaseViolations(dockerfile, content, scan)
   }
   for (const reference of allowed) {
-    if (!used.has(reference))
-      violations.push(`external base authority ${reference} is stale`)
+    if (!scan.used.has(reference))
+      scan.violations.push(`external base authority ${reference} is stale`)
   }
-  return violations
+  return scan.violations
 }
 
 export function validateDatabaseGuidance(

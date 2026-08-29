@@ -525,68 +525,71 @@ export function createExecutionPolicy(deps: ExecutionPolicyDeps): ExecutionPolic
     )
   }
 
+  async function decidePublic(request: DecisionRequest): Promise<ExecutionDecision> {
+    if (request.executionKind !== 'public') {
+      return finish(
+        deps,
+        pendingAudits,
+        request,
+        request.capability ?? null,
+        false,
+        'unsupported_principal',
+      )
+    }
+    if (request.capability) {
+      const capDecision = request.organizationId
+        ? checkScopedCapability(
+            {
+              organizationId: request.organizationId,
+              ...(request.propertyId ? { propertyId: request.propertyId } : {}),
+            },
+            request.capability,
+          )
+        : checkGlobalCapability(request.capability)
+      if (!capDecision.allowed) {
+        return finish(
+          deps,
+          pendingAudits,
+          request,
+          request.capability,
+          false,
+          capDecision.reason,
+        )
+      }
+    }
+    const cellDeny = await propertyCellDecision(request, request.capability ?? null)
+    if (cellDeny) return cellDeny
+    if (
+      request.requiredPublicConsents?.some(
+        (consent) => request.consentAssertions?.[consent] !== true,
+      )
+    ) {
+      return finish(
+        deps,
+        pendingAudits,
+        request,
+        request.capability ?? null,
+        false,
+        'consent_required',
+      )
+    }
+    return finish(
+      deps,
+      pendingAudits,
+      request,
+      request.capability ?? null,
+      true,
+      'allowed',
+    )
+  }
+
   return {
     async decide(request) {
       switch (request.principal.kind) {
         case 'user':
           return decideUser(request, request.principal.ctx)
-        case 'public': {
-          if (request.executionKind !== 'public') {
-            return finish(
-              deps,
-              pendingAudits,
-              request,
-              request.capability ?? null,
-              false,
-              'unsupported_principal',
-            )
-          }
-          if (request.capability) {
-            const capDecision = request.organizationId
-              ? checkScopedCapability(
-                  {
-                    organizationId: request.organizationId,
-                    ...(request.propertyId ? { propertyId: request.propertyId } : {}),
-                  },
-                  request.capability,
-                )
-              : checkGlobalCapability(request.capability)
-            if (!capDecision.allowed) {
-              return finish(
-                deps,
-                pendingAudits,
-                request,
-                request.capability,
-                false,
-                capDecision.reason,
-              )
-            }
-          }
-          const cellDeny = await propertyCellDecision(request, request.capability ?? null)
-          if (cellDeny) return cellDeny
-          if (
-            request.requiredPublicConsents?.some(
-              (consent) => request.consentAssertions?.[consent] !== true,
-            )
-          ) {
-            return finish(
-              deps,
-              pendingAudits,
-              request,
-              request.capability ?? null,
-              false,
-              'consent_required',
-            )
-          }
-          return finish(
-            deps,
-            pendingAudits,
-            request,
-            request.capability ?? null,
-            true,
-            'allowed',
-          )
-        }
+        case 'public':
+          return decidePublic(request)
         // BQC-7.5: operator commands (named operator + explicit scope).
         case 'operator':
           return decideOperator(request, request.principal.id)

@@ -148,6 +148,62 @@ function sortForeignKeys(
   })
 }
 
+/** Any identifier in the constraint that is not transport/log safe. */
+function hasUnsafeIdentifier(row: LegacyRollupForeignKey): boolean {
+  return (
+    !isSafeOpaqueIdentifier(row.constraintName) ||
+    !isSafeOpaqueIdentifier(row.sourceSchema) ||
+    !isSafeOpaqueIdentifier(row.sourceTable) ||
+    !isSafeOpaqueIdentifier(row.targetSchema) ||
+    !isSafeOpaqueIdentifier(row.targetTable) ||
+    row.sourceColumns.some((column) => !isSafeOpaqueIdentifier(column)) ||
+    row.targetColumns.some((column) => !isSafeOpaqueIdentifier(column))
+  )
+}
+
+/** A constraint must map at least one source column onto exactly one target. */
+function hasMismatchedColumnArity(row: LegacyRollupForeignKey): boolean {
+  return (
+    row.sourceColumns.length === 0 ||
+    row.sourceColumns.length !== row.targetColumns.length
+  )
+}
+
+/**
+ * `onDeleteSetColumns` is only meaningful for SET NULL/DEFAULT, and every
+ * listed column must be a distinct, safe source column.
+ */
+function hasInvalidOnDeleteSetColumns(row: LegacyRollupForeignKey): boolean {
+  const setColumns = row.onDeleteSetColumns
+  if (setColumns === null) return false
+  return (
+    (row.onDelete !== 'set_null' && row.onDelete !== 'set_default') ||
+    setColumns.length === 0 ||
+    new Set(setColumns).size !== setColumns.length ||
+    setColumns.some(
+      (column) => !isSafeOpaqueIdentifier(column) || !row.sourceColumns.includes(column),
+    )
+  )
+}
+
+/** True when neither end of the constraint touches a retained rollup table. */
+function isUnrelatedToLegacyRollup(row: LegacyRollupForeignKey): boolean {
+  return (
+    !isLegacyRollupTable(row.sourceSchema, row.sourceTable) &&
+    !isLegacyRollupTable(row.targetSchema, row.targetTable)
+  )
+}
+
+function isInvalidLegacyRollupForeignKey(row: LegacyRollupForeignKey): boolean {
+  return (
+    hasUnsafeIdentifier(row) ||
+    hasMismatchedColumnArity(row) ||
+    hasInvalidOnDeleteSetColumns(row) ||
+    (row.initiallyDeferred && !row.deferrable) ||
+    isUnrelatedToLegacyRollup(row)
+  )
+}
+
 export function buildLegacyRollupInventoryReport(
   input: LegacyRollupInventoryInput,
 ): LegacyRollupInventoryReport {
@@ -167,28 +223,7 @@ export function buildLegacyRollupInventoryReport(
     throw new Error('legacy_rollup_inventory_table_mismatch')
   }
   for (const row of input.foreignKeys) {
-    if (
-      !isSafeOpaqueIdentifier(row.constraintName) ||
-      !isSafeOpaqueIdentifier(row.sourceSchema) ||
-      !isSafeOpaqueIdentifier(row.sourceTable) ||
-      !isSafeOpaqueIdentifier(row.targetSchema) ||
-      !isSafeOpaqueIdentifier(row.targetTable) ||
-      row.sourceColumns.length === 0 ||
-      row.sourceColumns.length !== row.targetColumns.length ||
-      row.sourceColumns.some((column) => !isSafeOpaqueIdentifier(column)) ||
-      row.targetColumns.some((column) => !isSafeOpaqueIdentifier(column)) ||
-      (row.onDeleteSetColumns !== null &&
-        ((row.onDelete !== 'set_null' && row.onDelete !== 'set_default') ||
-          row.onDeleteSetColumns.length === 0 ||
-          new Set(row.onDeleteSetColumns).size !== row.onDeleteSetColumns.length ||
-          row.onDeleteSetColumns.some(
-            (column) =>
-              !isSafeOpaqueIdentifier(column) || !row.sourceColumns.includes(column),
-          ))) ||
-      (row.initiallyDeferred && !row.deferrable) ||
-      (!isLegacyRollupTable(row.sourceSchema, row.sourceTable) &&
-        !isLegacyRollupTable(row.targetSchema, row.targetTable))
-    ) {
+    if (isInvalidLegacyRollupForeignKey(row)) {
       throw new Error('legacy_rollup_inventory_foreign_key_invalid')
     }
   }

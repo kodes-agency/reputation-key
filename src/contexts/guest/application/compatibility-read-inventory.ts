@@ -222,15 +222,64 @@ function sortForeignKeys(
   })
 }
 
-export function buildCompatibilityReadInventoryReport(
-  input: CompatibilityReadInventoryInput,
-): CompatibilityReadInventoryReport {
-  if (!Number.isSafeInteger(input.evaluatedAt.getTime())) {
-    throw new Error('compatibility_read_inventory_time_invalid')
-  }
+function hasSafeIdentifiers(row: CompatibilityReadForeignKey): boolean {
+  return (
+    isSafeOpaqueIdentifier(row.constraintName) &&
+    isSafeOpaqueIdentifier(row.sourceSchema) &&
+    isSafeOpaqueIdentifier(row.sourceTable) &&
+    isSafeOpaqueIdentifier(row.targetSchema) &&
+    isSafeOpaqueIdentifier(row.targetTable) &&
+    row.sourceColumns.every((column) => isSafeOpaqueIdentifier(column)) &&
+    row.targetColumns.every((column) => isSafeOpaqueIdentifier(column))
+  )
+}
 
+function hasPairedColumns(row: CompatibilityReadForeignKey): boolean {
+  return (
+    row.sourceColumns.length > 0 && row.sourceColumns.length === row.targetColumns.length
+  )
+}
+
+/** Null means PostgreSQL sets every source column, so no list to validate. */
+function hasValidOnDeleteSetColumns(row: CompatibilityReadForeignKey): boolean {
+  const setColumns = row.onDeleteSetColumns
+  if (setColumns === null) return true
+  return (
+    (row.onDelete === 'set_null' || row.onDelete === 'set_default') &&
+    setColumns.length > 0 &&
+    new Set(setColumns).size === setColumns.length &&
+    setColumns.every(
+      (column) => isSafeOpaqueIdentifier(column) && row.sourceColumns.includes(column),
+    )
+  )
+}
+
+function touchesCompatibilityReadTable(row: CompatibilityReadForeignKey): boolean {
+  return (
+    isCompatibilityReadTable(row.sourceSchema, row.sourceTable) ||
+    isCompatibilityReadTable(row.targetSchema, row.targetTable)
+  )
+}
+
+function assertForeignKeys(rows: readonly CompatibilityReadForeignKey[]): void {
+  for (const row of rows) {
+    if (
+      !hasSafeIdentifiers(row) ||
+      !hasPairedColumns(row) ||
+      !hasValidOnDeleteSetColumns(row) ||
+      (row.initiallyDeferred && !row.deferrable) ||
+      !touchesCompatibilityReadTable(row)
+    ) {
+      throw new Error('compatibility_read_inventory_foreign_key_invalid')
+    }
+  }
+}
+
+function countsByTable(
+  tableRows: CompatibilityReadInventoryInput['tableRows'],
+): Map<CompatibilityReadTableName, number> {
   const counts = new Map<CompatibilityReadTableName, number>()
-  for (const row of input.tableRows) {
+  for (const row of tableRows) {
     assertSafeCount(row.rowCount)
     if (!TABLE_NAMES.has(row.tableName) || counts.has(row.tableName)) {
       throw new Error('compatibility_read_inventory_table_mismatch')
@@ -240,32 +289,18 @@ export function buildCompatibilityReadInventoryReport(
   if (counts.size !== COMPATIBILITY_READ_TABLES.length) {
     throw new Error('compatibility_read_inventory_table_mismatch')
   }
-  for (const row of input.foreignKeys) {
-    if (
-      !isSafeOpaqueIdentifier(row.constraintName) ||
-      !isSafeOpaqueIdentifier(row.sourceSchema) ||
-      !isSafeOpaqueIdentifier(row.sourceTable) ||
-      !isSafeOpaqueIdentifier(row.targetSchema) ||
-      !isSafeOpaqueIdentifier(row.targetTable) ||
-      row.sourceColumns.length === 0 ||
-      row.sourceColumns.length !== row.targetColumns.length ||
-      row.sourceColumns.some((column) => !isSafeOpaqueIdentifier(column)) ||
-      row.targetColumns.some((column) => !isSafeOpaqueIdentifier(column)) ||
-      (row.onDeleteSetColumns !== null &&
-        ((row.onDelete !== 'set_null' && row.onDelete !== 'set_default') ||
-          row.onDeleteSetColumns.length === 0 ||
-          new Set(row.onDeleteSetColumns).size !== row.onDeleteSetColumns.length ||
-          row.onDeleteSetColumns.some(
-            (column) =>
-              !isSafeOpaqueIdentifier(column) || !row.sourceColumns.includes(column),
-          ))) ||
-      (row.initiallyDeferred && !row.deferrable) ||
-      (!isCompatibilityReadTable(row.sourceSchema, row.sourceTable) &&
-        !isCompatibilityReadTable(row.targetSchema, row.targetTable))
-    ) {
-      throw new Error('compatibility_read_inventory_foreign_key_invalid')
-    }
+  return counts
+}
+
+export function buildCompatibilityReadInventoryReport(
+  input: CompatibilityReadInventoryInput,
+): CompatibilityReadInventoryReport {
+  if (!Number.isSafeInteger(input.evaluatedAt.getTime())) {
+    throw new Error('compatibility_read_inventory_time_invalid')
   }
+
+  const counts = countsByTable(input.tableRows)
+  assertForeignKeys(input.foreignKeys)
 
   const tables = COMPATIBILITY_READ_TABLES.map((definition) => ({
     ...definition,

@@ -303,6 +303,195 @@ function authorizationFenceIsCurrent(
   )
 }
 
+type PublicationAttemptStart = Parameters<ReplyCommandStore['markPublicationSending']>[1]
+type PublicationAuthorizationRow = typeof replyPublicationAuthorizations.$inferSelect
+
+/** Update the attempt row the Reply currently points at. Its absence means the
+ * append-only publication evidence and the Reply have diverged. */
+const updateCurrentAttempt = async (
+  tx: Tx,
+  reply: Reply,
+  set: Record<string, unknown>,
+): Promise<void> => {
+  const rows = await tx
+    .update(replyPublicationAttempts)
+    .set(set)
+    .where(
+      and(
+        eq(replyPublicationAttempts.replyId, reply.id),
+        eq(replyPublicationAttempts.organizationId, reply.organizationId),
+        eq(replyPublicationAttempts.publicationCycle, reply.publicationCycle),
+        eq(replyPublicationAttempts.attemptNumber, reply.publicationAttempts),
+      ),
+    )
+    .returning({ id: replyPublicationAttempts.id })
+  if (!rows[0]) {
+    throw reviewError(
+      'invalid_transition',
+      'Reply publication attempt evidence is missing',
+    )
+  }
+}
+
+function selectPriorPublicationAttempt(tx: Tx, reply: Reply) {
+  return tx
+    .select({
+      baseObservationRevision: replyPublicationAttempts.baseObservationRevision,
+      sourceEpoch: replyPublicationAttempts.sourceEpoch,
+      materialReviewRevision: replyPublicationAttempts.materialReviewRevision,
+      replyStateRevision: replyPublicationAttempts.replyStateRevision,
+      expectedReplyDigest: replyPublicationAttempts.expectedReplyDigest,
+      createdAt: replyPublicationAttempts.createdAt,
+    })
+    .from(replyPublicationAttempts)
+    .where(
+      and(
+        eq(replyPublicationAttempts.organizationId, reply.organizationId),
+        eq(replyPublicationAttempts.reviewId, reply.reviewId),
+        eq(replyPublicationAttempts.replyId, reply.id),
+        eq(replyPublicationAttempts.publicationCycle, reply.publicationCycle),
+        eq(replyPublicationAttempts.attemptNumber, reply.publicationAttempts),
+      ),
+    )
+    .limit(1)
+}
+
+type PriorPublicationAttemptRow = Awaited<
+  ReturnType<typeof selectPriorPublicationAttempt>
+>[number]
+
+/** Only an in-flight re-claim has a prior attempt to be fenced against. */
+async function readPriorPublicationAttempt(
+  tx: Tx,
+  reply: Reply,
+): Promise<PriorPublicationAttemptRow | undefined> {
+  if (reply.publicationState !== 'sending' || reply.publicationAttempts <= 0) {
+    return undefined
+  }
+  const rows = await selectPriorPublicationAttempt(tx, reply)
+  return rows[0]
+}
+
+/**
+ * The stored authorization for this cycle, but only while it still describes
+ * the reply text, the manager-observed source, and the locked provider truth
+ * this attempt claims. Anything else means the authorization is no longer the
+ * one being executed, and the claim must not proceed.
+ */
+async function readCurrentPublicationAuthorization(
+  tx: Tx,
+  reply: Reply,
+  attempt: PublicationAttemptStart,
+  scope: LockedReplyTruthScope,
+): Promise<PublicationAuthorizationRow | null> {
+  const authorizationRows = await tx
+    .select()
+    .from(replyPublicationAuthorizations)
+    .where(
+      and(
+        eq(replyPublicationAuthorizations.organizationId, reply.organizationId),
+        eq(replyPublicationAuthorizations.propertyId, attempt.propertyId),
+        eq(replyPublicationAuthorizations.reviewId, reply.reviewId),
+        eq(replyPublicationAuthorizations.replyId, reply.id),
+        eq(replyPublicationAuthorizations.publicationCycle, reply.publicationCycle),
+      ),
+    )
+    .limit(1)
+  const authorization = authorizationRows[0]
+  if (
+    !authorization ||
+    authorization.sourceEpoch !== attempt.sourceEpoch ||
+    authorization.materialReviewRevision !== attempt.materialReviewRevision ||
+    authorization.baseObservationRevision !== attempt.baseObservationRevision ||
+    googleReplyTextDigest(reply.text) !== authorization.expectedReplyDigest ||
+    scope.review.sourceContentState !== 'active' ||
+    scope.review.sourceEpoch !== authorization.sourceEpoch ||
+    scope.review.materialReviewRevision !== authorization.materialReviewRevision ||
+    (scope.head !== null &&
+      (scope.head.sourceEpoch !== authorization.sourceEpoch ||
+        scope.head.materialReviewRevision !== authorization.materialReviewRevision ||
+        scope.head.contentState !== 'active'))
+  ) {
+    return null
+  }
+  return authorization
+}
+
+/**
+ * A first claim must start from exactly the observation head the manager
+ * authorized. A re-claim of an uncertain `sending` row may only proceed when a
+ * targeted read, taken after that attempt, proved the provider currently holds
+ * no reply for the same source and the same authorized text.
+ */
+function claimObservationFenceIsCurrent(
+  reply: Reply,
+  attempt: PublicationAttemptStart,
+  authorization: PublicationAuthorizationRow,
+  head: LockedReplyTruthScope['head'],
+  priorAttempt: PriorPublicationAttemptRow | undefined,
+): boolean {
+  if (reply.publicationState === 'authorized') {
+    return (head?.observationRevision ?? 0) === authorization.baseObservationRevision
+  }
+  if (reply.publicationState !== 'sending') return true
+  return (
+    priorAttempt !== undefined &&
+    head !== null &&
+    head.state === 'absent' &&
+    head.source === 'targeted_reconciliation' &&
+    head.contentState === 'active' &&
+    head.sourceEpoch === attempt.sourceEpoch &&
+    head.materialReviewRevision === attempt.materialReviewRevision &&
+    head.observationRevision > priorAttempt.baseObservationRevision &&
+    head.observedAt.getTime() >= priorAttempt.createdAt.getTime() &&
+    priorAttempt.sourceEpoch === attempt.sourceEpoch &&
+    priorAttempt.materialReviewRevision === attempt.materialReviewRevision &&
+    priorAttempt.replyStateRevision === authorization.replyStateRevision &&
+    priorAttempt.expectedReplyDigest === authorization.expectedReplyDigest
+  )
+}
+
+/** The named manager has lost current authority: move the cycle to
+ * draft/cancelled in this same transaction so a consumed job never strands an
+ * authorized Reply. Returns the durable cancellation fact, or null when the row
+ * was no longer claimable. */
+async function cancelPublicationForLostAuthority(
+  tx: Tx,
+  reply: Reply,
+  attempt: PublicationAttemptStart,
+  at: Date,
+): Promise<DomainEvent | null> {
+  const cancelled = await guardedPublicationUpdate(
+    tx,
+    reply,
+    'approved',
+    ['authorized', 'sending'],
+    {
+      status: 'draft',
+      publicationState: 'cancelled',
+      updatedAt: at,
+    },
+  )
+  if (!cancelled) return null
+  if (cancelled.publicationAttempts > 0) {
+    await updateCurrentAttempt(tx, cancelled, {
+      outcome: 'superseded',
+      confirmedObservationRevision: null,
+      updatedAt: at,
+    })
+  }
+  const fact = reviewReplyPublicationCancelled({
+    replyId: cancelled.id,
+    reviewId: cancelled.reviewId,
+    propertyId: attempt.propertyId,
+    organizationId: cancelled.organizationId,
+    cause: 'policy',
+    occurredAt: at,
+  })
+  await insertOutboxRow(tx, fact)
+  return fact
+}
+
 export const createAtomicReplyCommandStore = (
   db: Database,
   events: EventBus,
@@ -362,31 +551,6 @@ export const createAtomicReplyCommandStore = (
       if (saved && fact) await emitAfterCommit(events, fact)
       return saved
     })
-  }
-
-  const updateCurrentAttempt = async (
-    tx: Tx,
-    reply: Reply,
-    set: Record<string, unknown>,
-  ): Promise<void> => {
-    const rows = await tx
-      .update(replyPublicationAttempts)
-      .set(set)
-      .where(
-        and(
-          eq(replyPublicationAttempts.replyId, reply.id),
-          eq(replyPublicationAttempts.organizationId, reply.organizationId),
-          eq(replyPublicationAttempts.publicationCycle, reply.publicationCycle),
-          eq(replyPublicationAttempts.attemptNumber, reply.publicationAttempts),
-        ),
-      )
-      .returning({ id: replyPublicationAttempts.id })
-    if (!rows[0]) {
-      throw reviewError(
-        'invalid_transition',
-        'Reply publication attempt evidence is missing',
-      )
-    }
   }
 
   const mirrorUpsert = async (
@@ -538,41 +702,13 @@ export const createAtomicReplyCommandStore = (
           })
           if (!scope) return null
           if ((await assertAiDraftBinding(tx, reply)) === 'stale') return null
-          const authorizationRows = await tx
-            .select()
-            .from(replyPublicationAuthorizations)
-            .where(
-              and(
-                eq(replyPublicationAuthorizations.organizationId, reply.organizationId),
-                eq(replyPublicationAuthorizations.propertyId, attempt.propertyId),
-                eq(replyPublicationAuthorizations.reviewId, reply.reviewId),
-                eq(replyPublicationAuthorizations.replyId, reply.id),
-                eq(
-                  replyPublicationAuthorizations.publicationCycle,
-                  reply.publicationCycle,
-                ),
-              ),
-            )
-            .limit(1)
-          const authorization = authorizationRows[0]
-          if (
-            !authorization ||
-            authorization.sourceEpoch !== attempt.sourceEpoch ||
-            authorization.materialReviewRevision !== attempt.materialReviewRevision ||
-            authorization.baseObservationRevision !== attempt.baseObservationRevision ||
-            googleReplyTextDigest(reply.text) !== authorization.expectedReplyDigest ||
-            scope.review.sourceContentState !== 'active' ||
-            scope.review.sourceEpoch !== authorization.sourceEpoch ||
-            scope.review.materialReviewRevision !==
-              authorization.materialReviewRevision ||
-            (scope.head !== null &&
-              (scope.head.sourceEpoch !== authorization.sourceEpoch ||
-                scope.head.materialReviewRevision !==
-                  authorization.materialReviewRevision ||
-                scope.head.contentState !== 'active'))
-          ) {
-            return null
-          }
+          const authorization = await readCurrentPublicationAuthorization(
+            tx,
+            reply,
+            attempt,
+            scope,
+          )
+          if (!authorization) return null
           const actorAllowed = await publicationActorAuthority(tx, {
             organizationId: authorization.organizationId,
             propertyId: authorization.propertyId,
@@ -580,34 +716,12 @@ export const createAtomicReplyCommandStore = (
             at,
           })
           if (!actorAllowed) {
-            const cancelled = await guardedPublicationUpdate(
+            authorityCancellation = await cancelPublicationForLostAuthority(
               tx,
               reply,
-              'approved',
-              ['authorized', 'sending'],
-              {
-                status: 'draft',
-                publicationState: 'cancelled',
-                updatedAt: at,
-              },
+              attempt,
+              at,
             )
-            if (!cancelled) return null
-            if (cancelled.publicationAttempts > 0) {
-              await updateCurrentAttempt(tx, cancelled, {
-                outcome: 'superseded',
-                confirmedObservationRevision: null,
-                updatedAt: at,
-              })
-            }
-            authorityCancellation = reviewReplyPublicationCancelled({
-              replyId: cancelled.id,
-              reviewId: cancelled.reviewId,
-              propertyId: attempt.propertyId,
-              organizationId: cancelled.organizationId,
-              cause: 'policy',
-              occurredAt: at,
-            })
-            await insertOutboxRow(tx, authorityCancellation)
             return null
           }
           const duplicate = await tx
@@ -625,60 +739,16 @@ export const createAtomicReplyCommandStore = (
             .limit(1)
           if (duplicate[0]) return null
 
-          const priorAttempts =
-            reply.publicationState === 'sending' && reply.publicationAttempts > 0
-              ? await tx
-                  .select({
-                    baseObservationRevision:
-                      replyPublicationAttempts.baseObservationRevision,
-                    sourceEpoch: replyPublicationAttempts.sourceEpoch,
-                    materialReviewRevision:
-                      replyPublicationAttempts.materialReviewRevision,
-                    replyStateRevision: replyPublicationAttempts.replyStateRevision,
-                    expectedReplyDigest: replyPublicationAttempts.expectedReplyDigest,
-                    createdAt: replyPublicationAttempts.createdAt,
-                  })
-                  .from(replyPublicationAttempts)
-                  .where(
-                    and(
-                      eq(replyPublicationAttempts.organizationId, reply.organizationId),
-                      eq(replyPublicationAttempts.reviewId, reply.reviewId),
-                      eq(replyPublicationAttempts.replyId, reply.id),
-                      eq(
-                        replyPublicationAttempts.publicationCycle,
-                        reply.publicationCycle,
-                      ),
-                      eq(
-                        replyPublicationAttempts.attemptNumber,
-                        reply.publicationAttempts,
-                      ),
-                    ),
-                  )
-                  .limit(1)
-              : []
-          const priorAttempt = priorAttempts[0]
+          const priorAttempt = await readPriorPublicationAttempt(tx, reply)
           const head = scope.head
           if (
-            reply.publicationState === 'authorized' &&
-            (head?.observationRevision ?? 0) !== authorization.baseObservationRevision
-          ) {
-            return null
-          }
-          if (
-            reply.publicationState === 'sending' &&
-            (!priorAttempt ||
-              !head ||
-              head.state !== 'absent' ||
-              head.source !== 'targeted_reconciliation' ||
-              head.contentState !== 'active' ||
-              head.sourceEpoch !== attempt.sourceEpoch ||
-              head.materialReviewRevision !== attempt.materialReviewRevision ||
-              head.observationRevision <= priorAttempt.baseObservationRevision ||
-              head.observedAt.getTime() < priorAttempt.createdAt.getTime() ||
-              priorAttempt.sourceEpoch !== attempt.sourceEpoch ||
-              priorAttempt.materialReviewRevision !== attempt.materialReviewRevision ||
-              priorAttempt.replyStateRevision !== authorization.replyStateRevision ||
-              priorAttempt.expectedReplyDigest !== authorization.expectedReplyDigest)
+            !claimObservationFenceIsCurrent(
+              reply,
+              attempt,
+              authorization,
+              head,
+              priorAttempt,
+            )
           ) {
             return null
           }

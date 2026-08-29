@@ -340,6 +340,173 @@ async function resolveMetricVersion(deps: GoalProgramDependencies, metric: GoalM
   return governed
 }
 
+/**
+ * False when policy refuses this system maintenance pass for the bundle. Any
+ * other authorization failure is not a per-program outcome and propagates.
+ */
+async function maintenanceAuthorized(
+  deps: GoalProgramDependencies,
+  bundle: GoalProgramBundle,
+): Promise<boolean> {
+  try {
+    await deps.policy.authorize({
+      actor: 'system',
+      organizationId: bundle.program.organizationId,
+      propertyId: bundle.program.propertyId,
+      action: 'goal.update',
+    })
+    return true
+  } catch (error) {
+    if (error instanceof GoalProgramError && error.code === 'forbidden') return false
+    throw error
+  }
+}
+
+/**
+ * `not_due` leaves the bundle untouched for the append pass; `unavailable` and
+ * `skipped` end the program's turn, the former counting against readiness.
+ */
+type ScheduledActivation =
+  | Readonly<{ kind: 'not_due' }>
+  | Readonly<{ kind: 'unavailable' }>
+  | Readonly<{ kind: 'skipped' }>
+  | Readonly<{
+      kind: 'activated'
+      bundle: GoalProgramBundle
+      scheduledResults: number
+    }>
+
+async function activateScheduledProgram(
+  deps: GoalProgramDependencies,
+  bundle: GoalProgramBundle,
+  now: Date,
+): Promise<ScheduledActivation> {
+  if (!(bundle.program.status === 'scheduled' && bundle.version.effectiveFrom <= now)) {
+    return { kind: 'not_due' }
+  }
+  const assignment = bundle.assignments.find(
+    (candidate) => candidate.programVersionId === bundle.version.id,
+  )
+  if (!assignment) return { kind: 'unavailable' }
+  const periods = dueMonthlyPeriods(bundle.version, null, now)
+  const period = periods[0]
+  if (!period) return { kind: 'skipped' }
+  const readiness = await deps.metrics.queryGoalMetric({
+    organizationId: toOrganizationId(bundle.program.organizationId),
+    propertyId: toPropertyId(bundle.program.propertyId),
+    definitionVersionId: bundle.version.metricDefinitionVersionId,
+    subject: metricSubject(assignment.subject),
+    periodStart: period.start,
+    periodEnd: period.end,
+  })
+  if (
+    readiness.reason === 'metric_source_not_active' ||
+    readiness.state === 'unavailable' ||
+    readiness.state === 'quarantined'
+  ) {
+    return { kind: 'unavailable' }
+  }
+  const newResults = openResultsForPeriods(bundle, periods, deps.id, now)
+  const active = await deps.repository.activate({
+    bundle,
+    results: newResults,
+    at: now,
+    outboxEventId: deps.id(),
+  })
+  if (!active) return { kind: 'skipped' }
+  return {
+    kind: 'activated',
+    bundle: {
+      ...bundle,
+      program: active,
+      results: [...bundle.results, ...newResults],
+    },
+    scheduledResults: newResults.length,
+  }
+}
+
+/** Opens the monthly results that have come due since the latest one, if any. */
+async function appendDueResults(
+  deps: GoalProgramDependencies,
+  bundle: GoalProgramBundle,
+  now: Date,
+): Promise<number> {
+  if (bundle.program.status !== 'active') return 0
+  const currentResults = bundle.results.filter(
+    (result) => result.programVersionId === bundle.version.id,
+  )
+  const latestPeriodEnd =
+    currentResults.length === 0
+      ? null
+      : currentResults.reduce(
+          (latest, result) => (result.periodEnd > latest ? result.periodEnd : latest),
+          currentResults[0]!.periodEnd,
+        )
+  const periods = dueMonthlyPeriods(bundle.version, latestPeriodEnd, now)
+  const nextResults = openResultsForPeriods(bundle, periods, deps.id, now)
+  if (nextResults.length === 0) return 0
+  return deps.repository.appendResults({
+    program: bundle.program,
+    version: bundle.version,
+    results: nextResults,
+    at: now,
+    outboxEventId: deps.id(),
+  })
+}
+
+type ProgramMaintenanceTally = Readonly<{
+  activated: number
+  scheduledResults: number
+  unavailable: number
+  failed: number
+}>
+
+/**
+ * One program's maintenance pass: activate it when due, then open any monthly
+ * results that have come due. A failure part-way still reports the work that
+ * did land, so the stats never under-count a completed activation.
+ */
+async function maintainProgram(
+  deps: GoalProgramDependencies,
+  original: GoalProgramBundle,
+  now: Date,
+): Promise<ProgramMaintenanceTally> {
+  let activated = 0
+  let scheduledResults = 0
+  try {
+    const activation = await activateScheduledProgram(deps, original, now)
+    if (activation.kind === 'unavailable') {
+      return { activated, scheduledResults, unavailable: 1, failed: 0 }
+    }
+    if (activation.kind === 'skipped') {
+      return { activated, scheduledResults, unavailable: 0, failed: 0 }
+    }
+    const bundle = activation.kind === 'activated' ? activation.bundle : original
+    if (activation.kind === 'activated') {
+      activated = 1
+      scheduledResults = activation.scheduledResults
+    }
+    scheduledResults += await appendDueResults(deps, bundle, now)
+    return { activated, scheduledResults, unavailable: 0, failed: 0 }
+  } catch {
+    return { activated, scheduledResults, unavailable: 0, failed: 1 }
+  }
+}
+
+/** 'closed' also counts as reconciled; the caller tallies both. */
+async function reconcileDueResult(
+  reconcile: () => Promise<Readonly<{ status: string }>>,
+): Promise<'reconciled' | 'closed' | 'denied' | 'failed'> {
+  try {
+    const updated = await reconcile()
+    return updated.status === 'closed' ? 'closed' : 'reconciled'
+  } catch (error) {
+    return error instanceof GoalProgramError && error.code === 'forbidden'
+      ? 'denied'
+      : 'failed'
+  }
+}
+
 export function createGoalProgramService(deps: GoalProgramDependencies) {
   const serviceMethods = {
     create: async (
@@ -1081,111 +1248,31 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
       let failed = 0
 
       for (const original of operational) {
-        let bundle = original
-        try {
-          await deps.policy.authorize({
-            actor: 'system',
-            organizationId: bundle.program.organizationId,
-            propertyId: bundle.program.propertyId,
-            action: 'goal.update',
-          })
-        } catch (error) {
-          if (error instanceof GoalProgramError && error.code === 'forbidden') {
-            denied++
-            continue
-          }
-          throw error
+        if (!(await maintenanceAuthorized(deps, original))) {
+          denied++
+          continue
         }
-
-        try {
-          if (
-            bundle.program.status === 'scheduled' &&
-            bundle.version.effectiveFrom <= now
-          ) {
-            const assignment = bundle.assignments.find(
-              (candidate) => candidate.programVersionId === bundle.version.id,
-            )
-            if (!assignment) {
-              unavailable++
-              continue
-            }
-            const periods = dueMonthlyPeriods(bundle.version, null, now)
-            const period = periods[0]
-            if (!period) continue
-            const readiness = await deps.metrics.queryGoalMetric({
-              organizationId: toOrganizationId(bundle.program.organizationId),
-              propertyId: toPropertyId(bundle.program.propertyId),
-              definitionVersionId: bundle.version.metricDefinitionVersionId,
-              subject: metricSubject(assignment.subject),
-              periodStart: period.start,
-              periodEnd: period.end,
-            })
-            if (
-              readiness.reason === 'metric_source_not_active' ||
-              readiness.state === 'unavailable' ||
-              readiness.state === 'quarantined'
-            ) {
-              unavailable++
-              continue
-            }
-            const newResults = openResultsForPeriods(bundle, periods, deps.id, now)
-            const active = await deps.repository.activate({
-              bundle,
-              results: newResults,
-              at: now,
-              outboxEventId: deps.id(),
-            })
-            if (!active) continue
-            activated++
-            scheduledResults += newResults.length
-            bundle = {
-              ...bundle,
-              program: active,
-              results: [...bundle.results, ...newResults],
-            }
-          }
-
-          if (bundle.program.status !== 'active') continue
-          const currentResults = bundle.results.filter(
-            (result) => result.programVersionId === bundle.version.id,
-          )
-          const latestPeriodEnd =
-            currentResults.length === 0
-              ? null
-              : currentResults.reduce(
-                  (latest, result) =>
-                    result.periodEnd > latest ? result.periodEnd : latest,
-                  currentResults[0]!.periodEnd,
-                )
-          const periods = dueMonthlyPeriods(bundle.version, latestPeriodEnd, now)
-          const nextResults = openResultsForPeriods(bundle, periods, deps.id, now)
-          if (nextResults.length > 0) {
-            scheduledResults += await deps.repository.appendResults({
-              program: bundle.program,
-              version: bundle.version,
-              results: nextResults,
-              at: now,
-              outboxEventId: deps.id(),
-            })
-          }
-        } catch {
-          failed++
-        }
+        const tally = await maintainProgram(deps, original, now)
+        activated += tally.activated
+        scheduledResults += tally.scheduledResults
+        unavailable += tally.unavailable
+        failed += tally.failed
       }
 
       const due = await deps.repository.listDueResults(now)
       for (const result of due) {
-        try {
-          const updated = await serviceMethods.reconcileResult({
+        const outcome = await reconcileDueResult(() =>
+          serviceMethods.reconcileResult({
             organizationId: result.organizationId,
             propertyId: result.propertyId,
             resultId: result.id,
-          })
+          }),
+        )
+        if (outcome === 'denied') denied++
+        else if (outcome === 'failed') failed++
+        else {
           reconciled++
-          if (updated.status === 'closed') closed++
-        } catch (error) {
-          if (error instanceof GoalProgramError && error.code === 'forbidden') denied++
-          else failed++
+          if (outcome === 'closed') closed++
         }
       }
 

@@ -433,10 +433,10 @@ async function invalidateBatch(
 }
 
 /** ADR 0046 r.4: one digest, one recipient, the recipient's timezone. */
-async function sendUserDigest(
+async function resolveRecipientContext(
   deps: DigestDeps,
   recipientScope: NotificationEmailRecipient,
-): Promise<void> {
+): Promise<RecipientContext> {
   const now = deps.clock()
   const rawOrgId = recipientScope.organizationId as string
   const orgId = organizationId(rawOrgId)
@@ -448,7 +448,7 @@ async function sendUserDigest(
     userTimezone: settings?.timezone ?? null,
     organizationTimezone: orgScope.timezone,
   }
-  const ctx: RecipientContext = {
+  return {
     orgId,
     userId: recipientScope.userId,
     rawOrgId,
@@ -456,56 +456,165 @@ async function sendUserDigest(
     timezone: resolveRecipientTimezone(sources),
     timezoneSource: recipientTimezoneSource(sources),
   }
+}
 
-  const openBatch = await deps.emailRepo.findOpenDigestBatch(orgId, ctx.userId)
+/**
+ * The queue rows this sweep may actually send, or `null` when there is nothing
+ * left to do — either because no row is eligible or because an open batch was
+ * invalidated here. An open batch narrows the set to its frozen membership; a
+ * fresh sweep outside the recipient's 08:00 window may only release rows that
+ * quiet hours already parked.
+ */
+async function selectDeliverableEntries(
+  deps: DigestDeps,
+  ctx: RecipientContext,
+  openBatch: NotificationDigestBatch | null,
+): Promise<readonly NotificationEmail[] | null> {
   const due = openBatch
-    ? await deps.emailRepo.findDigestBatchEntries(openBatch.id, orgId, ctx.userId)
-    : await deps.emailRepo.findDueByUser(orgId, ctx.userId, 'daily', now)
+    ? await deps.emailRepo.findDigestBatchEntries(openBatch.id, ctx.orgId, ctx.userId)
+    : await deps.emailRepo.findDueByUser(ctx.orgId, ctx.userId, 'daily', ctx.now)
   if (openBatch) {
-    const readiness = batchReadiness(due, now)
-    if (readiness === 'wait') return
+    const readiness = batchReadiness(due, ctx.now)
+    if (readiness === 'wait') return null
     if (readiness === 'invalid') {
       await invalidateBatch(deps, ctx, openBatch, 'digest_membership_unavailable')
-      return
+      return null
     }
   }
-  const authorized = await authorizedEntries(deps, rawOrgId, due)
+  const authorized = await authorizedEntries(deps, ctx.rawOrgId, due)
   if (openBatch && !sameIds(authorized, due)) {
     await invalidateBatch(deps, ctx, openBatch, 'digest_authorization_changed')
-    return
+    return null
   }
-  // Outside the recipient's 08:00 window only rows already parked by quiet
-  // hours are eligible, so the hourly sweep can release them without turning
-  // every sweep into a digest send.
   const candidates = openBatch
     ? authorized
-    : isDailyDigestWindow(now, ctx.timezone)
+    : isDailyDigestWindow(ctx.now, ctx.timezone)
       ? authorized
       : authorized.filter((entry) => entry.status === 'delayed')
-  if (candidates.length === 0) return
+  if (candidates.length === 0) return null
 
   const deliverable = await partitionDeliverable(deps, ctx, candidates)
   if (openBatch && !sameIds(deliverable, due)) {
     await invalidateBatch(deps, ctx, openBatch, 'digest_membership_invalidated')
+    return null
+  }
+  return deliverable.length === 0 ? null : deliverable
+}
+
+/**
+ * Stop delivering for a recipient-level reason. A frozen batch is invalidated
+ * as a unit; a fresh sweep suppresses the individual rows instead.
+ */
+async function abandonDelivery(
+  deps: DigestDeps,
+  ctx: RecipientContext,
+  openBatch: NotificationDigestBatch | null,
+  deliverable: readonly NotificationEmail[],
+  reason: string,
+): Promise<void> {
+  if (openBatch) {
+    await invalidateBatch(deps, ctx, openBatch, reason)
     return
   }
-  if (deliverable.length === 0) return
+  await suppressAll(deps, ctx, deliverable, reason)
+}
 
-  if (await deps.emailRepo.isRecipientSuppressed(ctx.userId, orgId)) {
-    if (openBatch) {
-      await invalidateBatch(deps, ctx, openBatch, 'recipient_bounced')
-      return
-    }
-    await suppressAll(deps, ctx, deliverable, 'recipient_bounced')
+/**
+ * Retry path for a batch already frozen by an earlier sweep. Membership and
+ * provider-visible content must both still match what was recorded, otherwise
+ * the retry would send different mail under the same idempotency key.
+ */
+async function retryOpenBatch(
+  deps: DigestDeps,
+  ctx: RecipientContext,
+  openBatch: NotificationDigestBatch,
+  deliverable: readonly NotificationEmail[],
+  request: Awaited<ReturnType<typeof buildProviderRequest>>,
+  items: readonly DigestItem[],
+  contentDigest: string,
+): Promise<void> {
+  if (
+    digestMemberSet(deliverable.map((entry) => entry.id as string)) !==
+    openBatch.memberDigest
+  ) {
+    await invalidateBatch(deps, ctx, openBatch, 'digest_membership_changed')
+    return
+  }
+  if (contentDigest !== openBatch.contentDigest) {
+    await deps.emailRepo.settleDigestBatch({
+      batchId: openBatch.id,
+      organizationId: ctx.orgId,
+      userId: ctx.userId,
+      expectedContentDigest: contentDigest,
+      settlement: { kind: 'content_mismatch', detectedAt: ctx.now },
+    })
+    deps.logger.error(
+      { batchId: openBatch.id },
+      'Digest retry blocked because provider-visible content changed',
+    )
+    return
+  }
+  await dispatch(deps, ctx, openBatch, request, items, contentDigest)
+}
+
+/** Freeze a new batch and send it, unless another worker won the race. */
+async function prepareAndDispatchBatch(
+  deps: DigestDeps,
+  ctx: RecipientContext,
+  batchId: ReturnType<typeof notificationDigestBatchId>,
+  deliverable: readonly NotificationEmail[],
+  request: Awaited<ReturnType<typeof buildProviderRequest>>,
+  items: readonly DigestItem[],
+  contentDigest: string,
+  unsubscribeKeyVersion: string,
+): Promise<void> {
+  const memberIds = deliverable.map((entry) => notificationEmailId(entry.id as string))
+  const memberDigest = digestMemberSet(memberIds)
+  const localDate = localDateKey(ctx.now, ctx.timezone)
+  const prepared = await deps.emailRepo.prepareDigestBatch({
+    id: batchId,
+    organizationId: ctx.orgId,
+    userId: ctx.userId,
+    localDate,
+    memberIds,
+    memberDigest,
+    contentDigest,
+    providerIdempotencyKey: digestBatchIdempotencyKey({
+      organizationId: ctx.rawOrgId,
+      userId: ctx.userId as string,
+      localDate,
+      batchId,
+      memberDigest,
+    }),
+    unsubscribeKeyVersion,
+    preparedAt: ctx.now,
+  })
+  if (!prepared.created) {
+    deps.logger.info(
+      { batchId: prepared.batch.id },
+      'Digest preparation deferred to the worker that owns the open batch',
+    )
+    return
+  }
+  await dispatch(deps, ctx, prepared.batch, request, items, contentDigest)
+}
+
+async function sendUserDigest(
+  deps: DigestDeps,
+  recipientScope: NotificationEmailRecipient,
+): Promise<void> {
+  const ctx = await resolveRecipientContext(deps, recipientScope)
+  const openBatch = await deps.emailRepo.findOpenDigestBatch(ctx.orgId, ctx.userId)
+  const deliverable = await selectDeliverableEntries(deps, ctx, openBatch)
+  if (deliverable === null) return
+
+  if (await deps.emailRepo.isRecipientSuppressed(ctx.userId, ctx.orgId)) {
+    await abandonDelivery(deps, ctx, openBatch, deliverable, 'recipient_bounced')
     return
   }
   const recipient = await deps.userLookup.getEmail(ctx.userId)
   if (!recipient) {
-    if (openBatch) {
-      await invalidateBatch(deps, ctx, openBatch, 'recipient_unavailable')
-      return
-    }
-    await suppressAll(deps, ctx, deliverable, 'recipient_unavailable')
+    await abandonDelivery(deps, ctx, openBatch, deliverable, 'recipient_unavailable')
     return
   }
 
@@ -539,60 +648,19 @@ async function sendUserDigest(
   )
   const contentDigest = digestProviderRequest(request)
   if (openBatch) {
-    if (
-      digestMemberSet(deliverable.map((entry) => entry.id as string)) !==
-      openBatch.memberDigest
-    ) {
-      await invalidateBatch(deps, ctx, openBatch, 'digest_membership_changed')
-      return
-    }
-    if (contentDigest !== openBatch.contentDigest) {
-      await deps.emailRepo.settleDigestBatch({
-        batchId: openBatch.id,
-        organizationId: ctx.orgId,
-        userId: ctx.userId,
-        expectedContentDigest: contentDigest,
-        settlement: { kind: 'content_mismatch', detectedAt: ctx.now },
-      })
-      deps.logger.error(
-        { batchId: openBatch.id },
-        'Digest retry blocked because provider-visible content changed',
-      )
-      return
-    }
-    await dispatch(deps, ctx, openBatch, request, items, contentDigest)
+    await retryOpenBatch(deps, ctx, openBatch, deliverable, request, items, contentDigest)
     return
   }
-
-  const memberIds = deliverable.map((entry) => notificationEmailId(entry.id as string))
-  const memberDigest = digestMemberSet(memberIds)
-  const localDate = localDateKey(ctx.now, ctx.timezone)
-  const prepared = await deps.emailRepo.prepareDigestBatch({
-    id: batchId,
-    organizationId: ctx.orgId,
-    userId: ctx.userId,
-    localDate,
-    memberIds,
-    memberDigest,
+  await prepareAndDispatchBatch(
+    deps,
+    ctx,
+    batchId,
+    deliverable,
+    request,
+    items,
     contentDigest,
-    providerIdempotencyKey: digestBatchIdempotencyKey({
-      organizationId: ctx.rawOrgId,
-      userId: ctx.userId as string,
-      localDate,
-      batchId,
-      memberDigest,
-    }),
     unsubscribeKeyVersion,
-    preparedAt: ctx.now,
-  })
-  if (!prepared.created) {
-    deps.logger.info(
-      { batchId: prepared.batch.id },
-      'Digest preparation deferred to the worker that owns the open batch',
-    )
-    return
-  }
-  await dispatch(deps, ctx, prepared.batch, request, items, contentDigest)
+  )
 }
 
 // ── Immediate orphan sweep ──────────────────────────────────────────

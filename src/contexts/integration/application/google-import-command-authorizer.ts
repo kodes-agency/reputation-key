@@ -148,6 +148,31 @@ export type GoogleImportContentAuthorizer = (
   }>,
 ) => Promise<GoogleImportContentAuthorizationResult>
 
+type AuthorizerInput = Parameters<GoogleImportCommandAuthorizer>[0]
+type GrantedContentAuthorization = Extract<
+  GoogleImportContentAuthorizationResult,
+  { ok: true }
+>
+type Denied = Extract<GoogleImportCommandAuthorizationResult, { ok: false }>
+
+/** A pipeline step either denies outright or carries its value to the next step. */
+type Stage<TValue> = Denied | Readonly<{ ok: true; value: TValue }>
+
+const staged = <TValue>(value: TValue): Stage<TValue> => ({ ok: true, value })
+
+type DecideCapability = (
+  capability: 'property.import_gbp_v2' | 'property.connect_gbp',
+  action?: string,
+  propertyId?: PropertyId,
+) => Promise<GoogleImportExecutionDecision>
+
+/** The connection facts re-read after token access, compared to the pre-access read. */
+type TokenAccess = Readonly<{
+  accessToken: string | null
+  connection: GoogleConnection
+  contentAuthorization: GrantedContentAuthorization
+}>
+
 export function createGoogleImportCommandAuthorizer(
   deps: Readonly<{
     connectionRepo: Pick<GoogleConnectionRepository, 'findById'>
@@ -170,9 +195,7 @@ export function createGoogleImportCommandAuthorizer(
 ): GoogleImportCommandAuthorizer {
   const warn = deps.warn ?? (() => {})
 
-  const deny = (
-    code: Extract<GoogleImportCommandAuthorizationResult, { ok: false }>['code'],
-  ): GoogleImportCommandAuthorizationResult => ({ ok: false, code })
+  const deny = (code: Denied['code']): Denied => ({ ok: false, code })
 
   /**
    * `authorization_changed` is returned by six distinct checks, and the
@@ -183,33 +206,15 @@ export function createGoogleImportCommandAuthorizer(
    * version counters, booleans, and `permissionDigest`, which is already a
    * sha256.
    */
-  const denyChanged = (
-    fields: Readonly<Record<string, unknown>>,
-  ): GoogleImportCommandAuthorizationResult => {
+  const denyChanged = (fields: Readonly<Record<string, unknown>>): Denied => {
     warn(fields, 'google_import.authorization_changed_detail')
     return deny('authorization_changed')
   }
 
-  return async (input) => {
-    if (!canManageOrganizationGoogleConnections(input.actor)) {
-      return deny('authorization_denied')
-    }
-
-    const decideCapability = async (
-      capability: 'property.import_gbp_v2' | 'property.connect_gbp',
-      action = 'integration.manage',
-      propertyId?: PropertyId,
-    ) =>
-      deps.decide({
-        principal: { kind: 'user', ctx: input.actor },
-        action,
-        capability,
-        organizationId: input.actor.organizationId,
-        ...(propertyId ? { propertyId } : {}),
-        executionKind: 'interactive',
-        now: deps.clock(),
-      })
-
+  /** Both organization-level capabilities, and the execution policy version they agreed on. */
+  const authorizeOrganizationCapabilities = async (
+    decideCapability: DecideCapability,
+  ): Promise<Stage<string>> => {
     let importDecision: GoogleImportExecutionDecision
     let connectDecision: GoogleImportExecutionDecision
     try {
@@ -223,7 +228,33 @@ export function createGoogleImportCommandAuthorizer(
     if (importDecision.policyVersion !== connectDecision.policyVersion) {
       return deny('runtime_unavailable')
     }
+    return staged(importDecision.policyVersion)
+  }
 
+  /** Usability plus the frozen-expectation re-check, applied identically before and after token access. */
+  const verifyConnection = (
+    input: AuthorizerInput,
+    connection: GoogleConnection | null,
+    site: string,
+  ): Stage<GoogleConnection> => {
+    if (!connection || !connectionIsUsable(connection, input)) {
+      return deny('connection_unavailable')
+    }
+    if (input.expected && !sameExpectedConnection(connection, input.expected)) {
+      return denyChanged({
+        site,
+        organizationId: input.actor.organizationId,
+        connectionId: input.connectionId,
+        expected: frozenCounters(input.expected),
+        observed: observedCounters(connection),
+      })
+    }
+    return staged(connection)
+  }
+
+  const loadConnection = async (
+    input: AuthorizerInput,
+  ): Promise<Stage<GoogleConnection>> => {
     let connection: GoogleConnection | null
     try {
       connection = await deps.connectionRepo.findById(
@@ -233,19 +264,13 @@ export function createGoogleImportCommandAuthorizer(
     } catch {
       return deny('runtime_unavailable')
     }
-    if (!connection || !connectionIsUsable(connection, input)) {
-      return deny('connection_unavailable')
-    }
-    if (input.expected && !sameExpectedConnection(connection, input.expected)) {
-      return denyChanged({
-        site: 'expected_connection_pre_token',
-        organizationId: input.actor.organizationId,
-        connectionId: input.connectionId,
-        expected: frozenCounters(input.expected),
-        observed: observedCounters(connection),
-      })
-    }
+    return verifyConnection(input, connection, 'expected_connection_pre_token')
+  }
 
+  const verifyPropertySnapshots = async (
+    input: AuthorizerInput,
+    decideCapability: DecideCapability,
+  ): Promise<Stage<null>> => {
     try {
       for (const expectedProperty of input.properties ?? []) {
         const property = await deps.readProperty(
@@ -290,11 +315,12 @@ export function createGoogleImportCommandAuthorizer(
     } catch {
       return deny('runtime_unavailable')
     }
-    const connectionBeforeTokenAccess = connection
-    let contentAuthorization: Extract<
-      GoogleImportContentAuthorizationResult,
-      { ok: true }
-    >
+    return staged(null)
+  }
+
+  const authorizeContent = async (
+    input: AuthorizerInput,
+  ): Promise<Stage<GrantedContentAuthorization>> => {
     try {
       const result = await deps.authorizeGoogleContent({
         actor: input.actor,
@@ -303,69 +329,65 @@ export function createGoogleImportCommandAuthorizer(
         properties: input.properties ?? [],
       })
       if (!result.ok) return deny(result.code)
-      contentAuthorization = result
+      return staged(result)
     } catch {
       return deny('runtime_unavailable')
     }
+  }
 
-    let accessToken: string | null = null
-    if (input.requireAccessToken) {
-      try {
-        accessToken = await deps.tokenProvider.getAccessToken(
-          input.actor.organizationId,
-          input.connectionId,
-          (input.properties ?? []).map((property) => property.propertyId),
-        )
-        connection = await deps.connectionRepo.findById(
-          input.actor.organizationId,
-          input.connectionId,
-        )
-      } catch {
-        return deny('runtime_unavailable')
-      }
-      if (!connection || !connectionIsUsable(connection, input)) {
-        return deny('connection_unavailable')
-      }
-      if (input.expected && !sameExpectedConnection(connection, input.expected)) {
-        return denyChanged({
-          site: 'expected_connection_post_token',
-          organizationId: input.actor.organizationId,
-          connectionId: input.connectionId,
-          expected: frozenCounters(input.expected),
-          observed: observedCounters(connection),
-        })
-      }
-      if (
-        connection.lifecycleVersion !== connectionBeforeTokenAccess.lifecycleVersion ||
-        connection.accessVersion !== connectionBeforeTokenAccess.accessVersion ||
-        connection.credentialGeneration < connectionBeforeTokenAccess.credentialGeneration
-      ) {
-        return denyChanged({
-          site: 'connection_moved_during_token_access',
-          organizationId: input.actor.organizationId,
-          connectionId: input.connectionId,
-          before: observedCounters(connectionBeforeTokenAccess),
-          after: observedCounters(connection),
-        })
-      }
-      if (
-        connection.credentialGeneration > connectionBeforeTokenAccess.credentialGeneration
-      ) {
-        try {
-          const refreshed = await deps.authorizeGoogleContent({
-            actor: input.actor,
-            connectionId: input.connectionId,
-            phase: input.phase,
-            properties: input.properties ?? [],
-          })
-          if (!refreshed.ok) return deny(refreshed.code)
-          contentAuthorization = refreshed
-        } catch {
-          return deny('runtime_unavailable')
-        }
-      }
+  const acquireAccessToken = async (
+    input: AuthorizerInput,
+    connectionBeforeTokenAccess: GoogleConnection,
+    contentAuthorization: GrantedContentAuthorization,
+  ): Promise<Stage<TokenAccess>> => {
+    let accessToken: string | null
+    let reread: GoogleConnection | null
+    try {
+      accessToken = await deps.tokenProvider.getAccessToken(
+        input.actor.organizationId,
+        input.connectionId,
+        (input.properties ?? []).map((property) => property.propertyId),
+      )
+      reread = await deps.connectionRepo.findById(
+        input.actor.organizationId,
+        input.connectionId,
+      )
+    } catch {
+      return deny('runtime_unavailable')
     }
+    const verified = verifyConnection(input, reread, 'expected_connection_post_token')
+    if (!verified.ok) return verified
+    const connection = verified.value
+    if (
+      connection.lifecycleVersion !== connectionBeforeTokenAccess.lifecycleVersion ||
+      connection.accessVersion !== connectionBeforeTokenAccess.accessVersion ||
+      connection.credentialGeneration < connectionBeforeTokenAccess.credentialGeneration
+    ) {
+      return denyChanged({
+        site: 'connection_moved_during_token_access',
+        organizationId: input.actor.organizationId,
+        connectionId: input.connectionId,
+        before: observedCounters(connectionBeforeTokenAccess),
+        after: observedCounters(connection),
+      })
+    }
+    if (
+      connection.credentialGeneration > connectionBeforeTokenAccess.credentialGeneration
+    ) {
+      const refreshed = await authorizeContent(input)
+      if (!refreshed.ok) return refreshed
+      return staged({ accessToken, connection, contentAuthorization: refreshed.value })
+    }
+    return staged({ accessToken, connection, contentAuthorization })
+  }
 
+  /** Both sides built inside this request, so every compared dimension must agree now. */
+  const sameRequestVectorDrift = (
+    input: AuthorizerInput,
+    executionPolicyVersion: string,
+    contentAuthorization: GrantedContentAuthorization,
+    connection: GoogleConnection,
+  ): Denied | null => {
     const permissionVersion = contentAuthorization.authorizationVector.permissionVersion
     if (
       contentAuthorization.authorizationVector.principalKind !== 'user' ||
@@ -375,7 +397,7 @@ export function createGoogleImportCommandAuthorizer(
       return denyChanged({ site: 'principal_generation_vector' })
     }
     const expectedAuthorizationVector = {
-      executionPolicyVersion: importDecision.policyVersion,
+      executionPolicyVersion,
       googleContentPolicyVersion: contentAuthorization.policyVersion,
       emergencyKillVersion: contentAuthorization.emergencyKillVersion,
       principalKind: 'user',
@@ -387,35 +409,132 @@ export function createGoogleImportCommandAuthorizer(
       credentialGeneration: connection.credentialGeneration,
     } as const
     if (
-      !sameFrozenGoogleContentAuthorizationVector(
+      sameFrozenGoogleContentAuthorizationVector(
         contentAuthorization.authorizationVector,
         expectedAuthorizationVector,
       )
     ) {
-      // Same request, but NOT the same read: the content authority builds its
-      // vector from its own SQL read of the connection row and its own policy
-      // snapshot (google-content-authorization-check.ts), while the expectation
-      // above is recomputed from `deps.connectionRepo.findById` and
-      // `contentAuthorization.policyVersion`. So the two non-revoking counters
-      // can legitimately differ across those reads inside one request:
-      //   * `googleContentPolicyVersion` - a concurrent capability write bumps
-      //     the global cache generation. The sibling item of a two-item import
-      //     does exactly that (provisioning writes capability rows), which is
-      //     how this cancelled healthy relinks ~50% of the time in CI.
-      //   * `credentialGeneration` - a routine token refresh landing between
-      //     the two reads.
-      // Neither withdraws authority, and every dimension that does is still
-      // compared exactly. This must stay `sameFrozen...`, not exact equality.
-      return denyChanged({
-        site: 'same_request_vector',
-        // Reports the excluded keys too: this is a mismatch in a dimension that
-        // is compared, and an empty drift array once cost an investigation.
-        drift: exactVectorDrift(
-          contentAuthorization.authorizationVector,
-          expectedAuthorizationVector,
-        ),
-      })
+      return null
     }
+    // Same request, but NOT the same read: the content authority builds its
+    // vector from its own SQL read of the connection row and its own policy
+    // snapshot (google-content-authorization-check.ts), while the expectation
+    // above is recomputed from `deps.connectionRepo.findById` and
+    // `contentAuthorization.policyVersion`. So the two non-revoking counters
+    // can legitimately differ across those reads inside one request:
+    //   * `googleContentPolicyVersion` - a concurrent capability write bumps
+    //     the global cache generation. The sibling item of a two-item import
+    //     does exactly that (provisioning writes capability rows), which is
+    //     how this cancelled healthy relinks ~50% of the time in CI.
+    //   * `credentialGeneration` - a routine token refresh landing between
+    //     the two reads.
+    // Neither withdraws authority, and every dimension that does is still
+    // compared exactly. This must stay `sameFrozen...`, not exact equality.
+    return denyChanged({
+      site: 'same_request_vector',
+      // Reports the excluded keys too: this is a mismatch in a dimension that
+      // is compared, and an empty drift array once cost an investigation.
+      drift: exactVectorDrift(
+        contentAuthorization.authorizationVector,
+        expectedAuthorizationVector,
+      ),
+    })
+  }
+
+  /**
+   * `input.expected` was frozen when the job was approved; everything above
+   * was recomputed just now. This is the only CROSS-TIME vector comparison
+   * in the codebase (`sameRequestVectorDrift` builds both sides in this
+   * request), so it is the only one that must tolerate the two counters that
+   * move without revoking anything — the global policy cache generation and a
+   * routine token refresh. See `FROZEN_VECTOR_EXCLUDED_KEYS`. Every other
+   * authorization fact still has to match exactly, `emergencyKillVersion`
+   * included.
+   */
+  const frozenVectorDriftDenial = (
+    input: AuthorizerInput,
+    authorization: Readonly<{
+      approvalBindingId: string
+      authorizationVector: Readonly<Record<string, string | number | boolean | null>>
+    }>,
+    connection: GoogleConnection,
+  ): Denied | null => {
+    if (!input.expected) return null
+    const approvalBindingDrift =
+      input.expected.approvalBindingId !== authorization.approvalBindingId
+    if (
+      !approvalBindingDrift &&
+      sameFrozenGoogleContentAuthorizationVector(
+        input.expected.authorizationVector,
+        authorization.authorizationVector,
+      )
+    ) {
+      return null
+    }
+    return denyChanged({
+      site: 'frozen_vector',
+      approvalBindingDrift,
+      credentialGeneration: {
+        frozen: input.expected.credentialGeneration,
+        observed: connection.credentialGeneration,
+      },
+      drift: frozenVectorDrift(
+        input.expected.authorizationVector,
+        authorization.authorizationVector,
+      ),
+    })
+  }
+
+  return async (input) => {
+    if (!canManageOrganizationGoogleConnections(input.actor)) {
+      return deny('authorization_denied')
+    }
+
+    const decideCapability: DecideCapability = async (
+      capability,
+      action = 'integration.manage',
+      propertyId?: PropertyId,
+    ) =>
+      deps.decide({
+        principal: { kind: 'user', ctx: input.actor },
+        action,
+        capability,
+        organizationId: input.actor.organizationId,
+        ...(propertyId ? { propertyId } : {}),
+        executionKind: 'interactive',
+        now: deps.clock(),
+      })
+
+    const executionPolicy = await authorizeOrganizationCapabilities(decideCapability)
+    if (!executionPolicy.ok) return executionPolicy
+
+    const connectionBeforeTokenAccess = await loadConnection(input)
+    if (!connectionBeforeTokenAccess.ok) return connectionBeforeTokenAccess
+
+    const properties = await verifyPropertySnapshots(input, decideCapability)
+    if (!properties.ok) return properties
+
+    const granted = await authorizeContent(input)
+    if (!granted.ok) return granted
+
+    const tokenAccess = input.requireAccessToken
+      ? await acquireAccessToken(input, connectionBeforeTokenAccess.value, granted.value)
+      : staged<TokenAccess>({
+          accessToken: null,
+          connection: connectionBeforeTokenAccess.value,
+          contentAuthorization: granted.value,
+        })
+    if (!tokenAccess.ok) return tokenAccess
+    const { accessToken, connection, contentAuthorization } = tokenAccess.value
+
+    const sameRequestDenial = sameRequestVectorDrift(
+      input,
+      executionPolicy.value,
+      contentAuthorization,
+      connection,
+    )
+    if (sameRequestDenial) return sameRequestDenial
+
     const authorization = {
       organizationId: input.actor.organizationId,
       userId: input.actor.userId,
@@ -426,37 +545,10 @@ export function createGoogleImportCommandAuthorizer(
       approvalBindingId: contentAuthorization.approvalBindingId,
       authorizationVector: contentAuthorization.authorizationVector,
     } as const
-    if (input.expected) {
-      // `input.expected` was frozen when the job was approved; everything above
-      // was recomputed just now. This is the only CROSS-TIME vector comparison
-      // in the codebase (the one above builds both sides in this request), so
-      // it is the only one that must tolerate the two counters that move
-      // without revoking anything — the global policy cache generation and a
-      // routine token refresh. See `FROZEN_VECTOR_EXCLUDED_KEYS`. Every other
-      // authorization fact still has to match exactly, `emergencyKillVersion`
-      // included.
-      if (
-        input.expected.approvalBindingId !== authorization.approvalBindingId ||
-        !sameFrozenGoogleContentAuthorizationVector(
-          input.expected.authorizationVector,
-          authorization.authorizationVector,
-        )
-      ) {
-        return denyChanged({
-          site: 'frozen_vector',
-          approvalBindingDrift:
-            input.expected.approvalBindingId !== authorization.approvalBindingId,
-          credentialGeneration: {
-            frozen: input.expected.credentialGeneration,
-            observed: connection.credentialGeneration,
-          },
-          drift: frozenVectorDrift(
-            input.expected.authorizationVector,
-            authorization.authorizationVector,
-          ),
-        })
-      }
-    }
+
+    const frozenDenial = frozenVectorDriftDenial(input, authorization, connection)
+    if (frozenDenial) return frozenDenial
+
     return { ok: true, authorization, accessToken }
   }
 }

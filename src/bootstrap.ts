@@ -133,6 +133,16 @@ export const createBootstrapRuntimeConfig = (env: Env): BootstrapRuntimeConfig =
   },
 })
 
+/**
+ * BQR-0: registers a job only when its capability is globally enabled.
+ * Dark/blocked work has no executable handler.
+ */
+type CapabilityGatedJobRegistrar = (
+  jobName: string,
+  capability: Capability,
+  handler: (job: import('bullmq').Job) => Promise<void>,
+) => void
+
 export async function bootstrap(
   container: Container,
   options: Readonly<{
@@ -654,7 +664,23 @@ export async function bootstrap(
     'registered Recent Activity projection and rolling drain handlers',
   )
 
-  // ── Notification jobs ────────────────────────────────────────────
+  await registerNotificationJobs(container, runtime, registerCapabilityGatedJob)
+}
+
+/**
+ * The notification job family: outbound transport selection, one-click
+ * unsubscribe signing, the insert handler, the notification-gap healing sweep,
+ * and the two capability-gated outbound-email handlers.
+ *
+ * It is a separate unit because every declaration below is used only by this
+ * family — nothing in the rest of the worker's registration reads them.
+ */
+async function registerNotificationJobs(
+  container: Container,
+  runtime: BootstrapRuntimeConfig,
+  registerCapabilityGatedJob: CapabilityGatedJobRegistrar,
+): Promise<void> {
+  const logger = container.logger
   const { createInsertNotificationHandler, INSERT_NOTIFICATION_JOB_NAME } =
     await import('#/contexts/notification/infrastructure/jobs/insert-notification.job')
   const { createDbUserLookupAdapter: createNotifUserLookup } =

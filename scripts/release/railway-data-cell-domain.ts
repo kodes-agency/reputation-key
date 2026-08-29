@@ -639,6 +639,231 @@ function assertPulledCustomDomain(output: string, intent: DomainIntent): void {
   }
 }
 
+type ReviewedIntent = ReturnType<typeof parseIntent>
+
+/** The reviewed intent must still name this run's digest and its exact IDs. */
+function assertReviewedIntentBinding(
+  options: DomainOptions,
+  reviewed: ReviewedIntent,
+): void {
+  if (reviewed.sha256 !== options.intentSha256) {
+    throw new Error('Railway domain intent changed after review')
+  }
+  if (
+    reviewed.intent.project.id !== options.projectId ||
+    reviewed.intent.environment.id !== options.environmentId
+  ) {
+    throw new Error('Railway domain intent does not target the reviewed IDs')
+  }
+}
+
+function domainCallerEnvironment(options: DomainOptions): NodeJS.ProcessEnv {
+  return {
+    ...railwayTargetEnvironment({
+      project: options.projectId,
+      name: PRODUCTION_RAILWAY_PROJECT_NAME,
+      environment: options.environmentId,
+    }),
+    RAILWAY_CALLER: process.env.RAILWAY_CALLER ?? 'repo:railway-data-cell-domain',
+    RAILWAY_AGENT_SESSION:
+      process.env.RAILWAY_AGENT_SESSION ?? 'repkey-production-us-domain',
+    REPKEY_RAILWAY_CELL_ENVIRONMENT: 'cell-us',
+    REPKEY_RAILWAY_DEPLOYMENT_PROFILE: 'production',
+    [RAILWAY_SERVICE_SOURCE_MAP_ENV]: CANONICAL_RAILWAY_FOUNDATION_SOURCE_INPUT,
+  }
+}
+
+type DomainSession = Readonly<{
+  railway: RailwayDomainExecutor
+  environment: NodeJS.ProcessEnv
+  liveIntent: DomainIntent
+  /** The web service's domain readback; every other service must have none. */
+  listed: RailwayDomainCommandResult
+}>
+
+/**
+ * Re-prove the CLI version, project isolation, and foundation no-drift, then
+ * read every service's domain list. Every mode starts from this same state.
+ */
+function domainSessionPreflight(
+  options: DomainOptions,
+  railway: RailwayDomainExecutor,
+  reviewed: ReviewedIntent | undefined,
+): DomainSession {
+  const environment = domainCallerEnvironment(options)
+  assertRailwayFullProjectVisibilityCredential(environment)
+  const version = railwayCommand(railway, ['--version'], environment)
+  assertExactCliVersion(`${version.stdout}\n${version.stderr}`)
+  const status = railwayCommand(railway, railwayFullProjectStatusArgs(), environment)
+  const isolation = assertSingleUsBetaRailwayFoundationReadback(
+    parseRailwayProjectServiceInventory(status.stdout),
+    {
+      projectId: options.projectId,
+      projectName: PRODUCTION_RAILWAY_PROJECT_NAME,
+      environmentId: options.environmentId,
+      environmentName: 'cell-us',
+    },
+  )
+  const foundationNoDrift = railwayCommand(
+    railway,
+    railwayPlanArgs({ iacFile: '.railway/railway.ts' }),
+    environment,
+  )
+  assertSingleUsBetaRailwayFoundationNoDriftOutput(foundationNoDrift.stdout, {
+    deploymentProfile: 'production',
+    projectId: options.projectId,
+    projectName: PRODUCTION_RAILWAY_PROJECT_NAME,
+    environmentId: options.environmentId,
+    environmentName: 'cell-us',
+  })
+  const liveIntent = foundationIntent(options, isolation.services.web)
+  if (reviewed && JSON.stringify(reviewed.intent) !== JSON.stringify(liveIntent)) {
+    throw new Error('Railway domain target changed after intent review')
+  }
+  const projectDomainReadbacks = Object.fromEntries(
+    SINGLE_US_BETA_RAILWAY_SERVICE_NAMES.map((serviceName) => [
+      serviceName,
+      railwayCommand(
+        railway,
+        domainListArgs(liveIntent, isolation.services[serviceName].serviceId),
+        environment,
+      ),
+    ]),
+  ) as Readonly<
+    Record<
+      (typeof SINGLE_US_BETA_RAILWAY_SERVICE_NAMES)[number],
+      RailwayDomainCommandResult
+    >
+  >
+  for (const serviceName of SINGLE_US_BETA_RAILWAY_SERVICE_NAMES) {
+    if (serviceName !== 'web') {
+      assertNoExistingDomain(projectDomainReadbacks[serviceName].stdout)
+    }
+  }
+  return { railway, environment, liveIntent, listed: projectDomainReadbacks.web }
+}
+
+function runDomainPlanMode(options: DomainOptions, session: DomainSession): number {
+  assertNoExistingDomain(session.listed.stdout)
+  const bytes = intentBytes(session.liveIntent)
+  // The exclusive create IS the refusal. `wx` fails with EEXIST atomically,
+  // so an existsSync pre-check would only add a window in which the path
+  // can appear between the check and the write. Translating EEXIST here
+  // keeps the same operator-facing message with one syscall and no window.
+  // `src/shared/release/write-once.ts` cannot carry the 0o600 mode, and the
+  // reviewed intent must never exist group- or world-readable, so the mode
+  // has to be set by the same call that creates the file.
+  try {
+    writeFileSync(options.intentPath, bytes, { mode: 0o600, flag: 'wx' })
+  } catch (error) {
+    if ((error as { code?: unknown } | null)?.code !== 'EEXIST') throw error
+    throw new Error('Railway domain intent path already exists', { cause: error })
+  }
+  const sha256 = createHash('sha256').update(bytes).digest('hex')
+  process.stdout.write(bytes)
+  process.stderr.write(
+    `Railway production domain intent retained at ${options.intentPath}; sha256=${sha256}. Review these exact IDs and hostname before apply.\n`,
+  )
+  return 0
+}
+
+function runDomainVerifyMode(session: DomainSession, intent: DomainIntent): number {
+  const { railway, environment } = session
+  const probeOrigin = assertExistingDomainReadback(session.listed.stdout, intent, true)
+  const domainStatus = railwayCommand(railway, domainStatusArgs(intent), environment)
+  assertVerifiedCustomDomainStatus(domainStatus.stdout, intent)
+  const pulled = railwayCommand(railway, configPullArgs(), environment)
+  assertPulledCustomDomain(pulled.stdout, intent)
+  process.stdout.write(
+    `${JSON.stringify({ probeOrigin, customDomainStatus: JSON.parse(domainStatus.stdout) }, null, 2)}\n`,
+  )
+  process.stderr.write(
+    `Verified the active production probe, DNS ownership, valid certificate, and retained IaC domain graph for ${DOMAIN}.\n`,
+  )
+  return 0
+}
+
+/**
+ * The probe origin the custom domain will be registered beside — created in
+ * `apply`, recovered in `recover`. A recover run that already finds both
+ * domains reports them and ends the run without mutating anything.
+ */
+type ProbeResolution =
+  Readonly<{ done: true; code: number }> | Readonly<{ done: false; probeOrigin: string }>
+
+function createProbeDomain(session: DomainSession, intent: DomainIntent): string {
+  const { railway, environment } = session
+  assertNoExistingDomain(session.listed.stdout)
+  const probeCreated = railwayCommand(railway, probeDomainCreateArgs(intent), environment)
+  const probeOrigin = parseCreatedProbeDomain(probeCreated.stdout)
+  const probeReadback = railwayCommand(railway, domainListArgs(intent), environment)
+  assertProbeDomainReadback(probeReadback.stdout, probeOrigin)
+  return probeOrigin
+}
+
+function recoverProbeDomain(
+  session: DomainSession,
+  intent: DomainIntent,
+): ProbeResolution {
+  const { railway, environment } = session
+  const existing = domainList(session.listed.stdout)
+  if (existing.length === 2) {
+    const probeOrigin = assertExistingDomainReadback(session.listed.stdout, intent)
+    const domainStatus = railwayCommand(railway, domainStatusArgs(intent), environment)
+    inspectCustomDomainStatus(domainStatus.stdout, intent)
+    process.stdout.write(
+      `${JSON.stringify(
+        {
+          probeOrigin,
+          domains: existing,
+          customDomainStatus: JSON.parse(domainStatus.stdout),
+        },
+        null,
+        2,
+      )}\n`,
+    )
+    process.stderr.write(
+      `Recovered the exact probe and custom-domain readback for ${DOMAIN}; no mutation was needed. Run verify after DNS and certificate issuance.\n`,
+    )
+    return { done: true, code: 0 }
+  }
+  if (existing.length !== 1) {
+    throw new Error(
+      'domain recovery requires exactly the reviewed probe-only partial state or the complete two-domain state',
+    )
+  }
+  return { done: false, probeOrigin: probeOriginFromRecord(existing[0] ?? {}) }
+}
+
+function registerCustomDomain(
+  session: DomainSession,
+  intent: DomainIntent,
+  probeOrigin: string,
+): number {
+  const { railway, environment } = session
+  const created = railwayCommand(railway, domainCreateArgs(intent), environment)
+  const customDomain = parseCreatedDomain(created.stdout, intent)
+  const readback = railwayCommand(railway, domainListArgs(intent), environment)
+  assertCreatedDomainReadback(readback.stdout, intent, customDomain.id, probeOrigin)
+  const domainStatus = railwayCommand(railway, domainStatusArgs(intent), environment)
+  inspectCustomDomainStatus(domainStatus.stdout, intent)
+  process.stdout.write(
+    `${JSON.stringify(
+      {
+        probeOrigin,
+        customDomainCreate: customDomain.value,
+        customDomainStatus: JSON.parse(domainStatus.stdout),
+      },
+      null,
+      2,
+    )}\n`,
+  )
+  process.stderr.write(
+    `Registered the production probe origin and ${DOMAIN} on the exact cell-us web service. Use the probe for pre-DNS health checks, configure the returned custom-domain DNS records, then run the reviewed verify mode before traffic cutover.\n`,
+  )
+  return 0
+}
+
 export function runRailwayDataCellDomainCli(
   args: readonly string[],
   dependencies: Readonly<{ railway?: RailwayDomainExecutor }> = {},
@@ -647,220 +872,26 @@ export function runRailwayDataCellDomainCli(
     const options = parseOptions(args)
     const railway = dependencies.railway ?? defaultRailwayExecutor
     const reviewed = options.mode === 'plan' ? undefined : parseIntent(options.intentPath)
-    if (reviewed && reviewed.sha256 !== options.intentSha256) {
-      throw new Error('Railway domain intent changed after review')
-    }
-    if (
-      reviewed &&
-      (reviewed.intent.project.id !== options.projectId ||
-        reviewed.intent.environment.id !== options.environmentId)
-    ) {
-      throw new Error('Railway domain intent does not target the reviewed IDs')
-    }
+    if (reviewed) assertReviewedIntentBinding(options, reviewed)
 
-    const environment = {
-      ...railwayTargetEnvironment({
-        project: options.projectId,
-        name: PRODUCTION_RAILWAY_PROJECT_NAME,
-        environment: options.environmentId,
-      }),
-      RAILWAY_CALLER: process.env.RAILWAY_CALLER ?? 'repo:railway-data-cell-domain',
-      RAILWAY_AGENT_SESSION:
-        process.env.RAILWAY_AGENT_SESSION ?? 'repkey-production-us-domain',
-      REPKEY_RAILWAY_CELL_ENVIRONMENT: 'cell-us',
-      REPKEY_RAILWAY_DEPLOYMENT_PROFILE: 'production',
-      [RAILWAY_SERVICE_SOURCE_MAP_ENV]: CANONICAL_RAILWAY_FOUNDATION_SOURCE_INPUT,
-    }
-    assertRailwayFullProjectVisibilityCredential(environment)
-    const version = railwayCommand(railway, ['--version'], environment)
-    assertExactCliVersion(`${version.stdout}\n${version.stderr}`)
-    const status = railwayCommand(railway, railwayFullProjectStatusArgs(), environment)
-    const isolation = assertSingleUsBetaRailwayFoundationReadback(
-      parseRailwayProjectServiceInventory(status.stdout),
-      {
-        projectId: options.projectId,
-        projectName: PRODUCTION_RAILWAY_PROJECT_NAME,
-        environmentId: options.environmentId,
-        environmentName: 'cell-us',
-      },
-    )
-    const foundationNoDrift = railwayCommand(
-      railway,
-      railwayPlanArgs({ iacFile: '.railway/railway.ts' }),
-      environment,
-    )
-    assertSingleUsBetaRailwayFoundationNoDriftOutput(foundationNoDrift.stdout, {
-      deploymentProfile: 'production',
-      projectId: options.projectId,
-      projectName: PRODUCTION_RAILWAY_PROJECT_NAME,
-      environmentId: options.environmentId,
-      environmentName: 'cell-us',
-    })
-    const liveIntent = foundationIntent(options, isolation.services.web)
-    if (reviewed && JSON.stringify(reviewed.intent) !== JSON.stringify(liveIntent)) {
-      throw new Error('Railway domain target changed after intent review')
-    }
-    const projectDomainReadbacks = Object.fromEntries(
-      SINGLE_US_BETA_RAILWAY_SERVICE_NAMES.map((serviceName) => [
-        serviceName,
-        railwayCommand(
-          railway,
-          domainListArgs(liveIntent, isolation.services[serviceName].serviceId),
-          environment,
-        ),
-      ]),
-    ) as Readonly<
-      Record<
-        (typeof SINGLE_US_BETA_RAILWAY_SERVICE_NAMES)[number],
-        RailwayDomainCommandResult
-      >
-    >
-    for (const serviceName of SINGLE_US_BETA_RAILWAY_SERVICE_NAMES) {
-      if (serviceName !== 'web') {
-        assertNoExistingDomain(projectDomainReadbacks[serviceName].stdout)
-      }
-    }
-    const listed = projectDomainReadbacks.web
+    const session = domainSessionPreflight(options, railway, reviewed)
 
-    if (options.mode === 'plan') {
-      assertNoExistingDomain(listed.stdout)
-      const bytes = intentBytes(liveIntent)
-      // The exclusive create IS the refusal. `wx` fails with EEXIST atomically,
-      // so an existsSync pre-check would only add a window in which the path
-      // can appear between the check and the write. Translating EEXIST here
-      // keeps the same operator-facing message with one syscall and no window.
-      // `src/shared/release/write-once.ts` cannot carry the 0o600 mode, and the
-      // reviewed intent must never exist group- or world-readable, so the mode
-      // has to be set by the same call that creates the file.
-      try {
-        writeFileSync(options.intentPath, bytes, { mode: 0o600, flag: 'wx' })
-      } catch (error) {
-        if ((error as { code?: unknown } | null)?.code !== 'EEXIST') throw error
-        throw new Error('Railway domain intent path already exists', { cause: error })
-      }
-      const sha256 = createHash('sha256').update(bytes).digest('hex')
-      process.stdout.write(bytes)
-      process.stderr.write(
-        `Railway production domain intent retained at ${options.intentPath}; sha256=${sha256}. Review these exact IDs and hostname before apply.\n`,
-      )
-      return 0
-    }
+    if (options.mode === 'plan') return runDomainPlanMode(options, session)
 
     const immediate = parseIntent(options.intentPath)
     if (immediate.sha256 !== options.intentSha256) {
       throw new Error('Railway domain intent changed immediately before registration')
     }
 
-    if (options.mode === 'verify') {
-      const probeOrigin = assertExistingDomainReadback(
-        listed.stdout,
-        immediate.intent,
-        true,
-      )
-      const domainStatus = railwayCommand(
-        railway,
-        domainStatusArgs(immediate.intent),
-        environment,
-      )
-      assertVerifiedCustomDomainStatus(domainStatus.stdout, immediate.intent)
-      const pulled = railwayCommand(railway, configPullArgs(), environment)
-      assertPulledCustomDomain(pulled.stdout, immediate.intent)
-      process.stdout.write(
-        `${JSON.stringify({ probeOrigin, customDomainStatus: JSON.parse(domainStatus.stdout) }, null, 2)}\n`,
-      )
-      process.stderr.write(
-        `Verified the active production probe, DNS ownership, valid certificate, and retained IaC domain graph for ${DOMAIN}.\n`,
-      )
-      return 0
-    }
+    if (options.mode === 'verify') return runDomainVerifyMode(session, immediate.intent)
 
-    let probeOrigin: string
-    if (options.mode === 'apply') {
-      assertNoExistingDomain(listed.stdout)
-      const probeCreated = railwayCommand(
-        railway,
-        probeDomainCreateArgs(immediate.intent),
-        environment,
-      )
-      probeOrigin = parseCreatedProbeDomain(probeCreated.stdout)
-      const probeReadback = railwayCommand(
-        railway,
-        domainListArgs(immediate.intent),
-        environment,
-      )
-      assertProbeDomainReadback(probeReadback.stdout, probeOrigin)
-    } else {
-      const existing = domainList(listed.stdout)
-      if (existing.length === 2) {
-        probeOrigin = assertExistingDomainReadback(listed.stdout, immediate.intent)
-        const domainStatus = railwayCommand(
-          railway,
-          domainStatusArgs(immediate.intent),
-          environment,
-        )
-        inspectCustomDomainStatus(domainStatus.stdout, immediate.intent)
-        process.stdout.write(
-          `${JSON.stringify(
-            {
-              probeOrigin,
-              domains: existing,
-              customDomainStatus: JSON.parse(domainStatus.stdout),
-            },
-            null,
-            2,
-          )}\n`,
-        )
-        process.stderr.write(
-          `Recovered the exact probe and custom-domain readback for ${DOMAIN}; no mutation was needed. Run verify after DNS and certificate issuance.\n`,
-        )
-        return 0
-      }
-      if (existing.length !== 1) {
-        throw new Error(
-          'domain recovery requires exactly the reviewed probe-only partial state or the complete two-domain state',
-        )
-      }
-      probeOrigin = probeOriginFromRecord(existing[0] ?? {})
-    }
+    const probe: ProbeResolution =
+      options.mode === 'apply'
+        ? { done: false, probeOrigin: createProbeDomain(session, immediate.intent) }
+        : recoverProbeDomain(session, immediate.intent)
+    if (probe.done) return probe.code
 
-    const created = railwayCommand(
-      railway,
-      domainCreateArgs(immediate.intent),
-      environment,
-    )
-    const customDomain = parseCreatedDomain(created.stdout, immediate.intent)
-    const readback = railwayCommand(
-      railway,
-      domainListArgs(immediate.intent),
-      environment,
-    )
-    assertCreatedDomainReadback(
-      readback.stdout,
-      immediate.intent,
-      customDomain.id,
-      probeOrigin,
-    )
-    const domainStatus = railwayCommand(
-      railway,
-      domainStatusArgs(immediate.intent),
-      environment,
-    )
-    inspectCustomDomainStatus(domainStatus.stdout, immediate.intent)
-    process.stdout.write(
-      `${JSON.stringify(
-        {
-          probeOrigin,
-          customDomainCreate: customDomain.value,
-          customDomainStatus: JSON.parse(domainStatus.stdout),
-        },
-        null,
-        2,
-      )}\n`,
-    )
-    process.stderr.write(
-      `Registered the production probe origin and ${DOMAIN} on the exact cell-us web service. Use the probe for pre-DNS health checks, configure the returned custom-domain DNS records, then run the reviewed verify mode before traffic cutover.\n`,
-    )
-    return 0
+    return registerCustomDomain(session, immediate.intent, probe.probeOrigin)
   } catch (error) {
     process.stderr.write(
       `Railway Data Cell domain refused: ${error instanceof Error ? error.message : String(error)}\n`,

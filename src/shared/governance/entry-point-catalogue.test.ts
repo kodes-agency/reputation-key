@@ -317,8 +317,8 @@ type DiscoveredJobs = Readonly<{
   handlerGates: ReadonlyMap<string, ReadonlyArray<string>>
 }>
 
-function discoverJobs(): DiscoveredJobs {
-  const names = new Set<string>()
+/** In-handler capability gates asserted inside each production `.job.ts`. */
+function discoverHandlerGates(): ReadonlyMap<string, ReadonlyArray<string>> {
   const handlerGates = new Map<string, string[]>()
   const jobFiles = walk(join(ROOT, 'src')).filter(
     (f) => f.endsWith('.job.ts') && !f.endsWith('.test.ts'),
@@ -332,56 +332,84 @@ function discoverJobs(): DiscoveredJobs {
     ].map((m) => m[1])
     if (gates.length > 0) handlerGates.set(rel(abs), gates)
   }
+  return handlerGates
+}
 
+/** Resolve one registration reference to the job name it registers. */
+function resolveRegisteredJobName(
+  reference: JobRegistrationReference,
+  registrationSource: string,
+  imports: ReadonlyMap<string, { constName: string; sourceFile: string }>,
+): string | undefined {
+  if (reference.literal) return reference.literal
+  if (reference.identifier) {
+    const target = imports.get(reference.identifier)
+    return target ? resolveJobConstant(target.constName, target.sourceFile) : undefined
+  }
+  return resolveContextOwnedJobName(registrationSource, reference.contextOwnedFacade)
+}
+
+type FileJobRegistrations = Readonly<{
+  names: ReadonlyArray<string>
+  gates: ReadonlyArray<readonly [string, string]>
+}>
+
+/** Job names, and capability gates, registered by one registration file. */
+function jobRegistrationsIn(registrationFile: string): FileJobRegistrations {
+  const source = read(join(ROOT, registrationFile))
+  const imports = importMap(registrationFile)
+  const names: string[] = []
+  const gates: (readonly [string, string])[] = []
+  for (const reference of extractJobRegistrationReferences(source)) {
+    const name = resolveRegisteredJobName(reference, source, imports)
+    if (name) names.push(name)
+  }
+  for (const m of source.matchAll(
+    /registerCapabilityGatedJob\(\s*(?:'([^']+)'|([A-Z][A-Z0-9_]+)|((?:\w+\.)*\w+)\.jobName)\s*,\s*'([^']+)'/g,
+  )) {
+    const name = resolveRegisteredJobName(
+      { literal: m[1], identifier: m[2], contextOwnedFacade: m[3] },
+      source,
+      imports,
+    )
+    if (name) {
+      names.push(name)
+      gates.push([name, m[4]])
+    }
+  }
+  return { names, gates }
+}
+
+/**
+ * Job names the root bootstrap registers through the `JOB_NAMES` record rather
+ * than through a registration reference.
+ */
+function bootstrapJobNames(): ReadonlyArray<string> {
+  const bootstrap = read(join(ROOT, 'src/bootstrap.ts'))
+  if (!/jobRegistry\.register\(jobName,/u.test(bootstrap)) return []
+  const record = resolveJobConstant(
+    'JOB_NAMES',
+    'src/contexts/metric/infrastructure/jobs/refresh-materialized-view.job.ts',
+  )
+  if (!record) return []
+  const names: string[] = []
+  for (const m of bootstrap.matchAll(/JOB_NAMES\.(\w+)/g)) {
+    const value = new RegExp(`${m[1]}:\\s*'([^']+)'`).exec(record)?.[1]
+    if (value) names.push(value)
+  }
+  return names
+}
+
+function discoverJobs(): DiscoveredJobs {
+  const handlerGates = discoverHandlerGates()
+  const names = new Set<string>()
   const registrationGates = new Map<string, string>()
   for (const registrationFile of productionJobRegistrationFiles()) {
-    const source = read(join(ROOT, registrationFile))
-    const imports = importMap(registrationFile)
-    const resolveName = (
-      literal?: string,
-      ident?: string,
-      contextOwnedFacade?: string,
-    ): string | undefined => {
-      if (literal) return literal
-      if (ident) {
-        const target = imports.get(ident)
-        return target
-          ? resolveJobConstant(target.constName, target.sourceFile)
-          : undefined
-      }
-      return resolveContextOwnedJobName(source, contextOwnedFacade)
-    }
-    for (const reference of extractJobRegistrationReferences(source)) {
-      const name = resolveName(
-        reference.literal,
-        reference.identifier,
-        reference.contextOwnedFacade,
-      )
-      if (name) names.add(name)
-    }
-    for (const m of source.matchAll(
-      /registerCapabilityGatedJob\(\s*(?:'([^']+)'|([A-Z][A-Z0-9_]+)|((?:\w+\.)*\w+)\.jobName)\s*,\s*'([^']+)'/g,
-    )) {
-      const name = resolveName(m[1], m[2], m[3])
-      if (name) {
-        names.add(name)
-        registrationGates.set(name, m[4])
-      }
-    }
+    const registrations = jobRegistrationsIn(registrationFile)
+    for (const name of registrations.names) names.add(name)
+    for (const [name, gate] of registrations.gates) registrationGates.set(name, gate)
   }
-  const bootstrap = read(join(ROOT, 'src/bootstrap.ts'))
-  if (/jobRegistry\.register\(jobName,/u.test(bootstrap)) {
-    const record = resolveJobConstant(
-      'JOB_NAMES',
-      'src/contexts/metric/infrastructure/jobs/refresh-materialized-view.job.ts',
-    )
-    if (record) {
-      for (const m of bootstrap.matchAll(/JOB_NAMES\.(\w+)/g)) {
-        const value = new RegExp(`${m[1]}:\\s*'([^']+)'`).exec(record)?.[1]
-        if (value) names.add(value)
-      }
-    }
-  }
+  for (const name of bootstrapJobNames()) names.add(name)
   return { names: [...names].sort(), registrationGates, handlerGates }
 }
 

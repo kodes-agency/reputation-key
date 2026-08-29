@@ -51,6 +51,58 @@ function builtInRoleLiterals(node: ts.Node): readonly string[] {
   return values
 }
 
+const ROLE_COMPARISON_TOKENS: readonly ts.SyntaxKind[] = [
+  ts.SyntaxKind.EqualsEqualsEqualsToken,
+  ts.SyntaxKind.ExclamationEqualsEqualsToken,
+]
+
+/** `role === 'admin'` / `'admin' !== role` equality decisions. */
+function comparisonRoleDecisions(
+  node: ts.Node,
+  source: ts.SourceFile,
+): readonly string[] {
+  if (!ts.isBinaryExpression(node)) return []
+  if (!ROLE_COMPARISON_TOKENS.includes(node.operatorToken.kind)) return []
+  const leftRole = builtInRoleLiteral(node.left)
+  const rightRole = builtInRoleLiteral(node.right)
+  const compares =
+    (leftRole !== null && containsRoleReference(node.right)) ||
+    (rightRole !== null && containsRoleReference(node.left))
+  if (!compares) return []
+  const { line } = source.getLineAndCharacterOfPosition(node.getStart(source))
+  return [`${line + 1}:${leftRole ?? rightRole}`]
+}
+
+/** `[...].includes(role)` / `set.has(role)` membership decisions. */
+function membershipRoleDecisions(
+  node: ts.Node,
+  source: ts.SourceFile,
+): readonly string[] {
+  if (!ts.isCallExpression(node)) return []
+  if (!ts.isPropertyAccessExpression(node.expression)) return []
+  const accessed = node.expression
+  if (accessed.name.text !== 'includes' && accessed.name.text !== 'has') return []
+  if (!node.arguments.some(containsRoleReference)) return []
+  const roles = builtInRoleLiterals(accessed.expression)
+  const { line } = source.getLineAndCharacterOfPosition(node.getStart(source))
+  return roles.map((role) => `${line + 1}:${role}`)
+}
+
+/** `switch (role) { case 'admin': ... }` decisions, one per case clause. */
+function switchRoleDecisions(node: ts.Node, source: ts.SourceFile): readonly string[] {
+  if (!ts.isSwitchStatement(node)) return []
+  if (!containsRoleReference(node.expression)) return []
+  const decisions: string[] = []
+  for (const clause of node.caseBlock.clauses) {
+    if (!ts.isCaseClause(clause)) continue
+    const role = builtInRoleLiteral(clause.expression)
+    if (role === null) continue
+    const { line } = source.getLineAndCharacterOfPosition(clause.getStart(source))
+    decisions.push(`${line + 1}:${role}`)
+  }
+  return decisions
+}
+
 function discoverRawRoleDecisions(body: string, fileName: string): readonly string[] {
   const source = ts.createSourceFile(
     fileName,
@@ -61,42 +113,11 @@ function discoverRawRoleDecisions(body: string, fileName: string): readonly stri
   )
   const decisions: string[] = []
   const visit = (node: ts.Node): void => {
-    if (
-      ts.isBinaryExpression(node) &&
-      [
-        ts.SyntaxKind.EqualsEqualsEqualsToken,
-        ts.SyntaxKind.ExclamationEqualsEqualsToken,
-      ].includes(node.operatorToken.kind)
-    ) {
-      const leftRole = builtInRoleLiteral(node.left)
-      const rightRole = builtInRoleLiteral(node.right)
-      if (
-        (leftRole !== null && containsRoleReference(node.right)) ||
-        (rightRole !== null && containsRoleReference(node.left))
-      ) {
-        const { line } = source.getLineAndCharacterOfPosition(node.getStart(source))
-        decisions.push(`${line + 1}:${leftRole ?? rightRole}`)
-      }
-    }
-    if (
-      ts.isCallExpression(node) &&
-      ts.isPropertyAccessExpression(node.expression) &&
-      (node.expression.name.text === 'includes' || node.expression.name.text === 'has') &&
-      node.arguments.some(containsRoleReference)
-    ) {
-      const roles = builtInRoleLiterals(node.expression.expression)
-      const { line } = source.getLineAndCharacterOfPosition(node.getStart(source))
-      decisions.push(...roles.map((role) => `${line + 1}:${role}`))
-    }
-    if (ts.isSwitchStatement(node) && containsRoleReference(node.expression)) {
-      for (const clause of node.caseBlock.clauses) {
-        if (!ts.isCaseClause(clause)) continue
-        const role = builtInRoleLiteral(clause.expression)
-        if (role === null) continue
-        const { line } = source.getLineAndCharacterOfPosition(clause.getStart(source))
-        decisions.push(`${line + 1}:${role}`)
-      }
-    }
+    decisions.push(
+      ...comparisonRoleDecisions(node, source),
+      ...membershipRoleDecisions(node, source),
+      ...switchRoleDecisions(node, source),
+    )
     ts.forEachChild(node, visit)
   }
   visit(source)

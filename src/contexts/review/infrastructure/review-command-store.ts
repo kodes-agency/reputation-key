@@ -142,6 +142,144 @@ async function supersedeStaleReviewPublications(
   return facts
 }
 
+type ReviewSourceScope = Readonly<{
+  organizationId: Review['organizationId']
+  propertyId: Review['propertyId']
+  sourceEpoch: number
+}>
+
+/** Allocate the next AI-analysis sequence under the per-source head lock. The
+ * caller names the failure so a specific write path stays diagnosable. */
+async function allocateAnalysisSequence(
+  tx: Tx,
+  scope: ReviewSourceScope,
+  failureMessage: string,
+): Promise<number> {
+  const result = await tx.execute(sql`
+    SELECT lock_review_ai_analysis_head_v1(
+      ${scope.organizationId},
+      ${scope.propertyId}::uuid,
+      ${scope.sourceEpoch}
+    ) AS analysis_sequence
+  `)
+  const sequence = Number(result.rows[0]?.analysis_sequence)
+  if (!Number.isSafeInteger(sequence) || sequence <= 0) {
+    throw reviewError('repo_upsert_failed', failureMessage)
+  }
+  return sequence
+}
+
+/** Database-side transaction clock, so every fact in this transaction shares
+ * one instant that no application clock can skew. */
+async function readTransactionClock(tx: Tx): Promise<Date> {
+  const clockResult = await tx.execute(sql`
+    SELECT transaction_timestamp() AS occurred_at
+  `)
+  const occurredAtValue = clockResult.rows[0]?.occurred_at
+  const occurredAt =
+    occurredAtValue instanceof Date
+      ? occurredAtValue
+      : typeof occurredAtValue === 'string'
+        ? new Date(occurredAtValue)
+        : null
+  if (occurredAt === null || Number.isNaN(occurredAt.getTime())) {
+    throw reviewError('repo_upsert_failed', 'Review transaction clock is invalid')
+  }
+  return occurredAt
+}
+
+/** Take the source-epoch fence and the expired Review row together. The row is
+ * returned locked, and only when the database itself agrees it is expired. */
+async function lockExpiredReviewRow(
+  tx: Tx,
+  review: Omit<Review, 'createdAt' | 'updatedAt'>,
+) {
+  if (
+    !(await lockReviewSourceMutationScope(tx, {
+      organizationId: review.organizationId,
+      propertyId: review.propertyId,
+      reviewId: review.id,
+      sourceEpoch: review.sourceEpoch,
+    }))
+  ) {
+    throw reviewError(
+      'repo_upsert_failed',
+      'Review source epoch changed before re-observation',
+    )
+  }
+  const existingRows = await tx
+    .select()
+    .from(reviews)
+    .where(
+      sql`${reviews.id} = ${review.id}
+        AND ${reviews.organizationId} = ${review.organizationId}
+        AND ${reviews.propertyId} = ${review.propertyId}
+        AND ${reviews.sourceEpoch} = ${review.sourceEpoch}
+        AND (
+          ${reviews.sourceContentState} IN ('source_expired', 'provider_deleted')
+          OR ${reviews.contentExpiresAt} <= transaction_timestamp()
+        )`,
+    )
+    .for('update')
+  const existingRow = existingRows[0]
+  if (!existingRow) {
+    throw reviewError(
+      'repo_upsert_failed',
+      'Review is not expired at the database boundary',
+    )
+  }
+  return existingRow
+}
+
+type StableReviewIdentity = Readonly<{
+  id: ReturnType<typeof reviewId>
+  organizationId: ReturnType<typeof organizationId>
+  propertyId: ReturnType<typeof propertyId>
+  sourceEpoch: number
+  sourceRevision: number
+}>
+
+/**
+ * A row whose deadline has just elapsed is redacted first, in the same
+ * transaction, without removing its stable identity or history. Returns the
+ * expiry fact and the sequence it consumed, so the re-observation can prove its
+ * own sequence is contiguous with it.
+ */
+async function redactJustExpiredSourceContent(
+  tx: Tx,
+  identity: StableReviewIdentity,
+  occurredAt: Date,
+): Promise<Readonly<{ event: DomainEvent; sequence: number }>> {
+  const expirySequence = await allocateAnalysisSequence(
+    tx,
+    identity,
+    'Expired Review sequence allocation failed',
+  )
+  const expiredEvent = reviewSourceTransitioned({
+    reviewId: identity.id,
+    organizationId: identity.organizationId,
+    propertyId: identity.propertyId,
+    sourceEpoch: identity.sourceEpoch,
+    sourceRevision: identity.sourceRevision,
+    analysisSequence: expirySequence,
+    change: 'source_expired',
+    occurredAt,
+  })
+  const erased = await eraseReviewSourceContent(tx, {
+    reviewId: identity.id,
+    organizationId: identity.organizationId,
+    propertyId: identity.propertyId,
+    sourceEpoch: identity.sourceEpoch,
+    expectedSourceRevision: identity.sourceRevision,
+    state: 'source_expired',
+  })
+  if (!erased) {
+    throw reviewError('repo_upsert_failed', 'Expired Review redaction failed')
+  }
+  await insertOutboxRow(tx, expiredEvent)
+  return { event: expiredEvent, sequence: expirySequence }
+}
+
 type PersistObservation = (
   tx: Parameters<Parameters<Database['transaction']>[0]>[0],
   input: Readonly<{
@@ -162,21 +300,11 @@ export const createAtomicReviewCommandStore = (
     upsertAndRecord: async (review, event, now, observationKey, observationOrigin) => {
       return trace('review.commandStore.upsertAndRecord', async () => {
         const committed = await db.transaction(async (tx) => {
-          const sequenceResult = await tx.execute(sql`
-            SELECT lock_review_ai_analysis_head_v1(
-              ${review.organizationId},
-              ${review.propertyId}::uuid,
-              ${review.sourceEpoch}
-            ) AS analysis_sequence
-          `)
-          const sequenceValue = sequenceResult.rows[0]?.analysis_sequence
-          const analysisSequence = Number(sequenceValue)
-          if (!Number.isSafeInteger(analysisSequence) || analysisSequence <= 0) {
-            throw reviewError(
-              'repo_upsert_failed',
-              'Review analysis sequence allocation failed',
-            )
-          }
+          const analysisSequence = await allocateAnalysisSequence(
+            tx,
+            review,
+            'Review analysis sequence allocation failed',
+          )
           const updatedAt = now ?? clock()
           await lockReplyTruthScope(tx, review.organizationId, review.id)
           const observation = await persistObservation(tx, {
@@ -224,56 +352,10 @@ export const createAtomicReviewCommandStore = (
     ) => {
       return trace('review.commandStore.reobserveExpiredAndRecord', async () => {
         const committed = await db.transaction(async (tx) => {
-          if (
-            !(await lockReviewSourceMutationScope(tx, {
-              organizationId: review.organizationId,
-              propertyId: review.propertyId,
-              reviewId: review.id,
-              sourceEpoch: review.sourceEpoch,
-            }))
-          ) {
-            throw reviewError(
-              'repo_upsert_failed',
-              'Review source epoch changed before re-observation',
-            )
-          }
-          const existingRows = await tx
-            .select()
-            .from(reviews)
-            .where(
-              sql`${reviews.id} = ${review.id}
-                AND ${reviews.organizationId} = ${review.organizationId}
-                AND ${reviews.propertyId} = ${review.propertyId}
-                AND ${reviews.sourceEpoch} = ${review.sourceEpoch}
-                AND (
-                  ${reviews.sourceContentState} IN ('source_expired', 'provider_deleted')
-                  OR ${reviews.contentExpiresAt} <= transaction_timestamp()
-                )`,
-            )
-            .for('update')
-          const existingRow = existingRows[0]
-          if (!existingRow) {
-            throw reviewError(
-              'repo_upsert_failed',
-              'Review is not expired at the database boundary',
-            )
-          }
+          const existingRow = await lockExpiredReviewRow(tx, review)
+          const occurredAt = await readTransactionClock(tx)
 
-          const clockResult = await tx.execute(sql`
-            SELECT transaction_timestamp() AS occurred_at
-          `)
-          const occurredAtValue = clockResult.rows[0]?.occurred_at
-          const occurredAt =
-            occurredAtValue instanceof Date
-              ? occurredAtValue
-              : typeof occurredAtValue === 'string'
-                ? new Date(occurredAtValue)
-                : null
-          if (occurredAt === null || Number.isNaN(occurredAt.getTime())) {
-            throw reviewError('repo_upsert_failed', 'Review transaction clock is invalid')
-          }
-
-          const stableIdentity = {
+          const stableIdentity: StableReviewIdentity = {
             id: reviewId(existingRow.id),
             organizationId: organizationId(existingRow.organizationId),
             propertyId: propertyId(existingRow.propertyId),
@@ -284,64 +366,22 @@ export const createAtomicReviewCommandStore = (
           let previousSequence: number | null = null
 
           // An already-erased Review has already recorded its lifecycle fact.
-          // A row whose deadline has just elapsed is redacted first, in the
-          // same transaction, without removing its stable identity or history.
           if (existingRow.sourceContentState === 'active') {
-            const expirySequenceResult = await tx.execute(sql`
-              SELECT lock_review_ai_analysis_head_v1(
-                ${review.organizationId},
-                ${review.propertyId}::uuid,
-                ${review.sourceEpoch}
-              ) AS analysis_sequence
-            `)
-            const expirySequence = Number(expirySequenceResult.rows[0]?.analysis_sequence)
-            if (!Number.isSafeInteger(expirySequence) || expirySequence <= 0) {
-              throw reviewError(
-                'repo_upsert_failed',
-                'Expired Review sequence allocation failed',
-              )
-            }
-            const expiredEvent = reviewSourceTransitioned({
-              reviewId: stableIdentity.id,
-              organizationId: stableIdentity.organizationId,
-              propertyId: stableIdentity.propertyId,
-              sourceEpoch: stableIdentity.sourceEpoch,
-              sourceRevision: stableIdentity.sourceRevision,
-              analysisSequence: expirySequence,
-              change: 'source_expired',
+            const expiry = await redactJustExpiredSourceContent(
+              tx,
+              stableIdentity,
               occurredAt,
-            })
-            const erased = await eraseReviewSourceContent(tx, {
-              reviewId: stableIdentity.id,
-              organizationId: stableIdentity.organizationId,
-              propertyId: stableIdentity.propertyId,
-              sourceEpoch: stableIdentity.sourceEpoch,
-              expectedSourceRevision: stableIdentity.sourceRevision,
-              state: 'source_expired',
-            })
-            if (!erased) {
-              throw reviewError('repo_upsert_failed', 'Expired Review redaction failed')
-            }
-            await insertOutboxRow(tx, expiredEvent)
-            recordedEvents.push(expiredEvent)
-            previousSequence = expirySequence
+            )
+            recordedEvents.push(expiry.event)
+            previousSequence = expiry.sequence
           }
 
-          const reobserveSequenceResult = await tx.execute(sql`
-            SELECT lock_review_ai_analysis_head_v1(
-              ${review.organizationId},
-              ${review.propertyId}::uuid,
-              ${review.sourceEpoch}
-            ) AS analysis_sequence
-          `)
-          const reobserveSequence = Number(
-            reobserveSequenceResult.rows[0]?.analysis_sequence,
+          const reobserveSequence = await allocateAnalysisSequence(
+            tx,
+            review,
+            'Re-observed Review sequence is not contiguous',
           )
-          if (
-            !Number.isSafeInteger(reobserveSequence) ||
-            reobserveSequence <= 0 ||
-            (previousSequence != null && reobserveSequence !== previousSequence + 1)
-          ) {
+          if (previousSequence != null && reobserveSequence !== previousSequence + 1) {
             throw reviewError(
               'repo_upsert_failed',
               'Re-observed Review sequence is not contiguous',

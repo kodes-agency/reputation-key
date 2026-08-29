@@ -119,6 +119,45 @@ export type LegacyConfigOwnershipReport = Readonly<{
 }>
 
 /**
+ * Grade one declaration against the file on disk and the rendered graph. Each
+ * refusal is terminal for this declaration, because a declaration that names
+ * the wrong file or the wrong service cannot be graded any further.
+ */
+function collectDeclarationViolations(
+  declaration: LegacyConfigDeclaration,
+  present: ReadonlySet<string>,
+  graph: ReadonlySet<string>,
+  violations: string[],
+): void {
+  if (!present.has(declaration.file)) {
+    violations.push(`${declaration.file}: declared but absent from the repository root`)
+    return
+  }
+  // A rename must not silently re-point a declaration at another service.
+  const derived = legacyConfigServiceName(declaration.file)
+  if (derived !== declaration.service) {
+    violations.push(
+      `${declaration.file}: declares service ${declaration.service} but names ${derived}`,
+    )
+    return
+  }
+  if (declaration.ownership === 'migrated' && !graph.has(declaration.service)) {
+    violations.push(
+      `${declaration.file}: declared migrated but ${declaration.service} is not in the cell graph`,
+    )
+  }
+  if (declaration.ownership !== 'out-of-graph') return
+  if (graph.has(declaration.service)) {
+    violations.push(
+      `${declaration.file}: declared out-of-graph but ${declaration.service} is in the cell graph`,
+    )
+  }
+  if (!declaration.reason?.trim()) {
+    violations.push(`${declaration.file}: out-of-graph requires a recorded reason`)
+  }
+}
+
+/**
  * Prove the declarations, the files on disk, and the rendered graph agree. Any
  * disagreement is a violation: a stale declaration, an undeclared file, a
  * renamed file, an out-of-graph service that quietly became a cell resource, or
@@ -145,34 +184,7 @@ export function reconcileLegacyConfigOwnership(
       continue
     }
     declaredFiles.add(declaration.file)
-
-    if (!present.has(declaration.file)) {
-      violations.push(`${declaration.file}: declared but absent from the repository root`)
-      continue
-    }
-    // A rename must not silently re-point a declaration at another service.
-    const derived = legacyConfigServiceName(declaration.file)
-    if (derived !== declaration.service) {
-      violations.push(
-        `${declaration.file}: declares service ${declaration.service} but names ${derived}`,
-      )
-      continue
-    }
-    if (declaration.ownership === 'migrated' && !graph.has(declaration.service)) {
-      violations.push(
-        `${declaration.file}: declared migrated but ${declaration.service} is not in the cell graph`,
-      )
-    }
-    if (declaration.ownership === 'out-of-graph') {
-      if (graph.has(declaration.service)) {
-        violations.push(
-          `${declaration.file}: declared out-of-graph but ${declaration.service} is in the cell graph`,
-        )
-      }
-      if (!declaration.reason?.trim()) {
-        violations.push(`${declaration.file}: out-of-graph requires a recorded reason`)
-      }
-    }
+    collectDeclarationViolations(declaration, present, graph, violations)
   }
 
   for (const file of input.presentFiles) {

@@ -22,7 +22,10 @@ import {
   requireRailwayDeploymentProfile,
   type RailwayDeploymentProfile,
 } from '../../src/shared/release/railway-deployment-profile'
-import { parsePromotionManifest } from '../../src/shared/release/promotion-manifest'
+import {
+  parsePromotionManifest,
+  type PromotionManifest,
+} from '../../src/shared/release/promotion-manifest'
 import {
   assertRailwayFullProjectVisibilityCredential,
   assertSingleUsBetaRailwayProjectIsolation,
@@ -251,41 +254,159 @@ export function buildRailwayPlanEvidenceFiles(
   }
 }
 
+type RailwayDataCellTarget = ReturnType<typeof assertRailwayDataCellTarget>
+
+type VerifiedPromotionInputs = Readonly<{
+  manifest: PromotionManifest
+  manifestDigest: string
+  iacSha256: string
+  releaseControllerSha256: string
+}>
+
+/**
+ * Re-prove the promotion manifest against its declared digest and against the
+ * IaC and release-controller sources as they stand right now.
+ */
+function verifyPromotionInputs(args: readonly string[]): VerifiedPromotionInputs {
+  const manifestPath = flagValue(args, '--manifest')
+  const manifestDigest = flagValue(args, '--manifest-sha256')
+  if (!manifestPath || !manifestDigest) {
+    throw new Error('--manifest and --manifest-sha256 are required')
+  }
+  if (!/^[0-9a-f]{64}$/u.test(manifestDigest)) {
+    throw new Error('--manifest-sha256 must be a lowercase sha256')
+  }
+  const parsedManifest = parsePromotionManifest(
+    readFileSync(resolve(manifestPath), 'utf8'),
+  )
+  if (!parsedManifest.ok) {
+    throw new Error(parsedManifest.errors.join('\n'))
+  }
+  if (parsedManifest.digest !== manifestDigest) {
+    throw new Error(
+      `promotion manifest digest ${parsedManifest.digest} does not match --manifest-sha256`,
+    )
+  }
+  const iacSha256 = railwayIacSourceDigest()
+  if (parsedManifest.manifest.contract.iacSha256 !== iacSha256) {
+    throw new Error(
+      `promotion manifest IaC digest ${parsedManifest.manifest.contract.iacSha256} does not match current ${iacSha256}`,
+    )
+  }
+  const releaseControllerSha256 = releaseControllerSourceDigest()
+  assertReleaseControllerSourceDigest(
+    parsedManifest.manifest.contract.releaseControllerSha256,
+    releaseControllerSha256,
+  )
+  return {
+    manifest: parsedManifest.manifest,
+    manifestDigest,
+    iacSha256,
+    releaseControllerSha256,
+  }
+}
+
+/** Confirm the CLI supports pinned plans and resolve the linked data-cell target. */
+function resolveLinkedDataCellTarget(
+  cell: BetaDeploymentDataCellId,
+  deploymentProfile: RailwayDeploymentProfile,
+  callerEnvironment: NodeJS.ProcessEnv,
+): RailwayDataCellTarget {
+  const version = spawnSync('railway', ['--version'], {
+    encoding: 'utf8',
+    env: callerEnvironment,
+  })
+  if (version.error || version.status !== 0) {
+    throw new Error(version.stderr.trim() || 'railway --version failed')
+  }
+  assertRailwayCliSupportsPinnedPlans(`${version.stdout ?? ''}\n${version.stderr ?? ''}`)
+  const status = spawnSync('railway', ['status'], {
+    encoding: 'utf8',
+    env: callerEnvironment,
+  })
+  if (status.status !== 0) {
+    throw new Error(status.stderr.trim() || 'railway status failed')
+  }
+  return assertRailwayDataCellTarget(
+    cell,
+    deploymentProfile,
+    parseRailwayLinkedTarget(status.stdout),
+  )
+}
+
+function assertProjectIsolationForTarget(
+  target: RailwayDataCellTarget,
+  pinnedEnvironment: NodeJS.ProcessEnv,
+): void {
+  const projectStatus = spawnSync('railway', [...railwayFullProjectStatusArgs()], {
+    encoding: 'utf8',
+    env: pinnedEnvironment,
+  })
+  if (projectStatus.error || projectStatus.status !== 0) {
+    throw new Error(projectStatus.stderr.trim() || 'railway status --json failed')
+  }
+  assertSingleUsBetaRailwayProjectIsolation(
+    parseRailwayProjectServiceInventory(projectStatus.stdout),
+    {
+      projectId: target.projectId,
+      projectName: target.projectName,
+      environmentId: target.environmentId,
+      environmentName: target.environment,
+    },
+  )
+}
+
+/** Retain the plan as immutable evidence, or print it when none was requested. */
+function retainOrPrintPlan(
+  args: readonly string[],
+  input: Readonly<{
+    target: RailwayDataCellTarget
+    verified: VerifiedPromotionInputs
+    exitCode: number
+    outcome: string
+    rawPlan: string
+  }>,
+): void {
+  const { target, verified, exitCode, outcome, rawPlan } = input
+  const evidenceOut = flagValue(args, '--evidence-out')
+  if (!evidenceOut) {
+    process.stdout.write(rawPlan)
+    process.stderr.write(`${outcome} — pass --evidence-out to retain this plan\n`)
+    return
+  }
+  const files = buildRailwayPlanEvidenceFiles({
+    outputPath: resolve(evidenceOut),
+    capturedAt: new Date(),
+    cell: target.cell,
+    deploymentProfile: target.deploymentProfile,
+    target: {
+      projectName: target.projectName,
+      projectId: target.projectId,
+      environment: target.environment,
+      environmentId: target.environmentId,
+    },
+    iacSha256: verified.iacSha256,
+    releaseManifestSha256: verified.manifestDigest,
+    releaseControllerSha256: verified.releaseControllerSha256,
+    exitCode,
+    rawPlan,
+  })
+  // 'wx' keeps a retained plan immutable: recapturing writes a new file
+  // rather than silently replacing reviewed evidence.
+  writeFileSync(files.path, files.content, { encoding: 'utf8', flag: 'wx' })
+  writeFileSync(files.sidecarPath, files.sidecarContent, {
+    encoding: 'utf8',
+    flag: 'wx',
+  })
+  process.stderr.write(`${outcome} — evidence ${files.digest} at ${files.path}\n`)
+}
+
 export function runRailwayDataCellPlanCli(args: readonly string[]): number {
   try {
     const cell = parseCell(args)
     const deploymentProfile = parseDeploymentProfile(args)
-    const manifestPath = flagValue(args, '--manifest')
-    const manifestDigest = flagValue(args, '--manifest-sha256')
-    if (!manifestPath || !manifestDigest) {
-      throw new Error('--manifest and --manifest-sha256 are required')
-    }
-    if (!/^[0-9a-f]{64}$/u.test(manifestDigest)) {
-      throw new Error('--manifest-sha256 must be a lowercase sha256')
-    }
-    const parsedManifest = parsePromotionManifest(
-      readFileSync(resolve(manifestPath), 'utf8'),
-    )
-    if (!parsedManifest.ok) {
-      throw new Error(parsedManifest.errors.join('\n'))
-    }
-    if (parsedManifest.digest !== manifestDigest) {
-      throw new Error(
-        `promotion manifest digest ${parsedManifest.digest} does not match --manifest-sha256`,
-      )
-    }
-    const currentIacSha256 = railwayIacSourceDigest()
-    if (parsedManifest.manifest.contract.iacSha256 !== currentIacSha256) {
-      throw new Error(
-        `promotion manifest IaC digest ${parsedManifest.manifest.contract.iacSha256} does not match current ${currentIacSha256}`,
-      )
-    }
-    const currentReleaseControllerSha256 = releaseControllerSourceDigest()
-    assertReleaseControllerSourceDigest(
-      parsedManifest.manifest.contract.releaseControllerSha256,
-      currentReleaseControllerSha256,
-    )
-    const candidateSourceInput = fullRailwayServiceSourceInput(parsedManifest.manifest)
+    const verified = verifyPromotionInputs(args)
+    const candidateSourceInput = fullRailwayServiceSourceInput(verified.manifest)
     const sourceMap = railwaySourceMapEnvironment(candidateSourceInput)
     const callerEnvironment = {
       ...process.env,
@@ -294,28 +415,7 @@ export function runRailwayDataCellPlanCli(args: readonly string[]): number {
         process.env.RAILWAY_AGENT_SESSION ?? `repkey-data-cell-plan-${cell}`,
     }
     assertRailwayFullProjectVisibilityCredential(callerEnvironment)
-    const version = spawnSync('railway', ['--version'], {
-      encoding: 'utf8',
-      env: callerEnvironment,
-    })
-    if (version.error || version.status !== 0) {
-      throw new Error(version.stderr.trim() || 'railway --version failed')
-    }
-    assertRailwayCliSupportsPinnedPlans(
-      `${version.stdout ?? ''}\n${version.stderr ?? ''}`,
-    )
-    const status = spawnSync('railway', ['status'], {
-      encoding: 'utf8',
-      env: callerEnvironment,
-    })
-    if (status.status !== 0) {
-      throw new Error(status.stderr.trim() || 'railway status failed')
-    }
-    const target = assertRailwayDataCellTarget(
-      cell,
-      deploymentProfile,
-      parseRailwayLinkedTarget(status.stdout),
-    )
+    const target = resolveLinkedDataCellTarget(cell, deploymentProfile, callerEnvironment)
     process.stderr.write(
       `Planning ${target.deploymentProfile}/${target.cell} against ${target.environment} (${target.environmentId}) in ${target.projectName} (${target.projectId})\n`,
     )
@@ -333,22 +433,7 @@ export function runRailwayDataCellPlanCli(args: readonly string[]): number {
       REPKEY_RAILWAY_DEPLOYMENT_PROFILE: target.deploymentProfile,
       [RAILWAY_SERVICE_SOURCE_MAP_ENV]: sourceMap,
     }
-    const projectStatus = spawnSync('railway', [...railwayFullProjectStatusArgs()], {
-      encoding: 'utf8',
-      env: pinnedEnvironment,
-    })
-    if (projectStatus.error || projectStatus.status !== 0) {
-      throw new Error(projectStatus.stderr.trim() || 'railway status --json failed')
-    }
-    assertSingleUsBetaRailwayProjectIsolation(
-      parseRailwayProjectServiceInventory(projectStatus.stdout),
-      {
-        projectId: target.projectId,
-        projectName: target.projectName,
-        environmentId: target.environmentId,
-        environmentName: target.environment,
-      },
-    )
+    assertProjectIsolationForTarget(target, pinnedEnvironment)
 
     // stdout is captured for evidence; stderr stays attached so the operator
     // still sees Railway's own progress and diagnostics live.
@@ -375,37 +460,13 @@ export function runRailwayDataCellPlanCli(args: readonly string[]): number {
       candidateSourceInput,
     )
 
-    const evidenceOut = flagValue(args, '--evidence-out')
-    if (evidenceOut) {
-      const files = buildRailwayPlanEvidenceFiles({
-        outputPath: resolve(evidenceOut),
-        capturedAt: new Date(),
-        cell,
-        deploymentProfile,
-        target: {
-          projectName: target.projectName,
-          projectId: target.projectId,
-          environment: target.environment,
-          environmentId: target.environmentId,
-        },
-        iacSha256: currentIacSha256,
-        releaseManifestSha256: manifestDigest,
-        releaseControllerSha256: currentReleaseControllerSha256,
-        exitCode,
-        rawPlan: plan.stdout,
-      })
-      // 'wx' keeps a retained plan immutable: recapturing writes a new file
-      // rather than silently replacing reviewed evidence.
-      writeFileSync(files.path, files.content, { encoding: 'utf8', flag: 'wx' })
-      writeFileSync(files.sidecarPath, files.sidecarContent, {
-        encoding: 'utf8',
-        flag: 'wx',
-      })
-      process.stderr.write(`${outcome} — evidence ${files.digest} at ${files.path}\n`)
-    } else {
-      process.stdout.write(plan.stdout)
-      process.stderr.write(`${outcome} — pass --evidence-out to retain this plan\n`)
-    }
+    retainOrPrintPlan(args, {
+      target,
+      verified,
+      exitCode,
+      outcome,
+      rawPlan: plan.stdout,
+    })
 
     return exitCode
   } catch (error) {

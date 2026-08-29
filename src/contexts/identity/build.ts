@@ -348,89 +348,12 @@ function contributorReadiness(
   })
 }
 
-export const buildIdentityContext = (deps: IdentityContextDeps) => {
-  // ARC-03-T13: Identity derives its session-shaped callbacks from the injected
-  // port. Setting the active organization is non-fatal by contract — during
-  // registration the session cookie does not exist yet, and the user picks it
-  // up on first login — so the failure is observed, not propagated.
-  const setActiveOrganization = async (orgId: string): Promise<void> => {
-    try {
-      await deps.authSession.setActiveOrganization(orgId)
-    } catch (error) {
-      deps.logger.warn({ err: error }, 'Failed to set active organization during setup')
-    }
-  }
-  const resolveOrganizationName = async (_ctx: AuthContext): Promise<string> =>
-    (await deps.authSession.currentOrganizationName()) ?? 'Unknown Organization'
-
-  const managerMembershipRepo = createManagerMembershipRepository(
-    deps.db,
-    async ({ organizationId: orgId, userId: memberUserId, memberRole }) => {
-      const { context } = await resolveMemberAuthContextWithDatabase(deps.db, {
-        organizationId: orgId,
-        userId: memberUserId,
-        memberRole,
-      })
-      if (!canForContext(context, 'property.read')) return null
-      const scope = scopeForPermission(context, 'property.read')
-      return scope === 'none' ? null : scope
-    },
-  )
-  // BQC-3.5: every identity state mutation + fact commits atomically here.
-  const commandStore = createAtomicIdentityCommandStore(deps.db, deps.events, deps.idGen)
-  /**
-   * LIF-01-T21 fail-closed default. Refusing to answer is the only safe
-   * answer: reporting an empty worklist would let a member walk out leaving
-   * Portals and Properties with no Responsible Manager.
-   */
-  const memberOffboarding: MemberOffboardingPort = deps.memberOffboarding ?? {
-    listOutstanding: async () => {
-      throw identityError(
-        'forbidden',
-        'Transfer-first leave is unavailable until responsibility facts are composed',
-      )
-    },
-    isEligibleRecipient: async () => false,
-    transfer: async () => {
-      throw identityError(
-        'forbidden',
-        'Transfer-first leave is unavailable until responsibility facts are composed',
-      )
-    },
-  }
-  const invitedRegistrationStore = createInvitedRegistrationStore(deps.db)
-
-  // BQC-2.2: install the composite capability policy store — env global
-  // posture (kill switch / e2e overrides unchanged) + persisted tenant state
-  // (allowlist/suspension from the 0014 policy tables). The env seed unions
-  // in, so behavior is identical until DB policy rows exist; revocation and
-  // suspension take effect within POLICY_REFRESH_INTERVAL_MS.
-  const policyStore = initPersistedCapabilityPolicyStore({
-    db: deps.db,
-    env: deps.policy.env,
-    clock: deps.clock,
-    logger: deps.logger,
-    admitPropertyExecution: deps.policy.admitPropertyExecution,
-  })
-  const organizationLifecycleStore = createOrganizationLifecycleCommandStore(
-    deps.db,
-    deps.events,
-  )
-  const organizationLifecycle = createOrganizationLifecycle({
-    store: organizationLifecycleStore,
-    clock: deps.clock,
-    // Thunk: `reactivate` is constructed below, and a closure must not be
-    // armable in a deployment that cannot undo it.
-    reactivationConfigured: () => reactivate !== null,
-    refreshPolicy: async () => {
-      const result = await policyStore.refreshRequired()
-      if ('unavailable' in result) {
-        // The command is already durable and retry-safe. A caller must retry
-        // the same operation id; do not claim this process observes the fence.
-        throw new Error('Organization closure committed; policy refresh unavailable')
-      }
-    },
-  })
+/**
+ * Which lifecycle and export capabilities the supplied composition can actually
+ * execute. A partially bound set stays non-executable rather than exposing a
+ * half-wired maintenance surface.
+ */
+function deriveLifecycleCompositionReadiness(deps: IdentityContextDeps) {
   const lifecycleContributorReadiness = contributorReadiness(
     deps.organizationLifecycle?.lifecycleContributors,
   )
@@ -450,8 +373,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   )
   const supportAuthorizationConfigured =
     deps.organizationLifecycle?.supportAuthorization !== undefined
-  const lifecycleCompositionConfigured =
-    lifecycleContributorReadiness.contributorsConfigured && supportAuthorizationConfigured
   const exportStorageConfigured =
     deps.organizationLifecycle?.organizationExport !== undefined
   // A reclaimed lease must recover an object written before an ambiguous
@@ -467,10 +388,64 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   const exportGenerationRecoveryConfigured =
     typeof deps.organizationLifecycle?.organizationExport?.storage.verifyStored ===
     'function'
-  const exportCompositionConfigured =
-    exportContributorReadiness.contributorsConfigured &&
-    exportStorageConfigured &&
-    exportGenerationRecoveryConfigured
+  return {
+    lifecycleContributorReadiness,
+    exportContributors,
+    exportContributorReadiness,
+    supportAuthorizationConfigured,
+    lifecycleCompositionConfigured:
+      lifecycleContributorReadiness.contributorsConfigured &&
+      supportAuthorizationConfigured,
+    exportStorageConfigured,
+    exportGenerationRecoveryConfigured,
+    exportCompositionConfigured:
+      exportContributorReadiness.contributorsConfigured &&
+      exportStorageConfigured &&
+      exportGenerationRecoveryConfigured,
+  }
+}
+
+/**
+ * Compose the organization lifecycle and export control plane from the bound
+ * readiness: only fully bound services become executable.
+ */
+function buildOrganizationLifecycleComposition(
+  deps: IdentityContextDeps,
+  bindings: Readonly<{
+    policyStore: ReturnType<typeof initPersistedCapabilityPolicyStore>
+    managerMembershipRepo: ReturnType<typeof createManagerMembershipRepository>
+  }>,
+) {
+  const { policyStore, managerMembershipRepo } = bindings
+  const organizationLifecycleStore = createOrganizationLifecycleCommandStore(
+    deps.db,
+    deps.events,
+  )
+  const organizationLifecycle = createOrganizationLifecycle({
+    store: organizationLifecycleStore,
+    clock: deps.clock,
+    // Thunk: `reactivate` is constructed below, and a closure must not be
+    // armable in a deployment that cannot undo it.
+    reactivationConfigured: () => reactivate !== null,
+    refreshPolicy: async () => {
+      const result = await policyStore.refreshRequired()
+      if ('unavailable' in result) {
+        // The command is already durable and retry-safe. A caller must retry
+        // the same operation id; do not claim this process observes the fence.
+        throw new Error('Organization closure committed; policy refresh unavailable')
+      }
+    },
+  })
+  const {
+    lifecycleContributorReadiness,
+    exportContributors,
+    exportContributorReadiness,
+    supportAuthorizationConfigured,
+    lifecycleCompositionConfigured,
+    exportStorageConfigured,
+    exportGenerationRecoveryConfigured,
+    exportCompositionConfigured,
+  } = deriveLifecycleCompositionReadiness(deps)
   const organizationLifecycleCoordinator =
     lifecycleCompositionConfigured &&
     deps.organizationLifecycle?.supportAuthorization &&
@@ -566,6 +541,78 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       service: organizationExport ?? undefined,
     }),
   })
+  return { organizationLifecycle, runtime: organizationLifecycleRuntime }
+}
+
+export const buildIdentityContext = (deps: IdentityContextDeps) => {
+  // ARC-03-T13: Identity derives its session-shaped callbacks from the injected
+  // port. Setting the active organization is non-fatal by contract — during
+  // registration the session cookie does not exist yet, and the user picks it
+  // up on first login — so the failure is observed, not propagated.
+  const setActiveOrganization = async (orgId: string): Promise<void> => {
+    try {
+      await deps.authSession.setActiveOrganization(orgId)
+    } catch (error) {
+      deps.logger.warn({ err: error }, 'Failed to set active organization during setup')
+    }
+  }
+  const resolveOrganizationName = async (_ctx: AuthContext): Promise<string> =>
+    (await deps.authSession.currentOrganizationName()) ?? 'Unknown Organization'
+
+  const managerMembershipRepo = createManagerMembershipRepository(
+    deps.db,
+    async ({ organizationId: orgId, userId: memberUserId, memberRole }) => {
+      const { context } = await resolveMemberAuthContextWithDatabase(deps.db, {
+        organizationId: orgId,
+        userId: memberUserId,
+        memberRole,
+      })
+      if (!canForContext(context, 'property.read')) return null
+      const scope = scopeForPermission(context, 'property.read')
+      return scope === 'none' ? null : scope
+    },
+  )
+  // BQC-3.5: every identity state mutation + fact commits atomically here.
+  const commandStore = createAtomicIdentityCommandStore(deps.db, deps.events, deps.idGen)
+  /**
+   * LIF-01-T21 fail-closed default. Refusing to answer is the only safe
+   * answer: reporting an empty worklist would let a member walk out leaving
+   * Portals and Properties with no Responsible Manager.
+   */
+  const memberOffboarding: MemberOffboardingPort = deps.memberOffboarding ?? {
+    listOutstanding: async () => {
+      throw identityError(
+        'forbidden',
+        'Transfer-first leave is unavailable until responsibility facts are composed',
+      )
+    },
+    isEligibleRecipient: async () => false,
+    transfer: async () => {
+      throw identityError(
+        'forbidden',
+        'Transfer-first leave is unavailable until responsibility facts are composed',
+      )
+    },
+  }
+  const invitedRegistrationStore = createInvitedRegistrationStore(deps.db)
+
+  // BQC-2.2: install the composite capability policy store — env global
+  // posture (kill switch / e2e overrides unchanged) + persisted tenant state
+  // (allowlist/suspension from the 0014 policy tables). The env seed unions
+  // in, so behavior is identical until DB policy rows exist; revocation and
+  // suspension take effect within POLICY_REFRESH_INTERVAL_MS.
+  const policyStore = initPersistedCapabilityPolicyStore({
+    db: deps.db,
+    env: deps.policy.env,
+    clock: deps.clock,
+    logger: deps.logger,
+    admitPropertyExecution: deps.policy.admitPropertyExecution,
+  })
+  const { organizationLifecycle, runtime: organizationLifecycleRuntime } =
+    buildOrganizationLifecycleComposition(deps, {
+      policyStore,
+      managerMembershipRepo,
+    })
   const merchantAiAuthorization = createMerchantAiAuthorization({
     store: createMerchantAiAuthorizationStore(
       deps.db,

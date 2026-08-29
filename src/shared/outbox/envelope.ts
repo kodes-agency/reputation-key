@@ -131,7 +131,7 @@ export function buildConsumerEvent(
   }
 }
 
-type OptionalEnvelopeFields = Pick<
+type EnvelopeMetadataFields = Pick<
   ConsumerEvent,
   | 'occurredAt'
   | 'recordedAt'
@@ -140,19 +140,35 @@ type OptionalEnvelopeFields = Pick<
   | 'sourceAggregateVersion'
   | 'commandClassification'
   | 'contentClassification'
-  | 'sourceCellId'
-  | 'dataCellId'
-  | 'routingPolicyVersion'
-  | 'region'
 >
 
+type EnvelopeRoutingFields = Pick<
+  ConsumerEvent,
+  'sourceCellId' | 'dataCellId' | 'routingPolicyVersion' | 'region'
+>
+
+const isAbsentOrString = (value: unknown): boolean =>
+  value === undefined || typeof value === 'string'
+
+const isAbsentOrNullableString = (value: unknown): boolean =>
+  value === undefined || value === null || typeof value === 'string'
+
+const isAbsentOrNullableAggregateVersion = (value: unknown): boolean =>
+  value === undefined ||
+  value === null ||
+  typeof value === 'string' ||
+  typeof value === 'number'
+
+const isAbsentOrLiteral = (value: unknown, literal: string): boolean =>
+  value === undefined || value === literal
+
 /**
- * Validate the BQC-3.7 metadata fields when present. Absent fields are the
- * pre-3.7 shape (accepted); present fields must be well-typed.
+ * Validate the BQC-3.7 scalar metadata fields when present. Absent fields are
+ * the pre-3.7 shape (accepted); present fields must be well-typed.
  */
-function parseOptionalFields(
+function parseEnvelopeMetadata(
   data: Record<string, unknown>,
-): OptionalEnvelopeFields | null {
+): EnvelopeMetadataFields | null {
   const {
     occurredAt,
     recordedAt,
@@ -161,76 +177,16 @@ function parseOptionalFields(
     sourceAggregateVersion,
     commandClassification,
     contentClassification,
-    sourceCellId,
-    dataCellId,
-    routingPolicyVersion,
-    region,
   } = data
-  if (occurredAt !== undefined && typeof occurredAt !== 'string') return null
-  if (recordedAt !== undefined && typeof recordedAt !== 'string') return null
-  if (
-    correlationId !== undefined &&
-    correlationId !== null &&
-    typeof correlationId !== 'string'
-  )
+  if (!isAbsentOrString(occurredAt)) return null
+  if (!isAbsentOrString(recordedAt)) return null
+  if (!isAbsentOrNullableString(correlationId)) return null
+  if (!isAbsentOrNullableString(causationId)) return null
+  if (!isAbsentOrNullableAggregateVersion(sourceAggregateVersion)) return null
+  if (!isAbsentOrLiteral(commandClassification, DURABLE_COMMAND_CLASSIFICATION))
     return null
-  if (
-    causationId !== undefined &&
-    causationId !== null &&
-    typeof causationId !== 'string'
-  )
+  if (!isAbsentOrLiteral(contentClassification, IDENTIFIER_ONLY_CONTENT_CLASSIFICATION))
     return null
-  if (
-    sourceAggregateVersion !== undefined &&
-    sourceAggregateVersion !== null &&
-    typeof sourceAggregateVersion !== 'string' &&
-    typeof sourceAggregateVersion !== 'number'
-  )
-    return null
-  if (
-    commandClassification !== undefined &&
-    commandClassification !== DURABLE_COMMAND_CLASSIFICATION
-  )
-    return null
-  if (
-    contentClassification !== undefined &&
-    contentClassification !== IDENTIFIER_ONLY_CONTENT_CLASSIFICATION
-  )
-    return null
-  const parsedCell =
-    typeof dataCellId === 'string' ? dataCellById(dataCellId)?.id : undefined
-  if (dataCellId !== undefined && !parsedCell) return null
-  const parsedSourceCell =
-    typeof sourceCellId === 'string' ? dataCellById(sourceCellId)?.id : undefined
-  if (sourceCellId !== undefined && !parsedSourceCell) return null
-  if (
-    routingPolicyVersion !== undefined &&
-    (typeof routingPolicyVersion !== 'number' ||
-      !Number.isSafeInteger(routingPolicyVersion) ||
-      routingPolicyVersion < 1)
-  )
-    return null
-  // REG-01 expand compatibility: the immediately preceding relay version
-  // stamped dataCellId without a policy version. Keep accepting that bounded
-  // in-flight shape so a rolling deploy does not poison its queue. New
-  // envelopes always carry both; a version without a cell is never valid.
-  if (parsedCell === undefined && routingPolicyVersion !== undefined) return null
-  if (
-    region !== undefined &&
-    region !== 'unscoped' &&
-    (typeof region !== 'string' || !dataCellById(region))
-  )
-    return null
-  if (parsedCell && region !== undefined && region !== parsedCell) return null
-  if (
-    !parsedCell &&
-    parsedSourceCell &&
-    region !== undefined &&
-    region !== parsedSourceCell
-  ) {
-    return null
-  }
-  if (parsedCell && parsedSourceCell && parsedCell !== parsedSourceCell) return null
 
   return {
     occurredAt: occurredAt as string | undefined,
@@ -244,11 +200,69 @@ function parseOptionalFields(
     ...(contentClassification !== undefined
       ? { contentClassification: IDENTIFIER_ONLY_CONTENT_CLASSIFICATION }
       : {}),
+  }
+}
+
+/**
+ * Resolve one cell-id field: absent stays absent, a known cell resolves to its
+ * canonical id, anything else is invalid (`null`).
+ */
+function resolveCellField(value: unknown): DataCellId | undefined | null {
+  if (value === undefined) return undefined
+  if (typeof value !== 'string') return null
+  return dataCellById(value)?.id ?? null
+}
+
+const isRoutingPolicyVersion = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 1
+
+/**
+ * `region` must name a known cell (or the explicit `unscoped` sentinel) and must
+ * agree with the routing cell the envelope carries. Absent region is derived
+ * from that cell.
+ */
+function resolveEnvelopeRegion(
+  region: unknown,
+  cell: DataCellId | undefined,
+): 'unscoped' | DataCellId | null {
+  if (region === undefined) return cell ?? 'unscoped'
+  if (region !== 'unscoped' && !(typeof region === 'string' && dataCellById(region)))
+    return null
+  if (cell && region !== cell) return null
+  return region as 'unscoped' | DataCellId
+}
+
+/**
+ * Validate the REG-01 routing fields when present. Absent fields are the
+ * pre-REG-01 shape (accepted); present fields must name known cells and agree
+ * with each other.
+ */
+function parseEnvelopeRouting(
+  data: Record<string, unknown>,
+): EnvelopeRoutingFields | null {
+  const { sourceCellId, dataCellId, routingPolicyVersion, region } = data
+
+  const parsedCell = resolveCellField(dataCellId)
+  if (parsedCell === null) return null
+  const parsedSourceCell = resolveCellField(sourceCellId)
+  if (parsedSourceCell === null) return null
+  if (routingPolicyVersion !== undefined && !isRoutingPolicyVersion(routingPolicyVersion))
+    return null
+  // REG-01 expand compatibility: the immediately preceding relay version
+  // stamped dataCellId without a policy version. Keep accepting that bounded
+  // in-flight shape so a rolling deploy does not poison its queue. New
+  // envelopes always carry both; a version without a cell is never valid.
+  if (parsedCell === undefined && routingPolicyVersion !== undefined) return null
+  if (parsedCell && parsedSourceCell && parsedCell !== parsedSourceCell) return null
+
+  const resolvedRegion = resolveEnvelopeRegion(region, parsedCell ?? parsedSourceCell)
+  if (resolvedRegion === null) return null
+
+  return {
     ...(parsedSourceCell ? { sourceCellId: parsedSourceCell } : {}),
     ...(parsedCell ? { dataCellId: parsedCell } : {}),
     ...(routingPolicyVersion !== undefined ? { routingPolicyVersion } : {}),
-    region: (region ?? parsedCell ?? parsedSourceCell ?? 'unscoped') as
-      'unscoped' | DataCellId,
+    region: resolvedRegion,
   }
 }
 
@@ -311,8 +325,11 @@ export function parseConsumerEvent(data: unknown): ConsumerEvent | null {
   const required = parseRequiredFields(data)
   if (!required) return null
 
-  const optional = parseOptionalFields(data)
-  if (!optional) return null
+  const metadata = parseEnvelopeMetadata(data)
+  if (!metadata) return null
 
-  return { ...required, ...optional }
+  const routing = parseEnvelopeRouting(data)
+  if (!routing) return null
+
+  return { ...required, ...metadata, ...routing }
 }

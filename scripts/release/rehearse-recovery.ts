@@ -191,87 +191,120 @@ function readInputsDirectory(path: string): readonly RecoveryRehearsalDependency
     })
 }
 
-function runApplyMode(args: readonly string[], io: RehearseRecoveryIo): number {
-  // Argv refusals first, exactly like deploy-beta: an audited action that is
-  // missing its operator or reason must cost nothing.
-  const required = [
-    '--plan-file',
-    '--authorization',
-    '--observations',
-    '--platform-receipt',
-    '--inputs-dir',
-    '--operator',
-    '--reason',
-    '--output',
-  ]
-  const missing = required.filter((flag) => flagValue(args, flag) === undefined)
-  if (missing.length > 0) {
-    io.err(
-      `${COMMAND_NAME} --apply is an audited operator action and needs ${missing.join(', ')}.`,
-    )
-    io.err(
-      'The platform point-in-time restore is performed by the operator; this command only ' +
-        'consumes the platform receipt and the retained read-backs.',
-    )
-    io.err(usage())
-    return 2
-  }
+/** Either a usable stage result, or the exit code the CLI must return instead. */
+type Stage<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; code: number }>
 
-  const outputPath = resolve(flagValue(args, '--output') ?? '')
+const APPLY_REQUIRED_FLAGS = [
+  '--plan-file',
+  '--authorization',
+  '--observations',
+  '--platform-receipt',
+  '--inputs-dir',
+  '--operator',
+  '--reason',
+  '--output',
+] as const
 
-  let planDocument: string
-  let authorizationDocument: string
-  let observationsDocument: string
-  let platformReceipt: string
-  let inputs: readonly RecoveryRehearsalDependencyFile[]
+/**
+ * Argv refusals first, exactly like deploy-beta: an audited action that is
+ * missing its operator or reason must cost nothing.
+ */
+function refusedApplyArgument(
+  args: readonly string[],
+  io: RehearseRecoveryIo,
+): number | undefined {
+  const missing = APPLY_REQUIRED_FLAGS.filter(
+    (flag) => flagValue(args, flag) === undefined,
+  )
+  if (missing.length === 0) return undefined
+  io.err(
+    `${COMMAND_NAME} --apply is an audited operator action and needs ${missing.join(', ')}.`,
+  )
+  io.err(
+    'The platform point-in-time restore is performed by the operator; this command only ' +
+      'consumes the platform receipt and the retained read-backs.',
+  )
+  io.err(usage())
+  return 2
+}
+
+type ApplyDocuments = Readonly<{
+  planDocument: string
+  authorizationDocument: string
+  observationsDocument: string
+  platformReceipt: string
+  inputs: readonly RecoveryRehearsalDependencyFile[]
+}>
+
+function readApplyDocuments(
+  args: readonly string[],
+  io: RehearseRecoveryIo,
+): Stage<ApplyDocuments> {
   try {
-    planDocument = readFileSync(resolve(flagValue(args, '--plan-file') ?? ''), 'utf8')
-    authorizationDocument = readFileSync(
-      resolve(flagValue(args, '--authorization') ?? ''),
-      'utf8',
-    )
-    observationsDocument = readFileSync(
-      resolve(flagValue(args, '--observations') ?? ''),
-      'utf8',
-    )
-    platformReceipt = readFileSync(
-      resolve(flagValue(args, '--platform-receipt') ?? ''),
-      'utf8',
-    )
-    inputs = readInputsDirectory(resolve(flagValue(args, '--inputs-dir') ?? ''))
+    return {
+      ok: true,
+      value: {
+        planDocument: readFileSync(resolve(flagValue(args, '--plan-file') ?? ''), 'utf8'),
+        authorizationDocument: readFileSync(
+          resolve(flagValue(args, '--authorization') ?? ''),
+          'utf8',
+        ),
+        observationsDocument: readFileSync(
+          resolve(flagValue(args, '--observations') ?? ''),
+          'utf8',
+        ),
+        platformReceipt: readFileSync(
+          resolve(flagValue(args, '--platform-receipt') ?? ''),
+          'utf8',
+        ),
+        inputs: readInputsDirectory(resolve(flagValue(args, '--inputs-dir') ?? '')),
+      },
+    }
   } catch (error) {
     io.err(`${COMMAND_NAME}: ${error instanceof Error ? error.message : String(error)}`)
-    return 2
+    return { ok: false, code: 2 }
   }
+}
 
+function parseApplyAuthorization(
+  args: readonly string[],
+  authorizationDocument: string,
+  io: RehearseRecoveryIo,
+): Stage<z.infer<typeof authorizationSchema>> {
   const authorization = authorizationSchema.safeParse(JSON.parse(authorizationDocument))
   if (!authorization.success) {
     io.err(`${COMMAND_NAME}: authorization artifact is invalid:`)
     for (const issue of authorization.error.issues) {
       io.err(`  authorization.${issue.path.join('.')}: ${issue.message}`)
     }
-    return 2
+    return { ok: false, code: 2 }
   }
   if (authorization.data.operator !== flagValue(args, '--operator')) {
     io.err(
       `${COMMAND_NAME}: --operator=${flagValue(args, '--operator')} did not sign this ` +
         `authorization (${authorization.data.operator}).`,
     )
-    return 2
+    return { ok: false, code: 2 }
   }
+  return { ok: true, value: authorization.data }
+}
 
-  const planSha256 = releaseEvidenceSha256(planDocument)
-  const platformReceiptSha256 = releaseEvidenceSha256(platformReceipt)
-
-  // Walk the machine. `execute` is where the authorization is enforced; a
-  // mismatched digest stops the run before any read-back is trusted.
+/**
+ * Walk the machine. `execute` is where the authorization is enforced; a
+ * mismatched digest stops the run before any read-back is trusted.
+ */
+function refusedPhaseWalk(
+  planSha256: string,
+  authorization: z.infer<typeof authorizationSchema>,
+  io: RehearseRecoveryIo,
+): number | undefined {
   let phase: RecoveryRehearsalPhase = 'plan'
   for (const next of RECOVERY_REHEARSAL_PHASES.slice(1)) {
     const step = recoveryRehearsalTransition({
       from: phase,
       to: next,
       planSha256,
-      authorization: authorization.data,
+      authorization,
     })
     if (!step.ok) {
       io.err(`${COMMAND_NAME}: refusing to advance to ${next}:`)
@@ -280,50 +313,20 @@ function runApplyMode(args: readonly string[], io: RehearseRecoveryIo): number {
     }
     phase = step.phase
   }
+  return undefined
+}
 
-  let observations: unknown
-  try {
-    observations = JSON.parse(observationsDocument)
-  } catch (error) {
-    io.err(`${COMMAND_NAME}: ${error instanceof Error ? error.message : String(error)}`)
-    return 2
-  }
+type AssembledRehearsal = Extract<
+  ReturnType<typeof assembleRecoveryRehearsalEvidence>,
+  { ok: true }
+>
 
-  const assembled = assembleRecoveryRehearsalEvidence({
-    observations,
-    authorization: authorization.data,
-    planSha256,
-    dependencyFiles: [
-      ...inputs,
-      { sha256: platformReceiptSha256, content: platformReceipt },
-      { sha256: planSha256, content: planDocument },
-      {
-        sha256: releaseEvidenceSha256(authorizationDocument),
-        content: authorizationDocument,
-      },
-    ],
-  })
-  if (!assembled.ok) {
-    io.err(`${COMMAND_NAME}: refusing to emit recovery rehearsal evidence:`)
-    for (const error of assembled.errors) io.err(`  ${error}`)
-    return 1
-  }
-
-  if (
-    assembled.evidence.recoveryPath === 'incompatible_data_restore' &&
-    assembled.evidence.restore.platformReceipt.sha256 !== platformReceiptSha256
-  ) {
-    io.err(
-      `${COMMAND_NAME}: --platform-receipt hashes to ${platformReceiptSha256}, but the ` +
-        `read-back names ${assembled.evidence.restore.platformReceipt.sha256}. The receipt ` +
-        'must be the exact platform-issued artifact for this restore.',
-    )
-    return 1
-  }
-
-  const dependencyDir = resolve(
-    flagValue(args, '--dependency-dir') ?? dirname(outputPath),
-  )
+function emitRehearsalArtifacts(
+  assembled: AssembledRehearsal,
+  outputPath: string,
+  dependencyDir: string,
+  io: RehearseRecoveryIo,
+): number {
   for (const dependency of assembled.dependencies) {
     const path = resolve(dependencyDir, `${dependency.sha256}.dependency`)
     // The filename is the digest, so a sibling that is already there holds
@@ -353,6 +356,75 @@ function runApplyMode(args: readonly string[], io: RehearseRecoveryIo): number {
   io.out(`recovery rehearsal ${assembled.evidence.outcome}: ${outputPath}`)
   io.out(`retained ${assembled.dependencies.length} dependency files in ${dependencyDir}`)
   return assembled.evidence.outcome === 'passed' ? 0 : 1
+}
+
+function runApplyMode(args: readonly string[], io: RehearseRecoveryIo): number {
+  const refusal = refusedApplyArgument(args, io)
+  if (refusal !== undefined) return refusal
+
+  const outputPath = resolve(flagValue(args, '--output') ?? '')
+
+  const documents = readApplyDocuments(args, io)
+  if (!documents.ok) return documents.code
+  const { planDocument, authorizationDocument, observationsDocument, platformReceipt } =
+    documents.value
+
+  const parsed = parseApplyAuthorization(args, authorizationDocument, io)
+  if (!parsed.ok) return parsed.code
+  const authorization = parsed.value
+
+  const planSha256 = releaseEvidenceSha256(planDocument)
+  const platformReceiptSha256 = releaseEvidenceSha256(platformReceipt)
+
+  const refusedPhase = refusedPhaseWalk(planSha256, authorization, io)
+  if (refusedPhase !== undefined) return refusedPhase
+
+  let observations: unknown
+  try {
+    observations = JSON.parse(observationsDocument)
+  } catch (error) {
+    io.err(`${COMMAND_NAME}: ${error instanceof Error ? error.message : String(error)}`)
+    return 2
+  }
+
+  const assembled = assembleRecoveryRehearsalEvidence({
+    observations,
+    authorization,
+    planSha256,
+    dependencyFiles: [
+      ...documents.value.inputs,
+      { sha256: platformReceiptSha256, content: platformReceipt },
+      { sha256: planSha256, content: planDocument },
+      {
+        sha256: releaseEvidenceSha256(authorizationDocument),
+        content: authorizationDocument,
+      },
+    ],
+  })
+  if (!assembled.ok) {
+    io.err(`${COMMAND_NAME}: refusing to emit recovery rehearsal evidence:`)
+    for (const error of assembled.errors) io.err(`  ${error}`)
+    return 1
+  }
+
+  if (
+    assembled.evidence.recoveryPath === 'incompatible_data_restore' &&
+    assembled.evidence.restore.platformReceipt.sha256 !== platformReceiptSha256
+  ) {
+    io.err(
+      `${COMMAND_NAME}: --platform-receipt hashes to ${platformReceiptSha256}, but the ` +
+        `read-back names ${assembled.evidence.restore.platformReceipt.sha256}. The receipt ` +
+        'must be the exact platform-issued artifact for this restore.',
+    )
+    return 1
+  }
+
+  return emitRehearsalArtifacts(
+    assembled,
+    outputPath,
+    resolve(flagValue(args, '--dependency-dir') ?? dirname(outputPath)),
+    io,
+  )
 }
 
 export async function runRehearseRecoveryCli(

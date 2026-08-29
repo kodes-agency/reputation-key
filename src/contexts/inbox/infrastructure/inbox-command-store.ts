@@ -73,10 +73,22 @@ import {
 } from '../domain/handling-cycles'
 import type {
   ApplyReceiptStatus,
+  ApplyReplyObservedCommand,
+  ApplyReviewProjectionCommand,
+  ApplyReviewSourceTransitionedCommand,
+  ApplySourceCreatedCommand,
+  BulkReopenGovernance,
   HandlingCycleCreationAnchor,
   InboxCommandStore,
   ReviewCycleCreationAnchor,
 } from '../application/ports/inbox-command-store.port'
+import type { CurrentReplyObservationPermit } from '../application/ports/reply-observation-authority.port'
+import type {
+  CurrentReviewInboxProjectionPermit,
+  ReviewCycleTargetAnchor,
+  ReviewInboxProjectionRevisionPermit,
+} from '../application/ports/review-response-target-authority.port'
+import type { InboxItemBulkStatusChanged, InboxItemCreated } from '../domain/events'
 import {
   cancelPrivateFeedbackTarget,
   cancelResponseTargetForCycle,
@@ -153,7 +165,9 @@ async function reserveReceiptRow(
   return rows.length === 1
 }
 
-const itemFromRow = (row: typeof inboxItems.$inferSelect): InboxItem => ({
+type PersistedItem = typeof inboxItems.$inferSelect
+
+const itemFromRow = (row: PersistedItem): InboxItem => ({
   ...inboxItemFromRow(row),
   propertyName: null,
 })
@@ -273,39 +287,112 @@ const projectionTargetAnchor = (
   targetStart: { basis: 'review_provenance' },
 })
 
-function assertReviewProjectionCommand(
-  command: import('../application/ports/inbox-command-store.port').ApplyReviewProjectionCommand,
-): void {
+/** Review's current-projection permit must describe exactly the item being written. */
+function matchesReviewProjectionAuthority(
+  item: InboxItem,
+  projection: CurrentReviewInboxProjectionPermit,
+): boolean {
+  return (
+    projection.authority === 'review.current-inbox-projection.v1' &&
+    projection.organizationId === item.organizationId &&
+    projection.propertyId === item.propertyId &&
+    projection.reviewId === item.sourceId &&
+    projection.platform === 'google' &&
+    item.platform === projection.platform &&
+    item.sourceDate.getTime() === projection.sourceDate.getTime() &&
+    Number.isSafeInteger(projection.sourceEpoch) &&
+    projection.sourceEpoch >= 0 &&
+    Number.isSafeInteger(projection.currentMaterialReviewRevision) &&
+    projection.currentMaterialReviewRevision >= 1
+  )
+}
+
+/** The creation fact must name the same item this projection materializes. */
+function matchesProjectionCreationFact(fact: InboxItemCreated, item: InboxItem): boolean {
+  return (
+    fact.inboxItemId === item.id &&
+    fact.organizationId === item.organizationId &&
+    fact.propertyId === item.propertyId &&
+    fact.sourceType === 'review' &&
+    fact.sourceId === item.sourceId &&
+    fact.occurredAt.getTime() === item.createdAt.getTime()
+  )
+}
+
+/**
+ * A projected item holds no provider content and no Inbox-owned workflow state:
+ * rating/snippet/reviewer name stay with Review, and assignment or status
+ * changes only ever arrive through their own commands.
+ */
+function isContentFreeUnhandledReviewItem(item: InboxItem): boolean {
+  return (
+    item.sourceType === 'review' &&
+    item.status === 'open' &&
+    item.rating === null &&
+    item.snippet === null &&
+    item.reviewerName === null &&
+    item.assignedTo === null
+  )
+}
+
+/** An erasure instant is present exactly when the source content is no longer active. */
+function hasConsistentProjectionSourceState(
+  projection: CurrentReviewInboxProjectionPermit,
+): boolean {
+  const active = projection.sourceContentState === 'active'
+  const erasedAt = projection.sourceContentErasedAt
+  if (active && erasedAt !== null) return false
+  if (!active && !(erasedAt instanceof Date)) return false
+  if (erasedAt instanceof Date && !Number.isFinite(erasedAt.getTime())) return false
+  return (
+    Number.isFinite(projection.sourceDate.getTime()) && projection.revisions.length > 0
+  )
+}
+
+/**
+ * One entry of the attested revision history: same scope as the item, dense
+ * 1-based numbering, non-decreasing observation instants, and a start instant
+ * present exactly when the revision was measured.
+ */
+function isValidProjectionRevision(
+  revision: ReviewInboxProjectionRevisionPermit,
+  item: InboxItem,
+  projection: CurrentReviewInboxProjectionPermit,
+  index: number,
+  previousObservedAt: number,
+): boolean {
+  return (
+    revision.authority === 'review.inbox-projection-revision.v1' &&
+    revision.organizationId === item.organizationId &&
+    revision.propertyId === item.propertyId &&
+    revision.reviewId === item.sourceId &&
+    revision.sourceEpoch === projection.sourceEpoch &&
+    revision.materialReviewRevision === index + 1 &&
+    Number.isFinite(revision.observedAt.getTime()) &&
+    revision.observedAt.getTime() >= previousObservedAt &&
+    (revision.eligibility === 'measured' ||
+      revision.eligibility === 'historical_onboarding' ||
+      revision.eligibility === 'legacy_unknown') &&
+    (revision.eligibility === 'measured') ===
+      revision.responseTargetStartAt instanceof Date &&
+    !(
+      revision.responseTargetStartAt instanceof Date &&
+      !Number.isFinite(revision.responseTargetStartAt.getTime())
+    )
+  )
+}
+
+function assertReviewProjectionCommand(command: ApplyReviewProjectionCommand): void {
   const { fact, item, projection } = command
   const validSourceState =
     projection.sourceContentState === 'active' ||
     projection.sourceContentState === 'source_expired' ||
     projection.sourceContentState === 'provider_deleted'
   if (
-    item.sourceType !== 'review' ||
-    projection.authority !== 'review.current-inbox-projection.v1' ||
-    projection.organizationId !== item.organizationId ||
-    projection.propertyId !== item.propertyId ||
-    projection.reviewId !== item.sourceId ||
-    projection.platform !== 'google' ||
-    item.platform !== projection.platform ||
-    item.sourceDate.getTime() !== projection.sourceDate.getTime() ||
-    fact.inboxItemId !== item.id ||
-    fact.organizationId !== item.organizationId ||
-    fact.propertyId !== item.propertyId ||
-    fact.sourceType !== 'review' ||
-    fact.sourceId !== item.sourceId ||
-    fact.occurredAt.getTime() !== item.createdAt.getTime() ||
-    item.status !== 'open' ||
-    item.rating !== null ||
-    item.snippet !== null ||
-    item.reviewerName !== null ||
-    item.assignedTo !== null ||
+    !isContentFreeUnhandledReviewItem(item) ||
+    !matchesReviewProjectionAuthority(item, projection) ||
+    !matchesProjectionCreationFact(fact, item) ||
     !validSourceState ||
-    !Number.isSafeInteger(projection.sourceEpoch) ||
-    projection.sourceEpoch < 0 ||
-    !Number.isSafeInteger(projection.currentMaterialReviewRevision) ||
-    projection.currentMaterialReviewRevision < 1 ||
     !Number.isFinite(command.now.getTime())
   ) {
     throw inboxError(
@@ -313,35 +400,13 @@ function assertReviewProjectionCommand(
       'Review Inbox projection authority does not match the projection command',
     )
   }
-  const active = projection.sourceContentState === 'active'
-  const erasedAt = projection.sourceContentErasedAt
-  if (
-    (active && erasedAt !== null) ||
-    (!active && !(erasedAt instanceof Date)) ||
-    (erasedAt instanceof Date && !Number.isFinite(erasedAt.getTime())) ||
-    !Number.isFinite(projection.sourceDate.getTime()) ||
-    projection.revisions.length === 0
-  ) {
+  if (!hasConsistentProjectionSourceState(projection)) {
     throw inboxError('invalid_input', 'Review Inbox projection source state is invalid')
   }
   let previousObservedAt = Number.NEGATIVE_INFINITY
   for (const [index, revision] of projection.revisions.entries()) {
     if (
-      revision.authority !== 'review.inbox-projection-revision.v1' ||
-      revision.organizationId !== item.organizationId ||
-      revision.propertyId !== item.propertyId ||
-      revision.reviewId !== item.sourceId ||
-      revision.sourceEpoch !== projection.sourceEpoch ||
-      revision.materialReviewRevision !== index + 1 ||
-      !Number.isFinite(revision.observedAt.getTime()) ||
-      revision.observedAt.getTime() < previousObservedAt ||
-      (revision.eligibility !== 'measured' &&
-        revision.eligibility !== 'historical_onboarding' &&
-        revision.eligibility !== 'legacy_unknown') ||
-      (revision.eligibility === 'measured') !==
-        revision.responseTargetStartAt instanceof Date ||
-      (revision.responseTargetStartAt instanceof Date &&
-        !Number.isFinite(revision.responseTargetStartAt.getTime()))
+      !isValidProjectionRevision(revision, item, projection, index, previousObservedAt)
     ) {
       throw inboxError(
         'invalid_input',
@@ -350,6 +415,7 @@ function assertReviewProjectionCommand(
     }
     previousObservedAt = revision.observedAt.getTime()
   }
+  const erasedAt = projection.sourceContentErasedAt
   if (
     projection.revisions.at(-1)?.materialReviewRevision !==
       projection.currentMaterialReviewRevision ||
@@ -638,6 +704,985 @@ export async function readInboxEscalationHistory(
     currentlyEscalated: head.isEscalated && head.escalationResolvedAt === null,
     entries,
   }
+}
+
+/** Canonical projection lock order: Handling Cycle head first, then the Inbox row. */
+async function lockReviewProjectionRows(
+  tx: Tx,
+  item: InboxItem,
+): Promise<Readonly<{ headRow: PersistedHead; itemRow: PersistedItem }>> {
+  const [headRow] = await tx
+    .select()
+    .from(inboxHandlingCycleHeads)
+    .where(
+      and(
+        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
+        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
+        eq(inboxHandlingCycleHeads.sourceType, 'review'),
+        eq(inboxHandlingCycleHeads.sourceId, item.sourceId),
+      ),
+    )
+    .for('update')
+    .limit(1)
+  const [itemRow] = await tx
+    .select()
+    .from(inboxItems)
+    .where(
+      and(
+        eq(inboxItems.id, item.id),
+        eq(inboxItems.organizationId, item.organizationId),
+        eq(inboxItems.propertyId, item.propertyId),
+        eq(inboxItems.sourceType, 'review'),
+        eq(inboxItems.sourceId, item.sourceId),
+      ),
+    )
+    .for('update')
+    .limit(1)
+  if (!headRow || !itemRow) {
+    throw inboxError(
+      'not_found',
+      'Review Inbox projection is waiting for its item and Handling Cycle',
+    )
+  }
+  return { headRow, itemRow }
+}
+
+/**
+ * Replay every attested Material Revision the Inbox head has not reached yet,
+ * opening one Handling Cycle per revision at that revision's own observation
+ * instant. A gap in the attested history is a conflict, never a silent skip.
+ */
+async function catchUpProjectionRevisions(
+  tx: Tx,
+  input: Readonly<{
+    item: InboxItem
+    revisions: CurrentReviewInboxProjectionPermit['revisions']
+    active: boolean
+    current: HandlingCycleHead
+  }>,
+): Promise<
+  Readonly<{ head: HandlingCycleHead; facts: readonly DomainEvent[]; advanced: boolean }>
+> {
+  let current = input.current
+  let advanced = false
+  const facts: DomainEvent[] = []
+  for (const revision of input.revisions) {
+    if (revision.materialReviewRevision <= current.currentSourceRevision) {
+      continue
+    }
+    if (revision.materialReviewRevision !== current.currentSourceRevision + 1) {
+      throw inboxError(
+        'revision_conflict',
+        'Inbox Review projection has a Material Revision gap',
+      )
+    }
+    const decision = createNextHandlingCycle({
+      current,
+      sourceRevision: revision.materialReviewRevision,
+      openedReason: 'material_revision_changed',
+      openedBy: null,
+      actorType: 'provider',
+      triggerEventId: null,
+      openedAt: revision.observedAt,
+    })
+    if (decision.isErr()) throw decision.error
+    const cycleFacts = await insertNextHandlingCycleDecision(
+      tx,
+      decision.value,
+      revision.observedAt,
+      input.active ? projectionTargetAnchor(revision) : null,
+    )
+    const [advancedHead] = await tx
+      .update(inboxHandlingCycleHeads)
+      .set({
+        currentCycleNumber: decision.value.head.currentCycleNumber,
+        currentSourceRevision: decision.value.head.currentSourceRevision,
+        currentMaterialReviewRevision: decision.value.head.currentSourceRevision,
+        stateRevision: decision.value.head.stateRevision,
+        status: 'open',
+        updatedAt: revision.observedAt,
+      })
+      .where(
+        and(
+          eq(inboxHandlingCycleHeads.inboxItemId, input.item.id),
+          eq(inboxHandlingCycleHeads.organizationId, input.item.organizationId),
+          eq(inboxHandlingCycleHeads.stateRevision, current.stateRevision),
+          eq(
+            inboxHandlingCycleHeads.currentSourceRevision,
+            current.currentSourceRevision,
+          ),
+        ),
+      )
+      .returning({ id: inboxHandlingCycleHeads.inboxItemId })
+    if (!advancedHead) {
+      throw inboxError(
+        'revision_conflict',
+        'Inbox Review projection changed during history catch-up',
+      )
+    }
+    for (const fact of cycleFacts) {
+      await insertOutboxRow(tx, fact)
+      facts.push(fact)
+    }
+    advanced = true
+    current = decision.value.head
+  }
+  return { head: current, facts, advanced }
+}
+
+/**
+ * A source Google erased cannot keep an open Response Target or an open cycle:
+ * cancel the target and close the cycle at the erasure instant.
+ */
+async function closeCycleForErasedSource(
+  tx: Tx,
+  input: Readonly<{ item: InboxItem; current: HandlingCycleHead; erasedAt: Date }>,
+): Promise<Readonly<{ head: HandlingCycleHead; fact: DomainEvent }>> {
+  const { item, current, erasedAt } = input
+  await cancelResponseTargetForCycle(tx, {
+    inboxItemId: current.inboxItemId,
+    cycleNumber: current.currentCycleNumber,
+    organizationId: current.organizationId,
+    cancelledAt: erasedAt,
+    reason: 'source_ineligible',
+  })
+  const closed = closeHandlingCycle({
+    current,
+    closeReason: 'source_ineligible',
+    actorType: 'provider',
+    actorUserId: null,
+    triggerEventId: null,
+    closedAt: erasedAt,
+  })
+  if (closed.isErr()) throw closed.error
+  await tx
+    .insert(inboxHandlingCycleTransitions)
+    .values(transitionInsert(closed.value.transition, erasedAt))
+  const [closedHead] = await tx
+    .update(inboxHandlingCycleHeads)
+    .set({
+      stateRevision: closed.value.head.stateRevision,
+      status: 'closed',
+      updatedAt: erasedAt,
+    })
+    .where(
+      and(
+        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
+        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
+        eq(inboxHandlingCycleHeads.stateRevision, current.stateRevision),
+        eq(inboxHandlingCycleHeads.status, 'open'),
+      ),
+    )
+    .returning({ id: inboxHandlingCycleHeads.inboxItemId })
+  if (!closedHead) {
+    throw inboxError(
+      'revision_conflict',
+      'Inbox Review projection changed during inactive-source close',
+    )
+  }
+  const fact = lifecycleFactFor(closed.value.transition)
+  await insertOutboxRow(tx, fact)
+  return { head: closed.value.head, fact }
+}
+
+/** Write the converged projection back onto the Inbox row under its own fence. */
+async function convergeProjectedItemRow(
+  tx: Tx,
+  input: Readonly<{
+    item: InboxItem
+    itemRow: PersistedItem
+    projection: CurrentReviewInboxProjectionPermit
+    finalStatus: HandlingCycleHead['status']
+    active: boolean
+    erasedAt: Date | null
+    now: Date
+  }>,
+): Promise<void> {
+  const { item, itemRow, projection, finalStatus, active, erasedAt } = input
+  const [updatedItem] = await tx
+    .update(inboxItems)
+    .set({
+      sourceDate: projection.sourceDate,
+      platform: projection.platform,
+      rating: null,
+      snippet: null,
+      reviewerName: null,
+      status: finalStatus,
+      closedAt: finalStatus === 'closed' ? (active ? itemRow.closedAt : erasedAt) : null,
+      commandRevision: sql<number>`LEAST(
+                ${inboxItems.commandRevision} + 1,
+                '9007199254740991'::bigint
+              )`,
+      updatedAt: input.now,
+    })
+    .where(
+      and(
+        eq(inboxItems.id, item.id),
+        eq(inboxItems.organizationId, item.organizationId),
+        eq(inboxItems.propertyId, item.propertyId),
+        eq(inboxItems.sourceType, 'review'),
+        eq(inboxItems.sourceId, item.sourceId),
+      ),
+    )
+    .returning({ id: inboxItems.id })
+  if (!updatedItem) {
+    throw inboxError(
+      'not_found',
+      'Review Inbox item vanished during projection convergence',
+    )
+  }
+}
+
+/** Review's observation permit must have been issued for this exact Inbox item. */
+function assertObservationMatchesItem(
+  observation: CurrentReplyObservationPermit,
+  item: InboxItem,
+): void {
+  if (
+    observation.authority !== 'review.current-google-reply-observation.v1' ||
+    observation.organizationId !== item.organizationId ||
+    observation.propertyId !== item.propertyId ||
+    observation.reviewId !== item.sourceId
+  ) {
+    throw inboxError(
+      'invalid_input',
+      'Review observation permit does not match the Inbox item',
+    )
+  }
+}
+
+/**
+ * Canonical Review Handling Cycle lock order is head -> Inbox item. `startNext`
+ * uses the same order; reversing it here lets a material revision/reopen race
+ * form a PostgreSQL row-lock cycle. Both rows must still be current for the
+ * observed Material Revision.
+ */
+async function lockReviewRowsForObservation(
+  tx: Tx,
+  item: InboxItem,
+  observation: CurrentReplyObservationPermit,
+): Promise<Readonly<{ headRow: PersistedHead; itemRow: PersistedItem }>> {
+  const headRows = await tx
+    .select()
+    .from(inboxHandlingCycleHeads)
+    .where(
+      and(
+        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
+        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
+        eq(inboxHandlingCycleHeads.sourceType, 'review'),
+        eq(inboxHandlingCycleHeads.sourceId, observation.reviewId),
+      ),
+    )
+    .for('update')
+    .limit(1)
+  const itemRows = await tx
+    .select()
+    .from(inboxItems)
+    .where(
+      and(
+        eq(inboxItems.id, item.id),
+        eq(inboxItems.organizationId, item.organizationId),
+        eq(inboxItems.propertyId, observation.propertyId),
+        eq(inboxItems.sourceType, 'review'),
+        eq(inboxItems.sourceId, observation.reviewId),
+      ),
+    )
+    .for('update')
+    .limit(1)
+  const headRow = headRows[0]
+  const itemRow = itemRows[0]
+  if (!itemRow || !headRow) {
+    throw inboxError('not_found', 'Review Inbox item or Handling Cycle head not found')
+  }
+  if (
+    itemRow.status !== headRow.status ||
+    headRow.currentSourceRevision !== observation.materialReviewRevision
+  ) {
+    throw inboxError(
+      'revision_conflict',
+      'Review Inbox Handling Cycle is not current for this observation',
+    )
+  }
+  return { headRow, itemRow }
+}
+
+/**
+ * Google now shows the reply this cycle was working towards: complete the
+ * Response Target, close the cycle, and close the Inbox row under the fences
+ * the observation was read with.
+ */
+async function closeCycleOnObservedReply(
+  tx: Tx,
+  command: ApplyReplyObservedCommand,
+  input: Readonly<{
+    headRow: PersistedHead
+    itemRow: PersistedItem
+    observation: CurrentReplyObservationPermit
+  }>,
+): Promise<DomainEvent[]> {
+  const { headRow, itemRow, observation } = input
+  await completeGoogleReviewTarget(
+    tx,
+    handlingCycleHeadFromRow(headRow),
+    observation.observedAt,
+  )
+  const decision = closeHandlingCycle({
+    current: handlingCycleHeadFromRow(headRow),
+    closeReason:
+      observation.resolution === 'confirmed_on_google'
+        ? 'confirmed_on_google'
+        : 'external_reply_observed',
+    actorType: 'provider',
+    actorUserId: null,
+    triggerEventId: command.eventId,
+    closedAt: observation.observedAt,
+  })
+  if (decision.isErr()) throw decision.error
+  const cycleFact = lifecycleFactFor(decision.value.transition)
+  await tx
+    .insert(inboxHandlingCycleTransitions)
+    .values(transitionInsert(decision.value.transition, observation.observedAt))
+  const [updatedHead] = await tx
+    .update(inboxHandlingCycleHeads)
+    .set({
+      status: 'closed',
+      stateRevision: decision.value.head.stateRevision,
+      updatedAt: observation.observedAt,
+    })
+    .where(
+      and(
+        eq(inboxHandlingCycleHeads.inboxItemId, command.item.id),
+        eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
+        eq(inboxHandlingCycleHeads.status, 'open'),
+      ),
+    )
+    .returning({ id: inboxHandlingCycleHeads.inboxItemId })
+  if (!updatedHead) {
+    throw inboxError(
+      'revision_conflict',
+      'Review Handling Cycle changed during reply close',
+    )
+  }
+  const [updatedItem] = await tx
+    .update(inboxItems)
+    .set({
+      status: 'closed',
+      closedAt: observation.observedAt,
+      ...(itemRow.firstReplyPublishedAt === null
+        ? { firstReplyPublishedAt: observation.observedAt }
+        : {}),
+      commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
+      updatedAt: observation.observedAt,
+    })
+    .where(
+      and(
+        eq(inboxItems.id, command.item.id),
+        eq(inboxItems.organizationId, command.item.organizationId),
+        eq(inboxItems.status, 'open'),
+      ),
+    )
+    .returning({ id: inboxItems.id })
+  if (!updatedItem) {
+    throw inboxError('revision_conflict', 'Inbox item changed during reply close')
+  }
+  await insertOutboxRow(tx, command.closeFact)
+  await insertOutboxRow(tx, cycleFact)
+  return [command.closeFact, cycleFact]
+}
+
+/**
+ * The reply Google was showing is gone: open the next Handling Cycle and start
+ * its Response Target from the observation instant, not the original source.
+ */
+async function reopenCycleOnDeletedReply(
+  tx: Tx,
+  command: ApplyReplyObservedCommand,
+  input: Readonly<{
+    headRow: PersistedHead
+    observation: CurrentReplyObservationPermit
+    reopenReason: 'provider_reply_deleted'
+  }>,
+): Promise<DomainEvent[]> {
+  const { headRow, observation } = input
+  const decision = createNextHandlingCycle({
+    current: handlingCycleHeadFromRow(headRow),
+    sourceRevision: observation.materialReviewRevision,
+    openedReason: input.reopenReason,
+    openedBy: null,
+    actorType: 'provider',
+    triggerEventId: command.eventId,
+    openedAt: observation.observedAt,
+  })
+  if (decision.isErr()) throw decision.error
+  const cycleFacts = await insertNextHandlingCycleDecision(
+    tx,
+    decision.value,
+    observation.observedAt,
+    {
+      reviewAuthority: {
+        authority: 'review.current-response-target.v1',
+        organizationId: observation.organizationId,
+        propertyId: observation.propertyId,
+        reviewId: observation.reviewId,
+        sourceEpoch: observation.sourceEpoch,
+        materialReviewRevision: observation.materialReviewRevision,
+        eligibility: observation.responseTargetEligibility,
+        responseTargetStartAt: observation.responseTargetStartAt,
+      },
+      targetStart: { basis: 'operational_reopen', at: observation.observedAt },
+    },
+  )
+  const [updatedHead] = await tx
+    .update(inboxHandlingCycleHeads)
+    .set({
+      currentCycleNumber: decision.value.head.currentCycleNumber,
+      currentSourceRevision: decision.value.head.currentSourceRevision,
+      currentMaterialReviewRevision: decision.value.head.currentSourceRevision,
+      stateRevision: decision.value.head.stateRevision,
+      status: 'open',
+      updatedAt: observation.observedAt,
+    })
+    .where(
+      and(
+        eq(inboxHandlingCycleHeads.inboxItemId, command.item.id),
+        eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
+        eq(inboxHandlingCycleHeads.status, 'closed'),
+      ),
+    )
+    .returning({ id: inboxHandlingCycleHeads.inboxItemId })
+  if (!updatedHead) {
+    throw inboxError(
+      'revision_conflict',
+      'Review Handling Cycle changed during provider reopen',
+    )
+  }
+  const [updatedItem] = await tx
+    .update(inboxItems)
+    .set({
+      status: 'open',
+      closedAt: null,
+      commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
+      updatedAt: observation.observedAt,
+    })
+    .where(
+      and(
+        eq(inboxItems.id, command.item.id),
+        eq(inboxItems.organizationId, command.item.organizationId),
+        eq(inboxItems.status, 'closed'),
+      ),
+    )
+    .returning({ id: inboxItems.id })
+  if (!updatedItem) {
+    throw inboxError('revision_conflict', 'Inbox item changed during provider reopen')
+  }
+  await insertOutboxRow(tx, command.reopenFact)
+  for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
+  return [command.reopenFact, ...cycleFacts]
+}
+
+/**
+ * A repeat Guest submission on an item that already exists is not a duplicate:
+ * it opens the next Handling Cycle at the newer Guest revision and reopens the
+ * Inbox row. Returns null when the stored head is already at or past it.
+ */
+async function openNextFeedbackCycleOnResubmission(
+  tx: Tx,
+  command: ApplySourceCreatedCommand,
+  cycleAnchor: HandlingCycleCreationAnchor,
+  item: InboxItem,
+): Promise<readonly DomainEvent[] | null> {
+  const [headRow] = await tx
+    .select()
+    .from(inboxHandlingCycleHeads)
+    .where(
+      and(
+        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
+        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
+        eq(inboxHandlingCycleHeads.sourceType, 'feedback'),
+        eq(inboxHandlingCycleHeads.sourceId, item.sourceId),
+      ),
+    )
+    .for('update')
+    .limit(1)
+  if (!headRow || cycleAnchor.sourceRevision <= headRow.currentSourceRevision) {
+    return null
+  }
+  const current = handlingCycleHeadFromRow(headRow)
+  const decision = createNextHandlingCycle({
+    current,
+    sourceRevision: cycleAnchor.sourceRevision,
+    openedReason: 'feedback_submitted',
+    openedBy: null,
+    actorType: 'guest',
+    triggerEventId: command.eventId,
+    openedAt: cycleAnchor.openedAt,
+  })
+  if (decision.isErr()) throw decision.error
+  const cycleFacts = await insertNextHandlingCycleDecision(
+    tx,
+    decision.value,
+    cycleAnchor.openedAt,
+  )
+  const [advanced] = await tx
+    .update(inboxHandlingCycleHeads)
+    .set({
+      currentCycleNumber: decision.value.head.currentCycleNumber,
+      currentSourceRevision: decision.value.head.currentSourceRevision,
+      stateRevision: decision.value.head.stateRevision,
+      status: 'open',
+      updatedAt: cycleAnchor.openedAt,
+    })
+    .where(
+      and(
+        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
+        eq(inboxHandlingCycleHeads.stateRevision, current.stateRevision),
+        eq(inboxHandlingCycleHeads.currentSourceRevision, current.currentSourceRevision),
+      ),
+    )
+    .returning({ id: inboxHandlingCycleHeads.inboxItemId })
+  if (!advanced) {
+    throw inboxError(
+      'revision_conflict',
+      'Guest Handling Cycle changed during feedback submission',
+    )
+  }
+  await tx
+    .update(inboxItems)
+    .set({
+      status: 'open',
+      closedAt: null,
+      sourceDate: command.item.sourceDate,
+      commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
+      updatedAt: command.item.updatedAt,
+    })
+    .where(
+      and(
+        eq(inboxItems.id, item.id),
+        eq(inboxItems.organizationId, item.organizationId),
+        eq(inboxItems.sourceType, 'feedback'),
+        eq(inboxItems.sourceId, item.sourceId),
+      ),
+    )
+  for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
+  return cycleFacts
+}
+
+/**
+ * The Review source is no longer eligible: cancel its Response Target and close
+ * the open Handling Cycle at the transition instant.
+ */
+async function closeCycleForSourceTransition(
+  tx: Tx,
+  command: ApplyReviewSourceTransitionedCommand,
+  headRow: PersistedHead,
+): Promise<DomainEvent> {
+  const { item, transitionedAt } = command
+  const current = handlingCycleHeadFromRow(headRow)
+  await cancelResponseTargetForCycle(tx, {
+    inboxItemId: current.inboxItemId,
+    cycleNumber: headRow.currentCycleNumber,
+    organizationId: current.organizationId,
+    cancelledAt: transitionedAt,
+    reason: 'source_ineligible',
+  })
+  const cycleDecision = closeHandlingCycle({
+    current: handlingCycleHeadFromRow(headRow),
+    closeReason: command.closeReason ?? 'source_ineligible',
+    actorType: 'provider',
+    actorUserId: null,
+    triggerEventId: command.eventId,
+    closedAt: transitionedAt,
+  })
+  if (cycleDecision.isErr()) throw cycleDecision.error
+  const cycleFact = lifecycleFactFor(cycleDecision.value.transition)
+  await tx
+    .insert(inboxHandlingCycleTransitions)
+    .values(transitionInsert(cycleDecision.value.transition, transitionedAt))
+  const [closedHead] = await tx
+    .update(inboxHandlingCycleHeads)
+    .set({
+      stateRevision: cycleDecision.value.head.stateRevision,
+      status: 'closed',
+      updatedAt: transitionedAt,
+    })
+    .where(
+      and(
+        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
+        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
+        eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
+        eq(inboxHandlingCycleHeads.status, 'open'),
+      ),
+    )
+    .returning({ id: inboxHandlingCycleHeads.inboxItemId })
+  if (!closedHead) {
+    throw inboxError(
+      'revision_conflict',
+      'Review Handling Cycle changed during source transition',
+    )
+  }
+  return cycleFact
+}
+
+/** Drop every provider-controlled copy, and close the row when the source transition closes work. */
+async function scrubTransitionedItemRow(
+  tx: Tx,
+  command: ApplyReviewSourceTransitionedCommand,
+  current: PersistedItem,
+  closeItem: boolean,
+): Promise<void> {
+  const [updated] = await tx
+    .update(inboxItems)
+    .set({
+      rating: null,
+      snippet: null,
+      reviewerName: null,
+      ...(closeItem
+        ? { status: 'closed' as const, closedAt: command.transitionedAt }
+        : {}),
+      // Source-content erasure must not be blocked by an already
+      // exhausted human-command fence. At the maximum, human writes
+      // already fail closed; retain that value while completing the
+      // mandatory scrub/terminal close.
+      commandRevision: sql<number>`LEAST(
+                ${inboxItems.commandRevision} + 1,
+                '9007199254740991'::bigint
+              )`,
+      updatedAt: command.transitionedAt,
+    })
+    .where(
+      and(
+        eq(inboxItems.id, current.id),
+        eq(inboxItems.organizationId, current.organizationId),
+        eq(inboxItems.sourceType, 'review'),
+      ),
+    )
+    .returning({ id: inboxItems.id })
+  if (!updated) {
+    throw inboxError('not_found', 'Review Inbox item vanished during source transition')
+  }
+}
+
+/** Under the bulk lock, both rows must still be exactly what the command was planned against. */
+function matchesLockedBulkAssignState(
+  item: InboxItem,
+  row: PersistedItem | undefined,
+  head: PersistedHead | undefined,
+): boolean {
+  if (row === undefined || head === undefined) return false
+  return (
+    row.organizationId === item.organizationId &&
+    row.propertyId === item.propertyId &&
+    row.sourceType === item.sourceType &&
+    row.sourceId === item.sourceId &&
+    row.status === item.status &&
+    row.assignedTo === item.assignedTo &&
+    row.commandRevision === item.commandRevision &&
+    head.organizationId === item.organizationId &&
+    head.propertyId === item.propertyId &&
+    head.sourceType === item.sourceType &&
+    head.sourceId === item.sourceId &&
+    head.status === item.status
+  )
+}
+
+/** Assignment-history reason for one bulk transition. */
+function bulkAssignmentReason(
+  assignedTo: UserId | null,
+  previousAssignee: UserId | null,
+  actorId: UserId,
+): 'release' | 'claim' | 'assign' | 'reassign' {
+  if (assignedTo === null) return 'release'
+  if (previousAssignee !== null) return 'reassign'
+  return assignedTo === actorId ? 'claim' : 'assign'
+}
+
+type AppliedBulkAssignment =
+  | Readonly<{ outcome: 'unchanged' }>
+  | Readonly<{
+      outcome: 'assigned' | 'reassigned' | 'released'
+      fact: DomainEvent
+      previousAssignee: UserId | null
+    }>
+
+/**
+ * Move one already-locked item to the requested assignee, recording the
+ * history row and the per-item fact. An item already on that assignee is left
+ * untouched so a re-run of the same bulk command stays a no-op.
+ */
+async function applyBulkAssignmentToItem(
+  tx: Tx,
+  input: Readonly<{
+    item: InboxItem
+    currentRow: PersistedItem
+    headRow: PersistedHead | undefined
+    assignedTo: UserId | null
+    actorId: UserId
+    bulkId: string
+    occurredAt: Date
+  }>,
+): Promise<AppliedBulkAssignment> {
+  const { item, currentRow, assignedTo, actorId, bulkId, occurredAt } = input
+  const previousAssignee = currentRow.assignedTo ? userId(currentRow.assignedTo) : null
+  if (previousAssignee === assignedTo) return { outcome: 'unchanged' }
+  const row = await tryUpdateItemRow(tx, itemFromRow(currentRow), {
+    assignedTo,
+    updatedAt: occurredAt,
+  })
+  if (!row) {
+    throw inboxError(
+      'revision_conflict',
+      'Inbox item changed while its bulk assignment lock was held',
+    )
+  }
+  const outcome =
+    assignedTo === null
+      ? ('released' as const)
+      : previousAssignee === null
+        ? ('assigned' as const)
+        : ('reassigned' as const)
+  const fact = assignedTo
+    ? inboxItemAssigned({
+        inboxItemId: item.id,
+        organizationId: item.organizationId,
+        propertyId: item.propertyId,
+        userId: actorId,
+        assignedTo,
+        bulkId,
+        source: 'web',
+        occurredAt,
+      })
+    : inboxItemUnassigned({
+        inboxItemId: item.id,
+        organizationId: item.organizationId,
+        propertyId: item.propertyId,
+        userId: actorId,
+        previousAssignee: previousAssignee!,
+        bulkId,
+        source: 'web',
+        occurredAt,
+      })
+  await tx.insert(inboxAssignmentHistory).values({
+    inboxItemId: item.id,
+    resultingCommandRevision: row.commandRevision,
+    organizationId: item.organizationId,
+    propertyId: item.propertyId,
+    handlingCycleNumber: input.headRow?.currentCycleNumber ?? null,
+    previousAssignee,
+    nextAssignee: assignedTo,
+    reason: bulkAssignmentReason(assignedTo, previousAssignee, actorId),
+    actorUserId: actorId,
+    bulkId,
+    occurredAt,
+  })
+  await insertOutboxRow(tx, fact)
+  return { outcome, fact, previousAssignee }
+}
+
+/**
+ * Under the bulk lock, both rows must still be exactly the closed state the
+ * command was planned against; anything else is this item's revision conflict.
+ */
+function matchesLockedBulkReopenState(
+  item: InboxItem,
+  itemRow: PersistedItem,
+  headRow: PersistedHead,
+): boolean {
+  return (
+    itemRow.organizationId === item.organizationId &&
+    itemRow.propertyId === item.propertyId &&
+    itemRow.sourceType === item.sourceType &&
+    itemRow.sourceId === item.sourceId &&
+    itemRow.commandRevision === item.commandRevision &&
+    itemRow.status === 'closed' &&
+    headRow.organizationId === item.organizationId &&
+    headRow.propertyId === item.propertyId &&
+    headRow.sourceType === item.sourceType &&
+    headRow.sourceId === item.sourceId &&
+    headRow.status === 'closed' &&
+    itemRow.status === headRow.status
+  )
+}
+
+/**
+ * An assignee who no longer holds handling authority is dropped with an
+ * unassignment fact. A changed authority contract is a conflict instead: the
+ * command was planned against an authority state that no longer exists.
+ */
+async function resolveBulkReopenAssignee(
+  tx: Tx,
+  authorizeCommand: InboxCommandAuthority,
+  item: InboxItem,
+  itemRow: PersistedItem,
+  actorId: string,
+  now: Date,
+): Promise<
+  Readonly<{
+    assignedTo: string | null
+    unassignedFact: ReturnType<typeof inboxItemUnassigned> | null
+  }>
+> {
+  const assignedTo = itemRow.assignedTo
+  if (assignedTo === null) return { assignedTo: null, unassignedFact: null }
+  const eligibility = await authorizeCommand(tx, {
+    organizationId: itemRow.organizationId,
+    at: now,
+    requirements: [
+      {
+        propertyId: itemRow.propertyId,
+        userId: assignedTo,
+        permissions: ['inbox.write', sourceCommandPermission(itemRow.sourceType)],
+        purpose: 'assignee',
+      },
+    ],
+  })
+  if (eligibility.allowed) return { assignedTo, unassignedFact: null }
+  if (
+    eligibility.reason.includes('authority_changed') ||
+    eligibility.reason.includes('contract_mismatch')
+  ) {
+    throw inboxError(
+      'revision_conflict',
+      'Inbox assignment authority changed during bulk reopen',
+      { authorityReason: eligibility.reason },
+    )
+  }
+  return {
+    assignedTo: null,
+    unassignedFact: inboxItemUnassigned({
+      inboxItemId: item.id,
+      organizationId: item.organizationId,
+      propertyId: item.propertyId,
+      userId: userId(actorId),
+      previousAssignee: userId(assignedTo),
+      source: 'web',
+      occurredAt: now,
+    }),
+  }
+}
+
+/**
+ * Reopen one already-locked item: drop an assignee who lost eligibility, open
+ * the next Handling Cycle, advance the fenced head, and flip the Inbox row.
+ * Returns this item's facts in the order they must be emitted.
+ */
+async function reopenLockedBulkItem(
+  tx: Tx,
+  authorizeCommand: InboxCommandAuthority,
+  input: Readonly<{
+    item: InboxItem
+    event: InboxItemBulkStatusChanged
+    itemRow: PersistedItem
+    headRow: PersistedHead | undefined
+    reason: BulkReopenGovernance['reason']
+    explanation: string | null
+    bulkId: string
+    responseTarget: ReviewCycleTargetAnchor | undefined
+    now: Date
+  }>,
+): Promise<readonly DomainEvent[]> {
+  const { item, event, itemRow, headRow, now } = input
+  const actorId = webActorId(event)
+  if (actorId === null) {
+    throw inboxError(
+      'invalid_input',
+      'Inbox bulk reopen requires an authenticated web actor',
+    )
+  }
+  const { assignedTo, unassignedFact } = await resolveBulkReopenAssignee(
+    tx,
+    authorizeCommand,
+    item,
+    itemRow,
+    actorId,
+    now,
+  )
+
+  if (!headRow) {
+    throw inboxError(
+      'revision_conflict',
+      'Inbox Handling Cycle disappeared during bulk reopen',
+    )
+  }
+  const decision = createNextHandlingCycle({
+    current: handlingCycleHeadFromRow(headRow),
+    sourceRevision: headRow.currentSourceRevision,
+    openedReason: 'manual_reopen',
+    manualReopenReason: input.reason,
+    manualReopenExplanation: input.explanation,
+    openedBy: userId(actorId),
+    actorType: 'user',
+    triggerEventId: event.eventId,
+    openedAt: now,
+  })
+  if (decision.isErr()) throw decision.error
+  const handlingCycleNumber = decision.value.head.currentCycleNumber
+  const facts: DomainEvent[] = [
+    ...(await insertNextHandlingCycleDecision(
+      tx,
+      decision.value,
+      now,
+      input.responseTarget,
+    )),
+  ]
+  const updatedHeads = await tx
+    .update(inboxHandlingCycleHeads)
+    .set({
+      currentCycleNumber: decision.value.head.currentCycleNumber,
+      currentSourceRevision: decision.value.head.currentSourceRevision,
+      ...(item.sourceType === 'review'
+        ? { currentMaterialReviewRevision: decision.value.head.currentSourceRevision }
+        : {}),
+      stateRevision: decision.value.head.stateRevision,
+      status: 'open',
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
+        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
+        eq(inboxHandlingCycleHeads.currentCycleNumber, headRow.currentCycleNumber),
+        eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
+        eq(inboxHandlingCycleHeads.status, 'closed'),
+      ),
+    )
+    .returning({ inboxItemId: inboxHandlingCycleHeads.inboxItemId })
+  if (!updatedHeads[0]) {
+    throw inboxError(
+      'revision_conflict',
+      'Inbox Handling Cycle changed during bulk reopen',
+    )
+  }
+
+  const row = await tryUpdateItemRow(tx, itemFromRow(itemRow), {
+    status: 'open',
+    closedAt: null,
+    assignedTo,
+    updatedAt: now,
+  })
+  if (!row) {
+    throw inboxError(
+      'revision_conflict',
+      'Inbox item changed while its bulk reopen lock was held',
+    )
+  }
+  if (unassignedFact) {
+    await tx.insert(inboxAssignmentHistory).values({
+      inboxItemId: item.id,
+      resultingCommandRevision: row.commandRevision,
+      organizationId: item.organizationId,
+      propertyId: item.propertyId,
+      handlingCycleNumber,
+      previousAssignee: itemRow.assignedTo,
+      nextAssignee: null,
+      reason: 'eligibility_lost',
+      actorUserId: actorId,
+      bulkId: input.bulkId,
+      occurredAt: now,
+    })
+    facts.push(unassignedFact)
+  }
+  facts.push(event)
+  return facts
 }
 
 export const createAtomicInboxCommandStore = (
@@ -1424,23 +2469,11 @@ export const createAtomicInboxCommandStore = (
           for (const { event, item, originalIndex } of ordered) {
             const itemRow = itemById.get(item.id)
             const headRow = headByItemId.get(item.id)
-            const exactItem =
+            const stillExact =
               itemRow !== undefined &&
-              itemRow.organizationId === item.organizationId &&
-              itemRow.propertyId === item.propertyId &&
-              itemRow.sourceType === item.sourceType &&
-              itemRow.sourceId === item.sourceId &&
-              itemRow.commandRevision === item.commandRevision &&
-              itemRow.status === 'closed'
-            const exactHead =
               headRow !== undefined &&
-              headRow.organizationId === item.organizationId &&
-              headRow.propertyId === item.propertyId &&
-              headRow.sourceType === item.sourceType &&
-              headRow.sourceId === item.sourceId &&
-              headRow.status === 'closed' &&
-              itemRow?.status === headRow.status
-            if (!exactItem || !exactHead) {
+              matchesLockedBulkReopenState(item, itemRow, headRow)
+            if (!stillExact) {
               results[originalIndex] = {
                 inboxItemId: item.id,
                 outcome: 'revision_conflict',
@@ -1448,149 +2481,23 @@ export const createAtomicInboxCommandStore = (
               continue
             }
 
-            const actorId = webActorId(event)
-            if (actorId === null) {
-              throw inboxError(
-                'invalid_input',
-                'Inbox bulk reopen requires an authenticated web actor',
-              )
-            }
-            let assignedTo = itemRow.assignedTo
-            let unassignedFact: ReturnType<typeof inboxItemUnassigned> | null = null
-            if (assignedTo !== null) {
-              const eligibility = await authorizeCommand(tx, {
-                organizationId: itemRow.organizationId,
-                at: now,
-                requirements: [
-                  {
-                    propertyId: itemRow.propertyId,
-                    userId: assignedTo,
-                    permissions: [
-                      'inbox.write',
-                      sourceCommandPermission(itemRow.sourceType),
-                    ],
-                    purpose: 'assignee',
-                  },
-                ],
-              })
-              if (!eligibility.allowed) {
-                if (
-                  eligibility.reason.includes('authority_changed') ||
-                  eligibility.reason.includes('contract_mismatch')
-                ) {
-                  throw inboxError(
-                    'revision_conflict',
-                    'Inbox assignment authority changed during bulk reopen',
-                    { authorityReason: eligibility.reason },
-                  )
-                }
-                unassignedFact = inboxItemUnassigned({
-                  inboxItemId: item.id,
-                  organizationId: item.organizationId,
-                  propertyId: item.propertyId,
-                  userId: userId(actorId),
-                  previousAssignee: userId(assignedTo),
-                  source: 'web',
-                  occurredAt: now,
-                })
-                assignedTo = null
-              }
-            }
-
-            if (!headRow) {
-              throw inboxError(
-                'revision_conflict',
-                'Inbox Handling Cycle disappeared during bulk reopen',
-              )
-            }
-            const decision = createNextHandlingCycle({
-              current: handlingCycleHeadFromRow(headRow),
-              sourceRevision: headRow.currentSourceRevision,
-              openedReason: 'manual_reopen',
-              manualReopenReason: governance.reason,
-              manualReopenExplanation: explanation,
-              openedBy: userId(actorId),
-              actorType: 'user',
-              triggerEventId: event.eventId,
-              openedAt: now,
-            })
-            if (decision.isErr()) throw decision.error
-            const handlingCycleNumber = decision.value.head.currentCycleNumber
-            const cycleFacts = await insertNextHandlingCycleDecision(
-              tx,
-              decision.value,
-              now,
-              reviewResponseTargets?.get(item.id),
-            )
-            appliedEvents.push(...cycleFacts)
-            const updatedHeads = await tx
-              .update(inboxHandlingCycleHeads)
-              .set({
-                currentCycleNumber: decision.value.head.currentCycleNumber,
-                currentSourceRevision: decision.value.head.currentSourceRevision,
-                ...(item.sourceType === 'review'
-                  ? {
-                      currentMaterialReviewRevision:
-                        decision.value.head.currentSourceRevision,
-                    }
-                  : {}),
-                stateRevision: decision.value.head.stateRevision,
-                status: 'open',
-                updatedAt: now,
-              })
-              .where(
-                and(
-                  eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-                  eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-                  eq(
-                    inboxHandlingCycleHeads.currentCycleNumber,
-                    headRow.currentCycleNumber,
-                  ),
-                  eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
-                  eq(inboxHandlingCycleHeads.status, 'closed'),
-                ),
-              )
-              .returning({ inboxItemId: inboxHandlingCycleHeads.inboxItemId })
-            if (!updatedHeads[0]) {
-              throw inboxError(
-                'revision_conflict',
-                'Inbox Handling Cycle changed during bulk reopen',
-              )
-            }
-
-            const row = await tryUpdateItemRow(tx, itemFromRow(itemRow), {
-              status: 'open',
-              closedAt: null,
-              assignedTo,
-              updatedAt: now,
-            })
-            if (!row) {
-              throw inboxError(
-                'revision_conflict',
-                'Inbox item changed while its bulk reopen lock was held',
-              )
-            }
-            if (unassignedFact) {
-              await tx.insert(inboxAssignmentHistory).values({
-                inboxItemId: item.id,
-                resultingCommandRevision: row.commandRevision,
-                organizationId: item.organizationId,
-                propertyId: item.propertyId,
-                handlingCycleNumber,
-                previousAssignee: itemRow.assignedTo,
-                nextAssignee: null,
-                reason: 'eligibility_lost',
-                actorUserId: actorId,
+            appliedEvents.push(
+              ...(await reopenLockedBulkItem(tx, authorizeCommand, {
+                item,
+                event,
+                itemRow,
+                headRow,
+                reason: governance.reason,
+                explanation,
                 bulkId: first.bulkId,
-                occurredAt: now,
-              })
-              appliedEvents.push(unassignedFact)
-            }
+                responseTarget: reviewResponseTargets?.get(item.id),
+                now,
+              })),
+            )
             results[originalIndex] = {
               inboxItemId: item.id,
               outcome: 'reopened',
             }
-            appliedEvents.push(event)
           }
           for (const event of appliedEvents) await insertOutboxRow(tx, event)
           return {
@@ -1670,26 +2577,13 @@ export const createAtomicInboxCommandStore = (
             .for('update')
           const headByItemId = new Map(headRows.map((row) => [row.inboxItemId, row]))
           const rowByItemId = new Map(lockedRows.map((row) => [row.id, row]))
-          const exact = items.every((item) => {
-            const row = rowByItemId.get(item.id)
-            const head = headByItemId.get(item.id)
-            return (
-              row !== undefined &&
-              row.organizationId === item.organizationId &&
-              row.propertyId === item.propertyId &&
-              row.sourceType === item.sourceType &&
-              row.sourceId === item.sourceId &&
-              row.status === item.status &&
-              row.assignedTo === item.assignedTo &&
-              row.commandRevision === item.commandRevision &&
-              head !== undefined &&
-              head.organizationId === item.organizationId &&
-              head.propertyId === item.propertyId &&
-              head.sourceType === item.sourceType &&
-              head.sourceId === item.sourceId &&
-              head.status === item.status
-            )
-          })
+          const exact = items.every((item) =>
+            matchesLockedBulkAssignState(
+              item,
+              rowByItemId.get(item.id),
+              headByItemId.get(item.id),
+            ),
+          )
           if (!exact) {
             return {
               result: {
@@ -1743,81 +2637,27 @@ export const createAtomicInboxCommandStore = (
             nextAssignee: UserId | null
           }>
           for (const item of ordered) {
-            const current = rowByItemId.get(item.id)!
-            const previousAssignee = current.assignedTo
-              ? userId(current.assignedTo)
-              : null
-            if (previousAssignee === assignedTo) {
-              outcomeByItemId.set(item.id, 'unchanged')
-              continue
-            }
-            const row = await tryUpdateItemRow(tx, itemFromRow(current), {
+            const applied = await applyBulkAssignmentToItem(tx, {
+              item,
+              currentRow: rowByItemId.get(item.id)!,
+              headRow: headByItemId.get(item.id),
               assignedTo,
-              updatedAt: occurredAt,
-            })
-            if (!row) {
-              throw inboxError(
-                'revision_conflict',
-                'Inbox item changed while its bulk assignment lock was held',
-              )
-            }
-            const head = headByItemId.get(item.id)
-            const outcome =
-              assignedTo === null
-                ? ('released' as const)
-                : previousAssignee === null
-                  ? ('assigned' as const)
-                  : ('reassigned' as const)
-            const fact = assignedTo
-              ? inboxItemAssigned({
-                  inboxItemId: item.id,
-                  organizationId: item.organizationId,
-                  propertyId: item.propertyId,
-                  userId: actorId,
-                  assignedTo,
-                  bulkId,
-                  source: 'web',
-                  occurredAt,
-                })
-              : inboxItemUnassigned({
-                  inboxItemId: item.id,
-                  organizationId: item.organizationId,
-                  propertyId: item.propertyId,
-                  userId: actorId,
-                  previousAssignee: previousAssignee!,
-                  bulkId,
-                  source: 'web',
-                  occurredAt,
-                })
-            await tx.insert(inboxAssignmentHistory).values({
-              inboxItemId: item.id,
-              resultingCommandRevision: row.commandRevision,
-              organizationId: item.organizationId,
-              propertyId: item.propertyId,
-              handlingCycleNumber: head?.currentCycleNumber ?? null,
-              previousAssignee,
-              nextAssignee: assignedTo,
-              reason:
-                assignedTo === null
-                  ? 'release'
-                  : previousAssignee === null
-                    ? assignedTo === actorId
-                      ? 'claim'
-                      : 'assign'
-                    : 'reassign',
-              actorUserId: actorId,
+              actorId,
               bulkId,
               occurredAt,
             })
-            await insertOutboxRow(tx, fact)
-            facts.push(fact)
+            if (applied.outcome === 'unchanged') {
+              outcomeByItemId.set(item.id, 'unchanged')
+              continue
+            }
+            facts.push(applied.fact)
             transitions.push({
               inboxItemId: item.id,
               propertyId: item.propertyId,
-              previousAssignee,
+              previousAssignee: applied.previousAssignee,
               nextAssignee: assignedTo,
             })
-            outcomeByItemId.set(item.id, outcome)
+            outcomeByItemId.set(item.id, applied.outcome)
           }
 
           if (transitions.length > 0) {
@@ -2007,98 +2847,22 @@ export const createAtomicInboxCommandStore = (
           }
           const inserted = await insertItemIdempotent(tx, command.item, cycleAnchor)
           if (!inserted.created) {
-            if (
+            const resubmissionFacts =
               command.item.sourceType === 'feedback' &&
               cycleAnchor.openedReason === 'feedback_submitted'
-            ) {
-              const [headRow] = await tx
-                .select()
-                .from(inboxHandlingCycleHeads)
-                .where(
-                  and(
-                    eq(inboxHandlingCycleHeads.inboxItemId, inserted.item.id),
-                    eq(
-                      inboxHandlingCycleHeads.organizationId,
-                      inserted.item.organizationId,
-                    ),
-                    eq(inboxHandlingCycleHeads.sourceType, 'feedback'),
-                    eq(inboxHandlingCycleHeads.sourceId, inserted.item.sourceId),
-                  ),
-                )
-                .for('update')
-                .limit(1)
-              if (headRow && cycleAnchor.sourceRevision > headRow.currentSourceRevision) {
-                const current = handlingCycleHeadFromRow(headRow)
-                const decision = createNextHandlingCycle({
-                  current,
-                  sourceRevision: cycleAnchor.sourceRevision,
-                  openedReason: 'feedback_submitted',
-                  openedBy: null,
-                  actorType: 'guest',
-                  triggerEventId: command.eventId,
-                  openedAt: cycleAnchor.openedAt,
-                })
-                if (decision.isErr()) throw decision.error
-                const cycleFacts = await insertNextHandlingCycleDecision(
-                  tx,
-                  decision.value,
-                  cycleAnchor.openedAt,
-                )
-                const [advanced] = await tx
-                  .update(inboxHandlingCycleHeads)
-                  .set({
-                    currentCycleNumber: decision.value.head.currentCycleNumber,
-                    currentSourceRevision: decision.value.head.currentSourceRevision,
-                    stateRevision: decision.value.head.stateRevision,
-                    status: 'open',
-                    updatedAt: cycleAnchor.openedAt,
-                  })
-                  .where(
-                    and(
-                      eq(inboxHandlingCycleHeads.inboxItemId, inserted.item.id),
-                      eq(inboxHandlingCycleHeads.stateRevision, current.stateRevision),
-                      eq(
-                        inboxHandlingCycleHeads.currentSourceRevision,
-                        current.currentSourceRevision,
-                      ),
-                    ),
+                ? await openNextFeedbackCycleOnResubmission(
+                    tx,
+                    command,
+                    cycleAnchor,
+                    inserted.item,
                   )
-                  .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-                if (!advanced) {
-                  throw inboxError(
-                    'revision_conflict',
-                    'Guest Handling Cycle changed during feedback submission',
-                  )
-                }
-                await tx
-                  .update(inboxItems)
-                  .set({
-                    status: 'open',
-                    closedAt: null,
-                    sourceDate: command.item.sourceDate,
-                    commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
-                    updatedAt: command.item.updatedAt,
-                  })
-                  .where(
-                    and(
-                      eq(inboxItems.id, inserted.item.id),
-                      eq(inboxItems.organizationId, inserted.item.organizationId),
-                      eq(inboxItems.sourceType, 'feedback'),
-                      eq(inboxItems.sourceId, inserted.item.sourceId),
-                    ),
-                  )
-                for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
-                await insertReceiptRow(
-                  tx,
-                  command.eventId,
-                  command.consumerName,
-                  'applied',
-                )
-                return {
-                  outcome: 'applied' as const,
-                  openingFacts: cycleFacts,
-                  emitCreated: false,
-                }
+                : null
+            if (resubmissionFacts) {
+              await insertReceiptRow(tx, command.eventId, command.consumerName, 'applied')
+              return {
+                outcome: 'applied' as const,
+                openingFacts: resubmissionFacts,
+                emitCreated: false,
               }
             }
             await insertReceiptRow(tx, command.eventId, command.consumerName, 'duplicate')
@@ -2157,39 +2921,7 @@ export const createAtomicInboxCommandStore = (
           // Canonical lock order for an existing projection is head -> item.
           // For a just-inserted projection both rows are already ours, but the
           // same reads keep this path identical under an insert race.
-          const [headRow] = await tx
-            .select()
-            .from(inboxHandlingCycleHeads)
-            .where(
-              and(
-                eq(inboxHandlingCycleHeads.inboxItemId, inserted.item.id),
-                eq(inboxHandlingCycleHeads.organizationId, inserted.item.organizationId),
-                eq(inboxHandlingCycleHeads.sourceType, 'review'),
-                eq(inboxHandlingCycleHeads.sourceId, inserted.item.sourceId),
-              ),
-            )
-            .for('update')
-            .limit(1)
-          const [itemRow] = await tx
-            .select()
-            .from(inboxItems)
-            .where(
-              and(
-                eq(inboxItems.id, inserted.item.id),
-                eq(inboxItems.organizationId, inserted.item.organizationId),
-                eq(inboxItems.propertyId, inserted.item.propertyId),
-                eq(inboxItems.sourceType, 'review'),
-                eq(inboxItems.sourceId, inserted.item.sourceId),
-              ),
-            )
-            .for('update')
-            .limit(1)
-          if (!headRow || !itemRow) {
-            throw inboxError(
-              'not_found',
-              'Review Inbox projection is waiting for its item and Handling Cycle',
-            )
-          }
+          const { headRow, itemRow } = await lockReviewProjectionRows(tx, inserted.item)
 
           let current = handlingCycleHeadFromRow(headRow)
           if (
@@ -2202,122 +2934,26 @@ export const createAtomicInboxCommandStore = (
             )
           }
 
-          for (const revision of command.projection.revisions) {
-            if (revision.materialReviewRevision <= current.currentSourceRevision) {
-              continue
-            }
-            if (revision.materialReviewRevision !== current.currentSourceRevision + 1) {
-              throw inboxError(
-                'revision_conflict',
-                'Inbox Review projection has a Material Revision gap',
-              )
-            }
-            const decision = createNextHandlingCycle({
-              current,
-              sourceRevision: revision.materialReviewRevision,
-              openedReason: 'material_revision_changed',
-              openedBy: null,
-              actorType: 'provider',
-              triggerEventId: null,
-              openedAt: revision.observedAt,
-            })
-            if (decision.isErr()) throw decision.error
-            const cycleFacts = await insertNextHandlingCycleDecision(
-              tx,
-              decision.value,
-              revision.observedAt,
-              active ? projectionTargetAnchor(revision) : null,
-            )
-            const [advanced] = await tx
-              .update(inboxHandlingCycleHeads)
-              .set({
-                currentCycleNumber: decision.value.head.currentCycleNumber,
-                currentSourceRevision: decision.value.head.currentSourceRevision,
-                currentMaterialReviewRevision: decision.value.head.currentSourceRevision,
-                stateRevision: decision.value.head.stateRevision,
-                status: 'open',
-                updatedAt: revision.observedAt,
-              })
-              .where(
-                and(
-                  eq(inboxHandlingCycleHeads.inboxItemId, inserted.item.id),
-                  eq(
-                    inboxHandlingCycleHeads.organizationId,
-                    inserted.item.organizationId,
-                  ),
-                  eq(inboxHandlingCycleHeads.stateRevision, current.stateRevision),
-                  eq(
-                    inboxHandlingCycleHeads.currentSourceRevision,
-                    current.currentSourceRevision,
-                  ),
-                ),
-              )
-              .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-            if (!advanced) {
-              throw inboxError(
-                'revision_conflict',
-                'Inbox Review projection changed during history catch-up',
-              )
-            }
-            for (const fact of cycleFacts) {
-              await insertOutboxRow(tx, fact)
-              facts.push(fact)
-            }
-            projectedChange = true
-            current = decision.value.head
-          }
+          const catchUp = await catchUpProjectionRevisions(tx, {
+            item: inserted.item,
+            revisions: command.projection.revisions,
+            active,
+            current,
+          })
+          facts.push(...catchUp.facts)
+          if (catchUp.advanced) projectedChange = true
+          current = catchUp.head
 
           const erasedAt = command.projection.sourceContentErasedAt
           if (!active && erasedAt instanceof Date && current.status === 'open') {
-            await cancelResponseTargetForCycle(tx, {
-              inboxItemId: current.inboxItemId,
-              cycleNumber: current.currentCycleNumber,
-              organizationId: current.organizationId,
-              cancelledAt: erasedAt,
-              reason: 'source_ineligible',
-            })
-            const closed = closeHandlingCycle({
+            const closed = await closeCycleForErasedSource(tx, {
+              item: inserted.item,
               current,
-              closeReason: 'source_ineligible',
-              actorType: 'provider',
-              actorUserId: null,
-              triggerEventId: null,
-              closedAt: erasedAt,
+              erasedAt,
             })
-            if (closed.isErr()) throw closed.error
-            await tx
-              .insert(inboxHandlingCycleTransitions)
-              .values(transitionInsert(closed.value.transition, erasedAt))
-            const [closedHead] = await tx
-              .update(inboxHandlingCycleHeads)
-              .set({
-                stateRevision: closed.value.head.stateRevision,
-                status: 'closed',
-                updatedAt: erasedAt,
-              })
-              .where(
-                and(
-                  eq(inboxHandlingCycleHeads.inboxItemId, inserted.item.id),
-                  eq(
-                    inboxHandlingCycleHeads.organizationId,
-                    inserted.item.organizationId,
-                  ),
-                  eq(inboxHandlingCycleHeads.stateRevision, current.stateRevision),
-                  eq(inboxHandlingCycleHeads.status, 'open'),
-                ),
-              )
-              .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-            if (!closedHead) {
-              throw inboxError(
-                'revision_conflict',
-                'Inbox Review projection changed during inactive-source close',
-              )
-            }
-            const cycleFact = lifecycleFactFor(closed.value.transition)
-            await insertOutboxRow(tx, cycleFact)
-            facts.push(cycleFact)
+            facts.push(closed.fact)
             projectedChange = true
-            current = closed.value.head
+            current = closed.head
           }
 
           if (!active && itemRow.status === 'open' && erasedAt instanceof Date) {
@@ -2333,40 +2969,15 @@ export const createAtomicInboxCommandStore = (
             facts.push(statusFact)
           }
 
-          const finalStatus = current.status
-          const [updatedItem] = await tx
-            .update(inboxItems)
-            .set({
-              sourceDate: command.projection.sourceDate,
-              platform: command.projection.platform,
-              rating: null,
-              snippet: null,
-              reviewerName: null,
-              status: finalStatus,
-              closedAt:
-                finalStatus === 'closed' ? (active ? itemRow.closedAt : erasedAt) : null,
-              commandRevision: sql<number>`LEAST(
-                ${inboxItems.commandRevision} + 1,
-                '9007199254740991'::bigint
-              )`,
-              updatedAt: command.now,
-            })
-            .where(
-              and(
-                eq(inboxItems.id, inserted.item.id),
-                eq(inboxItems.organizationId, inserted.item.organizationId),
-                eq(inboxItems.propertyId, inserted.item.propertyId),
-                eq(inboxItems.sourceType, 'review'),
-                eq(inboxItems.sourceId, inserted.item.sourceId),
-              ),
-            )
-            .returning({ id: inboxItems.id })
-          if (!updatedItem) {
-            throw inboxError(
-              'not_found',
-              'Review Inbox item vanished during projection convergence',
-            )
-          }
+          await convergeProjectedItemRow(tx, {
+            item: inserted.item,
+            itemRow,
+            projection: command.projection,
+            finalStatus: current.status,
+            active,
+            erasedAt,
+            now: command.now,
+          })
           const outcome =
             command.eventKind === 'created' && !projectedChange
               ? ('duplicate' as const)
@@ -2686,87 +3297,12 @@ export const createAtomicInboxCommandStore = (
             return [] as DomainEvent[]
           }
 
-          let cycleFact: DomainEvent | null = null
-          if (shouldCloseCycle && headRow) {
-            await cancelResponseTargetForCycle(tx, {
-              inboxItemId: handlingCycleHeadFromRow(headRow).inboxItemId,
-              cycleNumber: headRow.currentCycleNumber,
-              organizationId: handlingCycleHeadFromRow(headRow).organizationId,
-              cancelledAt: command.transitionedAt,
-              reason: 'source_ineligible',
-            })
-            const cycleDecision = closeHandlingCycle({
-              current: handlingCycleHeadFromRow(headRow),
-              closeReason: command.closeReason ?? 'source_ineligible',
-              actorType: 'provider',
-              actorUserId: null,
-              triggerEventId: command.eventId,
-              closedAt: command.transitionedAt,
-            })
-            if (cycleDecision.isErr()) throw cycleDecision.error
-            cycleFact = lifecycleFactFor(cycleDecision.value.transition)
-            await tx
-              .insert(inboxHandlingCycleTransitions)
-              .values(
-                transitionInsert(cycleDecision.value.transition, command.transitionedAt),
-              )
-            const [closedHead] = await tx
-              .update(inboxHandlingCycleHeads)
-              .set({
-                stateRevision: cycleDecision.value.head.stateRevision,
-                status: 'closed',
-                updatedAt: command.transitionedAt,
-              })
-              .where(
-                and(
-                  eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-                  eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-                  eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
-                  eq(inboxHandlingCycleHeads.status, 'open'),
-                ),
-              )
-              .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-            if (!closedHead) {
-              throw inboxError(
-                'revision_conflict',
-                'Review Handling Cycle changed during source transition',
-              )
-            }
-          }
+          const cycleFact =
+            shouldCloseCycle && headRow
+              ? await closeCycleForSourceTransition(tx, command, headRow)
+              : null
 
-          const [updated] = await tx
-            .update(inboxItems)
-            .set({
-              rating: null,
-              snippet: null,
-              reviewerName: null,
-              ...(shouldCloseItem
-                ? { status: 'closed' as const, closedAt: command.transitionedAt }
-                : {}),
-              // Source-content erasure must not be blocked by an already
-              // exhausted human-command fence. At the maximum, human writes
-              // already fail closed; retain that value while completing the
-              // mandatory scrub/terminal close.
-              commandRevision: sql<number>`LEAST(
-                ${inboxItems.commandRevision} + 1,
-                '9007199254740991'::bigint
-              )`,
-              updatedAt: command.transitionedAt,
-            })
-            .where(
-              and(
-                eq(inboxItems.id, current.id),
-                eq(inboxItems.organizationId, current.organizationId),
-                eq(inboxItems.sourceType, 'review'),
-              ),
-            )
-            .returning({ id: inboxItems.id })
-          if (!updated) {
-            throw inboxError(
-              'not_found',
-              'Review Inbox item vanished during source transition',
-            )
-          }
+          await scrubTransitionedItemRow(tx, command, current, shouldCloseItem)
           const facts: DomainEvent[] = []
           if (shouldCloseItem) facts.push(closeFact)
           if (cycleFact) facts.push(cycleFact)
@@ -2796,65 +3332,13 @@ export const createAtomicInboxCommandStore = (
           }
 
           const observation = command.currentObservation
-          if (
-            observation.authority !== 'review.current-google-reply-observation.v1' ||
-            observation.organizationId !== command.item.organizationId ||
-            observation.propertyId !== command.item.propertyId ||
-            observation.reviewId !== command.item.sourceId
-          ) {
-            throw inboxError(
-              'invalid_input',
-              'Review observation permit does not match the Inbox item',
-            )
-          }
+          assertObservationMatchesItem(observation, command.item)
 
-          // Canonical Review Handling Cycle lock order is head -> Inbox item.
-          // `startNext` uses the same order; reversing it here lets a material
-          // revision/reopen race form a PostgreSQL row-lock cycle.
-          const headRows = await tx
-            .select()
-            .from(inboxHandlingCycleHeads)
-            .where(
-              and(
-                eq(inboxHandlingCycleHeads.inboxItemId, command.item.id),
-                eq(inboxHandlingCycleHeads.organizationId, command.item.organizationId),
-                eq(inboxHandlingCycleHeads.sourceType, 'review'),
-                eq(inboxHandlingCycleHeads.sourceId, observation.reviewId),
-              ),
-            )
-            .for('update')
-            .limit(1)
-          const itemRows = await tx
-            .select()
-            .from(inboxItems)
-            .where(
-              and(
-                eq(inboxItems.id, command.item.id),
-                eq(inboxItems.organizationId, command.item.organizationId),
-                eq(inboxItems.propertyId, observation.propertyId),
-                eq(inboxItems.sourceType, 'review'),
-                eq(inboxItems.sourceId, observation.reviewId),
-              ),
-            )
-            .for('update')
-            .limit(1)
-          const headRow = headRows[0]
-          const itemRow = itemRows[0]
-          if (!itemRow || !headRow) {
-            throw inboxError(
-              'not_found',
-              'Review Inbox item or Handling Cycle head not found',
-            )
-          }
-          if (
-            itemRow.status !== headRow.status ||
-            headRow.currentSourceRevision !== observation.materialReviewRevision
-          ) {
-            throw inboxError(
-              'revision_conflict',
-              'Review Inbox Handling Cycle is not current for this observation',
-            )
-          }
+          const { headRow, itemRow } = await lockReviewRowsForObservation(
+            tx,
+            command.item,
+            observation,
+          )
 
           const shouldClose =
             observation.state === 'live' &&
@@ -2869,164 +3353,24 @@ export const createAtomicInboxCommandStore = (
               : null
 
           if (shouldClose && itemRow.status === 'open') {
-            await completeGoogleReviewTarget(
-              tx,
-              handlingCycleHeadFromRow(headRow),
-              observation.observedAt,
-            )
-            const decision = closeHandlingCycle({
-              current: handlingCycleHeadFromRow(headRow),
-              closeReason:
-                observation.resolution === 'confirmed_on_google'
-                  ? 'confirmed_on_google'
-                  : 'external_reply_observed',
-              actorType: 'provider',
-              actorUserId: null,
-              triggerEventId: command.eventId,
-              closedAt: observation.observedAt,
-            })
-            if (decision.isErr()) throw decision.error
-            const cycleFact = lifecycleFactFor(decision.value.transition)
-            await tx
-              .insert(inboxHandlingCycleTransitions)
-              .values(transitionInsert(decision.value.transition, observation.observedAt))
-            const [updatedHead] = await tx
-              .update(inboxHandlingCycleHeads)
-              .set({
-                status: 'closed',
-                stateRevision: decision.value.head.stateRevision,
-                updatedAt: observation.observedAt,
-              })
-              .where(
-                and(
-                  eq(inboxHandlingCycleHeads.inboxItemId, command.item.id),
-                  eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
-                  eq(inboxHandlingCycleHeads.status, 'open'),
-                ),
-              )
-              .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-            if (!updatedHead) {
-              throw inboxError(
-                'revision_conflict',
-                'Review Handling Cycle changed during reply close',
-              )
-            }
-            const [updatedItem] = await tx
-              .update(inboxItems)
-              .set({
-                status: 'closed',
-                closedAt: observation.observedAt,
-                ...(itemRow.firstReplyPublishedAt === null
-                  ? { firstReplyPublishedAt: observation.observedAt }
-                  : {}),
-                commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
-                updatedAt: observation.observedAt,
-              })
-              .where(
-                and(
-                  eq(inboxItems.id, command.item.id),
-                  eq(inboxItems.organizationId, command.item.organizationId),
-                  eq(inboxItems.status, 'open'),
-                ),
-              )
-              .returning({ id: inboxItems.id })
-            if (!updatedItem) {
-              throw inboxError(
-                'revision_conflict',
-                'Inbox item changed during reply close',
-              )
-            }
-            await insertOutboxRow(tx, command.closeFact)
-            await insertOutboxRow(tx, cycleFact)
             return {
               status: 'applied' as const,
-              facts: [command.closeFact, cycleFact] as DomainEvent[],
+              facts: await closeCycleOnObservedReply(tx, command, {
+                headRow,
+                itemRow,
+                observation,
+              }),
             }
           }
 
           if (reopenReason !== null && itemRow.status === 'closed') {
-            const decision = createNextHandlingCycle({
-              current: handlingCycleHeadFromRow(headRow),
-              sourceRevision: observation.materialReviewRevision,
-              openedReason: reopenReason,
-              openedBy: null,
-              actorType: 'provider',
-              triggerEventId: command.eventId,
-              openedAt: observation.observedAt,
-            })
-            if (decision.isErr()) throw decision.error
-            const cycleFacts = await insertNextHandlingCycleDecision(
-              tx,
-              decision.value,
-              observation.observedAt,
-              {
-                reviewAuthority: {
-                  authority: 'review.current-response-target.v1',
-                  organizationId: observation.organizationId,
-                  propertyId: observation.propertyId,
-                  reviewId: observation.reviewId,
-                  sourceEpoch: observation.sourceEpoch,
-                  materialReviewRevision: observation.materialReviewRevision,
-                  eligibility: observation.responseTargetEligibility,
-                  responseTargetStartAt: observation.responseTargetStartAt,
-                },
-                targetStart: {
-                  basis: 'operational_reopen',
-                  at: observation.observedAt,
-                },
-              },
-            )
-            const [updatedHead] = await tx
-              .update(inboxHandlingCycleHeads)
-              .set({
-                currentCycleNumber: decision.value.head.currentCycleNumber,
-                currentSourceRevision: decision.value.head.currentSourceRevision,
-                currentMaterialReviewRevision: decision.value.head.currentSourceRevision,
-                stateRevision: decision.value.head.stateRevision,
-                status: 'open',
-                updatedAt: observation.observedAt,
-              })
-              .where(
-                and(
-                  eq(inboxHandlingCycleHeads.inboxItemId, command.item.id),
-                  eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
-                  eq(inboxHandlingCycleHeads.status, 'closed'),
-                ),
-              )
-              .returning({ id: inboxHandlingCycleHeads.inboxItemId })
-            if (!updatedHead) {
-              throw inboxError(
-                'revision_conflict',
-                'Review Handling Cycle changed during provider reopen',
-              )
-            }
-            const [updatedItem] = await tx
-              .update(inboxItems)
-              .set({
-                status: 'open',
-                closedAt: null,
-                commandRevision: sql<number>`${inboxItems.commandRevision} + 1`,
-                updatedAt: observation.observedAt,
-              })
-              .where(
-                and(
-                  eq(inboxItems.id, command.item.id),
-                  eq(inboxItems.organizationId, command.item.organizationId),
-                  eq(inboxItems.status, 'closed'),
-                ),
-              )
-              .returning({ id: inboxItems.id })
-            if (!updatedItem) {
-              throw inboxError(
-                'revision_conflict',
-                'Inbox item changed during provider reopen',
-              )
-            }
-            await insertOutboxRow(tx, command.reopenFact)
-            for (const fact of cycleFacts) await insertOutboxRow(tx, fact)
             return {
               status: 'applied' as const,
-              facts: [command.reopenFact, ...cycleFacts] as DomainEvent[],
+              facts: await reopenCycleOnDeletedReply(tx, command, {
+                headRow,
+                observation,
+                reopenReason,
+              }),
             }
           }
 

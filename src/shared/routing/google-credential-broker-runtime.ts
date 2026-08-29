@@ -120,23 +120,19 @@ function validatedActiveKeyVersion(raw: string): string {
   }
 }
 
-export function parseGoogleCredentialBrokerRuntimeConfig(
-  input: Record<string, unknown>,
-): GoogleCredentialBrokerRuntimeConfig {
-  const mode = value(input, 'GOOGLE_CREDENTIAL_BROKER_MODE') ?? 'disabled'
-  if (mode !== 'disabled' && mode !== 'validate_only') {
-    throw new Error('Google credential broker mode is invalid')
-  }
-  const configured = BROKER_FIELDS.filter((field) => value(input, field) !== undefined)
-  if (mode === 'disabled') {
-    if (configured.length !== 0) {
-      throw new Error('Google credential broker transport is configured while disabled')
-    }
-    return Object.freeze({ mode: 'disabled' })
-  }
-  if (configured.length !== BROKER_FIELDS.length) {
-    throw new Error('Google credential broker transport configuration is incomplete')
-  }
+const SPIFFE_IDENTITY = /^spiffe:\/\/repkey\/[A-Za-z0-9._:/-]{1,200}$/u
+
+type BrokerPublicEndpoint = Readonly<{
+  hostname: string
+  port: number
+  serverName: string
+}>
+
+/**
+ * The broker's public endpoint is a bare self-TLS TCP endpoint: no credentials,
+ * no path, and a public hostname whose TLS server name is not an IP literal.
+ */
+function parseBrokerPublicEndpoint(input: Record<string, unknown>): BrokerPublicEndpoint {
   const origin = new URL(value(input, 'GOOGLE_CREDENTIAL_BROKER_PUBLIC_ORIGIN')!)
   if (origin.protocol !== 'tls:') {
     throw new Error('Google credential broker public transport must use self-TLS')
@@ -162,8 +158,15 @@ export function parseGoogleCredentialBrokerRuntimeConfig(
   if (!isPublicHostname(serverName) || isIP(serverName) !== 0) {
     throw new Error('Google credential broker TLS server name is invalid')
   }
+  return Object.freeze({ hostname: origin.hostname, port, serverName })
+}
+
+/** The broker's own SPIFFE identity, and the distinct peers it will accept. */
+function parseBrokerIdentities(
+  input: Record<string, unknown>,
+): Readonly<{ serviceIdentity: string; peerIdentities: readonly string[] }> {
   const serviceIdentity = value(input, 'GOOGLE_CREDENTIAL_BROKER_SERVICE_IDENTITY')!
-  if (!/^spiffe:\/\/repkey\/[A-Za-z0-9._:/-]{1,200}$/u.test(serviceIdentity)) {
+  if (!SPIFFE_IDENTITY.test(serviceIdentity)) {
     throw new Error('Google credential broker service identity is invalid')
   }
   const peerIdentities = value(input, 'GOOGLE_CREDENTIAL_BROKER_PEER_IDENTITIES')!
@@ -173,9 +176,7 @@ export function parseGoogleCredentialBrokerRuntimeConfig(
     .sort()
   if (
     peerIdentities.length === 0 ||
-    peerIdentities.some(
-      (identity) => !/^spiffe:\/\/repkey\/[A-Za-z0-9._:/-]{1,200}$/u.test(identity),
-    )
+    peerIdentities.some((identity) => !SPIFFE_IDENTITY.test(identity))
   ) {
     throw new Error('Google credential broker peer identity is invalid')
   }
@@ -185,6 +186,28 @@ export function parseGoogleCredentialBrokerRuntimeConfig(
   if (peerIdentities.includes(serviceIdentity)) {
     throw new Error('Google credential broker peer identity cannot equal the service')
   }
+  return { serviceIdentity, peerIdentities }
+}
+
+export function parseGoogleCredentialBrokerRuntimeConfig(
+  input: Record<string, unknown>,
+): GoogleCredentialBrokerRuntimeConfig {
+  const mode = value(input, 'GOOGLE_CREDENTIAL_BROKER_MODE') ?? 'disabled'
+  if (mode !== 'disabled' && mode !== 'validate_only') {
+    throw new Error('Google credential broker mode is invalid')
+  }
+  const configured = BROKER_FIELDS.filter((field) => value(input, field) !== undefined)
+  if (mode === 'disabled') {
+    if (configured.length !== 0) {
+      throw new Error('Google credential broker transport is configured while disabled')
+    }
+    return Object.freeze({ mode: 'disabled' })
+  }
+  if (configured.length !== BROKER_FIELDS.length) {
+    throw new Error('Google credential broker transport configuration is incomplete')
+  }
+  const publicEndpoint = parseBrokerPublicEndpoint(input)
+  const { serviceIdentity, peerIdentities } = parseBrokerIdentities(input)
   const caB64 = value(input, 'GOOGLE_CREDENTIAL_BROKER_MTLS_CA_B64')!
   const certB64 = value(input, 'GOOGLE_CREDENTIAL_BROKER_MTLS_CERT_B64')!
   const keyB64 = value(input, 'GOOGLE_CREDENTIAL_BROKER_MTLS_KEY_B64')!
@@ -204,7 +227,7 @@ export function parseGoogleCredentialBrokerRuntimeConfig(
   })
   return Object.freeze({
     mode: 'validate_only',
-    publicEndpoint: Object.freeze({ hostname: origin.hostname, port, serverName }),
+    publicEndpoint,
     serviceIdentity,
     peerIdentities: Object.freeze(peerIdentities),
     mtls: Object.freeze({ caB64, certB64, keyB64 }),

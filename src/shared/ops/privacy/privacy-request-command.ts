@@ -69,6 +69,96 @@ function flagValue(args: OperatorArgs, name: string): string | undefined {
   return args.positionals.find((token) => token.startsWith(prefix))?.slice(prefix.length)
 }
 
+type PrivacyRequestFlags = Readonly<{
+  subjectRef: string | undefined
+  kind: PrivacyRequestKind | undefined
+  subjectType: PrivacySubjectType | undefined
+  requestId: string | undefined
+  verificationRef: string | undefined
+  targetField: string | undefined
+  refusalReasonCode: PrivacyRefusalReasonCode | undefined
+}>
+
+function readPrivacyRequestFlags(args: OperatorArgs): PrivacyRequestFlags {
+  return {
+    subjectRef: flagValue(args, 'subject-ref'),
+    kind: flagValue(args, 'kind') as PrivacyRequestKind | undefined,
+    subjectType: flagValue(args, 'subject-type') as PrivacySubjectType | undefined,
+    requestId: flagValue(args, 'request'),
+    verificationRef: flagValue(args, 'verification'),
+    targetField: flagValue(args, 'field'),
+    refusalReasonCode: flagValue(args, 'reason-code') as
+      PrivacyRefusalReasonCode | undefined,
+  }
+}
+
+function receiveModeError(flags: PrivacyRequestFlags): string | null {
+  if (!flags.kind || !PRIVACY_REQUEST_KINDS.includes(flags.kind)) {
+    return `kind must be one of ${PRIVACY_REQUEST_KINDS.join('|')}`
+  }
+  if (!flags.subjectType || !PRIVACY_SUBJECT_TYPES.includes(flags.subjectType)) {
+    return `subject-type must be one of ${PRIVACY_SUBJECT_TYPES.join('|')}`
+  }
+  if (!flags.subjectRef) return 'subject-ref=<sha256> is required'
+  if (flags.kind === 'correction' && !flags.targetField) {
+    return 'field=<name> is required for a correction'
+  }
+  return null
+}
+
+function verifyModeError(flags: PrivacyRequestFlags): string | null {
+  if (!flags.requestId) return 'request=<id> is required'
+  if (!flags.verificationRef || !CONTENT_FREE_REF.test(flags.verificationRef)) {
+    // No edge skips identity verification, and the evidence for it is an
+    // opaque reference, not a description of what the person said.
+    return 'verification=<ref> is required and must be a content-free token'
+  }
+  return null
+}
+
+function refuseModeError(flags: PrivacyRequestFlags): string | null {
+  if (!flags.requestId) return 'request=<id> is required'
+  if (
+    !flags.refusalReasonCode ||
+    !PRIVACY_REFUSAL_REASON_CODES.includes(flags.refusalReasonCode)
+  ) {
+    return `reason-code must be one of ${PRIVACY_REFUSAL_REASON_CODES.join('|')}`
+  }
+  return null
+}
+
+/** What each mutating mode additionally requires. `null` means complete. */
+function privacyModeError(
+  mode: PrivacyRequestMode,
+  flags: PrivacyRequestFlags,
+): string | null {
+  if (mode === 'receive') return receiveModeError(flags)
+  if (mode === 'verify') return verifyModeError(flags)
+  if (mode === 'fulfil') return flags.requestId ? null : 'request=<id> is required'
+  if (mode === 'refuse') return refuseModeError(flags)
+  return null
+}
+
+function privacyRequestPlan(
+  mode: PrivacyRequestMode,
+  scope: Readonly<{ organizationId: string; propertyId: string; reportOnly: boolean }>,
+  flags: PrivacyRequestFlags,
+): PrivacyRequestCommandPlan {
+  return {
+    mode,
+    organizationId: scope.organizationId,
+    propertyId: scope.propertyId,
+    reportOnly: scope.reportOnly,
+    ...(flags.kind ? { requestKind: flags.kind } : {}),
+    ...(flags.subjectType ? { subjectType: flags.subjectType } : {}),
+    ...(flags.subjectRef ? { subjectRef: flags.subjectRef } : {}),
+    ...(flags.requestId ? { requestId: flags.requestId } : {}),
+    ...(flags.verificationRef ? { verificationRef: flags.verificationRef } : {}),
+    ...(flags.targetField ? { targetField: flags.targetField } : {}),
+    ...(flags.refusalReasonCode ? { refusalReasonCode: flags.refusalReasonCode } : {}),
+  }
+}
+
 /**
  * Turn a validated invocation into an explicit plan.
  *
@@ -92,82 +182,32 @@ export function planPrivacyRequestCommand(
     return { ok: false, error: '--org and --property are required' }
   }
 
-  const subjectRef = flagValue(args, 'subject-ref')
-  const kind = flagValue(args, 'kind') as PrivacyRequestKind | undefined
-  const subjectType = flagValue(args, 'subject-type') as PrivacySubjectType | undefined
-  const requestId = flagValue(args, 'request')
-  const verificationRef = flagValue(args, 'verification')
-  const targetField = flagValue(args, 'field')
-  const refusalReasonCode = flagValue(args, 'reason-code') as
-    PrivacyRefusalReasonCode | undefined
-
-  if (subjectRef !== undefined && !SHA256.test(subjectRef)) {
+  const flags = readPrivacyRequestFlags(args)
+  if (flags.subjectRef !== undefined && !SHA256.test(flags.subjectRef)) {
     return {
       ok: false,
       error: 'subject-ref must be the SHA-256 of the verified subject identifier',
     }
   }
-  if (targetField !== undefined && !FIELD_NAME.test(targetField)) {
+  if (flags.targetField !== undefined && !FIELD_NAME.test(flags.targetField)) {
     return { ok: false, error: 'field must be a schema field name, never a value' }
   }
 
-  if (mode === 'receive' && !ctx.dryRun) {
-    if (!kind || !PRIVACY_REQUEST_KINDS.includes(kind)) {
-      return {
-        ok: false,
-        error: `kind must be one of ${PRIVACY_REQUEST_KINDS.join('|')}`,
-      }
-    }
-    if (!subjectType || !PRIVACY_SUBJECT_TYPES.includes(subjectType)) {
-      return {
-        ok: false,
-        error: `subject-type must be one of ${PRIVACY_SUBJECT_TYPES.join('|')}`,
-      }
-    }
-    if (!subjectRef) return { ok: false, error: 'subject-ref=<sha256> is required' }
-    if (kind === 'correction' && !targetField) {
-      return { ok: false, error: 'field=<name> is required for a correction' }
-    }
-  }
-
-  if (mode === 'verify' && !ctx.dryRun) {
-    if (!requestId) return { ok: false, error: 'request=<id> is required' }
-    if (!verificationRef || !CONTENT_FREE_REF.test(verificationRef)) {
-      // No edge skips identity verification, and the evidence for it is an
-      // opaque reference, not a description of what the person said.
-      return {
-        ok: false,
-        error: 'verification=<ref> is required and must be a content-free token',
-      }
-    }
-  }
-
-  if ((mode === 'fulfil' || mode === 'refuse') && !ctx.dryRun && !requestId) {
-    return { ok: false, error: 'request=<id> is required' }
-  }
-  if (mode === 'refuse' && !ctx.dryRun) {
-    if (!refusalReasonCode || !PRIVACY_REFUSAL_REASON_CODES.includes(refusalReasonCode)) {
-      return {
-        ok: false,
-        error: `reason-code must be one of ${PRIVACY_REFUSAL_REASON_CODES.join('|')}`,
-      }
-    }
+  if (!ctx.dryRun) {
+    const modeError = privacyModeError(mode, flags)
+    if (modeError) return { ok: false, error: modeError }
   }
 
   return {
     ok: true,
-    plan: {
+    plan: privacyRequestPlan(
       mode,
-      organizationId: ctx.organizationId,
-      propertyId: ctx.propertyId,
-      reportOnly: ctx.dryRun,
-      ...(kind ? { requestKind: kind } : {}),
-      ...(subjectType ? { subjectType } : {}),
-      ...(subjectRef ? { subjectRef } : {}),
-      ...(requestId ? { requestId } : {}),
-      ...(verificationRef ? { verificationRef } : {}),
-      ...(targetField ? { targetField } : {}),
-      ...(refusalReasonCode ? { refusalReasonCode } : {}),
-    },
+      {
+        organizationId: ctx.organizationId,
+        propertyId: ctx.propertyId,
+        reportOnly: ctx.dryRun,
+      },
+      flags,
+    ),
   }
 }

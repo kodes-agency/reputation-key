@@ -13,10 +13,12 @@ import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interacti
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
 import { identityError } from '../domain/errors'
 import { classifyInvitedRegistrationRecovery } from '../domain/invited-registration-recovery'
+import type { InvitedRegistrationRecoveryDecision } from '../domain/invited-registration-recovery'
 import type {
   InvitedRegistrationStore,
   PreparedInvitedRegistration,
   PrepareInvitedRegistration,
+  ReconcileInvitedRegistrationResult,
 } from '../application/ports/invited-registration-store.port'
 
 function toPrepared(
@@ -44,6 +46,249 @@ function parsePropertyIds(raw: string | null | undefined): ReadonlyArray<string>
   } catch {
     return []
   }
+}
+
+type InvitedRegistrationTx = Parameters<Parameters<Database['transaction']>[0]>[0]
+
+type ReconcileCommand = Readonly<{
+  attemptId: string
+  now: Date
+  nextRecoveryAt: Date
+  leaseOwner?: string
+}>
+
+/**
+ * Take the canonical saga locks — invitation first, then recovery attempt — and
+ * verify the worker still owns the claim.
+ */
+async function lockAttemptAndInvitation(
+  tx: InvitedRegistrationTx,
+  command: ReconcileCommand,
+) {
+  // Canonical saga lock order is invitation, then recovery attempt.
+  // The first read is only a content-free locator; holding the attempt
+  // while waiting for the invitation would invert acceptInvitation's
+  // lock order and permit a deadlock at the crash boundary.
+  const locatorRows = await tx
+    .select({ invitationId: invitedRegistrationAttempts.invitationId })
+    .from(invitedRegistrationAttempts)
+    .where(eq(invitedRegistrationAttempts.id, command.attemptId))
+    .limit(1)
+  const locator = locatorRows[0]
+  if (!locator) {
+    throw identityError('registration_failed', 'Registration attempt not found')
+  }
+  const invitationRows = await tx
+    .select({
+      id: invitation.id,
+      organizationId: invitation.organizationId,
+      email: invitation.email,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+      propertyIds: invitation.propertyIds,
+    })
+    .from(invitation)
+    .where(eq(invitation.id, locator.invitationId))
+    .for('update')
+  const attemptRows = await tx
+    .select()
+    .from(invitedRegistrationAttempts)
+    .where(eq(invitedRegistrationAttempts.id, command.attemptId))
+    .for('update')
+  const attempt = attemptRows[0]
+  if (!attempt || attempt.invitationId !== locator.invitationId) {
+    throw identityError('registration_failed', 'Registration attempt not found')
+  }
+  if (
+    command.leaseOwner &&
+    (attempt.leaseOwner !== command.leaseOwner ||
+      !attempt.leaseExpiresAt ||
+      attempt.leaseExpiresAt <= command.now)
+  ) {
+    return { kind: 'claim_lost' as const }
+  }
+  return {
+    kind: 'locked' as const,
+    attempt,
+    currentInvitation: invitationRows[0] ?? null,
+  }
+}
+
+/** Lock every provider record the attempt fenced so the classification is stable. */
+async function lockObservedProviderArtifacts(
+  tx: InvitedRegistrationTx,
+  attempt: typeof invitedRegistrationAttempts.$inferSelect,
+) {
+  const userRows = await tx
+    .select({ id: userTable.id, email: userTable.email })
+    .from(userTable)
+    .where(eq(userTable.id, attempt.expectedUserId))
+    .for('update')
+  const accountRows = await tx
+    .select({
+      id: account.id,
+      userId: account.userId,
+      providerId: account.providerId,
+      accountId: account.accountId,
+    })
+    .from(account)
+    .where(
+      or(
+        eq(account.userId, attempt.expectedUserId),
+        eq(account.id, attempt.expectedCredentialAccountId),
+      ),
+    )
+    .for('update')
+  const sessionRows = await tx
+    .select({ id: session.id, userId: session.userId })
+    .from(session)
+    .where(
+      or(
+        eq(session.userId, attempt.expectedUserId),
+        eq(session.id, attempt.expectedInitialSessionId),
+      ),
+    )
+    .for('update')
+  const memberRows = await tx
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .where(eq(member.userId, attempt.expectedUserId))
+    .for('update')
+  const bindingRows = await tx
+    .select({
+      organizationId: userOrganizationBindings.organizationId,
+      state: userOrganizationBindings.state,
+    })
+    .from(userOrganizationBindings)
+    .where(eq(userOrganizationBindings.userId, attempt.expectedUserId))
+    .for('update')
+  return { userRows, accountRows, sessionRows, memberRows, bindingRows }
+}
+
+/** Attempts already in a terminal state answer from the stored row alone. */
+function settledReconcileResult(
+  attempt: typeof invitedRegistrationAttempts.$inferSelect,
+  currentInvitation: Readonly<{ propertyIds: string | null }> | null,
+): ReconcileInvitedRegistrationResult | null {
+  if (attempt.state === 'compensated') return { kind: 'compensated' as const }
+  if (attempt.state === 'manual_review') return { kind: 'manual_review' as const }
+  if (attempt.state === 'accepted') {
+    return {
+      kind: 'accepted' as const,
+      organizationId: toOrganizationId(attempt.organizationId),
+      propertyIds: parsePropertyIds(currentInvitation?.propertyIds),
+      userId: attempt.expectedUserId,
+    }
+  }
+  return null
+}
+
+/** Write the durable outcome the recovery classification selected. */
+async function applyRecoveryDecision(
+  tx: InvitedRegistrationTx,
+  input: Readonly<{
+    command: ReconcileCommand
+    attempt: typeof invitedRegistrationAttempts.$inferSelect
+    currentInvitation: Readonly<{ propertyIds: string | null }> | null
+    userRows: ReadonlyArray<Readonly<{ id: string; email: string }>>
+    decision: InvitedRegistrationRecoveryDecision
+  }>,
+): Promise<ReconcileInvitedRegistrationResult> {
+  const { command, attempt, currentInvitation, userRows, decision } = input
+
+  if (decision.kind === 'awaiting_provider') {
+    await tx
+      .update(invitedRegistrationAttempts)
+      .set({
+        nextRecoveryAt: command.nextRecoveryAt,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        lastFailureCode: 'provider_not_observed',
+        updatedAt: command.now,
+      })
+      .where(eq(invitedRegistrationAttempts.id, attempt.id))
+    return decision
+  }
+
+  if (decision.kind === 'ready_to_accept') {
+    await tx
+      .update(invitedRegistrationAttempts)
+      .set({
+        providerObservedAt: attempt.providerObservedAt ?? command.now,
+        nextRecoveryAt: command.nextRecoveryAt,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        lastFailureCode: null,
+        updatedAt: command.now,
+      })
+      .where(eq(invitedRegistrationAttempts.id, attempt.id))
+    return {
+      kind: 'ready_to_accept' as const,
+      registration: toPrepared(attempt),
+      acceptorEmail: userRows[0]!.email,
+    }
+  }
+
+  if (decision.kind === 'safe_to_compensate') {
+    if (userRows[0]) {
+      await tx.delete(userTable).where(eq(userTable.id, attempt.expectedUserId))
+    }
+    await tx
+      .update(invitedRegistrationAttempts)
+      .set({
+        state: 'compensated',
+        providerObservedAt: userRows[0]
+          ? (attempt.providerObservedAt ?? command.now)
+          : attempt.providerObservedAt,
+        compensatedAt: command.now,
+        nextRecoveryAt: null,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        lastFailureCode: decision.reason,
+        updatedAt: command.now,
+      })
+      .where(eq(invitedRegistrationAttempts.id, attempt.id))
+    return { kind: 'compensated' as const }
+  }
+
+  if (decision.kind === 'already_accepted') {
+    await tx
+      .update(invitedRegistrationAttempts)
+      .set({
+        state: 'accepted',
+        providerObservedAt: attempt.providerObservedAt ?? command.now,
+        acceptedAt: command.now,
+        nextRecoveryAt: null,
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        lastFailureCode: null,
+        updatedAt: command.now,
+      })
+      .where(eq(invitedRegistrationAttempts.id, attempt.id))
+    return {
+      kind: 'accepted' as const,
+      organizationId: toOrganizationId(attempt.organizationId),
+      propertyIds: parsePropertyIds(currentInvitation?.propertyIds),
+      userId: attempt.expectedUserId,
+    }
+  }
+
+  await tx
+    .update(invitedRegistrationAttempts)
+    .set({
+      state: 'manual_review',
+      providerObservedAt: userRows[0]
+        ? (attempt.providerObservedAt ?? command.now)
+        : attempt.providerObservedAt,
+      manualReviewAt: command.now,
+      nextRecoveryAt: null,
+      leaseOwner: null,
+      leaseExpiresAt: null,
+      lastFailureCode: decision.reason,
+      updatedAt: command.now,
+    })
+    .where(eq(invitedRegistrationAttempts.id, attempt.id))
+  return { kind: 'manual_review' as const }
 }
 
 /** Persist the recovery fence before Better Auth starts creating records. */
@@ -239,104 +484,15 @@ export const createInvitedRegistrationStore = (
 
     reconcile: async (command) =>
       db.transaction(async (tx) => {
-        // Canonical saga lock order is invitation, then recovery attempt.
-        // The first read is only a content-free locator; holding the attempt
-        // while waiting for the invitation would invert acceptInvitation's
-        // lock order and permit a deadlock at the crash boundary.
-        const locatorRows = await tx
-          .select({ invitationId: invitedRegistrationAttempts.invitationId })
-          .from(invitedRegistrationAttempts)
-          .where(eq(invitedRegistrationAttempts.id, command.attemptId))
-          .limit(1)
-        const locator = locatorRows[0]
-        if (!locator) {
-          throw identityError('registration_failed', 'Registration attempt not found')
-        }
-        const invitationRows = await tx
-          .select({
-            id: invitation.id,
-            organizationId: invitation.organizationId,
-            email: invitation.email,
-            status: invitation.status,
-            expiresAt: invitation.expiresAt,
-            propertyIds: invitation.propertyIds,
-          })
-          .from(invitation)
-          .where(eq(invitation.id, locator.invitationId))
-          .for('update')
-        const attemptRows = await tx
-          .select()
-          .from(invitedRegistrationAttempts)
-          .where(eq(invitedRegistrationAttempts.id, command.attemptId))
-          .for('update')
-        const attempt = attemptRows[0]
-        if (!attempt || attempt.invitationId !== locator.invitationId) {
-          throw identityError('registration_failed', 'Registration attempt not found')
-        }
-        if (
-          command.leaseOwner &&
-          (attempt.leaseOwner !== command.leaseOwner ||
-            !attempt.leaseExpiresAt ||
-            attempt.leaseExpiresAt <= command.now)
-        ) {
-          return { kind: 'claim_lost' as const }
-        }
+        const locked = await lockAttemptAndInvitation(tx, command)
+        if (locked.kind === 'claim_lost') return locked
+        const { attempt, currentInvitation } = locked
 
-        const userRows = await tx
-          .select({ id: userTable.id, email: userTable.email })
-          .from(userTable)
-          .where(eq(userTable.id, attempt.expectedUserId))
-          .for('update')
-        const accountRows = await tx
-          .select({
-            id: account.id,
-            userId: account.userId,
-            providerId: account.providerId,
-            accountId: account.accountId,
-          })
-          .from(account)
-          .where(
-            or(
-              eq(account.userId, attempt.expectedUserId),
-              eq(account.id, attempt.expectedCredentialAccountId),
-            ),
-          )
-          .for('update')
-        const sessionRows = await tx
-          .select({ id: session.id, userId: session.userId })
-          .from(session)
-          .where(
-            or(
-              eq(session.userId, attempt.expectedUserId),
-              eq(session.id, attempt.expectedInitialSessionId),
-            ),
-          )
-          .for('update')
-        const memberRows = await tx
-          .select({ organizationId: member.organizationId })
-          .from(member)
-          .where(eq(member.userId, attempt.expectedUserId))
-          .for('update')
-        const bindingRows = await tx
-          .select({
-            organizationId: userOrganizationBindings.organizationId,
-            state: userOrganizationBindings.state,
-          })
-          .from(userOrganizationBindings)
-          .where(eq(userOrganizationBindings.userId, attempt.expectedUserId))
-          .for('update')
-        const currentInvitation = invitationRows[0] ?? null
+        const { userRows, accountRows, sessionRows, memberRows, bindingRows } =
+          await lockObservedProviderArtifacts(tx, attempt)
 
-        if (attempt.state === 'compensated') return { kind: 'compensated' as const }
-        if (attempt.state === 'manual_review') return { kind: 'manual_review' as const }
-        if (attempt.state === 'accepted') {
-          return {
-            kind: 'accepted' as const,
-            organizationId: toOrganizationId(attempt.organizationId),
-            propertyIds: parsePropertyIds(currentInvitation?.propertyIds),
-            userId: attempt.expectedUserId,
-          }
-        }
+        const settled = settledReconcileResult(attempt, currentInvitation)
+        if (settled) return settled
 
         const decision = classifyInvitedRegistrationRecovery({
           expected: {
@@ -356,99 +512,13 @@ export const createInvitedRegistrationStore = (
           binding: bindingRows[0] ?? null,
         })
 
-        if (decision.kind === 'awaiting_provider') {
-          await tx
-            .update(invitedRegistrationAttempts)
-            .set({
-              nextRecoveryAt: command.nextRecoveryAt,
-              leaseOwner: null,
-              leaseExpiresAt: null,
-              lastFailureCode: 'provider_not_observed',
-              updatedAt: command.now,
-            })
-            .where(eq(invitedRegistrationAttempts.id, attempt.id))
-          return decision
-        }
-
-        if (decision.kind === 'ready_to_accept') {
-          await tx
-            .update(invitedRegistrationAttempts)
-            .set({
-              providerObservedAt: attempt.providerObservedAt ?? command.now,
-              nextRecoveryAt: command.nextRecoveryAt,
-              leaseOwner: null,
-              leaseExpiresAt: null,
-              lastFailureCode: null,
-              updatedAt: command.now,
-            })
-            .where(eq(invitedRegistrationAttempts.id, attempt.id))
-          return {
-            kind: 'ready_to_accept' as const,
-            registration: toPrepared(attempt),
-            acceptorEmail: userRows[0]!.email,
-          }
-        }
-
-        if (decision.kind === 'safe_to_compensate') {
-          if (userRows[0]) {
-            await tx.delete(userTable).where(eq(userTable.id, attempt.expectedUserId))
-          }
-          await tx
-            .update(invitedRegistrationAttempts)
-            .set({
-              state: 'compensated',
-              providerObservedAt: userRows[0]
-                ? (attempt.providerObservedAt ?? command.now)
-                : attempt.providerObservedAt,
-              compensatedAt: command.now,
-              nextRecoveryAt: null,
-              leaseOwner: null,
-              leaseExpiresAt: null,
-              lastFailureCode: decision.reason,
-              updatedAt: command.now,
-            })
-            .where(eq(invitedRegistrationAttempts.id, attempt.id))
-          return { kind: 'compensated' as const }
-        }
-
-        if (decision.kind === 'already_accepted') {
-          await tx
-            .update(invitedRegistrationAttempts)
-            .set({
-              state: 'accepted',
-              providerObservedAt: attempt.providerObservedAt ?? command.now,
-              acceptedAt: command.now,
-              nextRecoveryAt: null,
-              leaseOwner: null,
-              leaseExpiresAt: null,
-              lastFailureCode: null,
-              updatedAt: command.now,
-            })
-            .where(eq(invitedRegistrationAttempts.id, attempt.id))
-          return {
-            kind: 'accepted' as const,
-            organizationId: toOrganizationId(attempt.organizationId),
-            propertyIds: parsePropertyIds(currentInvitation?.propertyIds),
-            userId: attempt.expectedUserId,
-          }
-        }
-
-        await tx
-          .update(invitedRegistrationAttempts)
-          .set({
-            state: 'manual_review',
-            providerObservedAt: userRows[0]
-              ? (attempt.providerObservedAt ?? command.now)
-              : attempt.providerObservedAt,
-            manualReviewAt: command.now,
-            nextRecoveryAt: null,
-            leaseOwner: null,
-            leaseExpiresAt: null,
-            lastFailureCode: decision.reason,
-            updatedAt: command.now,
-          })
-          .where(eq(invitedRegistrationAttempts.id, attempt.id))
-        return { kind: 'manual_review' as const }
+        return applyRecoveryDecision(tx, {
+          command,
+          attempt,
+          currentInvitation,
+          userRows,
+          decision,
+        })
       }),
   }
 }

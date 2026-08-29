@@ -584,6 +584,188 @@ function assertReviewedCandidatePlan(
 }
 
 /**
+ * The Railway seam for one bootstrap run. `run` and `runPlan` read the caller's
+ * `environment` binding, so a source-map advance made between phases is visible
+ * to every later invocation.
+ */
+type BootstrapSession = Readonly<{
+  manifest: PromotionManifest
+  evidence: RailwayPlanEvidence
+  target: RailwayPlanEvidence['target']
+  run: (args: readonly string[]) => string
+  runPlan: (args: readonly string[]) => Readonly<{ stdout: string; status: number }>
+  assertProjectIsolation: () => void
+  currentIacDigest: () => string
+}>
+
+/**
+ * Advance only the schema-migrator source through a saved IaC plan. The IaC
+ * digest is re-proved on both sides of planning, and the saved artifact is
+ * re-proved before it is applied.
+ */
+function applyStagedSchemaMigratorSource(
+  session: BootstrapSession,
+  plan: SchemaMigratorPlan,
+  currentSources: RailwayServiceSourceMap,
+  desired: RailwayServiceSourceInput,
+): void {
+  const planDirectory = mkdtempSync(join(tmpdir(), 'repkey-schema-iac-plan-'))
+  const planPath = join(planDirectory, 'saved-plan.json')
+  try {
+    if (session.currentIacDigest() !== session.manifest.contract.iacSha256) {
+      throw new Error('Railway IaC changed before schema-migrator saved planning')
+    }
+    session.assertProjectIsolation()
+    const planned = session.runPlan(railwayPinnedPlanArgs(planPath, IAC_FILE))
+    const savedPlanSha256 = bindRailwaySavedPlanArtifact(
+      planPath,
+      planned.stdout,
+      railwayIacTarget(session.evidence),
+      currentSources,
+      desired,
+      SERVICE,
+    )
+    const disposition = inspectStagedRailwayPlan(
+      planned.stdout,
+      railwayIacTarget(session.evidence),
+      currentSources,
+      desired,
+      SERVICE,
+    )
+    if (
+      (disposition === 'change' && planned.status !== 2) ||
+      (disposition === 'noop' && planned.status !== 0)
+    ) {
+      throw new Error(
+        `Railway schema-migrator saved-plan exit ${String(planned.status)} disagrees with ${disposition}`,
+      )
+    }
+    if (session.currentIacDigest() !== session.manifest.contract.iacSha256) {
+      throw new Error('Railway IaC changed between schema-migrator plan and apply')
+    }
+    session.assertProjectIsolation()
+    if (disposition === 'change') {
+      assertRailwaySavedPlanArtifactUnchanged(planPath, savedPlanSha256)
+      assertPinnedRailwayApplyResult(
+        session.run(railwayPinnedApplyArgs(planPath)),
+        SERVICE,
+      )
+      return
+    }
+    assertRedeployFromSourceAcknowledged(
+      session.run([
+        'service',
+        'redeploy',
+        '--from-source',
+        '--yes',
+        '--service',
+        plan.service,
+        '--project',
+        session.target.projectId,
+        '--environment',
+        session.target.environmentId,
+        '--json',
+      ]),
+    )
+  } finally {
+    rmSync(planDirectory, { recursive: true, force: true })
+  }
+}
+
+/**
+ * The one new deployment that reports the signed digest. Two such rows make
+ * settlement ambiguous, so they are refused rather than arbitrated.
+ */
+function signedDeploymentId(
+  rows: readonly DeploymentRow[],
+  baselineDeploymentIds: ReadonlySet<string>,
+  imageDigest: string,
+): string | undefined {
+  const exactDigestRows = rows.filter(
+    (row) =>
+      typeof row.id === 'string' &&
+      DEPLOYMENT_ID.test(row.id) &&
+      !baselineDeploymentIds.has(row.id) &&
+      row.meta?.imageDigest === imageDigest,
+  )
+  if (exactDigestRows.length > 1) {
+    throw new Error(
+      'multiple new schema-migrator deployments report the signed image digest; settlement is ambiguous',
+    )
+  }
+  return exactDigestRows[0]?.id
+}
+
+/** After apply, the graph must replan clean and the staged source must be a noop. */
+function assertSchemaMigratorConverged(
+  session: BootstrapSession,
+  desired: RailwayServiceSourceInput,
+): void {
+  const converged = session.runPlan(railwayPlanArgs({ iacFile: IAC_FILE }))
+  if (converged.status !== 0) {
+    throw new Error('Railway schema-migrator graph still has drift after apply')
+  }
+  const finalDisposition = inspectStagedRailwayPlan(
+    converged.stdout,
+    railwayIacTarget(session.evidence),
+    desired.sources,
+    desired,
+    SERVICE,
+  )
+  if (finalDisposition !== 'noop') {
+    throw new Error('Railway schema-migrator source did not converge')
+  }
+}
+
+/** Poll the one-shot job until it settles SUCCESS at the signed digest, or refuse. */
+async function awaitSchemaMigratorSettlement(
+  session: BootstrapSession,
+  settlement: Readonly<{
+    plan: SchemaMigratorPlan
+    desired: RailwayServiceSourceInput
+    baselineDeploymentIds: ReadonlySet<string>
+    timeoutMs: number
+    sleep: (milliseconds: number) => Promise<void>
+    now: () => number
+  }>,
+): Promise<SchemaMigrationBootstrapResult> {
+  const { plan, desired, baselineDeploymentIds, timeoutMs, sleep, now } = settlement
+  const deadline = now() + timeoutMs
+  let deploymentId: string | undefined
+  while (true) {
+    const rows = parseDeploymentRows(session.run(deploymentListArgs(session.target)))
+    deploymentId ??= signedDeploymentId(rows, baselineDeploymentIds, plan.imageDigest)
+    const row = deploymentId
+      ? rows.find((candidate) => candidate.id === deploymentId)
+      : undefined
+    const status = row?.status ?? 'UNKNOWN'
+    if (status === 'SUCCESS') {
+      if (!deploymentId) {
+        throw new Error('Railway reported SUCCESS without a deployment id')
+      }
+      const observedDigest = row?.meta?.imageDigest ?? ''
+      if (observedDigest !== plan.imageDigest) {
+        throw new Error(
+          `schema-migrator deployment ${deploymentId} image digest ${observedDigest || '(unavailable)'} does not match signed ${plan.imageDigest}`,
+        )
+      }
+      assertSchemaMigratorConverged(session, desired)
+      session.assertProjectIsolation()
+      return { deploymentId, imageDigest: observedDigest, status: 'SUCCESS' }
+    }
+    if (status !== 'UNKNOWN' && !IN_PROGRESS_STATUSES.has(status)) {
+      throw new Error(`schema-migrator deployment ${deploymentId} ended ${status}`)
+    }
+    if (now() > deadline) {
+      throw new Error(
+        `schema-migrator deployment ${deploymentId ?? '(not observed)'} remained ${status} after ${String(Math.round(timeoutMs / 1000))}s`,
+      )
+    }
+    await sleep(POLL_INTERVAL_MS)
+  }
+}
+
+/**
  * Re-prove the exact isolated target and retained candidate plan, advance only
  * the schema-migrator source through a saved IaC plan, and settle the one-shot
  * job at the signed digest.
@@ -606,42 +788,46 @@ export async function executeSignedSchemaMigrationBootstrap(
     (input.railway
       ? inferredRailwayPlanExecutor(input.railway)
       : defaultRailwayPlanExecutor)
-  const sleep = input.sleep ?? defaultSleep
-  const now = input.now ?? Date.now
-  const currentIacDigest = input.railwayIacDigest ?? railwayIacSourceDigest
   const candidate = fullRailwayServiceSourceInput(input.manifest)
   let environment = pinnedEnvironment(input.evidence, candidate)
   assertRailwayFullProjectVisibilityCredential(environment)
   const target = input.evidence.target
   const run = (args: readonly string[]): string => railway(args, environment)
-  const runPlan = (
-    args: readonly string[],
-  ): Readonly<{ stdout: string; status: number }> => railwayPlan(args, environment)
-  const assertProjectIsolation = (): void => {
-    assertSingleUsBetaRailwayProjectIsolation(
-      parseRailwayProjectServiceInventory(run(railwayFullProjectStatusArgs())),
-      {
-        projectId: target.projectId,
-        projectName: target.projectName,
-        environmentId: target.environmentId,
-        environmentName: target.environment,
-      },
-    )
+  const session: BootstrapSession = {
+    manifest: input.manifest,
+    evidence: input.evidence,
+    target,
+    run,
+    runPlan: (args) => railwayPlan(args, environment),
+    assertProjectIsolation: () => {
+      assertSingleUsBetaRailwayProjectIsolation(
+        parseRailwayProjectServiceInventory(run(railwayFullProjectStatusArgs())),
+        {
+          projectId: target.projectId,
+          projectName: target.projectName,
+          environmentId: target.environmentId,
+          environmentName: target.environment,
+        },
+      )
+    },
+    currentIacDigest: input.railwayIacDigest ?? railwayIacSourceDigest,
   }
 
-  assertRailwayCliSupportsPinnedPlans(run(['--version']))
-  const selected = parseRailwayLinkedTarget(run(['status']))
-  assertRailwayTargetMatchesPlanEvidence(input.evidence, selected)
-  assertProjectIsolation()
+  assertRailwayCliSupportsPinnedPlans(session.run(['--version']))
+  assertRailwayTargetMatchesPlanEvidence(
+    input.evidence,
+    parseRailwayLinkedTarget(session.run(['status'])),
+  )
+  session.assertProjectIsolation()
   const currentSources = assertReviewedCandidatePlan(
-    runPlan(railwayPlanArgs({ iacFile: IAC_FILE })),
+    session.runPlan(railwayPlanArgs({ iacFile: IAC_FILE })),
     input.evidence,
     candidate,
   )
 
   const plan = schemaMigratorPlan(input.manifest)
   const baselineDeploymentIds = new Set(
-    parseDeploymentRows(run(deploymentListArgs(target)))
+    parseDeploymentRows(session.run(deploymentListArgs(target)))
       .map((row) => row.id)
       .filter((id): id is string => typeof id === 'string' && DEPLOYMENT_ID.test(id)),
   )
@@ -650,127 +836,17 @@ export async function executeSignedSchemaMigrationBootstrap(
     ...environment,
     [RAILWAY_SERVICE_SOURCE_MAP_ENV]: railwaySourceMapEnvironment(desired),
   }
-  const planDirectory = mkdtempSync(join(tmpdir(), 'repkey-schema-iac-plan-'))
-  const planPath = join(planDirectory, 'saved-plan.json')
-  try {
-    if (currentIacDigest() !== input.manifest.contract.iacSha256) {
-      throw new Error('Railway IaC changed before schema-migrator saved planning')
-    }
-    assertProjectIsolation()
-    const planned = runPlan(railwayPinnedPlanArgs(planPath, IAC_FILE))
-    const savedPlanSha256 = bindRailwaySavedPlanArtifact(
-      planPath,
-      planned.stdout,
-      railwayIacTarget(input.evidence),
-      currentSources,
-      desired,
-      SERVICE,
-    )
-    const disposition = inspectStagedRailwayPlan(
-      planned.stdout,
-      railwayIacTarget(input.evidence),
-      currentSources,
-      desired,
-      SERVICE,
-    )
-    if (
-      (disposition === 'change' && planned.status !== 2) ||
-      (disposition === 'noop' && planned.status !== 0)
-    ) {
-      throw new Error(
-        `Railway schema-migrator saved-plan exit ${String(planned.status)} disagrees with ${disposition}`,
-      )
-    }
-    if (currentIacDigest() !== input.manifest.contract.iacSha256) {
-      throw new Error('Railway IaC changed between schema-migrator plan and apply')
-    }
-    assertProjectIsolation()
-    if (disposition === 'change') {
-      assertRailwaySavedPlanArtifactUnchanged(planPath, savedPlanSha256)
-      assertPinnedRailwayApplyResult(run(railwayPinnedApplyArgs(planPath)), SERVICE)
-    } else {
-      assertRedeployFromSourceAcknowledged(
-        run([
-          'service',
-          'redeploy',
-          '--from-source',
-          '--yes',
-          '--service',
-          plan.service,
-          '--project',
-          target.projectId,
-          '--environment',
-          target.environmentId,
-          '--json',
-        ]),
-      )
-    }
-  } finally {
-    rmSync(planDirectory, { recursive: true, force: true })
-  }
 
-  const deadline = now() + input.timeoutMs
-  let deploymentId: string | undefined
-  while (true) {
-    const rows = parseDeploymentRows(run(deploymentListArgs(target)))
-    const newRows = rows.filter(
-      (candidate) =>
-        typeof candidate.id === 'string' &&
-        DEPLOYMENT_ID.test(candidate.id) &&
-        !baselineDeploymentIds.has(candidate.id),
-    )
-    if (!deploymentId) {
-      const exactDigestRows = newRows.filter(
-        (candidate) => candidate.meta?.imageDigest === plan.imageDigest,
-      )
-      if (exactDigestRows.length > 1) {
-        throw new Error(
-          'multiple new schema-migrator deployments report the signed image digest; settlement is ambiguous',
-        )
-      }
-      deploymentId = exactDigestRows[0]?.id
-    }
-    const row = deploymentId
-      ? rows.find((candidate) => candidate.id === deploymentId)
-      : undefined
-    const status = row?.status ?? 'UNKNOWN'
-    if (status === 'SUCCESS') {
-      if (!deploymentId) {
-        throw new Error('Railway reported SUCCESS without a deployment id')
-      }
-      const observedDigest = row?.meta?.imageDigest ?? ''
-      if (observedDigest !== plan.imageDigest) {
-        throw new Error(
-          `schema-migrator deployment ${deploymentId} image digest ${observedDigest || '(unavailable)'} does not match signed ${plan.imageDigest}`,
-        )
-      }
-      const converged = runPlan(railwayPlanArgs({ iacFile: IAC_FILE }))
-      if (converged.status !== 0) {
-        throw new Error('Railway schema-migrator graph still has drift after apply')
-      }
-      const finalDisposition = inspectStagedRailwayPlan(
-        converged.stdout,
-        railwayIacTarget(input.evidence),
-        desired.sources,
-        desired,
-        SERVICE,
-      )
-      if (finalDisposition !== 'noop') {
-        throw new Error('Railway schema-migrator source did not converge')
-      }
-      assertProjectIsolation()
-      return { deploymentId, imageDigest: observedDigest, status: 'SUCCESS' }
-    }
-    if (status !== 'UNKNOWN' && !IN_PROGRESS_STATUSES.has(status)) {
-      throw new Error(`schema-migrator deployment ${deploymentId} ended ${status}`)
-    }
-    if (now() > deadline) {
-      throw new Error(
-        `schema-migrator deployment ${deploymentId ?? '(not observed)'} remained ${status} after ${String(Math.round(input.timeoutMs / 1000))}s`,
-      )
-    }
-    await sleep(POLL_INTERVAL_MS)
-  }
+  applyStagedSchemaMigratorSource(session, plan, currentSources, desired)
+
+  return awaitSchemaMigratorSettlement(session, {
+    plan,
+    desired,
+    baselineDeploymentIds,
+    timeoutMs: input.timeoutMs,
+    sleep: input.sleep ?? defaultSleep,
+    now: input.now ?? Date.now,
+  })
 }
 
 function harnessArgv(args: readonly string[]): string[] {

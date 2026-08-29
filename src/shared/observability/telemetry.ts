@@ -222,19 +222,11 @@ function scrubString(value: string): string {
 }
 
 /**
- * Scrub protected fields recursively, then apply Sentry-specific structural
- * denials. Generic exception messages and arbitrary request/user/extra data
- * are not reliably classifiable, so they are removed rather than guessed at.
+ * Structural denials on the event's own fields: the message and transaction are
+ * redacted, unclassifiable containers are removed, and the request keeps only
+ * its method.
  */
-export function scrubSentryEvent(event: unknown): unknown {
-  if (!event || typeof event !== 'object') return event
-  const scrubbed = deeplyScrub(event, new WeakMap<object, unknown>())
-  if (!scrubbed || typeof scrubbed !== 'object' || Array.isArray(scrubbed)) {
-    return scrubbed
-  }
-
-  const record = scrubbed as Record<string, unknown>
-  if (record.type === 'feedback') return scrubSentryFeedbackRecord(record)
+function scrubEventEnvelope(record: Record<string, unknown>): void {
   if ('message' in record) record.message = REDACTED
   if ('transaction' in record) record.transaction = REDACTED
   delete record.user
@@ -252,22 +244,54 @@ export function scrubSentryEvent(event: unknown): unknown {
     if (typeof request.method === 'string') record.request = { method: request.method }
     else delete record.request
   }
+}
 
+function scrubEventExceptions(record: Record<string, unknown>): void {
   const exception = asRecord(record.exception)
-  if (exception && Array.isArray(exception.values)) {
-    for (const value of exception.values) {
-      const exceptionValue = asRecord(value)
-      if (!exceptionValue) continue
-      if ('value' in exceptionValue) exceptionValue.value = REDACTED
-      scrubExceptionMechanism(exceptionValue.mechanism)
-      scrubStacktrace(exceptionValue.stacktrace)
-    }
+  if (!exception || !Array.isArray(exception.values)) return
+  for (const value of exception.values) {
+    const exceptionValue = asRecord(value)
+    if (!exceptionValue) continue
+    if ('value' in exceptionValue) exceptionValue.value = REDACTED
+    scrubExceptionMechanism(exceptionValue.mechanism)
+    scrubStacktrace(exceptionValue.stacktrace)
+  }
+}
+
+function scrubEventThreads(record: Record<string, unknown>): void {
+  const threads = asRecord(record.threads)
+  if (!threads || !Array.isArray(threads.values)) return
+  for (const thread of threads.values) scrubStacktrace(asRecord(thread)?.stacktrace)
+}
+
+function scrubEventSpans(record: Record<string, unknown>): void {
+  if (!Array.isArray(record.spans)) return
+  for (const span of record.spans) {
+    const spanRecord = asRecord(span)
+    if (!spanRecord) continue
+    if ('description' in spanRecord) spanRecord.description = REDACTED
+    delete spanRecord.data
+  }
+}
+
+/**
+ * Scrub protected fields recursively, then apply Sentry-specific structural
+ * denials. Generic exception messages and arbitrary request/user/extra data
+ * are not reliably classifiable, so they are removed rather than guessed at.
+ */
+export function scrubSentryEvent(event: unknown): unknown {
+  if (!event || typeof event !== 'object') return event
+  const scrubbed = deeplyScrub(event, new WeakMap<object, unknown>())
+  if (!scrubbed || typeof scrubbed !== 'object' || Array.isArray(scrubbed)) {
+    return scrubbed
   }
 
-  const threads = asRecord(record.threads)
-  if (threads && Array.isArray(threads.values)) {
-    for (const thread of threads.values) scrubStacktrace(asRecord(thread)?.stacktrace)
-  }
+  const record = scrubbed as Record<string, unknown>
+  if (record.type === 'feedback') return scrubSentryFeedbackRecord(record)
+
+  scrubEventEnvelope(record)
+  scrubEventExceptions(record)
+  scrubEventThreads(record)
 
   if (Array.isArray(record.breadcrumbs)) {
     record.breadcrumbs = record.breadcrumbs.map((breadcrumb) =>
@@ -275,14 +299,7 @@ export function scrubSentryEvent(event: unknown): unknown {
     )
   }
 
-  if (Array.isArray(record.spans)) {
-    for (const span of record.spans) {
-      const spanRecord = asRecord(span)
-      if (!spanRecord) continue
-      if ('description' in spanRecord) spanRecord.description = REDACTED
-      delete spanRecord.data
-    }
-  }
+  scrubEventSpans(record)
 
   return scrubbed
 }

@@ -412,6 +412,172 @@ const observationProjectionSchema = z.discriminatedUnion('recoveryPath', [
     .loose(),
 ])
 
+type ProjectedObservations = z.infer<typeof observationProjectionSchema>
+
+/** Effect-count failures both recovery paths report identically. */
+function externalEffectFailures(
+  verification: Readonly<{
+    committedDataLossCount: number
+    duplicateExternalEffectCount: number
+    unsafeExternalEffectCount: number
+  }>,
+): readonly string[] {
+  const failures: string[] = []
+  if (verification.committedDataLossCount > 0) {
+    failures.push(`${verification.committedDataLossCount} committed rows were lost`)
+  }
+  if (verification.duplicateExternalEffectCount > 0) {
+    failures.push(
+      `${verification.duplicateExternalEffectCount} duplicate external effects`,
+    )
+  }
+  if (verification.unsafeExternalEffectCount > 0) {
+    failures.push(`${verification.unsafeExternalEffectCount} unsafe external effects`)
+  }
+  return failures
+}
+
+function rollbackFailures(
+  verification: Extract<
+    ProjectedObservations,
+    { recoveryPath: 'compatible_image_rollback' }
+  >['verification'],
+): readonly string[] {
+  const failures: string[] = []
+  if (!verification.releaseIdentityConsistent) {
+    failures.push('release identity was not consistent after rollback')
+  }
+  if (!verification.queueOutboxConsistent) {
+    failures.push('queue and outbox were not consistent after rollback')
+  }
+  return [...failures, ...externalEffectFailures(verification)]
+}
+
+function restoreFailures(
+  verification: Extract<
+    ProjectedObservations,
+    { recoveryPath: 'incompatible_data_restore' }
+  >['verification'],
+  rpoMs: number,
+  rtoMs: number,
+): readonly string[] {
+  const failures: string[] = []
+  if (rpoMs > RECOVERY_RPO_TARGET_MS) {
+    failures.push(`RPO ${rpoMs}ms exceeds the ${RECOVERY_RPO_TARGET_MS}ms target`)
+  }
+  if (rtoMs > RECOVERY_RTO_TARGET_MS) {
+    failures.push(`RTO ${rtoMs}ms exceeds the ${RECOVERY_RTO_TARGET_MS}ms target`)
+  }
+  if (!verification.readinessGreen) failures.push('readiness never recovered')
+  if (!verification.canaryReadPassed) failures.push('canary read failed')
+  if (!verification.queueOutboxConsistent) {
+    failures.push('queue and outbox were not consistent after restore')
+  }
+  if (!verification.committedSourceIntegrityPassed) {
+    failures.push('committed source integrity check failed')
+  }
+  return [...failures, ...externalEffectFailures(verification)]
+}
+
+type CandidateEvidenceResult =
+  | Readonly<{ ok: true; evidence: unknown }>
+  | Readonly<{ ok: false; errors: readonly string[] }>
+
+/**
+ * Build the not-yet-validated evidence document for whichever recovery path the
+ * operator recorded. The outcome is derived from the observed failures, so a
+ * `passed` document cannot be produced from an observation set that failed.
+ */
+function candidateRehearsalEvidence(
+  observations: ProjectedObservations,
+): CandidateEvidenceResult {
+  if (observations.recoveryPath === 'compatible_image_rollback') {
+    const failures = rollbackFailures(observations.verification)
+    return {
+      ok: true,
+      evidence: {
+        ...observations,
+        version: RECOVERY_REHEARSAL_EVIDENCE_VERSION,
+        evidenceKind: 'recovery-rehearsal',
+        reverseDdlExecuted: false,
+        attempts: 1,
+        outcome: failures.length === 0 ? 'passed' : 'failed',
+        failures,
+      },
+    }
+  }
+
+  // Objectives are MEASURED, never claimed: both are differences between two
+  // timestamps the operator recorded, so an optimistic RPO cannot be typed in.
+  const rpoMs =
+    Date.parse(observations.restore.latestCommittedAt) -
+    Date.parse(observations.restore.restorePointAt)
+  const rtoMs =
+    Date.parse(observations.restore.readinessRecoveredAt) -
+    Date.parse(observations.restore.restoreStartedAt)
+  if (!Number.isFinite(rpoMs) || rpoMs < 0 || !Number.isFinite(rtoMs) || rtoMs < 0) {
+    return {
+      ok: false,
+      errors: ['restore timestamps do not yield a non-negative RPO and RTO'],
+    }
+  }
+  const failures = restoreFailures(observations.verification, rpoMs, rtoMs)
+  return {
+    ok: true,
+    evidence: {
+      ...observations,
+      objectives: { rpoMs, rtoMs },
+      version: RECOVERY_REHEARSAL_EVIDENCE_VERSION,
+      evidenceKind: 'recovery-rehearsal',
+      reverseDdlExecuted: false,
+      attempts: 1,
+      outcome: failures.length === 0 ? 'passed' : 'failed',
+      failures,
+    },
+  }
+}
+
+/**
+ * Every dependency digest the evidence names must have a retained file, and
+ * every retained file must hash to the digest it was filed under.
+ */
+function retainRehearsalDependencies(
+  evidence: RecoveryRehearsalEvidence,
+  dependencyFiles: readonly RecoveryRehearsalDependencyFile[],
+): RecoveryRehearsalAssemblyResult {
+  const supplied = new Map(
+    dependencyFiles.map((file) => [file.sha256, file.content] as const),
+  )
+  const mismatched = dependencyFiles.filter(
+    (file) => releaseEvidenceSha256(file.content) !== file.sha256,
+  )
+  if (mismatched.length > 0) {
+    return {
+      ok: false,
+      errors: mismatched.map(
+        ({ sha256 }) => `dependency ${sha256} does not hash to its own content`,
+      ),
+    }
+  }
+  const digests = [...new Set(recoveryRehearsalDependencyDigests(evidence))]
+  const unretained = digests.filter((digest) => !supplied.has(digest))
+  if (unretained.length > 0) {
+    return {
+      ok: false,
+      errors: unretained.map((digest) => `dependency ${digest} has no retained file`),
+    }
+  }
+
+  return {
+    ok: true,
+    evidence,
+    dependencies: digests.map((sha256) => ({
+      sha256,
+      content: supplied.get(sha256) ?? '',
+    })),
+  }
+}
+
 export function assembleRecoveryRehearsalEvidence(
   input: Readonly<{
     /**
@@ -438,132 +604,13 @@ export function assembleRecoveryRehearsalEvidence(
     }
   }
 
-  const failures: string[] = []
-  let candidateEvidence: unknown
-  if (projected.data.recoveryPath === 'compatible_image_rollback') {
-    const observations = projected.data
-    if (!observations.verification.releaseIdentityConsistent) {
-      failures.push('release identity was not consistent after rollback')
-    }
-    if (!observations.verification.queueOutboxConsistent) {
-      failures.push('queue and outbox were not consistent after rollback')
-    }
-    if (observations.verification.committedDataLossCount > 0) {
-      failures.push(
-        `${observations.verification.committedDataLossCount} committed rows were lost`,
-      )
-    }
-    if (observations.verification.duplicateExternalEffectCount > 0) {
-      failures.push(
-        `${observations.verification.duplicateExternalEffectCount} duplicate external effects`,
-      )
-    }
-    if (observations.verification.unsafeExternalEffectCount > 0) {
-      failures.push(
-        `${observations.verification.unsafeExternalEffectCount} unsafe external effects`,
-      )
-    }
-    candidateEvidence = {
-      ...observations,
-      version: RECOVERY_REHEARSAL_EVIDENCE_VERSION,
-      evidenceKind: 'recovery-rehearsal',
-      reverseDdlExecuted: false,
-      attempts: 1,
-      outcome: failures.length === 0 ? 'passed' : 'failed',
-      failures,
-    }
-  } else {
-    const observations = projected.data
-    // Objectives are MEASURED, never claimed: both are differences between two
-    // timestamps the operator recorded, so an optimistic RPO cannot be typed in.
-    const rpoMs =
-      Date.parse(observations.restore.latestCommittedAt) -
-      Date.parse(observations.restore.restorePointAt)
-    const rtoMs =
-      Date.parse(observations.restore.readinessRecoveredAt) -
-      Date.parse(observations.restore.restoreStartedAt)
-    if (!Number.isFinite(rpoMs) || rpoMs < 0 || !Number.isFinite(rtoMs) || rtoMs < 0) {
-      return {
-        ok: false,
-        errors: ['restore timestamps do not yield a non-negative RPO and RTO'],
-      }
-    }
-    if (rpoMs > RECOVERY_RPO_TARGET_MS) {
-      failures.push(`RPO ${rpoMs}ms exceeds the ${RECOVERY_RPO_TARGET_MS}ms target`)
-    }
-    if (rtoMs > RECOVERY_RTO_TARGET_MS) {
-      failures.push(`RTO ${rtoMs}ms exceeds the ${RECOVERY_RTO_TARGET_MS}ms target`)
-    }
-    if (!observations.verification.readinessGreen)
-      failures.push('readiness never recovered')
-    if (!observations.verification.canaryReadPassed) failures.push('canary read failed')
-    if (!observations.verification.queueOutboxConsistent) {
-      failures.push('queue and outbox were not consistent after restore')
-    }
-    if (!observations.verification.committedSourceIntegrityPassed) {
-      failures.push('committed source integrity check failed')
-    }
-    if (observations.verification.committedDataLossCount > 0) {
-      failures.push(
-        `${observations.verification.committedDataLossCount} committed rows were lost`,
-      )
-    }
-    if (observations.verification.duplicateExternalEffectCount > 0) {
-      failures.push(
-        `${observations.verification.duplicateExternalEffectCount} duplicate external effects`,
-      )
-    }
-    if (observations.verification.unsafeExternalEffectCount > 0) {
-      failures.push(
-        `${observations.verification.unsafeExternalEffectCount} unsafe external effects`,
-      )
-    }
-    candidateEvidence = {
-      ...observations,
-      objectives: { rpoMs, rtoMs },
-      version: RECOVERY_REHEARSAL_EVIDENCE_VERSION,
-      evidenceKind: 'recovery-rehearsal',
-      reverseDdlExecuted: false,
-      attempts: 1,
-      outcome: failures.length === 0 ? 'passed' : 'failed',
-      failures,
-    }
-  }
+  const candidate = candidateRehearsalEvidence(projected.data)
+  if (!candidate.ok) return { ok: false, errors: candidate.errors }
 
   const parsed = parseRecoveryRehearsalEvidence(
-    canonicalReleaseEvidence(candidateEvidence),
+    canonicalReleaseEvidence(candidate.evidence),
   )
   if (!parsed.ok) return { ok: false, errors: parsed.errors }
 
-  const supplied = new Map(
-    input.dependencyFiles.map((file) => [file.sha256, file.content] as const),
-  )
-  const mismatched = input.dependencyFiles.filter(
-    (file) => releaseEvidenceSha256(file.content) !== file.sha256,
-  )
-  if (mismatched.length > 0) {
-    return {
-      ok: false,
-      errors: mismatched.map(
-        ({ sha256 }) => `dependency ${sha256} does not hash to its own content`,
-      ),
-    }
-  }
-  const digests = [...new Set(recoveryRehearsalDependencyDigests(parsed.evidence))]
-  const unretained = digests.filter((digest) => !supplied.has(digest))
-  if (unretained.length > 0) {
-    return {
-      ok: false,
-      errors: unretained.map((digest) => `dependency ${digest} has no retained file`),
-    }
-  }
-
-  return {
-    ok: true,
-    evidence: parsed.evidence,
-    dependencies: digests.map((sha256) => ({
-      sha256,
-      content: supplied.get(sha256) ?? '',
-    })),
-  }
+  return retainRehearsalDependencies(parsed.evidence, input.dependencyFiles)
 }

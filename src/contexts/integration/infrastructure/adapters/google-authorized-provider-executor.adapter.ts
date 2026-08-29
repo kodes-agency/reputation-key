@@ -4,7 +4,10 @@ import {
   type GoogleProviderRouteDescriptor,
   type GoogleProviderRouteTarget,
 } from '#/shared/google-provider-control/route-catalogue'
-import type { GoogleProviderCallAuthorization } from '../../application/google-provider-contract'
+import type {
+  GoogleDisconnectRevokeAuthorization,
+  GoogleProviderCallAuthorization,
+} from '../../application/google-provider-contract'
 import { isGoogleDisconnectRevokeAuthorization } from '../../application/google-provider-contract'
 import type {
   GoogleAuthorizedProviderExecutor,
@@ -99,6 +102,26 @@ type GoogleEgressGatewayClient = Readonly<{
   ): Promise<GoogleProviderExecutionResult>
 }>
 
+type ExecuteOptions = Parameters<GoogleAuthorizedProviderExecutor['execute']>[1]
+type ExecutionDenial = Extract<GoogleProviderExecutionResult, { ok: false }>
+type CredentialHomeDecision =
+  'direct' | 'credential_home_unavailable' | 'credential_home_mismatch'
+
+const REJECTION_MESSAGE = 'Google provider execution rejected'
+
+const deadlineExceeded = (): ExecutionDenial => ({
+  ok: false,
+  code: 'deadline_exceeded',
+  retryAfterMs: 0,
+})
+
+const denyAdmission = (admissionCode?: GoogleProviderAdmissionCode): ExecutionDenial => ({
+  ok: false,
+  code: 'admission_denied',
+  ...(admissionCode === undefined ? {} : { admissionCode }),
+  retryAfterMs: 0,
+})
+
 export const createGoogleAuthorizedProviderExecutor = (
   deps: Readonly<{
     bindCredential: (credential: string) => string
@@ -121,189 +144,204 @@ export const createGoogleAuthorizedProviderExecutor = (
     }>
   }>,
 ): GoogleAuthorizedProviderExecutor => {
+  const warnRejected = (
+    routeKey: GoogleProviderRouteDescriptor['routeKey'],
+    stage: string,
+    code: string,
+  ): void => {
+    deps.logger?.warn({ routeKey, stage, code }, REJECTION_MESSAGE)
+  }
+
+  /** REG-01 defense in depth. Null means the call may proceed past this fence. */
+  const dataCellDenial = async (
+    descriptor: GoogleProviderRouteDescriptor,
+    options: ExecuteOptions,
+  ): Promise<ExecutionDenial | null> => {
+    if (!options.authorization.propertyId || !deps.admitPropertyExecution) return null
+    let cellDecision: DataCellExecutionDecision
+    try {
+      cellDecision = await deps.admitPropertyExecution(options.authorization.propertyId)
+    } catch {
+      warnRejected(descriptor.routeKey, 'data-cell', 'cell_unavailable')
+      return denyAdmission('cell_unavailable')
+    }
+    if (cellDecision.kind !== 'deny') return null
+    const admissionCode =
+      cellDecision.reason === 'wrong_cell'
+        ? ('wrong_cell' as const)
+        : ('cell_unavailable' as const)
+    warnRejected(descriptor.routeKey, 'data-cell', admissionCode)
+    return denyAdmission(admissionCode)
+  }
+
+  const credentialHomeDenial = async (
+    descriptor: GoogleProviderRouteDescriptor,
+    options: ExecuteOptions,
+  ): Promise<ExecutionDenial | null> => {
+    if (!deps.admitDirectCredentialExecution) return null
+    let credentialDecision: CredentialHomeDecision
+    try {
+      credentialDecision = await deps.admitDirectCredentialExecution({
+        routeKey: descriptor.routeKey,
+        authorization: options.authorization,
+      })
+    } catch {
+      credentialDecision = 'credential_home_unavailable'
+    }
+    if (credentialDecision === 'direct') return null
+    warnRejected(descriptor.routeKey, 'credential-home', credentialDecision)
+    return denyAdmission(credentialDecision)
+  }
+
+  /** Null means the descriptor could not be compiled into an admissible request. */
+  const compileAdmission = (
+    descriptor: GoogleProviderRouteDescriptor,
+  ): GoogleProviderAdmissionMetadata | null => {
+    try {
+      return compileGoogleProviderRequest(
+        descriptor,
+        deps.bindCredential,
+        deps.routeTarget,
+      ).admission
+    } catch {
+      warnRejected(descriptor.routeKey, 'compile', 'malformed_request')
+      return null
+    }
+  }
+
+  const prepareDisconnectRevokeDenial = async (
+    descriptor: GoogleProviderRouteDescriptor,
+    authorization: GoogleDisconnectRevokeAuthorization,
+    admission: GoogleProviderAdmissionMetadata,
+  ): Promise<ExecutionDenial | null> => {
+    const disconnectRevoke = authorization.disconnectRevoke
+    if (
+      descriptor.routeKey !== 'oauth.revoke' ||
+      !deps.disconnectRevoke ||
+      !Number.isSafeInteger(disconnectRevoke.cleanupDeadlineAtMs)
+    ) {
+      return denyAdmission()
+    }
+    const prepared = await deps.disconnectRevoke.prepare({
+      attemptId: disconnectRevoke.attemptId,
+      authorization,
+      credentialBinding: admission.credentialBinding,
+      cleanupDeadlineAt: new Date(disconnectRevoke.cleanupDeadlineAtMs),
+      now: deps.now?.() ?? new Date(),
+    })
+    return prepared.ok ? null : denyAdmission()
+  }
+
+  const acquireDisconnectDispatchDenial = async (
+    authorization: GoogleDisconnectRevokeAuthorization,
+    admission: GoogleProviderAdmissionMetadata,
+    permitId: string,
+  ): Promise<ExecutionDenial | null> => {
+    const acquired = await deps.disconnectRevoke!.acquireDispatch({
+      attemptId: authorization.disconnectRevoke.attemptId,
+      cleanupWorkPermitId: permitId,
+      authorization,
+      credentialBinding: admission.credentialBinding,
+      now: deps.now?.() ?? new Date(),
+    })
+    return acquired.ok ? null : denyAdmission()
+  }
+
+  const admitPermit = async (
+    descriptor: GoogleProviderRouteDescriptor,
+    options: ExecuteOptions,
+    admission: GoogleProviderAdmissionMetadata,
+  ): Promise<Readonly<{ ok: true; permitId: string }> | ExecutionDenial> => {
+    let permit: Awaited<ReturnType<GoogleProviderPermitAdmitter>>
+    try {
+      permit = await deps.admit({ authorization: options.authorization, admission })
+    } catch {
+      warnRejected(descriptor.routeKey, 'admit', 'admission_error')
+      return denyAdmission()
+    }
+    if (!permit.ok) {
+      warnRejected(descriptor.routeKey, 'admit', permit.code)
+      return denyAdmission(permit.code)
+    }
+    return permit
+  }
+
+  const runGateway = async (
+    descriptor: GoogleProviderRouteDescriptor,
+    options: ExecuteOptions,
+    permitId: string,
+  ): Promise<GoogleProviderExecutionResult> => {
+    try {
+      const executed = await deps.gateway.execute({
+        permitId,
+        descriptor,
+        deadlineMs: options.deadlineMs,
+      })
+      if (!executed.ok) {
+        // Without this the only visible signal was a generic "rate limited"
+        // in the UI: gateway-returned denials were never logged, so permit
+        // and policy fences looked like provider quota pressure.
+        deps.logger?.warn(
+          {
+            routeKey: descriptor.routeKey,
+            stage: 'gateway',
+            code: executed.code,
+            ...(executed.admissionCode === undefined
+              ? {}
+              : { admissionCode: executed.admissionCode }),
+            retryAfterMs: executed.retryAfterMs,
+          },
+          REJECTION_MESSAGE,
+        )
+      }
+      return executed
+    } catch {
+      warnRejected(descriptor.routeKey, 'gateway', 'transport_error')
+      return { ok: false, code: 'transport_error', retryAfterMs: 0 }
+    }
+  }
+
   return Object.freeze({
     execute: async (descriptor, options) => {
-      if (options.signal?.aborted) {
-        return { ok: false, code: 'deadline_exceeded', retryAfterMs: 0 }
-      }
-      if (options.authorization.propertyId && deps.admitPropertyExecution) {
-        let cellDecision: DataCellExecutionDecision
-        try {
-          cellDecision = await deps.admitPropertyExecution(
-            options.authorization.propertyId,
-          )
-        } catch {
-          deps.logger?.warn(
-            {
-              routeKey: descriptor.routeKey,
-              stage: 'data-cell',
-              code: 'cell_unavailable',
-            },
-            'Google provider execution rejected',
-          )
-          return {
-            ok: false,
-            code: 'admission_denied',
-            admissionCode: 'cell_unavailable',
-            retryAfterMs: 0,
-          }
-        }
-        if (cellDecision.kind === 'deny') {
-          const admissionCode =
-            cellDecision.reason === 'wrong_cell'
-              ? ('wrong_cell' as const)
-              : ('cell_unavailable' as const)
-          deps.logger?.warn(
-            {
-              routeKey: descriptor.routeKey,
-              stage: 'data-cell',
-              code: admissionCode,
-            },
-            'Google provider execution rejected',
-          )
-          return {
-            ok: false,
-            code: 'admission_denied',
-            admissionCode,
-            retryAfterMs: 0,
-          }
-        }
-      }
-      if (deps.admitDirectCredentialExecution) {
-        let credentialDecision:
-          'direct' | 'credential_home_unavailable' | 'credential_home_mismatch'
-        try {
-          credentialDecision = await deps.admitDirectCredentialExecution({
-            routeKey: descriptor.routeKey,
-            authorization: options.authorization,
-          })
-        } catch {
-          credentialDecision = 'credential_home_unavailable'
-        }
-        if (credentialDecision !== 'direct') {
-          deps.logger?.warn(
-            {
-              routeKey: descriptor.routeKey,
-              stage: 'credential-home',
-              code: credentialDecision,
-            },
-            'Google provider execution rejected',
-          )
-          return {
-            ok: false,
-            code: 'admission_denied',
-            admissionCode: credentialDecision,
-            retryAfterMs: 0,
-          }
-        }
-      }
-      let admission: GoogleProviderAdmissionMetadata
-      try {
-        admission = compileGoogleProviderRequest(
-          descriptor,
-          deps.bindCredential,
-          deps.routeTarget,
-        ).admission
-      } catch {
-        deps.logger?.warn(
-          { routeKey: descriptor.routeKey, stage: 'compile', code: 'malformed_request' },
-          'Google provider execution rejected',
-        )
-        return { ok: false, code: 'malformed_request', retryAfterMs: 0 }
-      }
+      if (options.signal?.aborted) return deadlineExceeded()
+
+      const cellDenial = await dataCellDenial(descriptor, options)
+      if (cellDenial) return cellDenial
+
+      const homeDenial = await credentialHomeDenial(descriptor, options)
+      if (homeDenial) return homeDenial
+
+      const admission = compileAdmission(descriptor)
+      if (!admission) return { ok: false, code: 'malformed_request', retryAfterMs: 0 }
+
       const disconnectAuthorization = isGoogleDisconnectRevokeAuthorization(
         options.authorization,
       )
         ? options.authorization
         : null
-      const disconnectRevoke = disconnectAuthorization?.disconnectRevoke
-      if (disconnectRevoke) {
-        if (
-          descriptor.routeKey !== 'oauth.revoke' ||
-          !deps.disconnectRevoke ||
-          !Number.isSafeInteger(disconnectRevoke.cleanupDeadlineAtMs)
-        ) {
-          return { ok: false, code: 'admission_denied', retryAfterMs: 0 }
-        }
-        const prepared = await deps.disconnectRevoke.prepare({
-          attemptId: disconnectRevoke.attemptId,
-          authorization: disconnectAuthorization,
-          credentialBinding: admission.credentialBinding,
-          cleanupDeadlineAt: new Date(disconnectRevoke.cleanupDeadlineAtMs),
-          now: deps.now?.() ?? new Date(),
-        })
-        if (!prepared.ok) {
-          return { ok: false, code: 'admission_denied', retryAfterMs: 0 }
-        }
-      }
-      let permit: Awaited<ReturnType<GoogleProviderPermitAdmitter>>
-      try {
-        permit = await deps.admit({ authorization: options.authorization, admission })
-      } catch {
-        deps.logger?.warn(
-          { routeKey: descriptor.routeKey, stage: 'admit', code: 'admission_error' },
-          'Google provider execution rejected',
-        )
-        return { ok: false, code: 'admission_denied', retryAfterMs: 0 }
-      }
-      if (!permit.ok) {
-        deps.logger?.warn(
-          { routeKey: descriptor.routeKey, stage: 'admit', code: permit.code },
-          'Google provider execution rejected',
-        )
-        return {
-          ok: false,
-          code: 'admission_denied',
-          admissionCode: permit.code,
-          retryAfterMs: 0,
-        }
-      }
-      if (disconnectRevoke) {
-        const acquired = await deps.disconnectRevoke!.acquireDispatch({
-          attemptId: disconnectRevoke.attemptId,
-          cleanupWorkPermitId: permit.permitId,
-          authorization: disconnectAuthorization!,
-          credentialBinding: admission.credentialBinding,
-          now: deps.now?.() ?? new Date(),
-        })
-        if (!acquired.ok) {
-          return { ok: false, code: 'admission_denied', retryAfterMs: 0 }
-        }
-      }
-      if (options.signal?.aborted) {
-        return { ok: false, code: 'deadline_exceeded', retryAfterMs: 0 }
-      }
-      try {
-        const executed = await deps.gateway.execute({
-          permitId: permit.permitId,
+      if (disconnectAuthorization?.disconnectRevoke) {
+        const denial = await prepareDisconnectRevokeDenial(
           descriptor,
-          deadlineMs: options.deadlineMs,
-        })
-        if (!executed.ok) {
-          // Without this the only visible signal was a generic "rate limited"
-          // in the UI: gateway-returned denials were never logged, so permit
-          // and policy fences looked like provider quota pressure.
-          deps.logger?.warn(
-            {
-              routeKey: descriptor.routeKey,
-              stage: 'gateway',
-              code: executed.code,
-              ...(executed.admissionCode === undefined
-                ? {}
-                : { admissionCode: executed.admissionCode }),
-              retryAfterMs: executed.retryAfterMs,
-            },
-            'Google provider execution rejected',
-          )
-        }
-        return executed
-      } catch {
-        deps.logger?.warn(
-          { routeKey: descriptor.routeKey, stage: 'gateway', code: 'transport_error' },
-          'Google provider execution rejected',
+          disconnectAuthorization,
+          admission,
         )
-        return { ok: false, code: 'transport_error', retryAfterMs: 0 }
+        if (denial) return denial
       }
+
+      const permit = await admitPermit(descriptor, options, admission)
+      if (!permit.ok) return permit
+
+      if (disconnectAuthorization?.disconnectRevoke) {
+        const denial = await acquireDisconnectDispatchDenial(
+          disconnectAuthorization,
+          admission,
+          permit.permitId,
+        )
+        if (denial) return denial
+      }
+
+      if (options.signal?.aborted) return deadlineExceeded()
+      return runGateway(descriptor, options, permit.permitId)
     },
   })
 }

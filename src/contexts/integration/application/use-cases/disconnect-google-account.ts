@@ -55,9 +55,133 @@ export type DisconnectGoogleAccountDeps = Readonly<{
   idGen?: () => string
 }>
 
-export const disconnectGoogleAccount =
-  (deps: DisconnectGoogleAccountDeps) =>
-  async (input: DisconnectGoogleInput, ctx: AuthContext): Promise<GoogleConnection> => {
+type GoogleRevokeOutcome = Awaited<
+  ReturnType<NonNullable<GoogleOAuthPort['revokeTokenWithOutcome']>>
+>
+
+function revokeOutcomeCode(outcome: GoogleRevokeOutcome): string {
+  if (outcome === 'confirmed_revoked') return 'google_revoke_confirmed'
+  if (outcome === 'confirmed_not_sent') return 'provider_dispatch_not_started'
+  return 'google_revoke_outcome_ambiguous'
+}
+
+export const disconnectGoogleAccount = (deps: DisconnectGoogleAccountDeps) => {
+  /**
+   * Wrong-home and expand-phase legacy rows may still be disconnected and
+   * redacted locally, but no provider credential is decrypted or sent.
+   */
+  const admitProviderCredential = async (
+    connection: GoogleConnection,
+  ): Promise<boolean> => {
+    try {
+      await deps.assertDirectCredentialUse(connection)
+      return true
+    } catch {
+      deps.logger.warn(
+        { stage: 'credential-home' },
+        'Google provider cleanup skipped outside the credential home',
+      )
+      return false
+    }
+  }
+
+  /** GBP Pub/Sub lifecycle: unsubscribe before the token is revoked (still valid). */
+  const unsubscribeFromNotifications = async (
+    organizationId: OrganizationId,
+    connectionId: string,
+  ): Promise<void> => {
+    if (!deps.unsubscribeFromNotifications) return
+    try {
+      await deps.unsubscribeFromNotifications(organizationId, connectionId)
+    } catch (e) {
+      deps.logger.warn(
+        { err: e },
+        'GBP notifications unsubscribe failed — disconnecting anyway',
+      )
+    }
+  }
+
+  /**
+   * A revoke is never a best-effort direct side effect. The governed executor
+   * first binds it to one durable cleanup attempt and one exact admission
+   * permit; its result then commits with local redaction. If the process
+   * disappears after provider dispatch, the elapsed-attempt reconciler finishes
+   * locally without ever sending the token again.
+   *
+   * Null means no governed cleanup ran, so the caller still owes the local
+   * disconnect.
+   */
+  const governedRevoke = async (
+    connection: GoogleConnection,
+    connectionId: ReturnType<typeof googleConnectionId>,
+    ctx: AuthContext,
+  ): Promise<GoogleConnection | null> => {
+    if (
+      !deps.authorizeProviderCall ||
+      !deps.disconnectRevokeStore ||
+      !deps.oauth.revokeTokenWithOutcome ||
+      !deps.idGen
+    ) {
+      return null
+    }
+    const now = deps.clock()
+    const attemptId = deps.idGen()
+    const cleanupDeadlineAt = new Date(now.getTime() + GOOGLE_DISCONNECT_REVOKE_WINDOW_MS)
+    let providerAuthorization
+    try {
+      providerAuthorization = await deps.authorizeProviderCall({
+        operation: 'oauth.revoke',
+        organizationId: ctx.organizationId,
+        connectionId,
+        initiatorUserId: ctx.userId,
+        disconnectRevoke: { attemptId, cleanupDeadlineAt },
+      })
+    } catch {
+      deps.logger.warn(
+        { stage: 'revoke-authorization' },
+        'Google cleanup authorization was unavailable; disconnecting locally',
+      )
+    }
+    if (!providerAuthorization) return null
+
+    const refreshToken = deps.encryption.decrypt(connection.encryptedRefreshToken)
+    let outcome: GoogleRevokeOutcome
+    try {
+      outcome = await deps.oauth.revokeTokenWithOutcome(
+        refreshToken,
+        providerAuthorization,
+      )
+    } catch {
+      outcome = 'cleanup_ambiguous'
+    }
+    const event = integrationGoogleAccountDisconnected({
+      connectionId,
+      organizationId: ctx.organizationId,
+      occurredAt: deps.clock(),
+    })
+    const settled = await deps.disconnectRevokeStore.settle({
+      attemptId,
+      organizationId: ctx.organizationId,
+      connectionId,
+      initiatorUserId: ctx.userId,
+      outcome,
+      outcomeCode: revokeOutcomeCode(outcome),
+      event,
+      now: event.occurredAt,
+    })
+    if (!settled.ok) {
+      throw integrationError(
+        'oauth_failed',
+        'Google disconnect cleanup will be completed by recovery',
+      )
+    }
+    return settled.value
+  }
+
+  return async (
+    input: DisconnectGoogleInput,
+    ctx: AuthContext,
+  ): Promise<GoogleConnection> => {
     // 1. Authorize
     if (!canForContext(ctx, 'integration.manage')) {
       throw integrationError(
@@ -83,120 +207,32 @@ export const disconnectGoogleAccount =
 
     await deps.cancelGoogleImportsForConnection?.(ctx.organizationId, connectionId)
 
-    // Wrong-home and expand-phase legacy rows may still be disconnected and
-    // redacted locally, but no provider credential is decrypted or sent.
-    let providerCredentialAdmitted = false
-    try {
-      await deps.assertDirectCredentialUse(connection)
-      providerCredentialAdmitted = true
-    } catch {
-      deps.logger.warn(
-        { stage: 'credential-home' },
-        'Google provider cleanup skipped outside the credential home',
-      )
+    const providerCredentialAdmitted = await admitProviderCredential(connection)
+    if (providerCredentialAdmitted) {
+      await unsubscribeFromNotifications(ctx.organizationId, input.connectionId)
     }
 
-    // GBP Pub/Sub lifecycle: unsubscribe before the token is revoked (still valid).
-    if (providerCredentialAdmitted && deps.unsubscribeFromNotifications) {
-      try {
-        await deps.unsubscribeFromNotifications(ctx.organizationId, input.connectionId)
-      } catch (e) {
-        deps.logger.warn(
-          { err: e },
-          'GBP notifications unsubscribe failed — disconnecting anyway',
-        )
-      }
-    }
-    // 3. A revoke is never a best-effort direct side effect. The governed
-    // executor first binds it to one durable cleanup attempt and one exact
-    // admission permit; its result then commits with local redaction. If the
-    // process disappears after provider dispatch, the elapsed-attempt
-    // reconciler finishes locally without ever sending the token again.
-    let updated: GoogleConnection | null = null
-    if (
-      providerCredentialAdmitted &&
-      deps.authorizeProviderCall &&
-      deps.disconnectRevokeStore &&
-      deps.oauth.revokeTokenWithOutcome &&
-      deps.idGen
-    ) {
-      const now = deps.clock()
-      const attemptId = deps.idGen()
-      const cleanupDeadlineAt = new Date(
-        now.getTime() + GOOGLE_DISCONNECT_REVOKE_WINDOW_MS,
-      )
-      let providerAuthorization
-      try {
-        providerAuthorization = await deps.authorizeProviderCall({
-          operation: 'oauth.revoke',
-          organizationId: ctx.organizationId,
-          connectionId,
-          initiatorUserId: ctx.userId,
-          disconnectRevoke: { attemptId, cleanupDeadlineAt },
-        })
-      } catch {
-        deps.logger.warn(
-          { stage: 'revoke-authorization' },
-          'Google cleanup authorization was unavailable; disconnecting locally',
-        )
-      }
-      if (providerAuthorization) {
-        const refreshToken = deps.encryption.decrypt(connection.encryptedRefreshToken)
-        let outcome: Awaited<
-          ReturnType<NonNullable<GoogleOAuthPort['revokeTokenWithOutcome']>>
-        >
-        try {
-          outcome = await deps.oauth.revokeTokenWithOutcome(
-            refreshToken,
-            providerAuthorization,
-          )
-        } catch {
-          outcome = 'cleanup_ambiguous'
-        }
-        const event = integrationGoogleAccountDisconnected({
-          connectionId,
-          organizationId: ctx.organizationId,
-          occurredAt: deps.clock(),
-        })
-        const settled = await deps.disconnectRevokeStore.settle({
-          attemptId,
-          organizationId: ctx.organizationId,
-          connectionId,
-          initiatorUserId: ctx.userId,
-          outcome,
-          outcomeCode:
-            outcome === 'confirmed_revoked'
-              ? 'google_revoke_confirmed'
-              : outcome === 'confirmed_not_sent'
-                ? 'provider_dispatch_not_started'
-                : 'google_revoke_outcome_ambiguous',
-          event,
-          now: event.occurredAt,
-        })
-        if (!settled.ok) {
-          throw integrationError(
-            'oauth_failed',
-            'Google disconnect cleanup will be completed by recovery',
-          )
-        }
-        updated = settled.value
-      }
-    }
+    // 3. Governed provider cleanup, when every governed dependency is present.
+    const revoked = providerCredentialAdmitted
+      ? await governedRevoke(connection, connectionId, ctx)
+      : null
 
     // 4. No provider authority means no provider socket was opened. Local
     // disconnect remains safe and deterministic for wrong-home/legacy rows.
     // Atomic disconnect: status, identifier/secret redaction, and the
     // durable disconnected fact commit in one transaction. Source-content
     // purge remains an idempotent cross-context cleanup after the commit.
-    updated ??= await deps.commandStore.disconnectGoogleAccount({
-      organizationId: ctx.organizationId,
-      connectionId,
-      event: integrationGoogleAccountDisconnected({
-        connectionId,
+    const updated =
+      revoked ??
+      (await deps.commandStore.disconnectGoogleAccount({
         organizationId: ctx.organizationId,
-        occurredAt: deps.clock(),
-      }),
-    })
+        connectionId,
+        event: integrationGoogleAccountDisconnected({
+          connectionId,
+          organizationId: ctx.organizationId,
+          occurredAt: deps.clock(),
+        }),
+      }))
 
     // 5. Purge source content owned under this connection.
     if (deps.sourceContentPurge) {
@@ -205,5 +241,6 @@ export const disconnectGoogleAccount =
 
     return updated
   }
+}
 
 export type DisconnectGoogleAccount = ReturnType<typeof disconnectGoogleAccount>

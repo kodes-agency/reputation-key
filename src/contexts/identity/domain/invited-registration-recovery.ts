@@ -42,20 +42,44 @@ export type InvitedRegistrationRecoveryDecision =
       reason: 'unexpected_authority'
     }>
 
-export function classifyInvitedRegistrationRecovery(
+type InvitationObservation = Readonly<{
+  matchesAttempt: boolean
+  isCurrent: boolean
+  isAccepted: boolean
+}>
+
+type ProviderObservation = Readonly<{
+  userIsExpected: boolean
+  credentialAccountIsExpected: boolean
+  sessionsAreExpected: boolean
+  artifactsAreFenced: boolean
+  artifactsAreAbsent: boolean
+}>
+
+type AuthorityObservation = Readonly<{
+  isAbsent: boolean
+  matchesAttempt: boolean
+}>
+
+function observeInvitation(
   input: InvitedRegistrationRecoveryInput,
-): InvitedRegistrationRecoveryDecision {
-  const invitationMatchesAttempt =
+): InvitationObservation {
+  const matchesAttempt =
     input.invitation?.id === input.expected.invitationId &&
     input.invitation.organizationId === input.expected.organizationId
-  const invitationIsCurrent =
-    invitationMatchesAttempt &&
-    input.invitation.status === 'pending' &&
-    input.invitation.expiresAt > input.now
-  const userIsExpected =
-    input.user?.id === input.expected.userId &&
-    input.invitation !== null &&
-    input.user.email.toLowerCase() === input.invitation.email.toLowerCase()
+  return {
+    matchesAttempt,
+    isCurrent:
+      matchesAttempt &&
+      input.invitation.status === 'pending' &&
+      input.invitation.expiresAt > input.now,
+    isAccepted: matchesAttempt && input.invitation?.status === 'accepted',
+  }
+}
+
+function observeProviderArtifacts(
+  input: InvitedRegistrationRecoveryInput,
+): ProviderObservation {
   const credentialAccountIsExpected =
     input.accounts.length === 1 &&
     input.accounts[0]?.id === input.expected.credentialAccountId &&
@@ -67,72 +91,109 @@ export function classifyInvitedRegistrationRecovery(
     (input.sessions.length === 1 &&
       input.sessions[0]?.id === input.expected.initialSessionId &&
       input.sessions[0].userId === input.expected.userId)
-  const providerArtifactsAreFenced =
-    (input.accounts.length === 0 || credentialAccountIsExpected) && sessionsAreExpected
-  const hasNoObservedAuthority =
-    input.accounts.length === 0 &&
-    input.sessions.length === 0 &&
-    input.memberships.length === 0 &&
-    !input.binding
+  return {
+    userIsExpected:
+      input.user?.id === input.expected.userId &&
+      input.invitation !== null &&
+      input.user.email.toLowerCase() === input.invitation.email.toLowerCase(),
+    credentialAccountIsExpected,
+    sessionsAreExpected,
+    artifactsAreFenced:
+      (input.accounts.length === 0 || credentialAccountIsExpected) && sessionsAreExpected,
+    artifactsAreAbsent: input.accounts.length === 0 && input.sessions.length === 0,
+  }
+}
 
-  if (!input.user && hasNoObservedAuthority && invitationIsCurrent) {
+function observeAuthority(input: InvitedRegistrationRecoveryInput): AuthorityObservation {
+  return {
+    isAbsent: input.memberships.length === 0 && !input.binding,
+    matchesAttempt:
+      input.memberships.length === 1 &&
+      input.memberships[0]?.organizationId === input.expected.organizationId &&
+      input.binding?.state === 'active' &&
+      input.binding.organizationId === input.expected.organizationId,
+  }
+}
+
+/**
+ * Attempts that left no provider user and no authority behind. Returns null when the
+ * attempt does not fit that shape so the caller can keep classifying.
+ */
+function classifyAttemptWithoutArtifacts(
+  input: InvitedRegistrationRecoveryInput,
+  invitation: InvitationObservation,
+  provider: ProviderObservation,
+  authority: AuthorityObservation,
+): InvitedRegistrationRecoveryDecision | null {
+  if (input.user || !provider.artifactsAreAbsent || !authority.isAbsent) {
+    return null
+  }
+  if (invitation.isCurrent) {
     return { kind: 'awaiting_provider' }
   }
-
-  if (
-    !input.user &&
-    hasNoObservedAuthority &&
-    (input.invitation === null || (invitationMatchesAttempt && !invitationIsCurrent))
-  ) {
+  if (input.invitation === null || invitation.matchesAttempt) {
     return { kind: 'safe_to_compensate', reason: 'invitation_unavailable' }
+  }
+  return null
+}
+
+/**
+ * Attempts whose provider user matches the fence. Returns null when the observed records
+ * do not match any settled shape so the caller can fall back to manual review.
+ */
+function classifyAttemptWithExpectedUser(
+  invitation: InvitationObservation,
+  provider: ProviderObservation,
+  authority: AuthorityObservation,
+): InvitedRegistrationRecoveryDecision | null {
+  if (!provider.userIsExpected) {
+    return null
   }
 
   if (
-    invitationMatchesAttempt &&
-    input.invitation?.status === 'accepted' &&
-    userIsExpected &&
-    credentialAccountIsExpected &&
-    sessionsAreExpected &&
-    input.memberships.length === 1 &&
-    input.memberships[0]?.organizationId === input.expected.organizationId &&
-    input.binding?.state === 'active' &&
-    input.binding.organizationId === input.expected.organizationId
+    invitation.isAccepted &&
+    provider.credentialAccountIsExpected &&
+    provider.sessionsAreExpected &&
+    authority.matchesAttempt
   ) {
     return { kind: 'already_accepted' }
   }
 
+  if (!authority.isAbsent) {
+    return null
+  }
+
   if (
-    invitationIsCurrent &&
-    userIsExpected &&
-    credentialAccountIsExpected &&
-    sessionsAreExpected &&
-    input.memberships.length === 0 &&
-    !input.binding
+    invitation.isCurrent &&
+    provider.credentialAccountIsExpected &&
+    provider.sessionsAreExpected
   ) {
     return { kind: 'ready_to_accept' }
   }
 
-  if (
-    invitationIsCurrent &&
-    userIsExpected &&
-    input.accounts.length === 0 &&
-    input.sessions.length === 0 &&
-    input.memberships.length === 0 &&
-    !input.binding
-  ) {
+  if (invitation.isCurrent && provider.artifactsAreAbsent) {
     return { kind: 'safe_to_compensate', reason: 'partial_provider_commit' }
   }
 
-  if (
-    invitationMatchesAttempt &&
-    !invitationIsCurrent &&
-    userIsExpected &&
-    providerArtifactsAreFenced &&
-    input.memberships.length === 0 &&
-    !input.binding
-  ) {
+  if (invitation.matchesAttempt && !invitation.isCurrent && provider.artifactsAreFenced) {
     return { kind: 'safe_to_compensate', reason: 'invitation_unavailable' }
   }
 
-  return { kind: 'manual_review', reason: 'unexpected_authority' }
+  return null
+}
+
+export function classifyInvitedRegistrationRecovery(
+  input: InvitedRegistrationRecoveryInput,
+): InvitedRegistrationRecoveryDecision {
+  const invitation = observeInvitation(input)
+  const provider = observeProviderArtifacts(input)
+  const authority = observeAuthority(input)
+
+  return (
+    classifyAttemptWithoutArtifacts(input, invitation, provider, authority) ??
+    classifyAttemptWithExpectedUser(invitation, provider, authority) ?? {
+      kind: 'manual_review',
+      reason: 'unexpected_authority',
+    }
+  )
 }

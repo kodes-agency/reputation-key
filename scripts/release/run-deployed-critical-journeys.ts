@@ -439,24 +439,26 @@ async function defaultRunPlaywright(
   }
 }
 
-export async function runDeployedCriticalJourneysCli(
-  args: readonly string[],
-  deps: DeployedJourneyDeps = {},
-): Promise<number> {
-  const io = deps.io ?? consoleIo
-  const clock = deps.now ?? (() => new Date().toISOString())
+/** Either a usable stage result, or the exit code the CLI must return instead. */
+type Stage<T> = Readonly<{ ok: true; value: T }> | Readonly<{ ok: false; code: number }>
 
-  const required = [
-    '--app-origin',
-    '--release-sha',
-    '--release-manifest',
-    '--release-manifest-sha256',
-    '--project-id',
-    '--environment-id',
-    '--authorization',
-    '--output',
-  ]
-  const missing = required.filter((flag) => flagValue(args, flag) === undefined)
+const REQUIRED_FLAGS = [
+  '--app-origin',
+  '--release-sha',
+  '--release-manifest',
+  '--release-manifest-sha256',
+  '--project-id',
+  '--environment-id',
+  '--authorization',
+  '--output',
+] as const
+
+/** Missing flags, a retry flag, or a non-production origin end the run at once. */
+function refusedArgument(
+  args: readonly string[],
+  io: DeployedJourneyIo,
+): number | undefined {
+  const missing = REQUIRED_FLAGS.filter((flag) => flagValue(args, flag) === undefined)
   if (missing.length > 0) {
     io.err(`${COMMAND_NAME} needs ${missing.join(', ')}.`)
     return 2
@@ -468,7 +470,6 @@ export async function runDeployedCriticalJourneysCli(
     )
     return 2
   }
-
   const appOrigin = flagValue(args, '--app-origin')
   if (appOrigin !== DEPLOYED_PRODUCTION_ORIGIN) {
     io.err(
@@ -477,36 +478,52 @@ export async function runDeployedCriticalJourneysCli(
     )
     return 2
   }
+  return undefined
+}
 
-  const outputPath = resolve(flagValue(args, '--output') ?? '')
+type JourneyInputs = Readonly<{
+  manifestDigest: string
+  authorizationDocument: string
+  specSource: string
+  playwrightConfigSource: string
+}>
 
-  let manifestDigest: string
-  let authorizationDocument: string
-  let specSource: string
-  let playwrightConfigSource: string
+/** Reads every tracked input and confirms the declared manifest digest. */
+function readJourneyInputs(
+  args: readonly string[],
+  io: DeployedJourneyIo,
+): Stage<JourneyInputs> {
+  let inputs: JourneyInputs
   try {
-    manifestDigest = releaseEvidenceSha256(
-      readFileSync(resolve(flagValue(args, '--release-manifest') ?? '')),
-    )
-    authorizationDocument = readFileSync(
-      resolve(flagValue(args, '--authorization') ?? ''),
-      'utf8',
-    )
-    specSource = readFileSync(resolve(DEPLOYED_CRITICAL_JOURNEY_SPEC), 'utf8')
-    playwrightConfigSource = readFileSync(resolve(PLAYWRIGHT_CONFIG_PATH), 'utf8')
+    inputs = {
+      manifestDigest: releaseEvidenceSha256(
+        readFileSync(resolve(flagValue(args, '--release-manifest') ?? '')),
+      ),
+      authorizationDocument: readFileSync(
+        resolve(flagValue(args, '--authorization') ?? ''),
+        'utf8',
+      ),
+      specSource: readFileSync(resolve(DEPLOYED_CRITICAL_JOURNEY_SPEC), 'utf8'),
+      playwrightConfigSource: readFileSync(resolve(PLAYWRIGHT_CONFIG_PATH), 'utf8'),
+    }
   } catch (error) {
     io.err(`${COMMAND_NAME}: ${error instanceof Error ? error.message : String(error)}`)
-    return 2
+    return { ok: false, code: 2 }
   }
-  if (flagValue(args, '--release-manifest-sha256') !== manifestDigest) {
+  if (flagValue(args, '--release-manifest-sha256') !== inputs.manifestDigest) {
     io.err(
       `${COMMAND_NAME}: --release-manifest-sha256 does not match the supplied manifest ` +
-        `(${manifestDigest}).`,
+        `(${inputs.manifestDigest}).`,
     )
-    return 2
+    return { ok: false, code: 2 }
   }
+  return { ok: true, value: inputs }
+}
 
-  let authorization: z.infer<typeof authorizationSchema>
+function parseAuthorization(
+  authorizationDocument: string,
+  io: DeployedJourneyIo,
+): Stage<z.infer<typeof authorizationSchema>> {
   try {
     const parsed = authorizationSchema.safeParse(JSON.parse(authorizationDocument))
     if (!parsed.success) {
@@ -514,18 +531,25 @@ export async function runDeployedCriticalJourneysCli(
       for (const issue of parsed.error.issues) {
         io.err(`  authorization.${issue.path.join('.')}: ${issue.message}`)
       }
-      return 2
+      return { ok: false, code: 2 }
     }
-    authorization = parsed.data
+    return { ok: true, value: parsed.data }
   } catch (error) {
     io.err(`${COMMAND_NAME}: ${error instanceof Error ? error.message : String(error)}`)
-    return 2
+    return { ok: false, code: 2 }
   }
+}
 
-  // Authorization is checked BEFORE the browser starts: an expired or
-  // future-dated approval must cost zero production requests.
-  const startedAt = (deps.startedAt ?? clock)()
-  const now = clock()
+/**
+ * Authorization is checked BEFORE the browser starts: an expired or
+ * future-dated approval must cost zero production requests.
+ */
+function refusedAuthorizationWindow(
+  authorization: z.infer<typeof authorizationSchema>,
+  startedAt: string,
+  now: string,
+  io: DeployedJourneyIo,
+): number | undefined {
   if (Date.parse(authorization.approvedAt) > Date.parse(startedAt)) {
     io.err(
       `${COMMAND_NAME}: authorization approvedAt=${authorization.approvedAt} postdates the ` +
@@ -540,71 +564,60 @@ export async function runDeployedCriticalJourneysCli(
     )
     return 2
   }
+  return undefined
+}
 
-  const dependencyDir = resolve(
-    flagValue(args, '--dependency-dir') ?? dirname(outputPath),
-  )
-  const runInput: DeployedJourneyRunInput = {
-    reportPath: resolve(dependencyDir, 'playwright-deployed-report.json'),
-    cleanupReportPath: resolve(dependencyDir, 'deployed-cleanup-report.json'),
-    networkReportPath: resolve(dependencyDir, 'deployed-network-report.json'),
-    syntheticOrganizationId: authorization.syntheticOrganizationId,
-  }
+type JourneyReports = Readonly<{
+  playwrightReport: string
+  cleanupReport: string
+  networkReport: string
+}>
 
+/** Runs the deployed suite and reads back the three reports it must have written. */
+async function runSuiteAndReadReports(
+  runInput: DeployedJourneyRunInput,
+  runPlaywright: (input: DeployedJourneyRunInput) => Promise<DeployedJourneyRunOutcome>,
+  io: DeployedJourneyIo,
+): Promise<Stage<Readonly<{ runner: DeployedJourneyRunOutcome } & JourneyReports>>> {
   let runner: DeployedJourneyRunOutcome
   try {
-    runner = await (deps.runPlaywright ?? defaultRunPlaywright)(runInput)
+    runner = await runPlaywright(runInput)
   } catch (error) {
     io.err(`${COMMAND_NAME}: ${error instanceof Error ? error.message : String(error)}`)
-    return 1
+    return { ok: false, code: 1 }
   }
 
-  let playwrightReport: string
-  let cleanupReport: string
-  let networkReport: string
   try {
-    playwrightReport = readFileSync(runInput.reportPath, 'utf8')
-    cleanupReport = readFileSync(runInput.cleanupReportPath, 'utf8')
-    networkReport = readFileSync(runInput.networkReportPath, 'utf8')
+    return {
+      ok: true,
+      value: {
+        runner,
+        playwrightReport: readFileSync(runInput.reportPath, 'utf8'),
+        cleanupReport: readFileSync(runInput.cleanupReportPath, 'utf8'),
+        networkReport: readFileSync(runInput.networkReportPath, 'utf8'),
+      },
+    }
   } catch (error) {
     io.err(
       `${COMMAND_NAME}: the run produced no readable report — ` +
         `${error instanceof Error ? error.message : String(error)}. ` +
         'Unwritten evidence is missing evidence; refusing to emit.',
     )
-    return 1
+    return { ok: false, code: 1 }
   }
+}
 
-  const built = buildDeployedJourneyEvidence({
-    candidate: {
-      releaseSha: flagValue(args, '--release-sha') ?? '',
-      releaseManifestSha256: manifestDigest,
-      cell: 'us',
-      environment: 'cell-us',
-      deploymentProfile: 'production',
-      projectName: PRODUCTION_RAILWAY_PROJECT_NAME,
-      projectId: flagValue(args, '--project-id') ?? '',
-      environmentId: flagValue(args, '--environment-id') ?? '',
-      appOrigin: DEPLOYED_PRODUCTION_ORIGIN,
-    },
-    runId: (deps.runId ?? (() => crypto.randomUUID()))(),
-    startedAt,
-    completedAt: (deps.completedAt ?? clock)(),
-    capturedAt: clock(),
-    authorizationDocument,
-    playwrightReport,
-    cleanupReport,
-    networkReport,
-    specSource,
-    playwrightConfigSource,
-    runner,
-  })
-  if (!built.ok) {
-    io.err(`${COMMAND_NAME}: refusing to emit deployed journey evidence:`)
-    for (const error of built.errors) io.err(`  ${error}`)
-    return 1
-  }
+type BuiltJourneyEvidence = Extract<
+  ReturnType<typeof buildDeployedJourneyEvidence>,
+  { ok: true }
+>
 
+function emitJourneyArtifacts(
+  built: BuiltJourneyEvidence,
+  outputPath: string,
+  dependencyDir: string,
+  io: DeployedJourneyIo,
+): number {
   for (const dependency of built.dependencies) {
     const path = resolve(dependencyDir, `${dependency.sha256}.dependency`)
     // The filename is the digest, so a sibling that is already there holds
@@ -633,6 +646,81 @@ export async function runDeployedCriticalJourneysCli(
 
   io.out(`deployed critical journeys ${built.evidence.outcome}: ${outputPath}`)
   return built.evidence.outcome === 'passed' ? 0 : 1
+}
+
+export async function runDeployedCriticalJourneysCli(
+  args: readonly string[],
+  deps: DeployedJourneyDeps = {},
+): Promise<number> {
+  const io = deps.io ?? consoleIo
+  const clock = deps.now ?? (() => new Date().toISOString())
+
+  const refusal = refusedArgument(args, io)
+  if (refusal !== undefined) return refusal
+
+  const outputPath = resolve(flagValue(args, '--output') ?? '')
+
+  const inputs = readJourneyInputs(args, io)
+  if (!inputs.ok) return inputs.code
+  const { manifestDigest, authorizationDocument, specSource, playwrightConfigSource } =
+    inputs.value
+
+  const parsed = parseAuthorization(authorizationDocument, io)
+  if (!parsed.ok) return parsed.code
+  const authorization = parsed.value
+
+  const startedAt = (deps.startedAt ?? clock)()
+  const refusedWindow = refusedAuthorizationWindow(authorization, startedAt, clock(), io)
+  if (refusedWindow !== undefined) return refusedWindow
+
+  const dependencyDir = resolve(
+    flagValue(args, '--dependency-dir') ?? dirname(outputPath),
+  )
+  const runInput: DeployedJourneyRunInput = {
+    reportPath: resolve(dependencyDir, 'playwright-deployed-report.json'),
+    cleanupReportPath: resolve(dependencyDir, 'deployed-cleanup-report.json'),
+    networkReportPath: resolve(dependencyDir, 'deployed-network-report.json'),
+    syntheticOrganizationId: authorization.syntheticOrganizationId,
+  }
+
+  const run = await runSuiteAndReadReports(
+    runInput,
+    deps.runPlaywright ?? defaultRunPlaywright,
+    io,
+  )
+  if (!run.ok) return run.code
+
+  const built = buildDeployedJourneyEvidence({
+    candidate: {
+      releaseSha: flagValue(args, '--release-sha') ?? '',
+      releaseManifestSha256: manifestDigest,
+      cell: 'us',
+      environment: 'cell-us',
+      deploymentProfile: 'production',
+      projectName: PRODUCTION_RAILWAY_PROJECT_NAME,
+      projectId: flagValue(args, '--project-id') ?? '',
+      environmentId: flagValue(args, '--environment-id') ?? '',
+      appOrigin: DEPLOYED_PRODUCTION_ORIGIN,
+    },
+    runId: (deps.runId ?? (() => crypto.randomUUID()))(),
+    startedAt,
+    completedAt: (deps.completedAt ?? clock)(),
+    capturedAt: clock(),
+    authorizationDocument,
+    playwrightReport: run.value.playwrightReport,
+    cleanupReport: run.value.cleanupReport,
+    networkReport: run.value.networkReport,
+    specSource,
+    playwrightConfigSource,
+    runner: run.value.runner,
+  })
+  if (!built.ok) {
+    io.err(`${COMMAND_NAME}: refusing to emit deployed journey evidence:`)
+    for (const error of built.errors) io.err(`  ${error}`)
+    return 1
+  }
+
+  return emitJourneyArtifacts(built, outputPath, dependencyDir, io)
 }
 
 const invokedPath = process.argv[1] ? resolve(process.argv[1]) : undefined

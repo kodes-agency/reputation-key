@@ -416,27 +416,16 @@ export function assertSingleUsBetaRailwayFoundationIsolation(
   return isolatedTarget
 }
 
+type RailwayEnvironmentInventory = RailwayProjectServiceInventory['environments'][number]
+
 /**
- * Prove the complete source-less foundation after Railway reports apply
- * completion. In addition to the eight release-managed services, Railway's
- * three managed databases must exist exactly once with one volume each, and
- * the sole object bucket must be present. No runnable source may yet be bound
- * to a release-managed service.
+ * The project must hold exactly the release-managed services plus Railway's
+ * three managed databases, and exactly the one object bucket.
  */
-export function assertSingleUsBetaRailwayFoundationReadback(
+function assertFoundationServiceSet(
   inventory: RailwayProjectServiceInventory,
-  target: Readonly<{
-    projectId: string
-    projectName: string
-    environmentId: string
-    environmentName: string
-  }>,
-): SingleUsBetaRailwayProjectIsolation {
-  const isolation = assertSingleUsBetaRailwayProjectIsolation(inventory, target)
-  const expectedServiceNames = [
-    ...SINGLE_US_BETA_RAILWAY_SERVICE_NAMES,
-    ...SINGLE_US_BETA_RAILWAY_DATABASE_SERVICE_NAMES,
-  ]
+  expectedServiceNames: readonly string[],
+): void {
   assertUniqueValues(
     inventory.services.map((service) => service.name),
     'service names',
@@ -463,15 +452,21 @@ export function assertSingleUsBetaRailwayFoundationReadback(
     inventory.buckets.map((bucket) => bucket.id),
     'bucket IDs',
   )
+}
 
-  const environment = inventory.environments[0]
-  if (!environment) {
-    throw new Error('Railway foundation readback omitted cell-us')
-  }
+/**
+ * Every service binds exactly one instance, and no release-managed service may
+ * yet carry a runnable source.
+ */
+function assertFoundationServiceInstances(
+  inventory: RailwayProjectServiceInventory,
+  environment: RailwayEnvironmentInventory,
+  expectedInstanceCount: number,
+): void {
   const allInstances = environment.serviceInstances
-  if (allInstances.length !== expectedServiceNames.length) {
+  if (allInstances.length !== expectedInstanceCount) {
     throw new Error(
-      `Railway foundation readback has ${String(allInstances.length)} service instances; expected ${String(expectedServiceNames.length)}`,
+      `Railway foundation readback has ${String(allInstances.length)} service instances; expected ${String(expectedInstanceCount)}`,
     )
   }
   for (const service of inventory.services) {
@@ -492,7 +487,14 @@ export function assertSingleUsBetaRailwayFoundationReadback(
       )
     }
   }
+}
 
+/** Exactly one live volume per managed database, in the target environment. */
+function assertFoundationVolumes(
+  inventory: RailwayProjectServiceInventory,
+  environment: RailwayEnvironmentInventory,
+  environmentId: string,
+): void {
   const volumes = environment.volumeInstances
   if (volumes.length !== SINGLE_US_BETA_RAILWAY_DATABASE_SERVICE_NAMES.length) {
     throw new Error(
@@ -512,7 +514,7 @@ export function assertSingleUsBetaRailwayFoundationReadback(
   )
   for (const volume of volumes) {
     if (
-      volume.environmentId !== target.environmentId ||
+      volume.environmentId !== environmentId ||
       volume.deletedAt !== null ||
       volume.isPendingDeletion ||
       !databaseServiceIds.includes(volume.serviceId)
@@ -531,6 +533,37 @@ export function assertSingleUsBetaRailwayFoundationReadback(
       'Railway foundation readback must bind one volume to each managed database',
     )
   }
+}
+
+/**
+ * Prove the complete source-less foundation after Railway reports apply
+ * completion. In addition to the eight release-managed services, Railway's
+ * three managed databases must exist exactly once with one volume each, and
+ * the sole object bucket must be present. No runnable source may yet be bound
+ * to a release-managed service.
+ */
+export function assertSingleUsBetaRailwayFoundationReadback(
+  inventory: RailwayProjectServiceInventory,
+  target: Readonly<{
+    projectId: string
+    projectName: string
+    environmentId: string
+    environmentName: string
+  }>,
+): SingleUsBetaRailwayProjectIsolation {
+  const isolation = assertSingleUsBetaRailwayProjectIsolation(inventory, target)
+  const expectedServiceNames = [
+    ...SINGLE_US_BETA_RAILWAY_SERVICE_NAMES,
+    ...SINGLE_US_BETA_RAILWAY_DATABASE_SERVICE_NAMES,
+  ]
+  assertFoundationServiceSet(inventory, expectedServiceNames)
+
+  const environment = inventory.environments[0]
+  if (!environment) {
+    throw new Error('Railway foundation readback omitted cell-us')
+  }
+  assertFoundationServiceInstances(inventory, environment, expectedServiceNames.length)
+  assertFoundationVolumes(inventory, environment, target.environmentId)
 
   return isolation
 }

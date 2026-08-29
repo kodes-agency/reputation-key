@@ -5,9 +5,17 @@
 // Escalation is a separate, orthogonal action.
 
 import type { InboxRepository } from '../ports/inbox.repository'
-import type { InboxCommandStore } from '../ports/inbox-command-store.port'
+import type {
+  InboxCommandStore,
+  ReopenReviewHandlingCycleCommand,
+} from '../ports/inbox-command-store.port'
 import { reviewId, type InboxItemId } from '#/shared/domain/ids'
-import type { InboxStatus, InboxItem } from '../../domain/types'
+import type {
+  HandlingCycleHead,
+  InboxStatus,
+  InboxItem,
+  ReviewHandlingCycleHead,
+} from '../../domain/types'
 import type { ManualReopenReason } from '../../domain/types'
 import type { ReviewHandlingCycleStore } from '../ports/review-handling-cycle.store'
 import type { ReviewSourceLookupPort } from '../ports/review-source-lookup.port'
@@ -48,29 +56,108 @@ export type UpdateInboxStatus = (
   ctx: AuthContext,
 ) => Promise<InboxItem>
 
+type CycleHead = HandlingCycleHead | ReviewHandlingCycleHead
+
+/** Permission, tenancy, optimistic fence, and role-scoped property access. */
+async function authorizeStatusUpdate(
+  deps: UpdateInboxStatusDeps,
+  input: UpdateInboxStatusInput,
+  ctx: AuthContext,
+): Promise<InboxItem> {
+  if (!canForContext(ctx, 'inbox.write'))
+    throw inboxError('forbidden', 'No inbox write permission')
+
+  const item = await loadInboxItemOrThrow(
+    deps.repo,
+    input.inboxItemId,
+    ctx.organizationId,
+  )
+  assertExpectedCommandRevision(item, input.expectedCommandRevision)
+  if (!canHandleInboxSource(ctx, item.sourceType)) {
+    throw inboxError('forbidden', 'No permission to handle this inbox source')
+  }
+  await assertInboxSourcePropertyAccessible(
+    deps.staffPublicApi,
+    ctx,
+    'handle',
+    item.sourceType,
+    item.propertyId,
+  )
+  return item
+}
+
+/** Source-agnostic head when the store offers one; otherwise the Review-only head. */
+async function findCurrentCycleHead(
+  deps: UpdateInboxStatusDeps,
+  item: InboxItem,
+): Promise<CycleHead | null> {
+  if (deps.cycleStore.findSourceHead) {
+    return deps.cycleStore.findSourceHead(item.id, item.organizationId)
+  }
+  if (item.sourceType === 'review') {
+    return deps.cycleStore.findHead(item.id, item.organizationId)
+  }
+  return null
+}
+
+/** A Review-only head names the source revision under its Review-specific field. */
+function currentSourceRevisionOf(head: CycleHead): number {
+  if ('currentMaterialReviewRevision' in head) {
+    return head.currentSourceRevision ?? head.currentMaterialReviewRevision
+  }
+  return head.currentSourceRevision
+}
+
+/**
+ * Review reopen runs under the Response Target authority so the new cycle's
+ * target anchor and the Review's exact current source state commit together.
+ */
+async function reopenUnderResponseTargetAuthority(
+  deps: UpdateInboxStatusDeps,
+  item: InboxItem,
+  head: CycleHead,
+  command: ReopenReviewHandlingCycleCommand,
+  now: Date,
+): Promise<InboxItem> {
+  const source = await deps.reviewSourceLookup.getReviewSourceMetaById(
+    reviewId(item.sourceId),
+    item.organizationId,
+  )
+  if (!source) throw inboxError('not_found', 'Review source is unavailable')
+  const authority = await deps.responseTargetAuthority.withExactCurrent(
+    {
+      organizationId: item.organizationId,
+      propertyId: item.propertyId,
+      reviewId: item.sourceId,
+      sourceEpoch: source.sourceEpoch,
+    },
+    (permit) => {
+      if (permit.materialReviewRevision !== head.currentSourceRevision) {
+        throw inboxError(
+          'revision_conflict',
+          'Review Material Revision changed; reload and retry',
+        )
+      }
+      return deps.commandStore.reopenReviewCycle({
+        ...command,
+        responseTarget: {
+          reviewAuthority: permit,
+          targetStart: { basis: 'operational_reopen', at: now },
+        },
+      })
+    },
+  )
+  if (authority.status === 'obsolete') {
+    throw inboxError('revision_conflict', 'Review source changed; reload and retry')
+  }
+  return authority.value
+}
+
 export const updateInboxStatus =
   (deps: UpdateInboxStatusDeps): UpdateInboxStatus =>
   async (input, ctx) => {
-    if (!canForContext(ctx, 'inbox.write'))
-      throw inboxError('forbidden', 'No inbox write permission')
-
     // 1. Find item + enforce role-scoped property access
-    const item = await loadInboxItemOrThrow(
-      deps.repo,
-      input.inboxItemId,
-      ctx.organizationId,
-    )
-    assertExpectedCommandRevision(item, input.expectedCommandRevision)
-    if (!canHandleInboxSource(ctx, item.sourceType)) {
-      throw inboxError('forbidden', 'No permission to handle this inbox source')
-    }
-    await assertInboxSourcePropertyAccessible(
-      deps.staffPublicApi,
-      ctx,
-      'handle',
-      item.sourceType,
-      item.propertyId,
-    )
+    const item = await authorizeStatusUpdate(deps, input, ctx)
 
     // Every close is source-specific: Google observation closes Review work;
     // private feedback closes only after a manager chooses one outcome. The
@@ -106,22 +193,15 @@ export const updateInboxStatus =
       if (!input.reopenReason) {
         throw inboxError('invalid_input', 'A neutral reopen reason is required')
       }
-      const head = deps.cycleStore.findSourceHead
-        ? await deps.cycleStore.findSourceHead(item.id, item.organizationId)
-        : item.sourceType === 'review'
-          ? await deps.cycleStore.findHead(item.id, item.organizationId)
-          : null
+      const head = await findCurrentCycleHead(deps, item)
       if (!head) {
         throw inboxError('not_found', 'Inbox item has no current Handling Cycle')
       }
-      const command = {
+      const command: ReopenReviewHandlingCycleCommand = {
         item,
         expected: {
           cycleNumber: head.currentCycleNumber,
-          sourceRevision:
-            'currentMaterialReviewRevision' in head
-              ? (head.currentSourceRevision ?? head.currentMaterialReviewRevision)
-              : head.currentSourceRevision,
+          sourceRevision: currentSourceRevisionOf(head),
           stateRevision: head.stateRevision,
         },
         reason: input.reopenReason,
@@ -132,38 +212,7 @@ export const updateInboxStatus =
       if (item.sourceType !== 'review') {
         return deps.commandStore.reopenReviewCycle(command)
       }
-      const source = await deps.reviewSourceLookup.getReviewSourceMetaById(
-        reviewId(item.sourceId),
-        item.organizationId,
-      )
-      if (!source) throw inboxError('not_found', 'Review source is unavailable')
-      const authority = await deps.responseTargetAuthority.withExactCurrent(
-        {
-          organizationId: item.organizationId,
-          propertyId: item.propertyId,
-          reviewId: item.sourceId,
-          sourceEpoch: source.sourceEpoch,
-        },
-        (permit) => {
-          if (permit.materialReviewRevision !== head.currentSourceRevision) {
-            throw inboxError(
-              'revision_conflict',
-              'Review Material Revision changed; reload and retry',
-            )
-          }
-          return deps.commandStore.reopenReviewCycle({
-            ...command,
-            responseTarget: {
-              reviewAuthority: permit,
-              targetStart: { basis: 'operational_reopen', at: now },
-            },
-          })
-        },
-      )
-      if (authority.status === 'obsolete') {
-        throw inboxError('revision_conflict', 'Review source changed; reload and retry')
-      }
-      return authority.value
+      return reopenUnderResponseTargetAuthority(deps, item, head, command, now)
     }
     // `InboxStatus` is exactly `open | closed`. `closed` was refused above and
     // `open` returned above, so this arm is unreachable — and it used to be the

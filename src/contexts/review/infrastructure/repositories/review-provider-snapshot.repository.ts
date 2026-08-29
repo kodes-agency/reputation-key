@@ -125,6 +125,338 @@ async function failLockedRun(
   return terminal[0]
 }
 
+type PageCommitInput = Parameters<ReviewProviderSnapshotRepository['commitPage']>[0]
+type DeletionCandidateRow = typeof reviewProviderDeletionCandidates.$inferSelect
+
+function selectLockedDeletionReviews(tx: Tx, reviewIds: ReadonlyArray<string>) {
+  return tx
+    .select({
+      id: reviews.id,
+      organizationId: reviews.organizationId,
+      propertyId: reviews.propertyId,
+      sourceEpoch: reviews.sourceEpoch,
+      sourceRevision: reviews.sourceRevision,
+    })
+    .from(reviews)
+    .where(inArray(reviews.id, [...reviewIds]))
+    .orderBy(asc(reviews.id))
+    .for('update')
+}
+
+type LockedDeletionReview = Awaited<
+  ReturnType<typeof selectLockedDeletionReviews>
+>[number]
+
+/** The candidate is no longer provably deletable: keep it as observed evidence
+ * and leave the Review untouched. */
+async function markDeletionCandidateObserved(
+  tx: Tx,
+  runId: string,
+  reviewId: string,
+): Promise<void> {
+  await tx
+    .update(reviewProviderDeletionCandidates)
+    .set({ state: 'observed', updatedAt: sql`transaction_timestamp()` })
+    .where(
+      and(
+        eq(reviewProviderDeletionCandidates.runId, runId),
+        eq(reviewProviderDeletionCandidates.reviewId, reviewId),
+      ),
+    )
+}
+
+type DeletionCandidateOutcome =
+  Readonly<{ kind: 'observed' }> | Readonly<{ kind: 'applied'; event: DomainEvent }>
+
+const DELETION_OBSERVED: DeletionCandidateOutcome = { kind: 'observed' }
+
+/**
+ * Redact one confirmed-missing Review. The locked Review row, the provider
+ * subject mapping, and the erasure itself must all still match the evidence the
+ * candidate was recorded with; any mismatch downgrades the candidate to
+ * observed rather than deleting content on stale grounds.
+ */
+async function applyDeletionCandidate(
+  tx: Tx,
+  run: RunRow,
+  candidate: DeletionCandidateRow,
+  lockedReview: LockedDeletionReview | undefined,
+): Promise<DeletionCandidateOutcome> {
+  if (
+    lockedReview == null ||
+    lockedReview.organizationId !== run.organizationId ||
+    lockedReview.propertyId !== run.propertyId ||
+    lockedReview.sourceEpoch !== run.sourceEpoch ||
+    lockedReview.sourceRevision !== candidate.expectedSourceRevision
+  ) {
+    await markDeletionCandidateObserved(tx, run.id, candidate.reviewId)
+    return DELETION_OBSERVED
+  }
+  const mappings = await tx
+    .select()
+    .from(reviewProviderSubjects)
+    .where(
+      and(
+        eq(reviewProviderSubjects.organizationId, run.organizationId),
+        eq(reviewProviderSubjects.propertyId, run.propertyId),
+        eq(reviewProviderSubjects.sourceEpoch, run.sourceEpoch),
+        eq(reviewProviderSubjects.reviewId, candidate.reviewId),
+      ),
+    )
+    .for('update')
+  const mapping = mappings[0]
+  if (
+    mapping == null ||
+    mapping.state !== candidate.expectedMappingState ||
+    mapping.lastSourceRevision !== candidate.expectedSourceRevision ||
+    mapping.firstMissingSnapshotRunId == null ||
+    mapping.lastSeenSnapshotRunId === run.id
+  ) {
+    await markDeletionCandidateObserved(tx, run.id, candidate.reviewId)
+    return DELETION_OBSERVED
+  }
+  const erased = await eraseReviewSourceContent(tx, {
+    reviewId: reviewId(candidate.reviewId),
+    organizationId: organizationId(run.organizationId),
+    propertyId: propertyId(run.propertyId),
+    sourceEpoch: run.sourceEpoch,
+    expectedSourceRevision: candidate.expectedSourceRevision,
+    state: 'provider_deleted',
+  })
+  if (!erased) {
+    await markDeletionCandidateObserved(tx, run.id, candidate.reviewId)
+    return DELETION_OBSERVED
+  }
+  const event = await recordSourceTransition(tx, mapping, 'provider_deleted')
+  await tx
+    .update(reviewProviderSubjects)
+    .set({
+      state: 'provider_deleted',
+      unlinkedAt: mapping.unlinkedAt ?? sql`transaction_timestamp()`,
+      unlinkExpiresAt:
+        mapping.unlinkExpiresAt ?? sql`transaction_timestamp() + interval '24 months'`,
+      updatedAt: sql`transaction_timestamp()`,
+    })
+    .where(
+      and(
+        eq(reviewProviderSubjects.organizationId, mapping.organizationId),
+        eq(reviewProviderSubjects.propertyId, mapping.propertyId),
+        eq(reviewProviderSubjects.sourceEpoch, mapping.sourceEpoch),
+        eq(reviewProviderSubjects.keyVersion, mapping.keyVersion),
+        eq(reviewProviderSubjects.locatorHmac, mapping.locatorHmac),
+      ),
+    )
+  return { kind: 'applied', event }
+}
+
+/** The completed run publishes the verified provider aggregate exactly once,
+ * durably, at the database's own transaction instant. */
+async function recordVerifiedSnapshotFact(tx: Tx, run: RunRow): Promise<DomainEvent> {
+  if (
+    run.expectedTotal == null ||
+    !providerAggregateIsValid(run.expectedTotal, run.expectedAverageRating)
+  ) {
+    throw new Error('Verified provider aggregate is unavailable at completion')
+  }
+  const evaluatedRows = await tx.execute(
+    sql`SELECT transaction_timestamp() AS evaluated_at`,
+  )
+  const evaluatedValue = (evaluatedRows.rows[0] as { evaluated_at: Date | string })
+    .evaluated_at
+  const evaluatedAt =
+    evaluatedValue instanceof Date ? evaluatedValue : new Date(evaluatedValue)
+  const verified = reviewGoogleReputationSnapshotVerified({
+    organizationId: organizationId(run.organizationId),
+    propertyId: propertyId(run.propertyId),
+    sourceEpoch: run.sourceEpoch,
+    runId: run.id,
+    reviewCount: run.expectedTotal,
+    averageRating: run.expectedAverageRating,
+    evaluatedAt,
+    occurredAt: evaluatedAt,
+  })
+  await tx.insert(reviewGoogleReputationSnapshotFacts).values({
+    runId: run.id,
+    eventId: verified.eventId,
+    organizationId: run.organizationId,
+    propertyId: run.propertyId,
+    sourceEpoch: run.sourceEpoch,
+    reviewCount: run.expectedTotal,
+    averageRating: run.expectedAverageRating,
+    evaluatedAt,
+  })
+  await insertOutboxRow(tx, verified, { recordedAt: evaluatedAt })
+  return verified
+}
+
+/**
+ * The first conflict this page trips, in the order the failure taxonomy ranks
+ * them: a changed provider aggregate outranks a malformed one, which outranks a
+ * blown review cap, which outranks a blown page cap. Null means the page is
+ * acceptable.
+ */
+function pageCommitConflictCode(
+  run: RunRow,
+  input: PageCommitInput,
+): ReviewProviderSnapshotFailureCode | null {
+  if (run.expectedTotal != null && run.expectedTotal !== input.totalReviewCount) {
+    return 'total_changed'
+  }
+  if (run.expectedTotal != null && run.expectedAverageRating !== input.averageRating) {
+    return 'average_changed'
+  }
+  if (!providerAggregateIsValid(input.totalReviewCount, input.averageRating)) {
+    return 'malformed_page'
+  }
+  if (input.totalReviewCount > 10_000) return 'review_cap_exceeded'
+  if (
+    input.expectedPageIndex >= 200 ||
+    input.observations.length > 50 ||
+    input.totalReviewCount < 0
+  ) {
+    return 'page_cap_exceeded'
+  }
+  return null
+}
+
+/** A confirmation page is only valid inside the run's frozen deadline. */
+async function isWithinConfirmationDeadline(tx: Tx, run: RunRow): Promise<boolean> {
+  const deadline = await tx.execute(sql`
+    SELECT transaction_timestamp() < ${run.confirmationDeadline} AS within_deadline
+  `)
+  return (
+    run.confirmationDeadline != null &&
+    (deadline.rows[0] as { within_deadline: boolean } | undefined)?.within_deadline ===
+      true
+  )
+}
+
+function selectPageMember(tx: Tx, run: RunRow, reviewId: string) {
+  return tx
+    .select()
+    .from(reviewProviderSnapshotMembers)
+    .where(
+      and(
+        eq(reviewProviderSnapshotMembers.runId, run.id),
+        eq(reviewProviderSnapshotMembers.reviewId, reviewId),
+      ),
+    )
+    .for('update')
+}
+
+type SnapshotMemberRow = Awaited<ReturnType<typeof selectPageMember>>[number]
+
+/** Main-scan sighting: each provider resource may be seen exactly once. */
+async function markMainScanSeen(
+  tx: Tx,
+  run: RunRow,
+  reviewId: string,
+  member: SnapshotMemberRow | undefined,
+): Promise<void> {
+  if (member?.mainSeen) throw new SnapshotConflict('duplicate_resource')
+  if (member == null) {
+    await tx
+      .insert(reviewProviderSnapshotMembers)
+      .values({ runId: run.id, reviewId, mainSeen: true })
+    return
+  }
+  await tx
+    .update(reviewProviderSnapshotMembers)
+    .set({ mainSeen: true })
+    .where(
+      and(
+        eq(reviewProviderSnapshotMembers.runId, run.id),
+        eq(reviewProviderSnapshotMembers.reviewId, reviewId),
+      ),
+    )
+}
+
+/** Confirmation sighting: the resource must already be a main-scan member that
+ * has not been confirmed and has not become a deletion candidate. */
+async function markConfirmationSeen(
+  tx: Tx,
+  run: RunRow,
+  reviewId: string,
+  member: SnapshotMemberRow | undefined,
+): Promise<void> {
+  if (member == null || !member.mainSeen || member.confirmationSeen) {
+    throw new SnapshotConflict('confirmation_set_changed')
+  }
+  const candidate = await tx
+    .select({ state: reviewProviderDeletionCandidates.state })
+    .from(reviewProviderDeletionCandidates)
+    .where(
+      and(
+        eq(reviewProviderDeletionCandidates.runId, run.id),
+        eq(reviewProviderDeletionCandidates.reviewId, reviewId),
+      ),
+    )
+    .limit(1)
+  if (candidate.length > 0) {
+    throw new SnapshotConflict('confirmation_set_changed')
+  }
+  await tx
+    .update(reviewProviderSnapshotMembers)
+    .set({ confirmationSeen: true })
+    .where(
+      and(
+        eq(reviewProviderSnapshotMembers.runId, run.id),
+        eq(reviewProviderSnapshotMembers.reviewId, reviewId),
+      ),
+    )
+}
+
+/** Record every resource on this page against the run's membership set. */
+async function recordPageMembership(
+  tx: Tx,
+  run: RunRow,
+  input: PageCommitInput,
+): Promise<void> {
+  const pageIds = new Set<string>()
+  for (const observation of input.observations) {
+    if (pageIds.has(observation.reviewId)) {
+      throw new SnapshotConflict('duplicate_resource')
+    }
+    pageIds.add(observation.reviewId)
+    await recordObservationMapping(tx, run, observation)
+
+    const members = await selectPageMember(tx, run, observation.reviewId)
+    const member = members[0]
+    if (input.phase === 'main') {
+      await markMainScanSeen(tx, run, observation.reviewId, member)
+    } else {
+      await markConfirmationSeen(tx, run, observation.reviewId, member)
+    }
+  }
+}
+
+/** Cursor and counter advance for the phase this page belongs to. The main scan
+ * additionally freezes the provider aggregate on its first page. */
+function pageCommitUpdate(
+  run: RunRow,
+  input: PageCommitInput,
+  nextCount: number,
+  nextUnique: number,
+) {
+  if (input.phase === 'main') {
+    return {
+      expectedTotal: run.expectedTotal ?? input.totalReviewCount,
+      expectedAverageRating:
+        run.expectedTotal == null ? input.averageRating : run.expectedAverageRating,
+      mainPageCount: nextCount,
+      mainUniqueCount: nextUnique,
+      mainCursorRef: input.nextCursorRef,
+      updatedAt: sql`transaction_timestamp()`,
+    }
+  }
+  return {
+    confirmationPageCount: nextCount,
+    confirmationUniqueCount: nextUnique,
+    confirmationCursorRef: input.nextCursorRef,
+    updatedAt: sql`transaction_timestamp()`,
+  }
+}
+
 async function findSubjectMatches(
   tx: Tx,
   run: RunRow,
@@ -443,112 +775,21 @@ export const createReviewProviderSnapshotRepository = (
       ) {
         return { status: 'stale_page' as const, run: fromRunRow(run) }
       }
-      if (input.phase === 'confirmation') {
-        const deadline = await tx.execute(sql`
-          SELECT transaction_timestamp() < ${run.confirmationDeadline} AS within_deadline
-        `)
-        if (
-          run.confirmationDeadline == null ||
-          (deadline.rows[0] as { within_deadline: boolean } | undefined)
-            ?.within_deadline !== true
-        ) {
-          const failed = await failLockedRun(tx, run, 'confirmation_deadline_elapsed')
-          return {
-            status: 'failed' as const,
-            run: fromRunRow(failed),
-            code: 'confirmation_deadline_elapsed' as const,
-          }
+      if (
+        input.phase === 'confirmation' &&
+        !(await isWithinConfirmationDeadline(tx, run))
+      ) {
+        const failed = await failLockedRun(tx, run, 'confirmation_deadline_elapsed')
+        return {
+          status: 'failed' as const,
+          run: fromRunRow(failed),
+          code: 'confirmation_deadline_elapsed' as const,
         }
       }
       try {
-        if (
-          input.expectedPageIndex >= 200 ||
-          input.observations.length > 50 ||
-          input.totalReviewCount < 0 ||
-          input.totalReviewCount > 10_000 ||
-          !providerAggregateIsValid(input.totalReviewCount, input.averageRating) ||
-          (run.expectedTotal != null && run.expectedTotal !== input.totalReviewCount) ||
-          (run.expectedTotal != null && run.expectedAverageRating !== input.averageRating)
-        ) {
-          throw new SnapshotConflict(
-            run.expectedTotal != null && run.expectedTotal !== input.totalReviewCount
-              ? 'total_changed'
-              : run.expectedTotal != null &&
-                  run.expectedAverageRating !== input.averageRating
-                ? 'average_changed'
-                : !providerAggregateIsValid(input.totalReviewCount, input.averageRating)
-                  ? 'malformed_page'
-                  : input.totalReviewCount > 10_000
-                    ? 'review_cap_exceeded'
-                    : 'page_cap_exceeded',
-          )
-        }
-        const pageIds = new Set<string>()
-        for (const observation of input.observations) {
-          if (pageIds.has(observation.reviewId)) {
-            throw new SnapshotConflict('duplicate_resource')
-          }
-          pageIds.add(observation.reviewId)
-          await recordObservationMapping(tx, run, observation)
-
-          const members = await tx
-            .select()
-            .from(reviewProviderSnapshotMembers)
-            .where(
-              and(
-                eq(reviewProviderSnapshotMembers.runId, run.id),
-                eq(reviewProviderSnapshotMembers.reviewId, observation.reviewId),
-              ),
-            )
-            .for('update')
-          const member = members[0]
-          if (input.phase === 'main') {
-            if (member?.mainSeen) throw new SnapshotConflict('duplicate_resource')
-            if (member == null) {
-              await tx.insert(reviewProviderSnapshotMembers).values({
-                runId: run.id,
-                reviewId: observation.reviewId,
-                mainSeen: true,
-              })
-            } else {
-              await tx
-                .update(reviewProviderSnapshotMembers)
-                .set({ mainSeen: true })
-                .where(
-                  and(
-                    eq(reviewProviderSnapshotMembers.runId, run.id),
-                    eq(reviewProviderSnapshotMembers.reviewId, observation.reviewId),
-                  ),
-                )
-            }
-          } else {
-            if (member == null || !member.mainSeen || member.confirmationSeen) {
-              throw new SnapshotConflict('confirmation_set_changed')
-            }
-            const candidate = await tx
-              .select({ state: reviewProviderDeletionCandidates.state })
-              .from(reviewProviderDeletionCandidates)
-              .where(
-                and(
-                  eq(reviewProviderDeletionCandidates.runId, run.id),
-                  eq(reviewProviderDeletionCandidates.reviewId, observation.reviewId),
-                ),
-              )
-              .limit(1)
-            if (candidate.length > 0) {
-              throw new SnapshotConflict('confirmation_set_changed')
-            }
-            await tx
-              .update(reviewProviderSnapshotMembers)
-              .set({ confirmationSeen: true })
-              .where(
-                and(
-                  eq(reviewProviderSnapshotMembers.runId, run.id),
-                  eq(reviewProviderSnapshotMembers.reviewId, observation.reviewId),
-                ),
-              )
-          }
-        }
+        const conflict = pageCommitConflictCode(run, input)
+        if (conflict) throw new SnapshotConflict(conflict)
+        await recordPageMembership(tx, run, input)
 
         const nextCount = pageCount + 1
         const nextUnique =
@@ -561,26 +802,7 @@ export const createReviewProviderSnapshotRepository = (
         }
         const rows = await tx
           .update(reviewProviderSnapshotRuns)
-          .set(
-            input.phase === 'main'
-              ? {
-                  expectedTotal: run.expectedTotal ?? input.totalReviewCount,
-                  expectedAverageRating:
-                    run.expectedTotal == null
-                      ? input.averageRating
-                      : run.expectedAverageRating,
-                  mainPageCount: nextCount,
-                  mainUniqueCount: nextUnique,
-                  mainCursorRef: input.nextCursorRef,
-                  updatedAt: sql`transaction_timestamp()`,
-                }
-              : {
-                  confirmationPageCount: nextCount,
-                  confirmationUniqueCount: nextUnique,
-                  confirmationCursorRef: input.nextCursorRef,
-                  updatedAt: sql`transaction_timestamp()`,
-                },
-          )
+          .set(pageCommitUpdate(run, input, nextCount, nextUnique))
           .where(eq(reviewProviderSnapshotRuns.id, run.id))
           .returning()
         if (!rows[0]) throw new Error('Snapshot page update returned no row')
@@ -935,124 +1157,29 @@ export const createReviewProviderSnapshotRepository = (
           throw new Error('Provider snapshot source epoch changed before deletion')
         }
       }
-      const lockedReviews =
+      const lockedReviews: LockedDeletionReview[] =
         candidates.length === 0
           ? []
-          : await tx
-              .select({
-                id: reviews.id,
-                organizationId: reviews.organizationId,
-                propertyId: reviews.propertyId,
-                sourceEpoch: reviews.sourceEpoch,
-                sourceRevision: reviews.sourceRevision,
-              })
-              .from(reviews)
-              .where(
-                inArray(
-                  reviews.id,
-                  candidates.map((candidate) => candidate.reviewId),
-                ),
-              )
-              .orderBy(asc(reviews.id))
-              .for('update')
+          : await selectLockedDeletionReviews(
+              tx,
+              candidates.map((candidate) => candidate.reviewId),
+            )
       const lockedReviewsById = new Map(lockedReviews.map((row) => [row.id, row]))
       let applied = 0
       let observed = 0
       for (const candidate of candidates) {
-        const lockedReview = lockedReviewsById.get(candidate.reviewId)
-        if (
-          lockedReview == null ||
-          lockedReview.organizationId !== run.organizationId ||
-          lockedReview.propertyId !== run.propertyId ||
-          lockedReview.sourceEpoch !== run.sourceEpoch ||
-          lockedReview.sourceRevision !== candidate.expectedSourceRevision
-        ) {
-          await tx
-            .update(reviewProviderDeletionCandidates)
-            .set({ state: 'observed', updatedAt: sql`transaction_timestamp()` })
-            .where(
-              and(
-                eq(reviewProviderDeletionCandidates.runId, run.id),
-                eq(reviewProviderDeletionCandidates.reviewId, candidate.reviewId),
-              ),
-            )
+        const outcome = await applyDeletionCandidate(
+          tx,
+          run,
+          candidate,
+          lockedReviewsById.get(candidate.reviewId),
+        )
+        if (outcome.kind === 'applied') {
+          emitted.push(outcome.event)
+          applied += 1
+        } else {
           observed += 1
-          continue
         }
-        const mappings = await tx
-          .select()
-          .from(reviewProviderSubjects)
-          .where(
-            and(
-              eq(reviewProviderSubjects.organizationId, run.organizationId),
-              eq(reviewProviderSubjects.propertyId, run.propertyId),
-              eq(reviewProviderSubjects.sourceEpoch, run.sourceEpoch),
-              eq(reviewProviderSubjects.reviewId, candidate.reviewId),
-            ),
-          )
-          .for('update')
-        const mapping = mappings[0]
-        if (
-          mapping == null ||
-          mapping.state !== candidate.expectedMappingState ||
-          mapping.lastSourceRevision !== candidate.expectedSourceRevision ||
-          mapping.firstMissingSnapshotRunId == null ||
-          mapping.lastSeenSnapshotRunId === run.id
-        ) {
-          await tx
-            .update(reviewProviderDeletionCandidates)
-            .set({ state: 'observed', updatedAt: sql`transaction_timestamp()` })
-            .where(
-              and(
-                eq(reviewProviderDeletionCandidates.runId, run.id),
-                eq(reviewProviderDeletionCandidates.reviewId, candidate.reviewId),
-              ),
-            )
-          observed += 1
-          continue
-        }
-        const erased = await eraseReviewSourceContent(tx, {
-          reviewId: reviewId(candidate.reviewId),
-          organizationId: organizationId(run.organizationId),
-          propertyId: propertyId(run.propertyId),
-          sourceEpoch: run.sourceEpoch,
-          expectedSourceRevision: candidate.expectedSourceRevision,
-          state: 'provider_deleted',
-        })
-        if (!erased) {
-          await tx
-            .update(reviewProviderDeletionCandidates)
-            .set({ state: 'observed', updatedAt: sql`transaction_timestamp()` })
-            .where(
-              and(
-                eq(reviewProviderDeletionCandidates.runId, run.id),
-                eq(reviewProviderDeletionCandidates.reviewId, candidate.reviewId),
-              ),
-            )
-          observed += 1
-          continue
-        }
-        emitted.push(await recordSourceTransition(tx, mapping, 'provider_deleted'))
-        await tx
-          .update(reviewProviderSubjects)
-          .set({
-            state: 'provider_deleted',
-            unlinkedAt: mapping.unlinkedAt ?? sql`transaction_timestamp()`,
-            unlinkExpiresAt:
-              mapping.unlinkExpiresAt ??
-              sql`transaction_timestamp() + interval '24 months'`,
-            updatedAt: sql`transaction_timestamp()`,
-          })
-          .where(
-            and(
-              eq(reviewProviderSubjects.organizationId, mapping.organizationId),
-              eq(reviewProviderSubjects.propertyId, mapping.propertyId),
-              eq(reviewProviderSubjects.sourceEpoch, mapping.sourceEpoch),
-              eq(reviewProviderSubjects.keyVersion, mapping.keyVersion),
-              eq(reviewProviderSubjects.locatorHmac, mapping.locatorHmac),
-            ),
-          )
-        applied += 1
       }
       const last = candidates.at(-1)?.reviewId ?? run.applyCursorReviewId
       const more =
@@ -1073,41 +1200,7 @@ export const createReviewProviderSnapshotRepository = (
           : []
       const done = more.length === 0
       if (done) {
-        if (
-          run.expectedTotal == null ||
-          !providerAggregateIsValid(run.expectedTotal, run.expectedAverageRating)
-        ) {
-          throw new Error('Verified provider aggregate is unavailable at completion')
-        }
-        const evaluatedRows = await tx.execute(
-          sql`SELECT transaction_timestamp() AS evaluated_at`,
-        )
-        const evaluatedValue = (evaluatedRows.rows[0] as { evaluated_at: Date | string })
-          .evaluated_at
-        const evaluatedAt =
-          evaluatedValue instanceof Date ? evaluatedValue : new Date(evaluatedValue)
-        const verified = reviewGoogleReputationSnapshotVerified({
-          organizationId: organizationId(run.organizationId),
-          propertyId: propertyId(run.propertyId),
-          sourceEpoch: run.sourceEpoch,
-          runId: run.id,
-          reviewCount: run.expectedTotal,
-          averageRating: run.expectedAverageRating,
-          evaluatedAt,
-          occurredAt: evaluatedAt,
-        })
-        await tx.insert(reviewGoogleReputationSnapshotFacts).values({
-          runId: run.id,
-          eventId: verified.eventId,
-          organizationId: run.organizationId,
-          propertyId: run.propertyId,
-          sourceEpoch: run.sourceEpoch,
-          reviewCount: run.expectedTotal,
-          averageRating: run.expectedAverageRating,
-          evaluatedAt,
-        })
-        await insertOutboxRow(tx, verified, { recordedAt: evaluatedAt })
-        emitted.push(verified)
+        emitted.push(await recordVerifiedSnapshotFact(tx, run))
       }
       const updated = await tx
         .update(reviewProviderSnapshotRuns)

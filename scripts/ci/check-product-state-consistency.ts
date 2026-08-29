@@ -170,14 +170,18 @@ function factoryParent(
   return { factory: target.expression.text, member: target.name.text }
 }
 
-export function auditQueryKeyFactorySource(
-  source: ProductStateSource,
-  ledger: ProductStateLedger,
-): Pick<ProductStateAuditReport, 'queryKeyFactoryMembers' | 'violations'> {
-  const sourceFile = sourceFileFor(source)
-  const queryKeyFactoryMembers: ProductStateSite[] = []
-  const factoryMembers = new Map<string, Map<string, ts.ObjectLiteralElementLike>>()
+type FactoryMembers = Map<string, ts.ObjectLiteralElementLike>
 
+type ExportedObjectLiteral = Readonly<{
+  name: string
+  literal: ts.ObjectLiteralExpression
+}>
+
+/** Lists every `export const <name> = { ... }` declaration in source order. */
+function exportedObjectLiterals(
+  sourceFile: ts.SourceFile,
+): readonly ExportedObjectLiteral[] {
+  const declarations: ExportedObjectLiteral[] = []
   for (const statement of sourceFile.statements) {
     if (!ts.isVariableStatement(statement)) continue
     if (!statement.modifiers?.some(({ kind }) => kind === ts.SyntaxKind.ExportKeyword)) {
@@ -187,27 +191,50 @@ export function auditQueryKeyFactorySource(
       if (!ts.isIdentifier(declaration.name)) continue
       const initializer = declaration.initializer
       if (!initializer || !ts.isObjectLiteralExpression(initializer)) continue
-      const members = new Map<string, ts.ObjectLiteralElementLike>()
-      for (const member of initializer.properties) {
-        if (!member.name) continue
-        const name = propertyName(member.name, sourceFile)
-        members.set(name, member)
-        queryKeyFactoryMembers.push({
-          id: `${declaration.name.text}.${name}`,
-          path: source.path,
-          line: lineOf(sourceFile, member),
-        })
-      }
-      factoryMembers.set(declaration.name.text, members)
+      declarations.push({ name: declaration.name.text, literal: initializer })
     }
   }
+  return declarations
+}
 
+/** Indexes every exported object-literal factory and its member declarations. */
+function collectQueryKeyFactories(
+  sourceFile: ts.SourceFile,
+  sourcePath: string,
+): Readonly<{
+  sites: ProductStateSite[]
+  factories: Map<string, FactoryMembers>
+}> {
+  const sites: ProductStateSite[] = []
+  const factories = new Map<string, FactoryMembers>()
+  for (const { name: factory, literal } of exportedObjectLiterals(sourceFile)) {
+    const members: FactoryMembers = new Map()
+    for (const member of literal.properties) {
+      if (!member.name) continue
+      const name = propertyName(member.name, sourceFile)
+      members.set(name, member)
+      sites.push({
+        id: `${factory}.${name}`,
+        path: sourcePath,
+        line: lineOf(sourceFile, member),
+      })
+    }
+    factories.set(factory, members)
+  }
+  return { sites, factories }
+}
+
+/** Reconciles the discovered factory members against the ledger's policy rows. */
+function collectFactoryPolicyViolations(
+  sites: readonly ProductStateSite[],
+  ledger: ProductStateLedger,
+): string[] {
   const policyIds = ledger.queryKeyFactories.flatMap((factory) =>
     factory.members.map((member) => `${factory.id}.${member}`),
   )
   const ownedPolicyIds = new Set(policyIds)
-  const sourceIds = new Set(queryKeyFactoryMembers.map(({ id }) => id))
-  const violations = queryKeyFactoryMembers
+  const sourceIds = new Set(sites.map(({ id }) => id))
+  const violations = sites
     .filter(({ id }) => !ownedPolicyIds.has(id))
     .map(({ id }) => `unowned query-key factory member: ${id}`)
 
@@ -216,7 +243,7 @@ export function auditQueryKeyFactorySource(
       violations.push(`stale query-key factory policy: ${policyId}`)
     }
   }
-  for (const policyId of new Set(policyIds)) {
+  for (const policyId of ownedPolicyIds) {
     if (policyIds.filter((candidate) => candidate === policyId).length > 1) {
       violations.push(`duplicate query-key factory policy: ${policyId}`)
     }
@@ -226,84 +253,132 @@ export function auditQueryKeyFactorySource(
       violations.push(`query-key factory policy lacks ownership detail: ${factory.id}`)
     }
   }
+  return violations
+}
 
-  const roots = new Map<string, string>()
-  for (const [factory, members] of factoryMembers) {
-    const root = members.get('all')
-    const rootInitializer =
-      root && ts.isPropertyAssignment(root) ? unwrapExpression(root.initializer) : null
-    if (!rootInitializer || !ts.isArrayLiteralExpression(rootInitializer)) {
-      violations.push(`query-key factory lacks a literal all root: ${factory}`)
-    } else if (
-      rootInitializer.elements.length !== 1 ||
-      !ts.isStringLiteralLike(rootInitializer.elements[0]!)
-    ) {
-      violations.push(`query-key factory all root must be one string literal: ${factory}`)
-    } else {
-      const rootValue = rootInitializer.elements[0].text
-      const existing = roots.get(rootValue)
-      if (existing) {
-        violations.push(
-          `query-key factory root collision: ${existing}.all and ${factory}.all both use ${JSON.stringify(rootValue)}`,
-        )
-      } else {
-        roots.set(rootValue, factory)
-      }
-    }
+/** Grades the `all` member and records its literal root value for collision detection. */
+function collectFactoryRootViolations(
+  factory: string,
+  members: FactoryMembers,
+  roots: Map<string, string>,
+  violations: string[],
+): void {
+  const root = members.get('all')
+  const rootInitializer =
+    root && ts.isPropertyAssignment(root) ? unwrapExpression(root.initializer) : null
+  if (!rootInitializer || !ts.isArrayLiteralExpression(rootInitializer)) {
+    violations.push(`query-key factory lacks a literal all root: ${factory}`)
+    return
+  }
+  if (
+    rootInitializer.elements.length !== 1 ||
+    !ts.isStringLiteralLike(rootInitializer.elements[0]!)
+  ) {
+    violations.push(`query-key factory all root must be one string literal: ${factory}`)
+    return
+  }
+  const rootValue = rootInitializer.elements[0].text
+  const existing = roots.get(rootValue)
+  if (existing) {
+    violations.push(
+      `query-key factory root collision: ${existing}.all and ${factory}.all both use ${JSON.stringify(rootValue)}`,
+    )
+    return
+  }
+  roots.set(rootValue, factory)
+}
 
-    const parents = new Map<string, string>()
-    for (const [memberName, member] of members) {
-      if (memberName === 'all') continue
-      const result = ts.isPropertyAssignment(member)
-        ? returnedExpression(member.initializer)
-        : null
-      if (!result || !ts.isArrayLiteralExpression(result)) {
-        violations.push(
-          `query-key factory member must return a hierarchical array: ${factory}.${memberName}`,
-        )
-        continue
-      }
-      const first = result.elements[0]
-      const parent =
-        first && ts.isSpreadElement(first) ? factoryParent(first.expression) : null
-      if (!parent || parent.factory !== factory) {
-        violations.push(
-          `query-key factory member must begin with its own family prefix: ${factory}.${memberName}`,
-        )
-        continue
-      }
-      if (!members.has(parent.member)) {
-        violations.push(
-          `query-key factory member references an unknown parent: ${factory}.${memberName} -> ${factory}.${parent.member}`,
-        )
-        continue
-      }
-      parents.set(memberName, parent.member)
-    }
+/** Resolves the declared parent of one non-root member, or reports why it cannot. */
+function memberParent(
+  factory: string,
+  memberName: string,
+  member: ts.ObjectLiteralElementLike,
+  members: FactoryMembers,
+  violations: string[],
+): string | undefined {
+  const result = ts.isPropertyAssignment(member)
+    ? returnedExpression(member.initializer)
+    : null
+  if (!result || !ts.isArrayLiteralExpression(result)) {
+    violations.push(
+      `query-key factory member must return a hierarchical array: ${factory}.${memberName}`,
+    )
+    return undefined
+  }
+  const first = result.elements[0]
+  const parent =
+    first && ts.isSpreadElement(first) ? factoryParent(first.expression) : null
+  if (!parent || parent.factory !== factory) {
+    violations.push(
+      `query-key factory member must begin with its own family prefix: ${factory}.${memberName}`,
+    )
+    return undefined
+  }
+  if (!members.has(parent.member)) {
+    violations.push(
+      `query-key factory member references an unknown parent: ${factory}.${memberName} -> ${factory}.${parent.member}`,
+    )
+    return undefined
+  }
+  return parent.member
+}
 
-    for (const memberName of parents.keys()) {
-      const visited = new Set<string>()
-      let current: string | undefined = memberName
-      while (current !== 'all') {
-        if (visited.has(current)) {
-          violations.push(
-            `query-key factory hierarchy is cyclic: ${factory}.${memberName}`,
-          )
-          break
-        }
-        visited.add(current)
-        current = parents.get(current)
-        if (!current) {
-          violations.push(
-            `query-key factory member does not reach its all root: ${factory}.${memberName}`,
-          )
-          break
-        }
+function collectFactoryParents(
+  factory: string,
+  members: FactoryMembers,
+  violations: string[],
+): ReadonlyMap<string, string> {
+  const parents = new Map<string, string>()
+  for (const [memberName, member] of members) {
+    if (memberName === 'all') continue
+    const parent = memberParent(factory, memberName, member, members, violations)
+    if (parent !== undefined) parents.set(memberName, parent)
+  }
+  return parents
+}
+
+/** Walks each member's parent chain, reporting cycles and chains that miss `all`. */
+function collectFactoryHierarchyViolations(
+  factory: string,
+  parents: ReadonlyMap<string, string>,
+  violations: string[],
+): void {
+  for (const memberName of parents.keys()) {
+    const visited = new Set<string>()
+    let current: string | undefined = memberName
+    while (current !== 'all') {
+      if (visited.has(current)) {
+        violations.push(`query-key factory hierarchy is cyclic: ${factory}.${memberName}`)
+        break
+      }
+      visited.add(current)
+      current = parents.get(current)
+      if (!current) {
+        violations.push(
+          `query-key factory member does not reach its all root: ${factory}.${memberName}`,
+        )
+        break
       }
     }
   }
+}
 
-  return { queryKeyFactoryMembers, violations }
+export function auditQueryKeyFactorySource(
+  source: ProductStateSource,
+  ledger: ProductStateLedger,
+): Pick<ProductStateAuditReport, 'queryKeyFactoryMembers' | 'violations'> {
+  const sourceFile = sourceFileFor(source)
+  const { sites, factories } = collectQueryKeyFactories(sourceFile, source.path)
+  const violations = collectFactoryPolicyViolations(sites, ledger)
+
+  const roots = new Map<string, string>()
+  for (const [factory, members] of factories) {
+    collectFactoryRootViolations(factory, members, roots, violations)
+    const parents = collectFactoryParents(factory, members, violations)
+    collectFactoryHierarchyViolations(factory, parents, violations)
+  }
+
+  return { queryKeyFactoryMembers: sites, violations }
 }
 
 function isUseStateCall(node: ts.CallExpression): boolean {
@@ -467,30 +542,215 @@ function resolveArrayExpression(
   return null
 }
 
-export function auditProductStateSources(
-  sources: readonly ProductStateSource[],
-  ledger: ProductStateLedger,
-): ProductStateAuditReport {
-  const queryKeySites: ProductStateSite[] = []
-  const mutationInvalidationSites: ProductStateSite[] = []
-  const broadInvalidationSites: ProductStateSite[] = []
-  const stateMirrorCandidates: ProductStateSite[] = []
-  const violations: string[] = []
-  const ownedQueryFactoryMembers = new Set(
-    ledger.queryKeyFactories.flatMap((factory) =>
-      factory.members.map((member) => `${factory.id}.${member}`),
-    ),
-  )
-  const queryKeyDelegates = ledger.queryKeyDelegates ?? []
-  const allowedQueryKeyDelegates = new Set(queryKeyDelegates.map(({ id }) => id))
-  const allowedBroadInvalidations = new Set(
-    ledger.broadInvalidationExceptions.map(({ id }) => id),
-  )
-  const stateCandidatePolicies = new Map(
-    ledger.stateMirrorCandidates.map((candidate) => [candidate.id, candidate] as const),
-  )
-  const ownedStateCandidates = new Set(stateCandidatePolicies.keys())
+type ProductStateLedgerIndex = Readonly<{
+  ownedQueryFactoryMembers: ReadonlySet<string>
+  queryKeyDelegates: ProductStateLedger['queryKeyDelegates']
+  allowedQueryKeyDelegates: ReadonlySet<string>
+  allowedBroadInvalidations: ReadonlySet<string>
+  stateCandidatePolicies: ReadonlyMap<
+    string,
+    ProductStateLedger['stateMirrorCandidates'][number]
+  >
+}>
 
+function indexLedger(ledger: ProductStateLedger): ProductStateLedgerIndex {
+  const queryKeyDelegates = ledger.queryKeyDelegates ?? []
+  return {
+    ownedQueryFactoryMembers: new Set(
+      ledger.queryKeyFactories.flatMap((factory) =>
+        factory.members.map((member) => `${factory.id}.${member}`),
+      ),
+    ),
+    queryKeyDelegates,
+    allowedQueryKeyDelegates: new Set(queryKeyDelegates.map(({ id }) => id)),
+    allowedBroadInvalidations: new Set(
+      ledger.broadInvalidationExceptions.map(({ id }) => id),
+    ),
+    stateCandidatePolicies: new Map(
+      ledger.stateMirrorCandidates.map((candidate) => [candidate.id, candidate] as const),
+    ),
+  }
+}
+
+type ProductStateCollections = Readonly<{
+  queryKeySites: ProductStateSite[]
+  mutationInvalidationSites: ProductStateSite[]
+  broadInvalidationSites: ProductStateSite[]
+  stateMirrorCandidates: ProductStateSite[]
+  violations: string[]
+}>
+
+type SourceScan = Readonly<{
+  source: ProductStateSource
+  sourceFile: ts.SourceFile
+  index: ProductStateLedgerIndex
+  collect: ProductStateCollections
+  ordinals: { queryKey: number; invalidateKeys: number; broadInvalidate: number }
+}>
+
+function isQueryKeyProperty(
+  node: ts.Node,
+  sourceFile: ts.SourceFile,
+): node is ts.PropertyAssignment | ts.ShorthandPropertyAssignment {
+  return (
+    (ts.isPropertyAssignment(node) && node.name.getText(sourceFile) === 'queryKey') ||
+    (ts.isShorthandPropertyAssignment(node) && node.name.text === 'queryKey')
+  )
+}
+
+function inspectQueryKey(node: ts.Node, scan: SourceScan): void {
+  const { source, sourceFile, index, collect } = scan
+  if (!isQueryKeyProperty(node, sourceFile)) return
+  const line = lineOf(sourceFile, node)
+  scan.ordinals.queryKey += 1
+  const site = {
+    id: `${source.path}:queryKey#${scan.ordinals.queryKey}`,
+    path: source.path,
+    line,
+  }
+  collect.queryKeySites.push(site)
+  const isLiteralQueryKey =
+    ts.isPropertyAssignment(node) && ts.isArrayLiteralExpression(node.initializer)
+  if (isLiteralQueryKey) {
+    collect.violations.push(
+      `${source.path}:${line}: literal queryKey arrays must use a shared hierarchical factory`,
+    )
+    return
+  }
+  if (
+    !expressionUsesOwnedQueryFactory(
+      queryKeyInitializer(node),
+      sourceFile,
+      index.ownedQueryFactoryMembers,
+    ) &&
+    !index.allowedQueryKeyDelegates.has(site.id)
+  ) {
+    collect.violations.push(
+      `${source.path}:${line}: queryKey is neither factory-owned nor an explicit generic delegate`,
+    )
+  }
+}
+
+function inspectInvalidateKeys(node: ts.Node, scan: SourceScan): void {
+  const { source, sourceFile, index, collect } = scan
+  if (!ts.isPropertyAssignment(node)) return
+  if (node.name.getText(sourceFile) !== 'invalidateKeys') return
+  scan.ordinals.invalidateKeys += 1
+  const line = lineOf(sourceFile, node)
+  collect.mutationInvalidationSites.push({
+    id: `${source.path}:invalidateKeys#${scan.ordinals.invalidateKeys}`,
+    path: source.path,
+    line,
+  })
+  const keys = resolveArrayExpression(node.initializer, sourceFile)
+  if (!keys || keys.elements.length === 0) {
+    collect.violations.push(
+      `${source.path}:${line}: invalidateKeys must be a non-empty statically resolvable array`,
+    )
+    return
+  }
+  for (const element of keys.elements) {
+    const expression = ts.isSpreadElement(element) ? element.expression : element
+    if (
+      !expressionUsesOwnedQueryFactory(
+        expression,
+        sourceFile,
+        index.ownedQueryFactoryMembers,
+      )
+    ) {
+      collect.violations.push(
+        `${source.path}:${line}: invalidateKeys contains a key without an owned shared factory`,
+      )
+    }
+  }
+}
+
+function inspectBroadInvalidation(node: ts.Node, scan: SourceScan): void {
+  const { source, sourceFile, index, collect } = scan
+  if (
+    !ts.isCallExpression(node) ||
+    node.arguments.length !== 0 ||
+    !ts.isPropertyAccessExpression(node.expression) ||
+    node.expression.name.text !== 'invalidate'
+  ) {
+    return
+  }
+  const line = lineOf(sourceFile, node)
+  scan.ordinals.broadInvalidate += 1
+  const site = {
+    id: `${source.path}:router.invalidate#${scan.ordinals.broadInvalidate}`,
+    path: source.path,
+    line,
+  }
+  collect.broadInvalidationSites.push(site)
+  if (!index.allowedBroadInvalidations.has(site.id)) {
+    collect.violations.push(
+      `${source.path}:${line}: broad router.invalidate() has no owned exception`,
+    )
+  }
+}
+
+function inspectStateMirrorCandidate(node: ts.Node, scan: SourceScan): void {
+  const { source, sourceFile, index, collect } = scan
+  if (
+    !ts.isCallExpression(node) ||
+    !isUseStateCall(node) ||
+    !node.arguments[0] ||
+    !isStateMirrorCandidateInitializer(node.arguments[0])
+  ) {
+    return
+  }
+  const binding = stateBindingName(node)
+  if (!binding) return
+  const line = lineOf(sourceFile, node)
+  const site = { id: `${source.path}:useState(${binding})`, path: source.path, line }
+  collect.stateMirrorCandidates.push(site)
+  const policy = index.stateCandidatePolicies.get(site.id)
+  if (!policy) {
+    collect.violations.push(
+      `${source.path}:${line}: state-mirror candidate useState(${binding}) has no owned classification`,
+    )
+    return
+  }
+  const setter = stateSetterName(node)
+  if (
+    policy.classification === 'server_draft' &&
+    setter &&
+    setterRunsInsideEffect(sourceFile, setter)
+  ) {
+    collect.violations.push(
+      `${source.path}:${line}: server draft useState(${binding}) is overwritten from an effect; use an explicit remount/conflict boundary`,
+    )
+  }
+}
+
+function scanSource(
+  source: ProductStateSource,
+  index: ProductStateLedgerIndex,
+  collect: ProductStateCollections,
+): void {
+  const scan: SourceScan = {
+    source,
+    sourceFile: sourceFileFor(source),
+    index,
+    collect,
+    ordinals: { queryKey: 0, invalidateKeys: 0, broadInvalidate: 0 },
+  }
+  const visit = (node: ts.Node): void => {
+    inspectQueryKey(node, scan)
+    inspectInvalidateKeys(node, scan)
+    inspectBroadInvalidation(node, scan)
+    inspectStateMirrorCandidate(node, scan)
+    ts.forEachChild(node, visit)
+  }
+  visit(scan.sourceFile)
+}
+
+/** Ledger rows must each name an owner and a policy, and must not repeat an id. */
+function collectStateClassificationViolations(
+  ledger: ProductStateLedger,
+  violations: string[],
+): void {
   const statePolicyIds = ledger.stateMirrorCandidates.map(({ id }) => id)
   for (const candidate of ledger.stateMirrorCandidates) {
     if (!candidate.owner.trim() || !candidate.policy.trim()) {
@@ -504,142 +764,17 @@ export function auditProductStateSources(
       violations.push(`duplicate state-mirror classification: ${id}`)
     }
   }
+}
 
-  for (const source of sources) {
-    const sourceFile = sourceFileFor(source)
-    let queryKeyOrdinal = 0
-    let mutationInvalidationOrdinal = 0
-    let broadInvalidationOrdinal = 0
-    const visit = (node: ts.Node): void => {
-      const isQueryKeyProperty =
-        (ts.isPropertyAssignment(node) && node.name.getText(sourceFile) === 'queryKey') ||
-        (ts.isShorthandPropertyAssignment(node) && node.name.text === 'queryKey')
-      if (isQueryKeyProperty) {
-        const line = lineOf(sourceFile, node)
-        queryKeyOrdinal += 1
-        const site = {
-          id: `${source.path}:queryKey#${queryKeyOrdinal}`,
-          path: source.path,
-          line,
-        }
-        queryKeySites.push(site)
-        const isLiteralQueryKey =
-          ts.isPropertyAssignment(node) && ts.isArrayLiteralExpression(node.initializer)
-        if (isLiteralQueryKey) {
-          violations.push(
-            `${source.path}:${line}: literal queryKey arrays must use a shared hierarchical factory`,
-          )
-        }
-        if (
-          !isLiteralQueryKey &&
-          !expressionUsesOwnedQueryFactory(
-            queryKeyInitializer(node),
-            sourceFile,
-            ownedQueryFactoryMembers,
-          ) &&
-          !allowedQueryKeyDelegates.has(site.id)
-        ) {
-          violations.push(
-            `${source.path}:${line}: queryKey is neither factory-owned nor an explicit generic delegate`,
-          )
-        }
-      }
-      if (
-        ts.isPropertyAssignment(node) &&
-        node.name.getText(sourceFile) === 'invalidateKeys'
-      ) {
-        mutationInvalidationOrdinal += 1
-        const line = lineOf(sourceFile, node)
-        const site = {
-          id: `${source.path}:invalidateKeys#${mutationInvalidationOrdinal}`,
-          path: source.path,
-          line,
-        }
-        mutationInvalidationSites.push(site)
-        const keys = resolveArrayExpression(node.initializer, sourceFile)
-        if (!keys || keys.elements.length === 0) {
-          violations.push(
-            `${source.path}:${line}: invalidateKeys must be a non-empty statically resolvable array`,
-          )
-        } else {
-          for (const element of keys.elements) {
-            const expression = ts.isSpreadElement(element) ? element.expression : element
-            if (
-              !expressionUsesOwnedQueryFactory(
-                expression,
-                sourceFile,
-                ownedQueryFactoryMembers,
-              )
-            ) {
-              violations.push(
-                `${source.path}:${line}: invalidateKeys contains a key without an owned shared factory`,
-              )
-            }
-          }
-        }
-      }
-      if (
-        ts.isCallExpression(node) &&
-        node.arguments.length === 0 &&
-        ts.isPropertyAccessExpression(node.expression) &&
-        node.expression.name.text === 'invalidate'
-      ) {
-        const line = lineOf(sourceFile, node)
-        broadInvalidationOrdinal += 1
-        const site = {
-          id: `${source.path}:router.invalidate#${broadInvalidationOrdinal}`,
-          path: source.path,
-          line,
-        }
-        broadInvalidationSites.push(site)
-        if (!allowedBroadInvalidations.has(site.id)) {
-          violations.push(
-            `${source.path}:${line}: broad router.invalidate() has no owned exception`,
-          )
-        }
-      }
-      if (
-        ts.isCallExpression(node) &&
-        isUseStateCall(node) &&
-        node.arguments[0] &&
-        isStateMirrorCandidateInitializer(node.arguments[0])
-      ) {
-        const binding = stateBindingName(node)
-        if (binding) {
-          const line = lineOf(sourceFile, node)
-          const site = {
-            id: `${source.path}:useState(${binding})`,
-            path: source.path,
-            line,
-          }
-          stateMirrorCandidates.push(site)
-          if (!ownedStateCandidates.has(site.id)) {
-            violations.push(
-              `${source.path}:${line}: state-mirror candidate useState(${binding}) has no owned classification`,
-            )
-          } else {
-            const policy = stateCandidatePolicies.get(site.id)
-            const setter = stateSetterName(node)
-            if (
-              policy?.classification === 'server_draft' &&
-              setter &&
-              setterRunsInsideEffect(sourceFile, setter)
-            ) {
-              violations.push(
-                `${source.path}:${line}: server draft useState(${binding}) is overwritten from an effect; use an explicit remount/conflict boundary`,
-              )
-            }
-          }
-        }
-      }
-      ts.forEachChild(node, visit)
-    }
-    visit(sourceFile)
-  }
-
-  const broadSiteIds = new Set(broadInvalidationSites.map(({ id }) => id))
-  const queryKeySiteIds = new Set(queryKeySites.map(({ id }) => id))
-  for (const delegate of queryKeyDelegates) {
+/** Every ledger exception must still correspond to a site discovered in the sources. */
+function collectStaleLedgerViolations(
+  ledger: ProductStateLedger,
+  index: ProductStateLedgerIndex,
+  collect: ProductStateCollections,
+): void {
+  const { violations } = collect
+  const queryKeySiteIds = new Set(collect.queryKeySites.map(({ id }) => id))
+  for (const delegate of index.queryKeyDelegates) {
     if (!delegate.owner.trim() || !delegate.policy.trim()) {
       violations.push(`query-key delegate lacks ownership detail: ${delegate.id}`)
     }
@@ -647,25 +782,44 @@ export function auditProductStateSources(
       violations.push(`stale query-key delegate: ${delegate.id}`)
     }
   }
+  const broadSiteIds = new Set(collect.broadInvalidationSites.map(({ id }) => id))
   for (const exception of ledger.broadInvalidationExceptions) {
     if (!broadSiteIds.has(exception.id)) {
       violations.push(`stale broad-invalidation exception: ${exception.id}`)
     }
   }
-  const stateCandidateIds = new Set(stateMirrorCandidates.map(({ id }) => id))
+  const stateCandidateIds = new Set(collect.stateMirrorCandidates.map(({ id }) => id))
   for (const classification of ledger.stateMirrorCandidates) {
     if (!stateCandidateIds.has(classification.id)) {
       violations.push(`stale state-mirror classification: ${classification.id}`)
     }
   }
+}
+
+export function auditProductStateSources(
+  sources: readonly ProductStateSource[],
+  ledger: ProductStateLedger,
+): ProductStateAuditReport {
+  const collect: ProductStateCollections = {
+    queryKeySites: [],
+    mutationInvalidationSites: [],
+    broadInvalidationSites: [],
+    stateMirrorCandidates: [],
+    violations: [],
+  }
+  const index = indexLedger(ledger)
+
+  collectStateClassificationViolations(ledger, collect.violations)
+  for (const source of sources) scanSource(source, index, collect)
+  collectStaleLedgerViolations(ledger, index, collect)
 
   return {
-    queryKeySites,
+    queryKeySites: collect.queryKeySites,
     queryKeyFactoryMembers: [],
-    mutationInvalidationSites,
-    broadInvalidationSites,
-    stateMirrorCandidates,
-    violations,
+    mutationInvalidationSites: collect.mutationInvalidationSites,
+    broadInvalidationSites: collect.broadInvalidationSites,
+    stateMirrorCandidates: collect.stateMirrorCandidates,
+    violations: collect.violations,
   }
 }
 

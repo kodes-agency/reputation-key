@@ -332,60 +332,52 @@ const AUDIENCE_KINDS: ReadonlySet<string> = new Set<AudienceKind>([
 const registrationKey = (registration: RegisteredNotificationConsumer): string =>
   `${registration.eventType}\u0000${registration.consumerName}`
 
-export function betaNotificationTriggerMatrixViolations(
-  registeredConsumers: ReadonlyArray<RegisteredNotificationConsumer>,
-  matrix: ReadonlyArray<BetaNotificationTriggerMatrixRow> = BETA_NOTIFICATION_TRIGGER_MATRIX,
-): ReadonlyArray<string> {
+/** Structural checks that only depend on one matrix row. */
+const matrixRowViolations = (
+  row: BetaNotificationTriggerMatrixRow,
+  registeredKeys: ReadonlySet<string>,
+): ReadonlyArray<string> => {
   const violations: string[] = []
-  const registered = registeredConsumers.filter((consumer) =>
-    consumer.consumerName.startsWith('notification.'),
-  )
-  const registeredKeys = new Set(registered.map(registrationKey))
-  const matrixKeys = new Set(matrix.map(registrationKey))
-
-  for (const row of matrix) {
-    if (!registeredKeys.has(registrationKey(row))) {
-      violations.push(
-        `missing durable notification consumer ${row.consumerName} for ${row.eventType}`,
-      )
-    }
-    if (row.notifications.length === 0) {
-      violations.push(`notification trigger ${row.eventType} maps no notification type`)
-    }
-    for (const policy of row.notifications) {
-      if (!(NOTIFICATION_TYPES as readonly string[]).includes(policy.type)) {
-        violations.push(
-          `notification trigger ${row.eventType} maps unknown type ${policy.type}`,
-        )
-        continue
-      }
-      const expectedCategory = classifyNotification(policy.type as NotificationType)
-      if (policy.category !== expectedCategory) {
-        violations.push(
-          `notification type ${policy.type} declares ${policy.category}, expected ${expectedCategory}`,
-        )
-      }
-    }
-    for (const audienceKind of row.audienceKinds) {
-      if (!AUDIENCE_KINDS.has(audienceKind)) {
-        violations.push(
-          `notification trigger ${row.eventType} maps unknown audience ${audienceKind}`,
-        )
-      }
-    }
+  if (!registeredKeys.has(registrationKey(row))) {
+    violations.push(
+      `missing durable notification consumer ${row.consumerName} for ${row.eventType}`,
+    )
   }
-
-  for (const consumer of registered) {
-    if (!matrixKeys.has(registrationKey(consumer))) {
+  if (row.notifications.length === 0) {
+    violations.push(`notification trigger ${row.eventType} maps no notification type`)
+  }
+  for (const policy of row.notifications) {
+    if (!(NOTIFICATION_TYPES as readonly string[]).includes(policy.type)) {
       violations.push(
-        `durable notification consumer ${consumer.consumerName} for ${consumer.eventType} is absent from the beta matrix`,
+        `notification trigger ${row.eventType} maps unknown type ${policy.type}`,
+      )
+      continue
+    }
+    const expectedCategory = classifyNotification(policy.type as NotificationType)
+    if (policy.category !== expectedCategory) {
+      violations.push(
+        `notification type ${policy.type} declares ${policy.category}, expected ${expectedCategory}`,
       )
     }
   }
+  for (const audienceKind of row.audienceKinds) {
+    if (!AUDIENCE_KINDS.has(audienceKind)) {
+      violations.push(
+        `notification trigger ${row.eventType} maps unknown audience ${audienceKind}`,
+      )
+    }
+  }
+  return violations
+}
 
+/** Every active type maps exactly once; every beta-dark type maps not at all. */
+const notificationTypeCoverageViolations = (
+  matrix: ReadonlyArray<BetaNotificationTriggerMatrixRow>,
+): ReadonlyArray<string> => {
   const mappedTypes = matrix.flatMap((row) =>
     row.notifications.map((policy) => policy.type),
   )
+  const violations: string[] = []
   for (const type of NOTIFICATION_TYPES) {
     const occurrences = mappedTypes.filter((mapped) => mapped === type).length
     if (DARK_BETA_TYPES.has(type)) {
@@ -397,8 +389,29 @@ export function betaNotificationTriggerMatrixViolations(
       )
     }
   }
-
   return violations
+}
+
+export function betaNotificationTriggerMatrixViolations(
+  registeredConsumers: ReadonlyArray<RegisteredNotificationConsumer>,
+  matrix: ReadonlyArray<BetaNotificationTriggerMatrixRow> = BETA_NOTIFICATION_TRIGGER_MATRIX,
+): ReadonlyArray<string> {
+  const registered = registeredConsumers.filter((consumer) =>
+    consumer.consumerName.startsWith('notification.'),
+  )
+  const registeredKeys = new Set(registered.map(registrationKey))
+  const matrixKeys = new Set(matrix.map(registrationKey))
+
+  return [
+    ...matrix.flatMap((row) => matrixRowViolations(row, registeredKeys)),
+    ...registered
+      .filter((consumer) => !matrixKeys.has(registrationKey(consumer)))
+      .map(
+        (consumer) =>
+          `durable notification consumer ${consumer.consumerName} for ${consumer.eventType} is absent from the beta matrix`,
+      ),
+    ...notificationTypeCoverageViolations(matrix),
+  ]
 }
 
 export type BetaNotificationReadinessGap = Readonly<{
@@ -424,6 +437,200 @@ export type BetaNotificationReadinessReport = Readonly<{
   structuralViolations: ReadonlyArray<string>
   gaps: ReadonlyArray<BetaNotificationReadinessGap>
 }>
+
+const sourceGap = (
+  row: BetaNotificationTriggerMatrixRow,
+  code: BetaNotificationReadinessGap['code'],
+  detail: string,
+): BetaNotificationReadinessGap => ({
+  eventType: row.eventType,
+  owner: 'NTF/source',
+  code,
+  detail,
+})
+
+/**
+ * The first durable-source fact an active trigger is missing, if any. Only the
+ * earliest failure is reported so a missing catalogue entry does not also
+ * present as an unregistered schema.
+ */
+const matrixRowSourceGap = (
+  row: BetaNotificationTriggerMatrixRow,
+  eventFamilies: ReadonlyArray<BetaNotificationEventFamilyEvidence>,
+): BetaNotificationReadinessGap | null => {
+  const evidence = eventFamilies.find((family) => family.eventType === row.eventType)
+  if (!evidence) {
+    return sourceGap(
+      row,
+      'event_not_catalogued',
+      `${row.eventType} is absent from the event catalogue`,
+    )
+  }
+  if (!evidence.schemaRegistered) {
+    return sourceGap(
+      row,
+      'event_schema_unregistered',
+      `${row.eventType}:v${evidence.version} has no registered schema`,
+    )
+  }
+  if (!evidence.recordedInOutbox) {
+    return sourceGap(
+      row,
+      'producer_not_durable',
+      `${row.eventType}:v${evidence.version} is not recorded in the outbox`,
+    )
+  }
+  if (evidence.disposition !== 'enabled') {
+    return sourceGap(
+      row,
+      'event_not_enabled',
+      `${row.eventType}:v${evidence.version} is ${evidence.disposition}`,
+    )
+  }
+  const consumerIsActive = evidence.consumers.some(
+    (consumer) =>
+      consumer.name === row.consumerName &&
+      consumer.kind === 'durable' &&
+      consumer.disposition === 'enabled',
+  )
+  return consumerIsActive
+    ? null
+    : sourceGap(
+        row,
+        'consumer_not_catalogued',
+        `${row.consumerName} is absent or inactive in the event catalogue`,
+      )
+}
+
+const requirementGap = (
+  requirement: BetaNotificationReadinessRequirement,
+  code: BetaNotificationReadinessGap['code'],
+  detail: string,
+): BetaNotificationReadinessGap => ({
+  eventType: requirement.eventType,
+  owner: requirement.owner,
+  code,
+  detail,
+})
+
+/**
+ * Catalogue evidence for one known-incomplete family. `alreadyReported` keeps
+ * a gap the matrix sweep already recorded from being reported twice under a
+ * second owner.
+ */
+const requirementSourceGap = (
+  requirement: BetaNotificationReadinessRequirement,
+  eventFamilies: ReadonlyArray<BetaNotificationEventFamilyEvidence>,
+  precedingGaps: ReadonlyArray<BetaNotificationReadinessGap>,
+): BetaNotificationReadinessGap | null => {
+  const alreadyReported = (code: BetaNotificationReadinessGap['code']) =>
+    precedingGaps.some(
+      (existing) =>
+        existing.eventType === requirement.eventType && existing.code === code,
+    )
+  const evidence = eventFamilies.find(
+    (family) =>
+      family.eventType === requirement.eventType &&
+      family.version === requirement.version,
+  )
+  if (!evidence) {
+    return alreadyReported('event_not_catalogued')
+      ? null
+      : requirementGap(
+          requirement,
+          'event_not_catalogued',
+          `${requirement.eventType}:v${requirement.version} is absent from the event catalogue`,
+        )
+  }
+  if (!evidence.recordedInOutbox && !alreadyReported('producer_not_durable')) {
+    return requirementGap(
+      requirement,
+      'producer_not_durable',
+      `${requirement.eventType}:v${requirement.version} is not recorded in the outbox`,
+    )
+  }
+  return null
+}
+
+/** Trigger/recipient routing for one known-incomplete family. */
+const requirementTriggerGaps = (
+  requirement: BetaNotificationReadinessRequirement,
+  matrix: ReadonlyArray<BetaNotificationTriggerMatrixRow>,
+  registeredKeys: ReadonlySet<string>,
+): ReadonlyArray<BetaNotificationReadinessGap> => {
+  const row = matrix.find((candidate) => candidate.eventType === requirement.eventType)
+  if ('expectsNotification' in requirement && requirement.expectsNotification === false) {
+    return row
+      ? [
+          requirementGap(
+            requirement,
+            'unexpected_notification_trigger',
+            `${requirement.eventType}:v${requirement.version} is evidence-only and must not notify`,
+          ),
+        ]
+      : []
+  }
+  if (!row) {
+    return [
+      requirementGap(
+        requirement,
+        'trigger_unmapped',
+        `${requirement.eventType}:v${requirement.version} has no trigger/recipient row`,
+      ),
+    ]
+  }
+  const gaps: BetaNotificationReadinessGap[] = []
+  if (!registeredKeys.has(registrationKey(row))) {
+    gaps.push(
+      requirementGap(
+        requirement,
+        'consumer_not_registered',
+        `${row.consumerName} is not registered durably`,
+      ),
+    )
+  }
+  if (
+    requirement.notificationType &&
+    !row.notifications.some(
+      (notification) => notification.type === requirement.notificationType,
+    )
+  ) {
+    gaps.push(
+      requirementGap(
+        requirement,
+        'notification_type_unmapped',
+        `${requirement.eventType} does not map ${requirement.notificationType}`,
+      ),
+    )
+  }
+  if (
+    requirement.audienceKinds.some(
+      (audienceKind) => !row.audienceKinds.includes(audienceKind),
+    )
+  ) {
+    gaps.push(
+      requirementGap(
+        requirement,
+        'audience_policy_incomplete',
+        `${requirement.eventType} does not declare every required audience policy`,
+      ),
+    )
+  }
+  if (
+    'eventCondition' in requirement &&
+    requirement.eventCondition &&
+    row.eventCondition !== requirement.eventCondition
+  ) {
+    gaps.push(
+      requirementGap(
+        requirement,
+        'event_condition_incomplete',
+        `${requirement.eventType} must apply ${requirement.eventCondition}`,
+      ),
+    )
+  }
+  return gaps
+}
 
 /**
  * Release-readiness report against real consumer registrations and event
@@ -451,162 +658,14 @@ export function betaNotificationReadinessReport(
   // catches a producer/catalogue regression even when registration and type
   // routing inside Notification remain structurally intact.
   for (const row of matrix) {
-    const evidence = eventFamilies.find((family) => family.eventType === row.eventType)
-    if (!evidence) {
-      gaps.push({
-        eventType: row.eventType,
-        owner: 'NTF/source',
-        code: 'event_not_catalogued',
-        detail: `${row.eventType} is absent from the event catalogue`,
-      })
-    } else if (!evidence.schemaRegistered) {
-      gaps.push({
-        eventType: row.eventType,
-        owner: 'NTF/source',
-        code: 'event_schema_unregistered',
-        detail: `${row.eventType}:v${evidence.version} has no registered schema`,
-      })
-    } else if (!evidence.recordedInOutbox) {
-      gaps.push({
-        eventType: row.eventType,
-        owner: 'NTF/source',
-        code: 'producer_not_durable',
-        detail: `${row.eventType}:v${evidence.version} is not recorded in the outbox`,
-      })
-    } else if (evidence.disposition !== 'enabled') {
-      gaps.push({
-        eventType: row.eventType,
-        owner: 'NTF/source',
-        code: 'event_not_enabled',
-        detail: `${row.eventType}:v${evidence.version} is ${evidence.disposition}`,
-      })
-    } else if (
-      !evidence.consumers.some(
-        (consumer) =>
-          consumer.name === row.consumerName &&
-          consumer.kind === 'durable' &&
-          consumer.disposition === 'enabled',
-      )
-    ) {
-      gaps.push({
-        eventType: row.eventType,
-        owner: 'NTF/source',
-        code: 'consumer_not_catalogued',
-        detail: `${row.consumerName} is absent or inactive in the event catalogue`,
-      })
-    }
+    const rowGap = matrixRowSourceGap(row, eventFamilies)
+    if (rowGap) gaps.push(rowGap)
   }
 
-  const gap = (
-    requirement: BetaNotificationReadinessRequirement,
-    code: BetaNotificationReadinessGap['code'],
-    detail: string,
-  ) =>
-    gaps.push({
-      eventType: requirement.eventType,
-      owner: requirement.owner,
-      code,
-      detail,
-    })
-
   for (const requirement of BETA_NOTIFICATION_READINESS_REQUIREMENTS) {
-    const evidence = eventFamilies.find(
-      (family) =>
-        family.eventType === requirement.eventType &&
-        family.version === requirement.version,
-    )
-    if (
-      !evidence &&
-      !gaps.some(
-        (existing) =>
-          existing.eventType === requirement.eventType &&
-          existing.code === 'event_not_catalogued',
-      )
-    ) {
-      gap(
-        requirement,
-        'event_not_catalogued',
-        `${requirement.eventType}:v${requirement.version} is absent from the event catalogue`,
-      )
-    } else if (
-      evidence &&
-      !evidence.recordedInOutbox &&
-      !gaps.some(
-        (existing) =>
-          existing.eventType === requirement.eventType &&
-          existing.code === 'producer_not_durable',
-      )
-    ) {
-      gap(
-        requirement,
-        'producer_not_durable',
-        `${requirement.eventType}:v${requirement.version} is not recorded in the outbox`,
-      )
-    }
-
-    const row = matrix.find((candidate) => candidate.eventType === requirement.eventType)
-    if (
-      'expectsNotification' in requirement &&
-      requirement.expectsNotification === false
-    ) {
-      if (row) {
-        gap(
-          requirement,
-          'unexpected_notification_trigger',
-          `${requirement.eventType}:v${requirement.version} is evidence-only and must not notify`,
-        )
-      }
-      continue
-    }
-    if (!row) {
-      gap(
-        requirement,
-        'trigger_unmapped',
-        `${requirement.eventType}:v${requirement.version} has no trigger/recipient row`,
-      )
-      continue
-    }
-    if (!registeredKeys.has(registrationKey(row))) {
-      gap(
-        requirement,
-        'consumer_not_registered',
-        `${row.consumerName} is not registered durably`,
-      )
-    }
-    if (
-      requirement.notificationType &&
-      !row.notifications.some(
-        (notification) => notification.type === requirement.notificationType,
-      )
-    ) {
-      gap(
-        requirement,
-        'notification_type_unmapped',
-        `${requirement.eventType} does not map ${requirement.notificationType}`,
-      )
-    }
-    if (
-      requirement.audienceKinds.some(
-        (audienceKind) => !row.audienceKinds.includes(audienceKind),
-      )
-    ) {
-      gap(
-        requirement,
-        'audience_policy_incomplete',
-        `${requirement.eventType} does not declare every required audience policy`,
-      )
-    }
-    if (
-      'eventCondition' in requirement &&
-      requirement.eventCondition &&
-      row.eventCondition !== requirement.eventCondition
-    ) {
-      gap(
-        requirement,
-        'event_condition_incomplete',
-        `${requirement.eventType} must apply ${requirement.eventCondition}`,
-      )
-    }
+    const evidenceGap = requirementSourceGap(requirement, eventFamilies, gaps)
+    if (evidenceGap) gaps.push(evidenceGap)
+    gaps.push(...requirementTriggerGaps(requirement, matrix, registeredKeys))
   }
 
   return {

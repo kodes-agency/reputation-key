@@ -201,43 +201,33 @@ async function insertOrRestoreMaterialRevision(
   }
 }
 
-/**
- * Canonical REV-01 write adapter. The caller supplies a transaction so Review,
- * current source content, the observation/revision records, and any outbox fact
- * commit as one unit.
- */
-export async function persistReviewObservation(
-  tx: Tx,
-  input: Readonly<{
-    review: Omit<Review, 'createdAt' | 'updatedAt'>
-    observedAt: Date
-    observationKey?: string
-    observationOrigin?: ReviewProviderObservationOrigin
-  }>,
-): Promise<PersistedReviewObservation> {
-  if (input.review.lastFetchedAt == null || input.review.contentExpiresAt == null) {
-    throw reviewError(
-      'repo_upsert_failed',
-      'Provider Review observation requires a fetch-based expiry',
-    )
-  }
-  const observationDigest = computeReviewSourceObservationDigest({
-    rating: input.review.rating,
-    text: input.review.text,
-    translatedText: input.review.translatedText,
-    languageCode: input.review.languageCode,
-    reviewerName: input.review.reviewerName,
-    reviewerProfilePhotoUrl: input.review.reviewerProfilePhotoUrl,
-    reviewedAt: input.review.reviewedAt,
-    sourceCreatedAt: input.review.sourceCreatedAt,
-    sourceUpdatedAt: input.review.sourceUpdatedAt,
-  })
+type ObservationInput = Readonly<{
+  review: Omit<Review, 'createdAt' | 'updatedAt'>
+  observedAt: Date
+  observationKey?: string
+  observationOrigin?: ReviewProviderObservationOrigin
+}>
+
+/** The caller's idempotency key, or a deterministic one derived from the
+ * observed content and receipt instant when the caller supplied none. */
+function resolveObservationKey(
+  input: ObservationInput,
+  observationDigest: string,
+): string {
   const observationKey =
     input.observationKey ?? fallbackObservationKey(observationDigest, input.observedAt)
   if (!HEX_DIGEST.test(observationKey)) {
     throw new TypeError('Review observation key must be a lowercase SHA-256 digest')
   }
+  return observationKey
+}
 
+/** Lock the Review this observation names. A row that exists under a different
+ * tenant, property, platform, or source epoch is a different subject. */
+async function lockStableIdentity(
+  tx: Tx,
+  input: ObservationInput,
+): Promise<ReviewRow | null> {
   const identityRows = await tx
     .select()
     .from(reviews)
@@ -253,7 +243,15 @@ export async function persistReviewObservation(
   ) {
     throw reviewError('repo_upsert_failed', 'Review stable identity scope collision')
   }
+  return existing
+}
 
+/** The provider's external id may only ever belong to this Review, in this
+ * property, at this source epoch. */
+async function assertProviderIdentityScope(
+  tx: Tx,
+  input: ObservationInput,
+): Promise<void> {
   const externalRows = await tx
     .select({
       id: reviews.id,
@@ -278,45 +276,216 @@ export async function persistReviewObservation(
   ) {
     throw reviewError('repo_upsert_failed', 'Review provider identity scope collision')
   }
+}
 
-  if (existing != null) {
-    const duplicates = await tx
-      .select({
-        observationSequence: reviewSourceObservations.observationSequence,
-        materialRevision: reviewSourceObservations.materialRevision,
-        comparisonResult: reviewSourceObservations.comparisonResult,
-        observationDigest: reviewSourceObservations.observationDigest,
-      })
-      .from(reviewSourceObservations)
-      .where(
-        and(
-          eq(reviewSourceObservations.reviewId, input.review.id),
-          eq(reviewSourceObservations.sourceEpoch, input.review.sourceEpoch),
-          eq(reviewSourceObservations.observationKey, observationKey),
-        ),
-      )
-      .limit(1)
-    if (duplicates[0]) {
-      if (duplicates[0].observationDigest !== observationDigest) {
-        throw reviewError('repo_upsert_failed', 'Review observation key collision')
-      }
-      if (existing.sourceContentState !== 'active') {
-        throw reviewError(
-          'repo_upsert_failed',
-          'An erased Review cannot be restored from a replayed observation',
-        )
-      }
-      return {
-        review: reviewFromRow(existing),
-        observationSequence: duplicates[0].observationSequence,
-        materialRevision: duplicates[0].materialRevision,
-        comparison: duplicates[0].comparisonResult as ReviewObservationComparison,
-        createsMaterialRevision: false,
-        duplicate: true,
-        outOfOrder: false,
-      }
-    }
+/** An exact replay returns the already-recorded result. The same key carrying
+ * different evidence is a bug, and an erased Review may never be revived by
+ * replaying an observation that predates its erasure. */
+async function findReplayedObservation(
+  tx: Tx,
+  input: ObservationInput,
+  existing: ReviewRow | null,
+  observationKey: string,
+  observationDigest: string,
+): Promise<PersistedReviewObservation | null> {
+  if (existing == null) return null
+  const duplicates = await tx
+    .select({
+      observationSequence: reviewSourceObservations.observationSequence,
+      materialRevision: reviewSourceObservations.materialRevision,
+      comparisonResult: reviewSourceObservations.comparisonResult,
+      observationDigest: reviewSourceObservations.observationDigest,
+    })
+    .from(reviewSourceObservations)
+    .where(
+      and(
+        eq(reviewSourceObservations.reviewId, input.review.id),
+        eq(reviewSourceObservations.sourceEpoch, input.review.sourceEpoch),
+        eq(reviewSourceObservations.observationKey, observationKey),
+      ),
+    )
+    .limit(1)
+  const replayed = duplicates[0]
+  if (!replayed) return null
+  if (replayed.observationDigest !== observationDigest) {
+    throw reviewError('repo_upsert_failed', 'Review observation key collision')
   }
+  if (existing.sourceContentState !== 'active') {
+    throw reviewError(
+      'repo_upsert_failed',
+      'An erased Review cannot be restored from a replayed observation',
+    )
+  }
+  return {
+    review: reviewFromRow(existing),
+    observationSequence: replayed.observationSequence,
+    materialRevision: replayed.materialRevision,
+    comparison: replayed.comparisonResult as ReviewObservationComparison,
+    createsMaterialRevision: false,
+    duplicate: true,
+    outOfOrder: false,
+  }
+}
+
+/** Provider evidence older than what the Review already holds is recorded as
+ * history but never applied to the current source. */
+async function recordOutOfOrderObservation(
+  tx: Tx,
+  input: ObservationInput,
+  existing: ReviewRow,
+  material: ReturnType<typeof compareMaterialReviewRevision>,
+  observationSequence: number,
+  observationKey: string,
+  observationDigest: string,
+): Promise<PersistedReviewObservation> {
+  const materialRevision = Math.max(1, existing.sourceRevision)
+  await tx.insert(reviewSourceObservations).values(
+    sourceObservationValues({
+      review: input.review,
+      observationSequence,
+      materialRevision,
+      observationKey,
+      observationDigest,
+      comparison: 'out_of_order_ignored',
+      sourceDigest: material.sourceDigest,
+      normalizedDigest: material.normalizedDigest,
+      observedAt: input.observedAt,
+    }),
+  )
+  await tx
+    .update(reviews)
+    .set({
+      sourceObservationSequence: observationSequence,
+      updatedAt: input.observedAt,
+    })
+    .where(eq(reviews.id, existing.id))
+  return {
+    review: reviewFromRow(existing),
+    observationSequence,
+    materialRevision,
+    comparison: 'out_of_order_ignored',
+    createsMaterialRevision: false,
+    duplicate: false,
+    outOfOrder: true,
+  }
+}
+
+/** Insert the first Review row, or advance the existing one to this
+ * observation's source content and counters. */
+async function writeObservedReviewRow(
+  tx: Tx,
+  existing: ReviewRow | null,
+  observedReview: Omit<Review, 'createdAt' | 'updatedAt'>,
+  material: ReturnType<typeof compareMaterialReviewRevision>,
+  observationSequence: number,
+  observedAt: Date,
+): Promise<ReviewRow> {
+  const row = reviewToRow(observedReview)
+  const persistedRows: ReviewRow[] =
+    existing == null
+      ? await tx
+          .insert(reviews)
+          .values({
+            ...row,
+            sourceObservationSequence: observationSequence,
+            materialNormalizationVersion: material.normalizationVersion,
+            materialSourceDigest: material.sourceDigest,
+            materialNormalizedDigest: material.normalizedDigest,
+            createdAt: observedAt,
+            updatedAt: observedAt,
+          })
+          .returning()
+      : await tx
+          .update(reviews)
+          .set({
+            propertyId: row.propertyId,
+            externalId: row.externalId,
+            externalLocationId: row.externalLocationId,
+            googleConnectionId: row.googleConnectionId,
+            reviewerName: row.reviewerName,
+            reviewerProfilePhotoUrl: row.reviewerProfilePhotoUrl,
+            rating: row.rating,
+            text: row.text,
+            translatedText: row.translatedText,
+            languageCode: row.languageCode,
+            reviewedAt: row.reviewedAt,
+            expiresAt: row.expiresAt,
+            sentimentLabel: row.sentimentLabel,
+            sentimentScore: row.sentimentScore,
+            sourceCreatedAt: row.sourceCreatedAt,
+            sourceUpdatedAt: row.sourceUpdatedAt,
+            firstFetchedAt: row.firstFetchedAt,
+            lastFetchedAt: row.lastFetchedAt,
+            contentExpiresAt: row.contentExpiresAt,
+            contentHash: row.contentHash,
+            sourceSeenGeneration: row.sourceSeenGeneration,
+            sourceRevision: material.materialRevision,
+            sourceObservationSequence: observationSequence,
+            materialNormalizationVersion: material.normalizationVersion,
+            materialSourceDigest: material.sourceDigest,
+            materialNormalizedDigest: material.normalizedDigest,
+            analysisSequence: row.analysisSequence,
+            aiSourceByteLength: row.aiSourceByteLength,
+            aiSourceDigest: row.aiSourceDigest,
+            sourceContentState: 'active',
+            sourceContentErasedAt: null,
+            updatedAt: observedAt,
+          })
+          .where(
+            and(
+              eq(reviews.id, existing.id),
+              eq(reviews.organizationId, existing.organizationId),
+              eq(reviews.propertyId, existing.propertyId),
+              eq(reviews.sourceEpoch, existing.sourceEpoch),
+            ),
+          )
+          .returning()
+  const persistedRow = persistedRows[0]
+  if (!persistedRow) {
+    throw reviewError('repo_upsert_failed', 'Review observation returned no row')
+  }
+  return persistedRow
+}
+
+/**
+ * Canonical REV-01 write adapter. The caller supplies a transaction so Review,
+ * current source content, the observation/revision records, and any outbox fact
+ * commit as one unit.
+ */
+export async function persistReviewObservation(
+  tx: Tx,
+  input: ObservationInput,
+): Promise<PersistedReviewObservation> {
+  if (input.review.lastFetchedAt == null || input.review.contentExpiresAt == null) {
+    throw reviewError(
+      'repo_upsert_failed',
+      'Provider Review observation requires a fetch-based expiry',
+    )
+  }
+  const observationDigest = computeReviewSourceObservationDigest({
+    rating: input.review.rating,
+    text: input.review.text,
+    translatedText: input.review.translatedText,
+    languageCode: input.review.languageCode,
+    reviewerName: input.review.reviewerName,
+    reviewerProfilePhotoUrl: input.review.reviewerProfilePhotoUrl,
+    reviewedAt: input.review.reviewedAt,
+    sourceCreatedAt: input.review.sourceCreatedAt,
+    sourceUpdatedAt: input.review.sourceUpdatedAt,
+  })
+  const observationKey = resolveObservationKey(input, observationDigest)
+
+  const existing = await lockStableIdentity(tx, input)
+  await assertProviderIdentityScope(tx, input)
+
+  const replayed = await findReplayedObservation(
+    tx,
+    input,
+    existing,
+    observationKey,
+    observationDigest,
+  )
+  if (replayed) return replayed
 
   const material = compareMaterialReviewRevision({
     // A compatibility row written after the expand migration has no explicit
@@ -335,113 +504,35 @@ export async function persistReviewObservation(
 
   const incomingProviderVersion = providerVersion(input.review)
   const currentProviderVersion = existing == null ? null : providerVersion(existing)
-  const outOfOrder =
+  if (
     existing != null &&
     incomingProviderVersion != null &&
     currentProviderVersion != null &&
     incomingProviderVersion.getTime() < currentProviderVersion.getTime()
-  if (outOfOrder) {
-    await tx.insert(reviewSourceObservations).values(
-      sourceObservationValues({
-        review: input.review,
-        observationSequence,
-        materialRevision: Math.max(1, existing.sourceRevision),
-        observationKey,
-        observationDigest,
-        comparison: 'out_of_order_ignored',
-        sourceDigest: material.sourceDigest,
-        normalizedDigest: material.normalizedDigest,
-        observedAt: input.observedAt,
-      }),
-    )
-    await tx
-      .update(reviews)
-      .set({
-        sourceObservationSequence: observationSequence,
-        updatedAt: input.observedAt,
-      })
-      .where(eq(reviews.id, existing.id))
-    return {
-      review: reviewFromRow(existing),
+  ) {
+    return recordOutOfOrderObservation(
+      tx,
+      input,
+      existing,
+      material,
       observationSequence,
-      materialRevision: Math.max(1, existing.sourceRevision),
-      comparison: 'out_of_order_ignored',
-      createsMaterialRevision: false,
-      duplicate: false,
-      outOfOrder: true,
-    }
+      observationKey,
+      observationDigest,
+    )
   }
 
   const observedReview = {
     ...input.review,
     sourceRevision: material.materialRevision,
   }
-  const row = reviewToRow(observedReview)
-  let persistedRows: ReviewRow[]
-  if (existing == null) {
-    persistedRows = await tx
-      .insert(reviews)
-      .values({
-        ...row,
-        sourceObservationSequence: observationSequence,
-        materialNormalizationVersion: material.normalizationVersion,
-        materialSourceDigest: material.sourceDigest,
-        materialNormalizedDigest: material.normalizedDigest,
-        createdAt: input.observedAt,
-        updatedAt: input.observedAt,
-      })
-      .returning()
-  } else {
-    persistedRows = await tx
-      .update(reviews)
-      .set({
-        propertyId: row.propertyId,
-        externalId: row.externalId,
-        externalLocationId: row.externalLocationId,
-        googleConnectionId: row.googleConnectionId,
-        reviewerName: row.reviewerName,
-        reviewerProfilePhotoUrl: row.reviewerProfilePhotoUrl,
-        rating: row.rating,
-        text: row.text,
-        translatedText: row.translatedText,
-        languageCode: row.languageCode,
-        reviewedAt: row.reviewedAt,
-        expiresAt: row.expiresAt,
-        sentimentLabel: row.sentimentLabel,
-        sentimentScore: row.sentimentScore,
-        sourceCreatedAt: row.sourceCreatedAt,
-        sourceUpdatedAt: row.sourceUpdatedAt,
-        firstFetchedAt: row.firstFetchedAt,
-        lastFetchedAt: row.lastFetchedAt,
-        contentExpiresAt: row.contentExpiresAt,
-        contentHash: row.contentHash,
-        sourceSeenGeneration: row.sourceSeenGeneration,
-        sourceRevision: material.materialRevision,
-        sourceObservationSequence: observationSequence,
-        materialNormalizationVersion: material.normalizationVersion,
-        materialSourceDigest: material.sourceDigest,
-        materialNormalizedDigest: material.normalizedDigest,
-        analysisSequence: row.analysisSequence,
-        aiSourceByteLength: row.aiSourceByteLength,
-        aiSourceDigest: row.aiSourceDigest,
-        sourceContentState: 'active',
-        sourceContentErasedAt: null,
-        updatedAt: input.observedAt,
-      })
-      .where(
-        and(
-          eq(reviews.id, existing.id),
-          eq(reviews.organizationId, existing.organizationId),
-          eq(reviews.propertyId, existing.propertyId),
-          eq(reviews.sourceEpoch, existing.sourceEpoch),
-        ),
-      )
-      .returning()
-  }
-  const persistedRow = persistedRows[0]
-  if (!persistedRow) {
-    throw reviewError('repo_upsert_failed', 'Review observation returned no row')
-  }
+  const persistedRow = await writeObservedReviewRow(
+    tx,
+    existing,
+    observedReview,
+    material,
+    observationSequence,
+    input.observedAt,
+  )
 
   await insertOrRestoreMaterialRevision(tx, {
     review: observedReview,

@@ -49,6 +49,8 @@ import type {
   RotatePortalTokenCommand,
   RevokePortalTokensCommand,
   PortalCommandStore,
+  PortalPublicationMutation,
+  PortalSemanticLifecycleEvent,
   UpdatePortalCommand,
   UpdatePortalGroupCommand,
   UpdatePortalLinkCategoryCommand,
@@ -130,18 +132,51 @@ function assertCommittedRevision(
   }
 }
 
+/** The `portal.created` fact must name exactly the Portal being written. */
+function matchesPortalCreationScope(command: CreatePortalCommand): boolean {
+  const { portal, event } = command
+  return (
+    portal.organizationId === command.organizationId &&
+    event.organizationId === command.organizationId &&
+    event.propertyId === portal.propertyId &&
+    event.portalId === portal.id &&
+    event.publicationState === portal.publicationState &&
+    event.sourceAggregateVersion === portal.updatedAt.toISOString() &&
+    sameInstant(event.occurredAt, portal.createdAt)
+  )
+}
+
+/** Initial Health may only assert the Draft posture, pinned to the creation revision. */
+function matchesInitialDraftHealth(
+  health: NonNullable<CreatePortalCommand['health']>,
+  portal: CreatePortalCommand['portal'],
+): boolean {
+  return (
+    health.sourceVersion === portal.updatedAt.toISOString() &&
+    sameInstant(health.effectiveAt, portal.createdAt) &&
+    health.value.status === 'unavailable' &&
+    health.value.reason === 'publication_draft'
+  )
+}
+
+/** The recovery fact must carry the same scope and revision as the Portal it covers. */
+function matchesResponsibilityFactScope(
+  fact: NonNullable<CreatePortalCommand['responsibilityNeededEvent']>,
+  command: CreatePortalCommand,
+): boolean {
+  const { portal } = command
+  return (
+    fact.organizationId === command.organizationId &&
+    fact.propertyId === portal.propertyId &&
+    fact.portalId === portal.id &&
+    fact.sourceAggregateVersion === portal.updatedAt.toISOString() &&
+    sameInstant(fact.occurredAt, portal.createdAt)
+  )
+}
+
 function assertCreateCommand(command: CreatePortalCommand): void {
-  const { portal, event, responsibilityNeededEvent, initialResponsibleManagerId } =
-    command
-  if (
-    portal.organizationId !== command.organizationId ||
-    event.organizationId !== command.organizationId ||
-    event.propertyId !== portal.propertyId ||
-    event.portalId !== portal.id ||
-    event.publicationState !== portal.publicationState ||
-    event.sourceAggregateVersion !== portal.updatedAt.toISOString() ||
-    !sameInstant(event.occurredAt, portal.createdAt)
-  ) {
+  const { portal, responsibilityNeededEvent, initialResponsibleManagerId } = command
+  if (!matchesPortalCreationScope(command)) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal creation')
   }
   const needsResponsibility = initialResponsibleManagerId === null
@@ -154,13 +189,7 @@ function assertCreateCommand(command: CreatePortalCommand): void {
       'Portal responsibility state and recovery fact must be committed together',
     )
   }
-  if (
-    command.health &&
-    (command.health.sourceVersion !== portal.updatedAt.toISOString() ||
-      !sameInstant(command.health.effectiveAt, portal.createdAt) ||
-      command.health.value.status !== 'unavailable' ||
-      command.health.value.reason !== 'publication_draft')
-  ) {
+  if (command.health && !matchesInitialDraftHealth(command.health, portal)) {
     throw portalError('forbidden', 'Initial Portal Health does not match Draft state')
   }
   if (
@@ -174,12 +203,7 @@ function assertCreateCommand(command: CreatePortalCommand): void {
   }
   if (
     responsibilityNeededEvent &&
-    (responsibilityNeededEvent.organizationId !== command.organizationId ||
-      responsibilityNeededEvent.propertyId !== portal.propertyId ||
-      responsibilityNeededEvent.portalId !== portal.id ||
-      responsibilityNeededEvent.sourceAggregateVersion !==
-        portal.updatedAt.toISOString() ||
-      !sameInstant(responsibilityNeededEvent.occurredAt, portal.createdAt))
+    !matchesResponsibilityFactScope(responsibilityNeededEvent, command)
   ) {
     throw portalError(
       'forbidden',
@@ -206,7 +230,8 @@ function buildPortalSetClause(patch: Readonly<Partial<Portal>>): PortalSetValues
   return set
 }
 
-function assertUpdateCommand(command: UpdatePortalCommand): void {
+/** The `portal.updated` fact must name this Portal at this revision, and revisions only advance. */
+function assertUpdateScopeAndRevision(command: UpdatePortalCommand): void {
   const nextPublicationState =
     command.patch.publicationState ?? command.event.previousPublicationState
   if (
@@ -228,22 +253,98 @@ function assertUpdateCommand(command: UpdatePortalCommand): void {
       'Portal command revision must advance monotonically',
     )
   }
+}
+
+/** An emitted locale-set fact must restate exactly the locales this patch writes. */
+function assertLocaleSetFact(command: UpdatePortalCommand): void {
+  const fact = command.localeSetEvent
+  if (!fact) return
   if (
-    command.localeSetEvent &&
-    (command.localeSetEvent.organizationId !== command.organizationId ||
-      command.localeSetEvent.propertyId !== command.propertyId ||
-      command.localeSetEvent.portalId !== command.portalId ||
-      command.localeSetEvent.sourceAggregateVersion !== command.revision.toISOString() ||
-      !sameInstant(command.localeSetEvent.occurredAt, command.occurredAt) ||
-      command.localeSetEvent.primaryGuestLocale !== command.patch.primaryGuestLocale ||
-      JSON.stringify(command.localeSetEvent.additionalGuestLocales) !==
-        JSON.stringify(command.patch.additionalGuestLocales))
+    fact.organizationId !== command.organizationId ||
+    fact.propertyId !== command.propertyId ||
+    fact.portalId !== command.portalId ||
+    fact.sourceAggregateVersion !== command.revision.toISOString() ||
+    !sameInstant(fact.occurredAt, command.occurredAt) ||
+    fact.primaryGuestLocale !== command.patch.primaryGuestLocale ||
+    JSON.stringify(fact.additionalGuestLocales) !==
+      JSON.stringify(command.patch.additionalGuestLocales)
   ) {
     throw portalError('forbidden', 'Portal locale-set fact does not match its update')
   }
+}
 
+type PortalStateTransition = Readonly<{
+  previous: Portal['publicationState']
+  next: Portal['publicationState']
+}>
+
+/** A publish activation and its immutable snapshot must share the Portal's scope. */
+function assertPublishActivation(
+  command: UpdatePortalCommand,
+  publication: Extract<PortalPublicationMutation, { kind: 'publish' }>,
+  transition: PortalStateTransition,
+): void {
+  const { snapshot, activation } = publication
+  if (
+    transition.previous === 'published' ||
+    transition.next !== 'published' ||
+    snapshot.organizationId !== unbrand(command.organizationId) ||
+    snapshot.propertyId !== unbrand(command.propertyId) ||
+    snapshot.portalId !== unbrand(command.portalId) ||
+    activation.organizationId !== snapshot.organizationId ||
+    activation.propertyId !== snapshot.propertyId ||
+    activation.portalId !== snapshot.portalId ||
+    activation.snapshotId !== snapshot.id ||
+    activation.deactivatedAt !== null ||
+    activation.deactivationReason !== null ||
+    activation.activatedBy !== snapshot.createdBy ||
+    !verifyPortalPublicationSnapshot(snapshot) ||
+    !sameInstant(snapshot.createdAt, command.occurredAt) ||
+    !sameInstant(activation.activatedAt, command.occurredAt)
+  ) {
+    throw portalError(
+      'publication_snapshot_unavailable',
+      'Publication snapshot, activation, and Portal state do not share one scope',
+    )
+  }
+}
+
+/** A rollback re-activates an earlier snapshot without leaving the Published state. */
+function assertRollbackActivation(
+  command: UpdatePortalCommand,
+  publication: Extract<PortalPublicationMutation, { kind: 'rollback' }>,
+  transition: PortalStateTransition,
+): void {
+  const { activation } = publication
+  if (
+    transition.previous !== 'published' ||
+    transition.next !== 'published' ||
+    publication.snapshotId !== activation.snapshotId ||
+    publication.snapshotVersion < 1 ||
+    !/^[0-9a-f]{64}$/u.test(publication.publicationDigest) ||
+    activation.organizationId !== unbrand(command.organizationId) ||
+    activation.propertyId !== unbrand(command.propertyId) ||
+    activation.portalId !== unbrand(command.portalId) ||
+    activation.deactivatedAt !== null ||
+    activation.deactivationReason !== null ||
+    !sameInstant(activation.activatedAt, command.occurredAt)
+  ) {
+    throw portalError(
+      'publication_snapshot_unavailable',
+      'Rollback activation does not match the current Portal scope',
+    )
+  }
+}
+
+/**
+ * Both directions of the publication/state coupling: a transition that needs a
+ * publication mutation must carry one, and a carried mutation must match the
+ * transition it accompanies.
+ */
+function assertPublicationTransition(command: UpdatePortalCommand): void {
   const previous = command.event.previousPublicationState
   const next = command.event.publicationState
+  const transition: PortalStateTransition = { previous, next }
   const publication = command.publication
   if (
     next === 'published' &&
@@ -266,50 +367,10 @@ function assertUpdateCommand(command: UpdatePortalCommand): void {
     )
   }
   if (publication?.kind === 'publish') {
-    const { snapshot, activation } = publication
-    if (
-      previous === 'published' ||
-      next !== 'published' ||
-      snapshot.organizationId !== unbrand(command.organizationId) ||
-      snapshot.propertyId !== unbrand(command.propertyId) ||
-      snapshot.portalId !== unbrand(command.portalId) ||
-      activation.organizationId !== snapshot.organizationId ||
-      activation.propertyId !== snapshot.propertyId ||
-      activation.portalId !== snapshot.portalId ||
-      activation.snapshotId !== snapshot.id ||
-      activation.deactivatedAt !== null ||
-      activation.deactivationReason !== null ||
-      activation.activatedBy !== snapshot.createdBy ||
-      !verifyPortalPublicationSnapshot(snapshot) ||
-      !sameInstant(snapshot.createdAt, command.occurredAt) ||
-      !sameInstant(activation.activatedAt, command.occurredAt)
-    ) {
-      throw portalError(
-        'publication_snapshot_unavailable',
-        'Publication snapshot, activation, and Portal state do not share one scope',
-      )
-    }
+    assertPublishActivation(command, publication, transition)
   }
   if (publication?.kind === 'rollback') {
-    const { activation } = publication
-    if (
-      previous !== 'published' ||
-      next !== 'published' ||
-      publication.snapshotId !== activation.snapshotId ||
-      publication.snapshotVersion < 1 ||
-      !/^[0-9a-f]{64}$/u.test(publication.publicationDigest) ||
-      activation.organizationId !== unbrand(command.organizationId) ||
-      activation.propertyId !== unbrand(command.propertyId) ||
-      activation.portalId !== unbrand(command.portalId) ||
-      activation.deactivatedAt !== null ||
-      activation.deactivationReason !== null ||
-      !sameInstant(activation.activatedAt, command.occurredAt)
-    ) {
-      throw portalError(
-        'publication_snapshot_unavailable',
-        'Rollback activation does not match the current Portal scope',
-      )
-    }
+    assertRollbackActivation(command, publication, transition)
   }
   if (
     publication?.kind === 'deactivate' &&
@@ -322,57 +383,65 @@ function assertUpdateCommand(command: UpdatePortalCommand): void {
       'Publication deactivation does not match the Portal state transition',
     )
   }
+}
+
+/** A Health fact written with an update is pinned to that update's revision and time. */
+function assertUpdateHealthFact(command: UpdatePortalCommand): void {
+  const health = command.health
+  if (!health) return
   if (
-    command.health &&
-    (command.health.sourceVersion !== command.revision.toISOString() ||
-      !sameInstant(command.health.effectiveAt, command.occurredAt) ||
-      command.health.observedAt < command.health.effectiveAt)
+    health.sourceVersion !== command.revision.toISOString() ||
+    !sameInstant(health.effectiveAt, command.occurredAt) ||
+    health.observedAt < health.effectiveAt
   ) {
     throw portalError('forbidden', 'Portal Health does not match its command version')
   }
+}
 
+function assertUpdateCommand(command: UpdatePortalCommand): void {
+  assertUpdateScopeAndRevision(command)
+  assertLocaleSetFact(command)
+  assertPublicationTransition(command)
+  assertUpdateHealthFact(command)
   assertSemanticLifecycleEvent(command)
 }
 
-function assertSemanticLifecycleEvent(command: UpdatePortalCommand): void {
+/**
+ * The one semantic fact this transition is allowed to carry, or null when the
+ * transition is not semantically notable.
+ */
+function expectedLifecycleTag(
+  command: UpdatePortalCommand,
+): PortalSemanticLifecycleEvent['_tag'] | null {
   const previous = command.event.previousPublicationState
   const next = command.event.publicationState
   const publication = command.publication
-  const expectedTag =
-    publication?.kind === 'publish'
-      ? 'portal.publication.published'
-      : publication?.kind === 'rollback'
-        ? 'portal.publication.rolled_back'
-        : previous !== 'archived' && next === 'archived'
-          ? 'portal.archived'
-          : previous === 'archived' && next === 'disabled'
-            ? 'portal.restored'
-            : null
-  const event = command.lifecycleEvent
+  if (publication?.kind === 'publish') return 'portal.publication.published'
+  if (publication?.kind === 'rollback') return 'portal.publication.rolled_back'
+  if (previous !== 'archived' && next === 'archived') return 'portal.archived'
+  if (previous === 'archived' && next === 'disabled') return 'portal.restored'
+  return null
+}
 
-  if ((event?._tag ?? null) !== expectedTag) {
-    throw portalError(
-      'forbidden',
-      expectedTag === null
-        ? 'Portal update carried an unrelated semantic lifecycle fact'
-        : `Portal transition requires ${expectedTag}`,
-    )
-  }
-  if (!event) return
-  if (
-    event.organizationId !== command.organizationId ||
-    event.propertyId !== command.propertyId ||
-    event.portalId !== command.portalId ||
-    event.sourceAggregateVersion !== command.revision.toISOString() ||
-    !sameInstant(event.occurredAt, command.occurredAt) ||
-    event.userId !== command.actorUserId
-  ) {
-    throw portalError(
-      'forbidden',
-      'Portal semantic lifecycle fact does not match its committed transition',
-    )
-  }
+function matchesLifecycleEventScope(
+  event: PortalSemanticLifecycleEvent,
+  command: UpdatePortalCommand,
+): boolean {
+  return (
+    event.organizationId === command.organizationId &&
+    event.propertyId === command.propertyId &&
+    event.portalId === command.portalId &&
+    event.sourceAggregateVersion === command.revision.toISOString() &&
+    sameInstant(event.occurredAt, command.occurredAt) &&
+    event.userId === command.actorUserId
+  )
+}
 
+/** A publish/rollback fact must quote the very snapshot the same commit activates. */
+function assertLifecyclePayloadMatchesPublication(
+  event: PortalSemanticLifecycleEvent,
+  publication: PortalPublicationMutation | undefined,
+): void {
   if (
     event._tag === 'portal.publication.published' &&
     (publication?.kind !== 'publish' ||
@@ -399,6 +468,28 @@ function assertSemanticLifecycleEvent(command: UpdatePortalCommand): void {
       'Portal rollback fact does not match its target immutable snapshot',
     )
   }
+}
+
+function assertSemanticLifecycleEvent(command: UpdatePortalCommand): void {
+  const expectedTag = expectedLifecycleTag(command)
+  const event = command.lifecycleEvent
+
+  if ((event?._tag ?? null) !== expectedTag) {
+    throw portalError(
+      'forbidden',
+      expectedTag === null
+        ? 'Portal update carried an unrelated semantic lifecycle fact'
+        : `Portal transition requires ${expectedTag}`,
+    )
+  }
+  if (!event) return
+  if (!matchesLifecycleEventScope(event, command)) {
+    throw portalError(
+      'forbidden',
+      'Portal semantic lifecycle fact does not match its committed transition',
+    )
+  }
+  assertLifecyclePayloadMatchesPublication(event, command.publication)
 }
 
 async function applyPortalHealthMutation(

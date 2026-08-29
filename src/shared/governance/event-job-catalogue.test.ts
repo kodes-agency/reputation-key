@@ -241,6 +241,62 @@ function discoverBusConsumers(): ReadonlyArray<DiscoveredConsumer> {
   return out
 }
 
+/** One `registerConsumer({ eventType, consumerName })` call per registration. */
+function directDurableConsumers(
+  abs: string,
+  source: string,
+): ReadonlyArray<DiscoveredConsumer> {
+  const out: DiscoveredConsumer[] = []
+  for (const m of source.matchAll(
+    /registerConsumer\(\{\s*eventType:\s*(?:'([^']+)'|([A-Z][A-Z0-9_]*)),\s*consumerName:\s*(?:'([^']+)'|([A-Z][A-Z0-9_]*))/g,
+  )) {
+    const eventType = m[1] ?? resolveImportedStringConstant(abs, source, m[2] ?? '')
+    const consumerName = m[3] ?? resolveImportedStringConstant(abs, source, m[4] ?? '')
+    if (!eventType || !consumerName) continue
+    out.push({ eventType, module: rel(abs), kind: 'durable', name: consumerName })
+  }
+  return out
+}
+
+/**
+ * A maintained literal tuple may drive one registration loop. Resolve the tuple
+ * and imported consumer-name constant so the governance guard does not force
+ * production code to duplicate one registerConsumer call per event merely to
+ * remain mechanically discoverable.
+ */
+function loopedDurableConsumers(
+  abs: string,
+  source: string,
+): ReadonlyArray<DiscoveredConsumer> {
+  const out: DiscoveredConsumer[] = []
+  for (const loop of source.matchAll(
+    /for\s*\(\s*const\s+(\w+)\s+of\s+(\w+)\s*\)\s*\{[\s\S]*?registerConsumer\(\{\s*eventType\s*(?::\s*(\w+))?\s*,\s*consumerName:\s*(?:'([^']+)'|(\w+))/g,
+  )) {
+    const [eventVariable, arrayName] = loop.slice(1, 3)
+    const registeredVariable = loop[3] ?? 'eventType'
+    if (eventVariable !== registeredVariable) continue
+
+    const array = new RegExp(
+      `export const ${arrayName}\\s*=\\s*Object\\.freeze\\(\\[([\\s\\S]*?)\\]\\s*as const\\)`,
+    ).exec(source)
+    if (!array) continue
+
+    const consumerName =
+      loop[4] ?? resolveImportedStringConstant(abs, source, loop[5] ?? '')
+    if (!consumerName) continue
+
+    for (const event of array[1].matchAll(/'([^']+)'/g)) {
+      out.push({
+        eventType: event[1],
+        module: rel(abs),
+        kind: 'durable',
+        name: consumerName,
+      })
+    }
+  }
+  return out
+}
+
 /** Durable consumers: registerConsumer({ eventType, consumerName }) calls. */
 function discoverDurableConsumers(): ReadonlyArray<DiscoveredConsumer> {
   const out: DiscoveredConsumer[] = []
@@ -249,45 +305,10 @@ function discoverDurableConsumers(): ReadonlyArray<DiscoveredConsumer> {
   )
   for (const abs of files) {
     const source = read(abs)
-    const matches = source.matchAll(
-      /registerConsumer\(\{\s*eventType:\s*(?:'([^']+)'|([A-Z][A-Z0-9_]*)),\s*consumerName:\s*(?:'([^']+)'|([A-Z][A-Z0-9_]*))/g,
+    out.push(
+      ...directDurableConsumers(abs, source),
+      ...loopedDurableConsumers(abs, source),
     )
-    for (const m of matches) {
-      const eventType = m[1] ?? resolveImportedStringConstant(abs, source, m[2] ?? '')
-      const consumerName = m[3] ?? resolveImportedStringConstant(abs, source, m[4] ?? '')
-      if (!eventType || !consumerName) continue
-      out.push({ eventType, module: rel(abs), kind: 'durable', name: consumerName })
-    }
-
-    // A maintained literal tuple may drive one registration loop. Resolve the
-    // tuple and imported consumer-name constant so the governance guard does
-    // not force production code to duplicate one registerConsumer call per
-    // event merely to remain mechanically discoverable.
-    for (const loop of source.matchAll(
-      /for\s*\(\s*const\s+(\w+)\s+of\s+(\w+)\s*\)\s*\{[\s\S]*?registerConsumer\(\{\s*eventType\s*(?::\s*(\w+))?\s*,\s*consumerName:\s*(?:'([^']+)'|(\w+))/g,
-    )) {
-      const [eventVariable, arrayName] = loop.slice(1, 3)
-      const registeredVariable = loop[3] ?? 'eventType'
-      if (eventVariable !== registeredVariable) continue
-
-      const array = new RegExp(
-        `export const ${arrayName}\\s*=\\s*Object\\.freeze\\(\\[([\\s\\S]*?)\\]\\s*as const\\)`,
-      ).exec(source)
-      if (!array) continue
-
-      const consumerName =
-        loop[4] ?? resolveImportedStringConstant(abs, source, loop[5] ?? '')
-      if (!consumerName) continue
-
-      for (const event of array[1].matchAll(/'([^']+)'/g)) {
-        out.push({
-          eventType: event[1],
-          module: rel(abs),
-          kind: 'durable',
-          name: consumerName,
-        })
-      }
-    }
   }
   return out
 }

@@ -37,6 +37,64 @@ export type CollectReviewSourceContentLifecycleReportInput = Readonly<{
 const cursorKey = (checkpoint: ReviewSourceContentLifecycleCheckpoint): string =>
   `${checkpoint.evaluatedAt}\0${checkpoint.after.createdAt}\0${checkpoint.after.reviewId}`
 
+type LifecycleTotals = {
+  eligible: number
+  expired: number
+  tombstone: number
+  unverifiable: number
+}
+type ShadowTotals = {
+  matched: number
+  drifted: number
+  findingCounts: Partial<Record<ReviewSourceContentShadowFinding, number>>
+}
+type LifecyclePage = Awaited<ReturnType<RunReviewSourceContentLifecycle>>
+
+function accumulateLifecycle(totals: LifecycleTotals, page: LifecyclePage['lifecycle']) {
+  totals.eligible += page.eligible
+  totals.expired += page.expired
+  totals.tombstone += page.tombstone
+  totals.unverifiable += page.unverifiable
+}
+
+/** Fold one page's shadow comparison into the running aggregate. Only the
+ * counts survive — the per-page Review identifiers are deliberately dropped so
+ * a full-dataset inspection stays memory bounded. */
+function accumulateShadow(totals: ShadowTotals, page: LifecyclePage['shadow']): void {
+  if (page == null) {
+    throw new Error('Review lifecycle shadow report omitted comparison evidence')
+  }
+  totals.matched += page.matched
+  totals.drifted += page.drifted
+  for (const [finding, count] of Object.entries(page.findingCounts)) {
+    const key = finding as ReviewSourceContentShadowFinding
+    totals.findingCounts[key] = (totals.findingCounts[key] ?? 0) + (count ?? 0)
+  }
+}
+
+/** A continuation that repeats the previous cursor would drain forever, so it
+ * is refused rather than followed. Returns the cursor to compare next against. */
+function advanceCursor(
+  checkpoint: ReviewSourceContentLifecycleCheckpoint | undefined,
+  priorCursor: string | null,
+): string | null {
+  if (checkpoint == null) return priorCursor
+  const nextCursor = cursorKey(checkpoint)
+  if (nextCursor === priorCursor) {
+    throw new Error('Review lifecycle report checkpoint did not advance')
+  }
+  return nextCursor
+}
+
+/** Every page must describe the same frozen window; otherwise the report would
+ * silently mix two datasets. */
+const sameWindow = (
+  page: LifecyclePage,
+  evaluatedAt: string,
+  scope: ReviewSourceContentLifecycleScope | null,
+): boolean =>
+  page.evaluatedAt === evaluatedAt && JSON.stringify(page.scope) === JSON.stringify(scope)
+
 /**
  * Drain one frozen, checkpointed inspection window without exposing provider
  * content or retaining an unbounded list of Review identifiers in memory.
@@ -74,40 +132,17 @@ export const collectReviewSourceContentLifecycleReport = async (
     if (evaluatedAt == null) {
       evaluatedAt = result.evaluatedAt
       scope = result.scope
-    } else if (
-      result.evaluatedAt !== evaluatedAt ||
-      JSON.stringify(result.scope) !== JSON.stringify(scope)
-    ) {
+    } else if (!sameWindow(result, evaluatedAt, scope)) {
       throw new Error('Review lifecycle report window changed during collection')
     }
 
     pages += 1
     scanned += result.scanned
-    lifecycle.eligible += result.lifecycle.eligible
-    lifecycle.expired += result.lifecycle.expired
-    lifecycle.tombstone += result.lifecycle.tombstone
-    lifecycle.unverifiable += result.lifecycle.unverifiable
-
-    if (shadow != null) {
-      if (result.shadow == null) {
-        throw new Error('Review lifecycle shadow report omitted comparison evidence')
-      }
-      shadow.matched += result.shadow.matched
-      shadow.drifted += result.shadow.drifted
-      for (const [finding, count] of Object.entries(result.shadow.findingCounts)) {
-        const key = finding as ReviewSourceContentShadowFinding
-        shadow.findingCounts[key] = (shadow.findingCounts[key] ?? 0) + (count ?? 0)
-      }
-    }
+    accumulateLifecycle(lifecycle, result.lifecycle)
+    if (shadow != null) accumulateShadow(shadow, result.shadow)
 
     checkpoint = result.nextCheckpoint ?? undefined
-    if (checkpoint != null) {
-      const nextCursor = cursorKey(checkpoint)
-      if (nextCursor === priorCursor) {
-        throw new Error('Review lifecycle report checkpoint did not advance')
-      }
-      priorCursor = nextCursor
-    }
+    priorCursor = advanceCursor(checkpoint, priorCursor)
   } while (checkpoint != null)
 
   if (evaluatedAt == null || scope == null) {

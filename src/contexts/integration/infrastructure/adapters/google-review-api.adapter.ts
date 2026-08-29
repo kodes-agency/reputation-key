@@ -306,6 +306,87 @@ function isSafeScopeId(value: unknown): value is string {
   return typeof value === 'string' && /^[A-Za-z0-9._:@/-]{1,255}$/u.test(value)
 }
 
+function isCountAtLeast(value: number, minimum: number): boolean {
+  return Number.isSafeInteger(value) && value >= minimum
+}
+
+type GoogleReplyPublicationInput = Parameters<GoogleReviewApiPort['replyToReview']>[0]
+type GoogleReplyPublicationOutcome = Awaited<
+  ReturnType<GoogleReviewApiPort['replyToReview']>
+>
+
+const REPLY_PUBLICATION_KEYS = [
+  'organizationId',
+  'propertyId',
+  'connectionId',
+  'sourceEpoch',
+  'reviewId',
+  'materialReviewRevision',
+  'replyId',
+  'publicationCycle',
+  'attemptNumber',
+  'reviewName',
+  'text',
+] as const
+const MAX_REPLY_TEXT_LENGTH = 4_096
+
+/**
+ * Request-shape validation for a reply publication. Every rule is independent
+ * of the others and every failure is the same refusal, so the list stays flat.
+ */
+function assertValidReplyPublicationInput(input: GoogleReplyPublicationInput): void {
+  if (
+    !exactKeys(input, REPLY_PUBLICATION_KEYS) ||
+    !isSafeScopeId(input.organizationId) ||
+    !isCanonicalUuid(input.propertyId) ||
+    !isCanonicalUuid(input.connectionId) ||
+    !isCanonicalUuid(input.reviewId) ||
+    !isCanonicalUuid(input.replyId) ||
+    !isCountAtLeast(input.sourceEpoch, 0) ||
+    !isCountAtLeast(input.materialReviewRevision, 1) ||
+    !isCountAtLeast(input.publicationCycle, 1) ||
+    !isCountAtLeast(input.attemptNumber, 1) ||
+    typeof input.text !== 'string' ||
+    input.text.length < 1 ||
+    input.text.length > MAX_REPLY_TEXT_LENGTH
+  ) {
+    throw reviewApiError('invalid_request', false)
+  }
+  try {
+    parseReviewProviderResource(input.reviewName)
+  } catch {
+    throw reviewApiError('invalid_request', false)
+  }
+}
+
+/**
+ * The issued authorization must pin every dimension of the reply about to be
+ * published, including the exact reply text via its digest.
+ */
+function assertReplyAuthorizationBinds(
+  authorization: GoogleReplyPublicationProviderCallAuthorization,
+  input: GoogleReplyPublicationInput,
+): void {
+  const publication = authorization.publication
+  if (
+    authorization.capability !== 'property.publish_reply' ||
+    authorization.initiatorUserId !== null ||
+    authorization.organizationId !== input.organizationId ||
+    authorization.propertyId !== input.propertyId ||
+    authorization.connectionId !== input.connectionId ||
+    publication.reviewId !== input.reviewId ||
+    publication.replyId !== input.replyId ||
+    publication.publicationCycle !== input.publicationCycle ||
+    publication.attemptNumber !== input.attemptNumber ||
+    publication.sourceEpoch !== input.sourceEpoch ||
+    publication.materialReviewRevision !== input.materialReviewRevision ||
+    googleReplyTextDigest(input.text) !==
+      authorization.authorizationVector.expectedReplyDigest
+  ) {
+    throw reviewApiError('authorization_changed', false)
+  }
+}
+
 function assertLocationName(locationName: string): void {
   try {
     parseReviewProviderResource(`${locationName}/reviews/validation`)
@@ -938,106 +1019,56 @@ export const createGoogleReviewApiAdapter = (
     }
   }
 
-  const replyToReview: GoogleReviewApiPort['replyToReview'] = async (input) => {
-    if (
-      !exactKeys(input, [
-        'organizationId',
-        'propertyId',
-        'connectionId',
-        'sourceEpoch',
-        'reviewId',
-        'materialReviewRevision',
-        'replyId',
-        'publicationCycle',
-        'attemptNumber',
-        'reviewName',
-        'text',
-      ]) ||
-      !isSafeScopeId(input.organizationId) ||
-      !isCanonicalUuid(input.propertyId) ||
-      !isCanonicalUuid(input.connectionId) ||
-      !isCanonicalUuid(input.reviewId) ||
-      !isCanonicalUuid(input.replyId) ||
-      !Number.isSafeInteger(input.sourceEpoch) ||
-      input.sourceEpoch < 0 ||
-      !Number.isSafeInteger(input.materialReviewRevision) ||
-      input.materialReviewRevision < 1 ||
-      !Number.isSafeInteger(input.publicationCycle) ||
-      input.publicationCycle < 1 ||
-      !Number.isSafeInteger(input.attemptNumber) ||
-      input.attemptNumber < 1 ||
-      typeof input.text !== 'string' ||
-      input.text.length < 1 ||
-      input.text.length > 4_096
-    ) {
-      throw reviewApiError('invalid_request', false)
+  const replyViaGatedExecutor = async (
+    input: GoogleReplyPublicationInput,
+    executor: NonNullable<typeof deps.executor>,
+  ): Promise<GoogleReplyPublicationOutcome> => {
+    if (!deps.authorizeReplyPublicationProviderCall) {
+      throw reviewApiError('provider_unavailable', false)
     }
+    let authorized: Awaited<
+      ReturnType<NonNullable<typeof deps.authorizeReplyPublicationProviderCall>>
+    >
     try {
-      parseReviewProviderResource(input.reviewName)
+      authorized = await deps.authorizeReplyPublicationProviderCall({
+        organizationId: input.organizationId,
+        propertyId: input.propertyId,
+        connectionId: input.connectionId,
+        sourceEpoch: input.sourceEpoch,
+        reviewId: input.reviewId,
+        materialReviewRevision: input.materialReviewRevision,
+        replyId: input.replyId,
+        publicationCycle: input.publicationCycle,
+        attemptNumber: input.attemptNumber,
+      })
     } catch {
-      throw reviewApiError('invalid_request', false)
+      throw reviewApiError('authorization_changed', false)
     }
+    assertReplyAuthorizationBinds(authorized.authorization, input)
+    try {
+      const result = await executeGoogleProviderRaw({
+        operation: 'reviews.reply',
+        descriptor: {
+          routeKey: 'reviews.reply',
+          accessToken: authorized.accessToken,
+          reviewName: input.reviewName,
+          comment: input.text,
+        },
+        authorization: authorized.authorization,
+        executor,
+        nowMs,
+      })
+      const providerCorrelationId = result.headers.providerCorrelationId ?? null
+      result.body.fill(0)
+      return { providerCorrelationId }
+    } catch (error) {
+      throw executorErrorToReviewApiError(error)
+    }
+  }
 
-    if (deps.executor) {
-      if (!deps.authorizeReplyPublicationProviderCall) {
-        throw reviewApiError('provider_unavailable', false)
-      }
-      let authorized: Awaited<
-        ReturnType<NonNullable<typeof deps.authorizeReplyPublicationProviderCall>>
-      >
-      try {
-        authorized = await deps.authorizeReplyPublicationProviderCall({
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          connectionId: input.connectionId,
-          sourceEpoch: input.sourceEpoch,
-          reviewId: input.reviewId,
-          materialReviewRevision: input.materialReviewRevision,
-          replyId: input.replyId,
-          publicationCycle: input.publicationCycle,
-          attemptNumber: input.attemptNumber,
-        })
-      } catch {
-        throw reviewApiError('authorization_changed', false)
-      }
-      const publication = authorized.authorization.publication
-      if (
-        authorized.authorization.capability !== 'property.publish_reply' ||
-        authorized.authorization.initiatorUserId !== null ||
-        authorized.authorization.organizationId !== input.organizationId ||
-        authorized.authorization.propertyId !== input.propertyId ||
-        authorized.authorization.connectionId !== input.connectionId ||
-        publication.reviewId !== input.reviewId ||
-        publication.replyId !== input.replyId ||
-        publication.publicationCycle !== input.publicationCycle ||
-        publication.attemptNumber !== input.attemptNumber ||
-        publication.sourceEpoch !== input.sourceEpoch ||
-        publication.materialReviewRevision !== input.materialReviewRevision ||
-        googleReplyTextDigest(input.text) !==
-          authorized.authorization.authorizationVector.expectedReplyDigest
-      ) {
-        throw reviewApiError('authorization_changed', false)
-      }
-      try {
-        const result = await executeGoogleProviderRaw({
-          operation: 'reviews.reply',
-          descriptor: {
-            routeKey: 'reviews.reply',
-            accessToken: authorized.accessToken,
-            reviewName: input.reviewName,
-            comment: input.text,
-          },
-          authorization: authorized.authorization,
-          executor: deps.executor,
-          nowMs,
-        })
-        const providerCorrelationId = result.headers.providerCorrelationId ?? null
-        result.body.fill(0)
-        return { providerCorrelationId }
-      } catch (error) {
-        throw executorErrorToReviewApiError(error)
-      }
-    }
+  const replyViaDirectEgress = async (
+    input: GoogleReplyPublicationInput,
+  ): Promise<GoogleReplyPublicationOutcome> => {
     deps.assertDirectEgressAllowed?.('reviews.reply')
     const connection = await deps.refreshToken(input.organizationId, input.connectionId)
     if (connection.status !== 'active' || connection.credentialUseState !== 'active') {
@@ -1072,6 +1103,13 @@ export const createGoogleReviewApiAdapter = (
       null
     await response.body?.cancel()
     return { providerCorrelationId }
+  }
+
+  const replyToReview: GoogleReviewApiPort['replyToReview'] = async (input) => {
+    assertValidReplyPublicationInput(input)
+    return deps.executor
+      ? replyViaGatedExecutor(input, deps.executor)
+      : replyViaDirectEgress(input)
   }
 
   return Object.freeze({

@@ -434,46 +434,96 @@ async function queueStatus(queue: InvitationFactQueue) {
   return { paused, active: counts.active ?? 0 }
 }
 
+type QueueInspectionCounts = {
+  dirty: number
+  privacyDirty: number
+  compatibilityV1: number
+}
+
+/** Write the redacted data, error metadata and logs back onto the job. */
+async function applyJobRedaction(
+  job: InvitationFactJob,
+  result: JobInspection,
+): Promise<void> {
+  if (result.dataDirty) await job.updateData(result.cleanData)
+  if (result.errorMetadataDirty) {
+    await job.updateErrorMetadata({
+      failedReason: result.cleanFailedReason,
+      stacktrace: result.cleanStacktrace,
+    })
+  }
+  if (result.logsDirty) await job.replaceLogs(result.cleanLogs)
+}
+
+/**
+ * Fold one job into the running counts, redacting it first when `apply`.
+ * Returns whether the scan has reached its inspection limit.
+ */
+async function inspectQueueJob(
+  role: QueueRole,
+  job: InvitationFactJob,
+  inspection: QueueInspectionCounts,
+  limit: number,
+  apply: boolean,
+): Promise<boolean> {
+  const result = await inspectJob(role, job)
+  if (result.compatibilityV1) inspection.compatibilityV1++
+  if (!result.dirty) return false
+  if (apply) await applyJobRedaction(job, result)
+  inspection.dirty++
+  if (result.privacyDirty) inspection.privacyDirty++
+  return inspection.dirty >= limit
+}
+
+/**
+ * Page through one Bull state. Returns whether the scan reached its limit, in
+ * which case the remaining states are not visited.
+ */
+async function scanQueueState(
+  queue: InvitationFactQueue,
+  role: QueueRole,
+  state: (typeof INVITATION_FACT_BULL_STATES)[number],
+  seenJobIds: Set<string>,
+  inspection: QueueInspectionCounts,
+  limit: number,
+  apply: boolean,
+): Promise<boolean> {
+  for (let start = 0; ; start += QUEUE_PAGE_SIZE) {
+    const jobs = await queue.getJobs([state], start, start + QUEUE_PAGE_SIZE - 1, true)
+    for (const job of jobs) {
+      if (job.id && seenJobIds.has(job.id)) continue
+      if (job.id) seenJobIds.add(job.id)
+      if (await inspectQueueJob(role, job, inspection, limit, apply)) return true
+    }
+    if (jobs.length < QUEUE_PAGE_SIZE) return false
+  }
+}
+
 async function scanQueue(
   queue: InvitationFactQueue,
   role: QueueRole,
   limit: number,
   apply: boolean,
 ): Promise<QueueInspection> {
-  const inspection = { dirty: 0, privacyDirty: 0, compatibilityV1: 0 }
+  const inspection: QueueInspectionCounts = {
+    dirty: 0,
+    privacyDirty: 0,
+    compatibilityV1: 0,
+  }
   const seenJobIds = new Set<string>()
   if (limit < 1) return inspection
   try {
     for (const state of INVITATION_FACT_BULL_STATES) {
-      for (let start = 0; ; start += QUEUE_PAGE_SIZE) {
-        const jobs = await queue.getJobs(
-          [state],
-          start,
-          start + QUEUE_PAGE_SIZE - 1,
-          true,
-        )
-        for (const job of jobs) {
-          if (job.id && seenJobIds.has(job.id)) continue
-          if (job.id) seenJobIds.add(job.id)
-          const result = await inspectJob(role, job)
-          if (result.compatibilityV1) inspection.compatibilityV1++
-          if (!result.dirty) continue
-          if (apply) {
-            if (result.dataDirty) await job.updateData(result.cleanData)
-            if (result.errorMetadataDirty) {
-              await job.updateErrorMetadata({
-                failedReason: result.cleanFailedReason,
-                stacktrace: result.cleanStacktrace,
-              })
-            }
-            if (result.logsDirty) await job.replaceLogs(result.cleanLogs)
-          }
-          inspection.dirty++
-          if (result.privacyDirty) inspection.privacyDirty++
-          if (inspection.dirty >= limit) return inspection
-        }
-        if (jobs.length < QUEUE_PAGE_SIZE) break
-      }
+      const reachedLimit = await scanQueueState(
+        queue,
+        role,
+        state,
+        seenJobIds,
+        inspection,
+        limit,
+        apply,
+      )
+      if (reachedLimit) break
     }
   } catch (error) {
     throw new QueueScanFailure(inspection, error)

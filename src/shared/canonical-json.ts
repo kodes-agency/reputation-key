@@ -14,6 +14,77 @@ function assertUnicodeScalarString(value: string): void {
   }
 }
 
+/**
+ * RFC 8785 serializes only enumerable, defined data properties: an accessor, a
+ * hole, a non-enumerable slot or an `undefined` value has no canonical form.
+ */
+function isSafeDataDescriptor(
+  descriptor: PropertyDescriptor | undefined,
+): descriptor is PropertyDescriptor {
+  return (
+    descriptor !== undefined &&
+    descriptor.enumerable === true &&
+    'value' in descriptor &&
+    descriptor.get === undefined &&
+    descriptor.set === undefined &&
+    descriptor.value !== undefined
+  )
+}
+
+function serializeCanonicalArray(value: unknown[], seen: Set<object>): string {
+  if (Object.getPrototypeOf(value) !== Array.prototype) {
+    throw new TypeError('RFC 8785 arrays must have the exact Array prototype')
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    throw new TypeError('RFC 8785 arrays cannot contain symbol properties')
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value)
+  const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length')
+  if (
+    lengthDescriptor === undefined ||
+    typeof lengthDescriptor.value !== 'number' ||
+    !Number.isSafeInteger(lengthDescriptor.value) ||
+    lengthDescriptor.value < 0 ||
+    Object.keys(descriptors).length !== lengthDescriptor.value + 1
+  ) {
+    throw new TypeError('RFC 8785 arrays must be dense and unextended')
+  }
+  const length = lengthDescriptor.value
+  const members = new Array<string>(length)
+  for (let index = 0; index < length; index += 1) {
+    const descriptor = descriptors[String(index)]
+    if (!isSafeDataDescriptor(descriptor)) {
+      throw new TypeError('RFC 8785 arrays contain an unsafe member')
+    }
+    members[index] = serializeCanonical(descriptor.value, seen)
+  }
+  return `[${members.join(',')}]`
+}
+
+function serializeCanonicalObject(value: object, seen: Set<object>): string {
+  const prototype = Object.getPrototypeOf(value)
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError('RFC 8785 objects must be plain objects')
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    throw new TypeError('RFC 8785 objects cannot contain symbol properties')
+  }
+  const descriptors = Object.getOwnPropertyDescriptors(value)
+  const keys = Object.keys(descriptors).sort()
+  const members: string[] = new Array(keys.length)
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index]!
+    assertUnicodeScalarString(key)
+    const descriptor = descriptors[key]
+    if (!isSafeDataDescriptor(descriptor)) {
+      throw new TypeError(`RFC 8785 object contains an unsafe property: ${key}`)
+    }
+    members[index] =
+      `${JSON.stringify(key)}:${serializeCanonical(descriptor.value, seen)}`
+  }
+  return `{${members.join(',')}}`
+}
+
 function serializeCanonical(value: unknown, seen: Set<object>): string {
   if (
     value === null ||
@@ -30,71 +101,9 @@ function serializeCanonical(value: unknown, seen: Set<object>): string {
   if (seen.has(value)) throw new TypeError('RFC 8785 input contains a cycle')
   seen.add(value)
   try {
-    if (Array.isArray(value)) {
-      if (Object.getPrototypeOf(value) !== Array.prototype) {
-        throw new TypeError('RFC 8785 arrays must have the exact Array prototype')
-      }
-      if (Object.getOwnPropertySymbols(value).length !== 0) {
-        throw new TypeError('RFC 8785 arrays cannot contain symbol properties')
-      }
-      const descriptors = Object.getOwnPropertyDescriptors(value)
-      const lengthDescriptor = Object.getOwnPropertyDescriptor(value, 'length')
-      if (
-        lengthDescriptor === undefined ||
-        typeof lengthDescriptor.value !== 'number' ||
-        !Number.isSafeInteger(lengthDescriptor.value) ||
-        lengthDescriptor.value < 0 ||
-        Object.keys(descriptors).length !== lengthDescriptor.value + 1
-      ) {
-        throw new TypeError('RFC 8785 arrays must be dense and unextended')
-      }
-      const length = lengthDescriptor.value
-      const members = new Array<string>(length)
-      for (let index = 0; index < length; index += 1) {
-        const key = String(index)
-        const descriptor = descriptors[key]
-        if (
-          descriptor === undefined ||
-          !descriptor.enumerable ||
-          !('value' in descriptor) ||
-          descriptor.get !== undefined ||
-          descriptor.set !== undefined ||
-          descriptor.value === undefined
-        ) {
-          throw new TypeError('RFC 8785 arrays contain an unsafe member')
-        }
-        members[index] = serializeCanonical(descriptor.value, seen)
-      }
-      return `[${members.join(',')}]`
-    }
-
-    const prototype = Object.getPrototypeOf(value)
-    if (prototype !== Object.prototype && prototype !== null) {
-      throw new TypeError('RFC 8785 objects must be plain objects')
-    }
-    if (Object.getOwnPropertySymbols(value).length !== 0) {
-      throw new TypeError('RFC 8785 objects cannot contain symbol properties')
-    }
-    const descriptors = Object.getOwnPropertyDescriptors(value)
-    const keys = Object.keys(descriptors).sort()
-    const members: string[] = new Array(keys.length)
-    for (let index = 0; index < keys.length; index += 1) {
-      const key = keys[index]!
-      assertUnicodeScalarString(key)
-      const descriptor = descriptors[key]!
-      if (
-        !descriptor.enumerable ||
-        !('value' in descriptor) ||
-        descriptor.get !== undefined ||
-        descriptor.set !== undefined ||
-        descriptor.value === undefined
-      ) {
-        throw new TypeError(`RFC 8785 object contains an unsafe property: ${key}`)
-      }
-      members[index] =
-        `${JSON.stringify(key)}:${serializeCanonical(descriptor.value, seen)}`
-    }
-    return `{${members.join(',')}}`
+    return Array.isArray(value)
+      ? serializeCanonicalArray(value, seen)
+      : serializeCanonicalObject(value, seen)
   } finally {
     seen.delete(value)
   }

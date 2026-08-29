@@ -153,14 +153,49 @@ function isLegacyTable(schema: string, table: string): boolean {
   return schema === 'public' && TABLE_NAMES.has(table)
 }
 
-export function buildLegacyPeopleTeamInventoryReport(
-  input: LegacyPeopleTeamInventoryInput,
-): LegacyPeopleTeamInventoryReport {
-  if (!Number.isSafeInteger(input.evaluatedAt.getTime())) {
-    throw new Error('legacy_people_team_inventory_time_invalid')
+function hasSafeIdentifiers(row: LegacyPeopleTeamForeignKey): boolean {
+  return (
+    isSafeOpaqueIdentifier(row.constraintName) &&
+    isSafeOpaqueIdentifier(row.sourceSchema) &&
+    isSafeOpaqueIdentifier(row.sourceTable) &&
+    isSafeOpaqueIdentifier(row.targetSchema) &&
+    isSafeOpaqueIdentifier(row.targetTable) &&
+    row.sourceColumns.every((column) => isSafeOpaqueIdentifier(column)) &&
+    row.targetColumns.every((column) => isSafeOpaqueIdentifier(column))
+  )
+}
+
+function hasPairedColumns(row: LegacyPeopleTeamForeignKey): boolean {
+  return (
+    row.sourceColumns.length > 0 && row.sourceColumns.length === row.targetColumns.length
+  )
+}
+
+function touchesLegacyTable(row: LegacyPeopleTeamForeignKey): boolean {
+  return (
+    isLegacyTable(row.sourceSchema, row.sourceTable) ||
+    isLegacyTable(row.targetSchema, row.targetTable)
+  )
+}
+
+function assertForeignKeys(rows: readonly LegacyPeopleTeamForeignKey[]): void {
+  for (const row of rows) {
+    if (
+      !hasSafeIdentifiers(row) ||
+      !hasPairedColumns(row) ||
+      (row.initiallyDeferred && !row.deferrable) ||
+      !touchesLegacyTable(row)
+    ) {
+      throw new Error('legacy_people_team_inventory_foreign_key_invalid')
+    }
   }
+}
+
+function countsByTable(
+  tableRows: LegacyPeopleTeamInventoryInput['tableRows'],
+): Map<LegacyPeopleTeamTableName, number> {
   const counts = new Map<LegacyPeopleTeamTableName, number>()
-  for (const row of input.tableRows) {
+  for (const row of tableRows) {
     assertSafeCount(row.rowCount)
     if (!TABLE_NAMES.has(row.tableName) || counts.has(row.tableName)) {
       throw new Error('legacy_people_team_inventory_table_mismatch')
@@ -170,29 +205,22 @@ export function buildLegacyPeopleTeamInventoryReport(
   if (counts.size !== LEGACY_PEOPLE_TEAM_TABLES.length) {
     throw new Error('legacy_people_team_inventory_table_mismatch')
   }
+  return counts
+}
+
+export function buildLegacyPeopleTeamInventoryReport(
+  input: LegacyPeopleTeamInventoryInput,
+): LegacyPeopleTeamInventoryReport {
+  if (!Number.isSafeInteger(input.evaluatedAt.getTime())) {
+    throw new Error('legacy_people_team_inventory_time_invalid')
+  }
+  const counts = countsByTable(input.tableRows)
 
   const tables = LEGACY_PEOPLE_TEAM_TABLES.map((definition) => ({
     ...definition,
     rowCount: counts.get(definition.tableName)!,
   }))
-  for (const row of input.foreignKeys) {
-    if (
-      !isSafeOpaqueIdentifier(row.constraintName) ||
-      !isSafeOpaqueIdentifier(row.sourceSchema) ||
-      !isSafeOpaqueIdentifier(row.sourceTable) ||
-      !isSafeOpaqueIdentifier(row.targetSchema) ||
-      !isSafeOpaqueIdentifier(row.targetTable) ||
-      row.sourceColumns.length === 0 ||
-      row.sourceColumns.length !== row.targetColumns.length ||
-      row.sourceColumns.some((column) => !isSafeOpaqueIdentifier(column)) ||
-      row.targetColumns.some((column) => !isSafeOpaqueIdentifier(column)) ||
-      (row.initiallyDeferred && !row.deferrable) ||
-      (!isLegacyTable(row.sourceSchema, row.sourceTable) &&
-        !isLegacyTable(row.targetSchema, row.targetTable))
-    ) {
-      throw new Error('legacy_people_team_inventory_foreign_key_invalid')
-    }
-  }
+  assertForeignKeys(input.foreignKeys)
   const foreignKeys = sortForeignKeys(input.foreignKeys)
   const externalInboundDependencies = foreignKeys.filter(
     ({ sourceSchema, sourceTable, targetSchema, targetTable }) =>

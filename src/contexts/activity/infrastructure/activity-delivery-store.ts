@@ -168,44 +168,63 @@ export const replayFactFromRow = (
   }
 }
 
+/** Source identity and disposition — the fields every fact carries. */
+const sameReplaySourceAuthority = (
+  stored: RecentActivityReplayFact,
+  incoming: RecentActivityReplayFact,
+): boolean =>
+  stored.replayKey === incoming.replayKey &&
+  stored.sourceKind === incoming.sourceKind &&
+  stored.sourceEventId === incoming.sourceEventId &&
+  stored.sourceEventType === incoming.sourceEventType &&
+  stored.sourceEventVersion === incoming.sourceEventVersion &&
+  stored.sourceContext === incoming.sourceContext &&
+  stored.sourceAggregateId === incoming.sourceAggregateId &&
+  stored.organizationId === incoming.organizationId &&
+  stored.propertyId === incoming.propertyId &&
+  stored.sourceOccurredAt.getTime() === incoming.sourceOccurredAt.getTime() &&
+  stored.disposition === incoming.disposition
+
+/**
+ * A redacted stored fact keeps its authority when the actor label is gone;
+ * otherwise both sides must agree on the actor and neither may be redacted.
+ */
+const sameReplayActorAuthority = (
+  stored: ProjectableRecentActivityReplayFact,
+  incoming: ProjectableRecentActivityReplayFact,
+): boolean =>
+  stored.actorLabelRedactedAt
+    ? stored.actorSubjectId === null
+    : stored.actorSubjectId === incoming.actorSubjectId &&
+      incoming.actorLabelRedactedAt === null
+
+/** Projection fields — only present once both facts are projectable. */
+const sameReplayProjectionAuthority = (
+  stored: ProjectableRecentActivityReplayFact,
+  incoming: ProjectableRecentActivityReplayFact,
+): boolean =>
+  sameReplayActorAuthority(stored, incoming) &&
+  stored.action === incoming.action &&
+  stored.resourceType === incoming.resourceType &&
+  stored.resourceId === incoming.resourceId &&
+  stored.source === incoming.source &&
+  stored.payload.subject === incoming.payload.subject &&
+  stored.payload.from === incoming.payload.from &&
+  stored.payload.to === incoming.payload.to &&
+  stored.payload.detail === incoming.payload.detail &&
+  (stored.payload.bulkId ?? null) === (incoming.payload.bulkId ?? null)
+
 const sameReplayAuthority = (
   stored: RecentActivityReplayFact,
   incoming: RecentActivityReplayFact,
 ): boolean => {
-  if (
-    stored.replayKey !== incoming.replayKey ||
-    stored.sourceKind !== incoming.sourceKind ||
-    stored.sourceEventId !== incoming.sourceEventId ||
-    stored.sourceEventType !== incoming.sourceEventType ||
-    stored.sourceEventVersion !== incoming.sourceEventVersion ||
-    stored.sourceContext !== incoming.sourceContext ||
-    stored.sourceAggregateId !== incoming.sourceAggregateId ||
-    stored.organizationId !== incoming.organizationId ||
-    stored.propertyId !== incoming.propertyId ||
-    stored.sourceOccurredAt.getTime() !== incoming.sourceOccurredAt.getTime() ||
-    stored.disposition !== incoming.disposition
-  ) {
-    return false
-  }
+  if (!sameReplaySourceAuthority(stored, incoming)) return false
+  // Dispositions are already known equal, so an obsolete pair matches outright
+  // and the remaining pair is projectable on both sides.
   if (stored.disposition === 'obsolete' || incoming.disposition === 'obsolete') {
     return stored.disposition === incoming.disposition
   }
-  const actorAuthorityMatches = stored.actorLabelRedactedAt
-    ? stored.actorSubjectId === null
-    : stored.actorSubjectId === incoming.actorSubjectId &&
-      incoming.actorLabelRedactedAt === null
-  return (
-    actorAuthorityMatches &&
-    stored.action === incoming.action &&
-    stored.resourceType === incoming.resourceType &&
-    stored.resourceId === incoming.resourceId &&
-    stored.source === incoming.source &&
-    stored.payload.subject === incoming.payload.subject &&
-    stored.payload.from === incoming.payload.from &&
-    stored.payload.to === incoming.payload.to &&
-    stored.payload.detail === incoming.payload.detail &&
-    (stored.payload.bulkId ?? null) === (incoming.payload.bulkId ?? null)
-  )
+  return sameReplayProjectionAuthority(stored, incoming)
 }
 
 const applyActorPrivacyFence = async (
@@ -240,81 +259,119 @@ const applyActorPrivacyFence = async (
   }
 }
 
+const insertReplayAuthority = async (
+  tx: ActivityTransaction,
+  fact: RecentActivityReplayFact,
+): Promise<RecentActivityReplayFact | null> => {
+  const inserted = await tx
+    .insert(recentActivityReplayFacts)
+    .values(valuesForReplayFact(fact))
+    .onConflictDoNothing({ target: recentActivityReplayFacts.replayKey })
+    .returning()
+  return inserted[0] ? replayFactFromRow(inserted[0]) : null
+}
+
+const loadReplayAuthority = async (
+  tx: ActivityTransaction,
+  replayKey: string,
+): Promise<RecentActivityReplayFact> => {
+  const rows = await tx
+    .select()
+    .from(recentActivityReplayFacts)
+    .where(eq(recentActivityReplayFacts.replayKey, replayKey))
+    .limit(1)
+  if (!rows[0]) {
+    throw new Error('Recent Activity replay authority disappeared during capture')
+  }
+  return replayFactFromRow(rows[0])
+}
+
+/**
+ * A durable fact supersedes a legacy snapshot, but it must not resurrect
+ * identity the stored projection already owns: an existing projection id and an
+ * applied actor-label redaction both survive the promotion.
+ */
+const promotedOverLegacySnapshot = (
+  existing: RecentActivityReplayFact,
+  incoming: RecentActivityReplayFact,
+): RecentActivityReplayFact => {
+  if (incoming.disposition !== 'projectable') return incoming
+  if (existing.disposition !== 'projectable') return incoming
+  return {
+    ...incoming,
+    projectionId: existing.projectionId,
+    actorSubjectId:
+      existing.actorLabelRedactedAt !== null ? null : incoming.actorSubjectId,
+    actorLabelRedactedAt: existing.actorLabelRedactedAt,
+  }
+}
+
+const promoteLegacySnapshot = async (
+  tx: ActivityTransaction,
+  existing: RecentActivityReplayFact,
+  incoming: RecentActivityReplayFact,
+): Promise<RecentActivityReplayFact> => {
+  const rows = await tx
+    .update(recentActivityReplayFacts)
+    .set(valuesForReplayFact(promotedOverLegacySnapshot(existing, incoming)))
+    .where(eq(recentActivityReplayFacts.replayKey, incoming.replayKey))
+    .returning()
+  if (!rows[0]) throw new Error('Recent Activity replay promotion did not apply')
+  return replayFactFromRow(rows[0])
+}
+
+/**
+ * A redelivery can carry a redaction the stored row predates. The redaction is
+ * applied to the stored fact first, so a redacted redelivery does not read as
+ * an authority conflict, and is written back so it stays durable.
+ */
+const applyRedeliveredRedaction = async (
+  tx: ActivityTransaction,
+  existing: RecentActivityReplayFact,
+  incoming: RecentActivityReplayFact,
+): Promise<RecentActivityReplayFact> => {
+  if (
+    existing.disposition !== 'projectable' ||
+    incoming.disposition !== 'projectable' ||
+    existing.actorLabelRedactedAt !== null ||
+    incoming.actorLabelRedactedAt === null
+  ) {
+    return existing
+  }
+  const redactedExisting: ProjectableRecentActivityReplayFact = {
+    ...existing,
+    actorSubjectId: null,
+    actorLabelRedactedAt: incoming.actorLabelRedactedAt,
+  }
+  if (!sameReplayAuthority(redactedExisting, incoming)) {
+    throw new Error('Recent Activity replay authority conflicts with redelivery')
+  }
+  await tx
+    .update(recentActivityReplayFacts)
+    .set({
+      actorSubjectId: null,
+      actorLabelRedactedAt: incoming.actorLabelRedactedAt,
+    })
+    .where(eq(recentActivityReplayFacts.replayKey, incoming.replayKey))
+  return redactedExisting
+}
+
 const ensureReplayAuthority = async (
   tx: ActivityTransaction,
   incoming: RecentActivityReplayFact,
 ): Promise<RecentActivityReplayFact> => {
   const privacyFencedIncoming = await applyActorPrivacyFence(tx, incoming)
-  const inserted = await tx
-    .insert(recentActivityReplayFacts)
-    .values(valuesForReplayFact(privacyFencedIncoming))
-    .onConflictDoNothing({ target: recentActivityReplayFacts.replayKey })
-    .returning()
-  if (inserted[0]) return replayFactFromRow(inserted[0])
+  const inserted = await insertReplayAuthority(tx, privacyFencedIncoming)
+  if (inserted) return inserted
 
-  const existingRow = await tx
-    .select()
-    .from(recentActivityReplayFacts)
-    .where(eq(recentActivityReplayFacts.replayKey, privacyFencedIncoming.replayKey))
-    .limit(1)
-  if (!existingRow[0]) {
-    throw new Error('Recent Activity replay authority disappeared during capture')
-  }
-  let existing = replayFactFromRow(existingRow[0])
+  const stored = await loadReplayAuthority(tx, privacyFencedIncoming.replayKey)
   if (
-    existing.sourceKind === 'legacy_projection_snapshot' &&
+    stored.sourceKind === 'legacy_projection_snapshot' &&
     privacyFencedIncoming.sourceKind === 'durable_fact'
   ) {
-    const promoted: RecentActivityReplayFact =
-      privacyFencedIncoming.disposition === 'projectable'
-        ? {
-            ...privacyFencedIncoming,
-            projectionId:
-              existing.disposition === 'projectable'
-                ? existing.projectionId
-                : privacyFencedIncoming.projectionId,
-            actorSubjectId:
-              existing.disposition === 'projectable' &&
-              existing.actorLabelRedactedAt !== null
-                ? null
-                : privacyFencedIncoming.actorSubjectId,
-            actorLabelRedactedAt:
-              existing.disposition === 'projectable'
-                ? existing.actorLabelRedactedAt
-                : privacyFencedIncoming.actorLabelRedactedAt,
-          }
-        : privacyFencedIncoming
-    const rows = await tx
-      .update(recentActivityReplayFacts)
-      .set(valuesForReplayFact(promoted))
-      .where(eq(recentActivityReplayFacts.replayKey, privacyFencedIncoming.replayKey))
-      .returning()
-    if (!rows[0]) throw new Error('Recent Activity replay promotion did not apply')
-    return replayFactFromRow(rows[0])
+    return promoteLegacySnapshot(tx, stored, privacyFencedIncoming)
   }
-  if (
-    existing.disposition === 'projectable' &&
-    privacyFencedIncoming.disposition === 'projectable' &&
-    existing.actorLabelRedactedAt === null &&
-    privacyFencedIncoming.actorLabelRedactedAt !== null
-  ) {
-    const redactedExisting: ProjectableRecentActivityReplayFact = {
-      ...existing,
-      actorSubjectId: null,
-      actorLabelRedactedAt: privacyFencedIncoming.actorLabelRedactedAt,
-    }
-    if (!sameReplayAuthority(redactedExisting, privacyFencedIncoming)) {
-      throw new Error('Recent Activity replay authority conflicts with redelivery')
-    }
-    await tx
-      .update(recentActivityReplayFacts)
-      .set({
-        actorSubjectId: null,
-        actorLabelRedactedAt: privacyFencedIncoming.actorLabelRedactedAt,
-      })
-      .where(eq(recentActivityReplayFacts.replayKey, privacyFencedIncoming.replayKey))
-    existing = redactedExisting
-  }
+  const existing = await applyRedeliveredRedaction(tx, stored, privacyFencedIncoming)
   if (!sameReplayAuthority(existing, privacyFencedIncoming)) {
     throw new Error('Recent Activity replay authority conflicts with redelivery')
   }

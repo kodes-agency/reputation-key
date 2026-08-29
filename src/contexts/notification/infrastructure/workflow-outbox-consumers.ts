@@ -16,6 +16,8 @@ import {
   replyId,
   reviewId,
   userId,
+  type OrganizationId,
+  type PropertyId,
 } from '#/shared/domain/ids'
 import type { UserLookupPort } from '../application/ports/user-lookup.port'
 import type { InboxItemLookupPort } from '../application/ports/inbox-item-lookup.port'
@@ -155,6 +157,68 @@ function validateAttribution(
   }
 }
 
+const commonFields = (
+  event: ConsumerEvent,
+  org: OrganizationId,
+  payload: Readonly<Record<string, unknown>>,
+) =>
+  ({
+    eventId: event.eventId,
+    correlationId: event.correlationId ?? null,
+    organizationId: org,
+    occurredAt: occurredAt(event, payload),
+  }) as const
+
+type WorkflowEventCommon = ReturnType<typeof commonFields>
+
+/** The reply families that carry no Organization-wide fallback Property. */
+const requireProperty = (property: PropertyId | null): PropertyId => {
+  if (property === null) {
+    throw new Error('workflow notification payload is missing propertyId')
+  }
+  return property
+}
+
+/**
+ * The three reply-decision families share one identifier shape and differ only
+ * in which actor field is mandatory.
+ */
+const parseReplyDecision = (
+  eventType: 'review.reply.approved' | 'review.reply.rejected' | 'review.reply.published',
+  payload: Readonly<Record<string, unknown>>,
+  common: WorkflowEventCommon,
+  property: PropertyId,
+): ReviewReplyApproved | ReviewReplyRejected | ReviewReplyPublished => {
+  const actor = nullableString(payload, 'userId')
+  const author = nullableString(payload, 'authorId')
+  const base = {
+    ...common,
+    replyId: replyId(requiredString(payload, 'replyId')),
+    reviewId: reviewId(requiredString(payload, 'reviewId')),
+    propertyId: property,
+    userId: actor === null ? null : userId(actor),
+    authorId: author === null ? null : userId(author),
+    source: eventSource(payload),
+  }
+  if (eventType === 'review.reply.published') {
+    return { ...base, _tag: 'review.reply.published' }
+  }
+  if (base.userId === null) {
+    throw new Error('workflow notification payload is missing userId')
+  }
+  if (eventType === 'review.reply.approved') {
+    return { ...base, _tag: 'review.reply.approved', userId: base.userId }
+  }
+  // The rejection sentence is intentionally excluded from the durable
+  // fact allowlist. The deep link retains the authoritative reason.
+  return {
+    ...base,
+    _tag: 'review.reply.rejected',
+    userId: base.userId,
+    reason: null,
+  }
+}
+
 function parseWorkflowEvent(event: ConsumerEvent): WorkflowEvent {
   const parsed = validateEventPayload(event.eventType, event.eventVersion, event.payload)
   if (!isRecord(parsed)) {
@@ -166,14 +230,10 @@ function parseWorkflowEvent(event: ConsumerEvent): WorkflowEvent {
   const propertyValue =
     'propertyId' in parsed ? nullableString(parsed, 'propertyId') : event.propertyId
   const property = propertyValue === null ? null : propertyId(propertyValue)
-  const common = {
-    eventId: event.eventId,
-    correlationId: event.correlationId ?? null,
-    organizationId: org,
-    occurredAt: occurredAt(event, parsed),
-  } as const
+  const common = commonFields(event, org, parsed)
 
-  switch (event.eventType as WorkflowEventType) {
+  const eventType = event.eventType as WorkflowEventType
+  switch (eventType) {
     case 'inbox.inbox_item.assigned':
       return {
         ...common,
@@ -210,68 +270,31 @@ function parseWorkflowEvent(event: ConsumerEvent): WorkflowEvent {
           : null,
         source: eventSource(parsed),
       }
-    case 'review.reply.submitted':
-      if (property === null) {
-        throw new Error('workflow notification payload is missing propertyId')
-      }
+    case 'review.reply.submitted': {
+      const resolvedProperty = requireProperty(property)
       return {
         ...common,
         _tag: 'review.reply.submitted',
         replyId: replyId(requiredString(parsed, 'replyId')),
         reviewId: reviewId(requiredString(parsed, 'reviewId')),
-        propertyId: property,
+        propertyId: resolvedProperty,
         userId: userId(requiredString(parsed, 'userId')),
         source: eventSource(parsed),
       }
+    }
     case 'review.reply.approved':
     case 'review.reply.rejected':
-    case 'review.reply.published': {
-      if (property === null) {
-        throw new Error('workflow notification payload is missing propertyId')
-      }
-      const actor = nullableString(parsed, 'userId')
-      const author = nullableString(parsed, 'authorId')
-      const base = {
-        ...common,
-        replyId: replyId(requiredString(parsed, 'replyId')),
-        reviewId: reviewId(requiredString(parsed, 'reviewId')),
-        propertyId: property,
-        userId: actor === null ? null : userId(actor),
-        authorId: author === null ? null : userId(author),
-        source: eventSource(parsed),
-      }
-      if (event.eventType === 'review.reply.approved') {
-        if (base.userId === null) {
-          throw new Error('workflow notification payload is missing userId')
-        }
-        return { ...base, _tag: 'review.reply.approved', userId: base.userId }
-      }
-      if (event.eventType === 'review.reply.rejected') {
-        if (base.userId === null) {
-          throw new Error('workflow notification payload is missing userId')
-        }
-        // The rejection sentence is intentionally excluded from the durable
-        // fact allowlist. The deep link retains the authoritative reason.
-        return {
-          ...base,
-          _tag: 'review.reply.rejected',
-          userId: base.userId,
-          reason: null,
-        }
-      }
-      return { ...base, _tag: 'review.reply.published' }
-    }
+    case 'review.reply.published':
+      return parseReplyDecision(eventType, parsed, common, requireProperty(property))
     case 'review.reply.publish_failed': {
-      if (property === null) {
-        throw new Error('workflow notification payload is missing propertyId')
-      }
+      const resolvedProperty = requireProperty(property)
       const author = nullableString(parsed, 'authorId')
       return {
         ...common,
         _tag: 'review.reply.publish_failed',
         replyId: replyId(requiredString(parsed, 'replyId')),
         reviewId: reviewId(requiredString(parsed, 'reviewId')),
-        propertyId: property,
+        propertyId: resolvedProperty,
         authorId: author === null ? null : userId(author),
       }
     }

@@ -397,37 +397,33 @@ function assertReviewedPlanUnchanged(options: FoundationOptions): FoundationPlan
   return evidence
 }
 
-function parseFoundationPlanOutput(
-  output: string,
+const FOUNDATION_PLAN_KEYS = [
+  'ok',
+  'command',
+  'file',
+  'currentEnvironment',
+  'changeSet',
+  'diff',
+  'diagnostics',
+  'currentGraph',
+  'desiredGraph',
+  'stagedPatch',
+  'applyResult',
+  'deploymentId',
+  'stagedPatchId',
+] as const
+
+/**
+ * The envelope must be a clean `plan` of the tracked IaC file against exactly
+ * the reviewed project, environment, and config etag — with nothing staged,
+ * applied, or deployed.
+ */
+function assertFoundationPlanEnvelope(
+  plan: JsonRecord,
   options: FoundationOptions,
   evidence: FoundationPlanEvidence,
 ): void {
-  let value: unknown
-  try {
-    value = JSON.parse(output)
-  } catch {
-    throw new Error('Railway foundation plan output is not valid JSON')
-  }
-  const plan = record(value, 'Railway foundation plan output')
-  assertExactKeys(
-    plan,
-    [
-      'ok',
-      'command',
-      'file',
-      'currentEnvironment',
-      'changeSet',
-      'diff',
-      'diagnostics',
-      'currentGraph',
-      'desiredGraph',
-      'stagedPatch',
-      'applyResult',
-      'deploymentId',
-      'stagedPatchId',
-    ],
-    'Railway foundation plan output',
-  )
+  assertExactKeys(plan, FOUNDATION_PLAN_KEYS, 'Railway foundation plan output')
   const current = record(
     plan.currentEnvironment,
     'Railway foundation plan currentEnvironment',
@@ -458,6 +454,10 @@ function parseFoundationPlanOutput(
   ) {
     throw new Error('Railway foundation plan output reported diagnostics')
   }
+}
+
+/** The foundation may only ever be laid on a project that holds no resources. */
+function assertBlankCurrentGraph(plan: JsonRecord, options: FoundationOptions): void {
   const currentGraph = record(plan.currentGraph, 'Railway foundation plan currentGraph')
   const currentProject = record(
     currentGraph.project,
@@ -470,6 +470,16 @@ function parseFoundationPlanOutput(
   ) {
     throw new Error('Railway foundation plan did not observe a blank project')
   }
+}
+
+/**
+ * The desired graph must be exactly the expected foundation, and no service in
+ * it may carry a source — the foundation creates shells, never runnable code.
+ */
+function assertDesiredFoundationGraph(
+  plan: JsonRecord,
+  options: FoundationOptions,
+): void {
   const desiredGraph = record(plan.desiredGraph, 'Railway foundation plan desiredGraph')
   const desiredProject = record(
     desiredGraph.project,
@@ -498,6 +508,13 @@ function parseFoundationPlanOutput(
       throw new Error('Railway foundation plan output contains a runnable source')
     }
   }
+}
+
+/** The displayed change set and diff must project exactly from the saved plan. */
+function assertDisplayedChangeSet(
+  plan: JsonRecord,
+  evidence: FoundationPlanEvidence,
+): void {
   const displayedChangeSet = record(
     plan.changeSet,
     'Railway foundation displayed changeSet',
@@ -523,6 +540,24 @@ function parseFoundationPlanOutput(
   ) {
     throw new Error('Railway foundation displayed plan does not match the saved plan')
   }
+}
+
+function parseFoundationPlanOutput(
+  output: string,
+  options: FoundationOptions,
+  evidence: FoundationPlanEvidence,
+): void {
+  let value: unknown
+  try {
+    value = JSON.parse(output)
+  } catch {
+    throw new Error('Railway foundation plan output is not valid JSON')
+  }
+  const plan = record(value, 'Railway foundation plan output')
+  assertFoundationPlanEnvelope(plan, options, evidence)
+  assertBlankCurrentGraph(plan, options)
+  assertDesiredFoundationGraph(plan, options)
+  assertDisplayedChangeSet(plan, evidence)
 }
 
 function runnerResourceProjection(resource: JsonRecord): JsonRecord {

@@ -156,6 +156,163 @@ function canonicalizeAuthorityRequirements(
     .sort(compareAuthorityRequirement)
 }
 
+type ResolvedUserAuthority =
+  | Readonly<{
+      allowed: true
+      role: 'AccountAdmin' | 'PropertyManager'
+      context: PermissionAuthorityContext
+      requiresStaffParticipation: boolean
+    }>
+  | Readonly<{
+      allowed: false
+      reason: 'membership_denied' | 'manager_role_denied'
+    }>
+
+type PendingPropertyAuthority = Readonly<{
+  requirement: ManagerPropertyAuthorityRequirement
+  role: 'AccountAdmin' | 'PropertyManager'
+  requiresStaffParticipation: boolean
+  scope: 'organization' | 'assigned-properties'
+}>
+
+type DeniedPropertyAuthority = Readonly<{
+  requirement: ManagerPropertyAuthorityRequirement
+  reason: ManagerPropertyAuthorityDenyReason
+}>
+
+/** Lock every membership row in user-id order and read back its raw role label. */
+async function lockMemberRoles(
+  db: MemberPropertyAuthorityDatabase,
+  organizationId: string,
+  userIds: readonly string[],
+): Promise<Map<string, string | null>> {
+  const memberRoles = new Map<string, string | null>()
+  for (const userId of userIds) {
+    const member = await db.execute(sql`
+      SELECT role
+      FROM member
+      WHERE "organizationId" = ${organizationId}
+        AND "userId" = ${userId}
+      FOR SHARE
+    `)
+    const memberRole = member.rows[0]?.role
+    memberRoles.set(
+      userId,
+      typeof memberRole === 'string' && memberRole.length > 0 ? memberRole : null,
+    )
+  }
+  return memberRoles
+}
+
+/** Turn each locked membership row into the caller's effective permission context. */
+async function resolveUserAuthorities(
+  db: MemberPropertyAuthorityDatabase,
+  organizationId: string,
+  userIds: readonly string[],
+  memberRoles: ReadonlyMap<string, string | null>,
+): Promise<Map<string, ResolvedUserAuthority>> {
+  const userAuthorities = new Map<string, ResolvedUserAuthority>()
+  for (const userId of userIds) {
+    const memberRole = memberRoles.get(userId) ?? null
+    if (memberRole === null) {
+      userAuthorities.set(userId, { allowed: false, reason: 'membership_denied' })
+      continue
+    }
+    const role = toDomainRole(memberRole)
+    if (role === null || !isBetaInteractiveRole(role)) {
+      userAuthorities.set(userId, { allowed: false, reason: 'manager_role_denied' })
+      continue
+    }
+    const { context } = await resolveMemberAuthContextWithDatabase(db, {
+      organizationId,
+      userId,
+      memberRole,
+    })
+    userAuthorities.set(userId, {
+      allowed: true,
+      role,
+      context,
+      requiresStaffParticipation: requiresStaffParticipation(role),
+    })
+  }
+  return userAuthorities
+}
+
+/**
+ * Split the canonical requirements into the ones still needing a grant read and
+ * the first membership/permission denial, without touching the database.
+ */
+function planRequirementDecisions(
+  requirements: readonly ManagerPropertyAuthorityRequirement[],
+  userAuthorities: ReadonlyMap<string, ResolvedUserAuthority>,
+): Readonly<{
+  pending: readonly PendingPropertyAuthority[]
+  firstDenied: DeniedPropertyAuthority | undefined
+}> {
+  let firstDenied: DeniedPropertyAuthority | undefined
+  const pending: PendingPropertyAuthority[] = []
+
+  for (const requirement of requirements) {
+    const userAuthority = userAuthorities.get(requirement.userId)
+    if (!userAuthority || !userAuthority.allowed) {
+      firstDenied ??= {
+        requirement,
+        reason: userAuthority?.reason ?? 'membership_denied',
+      }
+      continue
+    }
+    const authorityRequirement = managerPropertyAuthorityRequirement(
+      userAuthority.context,
+      requirement.permissions,
+    )
+    if (authorityRequirement === 'deny') {
+      firstDenied ??= { requirement, reason: 'permission_denied' }
+      continue
+    }
+    pending.push({
+      requirement,
+      role: userAuthority.role,
+      requiresStaffParticipation: userAuthority.requiresStaffParticipation,
+      scope:
+        authorityRequirement === 'organization' ? 'organization' : 'assigned-properties',
+    })
+  }
+
+  return { pending, firstDenied }
+}
+
+/**
+ * Lock every assigned-Property grant in (user-id, Property-id) order and report
+ * the first missing one. Every grant is read even after a denial so the lock set
+ * stays the same for both outcomes.
+ */
+async function lockAssignedPropertyGrants(
+  db: MemberPropertyAuthorityDatabase,
+  organizationId: string,
+  pending: readonly PendingPropertyAuthority[],
+  at: Date,
+): Promise<DeniedPropertyAuthority | undefined> {
+  let firstDenied: DeniedPropertyAuthority | undefined
+  for (const decision of pending) {
+    if (decision.scope !== 'assigned-properties') continue
+    const { requirement } = decision
+    const grant = await db.execute(sql`
+      SELECT id
+      FROM property_access_grant
+      WHERE organization_id = ${organizationId}
+        AND property_id = ${requirement.propertyId}::uuid
+        AND user_id = ${requirement.userId}
+        AND revoked_at IS NULL
+        AND (expires_at IS NULL OR expires_at > ${at})
+      LIMIT 1
+      FOR SHARE
+    `)
+    const granted = grant.rows.length === 1
+    if (!granted) firstDenied ??= { requirement, reason: 'assignment_denied' }
+  }
+  return firstDenied
+}
+
 /**
  * Resolve a command's complete unique manager/Property authority set through
  * one permission-generation boundary. Membership rows are locked in user-id
@@ -193,116 +350,25 @@ export async function decideCurrentManagerPropertyAuthorities(
   const userIds = [
     ...new Set(requirements.map((requirement) => requirement.userId)),
   ].sort(compareText)
-  const memberRoles = new Map<string, string | null>()
-  for (const userId of userIds) {
-    const member = await db.execute(sql`
-      SELECT role
-      FROM member
-      WHERE "organizationId" = ${input.organizationId}
-        AND "userId" = ${userId}
-      FOR SHARE
-    `)
-    const memberRole = member.rows[0]?.role
-    memberRoles.set(
-      userId,
-      typeof memberRole === 'string' && memberRole.length > 0 ? memberRole : null,
-    )
-  }
+  const memberRoles = await lockMemberRoles(db, input.organizationId, userIds)
+  const userAuthorities = await resolveUserAuthorities(
+    db,
+    input.organizationId,
+    userIds,
+    memberRoles,
+  )
 
-  type UserAuthority =
-    | Readonly<{
-        allowed: true
-        role: 'AccountAdmin' | 'PropertyManager'
-        context: PermissionAuthorityContext
-        requiresStaffParticipation: boolean
-      }>
-    | Readonly<{
-        allowed: false
-        reason: 'membership_denied' | 'manager_role_denied'
-      }>
-
-  const userAuthorities = new Map<string, UserAuthority>()
-  for (const userId of userIds) {
-    const memberRole = memberRoles.get(userId) ?? null
-    if (memberRole === null) {
-      userAuthorities.set(userId, { allowed: false, reason: 'membership_denied' })
-      continue
-    }
-    const role = toDomainRole(memberRole)
-    if (role === null || !isBetaInteractiveRole(role)) {
-      userAuthorities.set(userId, { allowed: false, reason: 'manager_role_denied' })
-      continue
-    }
-    const { context } = await resolveMemberAuthContextWithDatabase(db, {
-      organizationId: input.organizationId,
-      userId,
-      memberRole,
-    })
-    userAuthorities.set(userId, {
-      allowed: true,
-      role,
-      context,
-      requiresStaffParticipation: requiresStaffParticipation(role),
-    })
-  }
-
-  type PendingDecision = Readonly<{
-    requirement: ManagerPropertyAuthorityRequirement
-    role: 'AccountAdmin' | 'PropertyManager'
-    requiresStaffParticipation: boolean
-    scope: 'organization' | 'assigned-properties'
-  }>
-  let firstDenied:
-    | Readonly<{
-        requirement: ManagerPropertyAuthorityRequirement
-        reason: ManagerPropertyAuthorityDenyReason
-      }>
-    | undefined
-  const pending: PendingDecision[] = []
-
-  for (const requirement of requirements) {
-    const userAuthority = userAuthorities.get(requirement.userId)
-    if (!userAuthority || !userAuthority.allowed) {
-      firstDenied ??= {
-        requirement,
-        reason: userAuthority?.reason ?? 'membership_denied',
-      }
-      continue
-    }
-    const authorityRequirement = managerPropertyAuthorityRequirement(
-      userAuthority.context,
-      requirement.permissions,
-    )
-    if (authorityRequirement === 'deny') {
-      firstDenied ??= { requirement, reason: 'permission_denied' }
-      continue
-    }
-    pending.push({
-      requirement,
-      role: userAuthority.role,
-      requiresStaffParticipation: userAuthority.requiresStaffParticipation,
-      scope:
-        authorityRequirement === 'organization' ? 'organization' : 'assigned-properties',
-    })
-  }
-
-  for (const decision of pending) {
-    if (decision.scope !== 'assigned-properties') continue
-    const { requirement } = decision
-    const grant = await db.execute(sql`
-      SELECT id
-      FROM property_access_grant
-      WHERE organization_id = ${input.organizationId}
-        AND property_id = ${requirement.propertyId}::uuid
-        AND user_id = ${requirement.userId}
-        AND revoked_at IS NULL
-        AND (expires_at IS NULL OR expires_at > ${input.at})
-      LIMIT 1
-      FOR SHARE
-    `)
-    const granted = grant.rows.length === 1
-    if (!granted) firstDenied ??= { requirement, reason: 'assignment_denied' }
-  }
+  const { pending, firstDenied: plannedDenial } = planRequirementDecisions(
+    requirements,
+    userAuthorities,
+  )
+  const grantDenial = await lockAssignedPropertyGrants(
+    db,
+    input.organizationId,
+    pending,
+    input.at,
+  )
+  const firstDenied = plannedDenial ?? grantDenial
 
   const currentVersion = await readPermissionVersion(db, input.organizationId, true)
   if (firstDenied) {

@@ -22,6 +22,44 @@ const KNOWN_DRIFT = Object.freeze([
   'CustomRoleRecord',
 ])
 
+/** Names one top-level statement contributes to a module's export surface. */
+function exportedNamesOfStatement(
+  statement: ts.Statement,
+  file: string,
+): readonly string[] {
+  if (ts.isExportDeclaration(statement)) {
+    const clause = statement.exportClause
+    // `export * from` would hide names behind another module; none exists today.
+    expect(clause == null || ts.isNamedExports(clause), file).toBe(true)
+    return clause != null && ts.isNamedExports(clause)
+      ? clause.elements.map((element) => element.name.text)
+      : []
+  }
+
+  const modifiers = ts.canHaveModifiers(statement)
+    ? (ts.getModifiers(statement) ?? [])
+    : []
+  if (!modifiers.some(({ kind }) => kind === ts.SyntaxKind.ExportKeyword)) return []
+
+  if (ts.isVariableStatement(statement)) {
+    return statement.declarationList.declarations.flatMap((declaration) =>
+      ts.isIdentifier(declaration.name) ? [declaration.name.text] : [],
+    )
+  }
+  if (
+    (ts.isFunctionDeclaration(statement) ||
+      ts.isClassDeclaration(statement) ||
+      ts.isInterfaceDeclaration(statement) ||
+      ts.isTypeAliasDeclaration(statement) ||
+      ts.isEnumDeclaration(statement)) &&
+    statement.name != null &&
+    ts.isIdentifier(statement.name)
+  ) {
+    return [statement.name.text]
+  }
+  return []
+}
+
 function exportedNamesOf(directory: string): readonly string[] {
   const file = join(CONTEXT_ROOT, directory, 'application', 'public-api.ts')
   const source = ts.createSourceFile(
@@ -32,42 +70,9 @@ function exportedNamesOf(directory: string): readonly string[] {
     ts.ScriptKind.TS,
   )
   const names = new Set<string>()
-
   for (const statement of source.statements) {
-    if (ts.isExportDeclaration(statement)) {
-      const clause = statement.exportClause
-      // `export * from` would hide names behind another module; none exists today.
-      expect(clause == null || ts.isNamedExports(clause), file).toBe(true)
-      if (clause != null && ts.isNamedExports(clause)) {
-        for (const element of clause.elements) names.add(element.name.text)
-      }
-      continue
-    }
-
-    const modifiers = ts.canHaveModifiers(statement)
-      ? (ts.getModifiers(statement) ?? [])
-      : []
-    if (!modifiers.some(({ kind }) => kind === ts.SyntaxKind.ExportKeyword)) continue
-
-    if (ts.isVariableStatement(statement)) {
-      for (const declaration of statement.declarationList.declarations) {
-        if (ts.isIdentifier(declaration.name)) names.add(declaration.name.text)
-      }
-      continue
-    }
-    if (
-      (ts.isFunctionDeclaration(statement) ||
-        ts.isClassDeclaration(statement) ||
-        ts.isInterfaceDeclaration(statement) ||
-        ts.isTypeAliasDeclaration(statement) ||
-        ts.isEnumDeclaration(statement)) &&
-      statement.name != null &&
-      ts.isIdentifier(statement.name)
-    ) {
-      names.add(statement.name.text)
-    }
+    for (const name of exportedNamesOfStatement(statement, file)) names.add(name)
   }
-
   return [...names].sort()
 }
 

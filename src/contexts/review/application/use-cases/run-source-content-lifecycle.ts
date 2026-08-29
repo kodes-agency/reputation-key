@@ -344,98 +344,138 @@ function shadowSummary(
   }
 }
 
+type LifecycleWindow = ReturnType<typeof resolveWindow>
+type LifecycleRows = Awaited<
+  ReturnType<ReviewSourceContentLifecycleStore['readInspectionBatch']>
+>
+type LifecyclePage = Readonly<{
+  rows: LifecycleRows
+  hasMore: boolean
+  approval: ReviewSourceContentLifecycleApplyApproval | null
+  applied: ReviewSourceContentLifecycleAppliedBatch | null
+}>
+
+/**
+ * This input is emitted only by trusted job/operator wiring. Invalid values
+ * therefore indicate a programmer, configuration, or corrupt checkpoint fault
+ * rather than a Review business-rule alternative; the delivery boundary
+ * sanitizes the native error.
+ */
+function assertLifecycleInput(input: RunReviewSourceContentLifecycleInput): void {
+  if (
+    !Number.isInteger(input.batchSize) ||
+    input.batchSize < 1 ||
+    input.batchSize > REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE
+  ) {
+    throw new TypeError(
+      `Review source-content lifecycle batchSize must be between 1 and ${REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE}`,
+    )
+  }
+  if (input.mode !== 'apply' && input.applyConfirmation != null) {
+    throw new TypeError('Review lifecycle inspection cannot carry apply confirmation')
+  }
+  if (input.mode !== 'apply' && input.recoveryExecution != null) {
+    throw new TypeError('Review lifecycle inspection cannot carry recovery execution')
+  }
+}
+
+/** Destructive page: the operator acknowledgement, the injected authorizer, and
+ * an approval that still matches the checkpoint's frozen seal are all required
+ * before any row is redacted. */
+async function runApplyPage(
+  deps: RunReviewSourceContentLifecycleDeps,
+  input: RunReviewSourceContentLifecycleInput,
+  window: LifecycleWindow,
+): Promise<LifecyclePage> {
+  if (
+    input.applyConfirmation !== REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION ||
+    deps.authorizeApply == null
+  ) {
+    throw new ReviewDestructiveLifecycleQuarantinedError()
+  }
+  const priorApproval =
+    input.checkpoint?.approval == null
+      ? null
+      : validateApproval(input.checkpoint.approval)
+  const approval = validateApproval(
+    await deps.authorizeApply({
+      contract: REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
+      evaluatedAt: window.evaluatedAt,
+      scope: window.scope,
+      priorApproval,
+    }),
+  )
+  if (priorApproval != null && !sameApproval(priorApproval, approval)) {
+    throw new TypeError('Review lifecycle approval evidence changed during apply')
+  }
+  const applied = await deps.store.applyLifecycleBatch({
+    ...window,
+    limit: input.batchSize,
+    ...(input.recoveryExecution == null
+      ? {}
+      : { recoveryExecution: input.recoveryExecution }),
+  })
+  if (applied.rows.length > input.batchSize) {
+    throw new Error('Review lifecycle store applied an unbounded page')
+  }
+  return { rows: applied.rows, hasMore: applied.hasMore, approval, applied }
+}
+
+/** Read-only page. One extra row is requested so the drain learns whether a
+ * continuation exists without a second query. */
+async function readInspectionPage(
+  store: ReviewSourceContentLifecycleStore,
+  batchSize: number,
+  window: LifecycleWindow,
+): Promise<LifecyclePage> {
+  const loaded = await store.readInspectionBatch({ ...window, limit: batchSize + 1 })
+  if (loaded.length > batchSize + 1) {
+    throw new Error('Review lifecycle store returned an unbounded page')
+  }
+  return {
+    rows: loaded.slice(0, batchSize),
+    hasMore: loaded.length > batchSize,
+    approval: null,
+    applied: null,
+  }
+}
+
+/** Continuation cursor for the next page of the same frozen window; null once
+ * the drain is complete. An apply continuation re-carries its approval seal. */
+function buildNextCheckpoint(
+  input: RunReviewSourceContentLifecycleInput,
+  window: LifecycleWindow,
+  page: LifecyclePage,
+): ReviewSourceContentLifecycleCheckpoint | null {
+  const last = page.rows.at(-1)
+  if (!page.hasMore || !last) return null
+  return {
+    contract: REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
+    mode: input.mode,
+    scope: window.scope,
+    evaluatedAt: window.evaluatedAt.toISOString(),
+    after: {
+      createdAt: last.createdAt.toISOString(),
+      reviewId: unbrand(last.reviewId),
+    },
+    ...(page.approval == null ? {} : { approval: page.approval }),
+  }
+}
+
 export const createRunReviewSourceContentLifecycle = (
   deps: RunReviewSourceContentLifecycleDeps,
 ) =>
   async function runReviewSourceContentLifecycle(
     input: RunReviewSourceContentLifecycleInput,
   ): Promise<ReviewSourceContentLifecycleResult> {
-    // This input is emitted only by trusted job/operator wiring. Invalid
-    // values therefore indicate a programmer, configuration, or corrupt
-    // checkpoint fault rather than a Review business-rule alternative; the
-    // delivery boundary sanitizes the native error.
-    if (
-      !Number.isInteger(input.batchSize) ||
-      input.batchSize < 1 ||
-      input.batchSize > REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE
-    ) {
-      throw new TypeError(
-        `Review source-content lifecycle batchSize must be between 1 and ${REVIEW_SOURCE_CONTENT_LIFECYCLE_MAX_BATCH_SIZE}`,
-      )
-    }
-    if (input.mode !== 'apply' && input.applyConfirmation != null) {
-      throw new TypeError('Review lifecycle inspection cannot carry apply confirmation')
-    }
-    if (input.mode !== 'apply' && input.recoveryExecution != null) {
-      throw new TypeError('Review lifecycle inspection cannot carry recovery execution')
-    }
+    assertLifecycleInput(input)
     const window = resolveWindow(input, deps.clock)
-    let approval: ReviewSourceContentLifecycleApplyApproval | null = null
-    let applied: ReviewSourceContentLifecycleAppliedBatch | null = null
-    let rows: Awaited<
-      ReturnType<ReviewSourceContentLifecycleStore['readInspectionBatch']>
-    >
-    let hasMore: boolean
-    if (input.mode === 'apply') {
-      if (
-        input.applyConfirmation !== REVIEW_SOURCE_CONTENT_LIFECYCLE_APPLY_CONFIRMATION ||
-        deps.authorizeApply == null
-      ) {
-        throw new ReviewDestructiveLifecycleQuarantinedError()
-      }
-      const priorApproval =
-        input.checkpoint?.approval == null
-          ? null
-          : validateApproval(input.checkpoint.approval)
-      approval = validateApproval(
-        await deps.authorizeApply({
-          contract: REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
-          evaluatedAt: window.evaluatedAt,
-          scope: window.scope,
-          priorApproval,
-        }),
-      )
-      if (priorApproval != null && !sameApproval(priorApproval, approval)) {
-        throw new TypeError('Review lifecycle approval evidence changed during apply')
-      }
-      applied = await deps.store.applyLifecycleBatch({
-        ...window,
-        limit: input.batchSize,
-        ...(input.recoveryExecution == null
-          ? {}
-          : { recoveryExecution: input.recoveryExecution }),
-      })
-      if (applied.rows.length > input.batchSize) {
-        throw new Error('Review lifecycle store applied an unbounded page')
-      }
-      rows = applied.rows
-      hasMore = applied.hasMore
-    } else {
-      const loaded = await deps.store.readInspectionBatch({
-        ...window,
-        limit: input.batchSize + 1,
-      })
-      if (loaded.length > input.batchSize + 1) {
-        throw new Error('Review lifecycle store returned an unbounded page')
-      }
-      rows = loaded.slice(0, input.batchSize)
-      hasMore = loaded.length > input.batchSize
-    }
-    const last = rows.at(-1)
-    const nextCheckpoint =
-      hasMore && last
-        ? {
-            contract: REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,
-            mode: input.mode,
-            scope: window.scope,
-            evaluatedAt: window.evaluatedAt.toISOString(),
-            after: {
-              createdAt: last.createdAt.toISOString(),
-              reviewId: unbrand(last.reviewId),
-            },
-            ...(approval == null ? {} : { approval }),
-          }
-        : null
+    const page =
+      input.mode === 'apply'
+        ? await runApplyPage(deps, input, window)
+        : await readInspectionPage(deps.store, input.batchSize, window)
+    const { rows, approval, applied } = page
+    const nextCheckpoint = buildNextCheckpoint(input, window, page)
 
     return {
       contract: REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,

@@ -80,6 +80,121 @@ function buildPublishFailedEvent(review: Review, reply: Reply, occurredAt: Date)
   })
 }
 
+/** RPL-01: an authorization fence is current only when the job carries the full
+ * provider-source coordinates the authorization was granted against. */
+function hasCurrentAuthorizationFence(data: PublishReplyJobData): boolean {
+  return (
+    typeof data.propertyId === 'string' &&
+    Number.isSafeInteger(data.sourceEpoch) &&
+    data.sourceEpoch! >= 0 &&
+    Number.isSafeInteger(data.materialReviewRevision) &&
+    data.materialReviewRevision! > 0 &&
+    Number.isSafeInteger(data.baseObservationRevision) &&
+    data.baseObservationRevision! >= 0
+  )
+}
+
+type PublishTarget = Readonly<{
+  reply: Reply
+  review: Review
+  reviewName: string | null
+}>
+
+/**
+ * Everything that must still hold before this job may claim the row: the Reply
+ * exists and is approved, the job's publication cycle is still the current one,
+ * and its authorization still names this Review's provider source. Any failed
+ * check is logged and reported as "no target", which skips the job.
+ */
+async function loadPublishTarget(
+  deps: PublishHandlerDeps,
+  job: Job<PublishReplyJobData>,
+  rId: ReturnType<typeof replyId>,
+  orgId: ReturnType<typeof organizationId>,
+): Promise<PublishTarget | null> {
+  const logger = deps.logger
+  const reply = await deps.replyRepo.findById(rId, orgId)
+  if (!reply) {
+    logger.error('Reply not found, skipping')
+    return null
+  }
+  if (reply.status !== 'approved') {
+    logger.warn({ status: reply.status }, 'Reply not in approved status, skipping')
+    return null
+  }
+
+  // RPL-01: a durable intent or fast-path job may arrive after a later
+  // approval/edit/retry cycle has become current. The explicit monotonic
+  // cycle is the fence: stale work stops before it can claim the row or
+  // reach the provider. A missing value is accepted only for a bounded
+  // pre-RPL-01 job whose persisted row is still at legacy cycle zero.
+  const requestedCycle = job.data.publicationCycle
+  if (
+    (requestedCycle === undefined && reply.publicationCycle !== 0) ||
+    (requestedCycle !== undefined && requestedCycle !== reply.publicationCycle) ||
+    (reply.publicationCycle > 0 && !hasCurrentAuthorizationFence(job.data))
+  ) {
+    logger.warn('Publication cycle superseded — skipping stale job')
+    return null
+  }
+
+  const review = await deps.reviewRepo.findById(reply.reviewId, orgId)
+  if (!review) {
+    logger.error('Review not found for reply')
+    return null
+  }
+  if (
+    reply.publicationCycle > 0 &&
+    (job.data.propertyId !== review.propertyId ||
+      job.data.sourceEpoch !== review.sourceEpoch ||
+      job.data.materialReviewRevision !== review.sourceRevision)
+  ) {
+    logger.warn('Publication authorization no longer matches the Review source')
+    return null
+  }
+
+  const reviewName =
+    review.externalLocationId && review.externalId
+      ? `${review.externalLocationId}/reviews/${review.externalId}`
+      : null
+  return { reply, review, reviewName }
+}
+
+/**
+ * BQC-3.8 POST-CALL RACE GUARD: the disconnect cascade (cancellation + purge)
+ * or a re-authorization may have run while the Google call was in flight. In
+ * every one of those cases the local truth wins and the provider result is not
+ * acknowledged.
+ */
+async function localTruthStillOwnsCycle(
+  deps: PublishHandlerDeps,
+  rId: ReturnType<typeof replyId>,
+  orgId: ReturnType<typeof organizationId>,
+  jobCycle: number,
+): Promise<boolean> {
+  const logger = deps.logger
+  const current = await deps.replyRepo.findById(rId, orgId)
+  if (!current) {
+    logger.error(
+      'Reply purged during the Google call — provider-visible reply has no local evidence; NOT marking published (provider-side cleanup is out of scope)',
+    )
+    return false
+  }
+  if (current.publicationState === 'cancelled') {
+    logger.warn(
+      'Publication cancelled during the Google call — the local truth is cancelled; NOT marking published',
+    )
+    return false
+  }
+  if (current.publicationCycle !== jobCycle) {
+    logger.warn(
+      'Publication cycle changed during the Google call — NOT acknowledging the stale cycle',
+    )
+    return false
+  }
+  return true
+}
+
 export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
   return async (job: Job<PublishReplyJobData>) => {
     return trace('job.publishReply', async () => {
@@ -93,60 +208,10 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
 
       logger.info('Publishing reply to Google')
 
-      const reply = await deps.replyRepo.findById(rId, orgId)
-      if (!reply) {
-        logger.error('Reply not found, skipping')
-        return
-      }
-
-      if (reply.status !== 'approved') {
-        logger.warn({ status: reply.status }, 'Reply not in approved status, skipping')
-        return
-      }
-
-      // RPL-01: a durable intent or fast-path job may arrive after a later
-      // approval/edit/retry cycle has become current. The explicit monotonic
-      // cycle is the fence: stale work stops before it can claim the row or
-      // reach the provider. A missing value is accepted only for a bounded
-      // pre-RPL-01 job whose persisted row is still at legacy cycle zero.
-      const requestedCycle = job.data.publicationCycle
-      const jobCycle = requestedCycle ?? 0
-      const hasCurrentAuthorizationFence =
-        typeof job.data.propertyId === 'string' &&
-        Number.isSafeInteger(job.data.sourceEpoch) &&
-        job.data.sourceEpoch! >= 0 &&
-        Number.isSafeInteger(job.data.materialReviewRevision) &&
-        job.data.materialReviewRevision! > 0 &&
-        Number.isSafeInteger(job.data.baseObservationRevision) &&
-        job.data.baseObservationRevision! >= 0
-      if (
-        (requestedCycle === undefined && reply.publicationCycle !== 0) ||
-        (requestedCycle !== undefined && requestedCycle !== reply.publicationCycle) ||
-        (reply.publicationCycle > 0 && !hasCurrentAuthorizationFence)
-      ) {
-        logger.warn('Publication cycle superseded — skipping stale job')
-        return
-      }
-
-      const review = await deps.reviewRepo.findById(reply.reviewId, orgId)
-      if (!review) {
-        logger.error('Review not found for reply')
-        return
-      }
-      if (
-        reply.publicationCycle > 0 &&
-        (job.data.propertyId !== review.propertyId ||
-          job.data.sourceEpoch !== review.sourceEpoch ||
-          job.data.materialReviewRevision !== review.sourceRevision)
-      ) {
-        logger.warn('Publication authorization no longer matches the Review source')
-        return
-      }
-
-      const reviewName =
-        review.externalLocationId && review.externalId
-          ? `${review.externalLocationId}/reviews/${review.externalId}`
-          : null
+      const target = await loadPublishTarget(deps, job, rId, orgId)
+      if (!target) return
+      const { reply, review, reviewName } = target
+      const jobCycle = job.data.publicationCycle ?? 0
 
       // A persisted `sending` row means a previous attempt may have reached
       // Google without its local outcome being committed. Never issue another
@@ -209,27 +274,7 @@ export const createPublishReplyHandler = (deps: PublishHandlerDeps) => {
           text: claimed.text,
         })
 
-        // BQC-3.8 POST-CALL RACE GUARD: the disconnect cascade (cancellation +
-        // purge) may have run while the Google call was in flight.
-        const current = await deps.replyRepo.findById(rId, orgId)
-        if (!current) {
-          logger.error(
-            'Reply purged during the Google call — provider-visible reply has no local evidence; NOT marking published (provider-side cleanup is out of scope)',
-          )
-          return
-        }
-        if (current.publicationState === 'cancelled') {
-          logger.warn(
-            'Publication cancelled during the Google call — the local truth is cancelled; NOT marking published',
-          )
-          return
-        }
-        if (current.publicationCycle !== jobCycle) {
-          logger.warn(
-            'Publication cycle changed during the Google call — NOT acknowledging the stale cycle',
-          )
-          return
-        }
+        if (!(await localTruthStillOwnsCycle(deps, rId, orgId, jobCycle))) return
 
         const now = deps.clock()
         // Use the exact row claimed by THIS cycle. The store's status+cycle

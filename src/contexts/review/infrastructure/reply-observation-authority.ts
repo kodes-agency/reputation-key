@@ -7,6 +7,7 @@ import {
   reviews,
 } from '#/shared/db/schema/review.schema'
 import { organizationId, reviewId } from '#/shared/domain/ids'
+import type { Tx } from '#/shared/outbox/commit'
 import type {
   ReviewCurrentReplyObservationPermit,
   ReviewReplyObservationAuthority,
@@ -29,6 +30,113 @@ const REVIEW_SOURCE_CONTENT_STATES = new Set<
 const RESPONSE_TARGET_ELIGIBILITIES = new Set<
   ReviewCurrentReplyObservationPermit['responseTargetEligibility']
 >(['measured', 'historical_onboarding', 'legacy_unknown'])
+
+function selectCurrentObservationHead(
+  tx: Tx,
+  expectation: ReviewReplyObservationExpectation,
+) {
+  return tx
+    .select({
+      organizationId: googleReplyObservationHeads.organizationId,
+      propertyId: googleReplyObservationHeads.propertyId,
+      reviewId: googleReplyObservationHeads.reviewId,
+      observationRevision: googleReplyObservationHeads.observationRevision,
+      sourceEpoch: googleReplyObservationHeads.sourceEpoch,
+      materialReviewRevision: googleReplyObservationHeads.materialReviewRevision,
+      currentReviewSourceEpoch: reviews.sourceEpoch,
+      currentReviewMaterialReviewRevision: reviews.sourceRevision,
+      reviewSourceContentState: reviews.sourceContentState,
+      headState: googleReplyObservationHeads.state,
+      headProvenance: googleReplyObservationHeads.provenance,
+      state: googleReplyObservations.state,
+      change: googleReplyObservations.change,
+      resolution: googleReplyObservations.resolution,
+      provenance: googleReplyObservations.provenance,
+      matchedReplyId: googleReplyObservations.matchedReplyId,
+      matchedPublicationCycle: googleReplyObservations.matchedPublicationCycle,
+      observedAt: googleReplyObservations.observedAt,
+      responseTargetEligibility: materialReviewRevisions.responseTargetEligibility,
+      responseTargetStartAt: materialReviewRevisions.responseTargetStartAt,
+    })
+    .from(googleReplyObservationHeads)
+    .innerJoin(
+      googleReplyObservations,
+      eq(googleReplyObservations.id, googleReplyObservationHeads.observationId),
+    )
+    .innerJoin(
+      reviews,
+      and(
+        eq(reviews.id, googleReplyObservationHeads.reviewId),
+        eq(reviews.organizationId, googleReplyObservationHeads.organizationId),
+        eq(reviews.propertyId, googleReplyObservationHeads.propertyId),
+      ),
+    )
+    .innerJoin(
+      materialReviewRevisions,
+      and(
+        eq(materialReviewRevisions.reviewId, reviews.id),
+        eq(materialReviewRevisions.organizationId, reviews.organizationId),
+        eq(materialReviewRevisions.propertyId, reviews.propertyId),
+        eq(materialReviewRevisions.sourceEpoch, reviews.sourceEpoch),
+        eq(materialReviewRevisions.revision, reviews.sourceRevision),
+      ),
+    )
+    .where(
+      and(
+        eq(googleReplyObservationHeads.reviewId, expectation.reviewId),
+        eq(googleReplyObservationHeads.organizationId, expectation.organizationId),
+      ),
+    )
+    .for('update', { of: googleReplyObservationHeads })
+    .limit(1)
+}
+
+type CurrentObservationHeadRow = Awaited<
+  ReturnType<typeof selectCurrentObservationHead>
+>[number]
+
+/**
+ * Exactness for one Google reply observation: the locked head must still be the
+ * revision the consumer acted on, the Review source must not have moved under
+ * it, the head must still denormalize that observation's own state/provenance,
+ * every decision field must be unchanged, and the classification enums must be
+ * well formed. Every clause is an independent equality against the same
+ * expectation, so they are kept together as one readable decision.
+ */
+function isExactCurrentObservation(
+  current: CurrentObservationHeadRow,
+  expectation: ReviewReplyObservationExpectation,
+): boolean {
+  return (
+    current.organizationId === expectation.organizationId &&
+    current.propertyId === expectation.propertyId &&
+    current.reviewId === expectation.reviewId &&
+    current.observationRevision === expectation.observationRevision &&
+    current.sourceEpoch === expectation.sourceEpoch &&
+    current.materialReviewRevision === expectation.materialReviewRevision &&
+    current.currentReviewSourceEpoch === expectation.sourceEpoch &&
+    current.currentReviewMaterialReviewRevision === expectation.materialReviewRevision &&
+    current.headState === current.state &&
+    current.headProvenance === current.provenance &&
+    current.change === expectation.change &&
+    current.resolution === expectation.resolution &&
+    current.provenance === expectation.provenance &&
+    current.matchedReplyId === expectation.matchedReplyId &&
+    current.matchedPublicationCycle === expectation.matchedPublicationCycle &&
+    (current.state === 'live' || current.state === 'absent') &&
+    REVIEW_SOURCE_CONTENT_STATES.has(
+      current.reviewSourceContentState as ReviewCurrentReplyObservationPermit['reviewSourceContentState'],
+    ) &&
+    RESPONSE_TARGET_ELIGIBILITIES.has(
+      current.responseTargetEligibility as ReviewCurrentReplyObservationPermit['responseTargetEligibility'],
+    ) &&
+    ((current.responseTargetEligibility === 'measured' &&
+      current.responseTargetStartAt instanceof Date) ||
+      (current.responseTargetEligibility !== 'measured' &&
+        current.responseTargetStartAt === null)) &&
+    sameInstant(current.observedAt, expectation.occurredAt)
+  )
+}
 
 /** One exact-current apply holds the Review transaction while its Inbox
  * callback opens the consumer-owned transaction, so it can require two pool
@@ -64,93 +172,11 @@ export const createReviewReplyObservationAuthority = (
           reviewId(expectation.reviewId),
         )
 
-        const rows = await tx
-          .select({
-            organizationId: googleReplyObservationHeads.organizationId,
-            propertyId: googleReplyObservationHeads.propertyId,
-            reviewId: googleReplyObservationHeads.reviewId,
-            observationRevision: googleReplyObservationHeads.observationRevision,
-            sourceEpoch: googleReplyObservationHeads.sourceEpoch,
-            materialReviewRevision: googleReplyObservationHeads.materialReviewRevision,
-            currentReviewSourceEpoch: reviews.sourceEpoch,
-            currentReviewMaterialReviewRevision: reviews.sourceRevision,
-            reviewSourceContentState: reviews.sourceContentState,
-            headState: googleReplyObservationHeads.state,
-            headProvenance: googleReplyObservationHeads.provenance,
-            state: googleReplyObservations.state,
-            change: googleReplyObservations.change,
-            resolution: googleReplyObservations.resolution,
-            provenance: googleReplyObservations.provenance,
-            matchedReplyId: googleReplyObservations.matchedReplyId,
-            matchedPublicationCycle: googleReplyObservations.matchedPublicationCycle,
-            observedAt: googleReplyObservations.observedAt,
-            responseTargetEligibility: materialReviewRevisions.responseTargetEligibility,
-            responseTargetStartAt: materialReviewRevisions.responseTargetStartAt,
-          })
-          .from(googleReplyObservationHeads)
-          .innerJoin(
-            googleReplyObservations,
-            eq(googleReplyObservations.id, googleReplyObservationHeads.observationId),
-          )
-          .innerJoin(
-            reviews,
-            and(
-              eq(reviews.id, googleReplyObservationHeads.reviewId),
-              eq(reviews.organizationId, googleReplyObservationHeads.organizationId),
-              eq(reviews.propertyId, googleReplyObservationHeads.propertyId),
-            ),
-          )
-          .innerJoin(
-            materialReviewRevisions,
-            and(
-              eq(materialReviewRevisions.reviewId, reviews.id),
-              eq(materialReviewRevisions.organizationId, reviews.organizationId),
-              eq(materialReviewRevisions.propertyId, reviews.propertyId),
-              eq(materialReviewRevisions.sourceEpoch, reviews.sourceEpoch),
-              eq(materialReviewRevisions.revision, reviews.sourceRevision),
-            ),
-          )
-          .where(
-            and(
-              eq(googleReplyObservationHeads.reviewId, expectation.reviewId),
-              eq(googleReplyObservationHeads.organizationId, expectation.organizationId),
-            ),
-          )
-          .for('update', { of: googleReplyObservationHeads })
-          .limit(1)
+        const rows = await selectCurrentObservationHead(tx, expectation)
         const current = rows[0]
-        const exact =
-          current !== undefined &&
-          current.organizationId === expectation.organizationId &&
-          current.propertyId === expectation.propertyId &&
-          current.reviewId === expectation.reviewId &&
-          current.observationRevision === expectation.observationRevision &&
-          current.sourceEpoch === expectation.sourceEpoch &&
-          current.materialReviewRevision === expectation.materialReviewRevision &&
-          current.currentReviewSourceEpoch === expectation.sourceEpoch &&
-          current.currentReviewMaterialReviewRevision ===
-            expectation.materialReviewRevision &&
-          current.headState === current.state &&
-          current.headProvenance === current.provenance &&
-          current.change === expectation.change &&
-          current.resolution === expectation.resolution &&
-          current.provenance === expectation.provenance &&
-          current.matchedReplyId === expectation.matchedReplyId &&
-          current.matchedPublicationCycle === expectation.matchedPublicationCycle &&
-          (current.state === 'live' || current.state === 'absent') &&
-          REVIEW_SOURCE_CONTENT_STATES.has(
-            current.reviewSourceContentState as ReviewCurrentReplyObservationPermit['reviewSourceContentState'],
-          ) &&
-          RESPONSE_TARGET_ELIGIBILITIES.has(
-            current.responseTargetEligibility as ReviewCurrentReplyObservationPermit['responseTargetEligibility'],
-          ) &&
-          ((current.responseTargetEligibility === 'measured' &&
-            current.responseTargetStartAt instanceof Date) ||
-            (current.responseTargetEligibility !== 'measured' &&
-              current.responseTargetStartAt === null)) &&
-          sameInstant(current.observedAt, expectation.occurredAt)
-
-        if (!exact) return { status: 'obsolete' as const }
+        if (current === undefined || !isExactCurrentObservation(current, expectation)) {
+          return { status: 'obsolete' as const }
+        }
 
         const permit: ReviewCurrentReplyObservationPermit = {
           authority: 'review.current-google-reply-observation.v1',

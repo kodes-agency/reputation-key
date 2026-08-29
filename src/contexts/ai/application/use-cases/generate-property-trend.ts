@@ -256,6 +256,48 @@ function leadingSignalDeltaBasisPoints(candidate: DeterministicTrendCandidate): 
   return Math.min(10_000, basisPoints)
 }
 
+type TrendSchedule = NonNullable<
+  Awaited<ReturnType<AiPropertyTrendScheduleStorePort['read']>>
+>
+type MerchantAuthorization = Awaited<
+  ReturnType<AiAuthorizationPort['readMerchantAuthorization']>
+>
+type PropertyProcessingProfileRead = Awaited<
+  ReturnType<PropertyProcessingProfilePort['readForAi']>
+>
+
+/**
+ * A schedule may only be generated while the authorization, its capability
+ * runtime profile, and the property processing profile all still match the
+ * exact epochs and versions the schedule was created against. Anything else is
+ * a stale schedule, not a failure.
+ */
+function scheduleInputsAreCurrent(
+  schedule: TrendSchedule,
+  authorization: MerchantAuthorization,
+  runtime: PropertyProcessingProfileRead,
+): boolean {
+  return (
+    authorization !== null &&
+    authorization.state === 'enabled' &&
+    authorization.authorizationLineageId !== null &&
+    authorization.capabilities.includes('property_trends') &&
+    authorization.capabilityRuntimeProfileVersions.property_trends ===
+      PROFILE.capabilityRuntimeProfileVersion &&
+    authorization.authorizedSourceEpoch === schedule.sourceEpoch &&
+    authorization.capabilityEpochs.review_analysis.epoch ===
+      schedule.reviewAnalysisEpoch &&
+    authorization.capabilityEpochs.property_trends.epoch ===
+      schedule.propertyTrendsEpoch &&
+    runtime.status === 'available' &&
+    runtime.profile.profileVersion === schedule.propertyProfileVersion &&
+    runtime.profile.sourceEpoch === schedule.sourceEpoch &&
+    runtime.profile.timezone === schedule.timezone &&
+    schedule.calendarProfileVersion === 'property-calendar-v1' &&
+    schedule.reportProfileVersion === PROFILE.profileVersion
+  )
+}
+
 export function createGeneratePropertyTrend(
   dependencies: GeneratePropertyTrendDependencies,
 ): (input: GeneratePropertyTrendInput) => Promise<GeneratePropertyTrendResult> {
@@ -276,25 +318,7 @@ export function createGeneratePropertyTrend(
       dependencies.authorization.readMerchantAuthorization(scope),
       dependencies.processingProfiles.readForAi(scope),
     ])
-    if (
-      authorization === null ||
-      authorization.state !== 'enabled' ||
-      authorization.authorizationLineageId === null ||
-      !authorization.capabilities.includes('property_trends') ||
-      authorization.capabilityRuntimeProfileVersions.property_trends !==
-        PROFILE.capabilityRuntimeProfileVersion ||
-      authorization.authorizedSourceEpoch !== schedule.sourceEpoch ||
-      authorization.capabilityEpochs.review_analysis.epoch !==
-        schedule.reviewAnalysisEpoch ||
-      authorization.capabilityEpochs.property_trends.epoch !==
-        schedule.propertyTrendsEpoch ||
-      runtime.status !== 'available' ||
-      runtime.profile.profileVersion !== schedule.propertyProfileVersion ||
-      runtime.profile.sourceEpoch !== schedule.sourceEpoch ||
-      runtime.profile.timezone !== schedule.timezone ||
-      schedule.calendarProfileVersion !== 'property-calendar-v1' ||
-      schedule.reportProfileVersion !== PROFILE.profileVersion
-    ) {
+    if (!scheduleInputsAreCurrent(schedule, authorization, runtime)) {
       return { status: 'stale' }
     }
 

@@ -85,6 +85,18 @@ function dateOrNull(value: unknown): Date | null {
   return date
 }
 
+/** The first condition that makes this family's evidence unusable, if any. */
+function unavailableEvidenceReason(
+  row: EvidenceRow,
+  invalidReadingCount: number,
+): string | null {
+  if (row.quarantine_present === true) return 'source_fact_quarantined'
+  if (invalidReadingCount > 0) return 'invalid_governed_reading'
+  if (row.obsolete_present === true) return 'source_fact_obsolete'
+  if (row.projection_missing === true) return 'projection_missing'
+  return null
+}
+
 function evidenceState(row: EvidenceRow, computedAt: Date): PortalMetricEvidence {
   if (typeof row.definition_version_id !== 'string') {
     throw new Error('Portal metric evidence definition is invalid')
@@ -92,16 +104,7 @@ function evidenceState(row: EvidenceRow, computedAt: Date): PortalMetricEvidence
   const sourceCount = Number(row.source_count ?? 0)
   const appliedCount = Number(row.applied_count ?? 0)
   const invalidReadingCount = Number(row.invalid_reading_count ?? 0)
-  const unavailableReason =
-    row.quarantine_present === true
-      ? 'source_fact_quarantined'
-      : invalidReadingCount > 0
-        ? 'invalid_governed_reading'
-        : row.obsolete_present === true
-          ? 'source_fact_obsolete'
-          : row.projection_missing === true
-            ? 'projection_missing'
-            : null
+  const unavailableReason = unavailableEvidenceReason(row, invalidReadingCount)
   const state =
     unavailableReason !== null
       ? 'unavailable'

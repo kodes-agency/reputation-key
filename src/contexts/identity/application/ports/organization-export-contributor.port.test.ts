@@ -76,32 +76,41 @@ function isExported(node: ts.Node): boolean {
   )
 }
 
+/** Names re-published by an `export { ... }` clause. */
+function reExportedNames(statement: ts.ExportDeclaration): readonly string[] {
+  const clause = statement.exportClause
+  if (!clause || !ts.isNamedExports(clause)) return []
+  return clause.elements.map((element) => element.name.text)
+}
+
+/** Names introduced by an exported declaration statement. */
+function declaredNames(statement: ts.Statement): readonly string[] {
+  if (ts.isVariableStatement(statement)) {
+    return statement.declarationList.declarations.flatMap((declaration) =>
+      ts.isIdentifier(declaration.name) ? [declaration.name.text] : [],
+    )
+  }
+  if (
+    (ts.isTypeAliasDeclaration(statement) ||
+      ts.isInterfaceDeclaration(statement) ||
+      ts.isFunctionDeclaration(statement)) &&
+    statement.name
+  ) {
+    return [statement.name.text]
+  }
+  return []
+}
+
 /** Every name the module publishes, including type-only ones erased at runtime. */
 function exportedNames(relativePath: string): ReadonlySet<string> {
   const names = new Set<string>()
   for (const statement of parse(relativePath).statements) {
     if (ts.isExportDeclaration(statement)) {
-      const clause = statement.exportClause
-      if (clause && ts.isNamedExports(clause)) {
-        for (const element of clause.elements) names.add(element.name.text)
-      }
+      for (const name of reExportedNames(statement)) names.add(name)
       continue
     }
     if (!isExported(statement)) continue
-    if (ts.isVariableStatement(statement)) {
-      for (const declaration of statement.declarationList.declarations) {
-        if (ts.isIdentifier(declaration.name)) names.add(declaration.name.text)
-      }
-      continue
-    }
-    if (
-      (ts.isTypeAliasDeclaration(statement) ||
-        ts.isInterfaceDeclaration(statement) ||
-        ts.isFunctionDeclaration(statement)) &&
-      statement.name
-    ) {
-      names.add(statement.name.text)
-    }
+    for (const name of declaredNames(statement)) names.add(name)
   }
   return names
 }

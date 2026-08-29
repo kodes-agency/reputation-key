@@ -286,24 +286,30 @@ export const createGoogleOAuthAdapter = (config: {
     }
   }
 
-  const exchangeCode: GoogleOAuthPort['exchangeCode'] = async (input) => {
-    let raw: unknown
+  /**
+   * The three sources of a token response: an already-preserved result being
+   * revalidated, the governed executor, or the direct-egress fallback.
+   */
+  const fetchTokenResponse = async (
+    input: Parameters<GoogleOAuthPort['exchangeCode']>[0],
+  ): Promise<unknown> => {
     if (input.preservedResult) {
-      raw = {
+      return {
         access_token: input.preservedResult.accessToken,
         refresh_token: input.preservedResult.refreshToken,
         expires_in: input.preservedResult.expiresIn,
         scope: input.preservedResult.scopes.join(' '),
         id_token: input.preservedResult.idToken,
       }
-    } else if (config.executor) {
+    }
+    if (config.executor) {
       if (!input.authorization) {
         throw integrationError(
           'oauth_failed',
           'Google OAuth exchange authorization is unavailable',
         )
       }
-      raw = await executeCredentialJson(
+      return executeCredentialJson(
         {
           routeKey: 'oauth.token.exchange',
           code: input.code,
@@ -315,35 +321,82 @@ export const createGoogleOAuthAdapter = (config: {
         input.authorization,
         'oauth_failed',
       )
-    } else {
-      config.assertDirectCredentialEgressAllowed?.('oauth.token.exchange')
-      const response = await trace('googleOAuth.exchangeCode', () =>
-        fetch(config.tokenUrl, {
-          method: 'POST',
-          redirect: 'error',
-          signal: AbortSignal.timeout(GOOGLE_PROVIDER_TIMEOUT_MS),
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          body: new URLSearchParams({
-            code: input.code,
-            client_id: config.clientId,
-            client_secret: config.clientSecret,
-            redirect_uri: input.redirectUri,
-            grant_type: 'authorization_code',
-            code_verifier: input.codeVerifier,
-          }),
-        }),
-      )
-      if (!response.ok) {
-        await response.body?.cancel()
-        throw integrationError(
-          'oauth_failed',
-          `Google OAuth code exchange failed with status ${response.status}`,
-        )
-      }
-      raw = await readBoundedJson(response, TOKEN_RESPONSE_MAX_BYTES)
     }
+    config.assertDirectCredentialEgressAllowed?.('oauth.token.exchange')
+    const response = await trace('googleOAuth.exchangeCode', () =>
+      fetch(config.tokenUrl, {
+        method: 'POST',
+        redirect: 'error',
+        signal: AbortSignal.timeout(GOOGLE_PROVIDER_TIMEOUT_MS),
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          code: input.code,
+          client_id: config.clientId,
+          client_secret: config.clientSecret,
+          redirect_uri: input.redirectUri,
+          grant_type: 'authorization_code',
+          code_verifier: input.codeVerifier,
+        }),
+      }),
+    )
+    if (!response.ok) {
+      await response.body?.cancel()
+      throw integrationError(
+        'oauth_failed',
+        `Google OAuth code exchange failed with status ${response.status}`,
+      )
+    }
+    return readBoundedJson(response, TOKEN_RESPONSE_MAX_BYTES)
+  }
+
+  /**
+   * Signature, issuer, audience, nonce, lifetime and freshness of the ID token.
+   * Every failure collapses to the same opaque validation error.
+   */
+  const verifiedGoogleSubject = async (
+    idToken: string,
+    oidcNonce: string,
+  ): Promise<string> => {
+    try {
+      const jwks = await loadJwks()
+      const now = clock()
+      const nowSeconds = Math.floor(now.getTime() / 1_000)
+      const verified = await jwtVerify(idToken, createLocalJWKSet(jwks), {
+        algorithms: ['RS256'],
+        audience: config.clientId,
+        issuer: [...GOOGLE_OIDC_ISSUERS],
+        currentDate: now,
+        clockTolerance: ID_TOKEN_CLOCK_SKEW_SECONDS,
+      })
+      const { aud, azp, exp, iat, nonce, sub } = verified.payload
+      if (
+        nonce !== oidcNonce ||
+        typeof sub !== 'string' ||
+        sub.length === 0 ||
+        sub.length > 255 ||
+        aud !== config.clientId ||
+        (azp !== undefined && azp !== config.clientId) ||
+        typeof exp !== 'number' ||
+        typeof iat !== 'number' ||
+        !Number.isSafeInteger(exp) ||
+        !Number.isSafeInteger(iat) ||
+        exp <= iat ||
+        exp - iat > ID_TOKEN_MAX_LIFETIME_SECONDS ||
+        iat > nowSeconds + ID_TOKEN_CLOCK_SKEW_SECONDS ||
+        iat < nowSeconds - ID_TOKEN_MAX_AGE_SECONDS
+      ) {
+        throw new Error('oidc_claim_mismatch')
+      }
+      return sub
+    } catch {
+      throw integrationError('oauth_failed', 'Google ID token validation failed')
+    }
+  }
+
+  const exchangeCode: GoogleOAuthPort['exchangeCode'] = async (input) => {
+    const raw = await fetchTokenResponse(input)
 
     const parsed = googleTokenResponseSchema.safeParse(raw)
     if (!parsed.success) {
@@ -371,45 +424,13 @@ export const createGoogleOAuthAdapter = (config: {
         idToken: data.id_token,
       })
     }
-    try {
-      const jwks = await loadJwks()
-      const now = clock()
-      const nowSeconds = Math.floor(now.getTime() / 1_000)
-      const verified = await jwtVerify(data.id_token, createLocalJWKSet(jwks), {
-        algorithms: ['RS256'],
-        audience: config.clientId,
-        issuer: [...GOOGLE_OIDC_ISSUERS],
-        currentDate: now,
-        clockTolerance: ID_TOKEN_CLOCK_SKEW_SECONDS,
-      })
-      const { aud, azp, exp, iat, nonce, sub } = verified.payload
-      if (
-        nonce !== input.oidcNonce ||
-        typeof sub !== 'string' ||
-        sub.length === 0 ||
-        sub.length > 255 ||
-        aud !== config.clientId ||
-        (azp !== undefined && azp !== config.clientId) ||
-        typeof exp !== 'number' ||
-        typeof iat !== 'number' ||
-        !Number.isSafeInteger(exp) ||
-        !Number.isSafeInteger(iat) ||
-        exp <= iat ||
-        exp - iat > ID_TOKEN_MAX_LIFETIME_SECONDS ||
-        iat > nowSeconds + ID_TOKEN_CLOCK_SKEW_SECONDS ||
-        iat < nowSeconds - ID_TOKEN_MAX_AGE_SECONDS
-      ) {
-        throw new Error('oidc_claim_mismatch')
-      }
-      return {
-        identity: { kind: 'oidc', googleSubject: sub },
-        accessToken: data.access_token,
-        refreshToken: data.refresh_token,
-        expiresIn: data.expires_in,
-        scopes,
-      }
-    } catch {
-      throw integrationError('oauth_failed', 'Google ID token validation failed')
+    const googleSubject = await verifiedGoogleSubject(data.id_token, input.oidcNonce)
+    return {
+      identity: { kind: 'oidc', googleSubject },
+      accessToken: data.access_token,
+      refreshToken: data.refresh_token,
+      expiresIn: data.expires_in,
+      scopes,
     }
   }
 

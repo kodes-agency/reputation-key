@@ -348,6 +348,157 @@ function fieldOrderIssues(checker: ts.TypeChecker, event: ts.Type): readonly str
   return issues
 }
 
+/** Absent, or every constituent is `null` or an assignable non-any string. */
+function isStringOrExplicitNull(checker: ts.TypeChecker, type: ts.Type | null): boolean {
+  if (type == null) return true
+  return typeParts(type).every(
+    (part) =>
+      (part.flags & ts.TypeFlags.Null) !== 0 ||
+      ((part.flags & (ts.TypeFlags.Any | ts.TypeFlags.Undefined)) === 0 &&
+        checker.isTypeAssignableTo(part, checker.getStringType())),
+  )
+}
+
+/** One event under audit, with the two issue sinks its rules report into. */
+type EventAuditSubject = Readonly<{
+  checker: ts.TypeChecker
+  sourceFile: ts.SourceFile
+  event: ts.Type
+  tag: string
+  sourceType: ts.Type | null
+  sourceValues: readonly string[] | null
+  issue: (message: string) => void
+  assertionIssue: (message: string) => void
+}>
+
+/** No event field may use a forbidden name or an actor-id suffix. */
+function auditEventFieldVocabulary(subject: EventAuditSubject): void {
+  const { checker, event, issue } = subject
+  for (const field of checker.getPropertiesOfType(event)) {
+    if (
+      FORBIDDEN_EVENT_FIELDS.has(field.name) ||
+      (/By(?:User)?Id?$/u.test(field.name) && field.name !== 'removedBy')
+    ) {
+      issue(`${field.name} violates the event field vocabulary`)
+    }
+  }
+}
+
+/** A `source` field, when the event declares one, may only offer allowed origins. */
+function auditEventSource(subject: EventAuditSubject): void {
+  const { sourceType, sourceValues, issue } = subject
+  if (sourceType == null) return
+  if (
+    sourceValues == null ||
+    sourceValues.length === 0 ||
+    sourceValues.some((source) => !ALLOWED_SOURCE_VALUES.has(source))
+  ) {
+    issue("source may contain only 'web' or 'import'")
+  }
+}
+
+/** Envelope shape rules for one event type in a context's event union. */
+function auditEventShape(subject: EventAuditSubject): void {
+  const { checker, sourceFile, event, tag, issue } = subject
+  if (!isRequiredString(checker, propertyType(checker, event, 'eventId'))) {
+    issue('eventId must be a required string')
+  }
+  if (!isReadonlyEventType(checker, sourceFile, tag)) {
+    issue('event type must be readonly')
+  }
+  if (!isRequiredString(checker, propertyType(checker, event, 'organizationId'))) {
+    issue('organizationId must be a required string')
+  }
+  if (!isDate(checker, propertyType(checker, event, 'occurredAt'))) {
+    issue('occurredAt must be a required Date')
+  }
+  if (!isNullableString(checker, propertyType(checker, event, 'correlationId'), false)) {
+    issue('correlationId must be exactly string | null')
+  }
+  if (!isStringOrExplicitNull(checker, propertyType(checker, event, 'propertyId'))) {
+    issue('propertyId must be a string or explicit null')
+  }
+  if (!isStringOrExplicitNull(checker, propertyType(checker, event, 'userId'))) {
+    issue('userId must be a string or explicit null')
+  }
+  if (checker.getPropertyOfType(event, 'data') != null) {
+    issue('payload must be flat; data wrappers are forbidden')
+  }
+  auditEventFieldVocabulary(subject)
+  auditEventSource(subject)
+  for (const orderingIssue of fieldOrderIssues(checker, event)) issue(orderingIssue)
+}
+
+/** The constructor must either accept an allowed `source` or set a fixed one. */
+function auditConstructorSource(
+  subject: EventAuditSubject,
+  constructor: EventConstructor,
+  input: Readonly<{ name: string; type: ts.Type }>,
+): void {
+  const { checker, sourceType, sourceValues, issue } = subject
+  if (sourceType == null || sourceValues == null) return
+  const constructorSource = propertyType(checker, input.type, 'source')
+  if (constructorSource != null) {
+    if (!hasAllowedSourceType(constructorSource, true)) {
+      issue("constructor source may contain only 'web' or 'import'")
+    } else if (!referencesInput(constructor.declaration, input.name, 'source', false)) {
+      issue('constructor must preserve its caller-provided source')
+    }
+    return
+  }
+  if (sourceValues.length > 1) {
+    issue('constructor must receive source when the event admits multiple origins')
+  } else if (!setsFixedSource(constructor.declaration, sourceValues[0]!)) {
+    issue(`constructor must set its fixed ${sourceValues[0]} source at emit time`)
+  }
+}
+
+/** Emit-time rules for the single exported constructor of one event. */
+function auditEventConstructor(
+  subject: EventAuditSubject,
+  eventConstructors: readonly EventConstructor[],
+): void {
+  const { checker, issue, assertionIssue } = subject
+  if (eventConstructors.length !== 1) {
+    issue(`expected exactly one exported constructor, found ${eventConstructors.length}`)
+    assertionIssue(
+      `expected exactly one exported constructor, found ${eventConstructors.length}`,
+    )
+    return
+  }
+  const constructor = eventConstructors[0]!
+  const input = inputType(checker, constructor)
+  if (input == null) {
+    issue('constructor must accept one event argument object')
+    assertionIssue('constructor must accept one event argument object')
+    return
+  }
+  if (!callsAssertion(constructor.declaration)) {
+    assertionIssue('constructor must call assert or a named assertion helper')
+  }
+  if (checker.getPropertyOfType(input.type, 'eventId') != null) {
+    issue('constructor input must not accept eventId')
+  }
+  if (!isDate(checker, propertyType(checker, input.type, 'occurredAt'))) {
+    issue('constructor must receive occurredAt as a required Date')
+  } else if (!referencesInput(constructor.declaration, input.name, 'occurredAt', true)) {
+    issue('constructor must preserve its caller-provided occurredAt')
+  }
+  if (
+    !isOptionalNullableString(checker, propertyType(checker, input.type, 'correlationId'))
+  ) {
+    issue('constructor must accept an optional string | null correlationId')
+  } else if (
+    !referencesInput(constructor.declaration, input.name, 'correlationId', false)
+  ) {
+    issue('constructor must preserve its caller-provided correlationId')
+  }
+  if (!generatesEventId(constructor.declaration)) {
+    issue('constructor must generate eventId at emit time')
+  }
+  auditConstructorSource(subject, constructor, input)
+}
+
 function auditContextEnvelope(
   checker: ts.TypeChecker,
   sourceFile: ts.SourceFile,
@@ -377,146 +528,32 @@ function auditContextEnvelope(
     const tagType = propertyType(checker, event, '_tag')
     const tagValues = tagType == null ? null : stringLiteralValues(tagType)
     const tag = tagValues?.length === 1 ? tagValues[0]! : checker.typeToString(event)
-    const issue = (message: string): void => {
-      issues.push(`${tag}: ${message}`)
-    }
-    const assertionIssue = (message: string): void => {
-      assertionIssues.push(`${tag}: ${message}`)
+    const sourceType = propertyType(checker, event, 'source')
+    const subject: EventAuditSubject = {
+      checker,
+      sourceFile,
+      event,
+      tag,
+      sourceType,
+      sourceValues: sourceType == null ? [] : stringLiteralValues(sourceType),
+      issue: (message) => {
+        issues.push(`${tag}: ${message}`)
+      },
+      assertionIssue: (message) => {
+        assertionIssues.push(`${tag}: ${message}`)
+      },
     }
 
     if (tagValues?.length !== 1) {
-      issue('_tag must be one string literal')
+      subject.issue('_tag must be one string literal')
     } else if (unionTags.has(tag)) {
-      issue('event union contains a duplicate _tag')
+      subject.issue('event union contains a duplicate _tag')
     } else {
       unionTags.add(tag)
     }
 
-    if (!isRequiredString(checker, propertyType(checker, event, 'eventId'))) {
-      issue('eventId must be a required string')
-    }
-    if (!isReadonlyEventType(checker, sourceFile, tag)) {
-      issue('event type must be readonly')
-    }
-    if (!isRequiredString(checker, propertyType(checker, event, 'organizationId'))) {
-      issue('organizationId must be a required string')
-    }
-    if (!isDate(checker, propertyType(checker, event, 'occurredAt'))) {
-      issue('occurredAt must be a required Date')
-    }
-    if (
-      !isNullableString(checker, propertyType(checker, event, 'correlationId'), false)
-    ) {
-      issue('correlationId must be exactly string | null')
-    }
-    const propertyIdType = propertyType(checker, event, 'propertyId')
-    if (
-      propertyIdType != null &&
-      !typeParts(propertyIdType).every(
-        (part) =>
-          (part.flags & ts.TypeFlags.Null) !== 0 ||
-          ((part.flags & (ts.TypeFlags.Any | ts.TypeFlags.Undefined)) === 0 &&
-            checker.isTypeAssignableTo(part, checker.getStringType())),
-      )
-    ) {
-      issue('propertyId must be a string or explicit null')
-    }
-    const userIdType = propertyType(checker, event, 'userId')
-    if (
-      userIdType != null &&
-      !typeParts(userIdType).every(
-        (part) =>
-          (part.flags & ts.TypeFlags.Null) !== 0 ||
-          ((part.flags & (ts.TypeFlags.Any | ts.TypeFlags.Undefined)) === 0 &&
-            checker.isTypeAssignableTo(part, checker.getStringType())),
-      )
-    ) {
-      issue('userId must be a string or explicit null')
-    }
-    if (checker.getPropertyOfType(event, 'data') != null) {
-      issue('payload must be flat; data wrappers are forbidden')
-    }
-    for (const field of checker.getPropertiesOfType(event)) {
-      if (
-        FORBIDDEN_EVENT_FIELDS.has(field.name) ||
-        (/By(?:User)?Id?$/u.test(field.name) && field.name !== 'removedBy')
-      ) {
-        issue(`${field.name} violates the event field vocabulary`)
-      }
-    }
-    const sourceType = propertyType(checker, event, 'source')
-    const sourceValues = sourceType == null ? [] : stringLiteralValues(sourceType)
-    if (
-      sourceType != null &&
-      (sourceValues == null ||
-        sourceValues.length === 0 ||
-        sourceValues.some((source) => !ALLOWED_SOURCE_VALUES.has(source)))
-    ) {
-      issue("source may contain only 'web' or 'import'")
-    }
-    for (const orderingIssue of fieldOrderIssues(checker, event)) issue(orderingIssue)
-
-    const eventConstructors = constructors.get(tag) ?? []
-    if (eventConstructors.length !== 1) {
-      issue(
-        `expected exactly one exported constructor, found ${eventConstructors.length}`,
-      )
-      assertionIssue(
-        `expected exactly one exported constructor, found ${eventConstructors.length}`,
-      )
-      continue
-    }
-    const constructor = eventConstructors[0]!
-    const input = inputType(checker, constructor)
-    if (input == null) {
-      issue('constructor must accept one event argument object')
-      assertionIssue('constructor must accept one event argument object')
-      continue
-    }
-    if (!callsAssertion(constructor.declaration)) {
-      assertionIssue('constructor must call assert or a named assertion helper')
-    }
-    if (checker.getPropertyOfType(input.type, 'eventId') != null) {
-      issue('constructor input must not accept eventId')
-    }
-    if (!isDate(checker, propertyType(checker, input.type, 'occurredAt'))) {
-      issue('constructor must receive occurredAt as a required Date')
-    } else if (
-      !referencesInput(constructor.declaration, input.name, 'occurredAt', true)
-    ) {
-      issue('constructor must preserve its caller-provided occurredAt')
-    }
-    if (
-      !isOptionalNullableString(
-        checker,
-        propertyType(checker, input.type, 'correlationId'),
-      )
-    ) {
-      issue('constructor must accept an optional string | null correlationId')
-    } else if (
-      !referencesInput(constructor.declaration, input.name, 'correlationId', false)
-    ) {
-      issue('constructor must preserve its caller-provided correlationId')
-    }
-    if (!generatesEventId(constructor.declaration)) {
-      issue('constructor must generate eventId at emit time')
-    }
-    if (sourceType != null && sourceValues != null) {
-      const constructorSource = propertyType(checker, input.type, 'source')
-      if (constructorSource != null) {
-        if (!hasAllowedSourceType(constructorSource, true)) {
-          issue("constructor source may contain only 'web' or 'import'")
-        } else if (
-          !referencesInput(constructor.declaration, input.name, 'source', false)
-        ) {
-          issue('constructor must preserve its caller-provided source')
-        }
-      } else if (sourceValues.length > 1) {
-        issue('constructor must receive source when the event admits multiple origins')
-      } else if (!setsFixedSource(constructor.declaration, sourceValues[0]!)) {
-        issue(`constructor must set its fixed ${sourceValues[0]} source at emit time`)
-      }
-    }
+    auditEventShape(subject)
+    auditEventConstructor(subject, constructors.get(tag) ?? [])
   }
 
   return {

@@ -126,6 +126,132 @@ export type CreateNextHandlingCycleInput = Readonly<{
   openedAt: Date
 }>
 
+/** The human reason and explanation a cycle carries, if it was reopened by hand. */
+type ManualReopenAttribution = Readonly<{
+  manualReopenReason: ManualReopenReason | null
+  manualReopenExplanation: string | null
+}>
+
+const NO_MANUAL_REOPEN: ManualReopenAttribution = {
+  manualReopenReason: null,
+  manualReopenExplanation: null,
+}
+
+/**
+ * Manual reopen is the only opening reason that may carry a human reason, and
+ * only when a user actor reopened a closed cycle. `other` is the only reason
+ * that takes — and requires — a short free-text explanation.
+ */
+function resolveManualReopenAttribution(
+  input: CreateNextHandlingCycleInput,
+): Result<ManualReopenAttribution, InboxError> {
+  if (input.openedReason !== 'manual_reopen') {
+    if (
+      input.manualReopenReason !== undefined ||
+      input.manualReopenExplanation !== undefined
+    ) {
+      return err(
+        inboxError('invalid_input', 'System-opened cycles cannot carry a reopen reason'),
+      )
+    }
+    return ok(NO_MANUAL_REOPEN)
+  }
+  if (input.current.status !== 'closed') {
+    return err(
+      inboxError('invalid_input', 'Only a closed Handling Cycle can be reopened'),
+    )
+  }
+  if (!input.openedBy) {
+    return err(inboxError('invalid_input', 'A manual reopen requires an actor'))
+  }
+  if (input.actorType !== 'user') {
+    return err(inboxError('invalid_input', 'A manual reopen requires a user actor'))
+  }
+  if (!input.manualReopenReason) {
+    return err(inboxError('invalid_input', 'A manual reopen reason is required'))
+  }
+  const manualReopenReason = input.manualReopenReason
+  if (manualReopenReason !== 'other') {
+    if (input.manualReopenExplanation != null) {
+      return err(
+        inboxError(
+          'invalid_input',
+          'A manual reopen explanation is only valid for Other',
+        ),
+      )
+    }
+    return ok({ manualReopenReason, manualReopenExplanation: null })
+  }
+  const explanation = input.manualReopenExplanation?.trim() ?? ''
+  if (explanation.length < 1 || explanation.length > 280) {
+    return err(
+      inboxError(
+        'invalid_input',
+        'Other manual reopen reason requires a short explanation',
+      ),
+    )
+  }
+  return ok({ manualReopenReason, manualReopenExplanation: explanation })
+}
+
+/**
+ * Each opening reason has its own rule about the source it may open against:
+ * the two source-advancing reasons must advance their own source's revision,
+ * provider-divergence reopens need a closed cycle, and every other reopen must
+ * stay on the revision already recorded.
+ */
+function findOpenedReasonViolation(
+  input: CreateNextHandlingCycleInput,
+): InboxError | null {
+  const { current } = input
+  if (
+    input.openedReason === 'material_revision_changed' &&
+    (current.sourceType !== 'review' ||
+      input.sourceRevision <= current.currentSourceRevision)
+  ) {
+    return inboxError(
+      'invalid_input',
+      'A material-change cycle must advance the Material Review Revision',
+      {
+        currentSourceRevision: current.currentSourceRevision,
+        requestedSourceRevision: input.sourceRevision,
+      },
+    )
+  }
+  if (
+    input.openedReason === 'feedback_submitted' &&
+    (current.sourceType !== 'feedback' ||
+      input.sourceRevision <= current.currentSourceRevision)
+  ) {
+    return inboxError(
+      'invalid_input',
+      'A new private-feedback occurrence must advance the Guest revision',
+    )
+  }
+  if (
+    (input.openedReason === 'provider_reply_deleted' ||
+      input.openedReason === 'provider_reply_diverged') &&
+    current.status !== 'closed'
+  ) {
+    return inboxError('invalid_input', 'Only a closed Handling Cycle can be reopened')
+  }
+  if (
+    input.openedReason !== 'material_revision_changed' &&
+    input.openedReason !== 'feedback_submitted' &&
+    input.sourceRevision !== current.currentSourceRevision
+  ) {
+    return inboxError(
+      'invalid_input',
+      'A same-source reopen must keep the current Material Review Revision',
+      {
+        currentSourceRevision: current.currentSourceRevision,
+        requestedSourceRevision: input.sourceRevision,
+      },
+    )
+  }
+  return null
+}
+
 /**
  * Decide the next append-only cycle and CAS head. Manual reopen deliberately
  * permits another cycle on the same source revision; a material-change trigger
@@ -144,105 +270,12 @@ export function createNextHandlingCycle(
     return err(inboxError('invalid_input', 'Handling Cycle revisions must be positive'))
   }
 
-  let manualReopenReason: ManualReopenReason | null = null
-  let manualReopenExplanation: string | null = null
-  if (input.openedReason === 'manual_reopen') {
-    if (current.status !== 'closed') {
-      return err(
-        inboxError('invalid_input', 'Only a closed Handling Cycle can be reopened'),
-      )
-    }
-    if (!input.openedBy) {
-      return err(inboxError('invalid_input', 'A manual reopen requires an actor'))
-    }
-    if (input.actorType !== 'user') {
-      return err(inboxError('invalid_input', 'A manual reopen requires a user actor'))
-    }
-    if (!input.manualReopenReason) {
-      return err(inboxError('invalid_input', 'A manual reopen reason is required'))
-    }
-    manualReopenReason = input.manualReopenReason
-    if (manualReopenReason === 'other') {
-      const explanation = input.manualReopenExplanation?.trim() ?? ''
-      if (explanation.length < 1 || explanation.length > 280) {
-        return err(
-          inboxError(
-            'invalid_input',
-            'Other manual reopen reason requires a short explanation',
-          ),
-        )
-      }
-      manualReopenExplanation = explanation
-    } else if (input.manualReopenExplanation != null) {
-      return err(
-        inboxError(
-          'invalid_input',
-          'A manual reopen explanation is only valid for Other',
-        ),
-      )
-    }
-  } else if (
-    input.manualReopenReason !== undefined ||
-    input.manualReopenExplanation !== undefined
-  ) {
-    return err(
-      inboxError('invalid_input', 'System-opened cycles cannot carry a reopen reason'),
-    )
-  }
+  const attribution = resolveManualReopenAttribution(input)
+  if (attribution.isErr()) return err(attribution.error)
+  const { manualReopenReason, manualReopenExplanation } = attribution.value
 
-  if (
-    input.openedReason === 'material_revision_changed' &&
-    (current.sourceType !== 'review' ||
-      input.sourceRevision <= current.currentSourceRevision)
-  ) {
-    return err(
-      inboxError(
-        'invalid_input',
-        'A material-change cycle must advance the Material Review Revision',
-        {
-          currentSourceRevision: current.currentSourceRevision,
-          requestedSourceRevision: input.sourceRevision,
-        },
-      ),
-    )
-  }
-  if (
-    input.openedReason === 'feedback_submitted' &&
-    (current.sourceType !== 'feedback' ||
-      input.sourceRevision <= current.currentSourceRevision)
-  ) {
-    return err(
-      inboxError(
-        'invalid_input',
-        'A new private-feedback occurrence must advance the Guest revision',
-      ),
-    )
-  }
-  if (
-    (input.openedReason === 'provider_reply_deleted' ||
-      input.openedReason === 'provider_reply_diverged') &&
-    current.status !== 'closed'
-  ) {
-    return err(
-      inboxError('invalid_input', 'Only a closed Handling Cycle can be reopened'),
-    )
-  }
-  if (
-    input.openedReason !== 'material_revision_changed' &&
-    input.openedReason !== 'feedback_submitted' &&
-    input.sourceRevision !== current.currentSourceRevision
-  ) {
-    return err(
-      inboxError(
-        'invalid_input',
-        'A same-source reopen must keep the current Material Review Revision',
-        {
-          currentSourceRevision: current.currentSourceRevision,
-          requestedSourceRevision: input.sourceRevision,
-        },
-      ),
-    )
-  }
+  const violation = findOpenedReasonViolation(input)
+  if (violation) return err(violation)
 
   const closesCurrent = current.status === 'open'
   const cycleNumber = current.currentCycleNumber + 1

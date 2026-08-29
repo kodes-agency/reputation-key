@@ -33,6 +33,77 @@ import { inboxError } from '../domain/errors'
 
 type TargetRow = typeof inboxHandlingCycleResponseTargets.$inferSelect
 
+type ReviewAuthority = NonNullable<ReviewCycleTargetAnchor['reviewAuthority']>
+
+/** The permit must be one Review issues, for exactly this Review at this revision. */
+function assertReviewAuthorityMatchesCycle(
+  cycle: HandlingCycle,
+  reviewAuthority: ReviewAuthority,
+): void {
+  if (
+    reviewAuthority.authority !== 'review.current-response-target.v1' &&
+    reviewAuthority.authority !== 'review.inbox-projection-revision.v1'
+  ) {
+    throw inboxError('invalid_input', 'Review Response Target authority is invalid')
+  }
+  if (
+    reviewAuthority.organizationId !== cycle.organizationId ||
+    reviewAuthority.propertyId !== cycle.propertyId ||
+    reviewAuthority.reviewId !== cycle.sourceId ||
+    reviewAuthority.materialReviewRevision !== cycle.sourceRevision
+  ) {
+    throw inboxError(
+      'invalid_input',
+      'Review Response Target authority does not match the Handling Cycle',
+    )
+  }
+  if (
+    reviewAuthority.authority === 'review.inbox-projection-revision.v1' &&
+    cycle.openedReason !== 'review_observed' &&
+    cycle.openedReason !== 'material_revision_changed'
+  ) {
+    throw inboxError(
+      'invalid_input',
+      'Historical Review authority is limited to source-event projection cycles',
+    )
+  }
+}
+
+/**
+ * An operational clock is only admissible on a live operational reopen, and it
+ * must be the very instant the cycle opened.
+ */
+function assertOperationalTargetStart(
+  cycle: HandlingCycle,
+  targetAnchor: ReviewCycleTargetAnchor | undefined,
+): void {
+  if (targetAnchor?.targetStart.basis !== 'operational_reopen') return
+  if (targetAnchor.reviewAuthority?.authority !== 'review.current-response-target.v1') {
+    throw inboxError(
+      'invalid_input',
+      'Operational target timing requires current Review authority',
+    )
+  }
+  if (
+    cycle.openedReason !== 'manual_reopen' &&
+    cycle.openedReason !== 'provider_reply_deleted'
+  ) {
+    throw inboxError(
+      'invalid_input',
+      'Operational target timing requires an operational Review reopen',
+    )
+  }
+  if (
+    !Number.isFinite(targetAnchor.targetStart.at.getTime()) ||
+    targetAnchor.targetStart.at.getTime() !== cycle.openedAt.getTime()
+  ) {
+    throw inboxError(
+      'invalid_input',
+      'Operational target timing must start with its Handling Cycle',
+    )
+  }
+}
+
 /** Validate a Review-owned permit before any Inbox cycle row is written. */
 export function assertReviewResponseTargetAuthorityMatchesCycle(
   cycle: HandlingCycle,
@@ -48,66 +119,15 @@ export function assertReviewResponseTargetAuthorityMatchesCycle(
     }
     return
   }
-  if (
-    reviewAuthority !== undefined &&
-    reviewAuthority.authority !== 'review.current-response-target.v1' &&
-    reviewAuthority.authority !== 'review.inbox-projection-revision.v1'
-  ) {
-    throw inboxError('invalid_input', 'Review Response Target authority is invalid')
-  }
-  if (
-    reviewAuthority !== undefined &&
-    (reviewAuthority.organizationId !== cycle.organizationId ||
-      reviewAuthority.propertyId !== cycle.propertyId ||
-      reviewAuthority.reviewId !== cycle.sourceId ||
-      reviewAuthority.materialReviewRevision !== cycle.sourceRevision)
-  ) {
-    throw inboxError(
-      'invalid_input',
-      'Review Response Target authority does not match the Handling Cycle',
-    )
-  }
-  if (
-    reviewAuthority?.authority === 'review.inbox-projection-revision.v1' &&
-    cycle.openedReason !== 'review_observed' &&
-    cycle.openedReason !== 'material_revision_changed'
-  ) {
-    throw inboxError(
-      'invalid_input',
-      'Historical Review authority is limited to source-event projection cycles',
-    )
+  if (reviewAuthority !== undefined) {
+    assertReviewAuthorityMatchesCycle(cycle, reviewAuthority)
   }
   const eligibility = reviewAuthority?.eligibility ?? 'legacy_unknown'
   const startAt = reviewAuthority?.responseTargetStartAt ?? null
   if ((eligibility === 'measured') !== startAt instanceof Date) {
     throw inboxError('invalid_input', 'Review Response Target provenance is invalid')
   }
-  if (targetAnchor?.targetStart.basis === 'operational_reopen') {
-    if (reviewAuthority?.authority !== 'review.current-response-target.v1') {
-      throw inboxError(
-        'invalid_input',
-        'Operational target timing requires current Review authority',
-      )
-    }
-    if (
-      cycle.openedReason !== 'manual_reopen' &&
-      cycle.openedReason !== 'provider_reply_deleted'
-    ) {
-      throw inboxError(
-        'invalid_input',
-        'Operational target timing requires an operational Review reopen',
-      )
-    }
-    if (
-      !Number.isFinite(targetAnchor.targetStart.at.getTime()) ||
-      targetAnchor.targetStart.at.getTime() !== cycle.openedAt.getTime()
-    ) {
-      throw inboxError(
-        'invalid_input',
-        'Operational target timing must start with its Handling Cycle',
-      )
-    }
-  }
+  assertOperationalTargetStart(cycle, targetAnchor)
 }
 
 type ReviewCycleTargetProvenance = Readonly<{

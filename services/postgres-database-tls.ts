@@ -16,23 +16,18 @@ export type PinnedPostgresTlsConfiguration = Readonly<{
   dispose(): void
 }>
 
-export function loadPinnedPostgresTlsConfiguration(
-  input: Readonly<{
-    connectionString: string
-    caBase64: string
-    invalidMessage: string
-  }>,
-): PinnedPostgresTlsConfiguration {
-  const invalid = (): never => {
-    throw new Error(input.invalidMessage)
+/**
+ * The connection string must name one credentialed `postgresql:` database on a
+ * DNS host. A bare IP or a query string is refused, because neither can be
+ * bound to the pinned certificate's server name.
+ */
+function pinnedPostgresUrl(connectionString: string, invalid: () => never): URL {
+  let url: URL
+  try {
+    url = new URL(connectionString)
+  } catch {
+    return invalid()
   }
-  const url = (() => {
-    try {
-      return new URL(input.connectionString)
-    } catch {
-      return invalid()
-    }
-  })()
   if (
     url.protocol !== 'postgresql:' ||
     url.username.length === 0 ||
@@ -49,8 +44,14 @@ export function loadPinnedPostgresTlsConfiguration(
   }
   const port = url.port === '' ? 5432 : Number(url.port)
   if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) invalid()
+  return url
+}
 
-  const value = input.caBase64
+/**
+ * Decode the pinned CA. The buffer is zeroed before any refusal propagates, so
+ * rejected certificate material never outlives the call.
+ */
+function pinnedCertificateAuthority(value: string, invalid: () => never): Buffer {
   if (
     value.length === 0 ||
     value.length > Math.ceil((MAX_CA_BYTES * 4) / 3) + 4 ||
@@ -72,6 +73,21 @@ export function loadPinnedPostgresTlsConfiguration(
     ca.fill(0)
     throw error
   }
+  return ca
+}
+
+export function loadPinnedPostgresTlsConfiguration(
+  input: Readonly<{
+    connectionString: string
+    caBase64: string
+    invalidMessage: string
+  }>,
+): PinnedPostgresTlsConfiguration {
+  const invalid = (): never => {
+    throw new Error(input.invalidMessage)
+  }
+  const url = pinnedPostgresUrl(input.connectionString, invalid)
+  const ca = pinnedCertificateAuthority(input.caBase64, invalid)
 
   let disposed = false
   return Object.freeze({

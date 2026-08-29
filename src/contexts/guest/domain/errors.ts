@@ -52,8 +52,3 @@ export const contactRequestError = createErrorFactory<
   ContactRequestError['_tag'],
   ContactRequestError['code']
 >('ContactRequestError')
-
-export const isContactRequestError = (error: unknown): error is ContactRequestError =>
-  typeof error === 'object' &&
-  error !== null &&
-  (error as { _tag?: string })._tag === 'ContactRequestError'

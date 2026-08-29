@@ -535,50 +535,69 @@ async function processPropertyBatch(
   return ids.length
 }
 
-async function processCredentialHomeBatch(
+/**
+ * The Organization this batch works on: the one already checkpointed, or the
+ * next one past the checkpoint whose credential home is not yet the single US
+ * cell. `null` once every Organization is settled.
+ */
+async function selectCredentialOrganization(
   tx: Pick<Tx, 'execute'>,
   control: Control,
-  input: DataCellCutoverApplyInput,
-): Promise<Readonly<{ connectionsProcessed: number; didWork: boolean }>> {
-  let organizationId = control.credentialActiveOrganizationId
-  if (organizationId === null) {
-    const candidate = await tx.execute(sql`
-      WITH current_authority AS (
-        SELECT organization_id, authority_generation, home_cell_id,
-               catalogue_policy_version
-        FROM google_organization_credential_homes
-        WHERE superseded_at IS NULL
-      ), candidate AS (
-        SELECT organization_id FROM current_authority
-        WHERE home_cell_id <> 'us' OR catalogue_policy_version <> 3
-        UNION
-        SELECT connection.organization_id
-        FROM google_connections connection
-        LEFT JOIN current_authority authority
-          ON authority.organization_id = connection.organization_id
-        WHERE connection.credential_use_state = 'active'
-          AND (authority.organization_id IS NULL
-            OR authority.home_cell_id <> 'us'
-            OR authority.catalogue_policy_version <> 3
-            OR connection.credential_home_cell_id IS DISTINCT FROM 'us'
-            OR connection.credential_home_policy_version IS DISTINCT FROM 3
-            OR connection.credential_home_authority_generation IS DISTINCT FROM
-               authority.authority_generation)
-      )
-      SELECT organization_id
-      FROM candidate
-      WHERE ${control.organizationCheckpoint}::text IS NULL
-         OR organization_id > ${control.organizationCheckpoint}
-      ORDER BY organization_id
-      LIMIT 1
-    `)
-    const rawOrganizationId = candidate.rows[0]?.organization_id
-    organizationId = typeof rawOrganizationId === 'string' ? rawOrganizationId : null
+): Promise<string | null> {
+  if (control.credentialActiveOrganizationId !== null) {
+    return control.credentialActiveOrganizationId
   }
-  if (organizationId === null) {
-    return { connectionsProcessed: 0, didWork: false }
-  }
+  const candidate = await tx.execute(sql`
+    WITH current_authority AS (
+      SELECT organization_id, authority_generation, home_cell_id,
+             catalogue_policy_version
+      FROM google_organization_credential_homes
+      WHERE superseded_at IS NULL
+    ), candidate AS (
+      SELECT organization_id FROM current_authority
+      WHERE home_cell_id <> 'us' OR catalogue_policy_version <> 3
+      UNION
+      SELECT connection.organization_id
+      FROM google_connections connection
+      LEFT JOIN current_authority authority
+        ON authority.organization_id = connection.organization_id
+      WHERE connection.credential_use_state = 'active'
+        AND (authority.organization_id IS NULL
+          OR authority.home_cell_id <> 'us'
+          OR authority.catalogue_policy_version <> 3
+          OR connection.credential_home_cell_id IS DISTINCT FROM 'us'
+          OR connection.credential_home_policy_version IS DISTINCT FROM 3
+          OR connection.credential_home_authority_generation IS DISTINCT FROM
+             authority.authority_generation)
+    )
+    SELECT organization_id
+    FROM candidate
+    WHERE ${control.organizationCheckpoint}::text IS NULL
+       OR organization_id > ${control.organizationCheckpoint}
+    ORDER BY organization_id
+    LIMIT 1
+  `)
+  const rawOrganizationId = candidate.rows[0]?.organization_id
+  return typeof rawOrganizationId === 'string' ? rawOrganizationId : null
+}
 
+type CredentialAuthority = Readonly<{
+  /** The live authority row, absent when the Organization has never had one. */
+  current: Record<string, unknown> | undefined
+  authorityNeedsTransition: boolean
+  /** The generation this batch stamps onto its connections. */
+  generation: number
+}>
+
+/**
+ * Lock the Organization's credential-home authority and decide which generation
+ * this batch writes: a fresh one when the authority must transition, otherwise
+ * the settled one it already carries.
+ */
+async function resolveCredentialAuthority(
+  tx: Pick<Tx, 'execute'>,
+  organizationId: string,
+): Promise<CredentialAuthority> {
   await tx.execute(sql`
     SELECT pg_advisory_xact_lock(
       hashtextextended('google-credential-home:' || ${organizationId}, 0)
@@ -598,27 +617,37 @@ async function processCredentialHomeBatch(
   const current = authorityRows.rows[0]
   const authorityNeedsTransition =
     !current || current.home_cell_id !== 'us' || current.catalogue_policy_version !== 3
-  let generation: number
-  if (authorityNeedsTransition) {
-    const maximum = await tx.execute(sql`
-      SELECT COALESCE(max(authority_generation), 0)::int AS value
-      FROM google_organization_credential_homes
-      WHERE organization_id = ${organizationId}
-    `)
-    const priorMaximum = exactCount(maximum.rows[0]?.value)
-    if (priorMaximum >= 2_147_483_647) {
-      throw new DataCellCredentialCutoverError(
-        'credential_authority_generation_exhausted',
-      )
-    }
-    generation = priorMaximum + 1
-  } else {
-    generation = exactCount(current.authority_generation)
+  if (!authorityNeedsTransition) {
+    const generation = exactCount(current.authority_generation)
     if (generation < 1) {
       throw new DataCellCredentialCutoverError('credential_authority_unavailable')
     }
+    return { current, authorityNeedsTransition, generation }
   }
+  const maximum = await tx.execute(sql`
+    SELECT COALESCE(max(authority_generation), 0)::int AS value
+    FROM google_organization_credential_homes
+    WHERE organization_id = ${organizationId}
+  `)
+  const priorMaximum = exactCount(maximum.rows[0]?.value)
+  if (priorMaximum >= 2_147_483_647) {
+    throw new DataCellCredentialCutoverError('credential_authority_generation_exhausted')
+  }
+  return { current, authorityNeedsTransition, generation: priorMaximum + 1 }
+}
 
+/**
+ * The next page of active connections whose credential home is still stale,
+ * refusing a page that changed underneath us, that would exhaust a version
+ * counter, or that leaves an unsettled connection behind the checkpoint.
+ */
+async function selectCredentialConnectionBatch(
+  tx: Pick<Tx, 'execute'>,
+  control: Control,
+  organizationId: string,
+  generation: number,
+  batchSize: number,
+): Promise<readonly string[]> {
   const connectionRows = await tx.execute(sql`
     SELECT id, access_version, credential_generation
     FROM google_connections
@@ -630,7 +659,7 @@ async function processCredentialHomeBatch(
         OR credential_home_policy_version IS DISTINCT FROM 3
         OR credential_home_authority_generation IS DISTINCT FROM ${generation})
     ORDER BY id
-    LIMIT ${input.batchSize}
+    LIMIT ${batchSize}
     FOR UPDATE
   `)
   const connectionIds = connectionRows.rows
@@ -667,69 +696,100 @@ async function processCredentialHomeBatch(
       )
     }
   }
+  return connectionIds
+}
 
-  if (authorityNeedsTransition) {
-    const clock = await tx.execute(sql`SELECT clock_timestamp() AS occurred_at`)
-    const rawTransitionAt = clock.rows[0]?.occurred_at
-    const transitionAt =
-      rawTransitionAt instanceof Date
-        ? rawTransitionAt
-        : typeof rawTransitionAt === 'string'
-          ? new Date(rawTransitionAt)
-          : null
-    if (!transitionAt || !Number.isFinite(transitionAt.getTime())) {
-      throw new DataCellCredentialCutoverError('credential_transition_clock_unavailable')
-    }
-    if (current) {
-      const superseded = await tx.execute(sql`
-        UPDATE google_organization_credential_homes
-        SET superseded_at = ${transitionAt}, updated_at = ${transitionAt}
-        WHERE organization_id = ${organizationId}
-          AND authority_generation = ${exactCount(current.authority_generation)}
-          AND superseded_at IS NULL
-        RETURNING authority_generation
-      `)
-      if (superseded.rows.length !== 1) {
-        throw new DataCellCredentialCutoverError('credential_batch_changed_concurrently')
-      }
-    }
-    await tx.execute(sql`
-      INSERT INTO google_organization_credential_homes (
-        organization_id, authority_generation, home_cell_id,
-        catalogue_policy_version, transition_reason, changed_by,
-        change_ticket, effective_from, created_at, updated_at
-      ) VALUES (
-        ${organizationId}, ${generation}, 'us', 3, 'legacy_backfill',
-        ${input.operatorId}, ${input.changeTicket}, ${transitionAt},
-        ${transitionAt}, ${transitionAt}
-      )
-    `)
+/**
+ * Supersede the prior credential-home authority and insert the new generation,
+ * both stamped with the database's own clock.
+ */
+async function writeCredentialAuthorityTransition(
+  tx: Pick<Tx, 'execute'>,
+  organizationId: string,
+  generation: number,
+  current: Record<string, unknown> | undefined,
+  input: DataCellCutoverApplyInput,
+): Promise<void> {
+  const clock = await tx.execute(sql`SELECT clock_timestamp() AS occurred_at`)
+  const rawTransitionAt = clock.rows[0]?.occurred_at
+  const transitionAt =
+    rawTransitionAt instanceof Date
+      ? rawTransitionAt
+      : typeof rawTransitionAt === 'string'
+        ? new Date(rawTransitionAt)
+        : null
+  if (!transitionAt || !Number.isFinite(transitionAt.getTime())) {
+    throw new DataCellCredentialCutoverError('credential_transition_clock_unavailable')
   }
-
-  if (connectionIds.length > 0) {
-    const updated = await tx.execute(sql`
-      UPDATE google_connections
-      SET credential_home_cell_id = 'us', credential_home_policy_version = 3,
-          credential_home_authority_generation = ${generation},
-          access_version = access_version + 1,
-          credential_generation = credential_generation + 1,
-          updated_at = ${input.now}
+  if (current) {
+    const superseded = await tx.execute(sql`
+      UPDATE google_organization_credential_homes
+      SET superseded_at = ${transitionAt}, updated_at = ${transitionAt}
       WHERE organization_id = ${organizationId}
-        AND credential_use_state = 'active'
-        AND id IN (${sql.join(
-          connectionIds.map((connectionId) => sql`${connectionId}::uuid`),
-          sql`, `,
-        )})
-        AND (credential_home_cell_id IS DISTINCT FROM 'us'
-          OR credential_home_policy_version IS DISTINCT FROM 3
-          OR credential_home_authority_generation IS DISTINCT FROM ${generation})
-      RETURNING id
+        AND authority_generation = ${exactCount(current.authority_generation)}
+        AND superseded_at IS NULL
+      RETURNING authority_generation
     `)
-    if (updated.rows.length !== connectionIds.length) {
+    if (superseded.rows.length !== 1) {
       throw new DataCellCredentialCutoverError('credential_batch_changed_concurrently')
     }
   }
+  await tx.execute(sql`
+    INSERT INTO google_organization_credential_homes (
+      organization_id, authority_generation, home_cell_id,
+      catalogue_policy_version, transition_reason, changed_by,
+      change_ticket, effective_from, created_at, updated_at
+    ) VALUES (
+      ${organizationId}, ${generation}, 'us', 3, 'legacy_backfill',
+      ${input.operatorId}, ${input.changeTicket}, ${transitionAt},
+      ${transitionAt}, ${transitionAt}
+    )
+  `)
+}
 
+/** Stamp the settled credential home onto this page of connections. */
+async function writeCredentialHomeToConnections(
+  tx: Pick<Tx, 'execute'>,
+  organizationId: string,
+  generation: number,
+  connectionIds: readonly string[],
+  now: DataCellCutoverApplyInput['now'],
+): Promise<void> {
+  const updated = await tx.execute(sql`
+    UPDATE google_connections
+    SET credential_home_cell_id = 'us', credential_home_policy_version = 3,
+        credential_home_authority_generation = ${generation},
+        access_version = access_version + 1,
+        credential_generation = credential_generation + 1,
+        updated_at = ${now}
+    WHERE organization_id = ${organizationId}
+      AND credential_use_state = 'active'
+      AND id IN (${sql.join(
+        connectionIds.map((connectionId) => sql`${connectionId}::uuid`),
+        sql`, `,
+      )})
+      AND (credential_home_cell_id IS DISTINCT FROM 'us'
+        OR credential_home_policy_version IS DISTINCT FROM 3
+        OR credential_home_authority_generation IS DISTINCT FROM ${generation})
+    RETURNING id
+  `)
+  if (updated.rows.length !== connectionIds.length) {
+    throw new DataCellCredentialCutoverError('credential_batch_changed_concurrently')
+  }
+}
+
+/**
+ * Stay on this Organization while stale connections remain; otherwise mark it
+ * settled and move the Organization checkpoint on. Remaining connections with
+ * an empty page means the checkpoint skipped work, which is a refusal.
+ */
+async function advanceCredentialCheckpoint(
+  tx: Pick<Tx, 'execute'>,
+  organizationId: string,
+  generation: number,
+  connectionIds: readonly string[],
+  now: DataCellCutoverApplyInput['now'],
+): Promise<void> {
   const remaining = await tx.execute(sql`
     SELECT EXISTS (
       SELECT 1
@@ -752,23 +812,219 @@ async function processCredentialHomeBatch(
           credential_connection_checkpoint = ${connectionIds.at(-1)}::uuid,
           credential_connections_processed = credential_connections_processed +
             ${connectionIds.length},
-          error_count = 0, last_error_code = NULL, updated_at = ${input.now}
+          error_count = 0, last_error_code = NULL, updated_at = ${now}
+      WHERE singleton = TRUE
+    `)
+    return
+  }
+  await tx.execute(sql`
+    UPDATE data_cell_topology_cutovers
+    SET organization_checkpoint = ${organizationId},
+        credential_active_organization_id = NULL,
+        credential_connection_checkpoint = NULL,
+        credential_homes_processed = credential_homes_processed + 1,
+        credential_connections_processed = credential_connections_processed +
+          ${connectionIds.length},
+        error_count = 0, last_error_code = NULL, updated_at = ${now}
+    WHERE singleton = TRUE
+  `)
+}
+
+async function processCredentialHomeBatch(
+  tx: Pick<Tx, 'execute'>,
+  control: Control,
+  input: DataCellCutoverApplyInput,
+): Promise<Readonly<{ connectionsProcessed: number; didWork: boolean }>> {
+  const organizationId = await selectCredentialOrganization(tx, control)
+  if (organizationId === null) {
+    return { connectionsProcessed: 0, didWork: false }
+  }
+
+  const authority = await resolveCredentialAuthority(tx, organizationId)
+  const connectionIds = await selectCredentialConnectionBatch(
+    tx,
+    control,
+    organizationId,
+    authority.generation,
+    input.batchSize,
+  )
+
+  if (authority.authorityNeedsTransition) {
+    await writeCredentialAuthorityTransition(
+      tx,
+      organizationId,
+      authority.generation,
+      authority.current,
+      input,
+    )
+  }
+  if (connectionIds.length > 0) {
+    await writeCredentialHomeToConnections(
+      tx,
+      organizationId,
+      authority.generation,
+      connectionIds,
+      input.now,
+    )
+  }
+  await advanceCredentialCheckpoint(
+    tx,
+    organizationId,
+    authority.generation,
+    connectionIds,
+    input.now,
+  )
+  return { connectionsProcessed: connectionIds.length, didWork: true }
+}
+
+type CutoverPhaseStep = Readonly<{
+  processed: number
+  outcome: DataCellCutoverApplyResult['outcome']
+  /** Set when the phase refuses; returned directly instead of advancing. */
+  blockedReport?: DataCellCutoverReport
+}>
+
+/** Take the cutover fence, refusing if the target binding moved underneath us. */
+async function activateCutoverFence(
+  tx: Pick<Tx, 'execute'>,
+  input: DataCellCutoverApplyInput,
+  target: DataCellCutoverTargetBinding,
+  reportDigestSha256: string,
+): Promise<void> {
+  const fenced = await tx.execute(sql`
+    UPDATE data_cell_topology_cutovers
+    SET state = 'fenced', fenced_at = ${input.now},
+        operator_id = ${input.operatorId}, change_ticket = ${input.changeTicket},
+        correlation_id = ${input.correlationId},
+        last_report_digest_sha256 = ${reportDigestSha256},
+        updated_at = ${input.now}
+    WHERE singleton = TRUE AND state = 'open'
+      AND target_project_id = ${target.projectId}
+      AND target_environment_id = ${target.environmentId}
+    RETURNING singleton
+  `)
+  if (fenced.rows.length !== 1) {
+    throw new Error('Data Cell cutover target binding changed before fencing')
+  }
+}
+
+/** One Property page; an empty page either rewinds or advances the phase. */
+async function runPropertiesPhase(
+  tx: Pick<Tx, 'execute'>,
+  control: Control,
+  input: DataCellCutoverApplyInput,
+  report: DataCellCutoverReport,
+): Promise<CutoverPhaseStep> {
+  const processed = await processPropertyBatch(tx, control, input.batchSize, input.now)
+  if (processed > 0) return { processed, outcome: 'properties_processed' }
+  if (report.remaining.properties > 0) {
+    await tx.execute(sql`
+      UPDATE data_cell_topology_cutovers
+      SET property_checkpoint = NULL, updated_at = ${input.now}
       WHERE singleton = TRUE
     `)
   } else {
     await tx.execute(sql`
       UPDATE data_cell_topology_cutovers
-      SET organization_checkpoint = ${organizationId},
-          credential_active_organization_id = NULL,
-          credential_connection_checkpoint = NULL,
-          credential_homes_processed = credential_homes_processed + 1,
-          credential_connections_processed = credential_connections_processed +
-            ${connectionIds.length},
-          error_count = 0, last_error_code = NULL, updated_at = ${input.now}
+      SET phase = 'credential_homes', organization_checkpoint = NULL,
+          updated_at = ${input.now}
       WHERE singleton = TRUE
     `)
   }
-  return { connectionsProcessed: connectionIds.length, didWork: true }
+  return { processed, outcome: 'phase_advanced' }
+}
+
+/** One credential-home page; work with rows still remaining is a refusal. */
+async function runCredentialHomesPhase(
+  tx: Pick<Tx, 'execute'>,
+  control: Control,
+  input: DataCellCutoverApplyInput,
+  report: DataCellCutoverReport,
+): Promise<CutoverPhaseStep> {
+  let batch: Readonly<{ connectionsProcessed: number; didWork: boolean }>
+  try {
+    batch = await processCredentialHomeBatch(tx, control, input)
+  } catch (error) {
+    if (error instanceof DataCellCredentialCutoverError) throw error
+    throw new DataCellCredentialCutoverError('credential_batch_mutation_failed', {
+      cause: error,
+    })
+  }
+  const processed = batch.connectionsProcessed
+  if (batch.didWork) return { processed, outcome: 'credential_homes_processed' }
+  if (report.remaining.credentialHomes > 0) {
+    throw new DataCellCredentialCutoverError(
+      'credential_organization_checkpoint_regressed',
+    )
+  }
+  await tx.execute(sql`
+    UPDATE data_cell_topology_cutovers
+    SET phase = 'verify', credential_active_organization_id = NULL,
+        credential_connection_checkpoint = NULL,
+        error_count = 0, last_error_code = NULL,
+        updated_at = ${input.now}
+    WHERE singleton = TRUE
+  `)
+  return { processed, outcome: 'phase_advanced' }
+}
+
+/** Completion is only representable from a freshly re-read, blocker-free report. */
+async function runVerifyPhase(
+  tx: Pick<Tx, 'execute'>,
+  input: DataCellCutoverApplyInput,
+  target: DataCellCutoverTargetBinding,
+): Promise<CutoverPhaseStep> {
+  const report = await createSingleUsDataCellCutoverReport(tx, input.now)
+  if (
+    report.totalBlockers > 0 ||
+    report.progress.errorCount > 0 ||
+    report.remaining.properties > 0 ||
+    report.remaining.credentialHomes > 0
+  ) {
+    return { processed: 0, outcome: 'blocked', blockedReport: report }
+  }
+  const completionDigest = createHash('sha256')
+    .update(
+      JSON.stringify({
+        cutoverKey: SINGLE_US_BETA_CUTOVER_KEY,
+        targetCell: 'us',
+        targetPolicyVersion: 3,
+        targetProjectId: target.projectId,
+        targetEnvironmentId: target.environmentId,
+        propertiesProcessed: report.progress.propertiesProcessed,
+        credentialHomesProcessed: report.progress.credentialHomesProcessed,
+        credentialConnectionsProcessed: report.progress.credentialConnectionsProcessed,
+        verifiedReportDigestSha256: report.digestSha256,
+        completedAt: input.now.toISOString(),
+      }),
+    )
+    .digest('hex')
+  await tx.execute(sql`
+    UPDATE data_cell_topology_cutovers
+    SET state = 'completed', phase = 'completed', completed_at = ${input.now},
+        completion_digest_sha256 = ${completionDigest},
+        last_report_digest_sha256 = ${report.digestSha256},
+        updated_at = ${input.now}
+    WHERE singleton = TRUE AND state = 'fenced' AND phase = 'verify'
+  `)
+  return { processed: 0, outcome: 'completed' }
+}
+
+async function runCutoverPhase(
+  tx: Pick<Tx, 'execute'>,
+  control: Control,
+  input: DataCellCutoverApplyInput,
+  target: DataCellCutoverTargetBinding,
+  report: DataCellCutoverReport,
+): Promise<CutoverPhaseStep> {
+  if (control.phase === 'properties') {
+    return runPropertiesPhase(tx, control, input, report)
+  }
+  if (control.phase === 'credential_homes') {
+    return runCredentialHomesPhase(tx, control, input, report)
+  }
+  if (control.phase === 'verify') return runVerifyPhase(tx, input, target)
+  return { processed: 0, outcome: 'phase_advanced' }
 }
 
 export async function applySingleUsDataCellCutoverBatch(
@@ -792,7 +1048,7 @@ export async function applySingleUsDataCellCutoverBatch(
   return db.transaction(async (tx) => {
     const control = await readControl(tx, true)
     assertTargetBindingEstablished(control, target)
-    let report = await createSingleUsDataCellCutoverReport(tx, input.now)
+    const report = await createSingleUsDataCellCutoverReport(tx, input.now)
     if (report.digestSha256 !== input.expectedReportDigestSha256) {
       throw new Error('Data Cell cutover report changed; run report and review again')
     }
@@ -803,109 +1059,23 @@ export async function applySingleUsDataCellCutoverBatch(
       return { outcome: 'blocked', processed: 0, report }
     }
     if (control.state === 'open') {
-      const fenced = await tx.execute(sql`
-        UPDATE data_cell_topology_cutovers
-        SET state = 'fenced', fenced_at = ${input.now},
-            operator_id = ${input.operatorId}, change_ticket = ${input.changeTicket},
-            correlation_id = ${input.correlationId},
-            last_report_digest_sha256 = ${report.digestSha256},
-            updated_at = ${input.now}
-        WHERE singleton = TRUE AND state = 'open'
-          AND target_project_id = ${target.projectId}
-          AND target_environment_id = ${target.environmentId}
-        RETURNING singleton
-      `)
-      if (fenced.rows.length !== 1) {
-        throw new Error('Data Cell cutover target binding changed before fencing')
+      await activateCutoverFence(tx, input, target, report.digestSha256)
+      return {
+        outcome: 'fence_activated',
+        processed: 0,
+        report: await createSingleUsDataCellCutoverReport(tx, input.now),
       }
-      report = await createSingleUsDataCellCutoverReport(tx, input.now)
-      return { outcome: 'fence_activated', processed: 0, report }
     }
 
-    let processed = 0
-    let outcome: DataCellCutoverApplyResult['outcome'] = 'phase_advanced'
-    if (control.phase === 'properties') {
-      processed = await processPropertyBatch(tx, control, input.batchSize, input.now)
-      if (processed > 0) outcome = 'properties_processed'
-      else if (report.remaining.properties > 0) {
-        await tx.execute(sql`
-          UPDATE data_cell_topology_cutovers
-          SET property_checkpoint = NULL, updated_at = ${input.now}
-          WHERE singleton = TRUE
-        `)
-      } else {
-        await tx.execute(sql`
-          UPDATE data_cell_topology_cutovers
-          SET phase = 'credential_homes', organization_checkpoint = NULL,
-              updated_at = ${input.now}
-          WHERE singleton = TRUE
-        `)
-      }
-    } else if (control.phase === 'credential_homes') {
-      let batch: Readonly<{ connectionsProcessed: number; didWork: boolean }>
-      try {
-        batch = await processCredentialHomeBatch(tx, control, input)
-      } catch (error) {
-        if (error instanceof DataCellCredentialCutoverError) throw error
-        throw new DataCellCredentialCutoverError('credential_batch_mutation_failed', {
-          cause: error,
-        })
-      }
-      processed = batch.connectionsProcessed
-      if (batch.didWork) outcome = 'credential_homes_processed'
-      else if (report.remaining.credentialHomes > 0) {
-        throw new DataCellCredentialCutoverError(
-          'credential_organization_checkpoint_regressed',
-        )
-      } else {
-        await tx.execute(sql`
-          UPDATE data_cell_topology_cutovers
-          SET phase = 'verify', credential_active_organization_id = NULL,
-              credential_connection_checkpoint = NULL,
-              error_count = 0, last_error_code = NULL,
-              updated_at = ${input.now}
-          WHERE singleton = TRUE
-        `)
-      }
-    } else if (control.phase === 'verify') {
-      report = await createSingleUsDataCellCutoverReport(tx, input.now)
-      if (
-        report.totalBlockers > 0 ||
-        report.progress.errorCount > 0 ||
-        report.remaining.properties > 0 ||
-        report.remaining.credentialHomes > 0
-      ) {
-        return { outcome: 'blocked', processed: 0, report }
-      }
-      const completionDigest = createHash('sha256')
-        .update(
-          JSON.stringify({
-            cutoverKey: SINGLE_US_BETA_CUTOVER_KEY,
-            targetCell: 'us',
-            targetPolicyVersion: 3,
-            targetProjectId: target.projectId,
-            targetEnvironmentId: target.environmentId,
-            propertiesProcessed: report.progress.propertiesProcessed,
-            credentialHomesProcessed: report.progress.credentialHomesProcessed,
-            credentialConnectionsProcessed:
-              report.progress.credentialConnectionsProcessed,
-            verifiedReportDigestSha256: report.digestSha256,
-            completedAt: input.now.toISOString(),
-          }),
-        )
-        .digest('hex')
-      await tx.execute(sql`
-        UPDATE data_cell_topology_cutovers
-        SET state = 'completed', phase = 'completed', completed_at = ${input.now},
-            completion_digest_sha256 = ${completionDigest},
-            last_report_digest_sha256 = ${report.digestSha256},
-            updated_at = ${input.now}
-        WHERE singleton = TRUE AND state = 'fenced' AND phase = 'verify'
-      `)
-      outcome = 'completed'
+    const step = await runCutoverPhase(tx, control, input, target, report)
+    if (step.blockedReport) {
+      return { outcome: 'blocked', processed: 0, report: step.blockedReport }
     }
-    report = await createSingleUsDataCellCutoverReport(tx, input.now)
-    return { outcome, processed, report }
+    return {
+      outcome: step.outcome,
+      processed: step.processed,
+      report: await createSingleUsDataCellCutoverReport(tx, input.now),
+    }
   })
 }
 

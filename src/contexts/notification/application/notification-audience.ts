@@ -139,143 +139,166 @@ const parseClosedGoalEvaluation = (
   return achieved === null ? { evaluationState: state, achieved: null } : null
 }
 
-/** Parse the queue trust boundary without accepting a partial scope. */
-export function parseNotificationAudience(value: unknown): NotificationAudience | null {
-  if (!isRecord(value)) return null
+type AudienceRecord = Readonly<Record<string, unknown>>
+/** Parses one `kind` of the queued-audience union; `null` rejects the payload. */
+type AudienceKindParser = (value: AudienceRecord) => NotificationAudience | null
+
+const parseAffectedOrganizationUser: AudienceKindParser = (value) => {
   if (
-    value.kind === 'affected_organization_user' &&
-    isIdentifier(value.eventId) &&
-    typeof value.eventType === 'string' &&
-    ORGANIZATION_ACCOUNT_NOTIFICATION_EVENT_TYPES.some(
+    !isIdentifier(value.eventId) ||
+    typeof value.eventType !== 'string' ||
+    !ORGANIZATION_ACCOUNT_NOTIFICATION_EVENT_TYPES.some(
       (eventType) => eventType === value.eventType,
     )
   ) {
-    return {
-      kind: 'affected_organization_user',
-      eventId: value.eventId,
-      eventType: value.eventType as OrganizationAccountNotificationEventType,
-    }
+    return null
   }
-  if (value.kind === 'account_admin' || value.kind === 'property_operator') {
-    return { kind: value.kind }
+  return {
+    kind: 'affected_organization_user',
+    eventId: value.eventId,
+    eventType: value.eventType as OrganizationAccountNotificationEventType,
   }
-  if (value.kind === 'inbox_assignee' && isIdentifier(value.inboxItemId)) {
-    return { kind: 'inbox_assignee', inboxItemId: value.inboxItemId as InboxItemId }
-  }
+}
+
+const parseInboxAssignee: AudienceKindParser = (value) =>
+  isIdentifier(value.inboxItemId)
+    ? { kind: 'inbox_assignee', inboxItemId: value.inboxItemId as InboxItemId }
+    : null
+
+const parseBulkInboxAssignee: AudienceKindParser = (value) => {
   if (
-    value.kind === 'bulk_inbox_assignee' &&
-    Array.isArray(value.inboxItemIds) &&
-    value.inboxItemIds.length > 0 &&
-    value.inboxItemIds.length <= 100 &&
-    value.inboxItemIds.every(isIdentifier) &&
-    new Set(value.inboxItemIds).size === value.inboxItemIds.length
+    !Array.isArray(value.inboxItemIds) ||
+    value.inboxItemIds.length === 0 ||
+    value.inboxItemIds.length > 100 ||
+    !value.inboxItemIds.every(isIdentifier) ||
+    new Set(value.inboxItemIds).size !== value.inboxItemIds.length
   ) {
-    return {
-      kind: 'bulk_inbox_assignee',
-      inboxItemIds: value.inboxItemIds.map(inboxItemId),
-    }
+    return null
   }
+  return {
+    kind: 'bulk_inbox_assignee',
+    inboxItemIds: value.inboxItemIds.map(inboxItemId),
+  }
+}
+
+const parseEscalationResolution: AudienceKindParser = (value) => {
   if (
-    value.kind === 'escalation_resolution' &&
-    isIdentifier(value.inboxItemId) &&
-    isIsoDate(value.resolvedAt) &&
-    (value.resolvedBy === null || isIdentifier(value.resolvedBy))
+    !isIdentifier(value.inboxItemId) ||
+    !isIsoDate(value.resolvedAt) ||
+    !(value.resolvedBy === null || isIdentifier(value.resolvedBy))
   ) {
-    return {
-      kind: 'escalation_resolution',
-      inboxItemId: inboxItemId(value.inboxItemId),
-      resolvedAt: value.resolvedAt,
-      resolvedBy: value.resolvedBy === null ? null : brandUserId(value.resolvedBy),
-    }
+    return null
   }
+  return {
+    kind: 'escalation_resolution',
+    inboxItemId: inboxItemId(value.inboxItemId),
+    resolvedAt: value.resolvedAt,
+    resolvedBy: value.resolvedBy === null ? null : brandUserId(value.resolvedBy),
+  }
+}
+
+/** Identity shared by the two inbox-cycle audiences. */
+const parseHandlingCycleCore = (value: AudienceRecord) => {
   if (
-    value.kind === 'handling_cycle' &&
-    isIdentifier(value.inboxItemId) &&
-    (value.sourceType === 'review' || value.sourceType === 'feedback') &&
-    isIdentifier(value.sourceId) &&
-    isPositiveSafeInteger(value.cycleNumber) &&
-    isPositiveSafeInteger(value.sourceRevision) &&
-    isPositiveSafeInteger(value.stateRevision) &&
-    (value.actorUserId === null || isIdentifier(value.actorUserId))
+    !isIdentifier(value.inboxItemId) ||
+    !(value.sourceType === 'review' || value.sourceType === 'feedback') ||
+    !isIdentifier(value.sourceId) ||
+    !isPositiveSafeInteger(value.cycleNumber) ||
+    !isPositiveSafeInteger(value.sourceRevision) ||
+    !isPositiveSafeInteger(value.stateRevision)
   ) {
-    return {
-      kind: 'handling_cycle',
-      inboxItemId: inboxItemId(value.inboxItemId),
-      sourceType: value.sourceType,
-      sourceId: value.sourceId,
-      cycleNumber: value.cycleNumber,
-      sourceRevision: value.sourceRevision,
-      stateRevision: value.stateRevision,
-      actorUserId: value.actorUserId === null ? null : brandUserId(value.actorUserId),
-    }
+    return null
   }
+  return {
+    inboxItemId: inboxItemId(value.inboxItemId),
+    sourceType: value.sourceType,
+    sourceId: value.sourceId,
+    cycleNumber: value.cycleNumber,
+    sourceRevision: value.sourceRevision,
+    stateRevision: value.stateRevision,
+  } as const
+}
+
+const parseHandlingCycle: AudienceKindParser = (value) => {
+  const core = parseHandlingCycleCore(value)
+  if (!core) return null
+  if (!(value.actorUserId === null || isIdentifier(value.actorUserId))) return null
+  return {
+    kind: 'handling_cycle',
+    ...core,
+    actorUserId: value.actorUserId === null ? null : brandUserId(value.actorUserId),
+  }
+}
+
+const parseResponseTargetReminder: AudienceKindParser = (value) => {
+  const core = parseHandlingCycleCore(value)
+  if (!core) return null
   if (
-    value.kind === 'response_target_reminder' &&
-    isIdentifier(value.inboxItemId) &&
-    (value.sourceType === 'review' || value.sourceType === 'feedback') &&
-    isIdentifier(value.sourceId) &&
-    isPositiveSafeInteger(value.cycleNumber) &&
-    isPositiveSafeInteger(value.sourceRevision) &&
-    isPositiveSafeInteger(value.stateRevision) &&
-    (value.targetKind === 'google_review_response' ||
-      value.targetKind === 'private_feedback_handling') &&
-    (value.reminderKind === 'halfway' || value.reminderKind === 'target_passed') &&
-    isIsoDate(value.scheduledFor)
+    !(
+      value.targetKind === 'google_review_response' ||
+      value.targetKind === 'private_feedback_handling'
+    ) ||
+    !(value.reminderKind === 'halfway' || value.reminderKind === 'target_passed') ||
+    !isIsoDate(value.scheduledFor)
   ) {
-    return {
-      kind: 'response_target_reminder',
-      inboxItemId: inboxItemId(value.inboxItemId),
-      sourceType: value.sourceType,
-      sourceId: value.sourceId,
-      cycleNumber: value.cycleNumber,
-      sourceRevision: value.sourceRevision,
-      stateRevision: value.stateRevision,
-      targetKind: value.targetKind,
-      reminderKind: value.reminderKind,
-      scheduledFor: value.scheduledFor,
-    }
+    return null
   }
+  return {
+    kind: 'response_target_reminder',
+    ...core,
+    targetKind: value.targetKind,
+    reminderKind: value.reminderKind,
+    scheduledFor: value.scheduledFor,
+  }
+}
+
+const parsePortalHealth: AudienceKindParser = (value) => {
   if (
-    value.kind === 'portal_health' &&
-    isIdentifier(value.portalId) &&
-    (value.status === 'degraded' || value.status === 'unavailable') &&
-    isActionablePortalHealthReason(value.reason) &&
-    typeof value.sourceVersion === 'string' &&
-    value.sourceVersion.trim().length > 0 &&
-    value.sourceVersion.length <= 160
+    !isIdentifier(value.portalId) ||
+    !(value.status === 'degraded' || value.status === 'unavailable') ||
+    !isActionablePortalHealthReason(value.reason) ||
+    typeof value.sourceVersion !== 'string' ||
+    value.sourceVersion.trim().length === 0 ||
+    value.sourceVersion.length > 160
   ) {
-    return {
-      kind: 'portal_health',
-      portalId: value.portalId,
-      status: value.status,
-      reason: value.reason,
-      sourceVersion: value.sourceVersion,
-    }
+    return null
   }
-  if (value.kind === 'goal_result_revision') {
-    const evaluation = parseClosedGoalEvaluation(value.evaluationState, value.achieved)
-    if (
-      isIdentifier(value.programId) &&
-      isIdentifier(value.programVersionId) &&
-      isIdentifier(value.assignmentId) &&
-      isIdentifier(value.monthlyResultId) &&
-      isIdentifier(value.revisionId) &&
-      isPositiveSafeInteger(value.revision) &&
-      evaluation
-    ) {
-      return {
-        kind: 'goal_result_revision',
-        programId: value.programId,
-        programVersionId: value.programVersionId,
-        assignmentId: value.assignmentId,
-        monthlyResultId: value.monthlyResultId,
-        revisionId: value.revisionId,
-        revision: value.revision,
-        ...evaluation,
-      }
-    }
+  return {
+    kind: 'portal_health',
+    portalId: value.portalId,
+    status: value.status,
+    reason: value.reason,
+    sourceVersion: value.sourceVersion,
   }
-  if (value.kind !== 'responsible_scope' || !isRecord(value.scope)) return null
+}
+
+const parseGoalResultRevision: AudienceKindParser = (value) => {
+  const evaluation = parseClosedGoalEvaluation(value.evaluationState, value.achieved)
+  if (
+    !isIdentifier(value.programId) ||
+    !isIdentifier(value.programVersionId) ||
+    !isIdentifier(value.assignmentId) ||
+    !isIdentifier(value.monthlyResultId) ||
+    !isIdentifier(value.revisionId) ||
+    !isPositiveSafeInteger(value.revision) ||
+    !evaluation
+  ) {
+    return null
+  }
+  return {
+    kind: 'goal_result_revision',
+    programId: value.programId,
+    programVersionId: value.programVersionId,
+    assignmentId: value.assignmentId,
+    monthlyResultId: value.monthlyResultId,
+    revisionId: value.revisionId,
+    revision: value.revision,
+    ...evaluation,
+  }
+}
+
+const parseResponsibleScope: AudienceKindParser = (value) => {
+  if (!isRecord(value.scope)) return null
   const scope = value.scope
   if (scope.kind === 'property' && isIdentifier(scope.propertyId)) {
     return {
@@ -298,6 +321,34 @@ export function parseNotificationAudience(value: unknown): NotificationAudience 
   return null
 }
 
+/**
+ * A `Map` — not an object literal — so an attacker-supplied `kind` such as
+ * `"constructor"` cannot reach `Object.prototype` and resolve to a callable.
+ */
+const AUDIENCE_KIND_PARSERS: ReadonlyMap<string, AudienceKindParser> = new Map<
+  string,
+  AudienceKindParser
+>([
+  ['affected_organization_user', parseAffectedOrganizationUser],
+  ['account_admin', () => ({ kind: 'account_admin' })],
+  ['property_operator', () => ({ kind: 'property_operator' })],
+  ['inbox_assignee', parseInboxAssignee],
+  ['bulk_inbox_assignee', parseBulkInboxAssignee],
+  ['escalation_resolution', parseEscalationResolution],
+  ['handling_cycle', parseHandlingCycle],
+  ['response_target_reminder', parseResponseTargetReminder],
+  ['portal_health', parsePortalHealth],
+  ['goal_result_revision', parseGoalResultRevision],
+  ['responsible_scope', parseResponsibleScope],
+])
+
+/** Parse the queue trust boundary without accepting a partial scope. */
+export function parseNotificationAudience(value: unknown): NotificationAudience | null {
+  if (!isRecord(value) || typeof value.kind !== 'string') return null
+  const parseKind = AUDIENCE_KIND_PARSERS.get(value.kind)
+  return parseKind ? parseKind(value) : null
+}
+
 type Deps = Readonly<{
   userLookup: Pick<UserLookupPort, 'findByRole'>
   responsibleManagers: ResponsibleManagerLookupPort
@@ -315,6 +366,227 @@ type Deps = Readonly<{
 
 const includesRecipient = (recipients: readonly UserId[], recipient: UserId) =>
   recipients.includes(recipient)
+
+/**
+ * The Property-scoped half of an authorization request: every audience kind
+ * except `affected_organization_user` requires a non-null Property.
+ */
+type PropertyScopedRequest = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  userId: UserId
+}>
+
+type AudienceOfKind<Kind extends NotificationAudience['kind']> = Extract<
+  NotificationAudience,
+  { kind: Kind }
+>
+
+const isResponsibleScopeRecipient = async (
+  deps: Deps,
+  { organizationId, userId }: PropertyScopedRequest,
+  scope: ResponsibleScope,
+) =>
+  includesRecipient(
+    await resolveResponsibleRecipients(deps, organizationId, scope),
+    userId,
+  )
+
+const isAccountAdminRecipient = async (
+  deps: Deps,
+  { organizationId, userId }: PropertyScopedRequest,
+) =>
+  includesRecipient(
+    await deps.userLookup.findByRole(organizationId, 'AccountAdmin'),
+    userId,
+  )
+
+const isStillInboxAssignee = async (
+  deps: Deps,
+  { organizationId, propertyId, userId }: PropertyScopedRequest,
+  itemId: InboxItemId,
+) => {
+  const facts = await deps.inboxItemLookup.findInboxItemFacts(itemId, organizationId)
+  return Boolean(facts && facts.propertyId === propertyId && facts.assignedTo === userId)
+}
+
+const isStillAssigneeOfEvery = async (
+  deps: Deps,
+  { organizationId, propertyId, userId }: PropertyScopedRequest,
+  itemIds: ReadonlyArray<InboxItemId>,
+) => {
+  const facts = await Promise.all(
+    itemIds.map((itemId) =>
+      deps.inboxItemLookup.findInboxItemFacts(itemId, organizationId),
+    ),
+  )
+  return !facts.some(
+    (item) => !item || item.propertyId !== propertyId || item.assignedTo !== userId,
+  )
+}
+
+const isEscalationResolutionRecipient = async (
+  deps: Deps,
+  { organizationId, propertyId, userId }: PropertyScopedRequest,
+  audience: AudienceOfKind<'escalation_resolution'>,
+) => {
+  const facts = await deps.escalationResolutions.findEscalationResolutionFacts(
+    audience.inboxItemId,
+    organizationId,
+  )
+  if (
+    !facts ||
+    facts.propertyId !== propertyId ||
+    facts.isEscalated ||
+    facts.resolvedAt?.toISOString() !== audience.resolvedAt ||
+    facts.resolvedBy !== audience.resolvedBy ||
+    userId === audience.resolvedBy
+  ) {
+    return false
+  }
+  const recipients = await resolveEscalationResolutionRecipients(deps, {
+    organizationId,
+    propertyId,
+    assignedTo: facts.assignedTo,
+    resolvedBy: facts.resolvedBy,
+  })
+  return recipients.includes(userId)
+}
+
+const isHandlingCycleRecipient = async (
+  deps: Deps,
+  { organizationId, propertyId, userId }: PropertyScopedRequest,
+  audience: AudienceOfKind<'handling_cycle'>,
+) => {
+  if (userId === audience.actorUserId) return false
+  const facts = await deps.inboxItemLookup.findHandlingCycleNotificationFacts(
+    audience.inboxItemId,
+    organizationId,
+  )
+  if (
+    !facts ||
+    facts.propertyId !== propertyId ||
+    facts.sourceType !== audience.sourceType ||
+    facts.sourceId !== audience.sourceId ||
+    facts.currentCycleNumber !== audience.cycleNumber ||
+    facts.currentSourceRevision !== audience.sourceRevision ||
+    facts.stateRevision !== audience.stateRevision ||
+    facts.status !== 'open'
+  ) {
+    return false
+  }
+  const currentAudience = inboxNotificationAudience(facts)
+  const recipients =
+    currentAudience.kind === 'responsible_scope'
+      ? await resolveResponsibleRecipients(deps, organizationId, currentAudience.scope)
+      : await deps.userLookup.findByRole(organizationId, 'AccountAdmin')
+  return recipients.includes(userId)
+}
+
+const isResponseTargetReminderRecipient = async (
+  deps: Deps,
+  { organizationId, propertyId, userId }: PropertyScopedRequest,
+  audience: AudienceOfKind<'response_target_reminder'>,
+) => {
+  const facts = await deps.inboxItemLookup.findResponseTargetReminderNotificationFacts({
+    inboxItemId: audience.inboxItemId,
+    organizationId,
+    cycleNumber: audience.cycleNumber,
+    targetKind: audience.targetKind,
+    reminderKind: audience.reminderKind,
+    scheduledFor: new Date(audience.scheduledFor),
+  })
+  if (
+    !facts ||
+    facts.propertyId !== propertyId ||
+    facts.sourceType !== audience.sourceType ||
+    facts.sourceId !== audience.sourceId ||
+    facts.currentCycleNumber !== audience.cycleNumber ||
+    facts.currentSourceRevision !== audience.sourceRevision ||
+    facts.stateRevision !== audience.stateRevision ||
+    facts.status !== 'open' ||
+    facts.targetKind !== audience.targetKind ||
+    facts.reminderKind !== audience.reminderKind ||
+    facts.scheduledFor.toISOString() !== audience.scheduledFor
+  ) {
+    return false
+  }
+  const recipients = await resolveResponseTargetReminderRecipients(
+    deps,
+    organizationId,
+    facts,
+  )
+  return recipients.includes(userId)
+}
+
+const isPortalHealthRecipient = async (
+  deps: Deps,
+  { organizationId, propertyId, userId }: PropertyScopedRequest,
+  audience: AudienceOfKind<'portal_health'>,
+) => {
+  const portal = portalId(audience.portalId)
+  const facts = await deps.portalHealthLookup.findPortalHealthNotificationFacts(
+    organizationId,
+    portal,
+  )
+  if (
+    !facts ||
+    facts.propertyId !== propertyId ||
+    facts.status !== audience.status ||
+    facts.reason !== audience.reason ||
+    facts.sourceVersion !== audience.sourceVersion
+  ) {
+    return false
+  }
+  const recipients = await resolveResponsibleRecipients(deps, organizationId, {
+    kind: 'portal',
+    portalId: audience.portalId,
+  })
+  return recipients.includes(userId)
+}
+
+const isGoalResultRevisionRecipient = async (
+  deps: Deps,
+  { organizationId, propertyId, userId }: PropertyScopedRequest,
+  audience: AudienceOfKind<'goal_result_revision'>,
+) => {
+  const findRevision = deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts
+  if (!findRevision) return false
+  const facts = await findRevision({
+    organizationId,
+    propertyId,
+    programId: audience.programId,
+    programVersionId: audience.programVersionId,
+    assignmentId: audience.assignmentId,
+    monthlyResultId: audience.monthlyResultId,
+    revisionId: audience.revisionId,
+    revision: audience.revision,
+  })
+  if (
+    !facts ||
+    facts.programId !== audience.programId ||
+    facts.programVersionId !== audience.programVersionId ||
+    facts.assignmentId !== audience.assignmentId ||
+    facts.monthlyResultId !== audience.monthlyResultId ||
+    facts.revisionId !== audience.revisionId ||
+    facts.revision !== audience.revision ||
+    facts.evaluationState !== audience.evaluationState ||
+    facts.achieved !== audience.achieved ||
+    (facts.subject.kind === 'property' && facts.subject.propertyId !== propertyId)
+  ) {
+    return false
+  }
+  const scope: ResponsibleScope =
+    facts.subject.kind === 'property'
+      ? { kind: 'property', propertyId: facts.subject.propertyId }
+      : facts.subject.kind === 'portal_group'
+        ? { kind: 'portal_group', portalGroupId: facts.subject.portalGroupId }
+        : { kind: 'portal', portalId: facts.subject.portalId }
+  return includesRecipient(
+    await resolveResponsibleRecipients(deps, organizationId, scope),
+    userId,
+  )
+}
 
 /**
  * Re-check delivery authority at worker execution time. A queued recipient is
@@ -336,185 +608,37 @@ export const createNotificationAudienceAuthorizer =
     // Every other active audience kind is Property-scoped. A malformed job
     // cannot use an Organization-null scope to bypass its current authority.
     if (propertyId === null) return false
-    if (audience.kind === 'responsible_scope') {
-      return includesRecipient(
-        await resolveResponsibleRecipients(deps, organizationId, audience.scope),
-        userId,
-      )
+    const request: PropertyScopedRequest = { organizationId, propertyId, userId }
+    switch (audience.kind) {
+      case 'responsible_scope':
+        return isResponsibleScopeRecipient(deps, request, audience.scope)
+      case 'account_admin':
+        return isAccountAdminRecipient(deps, request)
+      case 'escalation_resolution':
+        return isEscalationResolutionRecipient(deps, request, audience)
+      case 'handling_cycle':
+        return isHandlingCycleRecipient(deps, request, audience)
+      case 'response_target_reminder':
+        return isResponseTargetReminderRecipient(deps, request, audience)
+      case 'portal_health':
+        return isPortalHealthRecipient(deps, request, audience)
+      case 'goal_result_revision':
+        return isGoalResultRevisionRecipient(deps, request, audience)
+      case 'inbox_assignee':
+        if (!(await isStillInboxAssignee(deps, request, audience.inboxItemId))) {
+          return false
+        }
+        break
+      case 'bulk_inbox_assignee':
+        if (!(await isStillAssigneeOfEvery(deps, request, audience.inboxItemIds))) {
+          return false
+        }
+        break
+      case 'property_operator':
+        break
     }
-    if (audience.kind === 'account_admin') {
-      return includesRecipient(
-        await deps.userLookup.findByRole(organizationId, 'AccountAdmin'),
-        userId,
-      )
-    }
-    if (audience.kind === 'inbox_assignee') {
-      const facts = await deps.inboxItemLookup.findInboxItemFacts(
-        audience.inboxItemId,
-        organizationId,
-      )
-      if (!facts || facts.propertyId !== propertyId || facts.assignedTo !== userId) {
-        return false
-      }
-    }
-    if (audience.kind === 'bulk_inbox_assignee') {
-      const facts = await Promise.all(
-        audience.inboxItemIds.map((inboxItemId) =>
-          deps.inboxItemLookup.findInboxItemFacts(inboxItemId, organizationId),
-        ),
-      )
-      if (
-        facts.some(
-          (item) => !item || item.propertyId !== propertyId || item.assignedTo !== userId,
-        )
-      ) {
-        return false
-      }
-    }
-    if (audience.kind === 'escalation_resolution') {
-      const facts = await deps.escalationResolutions.findEscalationResolutionFacts(
-        audience.inboxItemId,
-        organizationId,
-      )
-      if (
-        !facts ||
-        facts.propertyId !== propertyId ||
-        facts.isEscalated ||
-        facts.resolvedAt?.toISOString() !== audience.resolvedAt ||
-        facts.resolvedBy !== audience.resolvedBy ||
-        userId === audience.resolvedBy
-      ) {
-        return false
-      }
-      const recipients = await resolveEscalationResolutionRecipients(deps, {
-        organizationId,
-        propertyId,
-        assignedTo: facts.assignedTo,
-        resolvedBy: facts.resolvedBy,
-      })
-      return recipients.includes(userId)
-    }
-    if (audience.kind === 'handling_cycle') {
-      if (userId === audience.actorUserId) return false
-      const facts = await deps.inboxItemLookup.findHandlingCycleNotificationFacts(
-        audience.inboxItemId,
-        organizationId,
-      )
-      if (
-        !facts ||
-        facts.propertyId !== propertyId ||
-        facts.sourceType !== audience.sourceType ||
-        facts.sourceId !== audience.sourceId ||
-        facts.currentCycleNumber !== audience.cycleNumber ||
-        facts.currentSourceRevision !== audience.sourceRevision ||
-        facts.stateRevision !== audience.stateRevision ||
-        facts.status !== 'open'
-      ) {
-        return false
-      }
-      const currentAudience = inboxNotificationAudience(facts)
-      const recipients =
-        currentAudience.kind === 'responsible_scope'
-          ? await resolveResponsibleRecipients(
-              deps,
-              organizationId,
-              currentAudience.scope,
-            )
-          : await deps.userLookup.findByRole(organizationId, 'AccountAdmin')
-      return recipients.includes(userId)
-    }
-    if (audience.kind === 'response_target_reminder') {
-      const facts =
-        await deps.inboxItemLookup.findResponseTargetReminderNotificationFacts({
-          inboxItemId: audience.inboxItemId,
-          organizationId,
-          cycleNumber: audience.cycleNumber,
-          targetKind: audience.targetKind,
-          reminderKind: audience.reminderKind,
-          scheduledFor: new Date(audience.scheduledFor),
-        })
-      if (
-        !facts ||
-        facts.propertyId !== propertyId ||
-        facts.sourceType !== audience.sourceType ||
-        facts.sourceId !== audience.sourceId ||
-        facts.currentCycleNumber !== audience.cycleNumber ||
-        facts.currentSourceRevision !== audience.sourceRevision ||
-        facts.stateRevision !== audience.stateRevision ||
-        facts.status !== 'open' ||
-        facts.targetKind !== audience.targetKind ||
-        facts.reminderKind !== audience.reminderKind ||
-        facts.scheduledFor.toISOString() !== audience.scheduledFor
-      ) {
-        return false
-      }
-      const recipients = await resolveResponseTargetReminderRecipients(
-        deps,
-        organizationId,
-        facts,
-      )
-      return recipients.includes(userId)
-    }
-    if (audience.kind === 'portal_health') {
-      const portal = portalId(audience.portalId)
-      const facts = await deps.portalHealthLookup.findPortalHealthNotificationFacts(
-        organizationId,
-        portal,
-      )
-      if (
-        !facts ||
-        facts.propertyId !== propertyId ||
-        facts.status !== audience.status ||
-        facts.reason !== audience.reason ||
-        facts.sourceVersion !== audience.sourceVersion
-      ) {
-        return false
-      }
-      const recipients = await resolveResponsibleRecipients(deps, organizationId, {
-        kind: 'portal',
-        portalId: audience.portalId,
-      })
-      return recipients.includes(userId)
-    }
-    if (audience.kind === 'goal_result_revision') {
-      const findRevision =
-        deps.monthlyResultFacts.findMonthlyResultRevisionNotificationFacts
-      if (!findRevision) return false
-      const facts = await findRevision({
-        organizationId,
-        propertyId,
-        programId: audience.programId,
-        programVersionId: audience.programVersionId,
-        assignmentId: audience.assignmentId,
-        monthlyResultId: audience.monthlyResultId,
-        revisionId: audience.revisionId,
-        revision: audience.revision,
-      })
-      if (
-        !facts ||
-        facts.programId !== audience.programId ||
-        facts.programVersionId !== audience.programVersionId ||
-        facts.assignmentId !== audience.assignmentId ||
-        facts.monthlyResultId !== audience.monthlyResultId ||
-        facts.revisionId !== audience.revisionId ||
-        facts.revision !== audience.revision ||
-        facts.evaluationState !== audience.evaluationState ||
-        facts.achieved !== audience.achieved ||
-        (facts.subject.kind === 'property' && facts.subject.propertyId !== propertyId)
-      ) {
-        return false
-      }
-      const scope: ResponsibleScope =
-        facts.subject.kind === 'property'
-          ? { kind: 'property', propertyId: facts.subject.propertyId }
-          : facts.subject.kind === 'portal_group'
-            ? { kind: 'portal_group', portalGroupId: facts.subject.portalGroupId }
-            : { kind: 'portal', portalId: facts.subject.portalId }
-      return includesRecipient(
-        await resolveResponsibleRecipients(deps, organizationId, scope),
-        userId,
-      )
-    }
+    // The assignee kinds and `property_operator` all additionally require
+    // current responsibility for the Property.
     return deps.responsibleManagers.isEligibleForProperty(
       organizationId,
       propertyId,

@@ -66,6 +66,8 @@ const BADGE_TENANT_TABLES: readonly BadgeLifecycleTable[] = Object.freeze([
  */
 const PURGE_ORDER_NOTE = 'badge_awards_before_recognition_board_snapshots' as const
 
+export { PURGE_ORDER_NOTE as BADGE_PURGE_ORDER_NOTE }
+
 /**
  * Append-only guards that block a tenant purge (migration 0025).
  *
@@ -218,8 +220,6 @@ export const badgePurge = async (
 export const BADGE_LIFECYCLE_TABLES: readonly string[] = Object.freeze(
   BADGE_TENANT_TABLES.map(({ table }) => table),
 )
-
-export { PURGE_ORDER_NOTE as BADGE_PURGE_ORDER_NOTE }
 
 /** The append-only guards the purge lifts, for the contract tests. */
 export const BADGE_LIFECYCLE_APPEND_ONLY_GUARDS: readonly string[] = Object.freeze(

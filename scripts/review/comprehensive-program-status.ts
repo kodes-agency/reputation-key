@@ -75,14 +75,9 @@ function packageIdsFromPlan(plan: string): readonly string[] {
   return [...plan.matchAll(/^### ([A-Z]+-\d{2}) — /gmu)].map((match) => match[1]!)
 }
 
-export function validateComprehensiveProgramStatus(
-  plan: string,
-  input: unknown,
-): readonly string[] {
-  const ledger = comprehensiveProgramStatus.parse(input)
-  const planIds = packageIdsFromPlan(plan)
-  const ledgerIds = ledger.packages.map(({ id }) => id)
+type PackageStatusRow = z.infer<typeof packageStatusRow>
 
+function assertPlanAlignment(planIds: readonly string[], ledgerIds: readonly string[]) {
   if (planIds.length === 0) throw new Error('implementation plan contains no packages')
   if (new Set(planIds).size !== planIds.length) {
     throw new Error('implementation plan contains duplicate package ids')
@@ -92,98 +87,115 @@ export function validateComprehensiveProgramStatus(
       `program status must contain every package exactly once in plan order; expected ${planIds.join(', ')}`,
     )
   }
+}
+
+function assertImplementationAxis(row: PackageStatusRow): void {
+  if (
+    row.implementation.status === 'complete' &&
+    row.implementation.remaining.length > 0
+  ) {
+    throw new Error(`${row.id} complete implementation cannot name remaining work`)
+  }
+  if (
+    row.implementation.status !== 'complete' &&
+    row.implementation.remaining.length === 0
+  ) {
+    throw new Error(`${row.id} unfinished implementation must name remaining work`)
+  }
+}
+
+function assertRepositoryVerificationAxis(row: PackageStatusRow): void {
+  if (
+    row.repositoryVerification.status === 'passed' &&
+    (row.repositoryVerification.remaining.length > 0 || row.testEvidence.length === 0)
+  ) {
+    throw new Error(`${row.id} passed repository verification has evidence gaps`)
+  }
+  if (
+    row.repositoryVerification.status !== 'passed' &&
+    row.repositoryVerification.remaining.length === 0
+  ) {
+    throw new Error(
+      `${row.id} unfinished repository verification must name remaining work`,
+    )
+  }
+  if (
+    row.repositoryVerification.status === 'passed' &&
+    row.implementation.status !== 'complete'
+  ) {
+    throw new Error(`${row.id} cannot pass repository verification before implementation`)
+  }
+}
+
+function assertExternalVerificationAxis(row: PackageStatusRow): void {
+  const external = row.externalVerification
+  if (external.status === 'blocked' && external.blockers.length === 0) {
+    throw new Error(`${row.id} blocked external verification must name its blockers`)
+  }
+  const carriesWork = external.remaining.length > 0 || external.blockers.length > 0
+  if (external.status === 'not_required' && carriesWork) {
+    throw new Error(`${row.id} not-required external verification cannot carry work`)
+  }
+  if (external.status === 'passed' && carriesWork) {
+    throw new Error(`${row.id} passed external verification has unresolved work`)
+  }
+  if (
+    ['not_started', 'in_progress'].includes(external.status) &&
+    external.remaining.length === 0
+  ) {
+    throw new Error(`${row.id} unfinished external verification must name remaining work`)
+  }
+}
+
+/**
+ * A completion record may exist only once all three axes close, and must then
+ * name this package, the assessed baseline, an independent reviewer, and evidence.
+ */
+function assertCompletionRecord(row: PackageStatusRow, baselineSha: string): void {
+  const formallyComplete =
+    row.implementation.status === 'complete' &&
+    row.repositoryVerification.status === 'passed' &&
+    ['not_required', 'passed'].includes(row.externalVerification.status)
+  if (!formallyComplete) {
+    if (row.completionRecord) {
+      throw new Error(`${row.id} cannot publish a completionRecord before all axes close`)
+    }
+    return
+  }
+  if (!row.completionRecord) {
+    throw new Error(`${row.id} cannot close without a completionRecord`)
+  }
+  if (row.completionRecord.package !== row.id) {
+    throw new Error(`${row.id} completionRecord names a different package`)
+  }
+  if (row.completionRecord.frozen_sha !== baselineSha) {
+    throw new Error(`${row.id} completionRecord names a different frozen SHA`)
+  }
+  if (row.completionRecord.owner === row.completionRecord.reviewer) {
+    throw new Error(`${row.id} completionRecord requires an independent reviewer`)
+  }
+  if (row.codeEvidence.length === 0 || row.testEvidence.length === 0) {
+    throw new Error(`${row.id} completed package has unresolved evidence gaps`)
+  }
+}
+
+export function validateComprehensiveProgramStatus(
+  plan: string,
+  input: unknown,
+): readonly string[] {
+  const ledger = comprehensiveProgramStatus.parse(input)
+  const planIds = packageIdsFromPlan(plan)
+
+  assertPlanAlignment(
+    planIds,
+    ledger.packages.map(({ id }) => id),
+  )
 
   for (const row of ledger.packages) {
-    if (
-      row.implementation.status === 'complete' &&
-      row.implementation.remaining.length > 0
-    ) {
-      throw new Error(`${row.id} complete implementation cannot name remaining work`)
-    }
-    if (
-      row.implementation.status !== 'complete' &&
-      row.implementation.remaining.length === 0
-    ) {
-      throw new Error(`${row.id} unfinished implementation must name remaining work`)
-    }
-    if (
-      row.repositoryVerification.status === 'passed' &&
-      (row.repositoryVerification.remaining.length > 0 || row.testEvidence.length === 0)
-    ) {
-      throw new Error(`${row.id} passed repository verification has evidence gaps`)
-    }
-    if (
-      row.repositoryVerification.status !== 'passed' &&
-      row.repositoryVerification.remaining.length === 0
-    ) {
-      throw new Error(
-        `${row.id} unfinished repository verification must name remaining work`,
-      )
-    }
-    if (
-      row.repositoryVerification.status === 'passed' &&
-      row.implementation.status !== 'complete'
-    ) {
-      throw new Error(
-        `${row.id} cannot pass repository verification before implementation`,
-      )
-    }
-    if (
-      row.externalVerification.status === 'blocked' &&
-      row.externalVerification.blockers.length === 0
-    ) {
-      throw new Error(`${row.id} blocked external verification must name its blockers`)
-    }
-    if (
-      row.externalVerification.status === 'not_required' &&
-      (row.externalVerification.remaining.length > 0 ||
-        row.externalVerification.blockers.length > 0)
-    ) {
-      throw new Error(`${row.id} not-required external verification cannot carry work`)
-    }
-    if (
-      row.externalVerification.status === 'passed' &&
-      (row.externalVerification.remaining.length > 0 ||
-        row.externalVerification.blockers.length > 0)
-    ) {
-      throw new Error(`${row.id} passed external verification has unresolved work`)
-    }
-    if (
-      ['not_started', 'in_progress'].includes(row.externalVerification.status) &&
-      row.externalVerification.remaining.length === 0
-    ) {
-      throw new Error(
-        `${row.id} unfinished external verification must name remaining work`,
-      )
-    }
-
-    const formallyComplete =
-      row.implementation.status === 'complete' &&
-      row.repositoryVerification.status === 'passed' &&
-      ['not_required', 'passed'].includes(row.externalVerification.status)
-    if (!formallyComplete) {
-      if (row.completionRecord) {
-        throw new Error(
-          `${row.id} cannot publish a completionRecord before all axes close`,
-        )
-      }
-      continue
-    }
-    if (!row.completionRecord) {
-      throw new Error(`${row.id} cannot close without a completionRecord`)
-    }
-    if (row.completionRecord.package !== row.id) {
-      throw new Error(`${row.id} completionRecord names a different package`)
-    }
-    if (row.completionRecord.frozen_sha !== ledger.baselineSha) {
-      throw new Error(`${row.id} completionRecord names a different frozen SHA`)
-    }
-    if (row.completionRecord.owner === row.completionRecord.reviewer) {
-      throw new Error(`${row.id} completionRecord requires an independent reviewer`)
-    }
-    if (row.codeEvidence.length === 0 || row.testEvidence.length === 0) {
-      throw new Error(`${row.id} completed package has unresolved evidence gaps`)
-    }
+    assertImplementationAxis(row)
+    assertRepositoryVerificationAxis(row)
+    assertExternalVerificationAxis(row)
+    assertCompletionRecord(row, ledger.baselineSha)
   }
 
   return planIds

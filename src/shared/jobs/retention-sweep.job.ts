@@ -307,6 +307,153 @@ type RetentionSweepDeps = Readonly<{
   >
 }>
 
+type RetentionSweepFailure = { subject: string; error: string }
+type RetentionSweepLogger = ReturnType<typeof getLogger>
+
+/**
+ * Close the open evidence row as `failed` (best effort — a close that itself
+ * fails must not mask the original error) and record the failure so the job
+ * still throws once every subject has been attempted.
+ */
+async function recordRetentionFailure(
+  deps: RetentionSweepDeps,
+  runId: string,
+  subject: string,
+  err: unknown,
+  failures: RetentionSweepFailure[],
+  logger: RetentionSweepLogger,
+  logMessage: string,
+): Promise<void> {
+  const message = err instanceof Error ? err.message : String(err)
+  failures.push({ subject, error: message })
+  await closeRetentionRun(deps.db, runId, {
+    finishedAt: deps.clock(),
+    outcome: 'failed',
+    errorCode: message.slice(0, 200),
+  }).catch(() => {})
+  logger.warn({ err, subject }, logMessage)
+}
+
+async function sweepGuestContactRequests(
+  deps: RetentionSweepDeps,
+  sweep: NonNullable<RetentionSweepDeps['guestContactRequestRetentionSweep']>,
+  batchSize: number,
+  failures: RetentionSweepFailure[],
+  logger: RetentionSweepLogger,
+): Promise<void> {
+  const subject = GUEST_CONTACT_REQUEST_RETENTION_SUBJECT
+  const startedAt = deps.clock()
+  const runId = await openRetentionRun(deps.db, subject, batchSize, startedAt)
+  try {
+    const result = await sweep({ batchSize })
+    await closeRetentionRun(deps.db, runId, {
+      finishedAt: deps.clock(),
+      batches: result.batches,
+      rowsDeleted: 0,
+      rowsRedacted: result.processed,
+      outcome: 'completed',
+    })
+    logger.info(
+      { subject, ...result },
+      result.capped
+        ? 'Contact Request retention sweep reached its batch cap'
+        : 'Contact Request retention sweep completed',
+    )
+  } catch (err) {
+    await recordRetentionFailure(
+      deps,
+      runId,
+      subject,
+      err,
+      failures,
+      logger,
+      'Contact Request retention sweep failed',
+    )
+  }
+}
+
+async function sweepGoogleImportLifecycle(
+  deps: RetentionSweepDeps,
+  sweep: NonNullable<RetentionSweepDeps['googleImportLifecycleSweep']>,
+  failures: RetentionSweepFailure[],
+  logger: RetentionSweepLogger,
+): Promise<void> {
+  const subject = GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT
+  const startedAt = deps.clock()
+  const runId = await openRetentionRun(
+    deps.db,
+    subject,
+    GOOGLE_IMPORT_LIFECYCLE_BATCH_SIZE,
+    startedAt,
+  )
+  try {
+    const result = await sweep()
+    await closeRetentionRun(deps.db, runId, {
+      finishedAt: deps.clock(),
+      batches: 1,
+      rowsDeleted: result.parentsPurged + result.propertyReceiptsSwept,
+      outcome: 'completed',
+    })
+    logger.info(
+      { subject, ...result },
+      'Google import lifecycle retention sweep completed',
+    )
+  } catch (err) {
+    await recordRetentionFailure(
+      deps,
+      runId,
+      subject,
+      err,
+      failures,
+      logger,
+      'Google import lifecycle retention sweep failed',
+    )
+  }
+}
+
+async function sweepRetentionRules(
+  deps: RetentionSweepDeps,
+  rules: ReadonlyArray<RetentionRule>,
+  batchSize: number,
+  failures: RetentionSweepFailure[],
+  logger: RetentionSweepLogger,
+): Promise<void> {
+  for (const rule of rules) {
+    const startedAt = deps.clock()
+    const cutoff = new Date(startedAt.getTime() - rule.olderThanMs)
+    const runId = await openRetentionRun(deps.db, rule.subject, batchSize, startedAt)
+    try {
+      const result = await executeRetentionRule(deps.db, rule, { cutoff, batchSize })
+      await closeRetentionRun(deps.db, runId, {
+        finishedAt: deps.clock(),
+        batches: result.batches,
+        rowsDeleted: result.rowsDeleted,
+        rowsRedacted: result.rowsRedacted ?? 0,
+        outcome: 'completed',
+      })
+      logger.info(
+        { subject: rule.subject, ...result },
+        result.capped
+          ? // BQC-3.7: the drain stopped at the per-run batch cap with rows
+            // remaining — the next scheduled run continues where this one
+            // stopped. The evidence row still closes as 'completed'.
+            'retention sweep rule reached the per-run batch cap — remaining rows continue next scheduled run'
+          : 'retention sweep rule completed',
+      )
+    } catch (err) {
+      await recordRetentionFailure(
+        deps,
+        runId,
+        rule.subject,
+        err,
+        failures,
+        logger,
+        'retention sweep rule failed',
+      )
+    }
+  }
+}
+
 export const createRetentionSweepHandler = (deps: RetentionSweepDeps) => {
   const rules = deps.rules ?? RETENTION_RULES
   const batchSize = deps.batchSize ?? 500
@@ -314,115 +461,24 @@ export const createRetentionSweepHandler = (deps: RetentionSweepDeps) => {
   return async (_job: Job) => {
     return trace('job.retentionSweep', async () => {
       const logger = getLogger()
-      const failures: Array<{ subject: string; error: string }> = []
+      const failures: RetentionSweepFailure[] = []
 
       // Refuse first, before any evidence row exists.
       for (const registryRule of deps.registryApplyRules ?? []) {
         assertRetentionRegistryApplyAllowed(registryRule)
       }
 
-      if (deps.guestContactRequestRetentionSweep) {
-        const subject = GUEST_CONTACT_REQUEST_RETENTION_SUBJECT
-        const startedAt = deps.clock()
-        const runId = await openRetentionRun(deps.db, subject, batchSize, startedAt)
-        try {
-          const result = await deps.guestContactRequestRetentionSweep({ batchSize })
-          await closeRetentionRun(deps.db, runId, {
-            finishedAt: deps.clock(),
-            batches: result.batches,
-            rowsDeleted: 0,
-            rowsRedacted: result.processed,
-            outcome: 'completed',
-          })
-          logger.info(
-            { subject, ...result },
-            result.capped
-              ? 'Contact Request retention sweep reached its batch cap'
-              : 'Contact Request retention sweep completed',
-          )
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
-          failures.push({ subject, error: message })
-          await closeRetentionRun(deps.db, runId, {
-            finishedAt: deps.clock(),
-            outcome: 'failed',
-            errorCode: message.slice(0, 200),
-          }).catch(() => {})
-          logger.warn({ err, subject }, 'Contact Request retention sweep failed')
-        }
+      const guestSweep = deps.guestContactRequestRetentionSweep
+      if (guestSweep) {
+        await sweepGuestContactRequests(deps, guestSweep, batchSize, failures, logger)
       }
 
-      if (deps.googleImportLifecycleSweep) {
-        const subject = GOOGLE_IMPORT_LIFECYCLE_RETENTION_SUBJECT
-        const startedAt = deps.clock()
-        const runId = await openRetentionRun(
-          deps.db,
-          subject,
-          GOOGLE_IMPORT_LIFECYCLE_BATCH_SIZE,
-          startedAt,
-        )
-        try {
-          const result = await deps.googleImportLifecycleSweep()
-          await closeRetentionRun(deps.db, runId, {
-            finishedAt: deps.clock(),
-            batches: 1,
-            rowsDeleted: result.parentsPurged + result.propertyReceiptsSwept,
-            outcome: 'completed',
-          })
-          logger.info(
-            { subject, ...result },
-            'Google import lifecycle retention sweep completed',
-          )
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
-          failures.push({ subject, error: message })
-          await closeRetentionRun(deps.db, runId, {
-            finishedAt: deps.clock(),
-            outcome: 'failed',
-            errorCode: message.slice(0, 200),
-          }).catch(() => {})
-          logger.warn({ err, subject }, 'Google import lifecycle retention sweep failed')
-        }
+      const importSweep = deps.googleImportLifecycleSweep
+      if (importSweep) {
+        await sweepGoogleImportLifecycle(deps, importSweep, failures, logger)
       }
 
-      for (const rule of rules) {
-        const startedAt = deps.clock()
-        const cutoff = new Date(startedAt.getTime() - rule.olderThanMs)
-        const runId = await openRetentionRun(deps.db, rule.subject, batchSize, startedAt)
-        try {
-          const result = await executeRetentionRule(deps.db, rule, { cutoff, batchSize })
-          await closeRetentionRun(deps.db, runId, {
-            finishedAt: deps.clock(),
-            batches: result.batches,
-            rowsDeleted: result.rowsDeleted,
-            rowsRedacted: result.rowsRedacted ?? 0,
-            outcome: 'completed',
-          })
-          if (result.capped) {
-            // BQC-3.7: the drain stopped at the per-run batch cap with rows
-            // remaining — the next scheduled run continues where this one
-            // stopped. The evidence row still closes as 'completed'.
-            logger.info(
-              { subject: rule.subject, ...result },
-              'retention sweep rule reached the per-run batch cap — remaining rows continue next scheduled run',
-            )
-          } else {
-            logger.info(
-              { subject: rule.subject, ...result },
-              'retention sweep rule completed',
-            )
-          }
-        } catch (err) {
-          const message = err instanceof Error ? err.message : String(err)
-          failures.push({ subject: rule.subject, error: message })
-          await closeRetentionRun(deps.db, runId, {
-            finishedAt: deps.clock(),
-            outcome: 'failed',
-            errorCode: message.slice(0, 200),
-          }).catch(() => {})
-          logger.warn({ err, subject: rule.subject }, 'retention sweep rule failed')
-        }
-      }
+      await sweepRetentionRules(deps, rules, batchSize, failures, logger)
 
       if (failures.length > 0) {
         throw new Error(

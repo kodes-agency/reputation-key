@@ -73,6 +73,36 @@ function assertContentFreeRef(value: string, what: string): void {
   }
 }
 
+/** Every reference the entry carries is an opaque token, never content. */
+function assertReferenceShapes(entry: BackupErasureLedgerAppend): void {
+  assertContentFreeRef(entry.evidenceRef, 'evidenceRef')
+  if (entry.holdReference !== undefined) {
+    assertContentFreeRef(entry.holdReference, 'holdReference')
+  }
+  if (entry.subjectRef !== undefined && !SHA256.test(entry.subjectRef)) {
+    throw new Error(`${BACKUP_ERASURE_LEDGER_CONTENT_ERROR}: subjectRef`)
+  }
+  if (entry.propertyId !== undefined && !UUID.test(entry.propertyId)) {
+    throw new Error('backup erasure property identity must be a UUID')
+  }
+}
+
+/**
+ * The subject shape must match the class, or the fence cannot tell which
+ * replayer is allowed to re-apply the entry.
+ */
+function assertSubjectShapeMatchesClass(entry: BackupErasureLedgerAppend): void {
+  if (entry.subjectClass === 'organization' && (entry.propertyId || entry.subjectRef)) {
+    throw new Error('an Organization erasure is not scoped to a Property or subject')
+  }
+  if (entry.subjectClass === 'property' && (!entry.propertyId || entry.subjectRef)) {
+    throw new Error('a Property erasure names exactly one Property and no subject')
+  }
+  if (entry.subjectClass === 'privacy_subject' && !entry.subjectRef) {
+    throw new Error('a privacy erasure names exactly one verified subject')
+  }
+}
+
 /**
  * Validate an append before it reaches the database.
  *
@@ -106,27 +136,8 @@ export function validateBackupErasureLedgerAppend(
   if (Number.isNaN(entry.effectiveErasureAt.getTime())) {
     throw new Error('backup erasure effective instant must be valid')
   }
-  assertContentFreeRef(entry.evidenceRef, 'evidenceRef')
-  if (entry.holdReference !== undefined) {
-    assertContentFreeRef(entry.holdReference, 'holdReference')
-  }
-  if (entry.subjectRef !== undefined && !SHA256.test(entry.subjectRef)) {
-    throw new Error(`${BACKUP_ERASURE_LEDGER_CONTENT_ERROR}: subjectRef`)
-  }
-  if (entry.propertyId !== undefined && !UUID.test(entry.propertyId)) {
-    throw new Error('backup erasure property identity must be a UUID')
-  }
-  // The subject shape must match the class, or the fence cannot tell which
-  // replayer is allowed to re-apply the entry.
-  if (entry.subjectClass === 'organization' && (entry.propertyId || entry.subjectRef)) {
-    throw new Error('an Organization erasure is not scoped to a Property or subject')
-  }
-  if (entry.subjectClass === 'property' && (!entry.propertyId || entry.subjectRef)) {
-    throw new Error('a Property erasure names exactly one Property and no subject')
-  }
-  if (entry.subjectClass === 'privacy_subject' && !entry.subjectRef) {
-    throw new Error('a privacy erasure names exactly one verified subject')
-  }
+  assertReferenceShapes(entry)
+  assertSubjectShapeMatchesClass(entry)
 }
 
 /**

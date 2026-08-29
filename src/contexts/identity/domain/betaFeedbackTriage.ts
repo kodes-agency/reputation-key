@@ -113,12 +113,11 @@ const DECISION_STATES = new Set<BetaFeedbackTriageState>([
   'resolved',
 ])
 
-/** Pure state-machine guard used by both repository and operator tooling. */
-export function assertBetaFeedbackTriageTransition(
+/** Delivery, optimistic-concurrency and state-machine preconditions. */
+function assertTriagePreconditions(
   current: BetaFeedbackTriageSnapshot,
-  transitionInput: BetaFeedbackTriageTransition,
-): BetaFeedbackTriageSnapshot {
-  const transition = betaFeedbackTriageTransitionSchema.parse(transitionInput)
+  transition: BetaFeedbackTriageTransition,
+): void {
   if (current.deliveryState !== 'delivered') {
     throw identityError(
       'feedback_triage_invalid',
@@ -137,6 +136,13 @@ export function assertBetaFeedbackTriageTransition(
       `Invalid beta feedback triage transition: ${current.triageState} -> ${transition.toState}`,
     )
   }
+}
+
+/** Dedupe linkage and the classification a screened record must carry. */
+function assertTriageRecordConsistency(
+  current: BetaFeedbackTriageSnapshot,
+  transition: BetaFeedbackTriageTransition,
+): void {
   if (
     transition.dedupeDisposition === 'duplicate' &&
     (transition.duplicateOfReference === null ||
@@ -174,6 +180,10 @@ export function assertBetaFeedbackTriageTransition(
       )
     }
   }
+}
+
+/** Owner-queue routing and what a triage decision must settle before it lands. */
+function assertTriageRoutingAndOutcome(transition: BetaFeedbackTriageTransition): void {
   if (
     (transition.securityClass === 'suspected' ||
       transition.securityClass === 'confirmed') &&
@@ -219,6 +229,17 @@ export function assertBetaFeedbackTriageTransition(
       'Resolved feedback requires a customer response disposition',
     )
   }
+}
+
+/** Pure state-machine guard used by both repository and operator tooling. */
+export function assertBetaFeedbackTriageTransition(
+  current: BetaFeedbackTriageSnapshot,
+  transitionInput: BetaFeedbackTriageTransition,
+): BetaFeedbackTriageSnapshot {
+  const transition = betaFeedbackTriageTransitionSchema.parse(transitionInput)
+  assertTriagePreconditions(current, transition)
+  assertTriageRecordConsistency(current, transition)
+  assertTriageRoutingAndOutcome(transition)
 
   return {
     reference: current.reference,

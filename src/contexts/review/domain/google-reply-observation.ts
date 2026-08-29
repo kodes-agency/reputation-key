@@ -107,36 +107,73 @@ const CONFIRMABLE_ATTEMPT_OUTCOMES: ReadonlySet<
   GoogleReplyPublicationCandidate['outcome']
 > = new Set(['sending', 'provider_outcome_pending', 'ambiguous'])
 
+type ObservedGoogleReplyState = Readonly<{
+  state: 'live' | 'absent'
+  normalizedText: string | null
+  normalizedDigest: string | null
+}>
+
+/** Absent provider text has no normalization; live text is normalized once and
+ * digested under the frozen normalization version. */
+function describeObservedText(observedText: string | null): ObservedGoogleReplyState {
+  if (observedText === null) {
+    return { state: 'absent', normalizedText: null, normalizedDigest: null }
+  }
+  return {
+    state: 'live',
+    normalizedText: normalizeGoogleReplyText(observedText),
+    normalizedDigest: googleReplyTextDigest(observedText),
+  }
+}
+
+type ObservationScope = Readonly<{ sourceEpoch: number; materialReviewRevision: number }>
+
+/** Material change against the previous head. A head recorded under a different
+ * source scope cannot witness an edit or a deletion, so live text there reads as
+ * newly added and absence as no change. */
+function decideObservationChange(
+  observed: ObservedGoogleReplyState,
+  previous: PreviousGoogleReplyObservation | null,
+  scope: ObservationScope,
+): 'added' | 'deleted' | 'edited' | 'unchanged' {
+  const outOfScope =
+    previous === null ||
+    previous.sourceEpoch !== scope.sourceEpoch ||
+    previous.materialReviewRevision !== scope.materialReviewRevision
+  if (outOfScope) return observed.state === 'live' ? 'added' : 'unchanged'
+  if (previous.state === 'live' && observed.state === 'absent') return 'deleted'
+  if (previous.state === 'absent' && observed.state === 'live') return 'added'
+  if (
+    observed.state === 'live' &&
+    previous.normalizedDigest !== observed.normalizedDigest
+  ) {
+    return 'edited'
+  }
+  return 'unchanged'
+}
+
+/** A RepKey attempt is still attributable only while it belongs to the observed
+ * source scope and has not yet reached a settled outcome. */
+function isConfirmableCurrentAttempt(
+  candidate: GoogleReplyPublicationCandidate,
+  scope: ObservationScope,
+): boolean {
+  return (
+    candidate.sourceEpoch === scope.sourceEpoch &&
+    candidate.materialReviewRevision === scope.materialReviewRevision &&
+    CONFIRMABLE_ATTEMPT_OUTCOMES.has(candidate.outcome)
+  )
+}
+
 /** Pure authority for material provider-reply changes and RepKey attribution. */
 export function decideGoogleReplyObservation(input: DecideGoogleReplyObservationInput) {
-  const state = input.observedText === null ? ('absent' as const) : ('live' as const)
-  const normalizedText =
-    input.observedText === null ? null : normalizeGoogleReplyText(input.observedText)
-  const normalizedDigest =
-    input.observedText === null ? null : googleReplyTextDigest(input.observedText)
-  const samePreviousScope =
-    input.previous !== null &&
-    input.previous.sourceEpoch === input.sourceEpoch &&
-    input.previous.materialReviewRevision === input.materialReviewRevision
-
-  const change = !samePreviousScope
-    ? state === 'live'
-      ? ('added' as const)
-      : ('unchanged' as const)
-    : input.previous!.state === 'live' && state === 'absent'
-      ? ('deleted' as const)
-      : input.previous!.state === 'absent' && state === 'live'
-        ? ('added' as const)
-        : state === 'live' && input.previous!.normalizedDigest !== normalizedDigest
-          ? ('edited' as const)
-          : ('unchanged' as const)
+  const observed = describeObservedText(input.observedText)
+  const { state, normalizedText, normalizedDigest } = observed
+  const change = decideObservationChange(observed, input.previous, input)
 
   const candidate = input.candidate
   const currentCandidate =
-    candidate !== null &&
-    candidate.sourceEpoch === input.sourceEpoch &&
-    candidate.materialReviewRevision === input.materialReviewRevision &&
-    CONFIRMABLE_ATTEMPT_OUTCOMES.has(candidate.outcome)
+    candidate !== null && isConfirmableCurrentAttempt(candidate, input)
   const exactCurrentCandidate =
     state === 'live' &&
     candidate !== null &&

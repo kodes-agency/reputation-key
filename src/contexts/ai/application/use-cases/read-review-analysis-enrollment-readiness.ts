@@ -2,6 +2,7 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiControlPort } from '../ports/ai-control.port'
 import type {
+  ReviewAnalysisEnrollmentEvidence,
   ReviewAnalysisEnrollmentFence,
   ReviewAnalysisEnrollmentStorePort,
 } from '../ports/ai-review-analysis-enrollment.port'
@@ -78,6 +79,45 @@ function sameFence(
   )
 }
 
+/** The caught-up facts, once every one of them is known to be present. */
+type CaughtUpFacts = Readonly<{
+  eligibleRevisionCount: number
+  caughtUpAnalysisSequence: number
+  revisionSetDigest: string
+  caughtUpAtEpochMillis: number
+}>
+
+/**
+ * Whether present caught-up evidence is internally consistent enough to be
+ * read as `ready`: bounded timestamps in the right order, no run still open,
+ * the terminal reason this readiness depends on, a sequence at or past the
+ * authorization's start, and two well-formed revision-set proofs.
+ */
+function caughtUpEvidenceIsSound(
+  evidence: ReviewAnalysisEnrollmentEvidence,
+  fence: ReviewAnalysisEnrollmentFence,
+  facts: CaughtUpFacts,
+): boolean {
+  return (
+    Number.isSafeInteger(facts.caughtUpAtEpochMillis) &&
+    facts.caughtUpAtEpochMillis >= 0 &&
+    Number.isSafeInteger(evidence.snapshotCapturedAtEpochMillis) &&
+    evidence.snapshotCapturedAtEpochMillis >= 0 &&
+    evidence.activeRunId === null &&
+    evidence.terminalReason === 'eligible_revision_set_caught_up' &&
+    evidence.snapshotCapturedAtEpochMillis <= facts.caughtUpAtEpochMillis &&
+    facts.caughtUpAnalysisSequence >= fence.analysisStartSequence &&
+    isReviewAnalysisRevisionSetEvidence({
+      revisionCount: evidence.snapshotRevisionCount,
+      revisionSetDigest: evidence.snapshotRevisionSetDigest,
+    }) &&
+    isReviewAnalysisRevisionSetEvidence({
+      revisionCount: facts.eligibleRevisionCount,
+      revisionSetDigest: facts.revisionSetDigest,
+    })
+  )
+}
+
 /**
  * Content-free readiness read for operators and dependent coordinators. A
  * completed capped repair run is never consulted: only the durable
@@ -141,21 +181,11 @@ export function createReadReviewAnalysisEnrollmentReadiness(
       caughtUpAnalysisSequence === null ||
       revisionSetDigest === null ||
       caughtUpAtEpochMillis === null ||
-      !Number.isSafeInteger(caughtUpAtEpochMillis) ||
-      caughtUpAtEpochMillis < 0 ||
-      !Number.isSafeInteger(evidence.snapshotCapturedAtEpochMillis) ||
-      evidence.snapshotCapturedAtEpochMillis < 0 ||
-      evidence.activeRunId !== null ||
-      evidence.terminalReason !== 'eligible_revision_set_caught_up' ||
-      evidence.snapshotCapturedAtEpochMillis > caughtUpAtEpochMillis ||
-      caughtUpAnalysisSequence < fence.analysisStartSequence ||
-      !isReviewAnalysisRevisionSetEvidence({
-        revisionCount: evidence.snapshotRevisionCount,
-        revisionSetDigest: evidence.snapshotRevisionSetDigest,
-      }) ||
-      !isReviewAnalysisRevisionSetEvidence({
-        revisionCount: eligibleRevisionCount,
+      !caughtUpEvidenceIsSound(evidence, fence, {
+        eligibleRevisionCount,
+        caughtUpAnalysisSequence,
         revisionSetDigest,
+        caughtUpAtEpochMillis,
       })
     ) {
       return { status: 'unavailable', reason: 'enrollment_stalled' }

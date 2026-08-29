@@ -87,61 +87,85 @@ function recoveryDenied(code: string): never {
   )
 }
 
-export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
-  const completeConnection = async (
-    facts: GoogleOAuthExchangeAttemptFacts,
-    oauthResult: GoogleOAuthResult,
-    ctx: AuthContext,
-  ): Promise<GoogleConnection> => {
-    if (!canManageOrganizationGoogleConnections(ctx)) {
-      throw integrationError(
-        'forbidden',
-        'You do not have permission to manage integrations',
-      )
-    }
-    if (
-      facts.organizationId !== ctx.organizationId ||
-      facts.initiatorUserId !== ctx.userId ||
-      oauthResult.identity.kind !== 'oidc'
-    ) {
-      throw integrationError('oauth_failed', 'Google OAuth recovery scope changed')
-    }
+/**
+ * A `new` attempt may only commit when nothing occupies the id it reserved; a
+ * reconnect/rotation may only commit against the exact row it was approved for.
+ */
+function targetAuthorityUnchanged(
+  facts: GoogleOAuthExchangeAttemptFacts,
+  targetConnection: GoogleConnection | null,
+): boolean {
+  if (facts.connectionMode === 'new') return targetConnection === null
+  return (
+    targetConnection !== null &&
+    targetConnection.id === facts.connectionId &&
+    targetConnection.lifecycleVersion === facts.expectedLifecycleVersion &&
+    targetConnection.accessVersion === facts.expectedAccessVersion &&
+    targetConnection.credentialGeneration === facts.expectedCredentialGeneration
+  )
+}
 
-    const targetConnection =
-      facts.connectionMode === 'new'
-        ? await deps.connectionRepo.findById(
-            ctx.organizationId,
-            googleConnectionId(facts.connectionId),
-          )
-        : await deps.connectionRepo.findById(
-            ctx.organizationId,
-            googleConnectionId(facts.targetConnectionId ?? ''),
-          )
-    if (
-      (facts.connectionMode === 'new' && targetConnection !== null) ||
-      (facts.connectionMode !== 'new' &&
-        (!targetConnection ||
-          targetConnection.id !== facts.connectionId ||
-          targetConnection.lifecycleVersion !== facts.expectedLifecycleVersion ||
-          targetConnection.accessVersion !== facts.expectedAccessVersion ||
-          targetConnection.credentialGeneration !== facts.expectedCredentialGeneration))
-    ) {
+/** The connection a completed attempt must land on, exactly as it was recovered. */
+function completedAttemptLanded(
+  connection: GoogleConnection | null,
+  completed: GoogleOAuthExchangeAttemptFacts | null,
+  ctx: AuthContext,
+): boolean {
+  return (
+    connection !== null &&
+    completed !== null &&
+    connection.status === 'active' &&
+    connection.credentialUseState === 'active' &&
+    connection.lifecycleVersion === completed.expectedLifecycleVersion + 1 &&
+    connection.accessVersion === completed.expectedAccessVersion + 1 &&
+    connection.credentialGeneration === completed.expectedCredentialGeneration + 1 &&
+    connection.credentialAuthorizedBy === ctx.userId &&
+    connection.credentialHomeCellId === completed.credentialHome.homeCellId &&
+    connection.credentialHomePolicyVersion ===
+      completed.credentialHome.cataloguePolicyVersion &&
+    connection.credentialHomeAuthorityGeneration ===
+      completed.credentialHome.authorityGeneration
+  )
+}
+
+/** `account_already_connected` is deterministic; anything else may be retried. */
+function isDeterministicCommitRejection(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    ['account_already_connected', 'forbidden'].includes(
+      String((error as { code?: unknown }).code),
+    )
+  )
+}
+
+export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
+  /** Re-reads the row the attempt was approved against and re-proves its authority. */
+  const loadAuthorizedTarget = async (
+    facts: GoogleOAuthExchangeAttemptFacts,
+    ctx: AuthContext,
+  ): Promise<GoogleConnection | null> => {
+    const targetConnection = await deps.connectionRepo.findById(
+      ctx.organizationId,
+      googleConnectionId(
+        facts.connectionMode === 'new'
+          ? facts.connectionId
+          : (facts.targetConnectionId ?? ''),
+      ),
+    )
+    if (!targetAuthorityUnchanged(facts, targetConnection)) {
       throw integrationError('oauth_failed', 'Google connection authority changed')
     }
+    return targetConnection
+  }
 
-    const credentialHome = await deps.captureCredentialHome({
-      organizationId: ctx.organizationId,
-      mode: facts.connectionMode,
-      targetConnectionId: targetConnection?.id ?? null,
-      changedBy: ctx.userId,
-      now: deps.clock(),
-    })
-    if (!sameCredentialHome(credentialHome, facts.credentialHome)) {
-      throw integrationError('oauth_failed', 'Google credential home changed')
-    }
-
+  const assertGoogleIdentityAvailable = async (
+    facts: GoogleOAuthExchangeAttemptFacts,
+    targetConnection: GoogleConnection | null,
+    googleSubject: string,
+  ): Promise<void> => {
     const existingConnection = await deps.connectionRepo.findByGoogleIdentityGlobal({
-      googleSubject: oauthResult.identity.googleSubject,
+      googleSubject,
     })
     if (facts.connectionMode === 'new') {
       if (existingConnection) {
@@ -150,10 +174,12 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
           'This Google account is already connected',
         )
       }
-    } else if (
+      return
+    }
+    if (
       !targetConnection ||
       (targetConnection.googleSubject !== null &&
-        targetConnection.googleSubject !== oauthResult.identity.googleSubject) ||
+        targetConnection.googleSubject !== googleSubject) ||
       (existingConnection !== null && existingConnection.id !== targetConnection.id)
     ) {
       throw integrationError(
@@ -161,7 +187,14 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
         'This Google account does not match the requested connection',
       )
     }
+  }
 
+  const persistConnection = async (
+    facts: GoogleOAuthExchangeAttemptFacts,
+    oauthResult: GoogleOAuthResult,
+    ctx: AuthContext,
+    credentialHome: GoogleOAuthExchangeAttemptFacts['credentialHome'],
+  ): Promise<GoogleConnection> => {
     const now = deps.clock()
     const tokenExpiresAt = new Date(now.getTime() + oauthResult.expiresIn * 1_000)
     const encryptedAccessToken = deps.encryption.encrypt(oauthResult.accessToken)
@@ -224,6 +257,47 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
     }
   }
 
+  const completeConnection = async (
+    facts: GoogleOAuthExchangeAttemptFacts,
+    oauthResult: GoogleOAuthResult,
+    ctx: AuthContext,
+  ): Promise<GoogleConnection> => {
+    if (!canManageOrganizationGoogleConnections(ctx)) {
+      throw integrationError(
+        'forbidden',
+        'You do not have permission to manage integrations',
+      )
+    }
+    if (
+      facts.organizationId !== ctx.organizationId ||
+      facts.initiatorUserId !== ctx.userId ||
+      oauthResult.identity.kind !== 'oidc'
+    ) {
+      throw integrationError('oauth_failed', 'Google OAuth recovery scope changed')
+    }
+
+    const targetConnection = await loadAuthorizedTarget(facts, ctx)
+
+    const credentialHome = await deps.captureCredentialHome({
+      organizationId: ctx.organizationId,
+      mode: facts.connectionMode,
+      targetConnectionId: targetConnection?.id ?? null,
+      changedBy: ctx.userId,
+      now: deps.clock(),
+    })
+    if (!sameCredentialHome(credentialHome, facts.credentialHome)) {
+      throw integrationError('oauth_failed', 'Google credential home changed')
+    }
+
+    await assertGoogleIdentityAvailable(
+      facts,
+      targetConnection,
+      oauthResult.identity.googleSubject,
+    )
+
+    return persistConnection(facts, oauthResult, ctx, credentialHome)
+  }
+
   const validateClaim = async (
     claim: GoogleOAuthExchangeRecoveryClaim,
   ): Promise<GoogleOAuthResult> => {
@@ -252,6 +326,27 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
     })
   }
 
+  /**
+   * An attempt the store already reports as completed: the connection it landed
+   * on is returned only when it matches the recovered attempt exactly.
+   */
+  const loadSettledConnection = async (
+    attemptId: string,
+    ctx: AuthContext,
+  ): Promise<GoogleConnection | null> => {
+    const completed = await deps.exchangeRecovery.loadCompletedAttempt({
+      id: attemptId,
+      organizationId: ctx.organizationId,
+      initiatorUserId: ctx.userId,
+    })
+    if (!completed) return null
+    const connection = await deps.connectionRepo.findById(
+      ctx.organizationId,
+      googleConnectionId(completed.connectionId),
+    )
+    return completedAttemptLanded(connection, completed, ctx) ? connection : null
+  }
+
   const claimAndComplete = async (
     attemptId: string,
     ctx: AuthContext,
@@ -264,49 +359,16 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
       now: deps.clock(),
     })
     if (!claimed.ok) {
-      if (claimed.code === 'completed') {
-        const completed = await deps.exchangeRecovery.loadCompletedAttempt({
-          id: attemptId,
-          organizationId: ctx.organizationId,
-          initiatorUserId: ctx.userId,
-        })
-        if (completed) {
-          const connection = await deps.connectionRepo.findById(
-            ctx.organizationId,
-            googleConnectionId(completed.connectionId),
-          )
-          if (
-            connection &&
-            connection.status === 'active' &&
-            connection.credentialUseState === 'active' &&
-            connection.lifecycleVersion === completed.expectedLifecycleVersion + 1 &&
-            connection.accessVersion === completed.expectedAccessVersion + 1 &&
-            connection.credentialGeneration ===
-              completed.expectedCredentialGeneration + 1 &&
-            connection.credentialAuthorizedBy === ctx.userId &&
-            connection.credentialHomeCellId === completed.credentialHome.homeCellId &&
-            connection.credentialHomePolicyVersion ===
-              completed.credentialHome.cataloguePolicyVersion &&
-            connection.credentialHomeAuthorityGeneration ===
-              completed.credentialHome.authorityGeneration
-          ) {
-            return connection
-          }
-        }
-      }
+      const settled =
+        claimed.code === 'completed' ? await loadSettledConnection(attemptId, ctx) : null
+      if (settled) return settled
       return recoveryDenied(claimed.code)
     }
     try {
       const oauthResult = alreadyValidated ?? (await validateClaim(claimed.value))
       return await completeConnection(claimed.value, oauthResult, ctx)
     } catch (error) {
-      const deterministic =
-        typeof error === 'object' &&
-        error !== null &&
-        ['account_already_connected', 'forbidden'].includes(
-          String((error as { code?: unknown }).code),
-        )
-      await (deterministic
+      await (isDeterministicCommitRejection(error)
         ? deps.exchangeRecovery.discardClaim({
             id: claimed.value.id,
             organizationId: claimed.value.organizationId,
@@ -325,16 +387,17 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
     }
   }
 
-  const connect = async (
+  /**
+   * The exact target/home/version facts this ceremony is bound to. The typed
+   * connection id is returned alongside them because the facts record carries
+   * it as a plain string.
+   */
+  const buildAttemptFacts = async (
     input: ConnectGoogleInput,
     ctx: AuthContext,
-  ): Promise<GoogleConnection> => {
-    if (!canManageOrganizationGoogleConnections(ctx)) {
-      throw integrationError(
-        'forbidden',
-        'You do not have permission to manage integrations',
-      )
-    }
+  ): Promise<
+    Readonly<{ facts: GoogleOAuthExchangeAttemptFacts; connectionId: GoogleConnectionId }>
+  > => {
     const targetConnection =
       input.connectionMode === 'new'
         ? null
@@ -353,40 +416,37 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
       now: deps.clock(),
     })
     const connectionId = targetConnection?.id ?? googleConnectionId(deps.idGen())
-    const facts: GoogleOAuthExchangeAttemptFacts = {
-      id: input.exchangeAttemptId,
-      organizationId: ctx.organizationId,
-      initiatorUserId: ctx.userId,
+    return {
       connectionId,
-      connectionMode: input.connectionMode,
-      targetConnectionId: targetConnection?.id ?? null,
-      expectedLifecycleVersion: targetConnection?.lifecycleVersion ?? 0,
-      expectedAccessVersion: targetConnection?.accessVersion ?? 0,
-      expectedCredentialGeneration: targetConnection?.credentialGeneration ?? 0,
-      credentialHome,
+      facts: {
+        id: input.exchangeAttemptId,
+        organizationId: ctx.organizationId,
+        initiatorUserId: ctx.userId,
+        connectionId,
+        connectionMode: input.connectionMode,
+        targetConnectionId: targetConnection?.id ?? null,
+        expectedLifecycleVersion: targetConnection?.lifecycleVersion ?? 0,
+        expectedAccessVersion: targetConnection?.accessVersion ?? 0,
+        expectedCredentialGeneration: targetConnection?.credentialGeneration ?? 0,
+        credentialHome,
+      },
     }
-    const begun = await deps.exchangeRecovery.begin({ ...facts, now: deps.clock() })
-    if (!begun.ok) return recoveryDenied(begun.code)
-    const providerAuthorization = deps.authorizeProviderCall
-      ? await deps.authorizeProviderCall({
-          operation: 'oauth.token.exchange',
-          organizationId: ctx.organizationId,
-          connectionId,
-          initiatorUserId: ctx.userId,
-        })
-      : undefined
-    const started = await deps.exchangeRecovery.markProviderStarted({
-      id: facts.id,
-      organizationId: facts.organizationId,
-      initiatorUserId: facts.initiatorUserId,
-      now: deps.clock(),
-    })
-    if (!started.ok) return recoveryDenied(started.code)
+  }
 
+  /**
+   * The provider exchange itself. A successful response that was not preserved
+   * is treated as a failure, and any failure before preservation closes the
+   * attempt as ambiguous rather than leaving it claimable.
+   */
+  const exchangeAndPreserve = async (
+    input: ConnectGoogleInput,
+    facts: GoogleOAuthExchangeAttemptFacts,
+    providerAuthorization:
+      Awaited<ReturnType<GoogleOAuthProviderCallAuthorizer>> | undefined,
+  ): Promise<GoogleOAuthResult> => {
     let preserved = false
-    let oauthResult: GoogleOAuthResult
     try {
-      oauthResult = await deps.oauth.exchangeCode({
+      const oauthResult = await deps.oauth.exchangeCode({
         contractVersion: 'v2',
         code: input.code,
         redirectUri: deps.callbackUrl,
@@ -418,6 +478,7 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
           'Google OAuth adapter did not preserve the successful response',
         )
       }
+      return oauthResult
     } catch (error) {
       if (!preserved) {
         await deps.exchangeRecovery.finishWithoutResult({
@@ -431,6 +492,38 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
       }
       throw error
     }
+  }
+
+  const connect = async (
+    input: ConnectGoogleInput,
+    ctx: AuthContext,
+  ): Promise<GoogleConnection> => {
+    if (!canManageOrganizationGoogleConnections(ctx)) {
+      throw integrationError(
+        'forbidden',
+        'You do not have permission to manage integrations',
+      )
+    }
+    const { facts, connectionId } = await buildAttemptFacts(input, ctx)
+    const begun = await deps.exchangeRecovery.begin({ ...facts, now: deps.clock() })
+    if (!begun.ok) return recoveryDenied(begun.code)
+    const providerAuthorization = deps.authorizeProviderCall
+      ? await deps.authorizeProviderCall({
+          operation: 'oauth.token.exchange',
+          organizationId: ctx.organizationId,
+          connectionId,
+          initiatorUserId: ctx.userId,
+        })
+      : undefined
+    const started = await deps.exchangeRecovery.markProviderStarted({
+      id: facts.id,
+      organizationId: facts.organizationId,
+      initiatorUserId: facts.initiatorUserId,
+      now: deps.clock(),
+    })
+    if (!started.ok) return recoveryDenied(started.code)
+
+    const oauthResult = await exchangeAndPreserve(input, facts, providerAuthorization)
     return claimAndComplete(facts.id, ctx, oauthResult)
   }
 

@@ -61,6 +61,16 @@ function dateEpochMillis(value: unknown, field: string): number | null {
   return parsed
 }
 
+/** A nullable text column: SQL NULL and an absent column both read as null. */
+function nullableText(value: unknown): string | null {
+  return value === null || value === undefined ? null : String(value)
+}
+
+/** A nullable count column, validated exactly like its non-null counterpart. */
+function nullableCount(value: unknown, field: string): number | null {
+  return value === null || value === undefined ? null : safeInteger(value, field)
+}
+
 function fenceFromRow(row: Row): ReviewAnalysisEnrollmentFence {
   return {
     authorizationLineageId: String(row.authorization_lineage_id),
@@ -196,8 +206,10 @@ function mapLifecycleEvidence(row: Row): AiAuthorizationLifecycleEvidence {
   }
 }
 
-function mapEvidence(row: Row): ReviewAnalysisEnrollmentEvidence {
-  const state = String(row.state)
+type EnrollmentState = ReviewAnalysisEnrollmentEvidence['state']
+
+function enrollmentState(value: unknown): EnrollmentState {
+  const state = String(value)
   if (
     state !== 'awaiting_assisted_approval' &&
     state !== 'queued' &&
@@ -208,11 +220,85 @@ function mapEvidence(row: Row): ReviewAnalysisEnrollmentEvidence {
   ) {
     throw new Error(`Review Analysis enrollment carries unknown state '${state}'`)
   }
-  const digest =
-    row.caught_up_revision_set_digest === null ||
-    row.caught_up_revision_set_digest === undefined
-      ? null
-      : String(row.caught_up_revision_set_digest)
+  return state
+}
+
+type AssistedApproval = NonNullable<ReviewAnalysisEnrollmentEvidence['assistedApproval']>
+
+/**
+ * The four assisted-approval columns are written as one unit, so a partially
+ * present set is corruption. The approval must also be present exactly when
+ * the enrollment state says it should be: `awaiting_assisted_approval` means
+ * the approval has NOT happened yet, while a state past it that required
+ * approval must carry the evidence.
+ */
+function assistedApproval(
+  row: Row,
+  state: EnrollmentState,
+  assistedApprovalRequired: boolean,
+): AssistedApproval | null {
+  const approvedAtEpochMillis = dateEpochMillis(
+    row.assisted_approved_at,
+    'assisted_approved_at',
+  )
+  const approvedByOperatorId = nullableText(row.assisted_approved_by)
+  const approvalEvidenceDigest = nullableText(row.assisted_approval_evidence_digest)
+  const correlationId = nullableText(row.assisted_approval_correlation_id)
+  const fields = [
+    approvedAtEpochMillis,
+    approvedByOperatorId,
+    approvalEvidenceDigest,
+    correlationId,
+  ]
+  const present = fields.every((value) => value !== null)
+  if (
+    (!present && fields.some((value) => value !== null)) ||
+    (state === 'awaiting_assisted_approval' && (!assistedApprovalRequired || present)) ||
+    ((state === 'queued' || state === 'running' || state === 'caught_up') &&
+      assistedApprovalRequired &&
+      !present)
+  ) {
+    throw new Error('Review Analysis enrollment carries invalid approval evidence')
+  }
+  if (!present) return null
+  if (
+    approvedByOperatorId!.trim() !== approvedByOperatorId ||
+    approvedByOperatorId!.length === 0 ||
+    !/^[0-9a-f]{64}$/u.test(approvalEvidenceDigest!)
+  ) {
+    throw new Error('Review Analysis enrollment carries invalid approval evidence')
+  }
+  return {
+    approvedAtEpochMillis: approvedAtEpochMillis!,
+    approvedByOperatorId: approvedByOperatorId!,
+    approvalEvidenceDigest: approvalEvidenceDigest!,
+    correlationId: correlationId!,
+  }
+}
+
+/** The caught-up count and digest are written together or not at all. */
+function caughtUpRevisionSet(row: Row, digest: string | null): number | null {
+  const count = nullableCount(
+    row.caught_up_eligible_revision_count,
+    'caught_up_eligible_revision_count',
+  )
+  if (
+    (count === null) !== (digest === null) ||
+    (count !== null &&
+      digest !== null &&
+      !isReviewAnalysisRevisionSetEvidence({
+        revisionCount: count,
+        revisionSetDigest: digest,
+      }))
+  ) {
+    throw new Error('Review Analysis enrollment carries inconsistent revision evidence')
+  }
+  return count
+}
+
+function mapEvidence(row: Row): ReviewAnalysisEnrollmentEvidence {
+  const state = enrollmentState(row.state)
+  const digest = nullableText(row.caught_up_revision_set_digest)
   if (digest !== null && !/^[0-9a-f]{64}$/.test(digest)) {
     throw new Error('Review Analysis enrollment carries an invalid revision digest')
   }
@@ -245,65 +331,8 @@ function mapEvidence(row: Row): ReviewAnalysisEnrollmentEvidence {
   ) {
     throw new Error('Review Analysis enrollment carries invalid approval policy')
   }
-  const approvedAtEpochMillis = dateEpochMillis(
-    row.assisted_approved_at,
-    'assisted_approved_at',
-  )
-  const approvedByOperatorId =
-    row.assisted_approved_by === null || row.assisted_approved_by === undefined
-      ? null
-      : String(row.assisted_approved_by)
-  const approvalEvidenceDigest =
-    row.assisted_approval_evidence_digest === null ||
-    row.assisted_approval_evidence_digest === undefined
-      ? null
-      : String(row.assisted_approval_evidence_digest)
-  const approvalCorrelationId =
-    row.assisted_approval_correlation_id === null ||
-    row.assisted_approval_correlation_id === undefined
-      ? null
-      : String(row.assisted_approval_correlation_id)
-  const assistedApprovalFields = [
-    approvedAtEpochMillis,
-    approvedByOperatorId,
-    approvalEvidenceDigest,
-    approvalCorrelationId,
-  ]
-  const assistedApprovalPresent = assistedApprovalFields.every((value) => value !== null)
-  if (
-    (!assistedApprovalPresent &&
-      assistedApprovalFields.some((value) => value !== null)) ||
-    (assistedApprovalPresent &&
-      (approvedByOperatorId!.trim() !== approvedByOperatorId ||
-        approvedByOperatorId!.length === 0 ||
-        !/^[0-9a-f]{64}$/u.test(approvalEvidenceDigest!))) ||
-    (state === 'awaiting_assisted_approval' &&
-      (!assistedApprovalRequired || assistedApprovalPresent)) ||
-    ((state === 'queued' || state === 'running' || state === 'caught_up') &&
-      assistedApprovalRequired &&
-      !assistedApprovalPresent)
-  ) {
-    throw new Error('Review Analysis enrollment carries invalid approval evidence')
-  }
-  const caughtUpEligibleRevisionCount =
-    row.caught_up_eligible_revision_count === null ||
-    row.caught_up_eligible_revision_count === undefined
-      ? null
-      : safeInteger(
-          row.caught_up_eligible_revision_count,
-          'caught_up_eligible_revision_count',
-        )
-  if (
-    (caughtUpEligibleRevisionCount === null) !== (digest === null) ||
-    (caughtUpEligibleRevisionCount !== null &&
-      digest !== null &&
-      !isReviewAnalysisRevisionSetEvidence({
-        revisionCount: caughtUpEligibleRevisionCount,
-        revisionSetDigest: digest,
-      }))
-  ) {
-    throw new Error('Review Analysis enrollment carries inconsistent revision evidence')
-  }
+  const approval = assistedApproval(row, state, assistedApprovalRequired)
+  const caughtUpEligibleRevisionCount = caughtUpRevisionSet(row, digest)
   return {
     id: String(row.id),
     organizationId: toOrganizationId(String(row.organization_id)),
@@ -311,39 +340,25 @@ function mapEvidence(row: Row): ReviewAnalysisEnrollmentEvidence {
     fence: fenceFromRow(row),
     state,
     triggerEventEnvelopeId: String(row.trigger_event_envelope_id),
-    activeRunId:
-      row.active_run_id === null || row.active_run_id === undefined
-        ? null
-        : String(row.active_run_id),
+    activeRunId: nullableText(row.active_run_id),
     snapshotRevisionCount,
     snapshotRevisionSetDigest,
     snapshotCapturedAtEpochMillis,
     safetyCeiling,
     assistedApprovalRequired,
-    assistedApproval: assistedApprovalPresent
-      ? {
-          approvedAtEpochMillis: approvedAtEpochMillis!,
-          approvedByOperatorId: approvedByOperatorId!,
-          approvalEvidenceDigest: approvalEvidenceDigest!,
-          correlationId: approvalCorrelationId!,
-        }
-      : null,
+    assistedApproval: approval,
     enrolledRevisionCount: safeInteger(
       row.enrolled_revision_count,
       'enrolled_revision_count',
     ),
     caughtUpEligibleRevisionCount,
-    caughtUpAnalysisSequence:
-      row.caught_up_analysis_sequence === null ||
-      row.caught_up_analysis_sequence === undefined
-        ? null
-        : safeInteger(row.caught_up_analysis_sequence, 'caught_up_analysis_sequence'),
+    caughtUpAnalysisSequence: nullableCount(
+      row.caught_up_analysis_sequence,
+      'caught_up_analysis_sequence',
+    ),
     caughtUpRevisionSetDigest: digest,
     caughtUpAtEpochMillis: dateEpochMillis(row.caught_up_at, 'caught_up_at'),
-    terminalReason:
-      row.terminal_reason === null || row.terminal_reason === undefined
-        ? null
-        : String(row.terminal_reason),
+    terminalReason: nullableText(row.terminal_reason),
   }
 }
 
@@ -663,6 +678,229 @@ async function persistLifecycleEvidence(
   }
 }
 
+type ObsoleteReason = Extract<
+  AiAuthorizationLifecycleApplyResult,
+  { status: 'obsolete' }
+>['reason']
+
+/**
+ * The first fence field the stored authorization and Property no longer agree
+ * with, or `null` when the delivered trigger is still current. Reported one
+ * reason at a time so the obsolete receipt names the field that actually moved.
+ */
+function staleFenceReason(
+  authorization: Row,
+  property: Row,
+  input: AiAuthorizationLifecycleTrigger,
+): ObsoleteReason | null {
+  if (
+    String(authorization.authorization_lineage_id) !== input.fence.authorizationLineageId
+  ) {
+    return 'authorization_lineage_changed'
+  }
+  if (String(authorization.state) !== input.authorizationState) {
+    return 'authorization_state_changed'
+  }
+  if (
+    safeInteger(authorization.state_version, 'state_version', 1) !==
+    input.fence.authorizationStateVersion
+  ) {
+    return 'authorization_state_version_changed'
+  }
+  if (
+    safeInteger(authorization.authorized_source_epoch, 'authorized_source_epoch') !==
+      input.fence.sourceEpoch ||
+    safeInteger(property.source_epoch, 'property source_epoch') !==
+      input.fence.sourceEpoch
+  ) {
+    return 'source_epoch_changed'
+  }
+  if (
+    safeInteger(authorization.review_analysis_epoch, 'review_analysis_epoch', 1) !==
+    input.fence.reviewAnalysisEpoch
+  ) {
+    return 'review_analysis_epoch_changed'
+  }
+  if (
+    safeInteger(authorization.reply_drafting_epoch, 'reply_drafting_epoch', 1) !==
+    input.fence.replyDraftingEpoch
+  ) {
+    return 'reply_drafting_epoch_changed'
+  }
+  if (
+    safeInteger(authorization.property_trends_epoch, 'property_trends_epoch', 1) !==
+    input.fence.propertyTrendsEpoch
+  ) {
+    return 'property_trends_epoch_changed'
+  }
+  if (
+    safeInteger(authorization.analysis_start_sequence, 'analysis_start_sequence') !==
+    input.fence.analysisStartSequence
+  ) {
+    return 'analysis_start_sequence_changed'
+  }
+  return null
+}
+
+function propertyIsActive(property: Row): boolean {
+  return (
+    property.deleted_at === null &&
+    property.lifecycle_state === 'active' &&
+    property.google_binding_state === 'active'
+  )
+}
+
+/**
+ * Migration 0145 seeds lifecycle evidence before publishing its replay, so a
+ * different envelope for an already-recorded authorization is a replay, not a
+ * first handling: acknowledge it against whichever enrollment already exists.
+ */
+async function duplicateForRecordedLifecycle(
+  tx: Tx,
+  input: AiAuthorizationLifecycleTrigger,
+  lifecycleId: string,
+): Promise<AiAuthorizationLifecycleApplyResult> {
+  const enrollment = await tx.execute(sql`
+    SELECT id
+    FROM ai_review_analysis_enrollments
+    WHERE organization_id = ${input.organizationId}
+      AND property_id = ${input.propertyId}::uuid
+      AND authorization_lineage_id = ${input.fence.authorizationLineageId}::uuid
+      AND authorization_state_version = ${input.fence.authorizationStateVersion}
+      AND source_epoch = ${input.fence.sourceEpoch}
+      AND review_analysis_epoch = ${input.fence.reviewAnalysisEpoch}
+      AND analysis_start_sequence = ${input.fence.analysisStartSequence}
+    LIMIT 1
+  `)
+  await insertReceipt(tx, input, 'duplicate')
+  return {
+    status: 'duplicate',
+    lifecycleId,
+    enrollmentId: enrollment.rows[0]?.id ? String(enrollment.rows[0].id) : null,
+  }
+}
+
+/** Supersede whatever is active and record that no enrollment applies. */
+async function finishNotApplicable(
+  tx: Tx,
+  input: AiAuthorizationLifecycleTrigger,
+  lifecycle: AiAuthorizationLifecycleEvidence,
+  reason: 'authorization_not_enabled' | 'review_analysis_not_authorized',
+): Promise<AiAuthorizationLifecycleApplyResult> {
+  await supersedeActive(tx, {
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    reason,
+    occurredAt: input.occurredAt,
+  })
+  await insertReceipt(tx, input, 'applied')
+  return {
+    status: 'applied',
+    lifecycle,
+    enrollment: { status: 'not_applicable', reason },
+  }
+}
+
+/**
+ * The id of the enrollment this trigger owns: the freshly inserted row, or the
+ * one a concurrent worker inserted first under the same fence.
+ */
+async function resolveEnrollmentId(
+  tx: Tx,
+  input: AiAuthorizationLifecycleTrigger,
+  insertedId: unknown,
+): Promise<string> {
+  const durableId = insertedId
+    ? String(insertedId)
+    : String(
+        (
+          await tx.execute(sql`
+            SELECT id
+            FROM ai_review_analysis_enrollments
+            WHERE organization_id = ${input.organizationId}
+              AND property_id = ${input.propertyId}::uuid
+              AND authorization_lineage_id = ${input.fence.authorizationLineageId}::uuid
+              AND authorization_state_version = ${input.fence.authorizationStateVersion}
+              AND source_epoch = ${input.fence.sourceEpoch}
+              AND review_analysis_epoch = ${input.fence.reviewAnalysisEpoch}
+              AND analysis_start_sequence = ${input.fence.analysisStartSequence}
+            LIMIT 1
+          `)
+        ).rows[0]?.id,
+      )
+  if (!durableId || durableId === 'undefined') {
+    throw new Error('Review Analysis enrollment intent was not persisted')
+  }
+  return durableId
+}
+
+/**
+ * Freeze the eligible revision set as enrollment membership. The Property row
+ * is still locked, so the membership rows and the snapshot count describe one
+ * exact authorization-bound frontier; any disagreement aborts the transaction.
+ */
+async function captureEnrollmentMembership(
+  tx: Tx,
+  input: AiAuthorizationLifecycleTrigger,
+  durableId: string,
+  snapshotRevisionCount: number,
+): Promise<void> {
+  await tx.execute(sql`
+    SELECT set_config(
+      'repkey.ai_review_enrollment_membership_writer',
+      'canonical-v1',
+      true
+    )
+  `)
+  const members = await tx.execute(sql`
+    WITH inserted_memberships AS (
+      INSERT INTO ai_review_analysis_enrollment_memberships (
+        enrollment_id, organization_id, property_id, ordinal, review_id,
+        source_epoch, source_revision, analysis_sequence, created_at
+      )
+      SELECT ${durableId}::uuid, ${input.organizationId},
+             ${input.propertyId}::uuid,
+             row_number() OVER (ORDER BY review.reviewed_at ASC, review.id ASC) - 1,
+             review.id, review.source_epoch, review.source_revision,
+             review.analysis_sequence, transaction_timestamp()
+      ${eligibleReviewsSql(
+        input.organizationId,
+        input.propertyId,
+        input.fence.sourceEpoch,
+      )}
+        AND review.analysis_sequence <= ${input.fence.analysisStartSequence}
+      RETURNING enrollment_id
+    )
+    SELECT count(*)::bigint AS inserted_count
+    FROM inserted_memberships
+  `)
+  const insertedMemberCount = safeInteger(
+    (members.rows[0] as Row | undefined)?.inserted_count,
+    'snapshot inserted membership count',
+  )
+  if (insertedMemberCount !== snapshotRevisionCount) {
+    throw new Error(
+      `Review Analysis enrollment captured ${insertedMemberCount} of ${snapshotRevisionCount} revisions`,
+    )
+  }
+}
+
+function enrollmentOutcome(
+  durableId: string,
+  wasInserted: boolean,
+  assistedApprovalRequired: boolean,
+  snapshotRevisionCount: number,
+): Extract<AiAuthorizationLifecycleApplyResult, { status: 'applied' }>['enrollment'] {
+  if (!wasInserted) return { status: 'duplicate', enrollmentId: durableId }
+  if (!assistedApprovalRequired) return { status: 'queued', enrollmentId: durableId }
+  return {
+    status: 'awaiting_assisted_approval',
+    enrollmentId: durableId,
+    eligibleRevisionCount: snapshotRevisionCount,
+    safetyCeiling: AI_REVIEW_ANALYSIS_ENROLLMENT_SAFETY_CEILING,
+  }
+}
+
 async function applyAuthorizationLifecycle(
   db: Database,
   input: AiAuthorizationLifecycleTrigger,
@@ -704,59 +942,10 @@ async function applyAuthorizationLifecycle(
     `)
     const authorization = authorizationResult.rows[0] as Row | undefined
     if (!authorization) return finishObsolete(tx, input, 'authorization_absent')
-    if (
-      String(authorization.authorization_lineage_id) !==
-      input.fence.authorizationLineageId
-    ) {
-      return finishObsolete(tx, input, 'authorization_lineage_changed')
-    }
-    if (String(authorization.state) !== input.authorizationState) {
-      return finishObsolete(tx, input, 'authorization_state_changed')
-    }
-    if (
-      safeInteger(authorization.state_version, 'state_version', 1) !==
-      input.fence.authorizationStateVersion
-    ) {
-      return finishObsolete(tx, input, 'authorization_state_version_changed')
-    }
-    if (
-      safeInteger(authorization.authorized_source_epoch, 'authorized_source_epoch') !==
-        input.fence.sourceEpoch ||
-      safeInteger(property.source_epoch, 'property source_epoch') !==
-        input.fence.sourceEpoch
-    ) {
-      return finishObsolete(tx, input, 'source_epoch_changed')
-    }
-    if (
-      safeInteger(authorization.review_analysis_epoch, 'review_analysis_epoch', 1) !==
-      input.fence.reviewAnalysisEpoch
-    ) {
-      return finishObsolete(tx, input, 'review_analysis_epoch_changed')
-    }
-    if (
-      safeInteger(authorization.reply_drafting_epoch, 'reply_drafting_epoch', 1) !==
-      input.fence.replyDraftingEpoch
-    ) {
-      return finishObsolete(tx, input, 'reply_drafting_epoch_changed')
-    }
-    if (
-      safeInteger(authorization.property_trends_epoch, 'property_trends_epoch', 1) !==
-      input.fence.propertyTrendsEpoch
-    ) {
-      return finishObsolete(tx, input, 'property_trends_epoch_changed')
-    }
-    if (
-      safeInteger(authorization.analysis_start_sequence, 'analysis_start_sequence') !==
-      input.fence.analysisStartSequence
-    ) {
-      return finishObsolete(tx, input, 'analysis_start_sequence_changed')
-    }
+    const staleReason = staleFenceReason(authorization, property, input)
+    if (staleReason !== null) return finishObsolete(tx, input, staleReason)
 
-    const propertyActive =
-      property.deleted_at === null &&
-      property.lifecycle_state === 'active' &&
-      property.google_binding_state === 'active'
-    if (input.authorizationState === 'enabled' && !propertyActive) {
+    if (input.authorizationState === 'enabled' && !propertyIsActive(property)) {
       return finishObsolete(tx, input, 'property_inactive')
     }
 
@@ -764,68 +953,32 @@ async function applyAuthorizationLifecycle(
     // Migration 0145 seeds lifecycle evidence before publishing its replay so
     // an older rolling worker cannot win the shared enrollment receipt and
     // leave the new lifecycle state absent. When this exact seeded envelope is
-    // first handled, finish enrollment/supersession and receipt normally. A
-    // different envelope for an already-recorded authorization is a replay.
+    // first handled, finish enrollment/supersession and receipt normally.
     if (
       !lifecycle.inserted &&
       lifecycle.evidence.eventEnvelopeId !== input.eventEnvelopeId
     ) {
-      const enrollment = await tx.execute(sql`
-        SELECT id
-        FROM ai_review_analysis_enrollments
-        WHERE organization_id = ${input.organizationId}
-          AND property_id = ${input.propertyId}::uuid
-          AND authorization_lineage_id = ${input.fence.authorizationLineageId}::uuid
-          AND authorization_state_version = ${input.fence.authorizationStateVersion}
-          AND source_epoch = ${input.fence.sourceEpoch}
-          AND review_analysis_epoch = ${input.fence.reviewAnalysisEpoch}
-          AND analysis_start_sequence = ${input.fence.analysisStartSequence}
-        LIMIT 1
-      `)
-      await insertReceipt(tx, input, 'duplicate')
-      return {
-        status: 'duplicate',
-        lifecycleId: lifecycle.evidence.id,
-        enrollmentId: enrollment.rows[0]?.id ? String(enrollment.rows[0].id) : null,
-      }
+      return duplicateForRecordedLifecycle(tx, input, lifecycle.evidence.id)
     }
 
     if (input.authorizationState !== 'enabled') {
-      await supersedeActive(tx, {
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        reason: 'authorization_not_enabled',
-        occurredAt: input.occurredAt,
-      })
-      await insertReceipt(tx, input, 'applied')
-      return {
-        status: 'applied',
-        lifecycle: lifecycle.evidence,
-        enrollment: {
-          status: 'not_applicable',
-          reason: 'authorization_not_enabled',
-        },
-      }
+      return finishNotApplicable(
+        tx,
+        input,
+        lifecycle.evidence,
+        'authorization_not_enabled',
+      )
     }
     const capabilities = Array.isArray(authorization.capabilities)
       ? authorization.capabilities.map(String)
       : []
     if (!capabilities.includes('review_analysis')) {
-      await supersedeActive(tx, {
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        reason: 'review_analysis_not_authorized',
-        occurredAt: input.occurredAt,
-      })
-      await insertReceipt(tx, input, 'applied')
-      return {
-        status: 'applied',
-        lifecycle: lifecycle.evidence,
-        enrollment: {
-          status: 'not_applicable',
-          reason: 'review_analysis_not_authorized',
-        },
-      }
+      return finishNotApplicable(
+        tx,
+        input,
+        lifecycle.evidence,
+        'review_analysis_not_authorized',
+      )
     }
 
     // The Property row remains locked for this whole transaction. Review's
@@ -908,82 +1061,20 @@ async function applyAuthorizationLifecycle(
       ) DO NOTHING
       RETURNING id
     `)
-    const durableId = inserted.rows[0]?.id
-      ? String(inserted.rows[0].id)
-      : String(
-          (
-            await tx.execute(sql`
-              SELECT id
-              FROM ai_review_analysis_enrollments
-              WHERE organization_id = ${input.organizationId}
-                AND property_id = ${input.propertyId}::uuid
-                AND authorization_lineage_id = ${input.fence.authorizationLineageId}::uuid
-                AND authorization_state_version = ${input.fence.authorizationStateVersion}
-                AND source_epoch = ${input.fence.sourceEpoch}
-                AND review_analysis_epoch = ${input.fence.reviewAnalysisEpoch}
-                AND analysis_start_sequence = ${input.fence.analysisStartSequence}
-              LIMIT 1
-            `)
-          ).rows[0]?.id,
-        )
-    if (!durableId || durableId === 'undefined') {
-      throw new Error('Review Analysis enrollment intent was not persisted')
-    }
+    const durableId = await resolveEnrollmentId(tx, input, inserted.rows[0]?.id)
     if (inserted.rows.length === 1) {
-      await tx.execute(sql`
-        SELECT set_config(
-          'repkey.ai_review_enrollment_membership_writer',
-          'canonical-v1',
-          true
-        )
-      `)
-      const members = await tx.execute(sql`
-        WITH inserted_memberships AS (
-          INSERT INTO ai_review_analysis_enrollment_memberships (
-            enrollment_id, organization_id, property_id, ordinal, review_id,
-            source_epoch, source_revision, analysis_sequence, created_at
-          )
-          SELECT ${durableId}::uuid, ${input.organizationId},
-                 ${input.propertyId}::uuid,
-                 row_number() OVER (ORDER BY review.reviewed_at ASC, review.id ASC) - 1,
-                 review.id, review.source_epoch, review.source_revision,
-                 review.analysis_sequence, transaction_timestamp()
-          ${eligibleReviewsSql(
-            input.organizationId,
-            input.propertyId,
-            input.fence.sourceEpoch,
-          )}
-            AND review.analysis_sequence <= ${input.fence.analysisStartSequence}
-          RETURNING enrollment_id
-        )
-        SELECT count(*)::bigint AS inserted_count
-        FROM inserted_memberships
-      `)
-      const insertedMemberCount = safeInteger(
-        (members.rows[0] as Row | undefined)?.inserted_count,
-        'snapshot inserted membership count',
-      )
-      if (insertedMemberCount !== snapshotRevisionCount) {
-        throw new Error(
-          `Review Analysis enrollment captured ${insertedMemberCount} of ${snapshotRevisionCount} revisions`,
-        )
-      }
+      await captureEnrollmentMembership(tx, input, durableId, snapshotRevisionCount)
     }
     await insertReceipt(tx, input, 'applied')
     return {
       status: 'applied',
       lifecycle: lifecycle.evidence,
-      enrollment:
-        inserted.rows.length === 0
-          ? { status: 'duplicate', enrollmentId: durableId }
-          : assistedApprovalRequired
-            ? {
-                status: 'awaiting_assisted_approval',
-                enrollmentId: durableId,
-                eligibleRevisionCount: snapshotRevisionCount,
-                safetyCeiling: AI_REVIEW_ANALYSIS_ENROLLMENT_SAFETY_CEILING,
-              }
-            : { status: 'queued', enrollmentId: durableId },
+      enrollment: enrollmentOutcome(
+        durableId,
+        inserted.rows.length !== 0,
+        assistedApprovalRequired,
+        snapshotRevisionCount,
+      ),
     }
   })
 }
@@ -1019,9 +1110,181 @@ async function markTerminal(
   `)
 }
 
+type ReconcileInput = Parameters<ReviewAnalysisEnrollmentStorePort['reconcile']>[0]
+
+function fenceMatchesExpected(
+  persisted: ReviewAnalysisEnrollmentFence,
+  expected: ReviewAnalysisEnrollmentFence,
+): boolean {
+  return (
+    persisted.authorizationLineageId === expected.authorizationLineageId &&
+    persisted.authorizationStateVersion === expected.authorizationStateVersion &&
+    persisted.sourceEpoch === expected.sourceEpoch &&
+    persisted.reviewAnalysisEpoch === expected.reviewAnalysisEpoch &&
+    persisted.analysisStartSequence === expected.analysisStartSequence
+  )
+}
+
+/**
+ * An enrollment that already reached a terminal state answers from its own
+ * durable evidence, without re-reading Property or authorization scope.
+ */
+function terminalEnrollmentResult(
+  enrollment: Row,
+): ReviewAnalysisEnrollmentReconcileResult | null {
+  if (enrollment.state === 'caught_up') {
+    return {
+      status: 'caught_up',
+      eligibleRevisionCount: safeInteger(
+        enrollment.caught_up_eligible_revision_count,
+        'caught_up_eligible_revision_count',
+      ),
+      caughtUpAnalysisSequence: safeInteger(
+        enrollment.caught_up_analysis_sequence,
+        'caught_up_analysis_sequence',
+      ),
+      revisionSetDigest: String(enrollment.caught_up_revision_set_digest),
+    }
+  }
+  if (enrollment.state === 'superseded') {
+    return { status: 'superseded', reason: 'authorization_changed' }
+  }
+  if (enrollment.state === 'stalled') {
+    return { status: 'stalled', reason: 'replay_stalled' }
+  }
+  if (enrollment.state === 'awaiting_assisted_approval') {
+    return {
+      status: 'awaiting_assisted_approval',
+      eligibleRevisionCount: safeInteger(
+        enrollment.snapshot_revision_count,
+        'snapshot_revision_count',
+      ),
+      safetyCeiling: safeInteger(enrollment.safety_ceiling, 'safety_ceiling', 1),
+    }
+  }
+  return null
+}
+
+/**
+ * Re-lock the Property and re-read the authorization. A live enrollment may
+ * only continue while both still match the fence it was created under; any
+ * drift supersedes it durably before answering.
+ */
+async function supersededByScopeChange(
+  tx: Tx,
+  input: ReconcileInput,
+  enrollment: Row,
+  persistedFence: ReviewAnalysisEnrollmentFence,
+): Promise<ReviewAnalysisEnrollmentReconcileResult | null> {
+  const propertyResult = await tx.execute(sql`
+    SELECT source_epoch, lifecycle_state, google_binding_state, deleted_at
+    FROM properties
+    WHERE organization_id = ${enrollment.organization_id}
+      AND id = ${String(enrollment.property_id)}::uuid
+    FOR UPDATE
+  `)
+  const property = propertyResult.rows[0] as Row | undefined
+  if (
+    !property ||
+    property.deleted_at !== null ||
+    property.lifecycle_state !== 'active' ||
+    property.google_binding_state !== 'active'
+  ) {
+    await markTerminal(tx, {
+      enrollmentId: input.enrollmentId,
+      state: 'superseded',
+      reason: 'property_inactive',
+      occurredAt: input.occurredAt,
+    })
+    return { status: 'superseded', reason: 'property_inactive' }
+  }
+  if (
+    safeInteger(property.source_epoch, 'property source_epoch') !==
+    persistedFence.sourceEpoch
+  ) {
+    await markTerminal(tx, {
+      enrollmentId: input.enrollmentId,
+      state: 'superseded',
+      reason: 'source_epoch_changed',
+      occurredAt: input.occurredAt,
+    })
+    return { status: 'superseded', reason: 'source_epoch_changed' }
+  }
+
+  const authorizationResult = await tx.execute(sql`
+    SELECT authorization_lineage_id, state, state_version, capabilities,
+           authorized_source_epoch, review_analysis_epoch,
+           analysis_start_sequence
+    FROM merchant_ai_enablement
+    WHERE organization_id = ${enrollment.organization_id}
+      AND property_id = ${String(enrollment.property_id)}::uuid
+    FOR SHARE
+  `)
+  const authorization = authorizationResult.rows[0] as Row | undefined
+  const capabilities = Array.isArray(authorization?.capabilities)
+    ? authorization.capabilities.map(String)
+    : []
+  if (
+    !authorization ||
+    authorization.state !== 'enabled' ||
+    !capabilities.includes('review_analysis') ||
+    !sameFence(persistedFence, authorization)
+  ) {
+    await markTerminal(tx, {
+      enrollmentId: input.enrollmentId,
+      state: 'superseded',
+      reason: 'authorization_changed',
+      occurredAt: input.occurredAt,
+    })
+    return { status: 'superseded', reason: 'authorization_changed' }
+  }
+  return null
+}
+
+/**
+ * The replay run most recently linked to this enrollment, if it already
+ * decides the answer. A run still going means wait; a run that ended badly
+ * ends the enrollment with the matching reason.
+ */
+async function linkedReplayOutcome(
+  tx: Tx,
+  input: ReconcileInput,
+): Promise<ReviewAnalysisEnrollmentReconcileResult | null> {
+  const linkedRunResult = await tx.execute(sql`
+    SELECT run.id, run.state
+    FROM ai_review_analysis_enrollment_replays AS replay
+    JOIN ai_review_analysis_backfill_runs AS run ON run.id = replay.run_id
+    WHERE replay.enrollment_id = ${input.enrollmentId}::uuid
+    ORDER BY replay.created_at DESC, replay.run_id DESC
+    LIMIT 1
+    FOR UPDATE OF run
+  `)
+  const linkedRun = linkedRunResult.rows[0] as Row | undefined
+  if (linkedRun?.state === 'running') return { status: 'waiting_for_replay' }
+  if (linkedRun?.state === 'stalled') {
+    await markTerminal(tx, {
+      enrollmentId: input.enrollmentId,
+      state: 'stalled',
+      reason: 'replay_stalled',
+      occurredAt: input.occurredAt,
+    })
+    return { status: 'stalled', reason: 'replay_stalled' }
+  }
+  if (linkedRun?.state === 'superseded') {
+    await markTerminal(tx, {
+      enrollmentId: input.enrollmentId,
+      state: 'superseded',
+      reason: 'replay_superseded',
+      occurredAt: input.occurredAt,
+    })
+    return { status: 'superseded', reason: 'replay_superseded' }
+  }
+  return null
+}
+
 async function reconcile(
   db: Database,
-  input: Parameters<ReviewAnalysisEnrollmentStorePort['reconcile']>[0],
+  input: ReconcileInput,
   idGen: () => string,
 ): Promise<ReviewAnalysisEnrollmentReconcileResult> {
   return db.transaction(async (tx) => {
@@ -1030,140 +1293,22 @@ async function reconcile(
       return { status: 'stalled', reason: 'verification_inconsistent' }
     }
     const persistedFence = fenceFromRow(enrollment)
-    if (
-      persistedFence.authorizationLineageId !==
-        input.expectedFence.authorizationLineageId ||
-      persistedFence.authorizationStateVersion !==
-        input.expectedFence.authorizationStateVersion ||
-      persistedFence.sourceEpoch !== input.expectedFence.sourceEpoch ||
-      persistedFence.reviewAnalysisEpoch !== input.expectedFence.reviewAnalysisEpoch ||
-      persistedFence.analysisStartSequence !== input.expectedFence.analysisStartSequence
-    ) {
+    if (!fenceMatchesExpected(persistedFence, input.expectedFence)) {
       return { status: 'superseded', reason: 'authorization_changed' }
     }
-    if (enrollment.state === 'caught_up') {
-      return {
-        status: 'caught_up',
-        eligibleRevisionCount: safeInteger(
-          enrollment.caught_up_eligible_revision_count,
-          'caught_up_eligible_revision_count',
-        ),
-        caughtUpAnalysisSequence: safeInteger(
-          enrollment.caught_up_analysis_sequence,
-          'caught_up_analysis_sequence',
-        ),
-        revisionSetDigest: String(enrollment.caught_up_revision_set_digest),
-      }
-    }
-    if (enrollment.state === 'superseded') {
-      return { status: 'superseded', reason: 'authorization_changed' }
-    }
-    if (enrollment.state === 'stalled') {
-      return { status: 'stalled', reason: 'replay_stalled' }
-    }
-    if (enrollment.state === 'awaiting_assisted_approval') {
-      return {
-        status: 'awaiting_assisted_approval',
-        eligibleRevisionCount: safeInteger(
-          enrollment.snapshot_revision_count,
-          'snapshot_revision_count',
-        ),
-        safetyCeiling: safeInteger(enrollment.safety_ceiling, 'safety_ceiling', 1),
-      }
-    }
+    const terminal = terminalEnrollmentResult(enrollment)
+    if (terminal !== null) return terminal
 
-    const propertyResult = await tx.execute(sql`
-      SELECT source_epoch, lifecycle_state, google_binding_state, deleted_at
-      FROM properties
-      WHERE organization_id = ${enrollment.organization_id}
-        AND id = ${String(enrollment.property_id)}::uuid
-      FOR UPDATE
-    `)
-    const property = propertyResult.rows[0] as Row | undefined
-    if (
-      !property ||
-      property.deleted_at !== null ||
-      property.lifecycle_state !== 'active' ||
-      property.google_binding_state !== 'active'
-    ) {
-      await markTerminal(tx, {
-        enrollmentId: input.enrollmentId,
-        state: 'superseded',
-        reason: 'property_inactive',
-        occurredAt: input.occurredAt,
-      })
-      return { status: 'superseded', reason: 'property_inactive' }
-    }
-    if (
-      safeInteger(property.source_epoch, 'property source_epoch') !==
-      persistedFence.sourceEpoch
-    ) {
-      await markTerminal(tx, {
-        enrollmentId: input.enrollmentId,
-        state: 'superseded',
-        reason: 'source_epoch_changed',
-        occurredAt: input.occurredAt,
-      })
-      return { status: 'superseded', reason: 'source_epoch_changed' }
-    }
+    const superseded = await supersededByScopeChange(
+      tx,
+      input,
+      enrollment,
+      persistedFence,
+    )
+    if (superseded !== null) return superseded
 
-    const authorizationResult = await tx.execute(sql`
-      SELECT authorization_lineage_id, state, state_version, capabilities,
-             authorized_source_epoch, review_analysis_epoch,
-             analysis_start_sequence
-      FROM merchant_ai_enablement
-      WHERE organization_id = ${enrollment.organization_id}
-        AND property_id = ${String(enrollment.property_id)}::uuid
-      FOR SHARE
-    `)
-    const authorization = authorizationResult.rows[0] as Row | undefined
-    const capabilities = Array.isArray(authorization?.capabilities)
-      ? authorization.capabilities.map(String)
-      : []
-    if (
-      !authorization ||
-      authorization.state !== 'enabled' ||
-      !capabilities.includes('review_analysis') ||
-      !sameFence(persistedFence, authorization)
-    ) {
-      await markTerminal(tx, {
-        enrollmentId: input.enrollmentId,
-        state: 'superseded',
-        reason: 'authorization_changed',
-        occurredAt: input.occurredAt,
-      })
-      return { status: 'superseded', reason: 'authorization_changed' }
-    }
-
-    const linkedRunResult = await tx.execute(sql`
-      SELECT run.id, run.state
-      FROM ai_review_analysis_enrollment_replays AS replay
-      JOIN ai_review_analysis_backfill_runs AS run ON run.id = replay.run_id
-      WHERE replay.enrollment_id = ${input.enrollmentId}::uuid
-      ORDER BY replay.created_at DESC, replay.run_id DESC
-      LIMIT 1
-      FOR UPDATE OF run
-    `)
-    const linkedRun = linkedRunResult.rows[0] as Row | undefined
-    if (linkedRun?.state === 'running') return { status: 'waiting_for_replay' }
-    if (linkedRun?.state === 'stalled') {
-      await markTerminal(tx, {
-        enrollmentId: input.enrollmentId,
-        state: 'stalled',
-        reason: 'replay_stalled',
-        occurredAt: input.occurredAt,
-      })
-      return { status: 'stalled', reason: 'replay_stalled' }
-    }
-    if (linkedRun?.state === 'superseded') {
-      await markTerminal(tx, {
-        enrollmentId: input.enrollmentId,
-        state: 'superseded',
-        reason: 'replay_superseded',
-        occurredAt: input.occurredAt,
-      })
-      return { status: 'superseded', reason: 'replay_superseded' }
-    }
+    const linkedOutcome = await linkedReplayOutcome(tx, input)
+    if (linkedOutcome !== null) return linkedOutcome
 
     const anotherRun = await tx.execute(sql`
       SELECT 1 AS one
@@ -1298,149 +1443,10 @@ async function reconcile(
     const unenrolledCount = safeInteger(progress.unenrolled_count, 'unenrolled_count')
 
     if (unenrolledCount > 0) {
-      if (unenrolledCount > 2_147_483_647) {
-        await markTerminal(tx, {
-          enrollmentId: input.enrollmentId,
-          state: 'stalled',
-          reason: 'eligible_revision_count_unsafe',
-          occurredAt: input.occurredAt,
-        })
-        return { status: 'stalled', reason: 'verification_inconsistent' }
-      }
-      const runId = idGen()
-      await tx.execute(sql`
-        SELECT set_config(
-          'repkey.ai_review_backfill_membership_writer',
-          'canonical-v1',
-          true
-        )
-      `)
-      const opened = await tx.execute(sql`
-        WITH candidates AS (
-          SELECT membership.review_id AS id, membership.source_revision,
-                 row_number() OVER (ORDER BY membership.ordinal) - 1 AS ordinal
-          FROM ai_review_analysis_enrollment_memberships AS membership
-          JOIN reviews AS review
-            ON review.organization_id = membership.organization_id
-            AND review.property_id = membership.property_id
-            AND review.id = membership.review_id
-            AND review.source_epoch = membership.source_epoch
-            AND review.source_revision = membership.source_revision
-            AND review.analysis_sequence = membership.analysis_sequence
-          WHERE membership.enrollment_id = ${input.enrollmentId}::uuid
-            AND membership.organization_id = ${enrollment.organization_id}
-            AND membership.property_id = ${String(enrollment.property_id)}::uuid
-            AND membership.source_epoch = ${persistedFence.sourceEpoch}
-            AND review.text IS NOT NULL
-            AND review.content_expires_at > transaction_timestamp()
-            AND review.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
-            AND (
-              COALESCE(octet_length(review.text), 0)::bigint
-              + COALESCE(octet_length(review.language_code), 0)::bigint
-              + COALESCE(octet_length(review.reviewer_name), 0)::bigint
-            ) <= ${MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1}
-            AND NOT EXISTS (
-              SELECT 1
-              FROM ai_review_analysis_outcomes AS outcome
-              WHERE outcome.organization_id = membership.organization_id
-                AND outcome.property_id = membership.property_id
-                AND outcome.source_epoch = membership.source_epoch
-                AND outcome.review_analysis_epoch = ${persistedFence.reviewAnalysisEpoch}
-                AND outcome.analysis_sequence = membership.analysis_sequence
-                AND outcome.applied_aggregate_revision IS NOT NULL
-                AND (
-                  (
-                    outcome.state = 'ready'
-                    AND EXISTS (
-                      SELECT 1
-                      FROM ai_review_analyses AS analysis
-                      WHERE analysis.organization_id = outcome.organization_id
-                        AND analysis.property_id = outcome.property_id
-                        AND analysis.review_id = membership.review_id
-                        AND analysis.source_epoch = outcome.source_epoch
-                        AND analysis.source_revision = membership.source_revision
-                        AND analysis.analysis_sequence = outcome.analysis_sequence
-                        AND analysis.review_analysis_epoch = outcome.review_analysis_epoch
-                        AND analysis.status = 'ready'
-                    )
-                  )
-                  OR (
-                    outcome.state = 'terminal_no_result'
-                    AND outcome.disposition_code = 'language_not_supported'
-                    AND EXISTS (
-                      SELECT 1
-                      FROM outbox_events AS source_event
-                      WHERE source_event.id = outcome.event_envelope_id
-                        AND source_event.organization_id = outcome.organization_id
-                        AND source_event.property_id = outcome.property_id::text
-                        AND source_event.payload->>'reviewId' = membership.review_id::text
-                        AND (source_event.payload->>'sourceEpoch')::integer = outcome.source_epoch
-                        AND (source_event.payload->>'sourceRevision')::bigint = membership.source_revision
-                        AND (source_event.payload->>'analysisSequence')::bigint = outcome.analysis_sequence
-                    )
-                  )
-                )
-            )
-        ), opened_run AS (
-          INSERT INTO ai_review_analysis_backfill_runs (
-            id, organization_id, property_id, source_epoch, review_analysis_epoch,
-            analysis_start_sequence, review_ids, requested_review_count,
-            state, reason_code, correlation_id, created_at, updated_at
-          ) VALUES (
-            ${runId}::uuid, ${enrollment.organization_id},
-            ${String(enrollment.property_id)}::uuid, ${persistedFence.sourceEpoch},
-            ${persistedFence.reviewAnalysisEpoch},
-            ${persistedFence.analysisStartSequence}, ARRAY[]::uuid[],
-            ${unenrolledCount}, 'running', 'first_enablement_enrollment_v1',
-            ${input.correlationId}::uuid, ${input.occurredAt}, ${input.occurredAt}
-          )
-          RETURNING id, organization_id, property_id
-        ), inserted_memberships AS (
-          INSERT INTO ai_review_analysis_backfill_run_memberships (
-            run_id, organization_id, property_id, ordinal, review_id,
-            source_revision, created_at
-          )
-          SELECT opened_run.id, opened_run.organization_id, opened_run.property_id,
-                 candidates.ordinal, candidates.id, candidates.source_revision,
-                 ${input.occurredAt}
-          FROM opened_run
-          CROSS JOIN candidates
-          RETURNING run_id
-        )
-        SELECT count(*)::bigint AS inserted_count
-        FROM inserted_memberships
-      `)
-      const insertedCount = safeInteger(
-        (opened.rows[0] as Row | undefined)?.inserted_count,
-        'inserted membership count',
-      )
-      if (insertedCount !== unenrolledCount) {
-        throw new Error(
-          `Review Analysis enrollment pinned ${insertedCount} of ${unenrolledCount} revisions`,
-        )
-      }
-      await tx.execute(sql`
-        INSERT INTO ai_review_analysis_enrollment_replays (
-          enrollment_id, run_id, organization_id, property_id, created_at
-        ) VALUES (
-          ${input.enrollmentId}::uuid, ${runId}::uuid,
-          ${enrollment.organization_id}, ${String(enrollment.property_id)}::uuid,
-          ${input.occurredAt}
-        )
-      `)
-      await tx.execute(sql`
-        UPDATE ai_review_analysis_enrollments
-        SET state = 'running',
-            enrolled_revision_count = enrolled_revision_count + ${insertedCount},
-            updated_at = ${input.occurredAt}
-        WHERE id = ${input.enrollmentId}::uuid
-          AND state IN ('queued', 'running')
-      `)
-      return {
-        status: 'replay_started',
-        runId,
-        pinnedRevisionCount: insertedCount,
-      }
+      return startEnrollmentReplay(tx, input, enrollment, persistedFence, {
+        unenrolledCount,
+        idGen,
+      })
     }
 
     const headResult = await tx.execute(sql`
@@ -1502,6 +1508,232 @@ async function reconcile(
       revisionSetDigest,
     }
   })
+}
+
+/**
+ * Open one bounded replay run over the snapshot revisions that are still
+ * unanalyzed, pinning their membership in the same transaction so the run
+ * cannot silently cover a different set than it was sized for.
+ */
+async function startEnrollmentReplay(
+  tx: Tx,
+  input: ReconcileInput,
+  enrollment: Row,
+  persistedFence: ReviewAnalysisEnrollmentFence,
+  work: Readonly<{ unenrolledCount: number; idGen: () => string }>,
+): Promise<ReviewAnalysisEnrollmentReconcileResult> {
+  const unenrolledCount = work.unenrolledCount
+  if (unenrolledCount > 2_147_483_647) {
+    await markTerminal(tx, {
+      enrollmentId: input.enrollmentId,
+      state: 'stalled',
+      reason: 'eligible_revision_count_unsafe',
+      occurredAt: input.occurredAt,
+    })
+    return { status: 'stalled', reason: 'verification_inconsistent' }
+  }
+  const runId = work.idGen()
+  await tx.execute(sql`
+    SELECT set_config(
+      'repkey.ai_review_backfill_membership_writer',
+      'canonical-v1',
+      true
+    )
+  `)
+  const opened = await tx.execute(sql`
+    WITH candidates AS (
+      SELECT membership.review_id AS id, membership.source_revision,
+             row_number() OVER (ORDER BY membership.ordinal) - 1 AS ordinal
+      FROM ai_review_analysis_enrollment_memberships AS membership
+      JOIN reviews AS review
+        ON review.organization_id = membership.organization_id
+        AND review.property_id = membership.property_id
+        AND review.id = membership.review_id
+        AND review.source_epoch = membership.source_epoch
+        AND review.source_revision = membership.source_revision
+        AND review.analysis_sequence = membership.analysis_sequence
+      WHERE membership.enrollment_id = ${input.enrollmentId}::uuid
+        AND membership.organization_id = ${enrollment.organization_id}
+        AND membership.property_id = ${String(enrollment.property_id)}::uuid
+        AND membership.source_epoch = ${persistedFence.sourceEpoch}
+        AND review.text IS NOT NULL
+        AND review.content_expires_at > transaction_timestamp()
+        AND review.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
+        AND (
+          COALESCE(octet_length(review.text), 0)::bigint
+          + COALESCE(octet_length(review.language_code), 0)::bigint
+          + COALESCE(octet_length(review.reviewer_name), 0)::bigint
+        ) <= ${MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1}
+        AND NOT EXISTS (
+          SELECT 1
+          FROM ai_review_analysis_outcomes AS outcome
+          WHERE outcome.organization_id = membership.organization_id
+            AND outcome.property_id = membership.property_id
+            AND outcome.source_epoch = membership.source_epoch
+            AND outcome.review_analysis_epoch = ${persistedFence.reviewAnalysisEpoch}
+            AND outcome.analysis_sequence = membership.analysis_sequence
+            AND outcome.applied_aggregate_revision IS NOT NULL
+            AND (
+              (
+                outcome.state = 'ready'
+                AND EXISTS (
+                  SELECT 1
+                  FROM ai_review_analyses AS analysis
+                  WHERE analysis.organization_id = outcome.organization_id
+                    AND analysis.property_id = outcome.property_id
+                    AND analysis.review_id = membership.review_id
+                    AND analysis.source_epoch = outcome.source_epoch
+                    AND analysis.source_revision = membership.source_revision
+                    AND analysis.analysis_sequence = outcome.analysis_sequence
+                    AND analysis.review_analysis_epoch = outcome.review_analysis_epoch
+                    AND analysis.status = 'ready'
+                )
+              )
+              OR (
+                outcome.state = 'terminal_no_result'
+                AND outcome.disposition_code = 'language_not_supported'
+                AND EXISTS (
+                  SELECT 1
+                  FROM outbox_events AS source_event
+                  WHERE source_event.id = outcome.event_envelope_id
+                    AND source_event.organization_id = outcome.organization_id
+                    AND source_event.property_id = outcome.property_id::text
+                    AND source_event.payload->>'reviewId' = membership.review_id::text
+                    AND (source_event.payload->>'sourceEpoch')::integer = outcome.source_epoch
+                    AND (source_event.payload->>'sourceRevision')::bigint = membership.source_revision
+                    AND (source_event.payload->>'analysisSequence')::bigint = outcome.analysis_sequence
+                )
+              )
+            )
+        )
+    ), opened_run AS (
+      INSERT INTO ai_review_analysis_backfill_runs (
+        id, organization_id, property_id, source_epoch, review_analysis_epoch,
+        analysis_start_sequence, review_ids, requested_review_count,
+        state, reason_code, correlation_id, created_at, updated_at
+      ) VALUES (
+        ${runId}::uuid, ${enrollment.organization_id},
+        ${String(enrollment.property_id)}::uuid, ${persistedFence.sourceEpoch},
+        ${persistedFence.reviewAnalysisEpoch},
+        ${persistedFence.analysisStartSequence}, ARRAY[]::uuid[],
+        ${unenrolledCount}, 'running', 'first_enablement_enrollment_v1',
+        ${input.correlationId}::uuid, ${input.occurredAt}, ${input.occurredAt}
+      )
+      RETURNING id, organization_id, property_id
+    ), inserted_memberships AS (
+      INSERT INTO ai_review_analysis_backfill_run_memberships (
+        run_id, organization_id, property_id, ordinal, review_id,
+        source_revision, created_at
+      )
+      SELECT opened_run.id, opened_run.organization_id, opened_run.property_id,
+             candidates.ordinal, candidates.id, candidates.source_revision,
+             ${input.occurredAt}
+      FROM opened_run
+      CROSS JOIN candidates
+      RETURNING run_id
+    )
+    SELECT count(*)::bigint AS inserted_count
+    FROM inserted_memberships
+  `)
+  const insertedCount = safeInteger(
+    (opened.rows[0] as Row | undefined)?.inserted_count,
+    'inserted membership count',
+  )
+  if (insertedCount !== unenrolledCount) {
+    throw new Error(
+      `Review Analysis enrollment pinned ${insertedCount} of ${unenrolledCount} revisions`,
+    )
+  }
+  await tx.execute(sql`
+    INSERT INTO ai_review_analysis_enrollment_replays (
+      enrollment_id, run_id, organization_id, property_id, created_at
+    ) VALUES (
+      ${input.enrollmentId}::uuid, ${runId}::uuid,
+      ${enrollment.organization_id}, ${String(enrollment.property_id)}::uuid,
+      ${input.occurredAt}
+    )
+  `)
+  await tx.execute(sql`
+    UPDATE ai_review_analysis_enrollments
+    SET state = 'running',
+        enrolled_revision_count = enrolled_revision_count + ${insertedCount},
+        updated_at = ${input.occurredAt}
+    WHERE id = ${input.enrollmentId}::uuid
+      AND state IN ('queued', 'running')
+  `)
+  return {
+    status: 'replay_started',
+    runId,
+    pinnedRevisionCount: insertedCount,
+  }
+}
+
+type AssistedApprovalInput = Parameters<
+  ReviewAnalysisEnrollmentStorePort['approveAssistedReplay']
+>[0]
+type AssistedApprovalResult = Awaited<
+  ReturnType<ReviewAnalysisEnrollmentStorePort['approveAssistedReplay']>
+>
+
+/**
+ * Approval may only be recorded while the Property and the authorization still
+ * match the fence the enrollment was created under. Drift supersedes the
+ * enrollment durably and refuses the approval.
+ */
+async function assistedApprovalScopeRefusal(
+  tx: Tx,
+  input: AssistedApprovalInput,
+  enrollment: Row,
+  persistedFence: ReviewAnalysisEnrollmentFence,
+): Promise<AssistedApprovalResult | null> {
+  const propertyResult = await tx.execute(sql`
+    SELECT source_epoch, lifecycle_state, google_binding_state, deleted_at
+    FROM properties
+    WHERE organization_id = ${enrollment.organization_id}
+      AND id = ${String(enrollment.property_id)}::uuid
+    FOR UPDATE
+  `)
+  const property = propertyResult.rows[0] as Row | undefined
+  if (!property || !propertyIsActive(property)) {
+    await markTerminal(tx, {
+      enrollmentId: input.enrollmentId,
+      state: 'superseded',
+      reason: 'property_inactive',
+      occurredAt: input.occurredAt,
+    })
+    return { status: 'refused', reason: 'property_inactive' }
+  }
+
+  const authorizationResult = await tx.execute(sql`
+    SELECT authorization_lineage_id, state, state_version, capabilities,
+           authorized_source_epoch, review_analysis_epoch,
+           analysis_start_sequence
+    FROM merchant_ai_enablement
+    WHERE organization_id = ${enrollment.organization_id}
+      AND property_id = ${String(enrollment.property_id)}::uuid
+    FOR SHARE
+  `)
+  const authorization = authorizationResult.rows[0] as Row | undefined
+  const capabilities = Array.isArray(authorization?.capabilities)
+    ? authorization.capabilities.map(String)
+    : []
+  if (
+    !authorization ||
+    authorization.state !== 'enabled' ||
+    !capabilities.includes('review_analysis') ||
+    !sameFence(persistedFence, authorization) ||
+    safeInteger(property.source_epoch, 'property source_epoch') !==
+      persistedFence.sourceEpoch
+  ) {
+    await markTerminal(tx, {
+      enrollmentId: input.enrollmentId,
+      state: 'superseded',
+      reason: 'authorization_changed',
+      occurredAt: input.occurredAt,
+    })
+    return { status: 'refused', reason: 'authorization_changed' }
+  }
+  return null
 }
 
 export const createReviewAnalysisEnrollmentAdapter = (
@@ -1571,17 +1803,7 @@ export const createReviewAnalysisEnrollmentAdapter = (
           return { status: 'refused', reason: 'enrollment_not_found' }
         }
         const persistedFence = fenceFromRow(enrollment)
-        if (
-          persistedFence.authorizationLineageId !==
-            input.expectedFence.authorizationLineageId ||
-          persistedFence.authorizationStateVersion !==
-            input.expectedFence.authorizationStateVersion ||
-          persistedFence.sourceEpoch !== input.expectedFence.sourceEpoch ||
-          persistedFence.reviewAnalysisEpoch !==
-            input.expectedFence.reviewAnalysisEpoch ||
-          persistedFence.analysisStartSequence !==
-            input.expectedFence.analysisStartSequence
-        ) {
+        if (!fenceMatchesExpected(persistedFence, input.expectedFence)) {
           return { status: 'refused', reason: 'authorization_changed' }
         }
 
@@ -1617,58 +1839,13 @@ export const createReviewAnalysisEnrollmentAdapter = (
           return { status: 'refused', reason: 'approval_time_invalid' }
         }
 
-        const propertyResult = await tx.execute(sql`
-          SELECT source_epoch, lifecycle_state, google_binding_state, deleted_at
-          FROM properties
-          WHERE organization_id = ${enrollment.organization_id}
-            AND id = ${String(enrollment.property_id)}::uuid
-          FOR UPDATE
-        `)
-        const property = propertyResult.rows[0] as Row | undefined
-        if (
-          !property ||
-          property.deleted_at !== null ||
-          property.lifecycle_state !== 'active' ||
-          property.google_binding_state !== 'active'
-        ) {
-          await markTerminal(tx, {
-            enrollmentId: input.enrollmentId,
-            state: 'superseded',
-            reason: 'property_inactive',
-            occurredAt: input.occurredAt,
-          })
-          return { status: 'refused', reason: 'property_inactive' }
-        }
-
-        const authorizationResult = await tx.execute(sql`
-          SELECT authorization_lineage_id, state, state_version, capabilities,
-                 authorized_source_epoch, review_analysis_epoch,
-                 analysis_start_sequence
-          FROM merchant_ai_enablement
-          WHERE organization_id = ${enrollment.organization_id}
-            AND property_id = ${String(enrollment.property_id)}::uuid
-          FOR SHARE
-        `)
-        const authorization = authorizationResult.rows[0] as Row | undefined
-        const capabilities = Array.isArray(authorization?.capabilities)
-          ? authorization.capabilities.map(String)
-          : []
-        if (
-          !authorization ||
-          authorization.state !== 'enabled' ||
-          !capabilities.includes('review_analysis') ||
-          !sameFence(persistedFence, authorization) ||
-          safeInteger(property.source_epoch, 'property source_epoch') !==
-            persistedFence.sourceEpoch
-        ) {
-          await markTerminal(tx, {
-            enrollmentId: input.enrollmentId,
-            state: 'superseded',
-            reason: 'authorization_changed',
-            occurredAt: input.occurredAt,
-          })
-          return { status: 'refused', reason: 'authorization_changed' }
-        }
+        const scopeRefusal = await assistedApprovalScopeRefusal(
+          tx,
+          input,
+          enrollment,
+          persistedFence,
+        )
+        if (scopeRefusal !== null) return scopeRefusal
 
         const approved = await tx.execute(sql`
           UPDATE ai_review_analysis_enrollments

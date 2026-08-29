@@ -125,101 +125,112 @@ export const isOperationalActionResourceType = (
 const validIdentifier = (value: string | null): boolean =>
   value === null || IDENTIFIER.test(value)
 
-const invalidProvenance = (message: string): Result<never, ActivityError> =>
-  err(activityError('invalid_operational_action_provenance', message))
+const invalidProvenance = (message: string): ActivityError =>
+  activityError('invalid_operational_action_provenance', message)
+
+/**
+ * Each rule reports the first violation it owns, or null when the record
+ * satisfies it. `createOperationalActionRecord` runs them in a fixed order, so
+ * the reported failure is the same one the inline guard sequence reported.
+ */
+type OperationalActionRule = (
+  input: CreateOperationalActionRecordInput,
+) => ActivityError | null
+
+const identifierRule: OperationalActionRule = (input) =>
+  validIdentifier(input.resourceId) &&
+  validIdentifier(input.actorId) &&
+  validIdentifier(input.provenance.id) &&
+  (input.reasonCode === null || CODE.test(input.reasonCode))
+    ? null
+    : activityError(
+        'invalid_operational_action_identifier',
+        'Operational Action History accepts identifiers and reason codes only',
+      )
+
+const resourceAttributionRule: OperationalActionRule = (input) =>
+  input.resourceId === null &&
+  input.action !== 'authentication.decision' &&
+  input.action !== 'authorization.decision'
+    ? activityError(
+        'invalid_operational_action_identifier',
+        'Operational Action History resource attribution is required',
+      )
+    : null
+
+const actorAttributionRule: OperationalActionRule = (input) =>
+  ATTRIBUTABLE_ACTORS.has(input.actorType) === (input.actorId !== null)
+    ? null
+    : activityError(
+        'invalid_operational_action_actor',
+        'Operational Action History actor attribution does not match actor type',
+      )
+
+const hasCompleteEventIdentity = (provenance: OperationalActionProvenance): boolean =>
+  provenance.eventType !== null &&
+  CODE.test(provenance.eventType) &&
+  provenance.eventVersion !== null &&
+  Number.isInteger(provenance.eventVersion) &&
+  provenance.eventVersion >= 1 &&
+  provenance.sourceContext !== null &&
+  CODE.test(provenance.sourceContext) &&
+  provenance.sourceAggregateId !== null &&
+  validIdentifier(provenance.sourceAggregateId)
+
+const hasNoEventIdentity = (provenance: OperationalActionProvenance): boolean =>
+  provenance.eventType === null &&
+  provenance.eventVersion === null &&
+  provenance.sourceContext === null &&
+  provenance.sourceAggregateId === null
+
+const provenanceRule: OperationalActionRule = ({ provenance }) => {
+  if (provenance.kind === 'domain_fact') {
+    return hasCompleteEventIdentity(provenance)
+      ? null
+      : invalidProvenance(
+          'Durable source-event identity and version are required without inference',
+        )
+  }
+  return hasNoEventIdentity(provenance)
+    ? null
+    : invalidProvenance(
+        'Non-event Operational Action History provenance cannot invent event fields',
+      )
+}
+
+const timeRule: OperationalActionRule = (input) =>
+  Number.isNaN(input.occurredAt.getTime()) ||
+  Number.isNaN(input.recordedAt.getTime()) ||
+  input.recordedAt.getTime() < input.occurredAt.getTime()
+    ? activityError(
+        'invalid_operational_action_time',
+        'Operational Action History times are invalid',
+      )
+    : null
+
+const kindRule: OperationalActionRule = (input) =>
+  KIND_KEYS.has(`${input.action}\u0000${input.resourceType}`)
+    ? null
+    : activityError(
+        'invalid_operational_action_kind',
+        `Unsupported Operational Action History kind: ${input.action}/${input.resourceType}`,
+      )
+
+const OPERATIONAL_ACTION_RULES: readonly OperationalActionRule[] = [
+  kindRule,
+  identifierRule,
+  resourceAttributionRule,
+  actorAttributionRule,
+  provenanceRule,
+  timeRule,
+]
 
 export const createOperationalActionRecord = (
   input: CreateOperationalActionRecordInput,
 ): Result<OperationalActionRecord, ActivityError> => {
-  if (!KIND_KEYS.has(`${input.action}\u0000${input.resourceType}`)) {
-    return err(
-      activityError(
-        'invalid_operational_action_kind',
-        `Unsupported Operational Action History kind: ${input.action}/${input.resourceType}`,
-      ),
-    )
+  for (const rule of OPERATIONAL_ACTION_RULES) {
+    const violation = rule(input)
+    if (violation) return err(violation)
   }
-
-  if (
-    !validIdentifier(input.resourceId) ||
-    !validIdentifier(input.actorId) ||
-    !validIdentifier(input.provenance.id) ||
-    (input.reasonCode !== null && !CODE.test(input.reasonCode))
-  ) {
-    return err(
-      activityError(
-        'invalid_operational_action_identifier',
-        'Operational Action History accepts identifiers and reason codes only',
-      ),
-    )
-  }
-
-  if (
-    input.resourceId === null &&
-    input.action !== 'authentication.decision' &&
-    input.action !== 'authorization.decision'
-  ) {
-    return err(
-      activityError(
-        'invalid_operational_action_identifier',
-        'Operational Action History resource attribution is required',
-      ),
-    )
-  }
-
-  const attributable = ATTRIBUTABLE_ACTORS.has(input.actorType)
-  if (
-    (attributable && input.actorId === null) ||
-    (!attributable && input.actorId !== null)
-  ) {
-    return err(
-      activityError(
-        'invalid_operational_action_actor',
-        'Operational Action History actor attribution does not match actor type',
-      ),
-    )
-  }
-
-  const provenance = input.provenance
-  if (provenance.kind === 'domain_fact') {
-    if (
-      provenance.eventType === null ||
-      !CODE.test(provenance.eventType) ||
-      provenance.eventVersion === null ||
-      !Number.isInteger(provenance.eventVersion) ||
-      provenance.eventVersion < 1 ||
-      provenance.sourceContext === null ||
-      !CODE.test(provenance.sourceContext) ||
-      provenance.sourceAggregateId === null ||
-      !validIdentifier(provenance.sourceAggregateId)
-    ) {
-      return invalidProvenance(
-        'Durable source-event identity and version are required without inference',
-      )
-    }
-  } else if (
-    provenance.eventType !== null ||
-    provenance.eventVersion !== null ||
-    provenance.sourceContext !== null ||
-    provenance.sourceAggregateId !== null
-  ) {
-    return invalidProvenance(
-      'Non-event Operational Action History provenance cannot invent event fields',
-    )
-  }
-
-  if (
-    Number.isNaN(input.occurredAt.getTime()) ||
-    Number.isNaN(input.recordedAt.getTime()) ||
-    input.recordedAt.getTime() < input.occurredAt.getTime()
-  ) {
-    return err(
-      activityError(
-        'invalid_operational_action_time',
-        'Operational Action History times are invalid',
-      ),
-    )
-  }
-
   return ok(input)
 }

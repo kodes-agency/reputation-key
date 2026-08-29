@@ -226,6 +226,311 @@ const dormantCellDenialSchema = readbackBaseSchema
   })
   .strict()
 
+type RailwayNoDriftEvidence = z.infer<typeof railwayNoDriftSchema>
+type ReleaseIdentityEvidence = z.infer<typeof releaseIdentityHealthControlsSchema>
+type ReleaseIdentityServiceRow = ReleaseIdentityEvidence['services'][number]
+type MigrationIntegrityEvidence = z.infer<typeof migrationIntegritySchema>
+type DormantCellDenialEvidence = z.infer<typeof dormantCellDenialSchema>
+
+/** The outcome and the failure list must agree, on every gate. */
+function refineOutcomeFailures(
+  value: { outcome: string; failures: readonly unknown[] },
+  context: z.RefinementCtx,
+): void {
+  if (value.outcome === 'passed' && value.failures.length !== 0) {
+    context.addIssue({
+      code: 'custom',
+      path: ['outcome'],
+      message: 'passed outcome requires an empty failure list',
+    })
+  }
+  if (value.outcome === 'failed' && value.failures.length === 0) {
+    context.addIssue({
+      code: 'custom',
+      path: ['failures'],
+      message: 'failed outcome requires at least one failure',
+    })
+  }
+}
+
+function refineRailwayNoDrift(
+  value: RailwayNoDriftEvidence,
+  context: z.RefinementCtx,
+): void {
+  if (value.planEvidence.outcome !== 'no-drift') {
+    context.addIssue({
+      code: 'custom',
+      path: ['planEvidence', 'outcome'],
+      message: 'Railway plan evidence reports pending-changes; the graph is not settled',
+    })
+  }
+  if (
+    value.outcome === 'passed' &&
+    (value.liveGraph.changedServiceCount !== 0 ||
+      value.liveGraph.unmanagedServiceCount !== 0)
+  ) {
+    context.addIssue({
+      code: 'custom',
+      path: ['liveGraph'],
+      message: 'passed drift read-back requires zero changed and unmanaged services',
+    })
+  }
+  if (Date.parse(value.capturedAt) < Date.parse(value.liveGraph.confirmedAt)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['capturedAt'],
+      message: 'capture predates the live graph confirmation',
+    })
+  }
+}
+
+/**
+ * `passed` is only representable when every service row observed a settled
+ * deployment with no legacy source override.
+ */
+function refineSettledServiceRow(
+  row: ReleaseIdentityServiceRow,
+  index: number,
+  context: z.RefinementCtx,
+): void {
+  if (row.sourceRevisionOverride !== '' || row.imageSourceRevisionOverride !== '') {
+    context.addIssue({
+      code: 'custom',
+      path: ['services', index],
+      message: `${row.service}: legacy SOURCE_REVISION/IMAGE_SOURCE_REVISION service override must be absent; source identity is baked into the promoted image`,
+    })
+  }
+  if (!DEPLOYMENT_ID.test(row.activeDeploymentId)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['services', index, 'activeDeploymentId'],
+      message: `${row.service}: no settled active deployment was observed`,
+    })
+  }
+  if (!IMAGE_DIGEST.test(row.activeImageDigest)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['services', index, 'activeImageDigest'],
+      message: `${row.service}: no active image digest was observed`,
+    })
+  }
+}
+
+/** Every service row must report the candidate's own release identity. */
+function refineServiceRowCandidateBinding(
+  row: ReleaseIdentityServiceRow,
+  index: number,
+  candidate: ReleaseIdentityEvidence['candidate'],
+  context: z.RefinementCtx,
+): void {
+  if (row.releaseSha !== candidate.releaseSha) {
+    context.addIssue({
+      code: 'custom',
+      path: ['services', index, 'releaseSha'],
+      message: `${row.service}: RELEASE_SHA does not match the candidate`,
+    })
+  }
+  if (row.releaseManifestSha256 !== candidate.releaseManifestSha256) {
+    context.addIssue({
+      code: 'custom',
+      path: ['services', index, 'releaseManifestSha256'],
+      message: `${row.service}: RELEASE_MANIFEST_SHA256 does not match the candidate`,
+    })
+  }
+}
+
+function refineReadbackServices(
+  value: ReleaseIdentityEvidence,
+  context: z.RefinementCtx,
+): void {
+  const services = value.services.map(({ service }) => service)
+  if (new Set(services).size !== services.length) {
+    context.addIssue({
+      code: 'custom',
+      path: ['services'],
+      message: 'duplicate service read-back row',
+    })
+  }
+  for (const service of PROMOTION_READBACK_SERVICES) {
+    if (!services.includes(service)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['services'],
+        message: `missing release identity read-back for ${service}`,
+      })
+    }
+  }
+  for (const [index, row] of value.services.entries()) {
+    if (value.outcome === 'passed') {
+      refineSettledServiceRow(row, index, context)
+    }
+    refineServiceRowCandidateBinding(row, index, value.candidate, context)
+  }
+}
+
+function refineReadbackHealth(
+  value: ReleaseIdentityEvidence,
+  context: z.RefinementCtx,
+): void {
+  if (value.outcome !== 'passed') return
+  if (value.health.httpStatus !== 200 || value.health.status !== 'ok') {
+    context.addIssue({
+      code: 'custom',
+      path: ['health'],
+      message: `health endpoint returned ${String(value.health.httpStatus)} ${value.health.status}`,
+    })
+  }
+  for (const probe of PROMOTION_HEALTH_PROBES) {
+    if (!value.health.probes[probe]) {
+      context.addIssue({
+        code: 'custom',
+        path: ['health', 'probes', probe],
+        message: `health ${probe} is not green`,
+      })
+    }
+  }
+}
+
+function refineAiControlHeads(
+  value: ReleaseIdentityEvidence,
+  context: z.RefinementCtx,
+): void {
+  const scopes = value.aiControlHeads.map(({ scopeKey }) => scopeKey)
+  if (new Set(scopes).size !== scopes.length) {
+    context.addIssue({
+      code: 'custom',
+      path: ['aiControlHeads'],
+      message: 'duplicate ai_execution_control_heads scope',
+    })
+  }
+  for (const [index, head] of value.aiControlHeads.entries()) {
+    if (
+      value.outcome === 'passed' &&
+      (head.executionState !== 'enabled' || head.admissionState !== 'accepting')
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['aiControlHeads', index],
+        message: `${head.scopeKey}: ${head.executionState}/${head.admissionState} (want enabled/accepting)`,
+      })
+    }
+  }
+}
+
+/**
+ * `passed` is only representable when the schema-migrator deployment settled,
+ * was observed by id and digest, and applied an expand-only head.
+ */
+function refineSettledMigration(
+  value: MigrationIntegrityEvidence,
+  context: z.RefinementCtx,
+): void {
+  if (value.schemaMigrator.deploymentStatus !== 'SUCCESS') {
+    context.addIssue({
+      code: 'custom',
+      path: ['schemaMigrator', 'deploymentStatus'],
+      message: 'the schema-migrator deployment is not SUCCESS',
+    })
+  }
+  if (!DEPLOYMENT_ID.test(value.schemaMigrator.deploymentId)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['schemaMigrator', 'deploymentId'],
+      message: 'no schema-migrator deployment id was observed',
+    })
+  }
+  if (!IMAGE_DIGEST.test(value.schemaMigrator.imageDigest)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['schemaMigrator', 'imageDigest'],
+      message: 'no schema-migrator image digest was observed',
+    })
+  }
+  if (!MIGRATION_TAG.test(value.schemaMigrator.appliedHeadTag)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['schemaMigrator', 'appliedHeadTag'],
+      message: 'no applied migration head tag was observed',
+    })
+  }
+  if (value.destructiveStatementCount !== 0) {
+    context.addIssue({
+      code: 'custom',
+      path: ['destructiveStatementCount'],
+      message: 'migrations are expand-only; a destructive statement was observed',
+    })
+  }
+  if (!value.compatibilityMirrorsRetained) {
+    context.addIssue({
+      code: 'custom',
+      path: ['compatibilityMirrorsRetained'],
+      message: 'a compatibility mirror was removed; migrations are expand-only',
+    })
+  }
+}
+
+function refineMigrationIntegrity(
+  value: MigrationIntegrityEvidence,
+  context: z.RefinementCtx,
+): void {
+  if (value.outcome === 'passed') {
+    refineSettledMigration(value, context)
+  }
+  if (value.schemaMigrator.appliedHeadTag !== value.drizzle.headTag) {
+    context.addIssue({
+      code: 'custom',
+      path: ['schemaMigrator', 'appliedHeadTag'],
+      message: 'the deployed migrator head does not match the candidate journal head',
+    })
+  }
+  if (Date.parse(value.capturedAt) < Date.parse(value.schemaMigrator.settledAt)) {
+    context.addIssue({
+      code: 'custom',
+      path: ['capturedAt'],
+      message: 'capture predates the schema-migrator settlement',
+    })
+  }
+}
+
+function refineDormantCellDenial(
+  value: DormantCellDenialEvidence,
+  context: z.RefinementCtx,
+): void {
+  const observed = value.observations.map(({ cell }) => cell)
+  if (new Set(observed).size !== observed.length) {
+    context.addIssue({
+      code: 'custom',
+      path: ['observations'],
+      message: 'duplicate dormant cell observation',
+    })
+  }
+  if (observed.includes('us')) {
+    context.addIssue({
+      code: 'custom',
+      path: ['observations'],
+      message: 'the active us cell is not a dormant cell and must not be denied',
+    })
+  }
+  for (const [index, observation] of value.observations.entries()) {
+    if (value.outcome === 'passed' && observation.resolved) {
+      context.addIssue({
+        code: 'custom',
+        path: ['observations', index, 'resolved'],
+        message: `dormant cell ${observation.cell} resolved; beta is exactly one logical US Data Cell`,
+      })
+    }
+  }
+  for (const cell of DORMANT_DATA_CELL_IDS) {
+    if (!observed.includes(cell)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['observations'],
+        message: `missing dormant cell refusal observation for ${cell}`,
+      })
+    }
+  }
+}
+
 const promotionReadbackEvidenceSchema = z
   .discriminatedUnion('gate', [
     railwayNoDriftSchema,
@@ -234,245 +539,24 @@ const promotionReadbackEvidenceSchema = z
     dormantCellDenialSchema,
   ])
   .superRefine((value, context) => {
-    if (value.outcome === 'passed' && value.failures.length !== 0) {
-      context.addIssue({
-        code: 'custom',
-        path: ['outcome'],
-        message: 'passed outcome requires an empty failure list',
-      })
-    }
-    if (value.outcome === 'failed' && value.failures.length === 0) {
-      context.addIssue({
-        code: 'custom',
-        path: ['failures'],
-        message: 'failed outcome requires at least one failure',
-      })
-    }
+    refineOutcomeFailures(value, context)
 
     if (value.gate === 'railway_no_drift') {
-      if (value.planEvidence.outcome !== 'no-drift') {
-        context.addIssue({
-          code: 'custom',
-          path: ['planEvidence', 'outcome'],
-          message:
-            'Railway plan evidence reports pending-changes; the graph is not settled',
-        })
-      }
-      if (
-        value.outcome === 'passed' &&
-        (value.liveGraph.changedServiceCount !== 0 ||
-          value.liveGraph.unmanagedServiceCount !== 0)
-      ) {
-        context.addIssue({
-          code: 'custom',
-          path: ['liveGraph'],
-          message: 'passed drift read-back requires zero changed and unmanaged services',
-        })
-      }
-      if (Date.parse(value.capturedAt) < Date.parse(value.liveGraph.confirmedAt)) {
-        context.addIssue({
-          code: 'custom',
-          path: ['capturedAt'],
-          message: 'capture predates the live graph confirmation',
-        })
-      }
+      refineRailwayNoDrift(value, context)
     }
 
     if (value.gate === 'release_identity_health_controls') {
-      const services = value.services.map(({ service }) => service)
-      if (new Set(services).size !== services.length) {
-        context.addIssue({
-          code: 'custom',
-          path: ['services'],
-          message: 'duplicate service read-back row',
-        })
-      }
-      for (const service of PROMOTION_READBACK_SERVICES) {
-        if (!services.includes(service)) {
-          context.addIssue({
-            code: 'custom',
-            path: ['services'],
-            message: `missing release identity read-back for ${service}`,
-          })
-        }
-      }
-      for (const [index, row] of value.services.entries()) {
-        if (value.outcome === 'passed') {
-          if (
-            row.sourceRevisionOverride !== '' ||
-            row.imageSourceRevisionOverride !== ''
-          ) {
-            context.addIssue({
-              code: 'custom',
-              path: ['services', index],
-              message: `${row.service}: legacy SOURCE_REVISION/IMAGE_SOURCE_REVISION service override must be absent; source identity is baked into the promoted image`,
-            })
-          }
-          if (!DEPLOYMENT_ID.test(row.activeDeploymentId)) {
-            context.addIssue({
-              code: 'custom',
-              path: ['services', index, 'activeDeploymentId'],
-              message: `${row.service}: no settled active deployment was observed`,
-            })
-          }
-          if (!IMAGE_DIGEST.test(row.activeImageDigest)) {
-            context.addIssue({
-              code: 'custom',
-              path: ['services', index, 'activeImageDigest'],
-              message: `${row.service}: no active image digest was observed`,
-            })
-          }
-        }
-        if (row.releaseSha !== value.candidate.releaseSha) {
-          context.addIssue({
-            code: 'custom',
-            path: ['services', index, 'releaseSha'],
-            message: `${row.service}: RELEASE_SHA does not match the candidate`,
-          })
-        }
-        if (row.releaseManifestSha256 !== value.candidate.releaseManifestSha256) {
-          context.addIssue({
-            code: 'custom',
-            path: ['services', index, 'releaseManifestSha256'],
-            message: `${row.service}: RELEASE_MANIFEST_SHA256 does not match the candidate`,
-          })
-        }
-      }
-      if (value.outcome === 'passed') {
-        if (value.health.httpStatus !== 200 || value.health.status !== 'ok') {
-          context.addIssue({
-            code: 'custom',
-            path: ['health'],
-            message: `health endpoint returned ${String(value.health.httpStatus)} ${value.health.status}`,
-          })
-        }
-        for (const probe of PROMOTION_HEALTH_PROBES) {
-          if (!value.health.probes[probe]) {
-            context.addIssue({
-              code: 'custom',
-              path: ['health', 'probes', probe],
-              message: `health ${probe} is not green`,
-            })
-          }
-        }
-      }
-      const scopes = value.aiControlHeads.map(({ scopeKey }) => scopeKey)
-      if (new Set(scopes).size !== scopes.length) {
-        context.addIssue({
-          code: 'custom',
-          path: ['aiControlHeads'],
-          message: 'duplicate ai_execution_control_heads scope',
-        })
-      }
-      for (const [index, head] of value.aiControlHeads.entries()) {
-        if (
-          value.outcome === 'passed' &&
-          (head.executionState !== 'enabled' || head.admissionState !== 'accepting')
-        ) {
-          context.addIssue({
-            code: 'custom',
-            path: ['aiControlHeads', index],
-            message: `${head.scopeKey}: ${head.executionState}/${head.admissionState} (want enabled/accepting)`,
-          })
-        }
-      }
+      refineReadbackServices(value, context)
+      refineReadbackHealth(value, context)
+      refineAiControlHeads(value, context)
     }
 
     if (value.gate === 'migration_integrity') {
-      if (value.outcome === 'passed') {
-        if (value.schemaMigrator.deploymentStatus !== 'SUCCESS') {
-          context.addIssue({
-            code: 'custom',
-            path: ['schemaMigrator', 'deploymentStatus'],
-            message: 'the schema-migrator deployment is not SUCCESS',
-          })
-        }
-        if (!DEPLOYMENT_ID.test(value.schemaMigrator.deploymentId)) {
-          context.addIssue({
-            code: 'custom',
-            path: ['schemaMigrator', 'deploymentId'],
-            message: 'no schema-migrator deployment id was observed',
-          })
-        }
-        if (!IMAGE_DIGEST.test(value.schemaMigrator.imageDigest)) {
-          context.addIssue({
-            code: 'custom',
-            path: ['schemaMigrator', 'imageDigest'],
-            message: 'no schema-migrator image digest was observed',
-          })
-        }
-        if (!MIGRATION_TAG.test(value.schemaMigrator.appliedHeadTag)) {
-          context.addIssue({
-            code: 'custom',
-            path: ['schemaMigrator', 'appliedHeadTag'],
-            message: 'no applied migration head tag was observed',
-          })
-        }
-        if (value.destructiveStatementCount !== 0) {
-          context.addIssue({
-            code: 'custom',
-            path: ['destructiveStatementCount'],
-            message: 'migrations are expand-only; a destructive statement was observed',
-          })
-        }
-        if (!value.compatibilityMirrorsRetained) {
-          context.addIssue({
-            code: 'custom',
-            path: ['compatibilityMirrorsRetained'],
-            message: 'a compatibility mirror was removed; migrations are expand-only',
-          })
-        }
-      }
-      if (value.schemaMigrator.appliedHeadTag !== value.drizzle.headTag) {
-        context.addIssue({
-          code: 'custom',
-          path: ['schemaMigrator', 'appliedHeadTag'],
-          message: 'the deployed migrator head does not match the candidate journal head',
-        })
-      }
-      if (Date.parse(value.capturedAt) < Date.parse(value.schemaMigrator.settledAt)) {
-        context.addIssue({
-          code: 'custom',
-          path: ['capturedAt'],
-          message: 'capture predates the schema-migrator settlement',
-        })
-      }
+      refineMigrationIntegrity(value, context)
     }
 
     if (value.gate === 'dormant_cell_denial') {
-      const observed = value.observations.map(({ cell }) => cell)
-      if (new Set(observed).size !== observed.length) {
-        context.addIssue({
-          code: 'custom',
-          path: ['observations'],
-          message: 'duplicate dormant cell observation',
-        })
-      }
-      if (observed.includes('us')) {
-        context.addIssue({
-          code: 'custom',
-          path: ['observations'],
-          message: 'the active us cell is not a dormant cell and must not be denied',
-        })
-      }
-      for (const [index, observation] of value.observations.entries()) {
-        if (value.outcome === 'passed' && observation.resolved) {
-          context.addIssue({
-            code: 'custom',
-            path: ['observations', index, 'resolved'],
-            message: `dormant cell ${observation.cell} resolved; beta is exactly one logical US Data Cell`,
-          })
-        }
-      }
-      for (const cell of DORMANT_DATA_CELL_IDS) {
-        if (!observed.includes(cell)) {
-          context.addIssue({
-            code: 'custom',
-            path: ['observations'],
-            message: `missing dormant cell refusal observation for ${cell}`,
-          })
-        }
-      }
+      refineDormantCellDenial(value, context)
     }
   })
 

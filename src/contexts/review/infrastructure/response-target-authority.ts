@@ -89,25 +89,11 @@ async function readCurrentPermit(
   }
 }
 
-async function readInboxProjectionPermit(
+function selectInboxProjectionReviewRow(
   tx: Tx,
   expectation: ReviewInboxProjectionExpectation,
-): Promise<ReviewCurrentInboxProjectionPermit | null> {
-  if (
-    !Number.isSafeInteger(expectation.eventSourceRevision) ||
-    expectation.eventSourceRevision < 1
-  ) {
-    return null
-  }
-  const scopeCurrent = await lockReviewSourceMutationScope(tx, {
-    organizationId: organizationId(expectation.organizationId),
-    propertyId: propertyId(expectation.propertyId),
-    reviewId: reviewId(expectation.reviewId),
-    sourceEpoch: expectation.sourceEpoch,
-  })
-  if (!scopeCurrent) return null
-
-  const [current] = await tx
+) {
+  return tx
     .select({
       organizationId: reviews.organizationId,
       propertyId: reviews.propertyId,
@@ -130,18 +116,13 @@ async function readInboxProjectionPermit(
     )
     .for('update', { of: reviews })
     .limit(1)
-  if (
-    current === undefined ||
-    current.platform !== 'google' ||
-    current.sourceRevision < expectation.eventSourceRevision ||
-    (current.sourceContentState !== 'active' &&
-      current.sourceContentState !== 'source_expired' &&
-      current.sourceContentState !== 'provider_deleted')
-  ) {
-    return null
-  }
+}
 
-  const rows = await tx
+function selectMaterialRevisionRows(
+  tx: Tx,
+  expectation: ReviewInboxProjectionExpectation,
+) {
+  return tx
     .select({
       organizationId: materialReviewRevisions.organizationId,
       propertyId: materialReviewRevisions.propertyId,
@@ -162,8 +143,50 @@ async function readInboxProjectionPermit(
       ),
     )
     .orderBy(asc(materialReviewRevisions.revision))
-  if (rows.length === 0) return null
+}
 
+type InboxProjectionReviewRow = Awaited<
+  ReturnType<typeof selectInboxProjectionReviewRow>
+>[number]
+type MaterialRevisionRow = Awaited<ReturnType<typeof selectMaterialRevisionRows>>[number]
+
+type ProjectableReviewRow = InboxProjectionReviewRow &
+  Readonly<{
+    platform: 'google'
+    sourceContentState: 'active' | 'source_expired' | 'provider_deleted'
+  }>
+
+/** Only a Google Review whose source has already reached the event's revision
+ * and whose content state is one Inbox can project may be read at all. */
+function isProjectableReviewRow(
+  current: InboxProjectionReviewRow,
+  expectation: ReviewInboxProjectionExpectation,
+): current is ProjectableReviewRow {
+  return (
+    current.platform === 'google' &&
+    current.sourceRevision >= expectation.eventSourceRevision &&
+    (current.sourceContentState === 'active' ||
+      current.sourceContentState === 'source_expired' ||
+      current.sourceContentState === 'provider_deleted')
+  )
+}
+
+type MaterialRevisionChain = Readonly<{
+  revisions: ReviewInboxProjectionRevisionPermit[]
+  /** Observation time of the newest revision in the chain. */
+  latestObservedAt: number
+}>
+
+/**
+ * The Material Revision history must be a gapless 1..N sequence with
+ * non-decreasing observation times and eligibility evidence that agrees with
+ * its response-target start. Any deviation makes the projection unsafe, which
+ * is reported as no chain at all.
+ */
+function buildMaterialRevisionChain(
+  rows: readonly MaterialRevisionRow[],
+): MaterialRevisionChain | null {
+  if (rows.length === 0) return null
   const revisions: ReviewInboxProjectionRevisionPermit[] = []
   let previousObservedAt = Number.NEGATIVE_INFINITY
   for (const [index, row] of rows.entries()) {
@@ -193,32 +216,85 @@ async function readInboxProjectionPermit(
     })
     previousObservedAt = row.observedAt.getTime()
   }
+  return { revisions, latestObservedAt: previousObservedAt }
+}
+
+/** The chain must end at the Review's current revision and contain the event's
+ * own revision; a `created` event must additionally name the first revision. */
+function chainCoversExpectation(
+  revisions: readonly ReviewInboxProjectionRevisionPermit[],
+  first: ReviewInboxProjectionRevisionPermit,
+  last: ReviewInboxProjectionRevisionPermit,
+  currentSourceRevision: number,
+  expectation: ReviewInboxProjectionExpectation,
+): boolean {
+  return (
+    last.materialReviewRevision === currentSourceRevision &&
+    revisions.some(
+      (revision) => revision.materialReviewRevision === expectation.eventSourceRevision,
+    ) &&
+    (expectation.eventKind !== 'created' ||
+      expectation.eventSourceRevision === first.materialReviewRevision)
+  )
+}
+
+/** Active content carries a reviewed timestamp and no erasure; erased content
+ * carries a finite erasure timestamp that is not older than the newest observed
+ * revision. */
+function hasConsistentContentState(
+  current: InboxProjectionReviewRow,
+  latestObservedAt: number,
+): boolean {
+  const active = current.sourceContentState === 'active'
+  if (active && !(current.reviewedAt instanceof Date)) return false
+  if (active && current.sourceContentErasedAt !== null) return false
+  if (!active && !(current.sourceContentErasedAt instanceof Date)) return false
+  if (current.sourceContentErasedAt instanceof Date) {
+    return (
+      Number.isFinite(current.sourceContentErasedAt.getTime()) &&
+      current.sourceContentErasedAt.getTime() >= latestObservedAt
+    )
+  }
+  return true
+}
+
+async function readInboxProjectionPermit(
+  tx: Tx,
+  expectation: ReviewInboxProjectionExpectation,
+): Promise<ReviewCurrentInboxProjectionPermit | null> {
+  if (
+    !Number.isSafeInteger(expectation.eventSourceRevision) ||
+    expectation.eventSourceRevision < 1
+  ) {
+    return null
+  }
+  const scopeCurrent = await lockReviewSourceMutationScope(tx, {
+    organizationId: organizationId(expectation.organizationId),
+    propertyId: propertyId(expectation.propertyId),
+    reviewId: reviewId(expectation.reviewId),
+    sourceEpoch: expectation.sourceEpoch,
+  })
+  if (!scopeCurrent) return null
+
+  const [current] = await selectInboxProjectionReviewRow(tx, expectation)
+  if (current === undefined) return null
+  if (!isProjectableReviewRow(current, expectation)) return null
+
+  const chain = buildMaterialRevisionChain(
+    await selectMaterialRevisionRows(tx, expectation),
+  )
+  if (chain === null) return null
+  const revisions = chain.revisions
   const first = revisions[0]
   const last = revisions.at(-1)
+  if (first === undefined || last === undefined) return null
   if (
-    first === undefined ||
-    last === undefined ||
-    last.materialReviewRevision !== current.sourceRevision ||
-    !revisions.some(
-      (revision) => revision.materialReviewRevision === expectation.eventSourceRevision,
-    ) ||
-    (expectation.eventKind === 'created' &&
-      expectation.eventSourceRevision !== first.materialReviewRevision)
+    !chainCoversExpectation(revisions, first, last, current.sourceRevision, expectation)
   ) {
     return null
   }
+  if (!hasConsistentContentState(current, chain.latestObservedAt)) return null
 
-  const active = current.sourceContentState === 'active'
-  if (
-    (active && !(current.reviewedAt instanceof Date)) ||
-    (active && current.sourceContentErasedAt !== null) ||
-    (!active && !(current.sourceContentErasedAt instanceof Date)) ||
-    (current.sourceContentErasedAt instanceof Date &&
-      (!Number.isFinite(current.sourceContentErasedAt.getTime()) ||
-        current.sourceContentErasedAt.getTime() < previousObservedAt))
-  ) {
-    return null
-  }
   const sourceDate = current.reviewedAt ?? first.responseTargetStartAt ?? first.observedAt
   if (!Number.isFinite(sourceDate.getTime())) return null
   return {

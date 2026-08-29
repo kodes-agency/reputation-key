@@ -151,16 +151,37 @@ function captureExperience(
   }
 }
 
+/** A window opens at `from` and lasts `windowMs`; no `from`, no window. */
+function windowDeadline(from: Date | null, windowMs: number): Date | null {
+  return from ? new Date(from.getTime() + windowMs) : null
+}
+
+function withinWindow(now: Date, deadline: Date | null): boolean {
+  return deadline !== null && now.getTime() <= deadline.getTime()
+}
+
+/** Private feedback is offered once, and only at or below the portal threshold. */
+function privateFeedbackEligible(response: GuestResponse): boolean {
+  return (
+    response.text === null &&
+    response.feedbackSubmittedAt === null &&
+    response.feedbackWithdrawnAt === null &&
+    response.rating !== null &&
+    response.privateFeedbackThreshold !== null &&
+    response.rating <= response.privateFeedbackThreshold
+  )
+}
+
 function toView(response: GuestResponse, now: Date): GuestResponseView {
-  const correctionDeadline = response.submittedAt
-    ? new Date(response.submittedAt.getTime() + CORRECTION_WINDOW_MS)
-    : null
-  const feedbackWithdrawalDeadline = response.feedbackSubmittedAt
-    ? new Date(response.feedbackSubmittedAt.getTime() + FEEDBACK_WITHDRAWAL_WINDOW_MS)
-    : null
-  const responseWithdrawalDeadline = response.submittedAt
-    ? new Date(response.submittedAt.getTime() + RESPONSE_WITHDRAWAL_WINDOW_MS)
-    : null
+  const correctionDeadline = windowDeadline(response.submittedAt, CORRECTION_WINDOW_MS)
+  const feedbackWithdrawalDeadline = windowDeadline(
+    response.feedbackSubmittedAt,
+    FEEDBACK_WITHDRAWAL_WINDOW_MS,
+  )
+  const responseWithdrawalDeadline = windowDeadline(
+    response.submittedAt,
+    RESPONSE_WITHDRAWAL_WINDOW_MS,
+  )
   return {
     status: response.status,
     rating: response.rating,
@@ -168,33 +189,23 @@ function toView(response: GuestResponse, now: Date): GuestResponseView {
     // browser or a shared device after submission. It is absent from the type,
     // rather than represented as a nullable field that a future mapper might fill.
     hasPrivateFeedback: response.text !== null,
-    privateFeedbackEligible:
-      response.text === null &&
-      response.feedbackSubmittedAt === null &&
-      response.feedbackWithdrawnAt === null &&
-      response.rating !== null &&
-      response.privateFeedbackThreshold !== null &&
-      response.rating <= response.privateFeedbackThreshold,
+    privateFeedbackEligible: privateFeedbackEligible(response),
     submittedAt: response.submittedAt?.toISOString() ?? null,
     correctedAt: response.correctedAt?.toISOString() ?? null,
     correctionDeadline: correctionDeadline?.toISOString() ?? null,
     correctionAvailable:
       response.status === 'submitted' &&
       response.correctionCount === 0 &&
-      correctionDeadline !== null &&
-      now.getTime() <= correctionDeadline.getTime(),
+      withinWindow(now, correctionDeadline),
     responseWithdrawalDeadline: responseWithdrawalDeadline?.toISOString() ?? null,
     responseWithdrawalAvailable:
-      response.status !== 'deleted' &&
-      responseWithdrawalDeadline !== null &&
-      now.getTime() <= responseWithdrawalDeadline.getTime(),
+      response.status !== 'deleted' && withinWindow(now, responseWithdrawalDeadline),
     feedbackSubmittedAt: response.feedbackSubmittedAt?.toISOString() ?? null,
     feedbackWithdrawalDeadline: feedbackWithdrawalDeadline?.toISOString() ?? null,
     feedbackWithdrawalAvailable:
       response.text !== null &&
       response.feedbackWithdrawnAt === null &&
-      feedbackWithdrawalDeadline !== null &&
-      now.getTime() <= feedbackWithdrawalDeadline.getTime(),
+      withinWindow(now, feedbackWithdrawalDeadline),
     feedbackWithdrawnAt: response.feedbackWithdrawnAt?.toISOString() ?? null,
     deletedAt: response.deletedAt?.toISOString() ?? null,
   }

@@ -97,6 +97,8 @@ const STAFF_TENANT_TABLES: readonly StaffLifecycleTable[] = Object.freeze([
  */
 const PURGE_ORDER_NOTE = 'team_memberships_before_staff_participations' as const
 
+export { PURGE_ORDER_NOTE as STAFF_PURGE_ORDER_NOTE }
+
 /** Evidence references stay content-free: context, phase, outcome and a count. */
 const evidenceRef = (
   phase: 'closing' | 'purge_readiness' | 'purge',
@@ -234,8 +236,6 @@ export const staffPurge = async (
 export const STAFF_LIFECYCLE_TABLES: readonly string[] = Object.freeze(
   STAFF_TENANT_TABLES.map(({ table }) => table),
 )
-
-export { PURGE_ORDER_NOTE as STAFF_PURGE_ORDER_NOTE }
 
 /**
  * Staff-owned Organization lifecycle contributor.

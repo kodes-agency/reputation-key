@@ -193,23 +193,17 @@ function recoveryInput(
 }
 
 /**
- * The command action (runs after the harness's policy decision allows).
- * Returns the process exit code: 1 on any refusal/failure, 0 on a clean
- * verification (or a dry-run report).
+ * Gate 1 — the drill posture must be active on THIS environment — and gate 2 —
+ * never purge against a live or shared database. `true` means refused.
  */
-export async function runRestoreVerifyAction(
-  ctx: OperatorContext,
-  deps: RestoreVerifyDeps,
-  io: OperatorIO,
-): Promise<number> {
-  // Gate 1 — the drill posture must be active on THIS environment.
+function restoreDrillRefused(deps: RestoreVerifyDeps, io: OperatorIO): boolean {
   if (!isRestoreIsolated(deps.env)) {
     io.err(
       'REFUSED: RESTORE_MODE=isolated is required — restore-verify runs only ' +
         'inside the isolated restore drill. Set RESTORE_MODE=isolated on the ' +
         'restored environment (worker stays down; web capabilities deny) and re-run.',
     )
-    return 1
+    return true
   }
 
   if (!isRestoreCellCompatible(deps.env)) {
@@ -217,95 +211,75 @@ export async function runRestoreVerifyAction(
       'REFUSED: RESTORE_SOURCE_CELL must exactly match PROCESSING_CELL — ' +
         'a backup may never be verified or cut over in another Data Cell.',
     )
-    return 1
+    return true
   }
 
-  // Gate 2 — never purge against a live or shared database.
   if (!isIsolatedRestoreTarget(deps.env.DATABASE_URL, deps.env)) {
     io.err(
       'REFUSED: DATABASE_URL is not an admitted restore target — use exact ' +
         'loopback for a local drill or the named Railway PITR sibling private ' +
         'hostname in its matching Data Cell environment.',
     )
-    return 1
+    return true
   }
+  return false
+}
 
-  const recoveryTarget = recoveryInput(ctx, deps.env)
-  if (typeof recoveryTarget === 'string') {
-    io.err(recoveryTarget)
-    return 1
-  }
+type RestoreBacklogSnapshot = Readonly<{
+  importLifecycle: Awaited<ReturnType<RestoreVerifyDeps['inspectGoogleImportLifecycle']>>
+  retention: Awaited<ReturnType<RestoreVerifyDeps['inspectRetentionBacklog']>>
+  recovery: Awaited<ReturnType<RestoreVerifyDeps['inspectRecoveryFence']>>
+}>
 
-  io.out(`✓ ${RESTORE_ISOLATED_LOG_LINE} — restore mode active, target admitted`)
+type RestoreApprovalPlan = Awaited<
+  ReturnType<
+    Extract<RestoreReviewLifecycleAuthority, { kind: 'inspection_only' }>['prepare']
+  >
+>
 
-  if (!ctx.dryRun && deps.reviewLifecycle.kind !== 'reviewed_apply') {
-    io.err(
-      'REFUSED: Review source-content apply has no reviewed cutover authority. ' +
-        'The ordinary restore composition is inspection-only; no Review purge, ' +
-        'import lifecycle, retention sweep, or recovery fence was applied.',
-    )
-    return 1
-  }
-
-  const approvalPlan =
-    ctx.dryRun && deps.reviewLifecycle.kind === 'inspection_only'
-      ? await deps.reviewLifecycle.prepare(recoveryTarget)
-      : null
-  const eligible = approvalPlan == null ? await deps.countExpired() : approvalPlan.expired
-  const importLifecycleBefore = await deps.inspectGoogleImportLifecycle()
-  const retentionBefore = await deps.inspectRetentionBacklog()
-  const recoveryBefore = await deps.inspectRecoveryFence()
-  if (ctx.dryRun) {
+/** Report what an apply would do, and the artifacts an approver must be given. */
+function reportRestoreDryRun(
+  io: OperatorIO,
+  deps: RestoreVerifyDeps,
+  eligible: number,
+  before: RestoreBacklogSnapshot,
+  approvalPlan: RestoreApprovalPlan | null,
+): void {
+  io.out(
+    `dry-run: ${eligible} expired-content row(s) eligible for the source-policy ` +
+      `purge; Google import lifecycle backlog=${JSON.stringify(before.importLifecycle)} ` +
+      `retention backlog=${JSON.stringify(before.retention)} ` +
+      `recovery authority=${JSON.stringify(before.recovery)} ` +
+      (deps.reviewLifecycle.kind === 'reviewed_apply'
+        ? '— re-run with --apply --yes ops:restore-verify'
+        : '— Review apply remains unavailable until a reviewed cutover authority is injected'),
+  )
+  if (approvalPlan != null) {
     io.out(
-      `dry-run: ${eligible} expired-content row(s) eligible for the source-policy ` +
-        `purge; Google import lifecycle backlog=${JSON.stringify(importLifecycleBefore)} ` +
-        `retention backlog=${JSON.stringify(retentionBefore)} ` +
-        `recovery authority=${JSON.stringify(recoveryBefore)} ` +
-        (deps.reviewLifecycle.kind === 'reviewed_apply'
-          ? '— re-run with --apply --yes ops:restore-verify'
-          : '— Review apply remains unavailable until a reviewed cutover authority is injected'),
+      `Review lifecycle recovery report SHA-256=${approvalPlan.reportSha256}: ${approvalPlan.reportContent.trimEnd()}`,
     )
-    if (approvalPlan != null) {
-      io.out(
-        `Review lifecycle recovery report SHA-256=${approvalPlan.reportSha256}: ${approvalPlan.reportContent.trimEnd()}`,
-      )
-      io.out(
-        `Review lifecycle recovery request SHA-256=${approvalPlan.requestSha256}: ${approvalPlan.requestContent.trimEnd()}`,
-      )
-      io.out(
-        'Give those exact aggregate-only artifacts to the independent approver; do not infer or self-approve an apply decision.',
-      )
-    }
-    return 0
-  }
-  if (recoveryBefore.regionMovesBlocking > 0) {
-    io.err(
-      `REFUSED: ${String(recoveryBefore.regionMovesBlocking)} active or unresolved Data Cell move(s) exist in the restored database — resolve the move authority before applying recovery.`,
+    io.out(
+      `Review lifecycle recovery request SHA-256=${approvalPlan.requestSha256}: ${approvalPlan.requestContent.trimEnd()}`,
     )
-    return 1
+    io.out(
+      'Give those exact aggregate-only artifacts to the independent approver; do not infer or self-approve an apply decision.',
+    )
   }
+}
 
-  if (deps.reviewLifecycle.kind !== 'reviewed_apply') {
-    io.err('REFUSED: reviewed Review lifecycle apply authority is unavailable.')
-    return 1
-  }
-  // Admission authenticates the signature, re-collects the exact frozen
-  // report, and reserves the one-shot receipt before any destructive work.
-  const reviewedApply = await deps.reviewLifecycle.admit(recoveryTarget)
-  await reviewedApply.applyReviewLifecycle()
-  await deps.sweepGoogleImportLifecycle()
-  await deps.sweepRetentionBacklog()
-
-  const remaining = await deps.countExpired()
-  const importLifecycleAfter = await deps.inspectGoogleImportLifecycle()
-  const retentionAfter = await deps.inspectRetentionBacklog()
-
+/** Everything the purge and the bounded sweeps must have driven to zero. */
+function purgeBacklogFailed(
+  io: OperatorIO,
+  remaining: number,
+  importLifecycleAfter: RestoreBacklogSnapshot['importLifecycle'],
+  retentionAfter: RestoreBacklogSnapshot['retention'],
+): boolean {
   if (remaining > 0) {
     io.err(
       `FAILED: ${remaining} expired-content row(s) remain eligible after the purge — ` +
         'investigate (see the purge evidence above) before any cutover.',
     )
-    return 1
+    return true
   }
   if (
     importLifecycleAfter.expiredItems > 0 ||
@@ -315,7 +289,7 @@ export async function runRestoreVerifyAction(
     io.err(
       `FAILED: Google import lifecycle backlog remains after reconciliation: ${JSON.stringify(importLifecycleAfter)}`,
     )
-    return 1
+    return true
   }
   const retentionTotal = Object.values(retentionAfter).reduce(
     (total, count) => total + count,
@@ -325,24 +299,22 @@ export async function runRestoreVerifyAction(
     io.err(
       `FAILED: overdue retention backlog remains after the bounded sweep: ${JSON.stringify(retentionAfter)} — re-run while isolated until it reaches zero.`,
     )
-    return 1
+    return true
   }
+  return false
+}
 
-  const recoveryResult = await deps.applyRecoveryFence(reviewedApply.recoveryInput)
-  const unfencedAuthority = await deps.inspectRecoveryFence()
-  const unfencedTotal = Object.values(unfencedAuthority).reduce(
-    (total, count) => total + count,
-    0,
-  )
-  if (unfencedTotal > 0) {
-    io.err(
-      `FAILED: restored authority remains after recovery generation ${String(recoveryResult.generation)}: ${JSON.stringify(unfencedAuthority)}`,
-    )
-    return 1
-  }
-  await reviewedApply.complete(recoveryResult)
-
-  const evidence = await deps.purgeEvidence()
+/** The evidence, the recovery receipt, and the manual steps that follow. */
+function reportCutoverChecklist(
+  io: OperatorIO,
+  evidence: ReadonlyArray<RestoreVerifyEvidenceRow>,
+  recoveryResult: RecoveryFenceResult,
+  reviewedApply: Awaited<
+    ReturnType<
+      Extract<RestoreReviewLifecycleAuthority, { kind: 'reviewed_apply' }>['admit']
+    >
+  >,
+): void {
   io.out('purge evidence (retention_runs, newest first):')
   for (const row of evidence) {
     io.out(
@@ -373,5 +345,97 @@ export async function runRestoreVerifyAction(
   io.out(
     '  6. Rebuild projections/reconcile external state; do not redrive fenced outbox rows',
   )
+}
+
+/**
+ * The command action (runs after the harness's policy decision allows).
+ * Returns the process exit code: 1 on any refusal/failure, 0 on a clean
+ * verification (or a dry-run report).
+ */
+export async function runRestoreVerifyAction(
+  ctx: OperatorContext,
+  deps: RestoreVerifyDeps,
+  io: OperatorIO,
+): Promise<number> {
+  if (restoreDrillRefused(deps, io)) return 1
+
+  const recoveryTarget = recoveryInput(ctx, deps.env)
+  if (typeof recoveryTarget === 'string') {
+    io.err(recoveryTarget)
+    return 1
+  }
+
+  io.out(`✓ ${RESTORE_ISOLATED_LOG_LINE} — restore mode active, target admitted`)
+
+  if (!ctx.dryRun && deps.reviewLifecycle.kind !== 'reviewed_apply') {
+    io.err(
+      'REFUSED: Review source-content apply has no reviewed cutover authority. ' +
+        'The ordinary restore composition is inspection-only; no Review purge, ' +
+        'import lifecycle, retention sweep, or recovery fence was applied.',
+    )
+    return 1
+  }
+
+  const approvalPlan =
+    ctx.dryRun && deps.reviewLifecycle.kind === 'inspection_only'
+      ? await deps.reviewLifecycle.prepare(recoveryTarget)
+      : null
+  const eligible = approvalPlan == null ? await deps.countExpired() : approvalPlan.expired
+  const importLifecycleBefore = await deps.inspectGoogleImportLifecycle()
+  const retentionBefore = await deps.inspectRetentionBacklog()
+  const recoveryBefore = await deps.inspectRecoveryFence()
+  if (ctx.dryRun) {
+    reportRestoreDryRun(
+      io,
+      deps,
+      eligible,
+      {
+        importLifecycle: importLifecycleBefore,
+        retention: retentionBefore,
+        recovery: recoveryBefore,
+      },
+      approvalPlan,
+    )
+    return 0
+  }
+  if (recoveryBefore.regionMovesBlocking > 0) {
+    io.err(
+      `REFUSED: ${String(recoveryBefore.regionMovesBlocking)} active or unresolved Data Cell move(s) exist in the restored database — resolve the move authority before applying recovery.`,
+    )
+    return 1
+  }
+
+  if (deps.reviewLifecycle.kind !== 'reviewed_apply') {
+    io.err('REFUSED: reviewed Review lifecycle apply authority is unavailable.')
+    return 1
+  }
+  // Admission authenticates the signature, re-collects the exact frozen
+  // report, and reserves the one-shot receipt before any destructive work.
+  const reviewedApply = await deps.reviewLifecycle.admit(recoveryTarget)
+  await reviewedApply.applyReviewLifecycle()
+  await deps.sweepGoogleImportLifecycle()
+  await deps.sweepRetentionBacklog()
+
+  const remaining = await deps.countExpired()
+  const importLifecycleAfter = await deps.inspectGoogleImportLifecycle()
+  const retentionAfter = await deps.inspectRetentionBacklog()
+
+  if (purgeBacklogFailed(io, remaining, importLifecycleAfter, retentionAfter)) return 1
+
+  const recoveryResult = await deps.applyRecoveryFence(reviewedApply.recoveryInput)
+  const unfencedAuthority = await deps.inspectRecoveryFence()
+  const unfencedTotal = Object.values(unfencedAuthority).reduce(
+    (total, count) => total + count,
+    0,
+  )
+  if (unfencedTotal > 0) {
+    io.err(
+      `FAILED: restored authority remains after recovery generation ${String(recoveryResult.generation)}: ${JSON.stringify(unfencedAuthority)}`,
+    )
+    return 1
+  }
+  await reviewedApply.complete(recoveryResult)
+
+  reportCutoverChecklist(io, await deps.purgeEvidence(), recoveryResult, reviewedApply)
   return 0
 }

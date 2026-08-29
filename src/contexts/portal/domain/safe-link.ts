@@ -28,52 +28,71 @@ const DEFAULT_ALLOWLIST: readonly LinkAllowlistEntry[] = [
   { host: 'business.google.com' },
 ]
 
-function isPrivateDestinationHost(hostname: string): boolean {
-  const host = hostname
+/** Suffixes reserved for local-only or non-routable names. */
+const LOCAL_ONLY_HOST_SUFFIXES: readonly string[] = [
+  '.localhost',
+  '.local',
+  '.internal',
+  '.lan',
+  '.home',
+  '.home.arpa',
+  '.invalid',
+  '.test',
+  '.example',
+  '.onion',
+]
+
+const IPV4_HOST_PATTERN = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/u
+
+const IPV4_MAPPED_PRIVATE_PATTERN =
+  /^::ffff:(?:0\.|10\.|127\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.|192\.168\.)/u
+
+function normalizeDestinationHost(hostname: string): string {
+  return hostname
     .toLowerCase()
     .replace(/^\[|\]$/gu, '')
     .replace(/\.$/u, '')
-  if (
-    host === 'localhost' ||
-    host.endsWith('.localhost') ||
-    host.endsWith('.local') ||
-    host.endsWith('.internal') ||
-    host.endsWith('.lan') ||
-    host.endsWith('.home') ||
-    host.endsWith('.home.arpa') ||
-    host.endsWith('.invalid') ||
-    host.endsWith('.test') ||
-    host.endsWith('.example') ||
-    host.endsWith('.onion')
-  ) {
-    return true
-  }
+}
 
-  const ipv4 = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/u.exec(host)
-  if (ipv4) {
-    const [first, second] = ipv4.slice(1).map(Number)
-    return (
-      first === 0 ||
-      first === 10 ||
-      first === 127 ||
-      (first === 169 && second === 254) ||
-      (first === 172 && second >= 16 && second <= 31) ||
-      (first === 192 && second === 168) ||
-      first >= 224
-    )
-  }
+function isLocalOnlyHostName(host: string): boolean {
+  if (host === 'localhost') return true
+  return LOCAL_ONLY_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix))
+}
 
-  if (!host.includes(':')) return !host.includes('.')
+/** `first`/`second` are the leading two octets of an IPv4 literal. */
+function isPrivateIpv4Address(first: number, second: number): boolean {
+  return (
+    first === 0 ||
+    first === 10 ||
+    first === 127 ||
+    (first === 169 && second === 254) ||
+    (first === 172 && second >= 16 && second <= 31) ||
+    (first === 192 && second === 168) ||
+    first >= 224
+  )
+}
+
+function isPrivateIpv6Address(host: string): boolean {
   return (
     host === '::' ||
     host === '::1' ||
     /^f[cd]/u.test(host) ||
     /^fe[89ab]/u.test(host) ||
     /^ff/u.test(host) ||
-    /^::ffff:(?:0\.|10\.|127\.|169\.254\.|172\.(?:1[6-9]|2\d|3[01])\.|192\.168\.)/u.test(
-      host,
-    )
+    IPV4_MAPPED_PRIVATE_PATTERN.test(host)
   )
+}
+
+function isPrivateDestinationHost(hostname: string): boolean {
+  const host = normalizeDestinationHost(hostname)
+  if (isLocalOnlyHostName(host)) return true
+
+  const ipv4 = IPV4_HOST_PATTERN.exec(host)
+  if (ipv4) return isPrivateIpv4Address(Number(ipv4[1]), Number(ipv4[2]))
+
+  // Not an IPv6 literal: a dotless name can only resolve via a local search domain.
+  if (!host.includes(':')) return !host.includes('.')
+  return isPrivateIpv6Address(host)
 }
 
 /** General link-tree boundary: arbitrary public HTTPS is allowed, local targets are not. */

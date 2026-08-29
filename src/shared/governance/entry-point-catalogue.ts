@@ -546,23 +546,32 @@ function ownerForFile(file: string): EntryPointOwner {
   return 'shared'
 }
 
-function mutationForEntry(
-  kind: EntryPointKind,
-  name: string,
-  owner: EntryPointOwner,
-): EntryPointMutation {
-  if (kind === 'operator_command') {
-    const classification = classifyOperatorCommandMutation(name)
-    if (classification) return classification
-  }
-  if (
+function isReadOnlyEntry(kind: EntryPointKind, name: string): boolean {
+  return (
     READ_ONLY_NO_EFFECT_ENTRIES.has(`${kind}:${name}`) ||
     kind === 'route_ui' ||
     (kind === 'route_api' && name.startsWith('/api/health')) ||
     (kind === 'server_function' &&
       READ_ONLY_SERVER_FN_RE.test(name) &&
       !MUTATING_QUERY_NAMES.has(name))
-  ) {
+  )
+}
+
+/**
+ * Dispositions decided by the entry kind: operator commands, read-only
+ * surfaces, schedules, jobs, and consumers. `null` means no kind-scoped rule
+ * matched and the name-scoped tables decide.
+ */
+function kindScopedMutation(
+  kind: EntryPointKind,
+  name: string,
+  owner: EntryPointOwner,
+): EntryPointMutation | null {
+  if (kind === 'operator_command') {
+    const classification = classifyOperatorCommandMutation(name)
+    if (classification) return classification
+  }
+  if (isReadOnlyEntry(kind, name)) {
     return { kind: 'read_only' }
   }
   if (kind === 'schedule') {
@@ -610,6 +619,14 @@ function mutationForEntry(
         'The source durable fact remains authoritative; this handler owns only an idempotent projection, queue admission, delivery, compatibility no-op, or consumer receipt and requires no new cross-context domain fact.',
     }
   }
+  return null
+}
+
+/**
+ * Dispositions for context command and server-function entry points, matched by
+ * entry name. `null` means no rule in this table matched.
+ */
+function contextCommandMutation(name: string): EntryPointMutation | null {
   if (ATOMIC_IDENTITY_MUTATIONS.has(name)) {
     return {
       kind: 'mutation',
@@ -702,6 +719,26 @@ function mutationForEntry(
         'Reads canonical, tenant-scoped setup facts and only inserts missing content-free first-completion milestones; source state remains authoritative in its owning context.',
     }
   }
+  return null
+}
+
+function localRouteStateOwner(name: string): EntryPointOwner {
+  if (
+    name === '/api/notifications/unsubscribe' ||
+    name === '/api/webhooks/resend/events'
+  ) {
+    return 'notification'
+  }
+  if (name === '/api/webhooks/gbp/notifications') return 'integration'
+  return 'identity'
+}
+
+/**
+ * Dispositions for HTTP routes and the request-facing collaboration surfaces
+ * (portal, guest, review, inbox, notification), matched by entry name. `null`
+ * means no rule in this table matched.
+ */
+function requestSurfaceMutation(name: string): EntryPointMutation | null {
   if (ATOMIC_ROUTE_MUTATIONS.has(name)) {
     return {
       kind: 'mutation',
@@ -714,13 +751,7 @@ function mutationForEntry(
   if (LOCAL_ONLY_ROUTE_MUTATIONS.has(name)) {
     return {
       kind: 'mutation',
-      stateOwner:
-        name === '/api/notifications/unsubscribe' ||
-        name === '/api/webhooks/resend/events'
-          ? 'notification'
-          : name === '/api/webhooks/gbp/notifications'
-            ? 'integration'
-            : 'identity',
+      stateOwner: localRouteStateOwner(name),
       disposition: 'local_only_with_reason',
       reason:
         'This authenticated/provider boundary owns only context-local session, preference, delivery-state, replay, or deterministic queue-admission effects; the source authority remains external or already durable and no new cross-context fact is required.',
@@ -811,15 +842,33 @@ function mutationForEntry(
         "Mutates only the current recipient's Notification read/dismiss/preference projection; it is not an authoritative cross-context domain transition.",
     }
   }
-  return {
-    kind: 'mutation',
-    stateOwner: owner,
-    disposition: 'temporarily_accepted_debt',
-    reason:
-      'This bounded catalogue slice has not yet proven atomic-state-and-fact or local-only semantics.',
-    debtOwner: 'FND-03',
-    expiresAt: MUTATION_DEBT_EXPIRY,
-  }
+  return null
+}
+
+/**
+ * Classify one entry point's mutation semantics. The three tables are consulted
+ * in order — kind-scoped rules first, then the name-scoped context and request
+ * surface tables — and the first match wins; anything unmatched is recorded as
+ * temporarily accepted debt rather than silently claimed as safe.
+ */
+function mutationForEntry(
+  kind: EntryPointKind,
+  name: string,
+  owner: EntryPointOwner,
+): EntryPointMutation {
+  return (
+    kindScopedMutation(kind, name, owner) ??
+    contextCommandMutation(name) ??
+    requestSurfaceMutation(name) ?? {
+      kind: 'mutation',
+      stateOwner: owner,
+      disposition: 'temporarily_accepted_debt',
+      reason:
+        'This bounded catalogue slice has not yet proven atomic-state-and-fact or local-only semantics.',
+      debtOwner: 'FND-03',
+      expiresAt: MUTATION_DEBT_EXPIRY,
+    }
+  )
 }
 
 function registrationForEntry(
@@ -842,6 +891,60 @@ function registrationForEntry(
   return { ownerFile: file, reachability: 'direct_declaration' }
 }
 
+function entryOwnerIssues(id: string, entry: Partial<EntryPointRow>): readonly string[] {
+  if (!entry.owner) return [`${id}: owner is missing`]
+  if (!ENTRY_POINT_OWNERS.has(entry.owner)) return [`${id}: owner is invalid`]
+  if (entry.file && entry.owner !== ownerForFile(entry.file)) {
+    return [`${id}: owner does not match definition path`]
+  }
+  return []
+}
+
+function entryRegistrationIssues(
+  id: string,
+  registration: EntryPointRegistration | undefined,
+): readonly string[] {
+  if (!registration?.ownerFile || !registration.reachability) {
+    return [`${id}: registration ownership is missing`]
+  }
+  if (
+    !['direct_declaration', 'source_composed', 'boot_registry', 'declared_only'].includes(
+      registration.reachability,
+    )
+  ) {
+    return [`${id}: registration reachability is invalid`]
+  }
+  return []
+}
+
+function entryMutationIssues(
+  id: string,
+  mutation: EntryPointMutation | undefined,
+): readonly string[] {
+  if (!mutation || typeof mutation !== 'object') {
+    return [`${id}: mutation classification is missing`]
+  }
+  if (mutation.kind === 'read_only') return []
+  if (mutation.kind !== 'mutation') return [`${id}: mutation kind is invalid`]
+
+  const issues: string[] = []
+  if (!MUTATION_DISPOSITIONS.has(mutation.disposition)) {
+    issues.push(`${id}: mutation disposition is invalid`)
+  }
+  if (!mutation.stateOwner) issues.push(`${id}: mutation state owner is missing`)
+  else if (!ENTRY_POINT_OWNERS.has(mutation.stateOwner)) {
+    issues.push(`${id}: mutation state owner is invalid`)
+  }
+  if (!mutation.reason) issues.push(`${id}: mutation reason is missing`)
+  if (mutation.disposition === 'temporarily_accepted_debt') {
+    if (!mutation.debtOwner) issues.push(`${id}: debt owner is missing`)
+    if (!/^\d{4}-\d{2}-\d{2}$/u.test(mutation.expiresAt ?? '')) {
+      issues.push(`${id}: debt expiry is invalid`)
+    }
+  }
+  return issues
+}
+
 export function validateEntryPointGovernance(
   rows: readonly unknown[],
 ): readonly string[] {
@@ -849,47 +952,11 @@ export function validateEntryPointGovernance(
   for (const candidate of rows) {
     const entry = candidate as Partial<EntryPointRow>
     const id = typeof entry.id === 'string' ? entry.id : '<unknown-entry>'
-    if (!entry.owner) issues.push(`${id}: owner is missing`)
-    else if (!ENTRY_POINT_OWNERS.has(entry.owner)) {
-      issues.push(`${id}: owner is invalid`)
-    } else if (entry.file && entry.owner !== ownerForFile(entry.file)) {
-      issues.push(`${id}: owner does not match definition path`)
-    }
-    if (!entry.registration?.ownerFile || !entry.registration.reachability) {
-      issues.push(`${id}: registration ownership is missing`)
-    } else if (
-      ![
-        'direct_declaration',
-        'source_composed',
-        'boot_registry',
-        'declared_only',
-      ].includes(entry.registration.reachability)
-    ) {
-      issues.push(`${id}: registration reachability is invalid`)
-    }
-    if (!entry.mutation || typeof entry.mutation !== 'object') {
-      issues.push(`${id}: mutation classification is missing`)
-      continue
-    }
-    if (entry.mutation.kind === 'read_only') continue
-    if (entry.mutation.kind !== 'mutation') {
-      issues.push(`${id}: mutation kind is invalid`)
-      continue
-    }
-    if (!MUTATION_DISPOSITIONS.has(entry.mutation.disposition)) {
-      issues.push(`${id}: mutation disposition is invalid`)
-    }
-    if (!entry.mutation.stateOwner) issues.push(`${id}: mutation state owner is missing`)
-    else if (!ENTRY_POINT_OWNERS.has(entry.mutation.stateOwner)) {
-      issues.push(`${id}: mutation state owner is invalid`)
-    }
-    if (!entry.mutation.reason) issues.push(`${id}: mutation reason is missing`)
-    if (entry.mutation.disposition === 'temporarily_accepted_debt') {
-      if (!entry.mutation.debtOwner) issues.push(`${id}: debt owner is missing`)
-      if (!/^\d{4}-\d{2}-\d{2}$/u.test(entry.mutation.expiresAt ?? '')) {
-        issues.push(`${id}: debt expiry is invalid`)
-      }
-    }
+    issues.push(
+      ...entryOwnerIssues(id, entry),
+      ...entryRegistrationIssues(id, entry.registration),
+      ...entryMutationIssues(id, entry.mutation),
+    )
   }
   return issues
 }
