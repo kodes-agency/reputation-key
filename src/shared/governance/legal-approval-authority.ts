@@ -102,6 +102,20 @@ function documentErrors(
     errors.push(`engineering cannot self-approve ${document.id}`)
   }
 
+  // The mirror of the rule above. An operator-acknowledged document is exactly
+  // the case where the operator IS the approver, so the prohibition does not
+  // apply — but it must not dress itself as counsel, because that is the one
+  // claim the rule above exists to make unforgeable.
+  if (
+    document.kind === 'operator_acknowledged' &&
+    document.approver !== null &&
+    document.approver.role === 'external_counsel'
+  ) {
+    errors.push(
+      `${document.id}: operator-acknowledged documents cannot claim an external counsel approver`,
+    )
+  }
+
   if (document.status === 'approved' && document.expiresOn !== null) {
     const today = calendarDate(input.now)
     if (document.expiresOn < today) {
@@ -159,7 +173,12 @@ export function legalPublicationBlockers(
 ): readonly string[] {
   return LEGAL_PUBLICATION_DOCUMENT_IDS.filter((id) => {
     const document = registry.documents.find((candidate) => candidate.id === id)
-    return document === undefined || document.status !== 'approved'
+    if (document === undefined || document.status !== 'approved') return true
+    // Approved by the operator is enough to RUN a closed beta and not enough to
+    // PUBLISH to anyone else, so it stays on the blocker list. That is what
+    // makes opening the beta surface these documents instead of inheriting a
+    // clean list from the closed phase.
+    return document.kind === 'operator_acknowledged'
   })
 }
 

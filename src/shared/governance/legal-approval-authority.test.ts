@@ -232,6 +232,68 @@ describe('legal approval authority', () => {
     )
   })
 
+  it('lets the operator acknowledge a document without a lawyer', () => {
+    const acknowledged = approved({
+      kind: 'operator_acknowledged',
+      approver: {
+        name: 'Bozhidar Denev',
+        role: 'operations',
+        organization: 'Kodes Agency',
+      },
+    })
+
+    // The same identity that is PROHIBITED from approving counsel-owned text.
+    // That prohibition is about counsel-owned text specifically, not about the
+    // operator ever approving anything.
+    expect(validate([acknowledged], { [PRIVACY]: APPROVED_BODY })).toEqual([])
+  })
+
+  it('still refuses that identity on a counsel-owned document', () => {
+    const selfApproved = approved({
+      approver: {
+        name: 'Bozhidar Denev',
+        role: 'external_counsel',
+        organization: 'Kodes Agency',
+      },
+    })
+
+    expect(validate([selfApproved], { [PRIVACY]: APPROVED_BODY })).toContain(
+      'engineering cannot self-approve privacy-notice',
+    )
+  })
+
+  it('refuses an operator-acknowledged document that claims counsel approved it', () => {
+    // The one forgery the new kind could enable: acknowledge it yourself, then
+    // label the approver as counsel to inherit counsel-grade trust.
+    const disguised = approved({
+      kind: 'operator_acknowledged',
+      approver: {
+        name: 'Dana Counsel',
+        role: 'external_counsel',
+        organization: 'Firm LLP',
+      },
+    })
+
+    expect(validate([disguised], { [PRIVACY]: APPROVED_BODY })).toContain(
+      'privacy-notice: operator-acknowledged documents cannot claim an external counsel approver',
+    )
+  })
+
+  it('keeps an operator-acknowledged document on the external publication blockers', () => {
+    const acknowledged = approved({
+      kind: 'operator_acknowledged',
+      approver: {
+        name: 'Bozhidar Denev',
+        role: 'operations',
+        organization: 'Kodes Agency',
+      },
+    })
+
+    // Enough to RUN a closed beta, not enough to PUBLISH to outsiders — so
+    // opening the beta surfaces it rather than inheriting a clean list.
+    expect(legalPublicationBlockers(registryOf(acknowledged))).toContain('privacy-notice')
+  })
+
   it('keeps the shipped registry internally consistent about who may approve', () => {
     expect(
       LEGAL_DOCUMENT_REGISTRY.documents.every((document) => document.approver === null),

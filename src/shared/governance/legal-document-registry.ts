@@ -40,6 +40,17 @@ export const LEGAL_DOCUMENT_KINDS = [
   'in_product_notice',
   /** Engineering input for counsel; never published as legal text. */
   'engineering_fact_map',
+  /**
+   * Customer-facing text the OPERATOR acknowledges directly, with no lawyer.
+   *
+   * Valid only while the operator is the only participant — a closed beta with
+   * no outside users. It is deliberately a distinct kind rather than a relaxed
+   * `counsel_approved`: the self-approval prohibition on counsel-owned text
+   * stays exactly as strict as it was, and a document in this kind is reported
+   * by `legalPublicationBlockers` as blocking external publication, so opening
+   * the beta to anyone else surfaces it rather than letting it pass silently.
+   */
+  'operator_acknowledged',
 ] as const
 
 export type LegalDocumentKind = (typeof LEGAL_DOCUMENT_KINDS)[number]
