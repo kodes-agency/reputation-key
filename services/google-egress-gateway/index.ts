@@ -19,6 +19,7 @@ import {
 } from './environment'
 import { createSidecarPlatformHealthServer } from '../platform-health'
 import { registerSidecarOperationalLifecycle } from '../sidecar-operational-runtime'
+import { monitoredSidecarObservability } from '../sidecar-monitored-observability'
 import { resolveSidecarRuntimePorts } from '../sidecar-runtime-ports'
 
 declare const __REPKEY_GOOGLE_LOCAL_SANDBOX__: boolean
@@ -187,4 +188,6 @@ registerSidecarOperationalLifecycle({
   health: platformHealth,
   shutdown,
   shutdownTimeoutMs: 25_000,
+  capture: monitoredSidecarObservability.capture,
+  flush: monitoredSidecarObservability.flush,
 })

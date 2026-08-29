@@ -28,6 +28,7 @@ import { assertGoogleAdmissionRequiredEnvironment } from './environment'
 import { consumeGoogleAdmissionRuntimeSecrets } from './runtime-secrets'
 import { createSidecarPlatformHealthServer } from '../platform-health'
 import { registerSidecarOperationalLifecycle } from '../sidecar-operational-runtime'
+import { monitoredSidecarObservability } from '../sidecar-monitored-observability'
 import { resolveSidecarRuntimePorts } from '../sidecar-runtime-ports'
 import { captureObservabilityException } from '../../src/shared/observability/telemetry'
 
@@ -253,4 +254,6 @@ registerSidecarOperationalLifecycle({
   health: platformHealth,
   shutdown,
   shutdownTimeoutMs: 25_000,
+  capture: monitoredSidecarObservability.capture,
+  flush: monitoredSidecarObservability.flush,
 })

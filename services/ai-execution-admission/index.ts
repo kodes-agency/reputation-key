@@ -21,8 +21,8 @@ import { loadEd25519PrivateKey } from './key-material'
 import { consumeAiAdmissionRuntimeSecrets } from './runtime-secrets'
 import { createSidecarPlatformHealthServer } from '../platform-health'
 import { registerSidecarOperationalLifecycle } from '../sidecar-operational-runtime'
+import { unmonitoredSidecarObservability } from '../sidecar-unmonitored-observability'
 import { resolveSidecarRuntimePorts } from '../sidecar-runtime-ports'
-import { captureObservabilityException } from '../../src/shared/observability/telemetry'
 
 const GATEWAY_IDENTITY = 'spiffe://repkey.internal/ai-egress-gateway'
 assertAiAdmissionRequiredEnvironment(process.env)
@@ -69,7 +69,7 @@ const { databaseTls, pool, requestBindingKeys, signingPrivateKey, tls } =
     }
   })
 pool.on('error', (error) => {
-  captureObservabilityException(error, { source: 'sidecar-dependency' })
+  unmonitoredSidecarObservability.capture(error, { source: 'sidecar-dependency' })
   process.stderr.write('ai_admission_db_idle_error\n')
 })
 assertAiRequestBindingKeyringInventory(requestBindingKeys, keyInventory)
@@ -135,7 +135,7 @@ if (!(await readiness(AbortSignal.timeout(5_000)))) {
 
 const reaper = setInterval(() => {
   void service.reapExpired(100).catch((error) => {
-    captureObservabilityException(error, { source: 'sidecar-dependency' })
+    unmonitoredSidecarObservability.capture(error, { source: 'sidecar-dependency' })
     process.stderr.write('ai_admission_reaper_error\n')
   })
 }, 5 * 60_000)
@@ -188,4 +188,6 @@ registerSidecarOperationalLifecycle({
   health: platformHealth,
   shutdown,
   shutdownTimeoutMs: 125_000,
+  capture: unmonitoredSidecarObservability.capture,
+  flush: unmonitoredSidecarObservability.flush,
 })

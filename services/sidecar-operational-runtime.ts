@@ -1,9 +1,22 @@
-import {
-  captureObservabilityException,
-  flushObservability,
-  initObservability,
-  type ErrorCaptureContext,
-  type ObservabilityInitResult,
+// The monitoring client is a PARAMETER here, never an import.
+//
+// Two of the four sidecars are forbidden from linking one at all: the AI
+// egress gateway and the AI execution admission service are the boundary that
+// decides what may leave the cell, and `scripts/verify-ai-runtime-image.mjs`
+// refuses any AI image whose bundle contains `node_modules/@sentry/` or whose
+// environment carries a `SENTRY_DSN`. A module-level import of
+// `shared/observability/telemetry` here linked the SDK into both AI bundles
+// through this file, because `noExternal: [/.*/]` bundles everything
+// statically reachable — the image gate caught it, which is what it is for.
+//
+// The types are still imported, as types: `import type` is erased, so the
+// contract stays shared while the implementation is named by each entry point
+// (`sidecar-monitored-observability` for the Google pair,
+// `sidecar-unmonitored-observability` for the AI pair). A new sidecar cannot
+// inherit a monitoring client it never asked for, because there is no default.
+import type {
+  ErrorCaptureContext,
+  ObservabilityInitResult,
 } from '../src/shared/observability/telemetry'
 import {
   createSidecarProcessLifecycle,
@@ -23,36 +36,28 @@ type SidecarHealthDrain = Readonly<{
   stop(): Promise<void>
 }>
 
-type SidecarObservability = Readonly<{
+export type SidecarObservability = Readonly<{
   initialize(service: SidecarServiceName): ObservabilityInitResult
   capture(error: unknown, context: ErrorCaptureContext): void
   flush(): Promise<boolean>
 }>
 
-type SidecarStartupDependencies = SidecarObservability &
+export type SidecarStartupDependencies = SidecarObservability &
   Readonly<{ terminate?(code: 1): unknown }>
 
-const DEFAULT_OBSERVABILITY: SidecarObservability = Object.freeze({
-  initialize: initObservability,
-  capture: captureObservabilityException,
-  flush: () => flushObservability(),
-})
-
-const DEFAULT_STARTUP_DEPENDENCIES: SidecarStartupDependencies = Object.freeze({
-  ...DEFAULT_OBSERVABILITY,
-  terminate: (code) => process.exit(code),
-})
-
 /**
- * Initialize the supported Node monitoring SDK before dynamically loading any
- * protected sidecar dependencies. Startup failures use the same scrubbed error
+ * Initialize the sidecar's own monitoring client before dynamically loading
+ * any protected dependency. Startup failures use the same scrubbed error
  * boundary and bounded flush as process failures, then retain their original
  * exit semantics.
+ *
+ * `observability` is required. See the header: a default would decide for the
+ * two sidecars that are not allowed to have one.
  */
 export async function runSidecarStartup(
   service: SidecarServiceName,
   start: () => Promise<void>,
-  observability: SidecarStartupDependencies = DEFAULT_STARTUP_DEPENDENCIES,
+  observability: SidecarStartupDependencies,
 ): Promise<void> {
   try {
     observability.initialize(service)
@@ -71,8 +76,8 @@ export async function runSidecarStartup(
     } catch {
       // Startup termination must remain bounded when monitoring is unavailable.
     }
-    const terminate = observability.terminate ?? DEFAULT_STARTUP_DEPENDENCIES.terminate
-    terminate?.(1)
+    const terminate = observability.terminate ?? ((code: 1) => process.exit(code))
+    terminate(1)
     throw new Error('sidecar startup termination returned unexpectedly', {
       cause: error,
     })
@@ -96,14 +101,14 @@ export function registerSidecarOperationalLifecycle(
     shutdown: (trigger: SidecarTerminationTrigger) => Promise<void>
     shutdownTimeoutMs: number
     process?: SidecarProcessTarget
-    capture?: SidecarObservability['capture']
-    flush?: SidecarObservability['flush']
+    /** Required for the same reason as runSidecarStartup's — see the header. */
+    capture: SidecarObservability['capture']
+    flush: SidecarObservability['flush']
     emit?: (event: SidecarLifecycleEvent) => void
   }>,
 ): SidecarProcessLifecycle {
   const processTarget = input.process ?? process
-  const capture = input.capture ?? captureObservabilityException
-  const flush = input.flush ?? (() => flushObservability())
+  const { capture, flush } = input
 
   const lifecycle = createSidecarProcessLifecycle({
     service: input.service,

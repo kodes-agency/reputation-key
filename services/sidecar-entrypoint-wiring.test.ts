@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, relative, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const source = (path: string) => readFileSync(path, 'utf8')
@@ -62,6 +63,58 @@ describe('sidecar executable operational wiring', () => {
 
     const aiGateway = source(RUNTIMES[3])
     expect(aiGateway).toContain('service.readiness(signal)')
+  })
+
+  it('never links a monitoring SDK into an AI sidecar, and always into a Google one', () => {
+    // `scripts/verify-ai-runtime-image.mjs` refuses an AI image whose bundle
+    // contains `node_modules/@sentry/`. That gate only fires after a docker
+    // build, so this walks the same static graph the bundler does and fails in
+    // seconds instead: the AI pair IS the egress boundary, and an SDK opening
+    // its own outbound connection from inside it is a hole in the decision.
+    const reachable = (entry: string): ReadonlySet<string> => {
+      const seen = new Set<string>()
+      const queue = [entry]
+      while (queue.length > 0) {
+        const current = queue.pop()!
+        if (seen.has(current)) continue
+        seen.add(current)
+        // `import type` is erased by the bundler, so it is not a link. The
+        // declaration may span lines, so it is matched up to its own specifier.
+        const value = source(current).replaceAll(
+          /\bimport\s+type\s[\s\S]*?from\s+'[^']+'/gu,
+          '',
+        )
+        for (const match of value.matchAll(
+          /from\s+'(\.[^']+)'|import\('(\.[^']+)'\)/gu,
+        )) {
+          const specifier = match[1] ?? match[2]!
+          const base = resolve(dirname(current), specifier)
+          const target = ['.ts', '/index.ts'].map((suffix) => `${base}${suffix}`)
+          const resolved = target.find((candidate) => existsSync(candidate))
+          if (resolved) queue.push(relative(process.cwd(), resolved))
+        }
+      }
+      return seen
+    }
+
+    const TELEMETRY = 'src/shared/observability/telemetry.ts'
+    for (const entry of [
+      'services/ai-execution-admission/entry.ts',
+      'services/ai-egress-gateway/index.ts',
+      'services/ai-egress-gateway/local-provider-entry.ts',
+      'services/ai-egress-gateway/runtime-egress-probe.ts',
+    ]) {
+      expect([...reachable(entry)], entry).not.toContain(TELEMETRY)
+    }
+
+    // The same walk proves the Google pair still HAS one: a fix that silenced
+    // both halves would otherwise pass.
+    for (const entry of [
+      'services/google-execution-admission/entry.ts',
+      'services/google-egress-gateway/entry.ts',
+    ]) {
+      expect([...reachable(entry)], entry).toContain(TELEMETRY)
+    }
   })
 
   it('keeps temporary Railway configs and runtime images on the same port contract', () => {

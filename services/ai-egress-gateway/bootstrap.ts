@@ -41,6 +41,7 @@ import {
   type SidecarPlatformHealthServer,
 } from '../platform-health'
 import { registerSidecarOperationalLifecycle } from '../sidecar-operational-runtime'
+import { unmonitoredSidecarObservability } from '../sidecar-unmonitored-observability'
 import { resolveSidecarRuntimePorts } from '../sidecar-runtime-ports'
 
 export type AiGatewayConnectorFactory = (
@@ -229,6 +230,8 @@ export async function startAiEgressGateway(
       health: platformHealth,
       shutdown,
       shutdownTimeoutMs: 125_000,
+      capture: unmonitoredSidecarObservability.capture,
+      flush: unmonitoredSidecarObservability.flush,
     })
   } catch (error) {
     platformHealth?.beginDrain()
