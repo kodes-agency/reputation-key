@@ -323,12 +323,25 @@ exact provider-ephemeral key holding that flow's code verifier and OIDC nonce.
 Deriving that key through the existing handle keyring is the right fix and
 deserves its own change, not a bundled one.
 
-Second, both `js/insufficient-password-hash` alerts point at line numbers that
-no longer contain the flagged code (`oauth-state-handle.ts:76` is a type
-declaration; `composition.ts:597` is unrelated). The alerts are stale against
-an older commit of this branch. Re-running the analysis is the first step
-before any further work here — some may already be closed by the HKDF change
-that landed earlier.
+Second — and this entry was WRONG, which matters because it caused the revert
+above and then misled a later review that trusted it. It read: "both
+`js/insufficient-password-hash` alerts point at line numbers that no longer
+contain the flagged code (`oauth-state-handle.ts:76` is a type declaration)…
+the alerts are stale."
+
+They are not stale. `gh api …/code-scanning/alerts` returns
+**repository-level** alerts, whose `ref` is `refs/heads/main`; the line numbers
+are MAIN's, and they were being read against the BRANCH's working tree, where
+this branch has since added ~27 lines above that point. On `main`,
+`oauth-state-handle.ts:76` is exactly the same `createHash('sha256')` in
+`recordKey` that the pull request's own check-run annotates at line **103**.
+One finding, two line numbers, one mistaken reading.
+
+The lesson generalises: for a gating decision, read the alert locations from
+the PULL REQUEST check run
+(`gh api repos/<owner>/<repo>/check-runs/<id>/annotations`), which resolves
+against the merge commit. The repository alert list answers a different
+question and will silently disagree.
 
 ### `e2e`: five defects deep, one design conflict left
 
