@@ -45,6 +45,13 @@ const OWNED_NAMES = Object.freeze([
   'GOOGLE_ADMISSION_DATABASE_CA_B64',
   'REDIS_URL',
   'PROVIDER_REDIS_TLS_CA_PEM',
+  // Same duality as the mTLS material below: a deployed cell injects the PEM
+  // as a variable, a compose stack mounts the file. An env FILE cannot carry
+  // a multi-line PEM, and NODE_EXTRA_CA_CERTS is not an allowed name here, so
+  // without this the local stack could not give the sidecar a TLS Redis at
+  // all — and it was handed a plaintext one instead, which the production
+  // check then refused at boot.
+  'PROVIDER_REDIS_TLS_CA_PATH',
   'GOOGLE_EGRESS_GATEWAY_IDENTITY',
   'GOOGLE_ADMISSION_GRANT_HMAC_KEYS',
   'GOOGLE_INTERNAL_MTLS_CA_PATH',
@@ -106,15 +113,20 @@ export function assertGoogleAdmissionRequiredEnvironment(
   assertGoogleAdmissionEnvironmentIsIsolated(values)
   for (const name of OWNED_NAMES.filter(
     (name) =>
-      !name.startsWith('GOOGLE_INTERNAL_MTLS_') && name !== 'PROVIDER_REDIS_TLS_CA_PEM',
+      !name.startsWith('GOOGLE_INTERNAL_MTLS_') &&
+      !name.startsWith('PROVIDER_REDIS_TLS_CA_'),
   )) {
     if (!values[name]) {
       throw new Error(`required Google admission setting is missing: ${name}`)
     }
   }
-  if (values.REDIS_URL?.startsWith('rediss://') && !values.PROVIDER_REDIS_TLS_CA_PEM) {
+  if (
+    values.REDIS_URL?.startsWith('rediss://') &&
+    !values.PROVIDER_REDIS_TLS_CA_PEM &&
+    !values.PROVIDER_REDIS_TLS_CA_PATH
+  ) {
     throw new Error(
-      'required Google admission setting is missing: PROVIDER_REDIS_TLS_CA_PEM',
+      'required Google admission setting is missing: PROVIDER_REDIS_TLS_CA_PEM or PROVIDER_REDIS_TLS_CA_PATH',
     )
   }
   const base64Tls = [

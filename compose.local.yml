@@ -153,7 +153,6 @@ services:
       - no-new-privileges:true
     networks:
       - app
-      - google-admission-redis
 
   queue-redis:
     profiles: [backend]
@@ -307,7 +306,12 @@ services:
       PROCESSING_CELL: us
       DATABASE_URL: postgresql://repkey_google_admission_local:${GOOGLE_ADMISSION_DATABASE_PASSWORD}@postgres:5432/${POSTGRES_DB}
       GOOGLE_ADMISSION_DATABASE_CA_B64: ${AI_CONTROL_DATABASE_CA_B64}
-      REDIS_URL: redis://redis:6379
+      # Mirrors .railway/railway.ts, which gives this sidecar the PROVIDER
+      # ephemeral Redis — not the cache. The image runs NODE_ENV=production, so
+      # the provider-ephemeral contract (TLS, ACL user) is enforced at boot; a
+      # plaintext `redis://redis:6379` was refused with `url_not_tls`.
+      REDIS_URL: rediss://repkey:${PROVIDER_EPHEMERAL_REDIS_PASSWORD}@provider-redis-ingress:6379
+      PROVIDER_REDIS_TLS_CA_PATH: /run/repkey/ca.crt
       GOOGLE_EGRESS_GATEWAY_IDENTITY: spiffe://repkey.internal/google-egress-gateway
       GOOGLE_ADMISSION_GRANT_HMAC_KEYS: ${GOOGLE_ADMISSION_GRANT_HMAC_KEYS}
       GOOGLE_INTERNAL_MTLS_CA_PATH: /run/repkey/ca.crt
@@ -342,12 +346,12 @@ services:
     depends_on:
       google-admission-role:
         condition: service_completed_successfully
-      redis:
+      provider-redis-ingress:
         condition: service_healthy
     networks:
       - admission-control
       - admission-data
-      - google-admission-redis
+      - provider-ephemeral
 
   google-egress-gateway:
     profiles: [backend]
@@ -961,8 +965,6 @@ networks:
   admission-control:
     internal: true
   admission-data:
-    internal: true
-  google-admission-redis:
     internal: true
   provider-egress:
     internal: true
