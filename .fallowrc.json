@@ -45,7 +45,11 @@
     "services/google-execution-admission/index.ts",
     "tsup.ai-egress-gateway-local.config.ts",
     "tsup.ai-egress-gateway-runtime-assets.config.ts",
-    "tsup.ai-egress-probe.config.ts"
+    "tsup.ai-egress-probe.config.ts",
+    "src/shared/testing/process-fixtures/web-process.fixture.ts",
+    "src/shared/testing/process-fixtures/worker-process.fixture.ts",
+    "src/shared/testing/process-fixtures/sidecar-process.fixture.ts",
+    "src/shared/testing/process-fixtures/simulation-process.fixture.ts"
   ],
   "ignorePatterns": [
     "src/routeTree.gen.ts",

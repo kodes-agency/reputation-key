@@ -14,28 +14,28 @@
 
 import { createErrorFactory } from '#/shared/domain/errors'
 
-export const PRIVACY_REQUEST_STATES = [
-  'received',
-  'verified',
-  'in_progress',
-  'fulfilled',
-  'refused',
-] as const
+// One owner for the vocabulary. These six declarations existed here AND in
+// `shared/db/schema/privacy-request.schema.ts`, character for character — two
+// places to add a request kind and one of them silently wrong. The schema owns
+// them, because it is where the enum and the check constraints are built from
+// the same list; this module re-exports so its own consumers are unaffected.
+import {
+  PRIVACY_REQUEST_STATES,
+  PRIVACY_REQUEST_KINDS,
+  PRIVACY_SUBJECT_TYPES,
+  type PrivacyRequestState,
+  type PrivacyRequestKind,
+  type PrivacySubjectType,
+} from '#/shared/db/schema/privacy-request.schema'
 
-export type PrivacyRequestState = (typeof PRIVACY_REQUEST_STATES)[number]
-
-export const PRIVACY_REQUEST_KINDS = [
-  'access',
-  'correction',
-  'withdrawal',
-  'erasure',
-] as const
-
-export type PrivacyRequestKind = (typeof PRIVACY_REQUEST_KINDS)[number]
-
-export const PRIVACY_SUBJECT_TYPES = ['guest', 'participant'] as const
-
-export type PrivacySubjectType = (typeof PRIVACY_SUBJECT_TYPES)[number]
+export {
+  PRIVACY_REQUEST_STATES,
+  PRIVACY_REQUEST_KINDS,
+  PRIVACY_SUBJECT_TYPES,
+  type PrivacyRequestState,
+  type PrivacyRequestKind,
+  type PrivacySubjectType,
+}
 
 /**
  * Every refusal is one of these. A free-text reason would be a place to record
