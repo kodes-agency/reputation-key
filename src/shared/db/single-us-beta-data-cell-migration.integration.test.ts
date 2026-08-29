@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { PoolClient } from 'pg'
+import type { Pool, PoolClient } from 'pg'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getEnv } from '#/shared/config/env'
 import { getDb } from '#/shared/db'
@@ -8,6 +8,7 @@ import {
   createSingleUsDataCellCutoverReport,
   DataCellCredentialCutoverError,
   readCompletedSingleUsDataCellCutover,
+  type DataCellCutoverReport,
 } from '#/shared/db/single-us-data-cell-cutover'
 import { bindSingleUsDataCellCutoverTarget } from '#/shared/db/single-us-data-cell-target-binding'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
@@ -41,6 +42,118 @@ async function resetControl(client: PoolClient): Promise<void> {
   `)
 }
 
+/**
+ * Every count the report produces covers the WHOLE database, and an apply
+ * refuses to touch anything while a single workflow admission is in flight
+ * anywhere. One `admitted` execution permit another integration file left
+ * behind therefore turns every apply in this suite into `blocked`. Draining
+ * those admissions is what the operator runbook does before the fence goes
+ * up; here it is the only way the suite can assert cutover behaviour on a
+ * database it does not own alone. Terminal states are used wherever a row is
+ * referenced by others, so nothing is deleted out from under a foreign key.
+ */
+async function drainWorkflowAdmissions(client: PoolClient): Promise<void> {
+  await client.query(
+    `DELETE FROM region_moves WHERE state NOT IN ('completed', 'rolled_back')`,
+  )
+  await client.query(
+    `DELETE FROM gbp_import_request_items
+     WHERE status IN ('pending', 'processing')
+        OR outcome_code = 'temporarily_unavailable'`,
+  )
+  await client.query(
+    `DELETE FROM gbp_import_requests WHERE status IN ('queued', 'processing')`,
+  )
+  await client.query(
+    `DELETE FROM gbp_import_jobs WHERE status IN ('queued', 'in_progress')`,
+  )
+  await client.query(`DELETE FROM legacy_import_effect_leases WHERE state = 'active'`)
+  await client.query(
+    `DELETE FROM credential_revoke_permits
+     WHERE state IN ('dormant', 'active', 'dispatching', 'cleanup_ambiguous')`,
+  )
+  await client.query(
+    `DELETE FROM google_credential_broker_replay
+     WHERE state = 'issued' AND expires_at > clock_timestamp()`,
+  )
+  await client.query(
+    `UPDATE google_credential_source_operations
+     SET state = 'terminal', terminal_at = now()
+     WHERE state IN ('registered', 'provider_started', 'provider_outcome_ambiguous')`,
+  )
+  await client.query(
+    `UPDATE google_subject_authority_guards
+     SET state = 'drained', active_source_operation_id = NULL
+     WHERE active_source_operation_id IS NOT NULL
+        OR state IN ('source_active', 'cleanup_pending', 'provider_reset_required',
+          'ambiguous')`,
+  )
+  await client.query(
+    `UPDATE authorization_execution_permits
+     SET state = 'fenced', fenced_at = now()
+     WHERE state IN ('admitted', 'started')`,
+  )
+  await client.query(
+    `UPDATE google_connections SET credential_use_state = 'none'
+     WHERE credential_use_state = 'cleanup_only'`,
+  )
+}
+
+/**
+ * A credential batch takes candidate Organizations in id order, so an
+ * Organization another integration file left an active connection for is
+ * processed before this suite's fixture and swallows the invocation the
+ * fixture's assertions are about. Parking the resume checkpoint on the last
+ * candidate sorted below the fixture is the same checkpoint the batch itself
+ * writes, so the fixture is picked first without any foreign row being
+ * touched. Returns the checkpoint the control row now carries.
+ */
+async function resumeCredentialPhaseBefore(
+  client: PoolClient,
+  organizationId: string,
+): Promise<string | null> {
+  const result = await client.query<{ organization_checkpoint: string | null }>(
+    `UPDATE data_cell_topology_cutovers
+     SET organization_checkpoint = (
+       SELECT max(organization_id) FROM (
+         SELECT organization_id FROM google_connections
+         WHERE credential_use_state = 'active'
+         UNION
+         SELECT organization_id FROM google_organization_credential_homes
+         WHERE superseded_at IS NULL
+       ) candidate
+       WHERE organization_id < $1
+     ), updated_at = now()
+     WHERE singleton = TRUE
+     RETURNING organization_checkpoint`,
+    [organizationId],
+  )
+  return result.rows[0]?.organization_checkpoint ?? null
+}
+
+/**
+ * An upper bound on the batchSize-1 invocations a report still needs: one per
+ * remaining Property, one per remaining credential connection, one more for
+ * each Organization whose authority moves without any connection changing,
+ * and one for each of the three phase advances. Rows other files left behind
+ * are drained by the same batches, so the bound has to come from the live
+ * report rather than from the number of fixtures the test inserted.
+ */
+async function singleRowInvocationBound(
+  pool: Pool,
+  report: DataCellCutoverReport,
+): Promise<number> {
+  const connections = await pool.query<{ count: string }>(
+    `SELECT count(*) FROM google_connections WHERE credential_use_state = 'active'`,
+  )
+  return (
+    report.remaining.properties +
+    report.remaining.credentialHomes +
+    Number(connections.rows[0]!.count) +
+    3
+  )
+}
+
 async function clearFixtures(client: PoolClient): Promise<void> {
   await client.query(`DELETE FROM region_moves WHERE organization_id LIKE $1`, [
     `${TEST_ORG_PREFIX}%`,
@@ -56,6 +169,7 @@ async function clearFixtures(client: PoolClient): Promise<void> {
   await client.query(`DELETE FROM properties WHERE organization_id LIKE $1`, [
     `${TEST_ORG_PREFIX}%`,
   ])
+  await drainWorkflowAdmissions(client)
   await resetControl(client)
 }
 
@@ -444,9 +558,9 @@ describe.sequential('0140 durable single-US beta cutover (PostgreSQL)', () => {
 
     let report = await db.transaction((tx) => createSingleUsDataCellCutoverReport(tx))
     expect(report.remaining).toEqual({
-      properties: 1,
-      resolvableProperties: 1,
-      credentialHomes: 0,
+      properties: baseline.remaining.properties + 1,
+      resolvableProperties: baseline.remaining.resolvableProperties + 1,
+      credentialHomes: baseline.remaining.credentialHomes,
       unresolvedProperties: baseline.remaining.unresolvedProperties + 1,
     })
     const activated = await applySingleUsDataCellCutoverBatch(db, {
@@ -459,24 +573,29 @@ describe.sequential('0140 durable single-US beta cutover (PostgreSQL)', () => {
       now: new Date(),
     })
     report = activated.report
-    const converged = await applySingleUsDataCellCutoverBatch(db, {
-      ...TARGET_BINDING,
-      expectedReportDigestSha256: report.digestSha256,
-      batchSize: 1,
-      operatorId: 'operator@example.com',
-      changeTicket: 'OPS-57',
-      correlationId: 'correlation-supported-country',
-      now: new Date(),
-    })
-    expect(converged).toMatchObject({
-      outcome: 'properties_processed',
-      processed: 1,
-      report: {
-        remaining: {
-          properties: 0,
-          unresolvedProperties: baseline.remaining.unresolvedProperties + 1,
-        },
-      },
+    // A batch converges one Property per invocation over the whole table, so
+    // the supported-country fixture converges in the invocation that reaches
+    // it — the first one only when no other file left a resolvable Property.
+    const propertyInvocations = report.remaining.properties
+    for (let step = 0; step < propertyInvocations; step++) {
+      const converged = await applySingleUsDataCellCutoverBatch(db, {
+        ...TARGET_BINDING,
+        expectedReportDigestSha256: report.digestSha256,
+        batchSize: 1,
+        operatorId: 'operator@example.com',
+        changeTicket: 'OPS-57',
+        correlationId: 'correlation-supported-country',
+        now: new Date(Date.now() + step),
+      })
+      expect(converged, JSON.stringify(converged.report, null, 2)).toMatchObject({
+        outcome: 'properties_processed',
+        processed: 1,
+      })
+      report = converged.report
+    }
+    expect(report.remaining).toMatchObject({
+      properties: 0,
+      unresolvedProperties: baseline.remaining.unresolvedProperties + 1,
     })
 
     const rows = await lease.pool.query<{
@@ -500,8 +619,8 @@ describe.sequential('0140 durable single-US beta cutover (PostgreSQL)', () => {
       routing_policy_version: 1,
     })
 
-    report = converged.report
-    for (let step = 0; step < 5 && report.state !== 'completed'; step++) {
+    const bound = await singleRowInvocationBound(lease.pool, report)
+    for (let step = 0; step < bound && report.state !== 'completed'; step++) {
       const result = await applySingleUsDataCellCutoverBatch(db, {
         ...TARGET_BINDING,
         expectedReportDigestSha256: report.digestSha256,
@@ -523,6 +642,7 @@ describe.sequential('0140 durable single-US beta cutover (PostgreSQL)', () => {
   })
 
   it('limits one credential invocation to the requested number of active connection rows and resumes', async () => {
+    const baseline = await db.transaction((tx) => createSingleUsDataCellCutoverReport(tx))
     const client = await lease.pool.connect()
     const organizationId = `${TEST_ORG_PREFIX}row-bounded`
     try {
@@ -548,6 +668,7 @@ describe.sequential('0140 durable single-US beta cutover (PostgreSQL)', () => {
             correlation_id = 'correlation-row-bounded', updated_at = now()
         WHERE singleton = TRUE
       `)
+      await resumeCredentialPhaseBefore(client, organizationId)
     } finally {
       client.release()
     }
@@ -585,7 +706,7 @@ describe.sequential('0140 durable single-US beta cutover (PostgreSQL)', () => {
             credentialConnectionId: expect.any(String),
           },
           progress: { credentialHomesProcessed: 0 },
-          remaining: { credentialHomes: 1 },
+          remaining: { credentialHomes: baseline.remaining.credentialHomes + 1 },
         })
       } else {
         expect(result.report).toMatchObject({
@@ -595,7 +716,7 @@ describe.sequential('0140 durable single-US beta cutover (PostgreSQL)', () => {
             credentialConnectionId: null,
           },
           progress: { credentialHomesProcessed: 1 },
-          remaining: { credentialHomes: 0 },
+          remaining: { credentialHomes: baseline.remaining.credentialHomes },
         })
       }
       report = result.report
@@ -605,6 +726,7 @@ describe.sequential('0140 durable single-US beta cutover (PostgreSQL)', () => {
   it('rolls back authority, connection, and checkpoint mutations when a credential write fails', async () => {
     const client = await lease.pool.connect()
     const organizationId = `${TEST_ORG_PREFIX}rollback`
+    let resumeCheckpoint: string | null
     try {
       await client.query(
         `INSERT INTO google_organization_credential_homes (
@@ -637,6 +759,7 @@ describe.sequential('0140 durable single-US beta cutover (PostgreSQL)', () => {
             correlation_id = 'correlation-rollback', updated_at = now()
         WHERE singleton = TRUE
       `)
+      resumeCheckpoint = await resumeCredentialPhaseBefore(client, organizationId)
       await client.query(`
         CREATE OR REPLACE FUNCTION test_single_us_cutover_connection_failure()
         RETURNS trigger LANGUAGE plpgsql AS $$
@@ -723,7 +846,9 @@ describe.sequential('0140 durable single-US beta cutover (PostgreSQL)', () => {
         FROM data_cell_topology_cutovers WHERE singleton = TRUE
       `)
       expect(progress.rows[0]).toEqual({
-        organization_checkpoint: null,
+        // The resume checkpoint the setup parked here is the one the failed
+        // invocation must leave untouched.
+        organization_checkpoint: resumeCheckpoint,
         credential_active_organization_id: null,
         credential_connection_checkpoint: null,
         credential_homes_processed: '0',
@@ -790,6 +915,15 @@ describe.sequential('0140 durable single-US beta cutover (PostgreSQL)', () => {
       createSingleUsDataCellCutoverReport(tx),
     )
     expect(firstReport.totalBlockers, JSON.stringify(firstReport, null, 2)).toBe(0)
+    // FLOOR. Every count below is baseline-relative, which is what makes this
+    // suite order-independent — and would also let it pass vacuously if the
+    // report's predicate and the batch predicate ever stopped seeing the
+    // fixtures TOGETHER: `[]` equals `[]` and `0` equals `0`. This pins the
+    // three Properties and two credential-home candidates the setup above
+    // actually inserted, so "converged everything the report counted" cannot
+    // quietly become "converged nothing".
+    expect(firstReport.remaining.properties).toBeGreaterThanOrEqual(3)
+    expect(firstReport.remaining.credentialHomes).toBeGreaterThanOrEqual(2)
     const activated = await applySingleUsDataCellCutoverBatch(db, {
       ...TARGET_BINDING,
       expectedReportDigestSha256: firstReport.digestSha256,
@@ -802,9 +936,10 @@ describe.sequential('0140 durable single-US beta cutover (PostgreSQL)', () => {
     expect(activated.outcome).toBe('fence_activated')
 
     const propertyBatchSizes: number[] = []
-    const credentialBatchSizes: number[] = []
+    const fixtureCredentialBatchSizes: number[] = []
     let finalReport = activated.report
-    for (let step = 0; step < 20 && finalReport.state !== 'completed'; step++) {
+    const bound = await singleRowInvocationBound(lease.pool, finalReport)
+    for (let step = 0; step < bound && finalReport.state !== 'completed'; step++) {
       const result = await applySingleUsDataCellCutoverBatch(db, {
         ...TARGET_BINDING,
         expectedReportDigestSha256: finalReport.digestSha256,
@@ -818,20 +953,34 @@ describe.sequential('0140 durable single-US beta cutover (PostgreSQL)', () => {
         propertyBatchSizes.push(result.processed)
       }
       if (result.outcome === 'credential_homes_processed') {
-        credentialBatchSizes.push(result.processed)
+        // An invocation names the Organization it worked: the active one while
+        // its connections are still draining, the checkpointed one once it is
+        // closed. Rows other files left behind are drained by the same run, so
+        // only the fixtures' invocations carry the row-bounded claim.
+        const worked =
+          result.report.checkpoints.activeCredentialOrganizationId ??
+          result.report.checkpoints.organizationId
+        if (worked === organizationId || worked === secondOrganizationId) {
+          fixtureCredentialBatchSizes.push(result.processed)
+        }
       }
       expect(result.outcome, JSON.stringify(result.report, null, 2)).not.toBe('blocked')
       finalReport = result.report
     }
 
-    expect(propertyBatchSizes).toEqual([1, 1, 1])
-    expect(credentialBatchSizes).toEqual([1, 1])
+    // Every Property the report counted converges, one per invocation, and
+    // every candidate Organization is closed exactly once — fixtures and
+    // foreign leftovers alike, which is why both counts come from the report.
+    expect(propertyBatchSizes).toEqual(
+      Array.from({ length: firstReport.remaining.properties }, () => 1),
+    )
+    expect(fixtureCredentialBatchSizes).toEqual([1, 1])
     expect(finalReport).toMatchObject({
       state: 'completed',
       phase: 'completed',
       progress: {
-        propertiesProcessed: 3,
-        credentialHomesProcessed: 2,
+        propertiesProcessed: firstReport.remaining.properties,
+        credentialHomesProcessed: firstReport.remaining.credentialHomes,
         errorCount: 0,
       },
       remaining: { properties: 0, credentialHomes: 0 },
@@ -867,8 +1016,8 @@ describe.sequential('0140 durable single-US beta cutover (PostgreSQL)', () => {
     }
     await expect(readCompletedSingleUsDataCellCutover(db)).resolves.toMatchObject({
       errorCount: 0,
-      propertiesProcessed: 3,
-      credentialHomesProcessed: 2,
+      propertiesProcessed: firstReport.remaining.properties,
+      credentialHomesProcessed: firstReport.remaining.credentialHomes,
       verification: {
         remainingProperties: 0,
         resolvablePropertiesRemaining: 0,
@@ -913,6 +1062,7 @@ describe.sequential('0140 durable single-US beta cutover (PostgreSQL)', () => {
             correlation_id = 'correlation-57', updated_at = now()
         WHERE singleton = TRUE
       `)
+      await resumeCredentialPhaseBefore(client, organizationId)
     } finally {
       client.release()
     }

@@ -89,6 +89,32 @@ async function clean(): Promise<void> {
   await deleteTestOrganizations(pool, [ORG_ID, OTHER_ORG_ID])
 }
 
+/**
+ * `review_provider_subject_one_active_idx` is a partial unique index on
+ * `state = 'active'` with no tenant column, so at most one active key version
+ * may exist in the whole database. Claiming it unconditionally made this file
+ * fail with `Key (state)=(active) already exists` whenever another integration
+ * file had already created one. The subject row below only needs a key version
+ * that exists, so adopt the active singleton when it is already there and
+ * create this file's own one only when the inventory is empty.
+ */
+async function activeSubjectKeyVersion(): Promise<string> {
+  const active = await pool.query<{ key_version: string }>(
+    `SELECT key_version FROM review_provider_subject_hmac_key_versions
+     WHERE state = 'active'`,
+  )
+  const adopted = active.rows[0]?.key_version
+  if (adopted !== undefined) return adopted
+  await pool.query(
+    `INSERT INTO review_provider_subject_hmac_key_versions (
+       key_version, key_digest, state, generation, created_at, activated_at
+     ) VALUES ($1, $2, 'active', 1, $3, $3)
+     ON CONFLICT (key_version) DO NOTHING`,
+    [KEY_VERSION, DIGEST, AT],
+  )
+  return KEY_VERSION
+}
+
 async function seedProviderSide(): Promise<void> {
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
@@ -185,13 +211,7 @@ async function seedProviderSide(): Promise<void> {
      ) VALUES ($1, $2, $3, 0, 'scanning', 'main', $4, $5, $4, $4)`,
     [SNAPSHOT_RUN_ID, ORG_ID, PROPERTY_ID, AT, EXPIRES_AT],
   )
-  await pool.query(
-    `INSERT INTO review_provider_subject_hmac_key_versions (
-       key_version, key_digest, state, generation, created_at, activated_at
-     ) VALUES ($1, $2, 'active', 1, $3, $3)
-     ON CONFLICT (key_version) DO NOTHING`,
-    [KEY_VERSION, DIGEST, AT],
-  )
+  const keyVersion = await activeSubjectKeyVersion()
   await pool.query(
     `INSERT INTO review_provider_subjects (
        organization_id, property_id, source_epoch, key_version, locator_hmac,
@@ -199,7 +219,7 @@ async function seedProviderSide(): Promise<void> {
        created_at, updated_at
      ) VALUES ($1, $2, 0, $6, decode($3, 'hex'), decode($3, 'hex'), $4, 1,
                'linked', $5, $5, $5)`,
-    [ORG_ID, PROPERTY_ID, DIGEST, REVIEW_ID, AT, KEY_VERSION],
+    [ORG_ID, PROPERTY_ID, DIGEST, REVIEW_ID, AT, keyVersion],
   )
   await pool.query(
     `INSERT INTO review_provider_snapshot_members (run_id, review_id, main_seen)
