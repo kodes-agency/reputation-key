@@ -46,6 +46,8 @@ import {
 import {
   GATE_F_EVIDENCE_VERSION,
   GATE_F_REQUIRED_APPROVAL_ROLES,
+  gateFApprovalRolesFor,
+  type ReleasePosture,
   GATE_F_REQUIRED_GATE_IDS,
   canonicalGateFEvidence,
   gateFDecisionSha256,
@@ -221,6 +223,17 @@ export type CompleteGateFBundle = Readonly<{
 }>
 
 export type CompleteGateFBundleOverrides = Readonly<{
+  /**
+   * Declare the release posture, which decides the required approval set.
+   * Defaults to 'ga' so every existing control keeps measuring the full
+   * six-role requirement.
+   */
+  posture?: ReleasePosture
+  /**
+   * Sign these roles instead of the posture's required set. Used to prove the
+   * posture is load-bearing — e.g. a founder-only bundle that declares 'ga'.
+   */
+  approvalRoles?: readonly GateFApprovalRole[]
   /** Replace one gate's PRIMARY artifact bytes (the negative control). */
   gateArtifacts?: Readonly<Record<string, string>>
   /** Drop these approval roles' signatures (empty string signature). */
@@ -353,6 +366,9 @@ export function completeGateFBundle(
       legalRevisionSet,
       legalApprovalChecklist: legalChecklist,
       releaseSha: manifest.releaseSha,
+      // Full six-role posture: these fixtures exist to prove the complete
+      // approval set, so they must not sit in the narrowed closed-beta case.
+      posture: overrides.posture ?? ('ga' as const),
       cell: 'us' as const,
       environment: 'cell-us' as const,
       deploymentProfile: 'production' as const,
@@ -385,7 +401,9 @@ export function completeGateFBundle(
   } as unknown as GateFEvidence)
 
   const keyRing = gateFApprovalKeyRing()
-  const approvals = GATE_F_REQUIRED_APPROVAL_ROLES.map((role) => {
+  const signingRoles =
+    overrides.approvalRoles ?? gateFApprovalRolesFor(overrides.posture ?? 'ga')
+  const approvals = signingRoles.map((role) => {
     const approverIdentity = overrides.approverIdentities?.[role] ?? `${role}-approver`
     const signedDecision =
       role === 'counsel' && overrides.counselDecisionSha256 !== undefined

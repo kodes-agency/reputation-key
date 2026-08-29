@@ -62,7 +62,37 @@ export const GATE_F_REQUIRED_GATE_IDS = [
   'opening.cohort_readiness',
 ] as const
 
-export const GATE_F_REQUIRED_APPROVAL_ROLES = [
+/**
+ * Who a release is exposed to, which decides how many humans must approve it.
+ *
+ * The six-role set below was written for an organisation with a legal function
+ * and five distinct operating owners. A closed beta whose only participant is
+ * the founder has neither, and demanding six signatures there is not a control
+ * — it is one person signing six times, which
+ * `INDEPENDENT_OF_ENGINEERING` in gate-f-approval-envelope.ts correctly
+ * REFUSES. The gate and the situation could not both be satisfied.
+ *
+ * So the requirement is keyed on posture rather than deleted. `closed-beta`
+ * needs the founder alone; the moment the posture moves to `open-beta` — the
+ * moment someone other than the operator's own staff can reach the product —
+ * the full set is required again, with no one needing to remember to re-arm it.
+ */
+export const RELEASE_POSTURES = ['closed-beta', 'open-beta', 'ga'] as const
+
+export type ReleasePosture = (typeof RELEASE_POSTURES)[number]
+
+/**
+ * A closed beta is approved by the founder alone.
+ *
+ * This is narrower than it looks. It removes the SIGNATURES, not the evidence:
+ * every gate in `GATE_F_REQUIRED_GATE_IDS` still has to be produced, still has
+ * to bind its digests, and the approval still has to be a real signature over
+ * the manifest and legal digests. What changes is how many people sign.
+ */
+const CLOSED_BETA_APPROVAL_ROLES = ['founder'] as const
+
+/** Every role an externally-reachable release needs. */
+const FULL_APPROVAL_ROLES = [
   'counsel',
   'founder',
   'operations',
@@ -70,6 +100,30 @@ export const GATE_F_REQUIRED_APPROVAL_ROLES = [
   'security',
   'support_incident',
 ] as const
+
+/**
+ * The canonical, ordered approval set for a posture.
+ *
+ * Order is load-bearing: `refineApprovalSet` requires the approvals to appear
+ * in exactly this sequence, so a bundle cannot reorder them to disguise a
+ * missing role.
+ */
+export function gateFApprovalRolesFor(
+  posture: ReleasePosture,
+): readonly GateFApprovalRole[] {
+  return posture === 'closed-beta' ? CLOSED_BETA_APPROVAL_ROLES : FULL_APPROVAL_ROLES
+}
+
+/**
+ * The full set, retained as the name other modules import.
+ *
+ * Consumers that describe the complete role vocabulary (the key map, the
+ * envelope parser) still need every role — a closed beta narrows WHICH
+ * approvals a bundle must carry, not which roles can exist.
+ */
+export const GATE_F_REQUIRED_APPROVAL_ROLES = FULL_APPROVAL_ROLES
+
+export type GateFApprovalRole = (typeof FULL_APPROVAL_ROLES)[number]
 
 const sha256 = z.string().regex(/^[0-9a-f]{64}$/u)
 const sourceRevision = z.string().regex(/^[0-9a-f]{40}$/u)
@@ -145,6 +199,14 @@ const gateFEvidenceObjectSchema = z
          */
         legalApprovalChecklist: evidenceReferenceSchema,
         releaseSha: sourceRevision,
+        /**
+         * Declared, not inferred. The bundle states who the release is exposed
+         * to, and `refineApprovalSet` holds it to the approval set that posture
+         * requires. Absent means `closed-beta` is NOT assumed — an older bundle
+         * without the field is rejected by the enum rather than silently
+         * granted the narrowest requirement.
+         */
+        posture: z.enum(RELEASE_POSTURES),
         cell: z.literal('us'),
         environment: z.literal('cell-us'),
         deploymentProfile: z.literal('production'),
@@ -206,8 +268,16 @@ function refineGateSet(value: GateFEvidenceShape, context: z.RefinementCtx): voi
   }
 }
 
-/** Every required approval role must appear exactly once, in canonical order. */
+/**
+ * Every approval role the DECLARED POSTURE requires, exactly once, in order.
+ *
+ * The set is chosen by `value.release.posture`, so a bundle cannot claim a
+ * closed beta's single signature while declaring itself open — the posture it
+ * declares is the posture it is held to, and the same posture reaches the
+ * promotion manifest.
+ */
 function refineApprovalSet(value: GateFEvidenceShape, context: z.RefinementCtx): void {
+  const requiredRoles = gateFApprovalRolesFor(value.release.posture)
   const approvalRoles = value.approvals.map(({ role }) => role)
   const uniqueApprovalRoles = new Set(approvalRoles)
   if (uniqueApprovalRoles.size !== approvalRoles.length) {
@@ -217,7 +287,7 @@ function refineApprovalSet(value: GateFEvidenceShape, context: z.RefinementCtx):
       message: 'duplicate approval role',
     })
   }
-  for (const role of GATE_F_REQUIRED_APPROVAL_ROLES) {
+  for (const role of requiredRoles) {
     if (!uniqueApprovalRoles.has(role)) {
       context.addIssue({
         code: 'custom',
@@ -227,13 +297,13 @@ function refineApprovalSet(value: GateFEvidenceShape, context: z.RefinementCtx):
     }
   }
   if (
-    approvalRoles.length !== GATE_F_REQUIRED_APPROVAL_ROLES.length ||
-    approvalRoles.some((role, index) => role !== GATE_F_REQUIRED_APPROVAL_ROLES[index])
+    approvalRoles.length !== requiredRoles.length ||
+    approvalRoles.some((role, index) => role !== requiredRoles[index])
   ) {
     context.addIssue({
       code: 'custom',
       path: ['approvals'],
-      message: 'Gate F approval set and canonical order must be exact',
+      message: `Gate F approval set and canonical order must be exact for posture ${value.release.posture}`,
     })
   }
 }

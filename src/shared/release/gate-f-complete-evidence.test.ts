@@ -109,6 +109,48 @@ describe('approval negative controls', () => {
   })
 })
 
+describe('release posture decides the approval set', () => {
+  it('accepts a closed beta approved by the founder alone', () => {
+    const result = validate({ posture: 'closed-beta' })
+
+    expect(result.ok).toBe(true)
+  })
+
+  it('refuses a closed beta with no founder approval', () => {
+    const errors = errorsOf(validate({ posture: 'closed-beta', approvalRoles: [] }))
+
+    expect(errors).toContain('missing required Gate F approval founder')
+  })
+
+  it('refuses a closed beta that carries the full six, because the set is exact', () => {
+    // Not "at least the founder". An exact set is what stops a bundle padding
+    // itself with roles nobody independently holds.
+    const errors = errorsOf(
+      validate({ posture: 'closed-beta', approvalRoles: GATE_F_REQUIRED_APPROVAL_ROLES }),
+    )
+
+    expect(errors).toContain('must be exact for posture closed-beta')
+  })
+
+  it('refuses a founder-only approval that declares itself open to outsiders', () => {
+    // The discriminating control: the narrowed set must be reachable ONLY by
+    // declaring the narrow posture. If this passed, the posture field would be
+    // decoration and any release could sign once.
+    const errors = errorsOf(
+      validate({ posture: 'open-beta', approvalRoles: ['founder'] }),
+    )
+
+    expect(errors).toContain('missing required Gate F approval counsel')
+    expect(errors).toContain('must be exact for posture open-beta')
+  })
+
+  it('requires all six once the posture is general availability', () => {
+    const errors = errorsOf(validate({ posture: 'ga', approvalRoles: ['founder'] }))
+
+    expect(errors).toContain('missing required Gate F approval security')
+  })
+})
+
 describe('legal and provenance negative controls', () => {
   it('fails when the legal approval expires before Gate F completes', () => {
     const errors = errorsOf(
