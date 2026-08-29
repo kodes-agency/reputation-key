@@ -4,7 +4,7 @@
 // Action objects), so stories inject fn() spies. render-based stories let one
 // file cover all three exported components under a single CSF title.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
   ReplyPendingApproval,
   ReplyPublishFailed,
@@ -73,10 +73,14 @@ export const ConfirmAndPublish: Story = {
     onApprove.mockClear()
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /confirm & publish/i }))
-    const dialog = within(document.body).getByRole('alertdialog')
-    expect(
-      within(dialog).getByText(/keeps it pending until google confirms/i),
-    ).toBeVisible()
+    const dialog = await within(document.body).findByRole('alertdialog')
+    // The confirmation copy is the assertion, and it mounts with the dialog's
+    // entry animation — wait for it rather than sampling the first frame.
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText(/keeps it pending until google confirms/i),
+      ).toBeVisible(),
+    )
     await userEvent.click(
       within(dialog).getByRole('button', { name: /confirm & publish/i }),
     )

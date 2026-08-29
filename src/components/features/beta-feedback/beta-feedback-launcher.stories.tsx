@@ -153,11 +153,15 @@ export const SensitiveRouteRemainsTextOnly: Story = {
     sensitiveRouteBugSpy.mockClear()
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /send beta feedback/i }))
-    const dialog = within(document.body).getByRole('dialog')
+    const dialog = await within(document.body).findByRole('dialog')
     const view = within(dialog)
 
     expect(view.queryByRole('checkbox', { name: /masked layout preview/i })).toBeNull()
-    expect(view.getByText(/visual preview is unavailable on this page/i)).toBeVisible()
+    // The dialog mounts through Radix's entry animation, which starts at
+    // opacity 0 — sampling the first frame reads as "not visible".
+    await waitFor(() =>
+      expect(view.getByText(/visual preview is unavailable on this page/i)).toBeVisible(),
+    )
     await userEvent.type(view.getByLabelText(/short title/i), 'Inbox controls shifted')
     await userEvent.type(
       view.getByLabelText(/what did you expect/i),

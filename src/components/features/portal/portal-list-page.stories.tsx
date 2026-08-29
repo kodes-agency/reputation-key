@@ -125,8 +125,10 @@ export const RecoverableLifecycle: Story = {
     ).toBeInTheDocument()
 
     await userEvent.click(within(document.body).getByRole('button', { name: /cancel/i }))
+    // findBy, not getBy: the dismissed alert dialog leaves the canvas
+    // aria-hidden for a beat, and getByRole would not see the button through it.
     await userEvent.click(
-      within(canvasElement).getByRole('button', { name: /^restore$/i }),
+      await within(canvasElement).findByRole('button', { name: /^restore$/i }),
     )
     await expect(
       await within(document.body).findByRole('alertdialog', {

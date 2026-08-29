@@ -61,7 +61,11 @@ export const ExplicitlyUnconfigured: Story = {
         name: 'Bulgarian (Cyrillic)',
       }),
     )
-    await userEvent.click(canvas.getByRole('button', { name: 'Save reply language' }))
+    // findBy, not getBy: while the Select overlay is open Radix marks the rest
+    // of the page aria-hidden, and the query would run before that cleanup.
+    await userEvent.click(
+      await canvas.findByRole('button', { name: 'Save reply language' }),
+    )
 
     await waitFor(() => expect(updateProperty).toHaveBeenCalledOnce())
     expect(updateProperty).toHaveBeenCalledWith({
@@ -89,7 +93,9 @@ export const ConfiguredCanBeClearedExplicitly: Story = {
     expect(canvas.getByText('Configured')).toBeInTheDocument()
     await userEvent.click(canvas.getByLabelText('Property default'))
     await userEvent.click(await page.findByRole('option', { name: 'Not configured' }))
-    await userEvent.click(canvas.getByRole('button', { name: 'Save reply language' }))
+    await userEvent.click(
+      await canvas.findByRole('button', { name: 'Save reply language' }),
+    )
 
     await waitFor(() => expect(updateProperty).toHaveBeenCalledOnce())
     expect(updateProperty).toHaveBeenCalledWith({

@@ -9,6 +9,7 @@ import {
   type PortalLinkItem,
 } from './portal-secondary-links'
 import type { PublicGoogleReviewDestination } from '#/contexts/portal/application/public-api'
+import { readableForegroundOn } from './portal-contrast'
 import { getGuestPortalCopy } from './guest-language-pack'
 
 export type { PortalCategory, PortalLinkItem } from './portal-secondary-links'
@@ -49,6 +50,11 @@ export type PublicPortalContentProps = Readonly<{
 }>
 
 /** Secondary text. See `--portal-text-muted` for why this is not `opacity-*`. */
+const LANGUAGE_LINK_STYLE = {
+  color: 'var(--portal-text)',
+  borderColor: 'var(--portal-accent-border)',
+}
+
 const MUTED_STYLE = { color: 'var(--portal-text-muted)' }
 
 export function PublicPortalContent({
@@ -80,6 +86,9 @@ export function PublicPortalContent({
 
   const themeStyle = {
     '--portal-primary': primaryColor,
+    // Chosen by luminance, not assumed: a light brand colour (the Dark palette
+    // preset ships #a5b4fc) made the hardcoded white button text 1.99:1.
+    '--portal-on-primary': readableForegroundOn(primaryColor),
     '--portal-bg': backgroundColor,
     '--portal-text': textColor,
     // Derived tints so surfaces and rules track the accent instead of the
@@ -142,7 +151,12 @@ export function PublicPortalContent({
                 }`}
                 hrefLang={locale}
                 aria-current={locale === localization.selectedLocale ? 'page' : undefined}
+                // The guest portal must not inherit app chrome colours: the
+                // global bare-anchor rule paints links with `--accent`, which
+                // measures 3.88:1 on white. Portal chrome uses the PORTAL's
+                // palette, whose contrast is the palette's own contract.
                 className="rounded-md border px-2 py-1"
+                style={LANGUAGE_LINK_STYLE}
               >
                 {locale === 'bg' ? 'Български' : 'English'}
               </a>

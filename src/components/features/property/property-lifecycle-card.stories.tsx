@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
 import { PropertyLifecycleCard } from './property-lifecycle-card'
 
@@ -57,9 +57,12 @@ export const Active: Story = {
     expect(canvas.queryByText(/delete property/i)).not.toBeInTheDocument()
     await userEvent.click(archiveButton)
     const dialog = within(canvasElement.ownerDocument.body)
-    expect(
-      dialog.getByRole('heading', { name: /archive Harborline Suites/i }),
-    ).toBeVisible()
+    // The alert dialog mounts through Radix's entry animation, which starts at
+    // opacity 0 — sampling the first frame reads as "not visible".
+    const heading = await dialog.findByRole('heading', {
+      name: /archive Harborline Suites/i,
+    })
+    await waitFor(() => expect(heading).toBeVisible())
     const confirm = dialog.getByRole('button', { name: 'Archive Property' })
     expect(confirm).toBeDisabled()
     await userEvent.type(

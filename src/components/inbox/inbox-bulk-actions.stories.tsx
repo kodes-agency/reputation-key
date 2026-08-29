@@ -161,9 +161,11 @@ export const Pending: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /^reopen$/i }))
     const body = within(document.body)
-    await userEvent.click(body.getByRole('combobox', { name: /reason for reopening/i }))
-    await userEvent.click(body.getByRole('option', { name: /new information/i }))
-    const dialog = body.getByRole('dialog')
+    await userEvent.click(
+      await body.findByRole('combobox', { name: /reason for reopening/i }),
+    )
+    await userEvent.click(await body.findByRole('option', { name: /new information/i }))
+    const dialog = await body.findByRole('dialog')
     const confirmButton = within(dialog).getByRole('button', { name: /^reopen$/i })
     await userEvent.click(confirmButton)
     await waitFor(() => {
@@ -188,10 +190,12 @@ export const ReopenClosed: Story = {
     expect(canvas.queryByRole('button', { name: /^close$/i })).toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: /^reopen$/i }))
     const body = within(document.body)
-    await userEvent.click(body.getByRole('combobox', { name: /reason for reopening/i }))
-    await userEvent.click(body.getByRole('option', { name: /new information/i }))
     await userEvent.click(
-      within(body.getByRole('dialog')).getByRole('button', { name: /^reopen$/i }),
+      await body.findByRole('combobox', { name: /reason for reopening/i }),
+    )
+    await userEvent.click(await body.findByRole('option', { name: /new information/i }))
+    await userEvent.click(
+      within(await body.findByRole('dialog')).getByRole('button', { name: /^reopen$/i }),
     )
     await waitFor(() => {
       expect(reopenSpy).toHaveBeenCalledWith(
@@ -230,10 +234,12 @@ export const ReopenError: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /^reopen$/i }))
     const body = within(document.body)
-    await userEvent.click(body.getByRole('combobox', { name: /reason for reopening/i }))
-    await userEvent.click(body.getByRole('option', { name: /new information/i }))
     await userEvent.click(
-      within(body.getByRole('dialog')).getByRole('button', { name: /^reopen$/i }),
+      await body.findByRole('combobox', { name: /reason for reopening/i }),
+    )
+    await userEvent.click(await body.findByRole('option', { name: /new information/i }))
+    await userEvent.click(
+      within(await body.findByRole('dialog')).getByRole('button', { name: /^reopen$/i }),
     )
     expect(
       await canvas.findByText(/selected items changed\. reload and try again/i),
@@ -258,10 +264,12 @@ export const AssignSelected: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /^assign$/i }))
     const body = within(document.body)
-    await userEvent.click(body.getByRole('combobox', { name: /^assignment$/i }))
-    await userEvent.click(body.getByRole('option', { name: /morgan manager/i }))
+    await userEvent.click(await body.findByRole('combobox', { name: /^assignment$/i }))
+    await userEvent.click(await body.findByRole('option', { name: /morgan manager/i }))
     await userEvent.click(
-      within(body.getByRole('dialog')).getByRole('button', { name: /apply to all/i }),
+      within(await body.findByRole('dialog')).getByRole('button', {
+        name: /apply to all/i,
+      }),
     )
     await waitFor(() => {
       expect(assignmentSpy).toHaveBeenCalledWith(

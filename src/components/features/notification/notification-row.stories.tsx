@@ -99,7 +99,8 @@ export const HistoricalBadgeRow: Story = {
 
     await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
     const menu = within(ownerDocument.body)
-    expect(await menu.findByRole('menuitem', { name: 'Mark as unread' })).toBeVisible()
+    const markAsUnread = await menu.findByRole('menuitem', { name: 'Mark as unread' })
+    await waitFor(() => expect(markAsUnread).toBeVisible())
     expect(menu.queryByRole('menuitem', { name: /^Mute/ })).toBeNull()
     await userEvent.click(menu.getByRole('menuitem', { name: 'Mark as unread' }))
     await waitFor(() => expect(ownerDocument.querySelector('[role="menu"]')).toBeNull())
@@ -220,7 +221,8 @@ export const ActionNeededCannotBeMuted: Story = {
     const ownerDocument = canvasElement.ownerDocument
     await userEvent.click(canvas.getByRole('button', { name: /^More actions for:/ }))
     const menu = within(ownerDocument.body)
-    expect(await menu.findByRole('menuitem', { name: 'Mark as read' })).toBeVisible()
+    const markAsRead = await menu.findByRole('menuitem', { name: 'Mark as read' })
+    await waitFor(() => expect(markAsRead).toBeVisible())
     expect(menu.queryByRole('menuitem', { name: /^Mute/ })).toBeNull()
     await userEvent.click(menu.getByRole('menuitem', { name: 'Mark as read' }))
     await waitFor(() => expect(ownerDocument.querySelector('[role="menu"]')).toBeNull())

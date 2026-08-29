@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { ReviewReplyPublishedEditor } from './reply-editor-views'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 
@@ -31,10 +31,12 @@ export const PublishedEditRequiresConfirmation: Story = {
     onSave.mockClear()
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /review update/i }))
-    const dialog = within(document.body).getByRole('alertdialog')
-    expect(
-      within(dialog).getByText(/keeps the update pending until google confirms/i),
-    ).toBeVisible()
+    const dialog = await within(document.body).findByRole('alertdialog')
+    await waitFor(() =>
+      expect(
+        within(dialog).getByText(/keeps the update pending until google confirms/i),
+      ).toBeVisible(),
+    )
     expect(onSave).not.toHaveBeenCalled()
     await userEvent.click(
       within(dialog).getByRole('button', { name: /confirm & update/i }),

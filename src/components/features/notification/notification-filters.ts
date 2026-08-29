@@ -2,8 +2,10 @@
 //
 // The category tabs are derived from GOVERNING_NOTIFICATION_CATEGORIES, not
 // hardcoded. Retained post-core categories remain visible through All/Unread
-// without advertising a dedicated beta control; `mandatory` governs zero
-// types today. One list per question, both from the domain.
+// without advertising a dedicated beta control. `mandatory` DOES govern types
+// now (Organization access granted/removed, role changed, purge pending), so
+// it earns a tab: a category the reader cannot switch off is still one they
+// may filter to. One list per question, both from the domain.
 
 import {
   GOVERNING_NOTIFICATION_CATEGORIES,

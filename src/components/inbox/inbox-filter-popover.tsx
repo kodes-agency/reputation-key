@@ -17,6 +17,8 @@ import {
   type InboxListFilterValues,
 } from './inbox-filters'
 
+const TITLE_ID = 'inbox-filter-popover-title'
+
 type Props = Readonly<{
   value: InboxListFilterValues
   onChange: (patch: Partial<InboxListFilterValues>) => void
@@ -59,9 +61,12 @@ export function InboxFilterPopover({ value, onChange }: Props) {
           {activeCount > 0 && <Badge variant="secondary">{activeCount}</Badge>}
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-72">
+      {/* role="dialog" with no accessible name fails axe (aria-dialog-name).
+          PopoverTitle is not wired to the content the way DialogTitle is, so
+          the association is made explicitly. */}
+      <PopoverContent align="end" className="w-72" aria-labelledby={TITLE_ID}>
         <PopoverHeader className="mb-4 flex-row items-center justify-between">
-          <PopoverTitle>Filters</PopoverTitle>
+          <PopoverTitle id={TITLE_ID}>Filters</PopoverTitle>
           <Button
             variant="ghost"
             size="xs"

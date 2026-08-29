@@ -56,7 +56,7 @@ export function GoogleReviewAction({
         size="lg"
         disabled={pending}
         onClick={onSelect}
-        className="mt-4 w-full bg-[color:var(--portal-primary)] text-white hover:bg-[color:var(--portal-primary)] hover:opacity-90 focus-visible:ring-[color:var(--portal-primary)]"
+        className="mt-4 w-full bg-[color:var(--portal-primary)] text-[color:var(--portal-on-primary)] hover:bg-[color:var(--portal-primary)] hover:opacity-90 focus-visible:ring-[color:var(--portal-primary)]"
       >
         {copy.continueToGoogle}
       </Button>

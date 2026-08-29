@@ -67,7 +67,7 @@ function InitialRatingForm(props: GuestResponseFormViewProps) {
         copy={props.copy}
         submitLabel={props.copy.submitPrivateRating}
         className="mt-5 space-y-4"
-        buttonClassName="w-full bg-[color:var(--portal-primary)] text-white hover:bg-[color:var(--portal-primary)] hover:opacity-90 focus-visible:ring-[color:var(--portal-primary)]"
+        buttonClassName="w-full bg-[color:var(--portal-primary)] text-[color:var(--portal-on-primary)] hover:bg-[color:var(--portal-primary)] hover:opacity-90 focus-visible:ring-[color:var(--portal-primary)]"
         onSubmit={props.onSubmitRating}
       />
       <p className="mt-3 text-sm" aria-live="polite">

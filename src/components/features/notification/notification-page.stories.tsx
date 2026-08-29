@@ -151,7 +151,9 @@ export const DismissAllRequiresConfirmation: Story = {
     await canvas.findAllByRole('listitem')
     await userEvent.click(canvas.getByRole('button', { name: /dismiss all/i }))
     const dialog = await within(document.body).findByRole('alertdialog')
-    expect(within(dialog).getByText(/does not change the underlying/i)).toBeVisible()
+    await waitFor(() =>
+      expect(within(dialog).getByText(/does not change the underlying/i)).toBeVisible(),
+    )
     await userEvent.click(within(dialog).getByRole('button', { name: 'Dismiss all' }))
     await waitFor(() => {
       expect(canvas.getByText(/you're all caught up/i)).toBeInTheDocument()
