@@ -63,6 +63,16 @@ export async function runSidecarStartup(
     observability.initialize(service)
     await start()
   } catch (error) {
+    // ALWAYS say why, on stderr, before anything else. `capture` may be a
+    // monitoring client that is switched off outside a deployed cell — the
+    // Google sidecars' is — in which case the whole boundary is silent and the
+    // container exits 1 with nothing to read. That is what a compose stack
+    // reports as `dependency failed to start` and no reason.
+    //
+    // The message is included, and only here: a STARTUP failure happens before
+    // the process has loaded anything tenant-scoped, so the error names a
+    // configuration or a port, not a guest. Every later capture stays scrubbed.
+    emitStartupFailure(service, error)
     try {
       observability.capture(error, {
         source: 'sidecar-startup',
@@ -86,6 +96,20 @@ export async function runSidecarStartup(
 
 function emitLifecycleEvent(event: SidecarLifecycleEvent): void {
   process.stderr.write(`${JSON.stringify(event)}\n`)
+}
+
+function emitStartupFailure(service: SidecarServiceName, error: unknown): void {
+  const named = error instanceof Error ? error : undefined
+  const code = (error as { code?: unknown } | null)?.code
+  process.stderr.write(
+    `${JSON.stringify({
+      event: 'sidecar.startup_failed',
+      service,
+      name: named?.name ?? typeof error,
+      ...(typeof code === 'string' || typeof code === 'number' ? { code } : {}),
+      message: named?.message ?? String(error),
+    })}\n`,
+  )
 }
 
 /**

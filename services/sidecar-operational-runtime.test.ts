@@ -72,6 +72,48 @@ describe('sidecar operational runtime', () => {
     expect(terminate).toHaveBeenCalledWith(1)
   })
 
+  it('says why on stderr even when the monitoring client is switched off', async () => {
+    // The regression this exists for: the Google sidecars' capture is a no-op
+    // outside a deployed cell, so a startup failure produced an exit 1 with
+    // nothing to read, and compose reported only `dependency failed to start`.
+    const written: string[] = []
+    const write = vi
+      .spyOn(process.stderr, 'write')
+      .mockImplementation((chunk: string | Uint8Array) => {
+        written.push(String(chunk))
+        return true
+      })
+    try {
+      await expect(
+        runSidecarStartup(
+          'google-execution-admission',
+          async () => {
+            throw Object.assign(new Error('GOOGLE_ADMISSION_PORT is required'), {
+              code: 'config_invalid',
+            })
+          },
+          {
+            initialize: vi.fn(() => 'disabled' as const),
+            capture: vi.fn(), // switched off: captures nothing, says nothing
+            flush: vi.fn(async () => true),
+            terminate: vi.fn(),
+          },
+        ),
+      ).rejects.toThrow('sidecar startup termination returned unexpectedly')
+    } finally {
+      write.mockRestore()
+    }
+
+    const report = written.map((line) => JSON.parse(line) as Record<string, unknown>)
+    expect(report).toContainEqual({
+      event: 'sidecar.startup_failed',
+      service: 'google-execution-admission',
+      name: 'Error',
+      code: 'config_invalid',
+      message: 'GOOGLE_ADMISSION_PORT is required',
+    })
+  })
+
   it('owns all four process termination hooks and drains before cleanup', async () => {
     const target = processTarget()
     const order: string[] = []
