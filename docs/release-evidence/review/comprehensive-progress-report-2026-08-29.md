@@ -243,12 +243,55 @@ Still red, with corrected attribution:
 | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `audit`  | **Correction.** The earlier entry called this a property of the diff. It is not: Fallow reports `introduced` separately from `inherited`, and 501 of the findings are introduced — 241 dead code, 235 complexity, 24 styling. | This branch's own debt. Most of the dead exports are surfaces built ahead of composition (the destructive lifecycle contributors are deliberately uncomposed); separating those from genuinely dead code is per-symbol work. |
 | `docker` | A base-image CVE published after the pin. `redis:7.4.7-alpine` is eight packages behind, including OpenSSL 3.3.6 → 3.3.7.                                                                                                     | Not this branch. Needs a digest bump to the newest `redis:7.4-alpine` build and a rerun of the scan to confirm — the practice `.grype.yaml`'s own header describes.                                                          |
+| `e2e`    | The Google execution admission sidecar refuses its Redis at boot — see below. It never started on this branch, so no e2e test has run against these images.                                                                   | This branch. The sidecar and its compose wiring are both new here; they disagree with each other.                                                                                                                            |
 | `CodeQL` | Open alerts on the repository, most predating this branch (`js/insecure-randomness` in e2e specs, `js/request-forgery` in the control proxy, `js/file-system-race` in the local stack).                                       | Mixed. The three this branch owned — the LIKE escaping, the shared-secret key derivation, the artifact write races — are fixed and their threads resolved.                                                                   |
 
 **Correction to the earlier `storybook-test` row.** It called the failures
 pre-existing. Ten of the twelve failing story files were new or substantially
 changed on this branch; only two were untouched. They were this branch's, and
 they are fixed.
+
+### `e2e`: the specified fix, not attempted
+
+The container now says what it dies of, which it did not before:
+
+    {"event":"sidecar.startup_failed","service":"google-execution-admission",
+     "name":"Error","message":"Google admission Redis denied: url_not_tls"}
+
+Two contracts written on this branch disagree.
+
+- `.railway/railway.ts` gives the sidecar `PROVIDER_EPHEMERAL_REDIS_URL` and a
+  CA: the provider-ephemeral Redis, dedicated, TLS, ACL user. `index.ts`
+  enforces that contract whenever `NODE_ENV === 'production'`, and
+  `Dockerfile.google-execution-admission` sets exactly that.
+- `compose.local.yml` hands it `redis://redis:6379` — the shared cache, in
+  plaintext, with no user — over a dedicated `google-admission-redis` network.
+
+Moving the service onto the existing `provider-ephemeral` network was tried and
+**reverted**: `assertGoogleIsolationTopology` in `scripts/local-stack/stack.ts`
+pins this service's networks exactly, and the TLS session to the shared ingress
+closed on connect besides. The isolation pin is right — the admission should
+not share the provider's Redis.
+
+The fix that satisfies both contracts is a DEDICATED TLS Redis for the
+admission on the network it already has, mirroring the `provider-redis` /
+`provider-redis-ingress` pair that already exists:
+
+1. a `redis-server` with its own `aclfile` and `tls-cert-file`, on a new
+   `google-admission-redis-data` network;
+2. a `tcp-relay` in front of it on `google-admission-redis`, so the admission's
+   pinned network list does not change;
+3. an ACL user, a keypair and a `dnsName` for the relay generated alongside the
+   provider pair in `stack.ts`;
+4. the admission's `REDIS_URL` set to that `rediss://` URL, and the CA reaching
+   the process — which needs a `PROVIDER_REDIS_TLS_CA_PATH` beside the existing
+   `_PEM`, because a compose env file cannot carry a multi-line PEM. The mTLS
+   material in the same module already has that `_PATH`/`_B64` duality;
+5. `assertGoogleIsolationTopology` extended with the two new services.
+
+Not attempted here: it is cert and ACL generation that cannot be verified
+without running the stack, and iterating on it blind through CI would leave the
+repository half-wired between attempts.
 
 ## Still blocked, and why
 
