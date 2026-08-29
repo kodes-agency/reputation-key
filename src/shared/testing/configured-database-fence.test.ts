@@ -155,12 +155,16 @@ describe('assertNotConfiguredDatabase', () => {
     const previous = process.env.ALLOW_REMOTE_TEST_DB
     process.env.ALLOW_REMOTE_TEST_DB = '1'
     try {
-      expect(() =>
-        assertNotConfiguredDatabase(
-          'postgresql://test:test@localhost:5432/repkey_dev',
-          configured,
-        ),
-      ).toThrow()
+      expect(
+        () =>
+          assertNotConfiguredDatabase(
+            'postgresql://test:test@localhost:5432/repkey_dev',
+            configured,
+          ),
+        // The point of this case: ALLOW_REMOTE_TEST_DB does not buy an
+        // exemption, so the refusal must be the SAME one, not merely some
+        // error raised for some other reason.
+      ).toThrow(/configured for development/i)
     } finally {
       if (previous === undefined) delete process.env.ALLOW_REMOTE_TEST_DB
       else process.env.ALLOW_REMOTE_TEST_DB = previous

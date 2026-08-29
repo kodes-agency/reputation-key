@@ -196,6 +196,9 @@ describe('non-FK reference scanner (real PostgreSQL)', () => {
         },
         { isolationLevel: 'repeatable read', accessMode: 'read only' },
       ),
-    ).rejects.toThrow()
+      // Postgres 25006 by code, on the driver error Drizzle wraps: an unnamed
+      // throw assertion would also pass for a typo in the INSERT, which would
+      // then read as proof that the read-only fence holds.
+    ).rejects.toMatchObject({ cause: { code: '25006' } })
   })
 })

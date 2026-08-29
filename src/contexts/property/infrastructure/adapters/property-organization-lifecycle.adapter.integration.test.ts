@@ -416,7 +416,10 @@ describe.sequential('Property Organization lifecycle contributor', () => {
       createPropertyOrganizationLifecycleContributor(db).purge(
         input(fixture.organizationId, lineage, revision),
       ),
-    ).rejects.toThrow()
+      // Postgres 23503 by code, on the driver error Drizzle wraps. The code IS
+      // the claim: the delete must be REFUSED by the Portal foreign key, not
+      // fail for some unrelated reason an unnamed assertion would accept.
+    ).rejects.toMatchObject({ cause: { code: '23503' } })
 
     // The whole phase rolled back: no receipt, and no partially scrubbed rows.
     const state = await lease.pool.query(
