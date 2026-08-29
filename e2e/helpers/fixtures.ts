@@ -482,6 +482,19 @@ export async function seedStaffUserWithGrant(input: {
     'INSERT INTO member (id, "organizationId", "userId", role, "createdAt") VALUES ($1, $2, $3, $4, now())',
     [`e2e-${randomUUID()}`, input.organizationId, userId, 'member'],
   )
+  // A membership alone is not enough to resolve tenant context. The tenant
+  // resolver requires a user_organization_bindings row and denies with
+  // organization_binding_missing without one, so a fixture user created here
+  // could sign in and then 500 on every authenticated request. The seed does
+  // the same for its own members; this is the runtime half of it.
+  await dbQuery(
+    `INSERT INTO user_organization_bindings
+       (user_id, organization_id, state, source, version, created_at, updated_at)
+     VALUES ($1, $2, 'active', 'backfill', 1, now(), now())
+     ON CONFLICT (user_id) DO UPDATE
+       SET organization_id = EXCLUDED.organization_id, state = 'active', updated_at = now()`,
+    [userId, input.organizationId],
+  )
   await dbQuery(
     `INSERT INTO property_access_grant (organization_id, property_id, user_id, source, created_by)
      VALUES ($1, $2, $3, 'operator', 'e2e-fixture')`,
