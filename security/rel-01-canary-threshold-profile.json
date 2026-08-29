@@ -1,14 +1,12 @@
 {
   "version": "repkey-canary-threshold-profile-authority-1",
   "decisionRecord": "docs/adr/0059-rel-01-canary-observation-window.md",
-  "decisionRecordSha256": "17c9df56137a3af5270c3517ed92d4b810007f32d92fc3e5b75fc8ed5b13934e",
+  "decisionRecordSha256": "f644897f8edc6a3bd533f194349c22754878ab53e20798bcdeceb93c8ff21e55",
   "ratification": {
-    "state": "open",
-    "openDecisions": [
-      "durationMs"
-    ],
-    "ratifyingRole": "operating-owner",
-    "note": "ADR 0059 leaves the canary observation duration undecided. Until the operating owner accountable for the beta on-call rotation records a durationMs, an approvedBy identity and an approvedAt timestamp here, release:observe-canary refuses to run and promotion.canary_window stays closed."
+    "state": "ratified",
+    "durationMs": 86400000,
+    "approvedBy": "Bozhidar Denev",
+    "approvedAt": "2026-08-29T19:44:58.000Z"
   },
   "signals": [
     {

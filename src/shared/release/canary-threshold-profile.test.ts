@@ -141,7 +141,10 @@ function authority(
   })
 }
 
-const NOW = '2026-08-28T00:00:00.000Z'
+// After the 2026-08-29 ratification recorded in the tracked profile. The
+// parser refuses a future-dated approval, so a clock that predates the real
+// ratification would reject the very artifact these tests read.
+const NOW = '2026-08-30T00:00:00.000Z'
 
 describe('canary threshold profile authority', () => {
   it('rejects a profile missing any required signal category', () => {
@@ -236,15 +239,17 @@ describe('canary threshold profile authority', () => {
     expect(result.errors.join('\n')).toContain('decision record')
   })
 
-  it('keeps the tracked duration an open operating decision with no usable profile', () => {
+  it('carries the ratified 24-hour window the operating owner agreed', () => {
     const tracked = readFileSync(resolve(CANARY_THRESHOLD_PROFILE_AUTHORITY_PATH), 'utf8')
     const result = parseCanaryThresholdProfile(tracked, { now: NOW })
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.state).toBe('open')
-    expect(result).not.toHaveProperty('profile')
-    if (result.state !== 'open') return
-    expect(result.openDecisions).toContain('durationMs')
+    expect(result.state).toBe('ratified')
+    if (result.state !== 'ratified') return
+    // 24h. The duration is the whole point of the ratification, so it is
+    // asserted exactly rather than merely being present.
+    expect(result.profile.durationMs).toBe(86_400_000)
+    expect(result.profile.approvedBy).toBe('Bozhidar Denev')
   })
 
   it('rejects an unratified profile whose approver is a placeholder identity', () => {

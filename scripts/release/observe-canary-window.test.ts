@@ -9,6 +9,10 @@ import {
   runObserveCanaryWindowCli,
 } from './observe-canary-window'
 import { releaseEvidenceSha256 } from '../../src/shared/release/candidate-bound-evidence'
+import {
+  CANARY_THRESHOLD_PROFILE_AUTHORITY_PATH,
+  parseCanaryThresholdProfile,
+} from '../../src/shared/release/canary-threshold-profile'
 
 const PRODUCTION_ORIGIN = 'https://us.reputationkey.app'
 const MANIFEST = '{"version":"repkey-promotion-manifest-1"}\n'
@@ -113,12 +117,52 @@ describe('observe-canary-window CLI', () => {
   })
 
   it('refuses to observe while the window duration is an open operating decision', async () => {
+    // Fed an OPEN profile explicitly. This used to lean on the SHIPPED profile
+    // still being open, so ratifying the real 24-hour window silently turned
+    // the control off. The refusal is the property worth keeping, so the test
+    // now supplies the state it is testing instead of inheriting it.
     const dir = workspace()
     writeFileSync(join(dir, 'manifest.json'), MANIFEST)
+    const openProfile = join(dir, 'open-profile.json')
+    const shipped = JSON.parse(
+      readFileSync(CANARY_THRESHOLD_PROFILE_AUTHORITY_PATH, 'utf8'),
+    ) as Record<string, unknown>
+    writeFileSync(
+      openProfile,
+      JSON.stringify(
+        {
+          ...shipped,
+          ratification: {
+            state: 'open',
+            openDecisions: ['durationMs'],
+            ratifyingRole: 'operating-owner',
+            note: 'synthesized open profile for this control',
+          },
+        },
+        null,
+        2,
+      ),
+    )
     const { io, written } = silentIo()
-    const code = await runObserveCanaryWindowCli(baseArgs(dir), { io })
+    const code = await runObserveCanaryWindowCli(
+      [...baseArgs(dir), `--profile=${openProfile}`],
+      { io },
+    )
     expect(code).toBe(1)
     expect(written.join('\n')).toContain('durationMs')
+  })
+
+  it('gets past the ratification check on the shipped 24-hour profile', () => {
+    // The other half: the shipped profile must now actually be usable, or the
+    // ratification would be a file nobody reads.
+    const result = parseCanaryThresholdProfile(
+      readFileSync(CANARY_THRESHOLD_PROFILE_AUTHORITY_PATH, 'utf8'),
+      { now: '2026-08-30T00:00:00.000Z' },
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok || result.state !== 'ratified') throw new Error('not ratified')
+    expect(result.profile.durationMs).toBe(86_400_000)
   })
 
   it('documents its own usage without a retry option', () => {
