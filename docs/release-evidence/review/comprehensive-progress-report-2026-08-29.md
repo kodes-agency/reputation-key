@@ -285,7 +285,70 @@ four), or give the suite a scratch schema of its own. The
 `integration-organization-lifecycle` failure in the same job WAS this branch's
 own and is fixed.
 
-### `e2e`: the specified fix, not attempted
+### `e2e`: five defects deep, one design conflict left
+
+The stack no longer fails at the first sidecar. Each fix uncovered the next
+thing that had never run, and the chain is now:
+
+1. The Google admission bundle could not be PARSED — an unaliased tsup banner
+   collided with a bundled `createRequire`. Fixed, and the Google bundle
+   verifier now `node --check`s the artifact the way the AI one always did.
+2. The failure after that was SILENT: the startup boundary handed the error to
+   a monitoring client switched off outside a deployed cell. It writes to
+   stderr first now, which is what produced every diagnosis below.
+3. `Google admission Redis denied: url_not_tls` — the sidecar's own contract
+   demands a dedicated TLS/ACL Redis and compose gave it the shared plaintext
+   cache. Fixed with a dedicated store behind a relay on its pinned network.
+4. `Dynamic require of "path" is not supported` — the Google egress gateway
+   reaches `require-in-the-middle` through OpenTelemetry, and its two tsup
+   configs were the only sidecar bundles without a `createRequire` banner.
+   Fixed.
+5. `BETTER_AUTH_URL: Production BETTER_AUTH_URL must use HTTPS` at the seed
+   step. Fixed by letting a LOOPBACK origin be a secure origin, which is what
+   it is; a routable `http:` host is still refused, and so is one that merely
+   looks loopback-shaped.
+
+Every sidecar now boots, passes its healthcheck, and the seed completes. The
+stack fails at the last service, `web`, and the cause is fully diagnosed:
+
+    production local-sandbox profile is unavailable
+
+`/api/health/started` calls `getContainer()`, `createContainer()` throws, and
+nothing caches — so the probe rebuilds a container every two seconds forever,
+which is what "web is unhealthy" was hiding. Reproduced locally in one command
+against the compose environment.
+
+**This one is a design conflict, not a bug, and the call belongs to an owner.**
+`ff4ae096` added a hard denial of the `local-sandbox` provider profile whenever
+`NODE_ENV === 'production'`, with a test that names it a hard denial. The local
+Compose stack has set `NODE_ENV: production` AND
+`GOOGLE_PROVIDER_ENDPOINT_PROFILE: local-sandbox` since before this branch — it
+rehearses the production images against a sandbox on a private network, which
+is the whole point of it. The guard and the stack cannot both be right as
+written.
+
+Three defensible resolutions, with the evidence for each:
+
+- **Trust the deployment config.** `.railway/railway.ts:264` sets
+  `GOOGLE_PROVIDER_ENDPOINT_PROFILE: 'production-fixed'` explicitly, and
+  `railway.test.ts` pins each service's variable inventory exactly — so a
+  deployed cell provably cannot select the sandbox. The runtime guard is then
+  defence in depth whose only present effect is to break the local stack.
+  Narrowing or removing it costs a second line of defence against a cell
+  misconfigured outside `railway.ts`.
+- **Key the guard on a deployed-cell signal.** `RELEASE_MANIFEST_SHA256` is
+  documented as reaching every digest-promoted Railway service and nothing
+  else. Precise, but it is optional during the documented pre-promotion
+  window, so the guard would be dark for exactly that window.
+- **Build a separate local image**, which is the pattern this repository
+  already chose for the egress gateway (`__REPKEY_GOOGLE_LOCAL_SANDBOX__`,
+  `tsup.google-egress-gateway-local.config.ts`). Strongest separation, and it
+  costs the property that e2e exercises the artifact that would deploy.
+
+Not chosen here: all three change what a deliberately-added security control
+means, and picking one is an owner's decision rather than a CI fix.
+
+### `e2e`: the earlier specified fix, now landed
 
 The container now says what it dies of, which it did not before:
 
