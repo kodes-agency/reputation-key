@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { builtinModules } from 'node:module'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
@@ -55,7 +56,22 @@ function main() {
     throw new Error(`Google ${profile.label} bundle inventory drift: ${files.join(',')}`)
   }
 
-  const source = readFileSync(join(root, 'index.js'), 'utf8')
+  // Parse it before inspecting it. The bundle is the artifact that will be
+  // COPYed into the runtime image and started with no further checks, so a
+  // bundle that cannot be parsed must fail the build, not the container. It
+  // did once: an unaliased tsup banner collided with a bundled module's own
+  // `import { createRequire } from 'module'` and the admission sidecar exited 1
+  // on `SyntaxError: Identifier 'createRequire' has already been declared`.
+  // The AI verifier has always done this; this one had not.
+  const entry = join(root, 'index.js')
+  const syntax = spawnSync(process.execPath, ['--check', entry], { encoding: 'utf8' })
+  if (syntax.status !== 0) {
+    throw new Error(
+      `Google ${profile.label} bundle does not parse: ${(syntax.stderr || '').trim().split('\n')[0] ?? 'unknown'}`,
+    )
+  }
+
+  const source = readFileSync(entry, 'utf8')
   if (profile.forbiddenContent.test(source)) {
     throw new Error(`Google ${profile.label} bundle contains a local/operator surface`)
   }
