@@ -317,9 +317,13 @@ export const ApprovedPanels: Story = {
     })
     await expect(languageSelect).toHaveTextContent(/^Bulgarian\s*·\s*Property default$/i)
     await userEvent.click(languageSelect)
-    await expect(
-      screen.findByRole('option', { name: /review language · english/i }),
-    ).resolves.toBeVisible()
+    // findBy resolves the moment the option EXISTS, which is while the Select
+    // content is still animating in from opacity 0 — assert visibility with a
+    // retry rather than on whichever frame the machine happened to be on.
+    const englishOption = await screen.findByRole('option', {
+      name: /review language · english/i,
+    })
+    await waitFor(() => expect(englishOption).toBeVisible())
     await userEvent.keyboard('{Escape}')
     languageSelect.blur()
   },
