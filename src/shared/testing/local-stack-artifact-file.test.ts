@@ -60,7 +60,12 @@ describe('local stack artifact file reads', () => {
     writeFileSync(target, 'SELECT 1;\n')
     symlinkSync(target, link)
 
-    expect(() => readLocalStackFile(link)).toThrow()
+    // O_NOFOLLOW reports a final-component symlink as ELOOP. Asserting the
+    // errno rather than 'any error' keeps this from passing on an unrelated
+    // failure, such as the path simply not existing.
+    expect(() => readLocalStackFile(link)).toThrow(
+      expect.objectContaining({ code: 'ELOOP' }),
+    )
     expect(readLocalStackFile(link, { allowSymlink: true }).toString('utf8')).toBe(
       'SELECT 1;\n',
     )
@@ -109,6 +114,11 @@ describe('local stack artifact file reads', () => {
     writeFileSync(target, Buffer.alloc(48))
     symlinkSync(target, link)
 
-    expect(() => readOptionalLocalStackFile(link)).toThrow()
+    // The optional reader absorbs ENOENT only. A symlink must still surface
+    // as ELOOP, so an unexpected object at a key path is never mistaken for
+    // 'not generated yet' and silently overwritten.
+    expect(() => readOptionalLocalStackFile(link)).toThrow(
+      expect.objectContaining({ code: 'ELOOP' }),
+    )
   })
 })
