@@ -153,7 +153,6 @@ services:
       - no-new-privileges:true
     networks:
       - app
-      - google-admission-redis
 
   queue-redis:
     profiles: [backend]
@@ -240,6 +239,83 @@ services:
       - provider-ephemeral
       - provider-redis-data
 
+  # The Google execution admission's OWN ephemeral Redis, deliberately not the
+  # shared cache and deliberately not the provider's. index.ts refuses to boot
+  # unless REDIS_URL is `rediss:` with a non-default ACL identity
+  # (validateProviderEphemeralRedisUrls) and the live server reports no
+  # persistence, no replication and a bounded maxmemory
+  # (verifyProviderEphemeralRedisRuntime); `redis://redis:6379` satisfied
+  # neither, so the e2e stack never started. Same server/relay split as
+  # provider-redis: the store sits alone on google-admission-redis-data and only
+  # the relay crosses onto google-admission-redis, so the admission's pinned
+  # network list in assertGoogleIsolationTopology is unchanged.
+  google-admission-redis-store:
+    profiles: [backend]
+    image: redis:7@sha256:595cc6f2bb3af6e03347b90deb6123c6aa2c81dea05ce08128de8a174b6ac67b
+    user: '999:999'
+    command: [redis-server, /run/repkey/google-admission-redis.conf]
+    environment:
+      GOOGLE_ADMISSION_REDIS_PASSWORD: ${GOOGLE_ADMISSION_REDIS_PASSWORD}
+    healthcheck:
+      test:
+        [
+          CMD-SHELL,
+          'redis-cli --tls --cacert /run/repkey/ca.crt --user repkey --pass "$$GOOGLE_ADMISSION_REDIS_PASSWORD" ping | grep -qx PONG',
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=8m
+    volumes:
+      - ${STACK_E2E_DIR}/google-runtime/ca.crt:/run/repkey/ca.crt:ro
+      - ${STACK_E2E_DIR}/google-runtime/google-admission-redis.crt:/run/repkey/google-admission-redis.crt:ro
+      - ${STACK_E2E_DIR}/google-runtime/google-admission-redis.key:/run/repkey/google-admission-redis.key:ro
+      - ${STACK_E2E_DIR}/google-runtime/google-admission-redis.acl:/run/repkey/google-admission-redis.acl:ro
+      - ${STACK_E2E_DIR}/google-runtime/google-admission-redis.conf:/run/repkey/google-admission-redis.conf:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: 'no'
+    networks:
+      - google-admission-redis-data
+
+  google-admission-redis-ingress:
+    profiles: [backend]
+    image: repkey-local-google-egress-gateway:${SOURCE_REVISION}
+    command: [node, dist-google-egress-gateway/tcp-relay.js]
+    environment:
+      HOST: 0.0.0.0
+      PORT: '6379'
+      HEALTH_PORT: '8080'
+      TARGET_HOST: google-admission-redis-store
+      TARGET_PORT: '6379'
+      RELEASE_SHA: ${SOURCE_REVISION}
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:8080').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    depends_on:
+      google-admission-redis-store:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: 'no'
+    networks:
+      - google-admission-redis
+      - google-admission-redis-data
+
   object-store:
     profiles: [backend]
     image: minio/minio@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0
@@ -307,7 +383,12 @@ services:
       PROCESSING_CELL: us
       DATABASE_URL: postgresql://repkey_google_admission_local:${GOOGLE_ADMISSION_DATABASE_PASSWORD}@postgres:5432/${POSTGRES_DB}
       GOOGLE_ADMISSION_DATABASE_CA_B64: ${AI_CONTROL_DATABASE_CA_B64}
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: rediss://repkey:${GOOGLE_ADMISSION_REDIS_PASSWORD}@google-admission-redis-ingress:6379
+      # The private CA that signed the store's certificate. It has to arrive as
+      # a path: an env file cannot carry a multi-line PEM, and the sibling
+      # PROVIDER_REDIS_TLS_CA_PEM that a deployed cell uses is not expressible
+      # here. NODE_EXTRA_CA_CERTS is not on this process's allowlist.
+      PROVIDER_REDIS_TLS_CA_PATH: /run/repkey/ca.crt
       GOOGLE_EGRESS_GATEWAY_IDENTITY: spiffe://repkey.internal/google-egress-gateway
       GOOGLE_ADMISSION_GRANT_HMAC_KEYS: ${GOOGLE_ADMISSION_GRANT_HMAC_KEYS}
       GOOGLE_INTERNAL_MTLS_CA_PATH: /run/repkey/ca.crt
@@ -342,7 +423,7 @@ services:
     depends_on:
       google-admission-role:
         condition: service_completed_successfully
-      redis:
+      google-admission-redis-ingress:
         condition: service_healthy
     networks:
       - admission-control
@@ -963,6 +1044,8 @@ networks:
   admission-data:
     internal: true
   google-admission-redis:
+    internal: true
+  google-admission-redis-data:
     internal: true
   provider-egress:
     internal: true

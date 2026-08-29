@@ -218,7 +218,11 @@ function serializeEnv(env: Readonly<Record<string, string>>): string {
     .join('\n')}\n`
 }
 
-function prepareProviderRedisAssets(state: StackPaths, password: string): void {
+function prepareProviderRedisAssets(
+  state: StackPaths,
+  providerPassword: string,
+  googleAdmissionPassword: string,
+): void {
   mkdirSync(state.googleRuntime, { recursive: true, mode: 0o700 })
   chmodSync(state.googleRuntime, 0o700)
   const asset = (name: string) => resolve(state.googleRuntime, name)
@@ -227,6 +231,15 @@ function prepareProviderRedisAssets(state: StackPaths, password: string): void {
       name: 'provider-redis',
       commonName: 'provider-redis',
       dnsName: 'provider-redis-ingress',
+      usage: 'serverAuth',
+    },
+    // The admission's dedicated store. Like provider-redis it is fronted by a
+    // TCP relay, so the SAN has to name the relay: that is the host the client
+    // dials and therefore the name TLS verifies.
+    {
+      name: 'google-admission-redis',
+      commonName: 'google-admission-redis-store',
+      dnsName: 'google-admission-redis-ingress',
       usage: 'serverAuth',
     },
     {
@@ -369,38 +382,54 @@ function prepareProviderRedisAssets(state: StackPaths, password: string): void {
       rmSync(asset(name), { force: true })
     }
   }
-  writeFileSync(
-    asset('provider-redis.acl'),
-    `user default off\nuser repkey on >${password} ~provider-ephemeral:* +ping +info +config|get +acl|whoami +acl|dryrun +get +set +getdel +del +eval\n`,
-    { mode: 0o600 },
+  // Every provider-ephemeral Redis in the stack boots the same server shape,
+  // because verifyProviderEphemeralRedisRuntime inspects the live server at
+  // sidecar startup and refuses anything with persistence, replication, an
+  // unbounded maxmemory or a `default` ACL identity. Only the ACL identity's
+  // key space and command set differ per store.
+  const writeDedicatedRedis = (name: string, acl: string): void => {
+    writeFileSync(asset(`${name}.acl`), acl, { mode: 0o600 })
+    writeFileSync(
+      asset(`${name}.conf`),
+      [
+        'bind 0.0.0.0',
+        'protected-mode yes',
+        'port 0',
+        'tls-port 6379',
+        `tls-cert-file /run/repkey/${name}.crt`,
+        `tls-key-file /run/repkey/${name}.key`,
+        'tls-ca-cert-file /run/repkey/ca.crt',
+        'tls-auth-clients no',
+        'save ""',
+        'appendonly no',
+        'maxmemory 67108864',
+        'maxmemory-policy volatile-ttl',
+        `aclfile /run/repkey/${name}.acl`,
+        'dir /tmp',
+        '',
+      ].join('\n'),
+      { mode: 0o600 },
+    )
+    chmodSync(asset(`${name}.acl`), 0o644)
+    chmodSync(asset(`${name}.conf`), 0o644)
+  }
+  writeDedicatedRedis(
+    'provider-redis',
+    `user default off\nuser repkey on >${providerPassword} ~provider-ephemeral:* +ping +info +config|get +acl|whoami +acl|dryrun +get +set +getdel +del +eval\n`,
   )
-  writeFileSync(
-    asset('provider-redis.conf'),
-    [
-      'bind 0.0.0.0',
-      'protected-mode yes',
-      'port 0',
-      'tls-port 6379',
-      'tls-cert-file /run/repkey/provider-redis.crt',
-      'tls-key-file /run/repkey/provider-redis.key',
-      'tls-ca-cert-file /run/repkey/ca.crt',
-      'tls-auth-clients no',
-      'save ""',
-      'appendonly no',
-      'maxmemory 67108864',
-      'maxmemory-policy volatile-ttl',
-      'aclfile /run/repkey/provider-redis.acl',
-      'dir /tmp',
-      '',
-    ].join('\n'),
-    { mode: 0o600 },
+  // The admission's key space is its own: grants live under
+  // `google-admission:{id}:grant` and quota/in-flight state under
+  // `google-provider:{coordination}:...`. The extra verbs are what the Lua
+  // bodies call — quota buckets are hashes, in-flight leases sorted sets — and
+  // ACL applies to commands invoked inside EVAL under the calling user, so
+  // omitting one fails at admission time rather than at boot.
+  writeDedicatedRedis(
+    'google-admission-redis',
+    `user default off\nuser repkey on >${googleAdmissionPassword} ~google-admission:* ~google-provider:* +ping +info +config|get +acl|whoami +acl|dryrun +get +set +del +hget +hset +pexpire +zadd +zcard +zrange +zrem +zremrangebyscore +eval\n`,
   )
   chmodSync(caCertificate, 0o644)
   chmodSync(mtlsProfile, 0o644)
   for (const name of generatedAssets) chmodSync(asset(name), 0o644)
-  chmodSync(asset('provider-redis.acl'), 0o644)
-
-  chmodSync(asset('provider-redis.conf'), 0o644)
 }
 function prepareAiInternalMtlsAssets(state: StackPaths): void {
   const specs = [
@@ -1025,11 +1054,23 @@ function prepare(mode: LocalStackMode, clearArtifacts = false): StackPaths {
     artifactDir: state.artifacts,
     e2eDir: state.e2eArtifacts,
   })
-  prepareProviderRedisAssets(state, baseEnv.PROVIDER_EPHEMERAL_REDIS_PASSWORD!)
+  // buildLocalStackEnv owns the shared secret set and knows nothing about the
+  // admission's own store, so its ACL password is derived here with the same
+  // revision-scoped formula: a clean stack must reproduce the exact password
+  // baked into the generated aclfile.
+  const googleAdmissionRedisPassword = sha256(
+    `rep-key/local/${releaseSha}/google-admission-redis`,
+  )
+  prepareProviderRedisAssets(
+    state,
+    baseEnv.PROVIDER_EPHEMERAL_REDIS_PASSWORD!,
+    googleAdmissionRedisPassword,
+  )
   prepareAiInternalMtlsAssets(state)
   prepareAiControlDatabaseTlsAssets(state)
   const env = {
     ...baseEnv,
+    GOOGLE_ADMISSION_REDIS_PASSWORD: googleAdmissionRedisPassword,
     ...buildLocalGoogleContentApprovalEnv(state, releaseSha),
     ...prepareLocalAiAdmissionEnv(state),
   }
@@ -1270,6 +1311,11 @@ function assertGoogleIsolationTopology(mode: LocalStackMode, state: StackPaths):
     worker: ['ai-gateway-ingress', 'app', 'egress-control', 'provider-ephemeral'],
     'provider-redis': ['provider-redis-data'],
     'provider-redis-ingress': ['provider-ephemeral', 'provider-redis-data'],
+    'google-admission-redis-store': ['google-admission-redis-data'],
+    'google-admission-redis-ingress': [
+      'google-admission-redis',
+      'google-admission-redis-data',
+    ],
     'provider-sandbox': ['provider-egress'],
     'provider-control-proxy': ['provider-control', 'provider-egress'],
     'google-execution-admission': [
@@ -1302,12 +1348,24 @@ function assertGoogleIsolationTopology(mode: LocalStackMode, state: StackPaths):
     { source: 'web', host: 'google-egress-gateway', port: 8443, reachable: true },
     { source: 'web', host: 'provider-sandbox', port: 4100, reachable: false },
     { source: 'web', host: 'provider-redis', port: 6379, reachable: false },
+    {
+      source: 'web',
+      host: 'google-admission-redis-ingress',
+      port: 6379,
+      reachable: false,
+    },
     { source: 'web', host: 'ai-egress-gateway', port: 8443, reachable: true },
     { source: 'web', host: 'ai-provider-stub', port: 4102, reachable: false },
     { source: 'web', host: 'ai-execution-admission', port: 8443, reachable: false },
     { source: 'worker', host: 'google-egress-gateway', port: 8443, reachable: true },
     { source: 'worker', host: 'provider-sandbox', port: 4100, reachable: false },
     { source: 'worker', host: 'provider-redis', port: 6379, reachable: false },
+    {
+      source: 'worker',
+      host: 'google-admission-redis-ingress',
+      port: 6379,
+      reachable: false,
+    },
     { source: 'worker', host: 'ai-egress-gateway', port: 8443, reachable: true },
     { source: 'worker', host: 'ai-provider-stub', port: 4102, reachable: false },
     { source: 'worker', host: 'ai-execution-admission', port: 8443, reachable: false },
@@ -1326,16 +1384,38 @@ function assertGoogleIsolationTopology(mode: LocalStackMode, state: StackPaths):
     { source: 'google-egress-gateway', host: 'postgres', port: 5432, reachable: false },
     { source: 'google-egress-gateway', host: 'redis', port: 6379, reachable: false },
     {
+      source: 'google-egress-gateway',
+      host: 'google-admission-redis-ingress',
+      port: 6379,
+      reachable: false,
+    },
+    {
       source: 'google-execution-admission',
       host: 'postgres',
       port: 5432,
       reachable: true,
     },
+    // The admission reaches its own store only through the relay. The shared
+    // cache used to sit on google-admission-redis and was what REDIS_URL named;
+    // it is off that network now, because a plaintext no-ACL Redis within reach
+    // of this process is exactly what its startup contract forbids.
+    {
+      source: 'google-execution-admission',
+      host: 'google-admission-redis-ingress',
+      port: 6379,
+      reachable: true,
+    },
+    {
+      source: 'google-execution-admission',
+      host: 'google-admission-redis-store',
+      port: 6379,
+      reachable: false,
+    },
     {
       source: 'google-execution-admission',
       host: 'redis',
       port: 6379,
-      reachable: true,
+      reachable: false,
     },
     {
       source: 'google-execution-admission',
@@ -1641,6 +1721,8 @@ function startDependencies(mode: LocalStackMode, state: StackPaths): void {
     'queue-redis',
     'provider-redis',
     'provider-redis-ingress',
+    'google-admission-redis-store',
+    'google-admission-redis-ingress',
     'object-store',
     'provider-sandbox',
     'provider-control-proxy',

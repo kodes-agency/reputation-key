@@ -45,6 +45,7 @@ const OWNED_NAMES = Object.freeze([
   'GOOGLE_ADMISSION_DATABASE_CA_B64',
   'REDIS_URL',
   'PROVIDER_REDIS_TLS_CA_PEM',
+  'PROVIDER_REDIS_TLS_CA_PATH',
   'GOOGLE_EGRESS_GATEWAY_IDENTITY',
   'GOOGLE_ADMISSION_GRANT_HMAC_KEYS',
   'GOOGLE_INTERNAL_MTLS_CA_PATH',
@@ -106,16 +107,25 @@ export function assertGoogleAdmissionRequiredEnvironment(
   assertGoogleAdmissionEnvironmentIsIsolated(values)
   for (const name of OWNED_NAMES.filter(
     (name) =>
-      !name.startsWith('GOOGLE_INTERNAL_MTLS_') && name !== 'PROVIDER_REDIS_TLS_CA_PEM',
+      !name.startsWith('GOOGLE_INTERNAL_MTLS_') &&
+      !name.startsWith('PROVIDER_REDIS_TLS_CA_'),
   )) {
     if (!values[name]) {
       throw new Error(`required Google admission setting is missing: ${name}`)
     }
   }
-  if (values.REDIS_URL?.startsWith('rediss://') && !values.PROVIDER_REDIS_TLS_CA_PEM) {
-    throw new Error(
-      'required Google admission setting is missing: PROVIDER_REDIS_TLS_CA_PEM',
-    )
+  // A `rediss:` REDIS_URL is signed by a private CA no platform trust store
+  // carries, and NODE_EXTRA_CA_CERTS is not an allowed name here. The CA has
+  // two spellings for the same reason the mTLS material does: a deployed cell
+  // injects the PEM as a variable, while a compose env file cannot carry a
+  // multi-line PEM and mounts the file instead. Requiring EXACTLY one keeps a
+  // half-configured cell from silently trusting whichever arrived first.
+  const providerRedisCaSources = [
+    values.PROVIDER_REDIS_TLS_CA_PEM,
+    values.PROVIDER_REDIS_TLS_CA_PATH,
+  ].filter(Boolean).length
+  if (values.REDIS_URL?.startsWith('rediss://') && providerRedisCaSources !== 1) {
+    throw new Error('Google admission provider Redis CA configuration is invalid')
   }
   const base64Tls = [
     values.GOOGLE_INTERNAL_MTLS_CA_B64,

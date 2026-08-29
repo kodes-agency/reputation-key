@@ -76,6 +76,38 @@ describe('Google execution-admission startup isolation', () => {
     ).toThrow('Google admission processing cell is invalid')
   })
 
+  it('takes the provider Redis CA from exactly one spelling', () => {
+    // Both spellings name the same certificate. A deployed cell can only inject
+    // the PEM as a variable; compose can only mount the file. Neither may be
+    // individually required, and supplying both is a misconfiguration rather
+    // than a preference.
+    const tlsRedis = {
+      ...environment(),
+      REDIS_URL: 'rediss://repkey:secret@google-admission-redis-ingress:6379',
+    }
+    const invalid = 'Google admission provider Redis CA configuration is invalid'
+    expect(() => assertGoogleAdmissionRequiredEnvironment(tlsRedis)).toThrow(invalid)
+    expect(() =>
+      assertGoogleAdmissionRequiredEnvironment({
+        ...tlsRedis,
+        PROVIDER_REDIS_TLS_CA_PEM: '-----BEGIN CERTIFICATE-----',
+      }),
+    ).not.toThrow()
+    expect(() =>
+      assertGoogleAdmissionRequiredEnvironment({
+        ...tlsRedis,
+        PROVIDER_REDIS_TLS_CA_PATH: '/run/repkey/ca.crt',
+      }),
+    ).not.toThrow()
+    expect(() =>
+      assertGoogleAdmissionRequiredEnvironment({
+        ...tlsRedis,
+        PROVIDER_REDIS_TLS_CA_PEM: '-----BEGIN CERTIFICATE-----',
+        PROVIDER_REDIS_TLS_CA_PATH: '/run/repkey/ca.crt',
+      }),
+    ).toThrow(invalid)
+  })
+
   it('accepts documented Node and Railway runtime metadata', () => {
     expect(() =>
       assertGoogleAdmissionRequiredEnvironment({
@@ -120,8 +152,34 @@ describe('Google execution-admission startup isolation', () => {
         'GOOGLE_INTERNAL_MTLS_CA_PATH',
         'GOOGLE_INTERNAL_MTLS_CERT_PATH',
         'GOOGLE_INTERNAL_MTLS_KEY_PATH',
+        'PROVIDER_REDIS_TLS_CA_PATH',
       ].sort(),
     )
+  })
+
+  it('points compose at the dedicated TLS Redis the startup contract demands', () => {
+    const compose = readFileSync(resolve(process.cwd(), 'compose.local.yml'), 'utf8')
+    const block = compose.slice(
+      compose.indexOf('  google-execution-admission:'),
+      compose.indexOf('  google-egress-gateway:'),
+    )
+
+    // validateProviderEphemeralRedisUrls requires `rediss:` with BOTH a
+    // username and a password; `redis://redis:6379` killed the whole e2e stack
+    // at startup with `Google admission Redis denied: url_not_tls`.
+    expect(block).toContain(
+      'REDIS_URL: rediss://repkey:${GOOGLE_ADMISSION_REDIS_PASSWORD}@google-admission-redis-ingress:6379',
+    )
+    expect(block).toContain('PROVIDER_REDIS_TLS_CA_PATH: /run/repkey/ca.crt')
+    expect(block).toContain(
+      '${STACK_E2E_DIR}/google-runtime/ca.crt:/run/repkey/ca.crt:ro',
+    )
+    // The store is never reachable directly: only the relay crosses onto the
+    // network this service is pinned to.
+    expect(block).toContain(
+      'google-admission-redis-ingress:\n        condition: service_healthy',
+    )
+    expect(block).not.toContain('redis://')
   })
 
   it('checks isolation before construction and keeps build tooling out of runtime', () => {
@@ -138,6 +196,7 @@ describe('Google execution-admission startup isolation', () => {
       index.indexOf('assertGoogleAdmissionRequiredEnvironment(process.env)'),
     ).toBeLessThan(index.indexOf('new Pool({'))
     expect(index).toMatch(/consumeGoogleAdmissionRuntimeSecrets\(\s*process\.env/u)
+    expect(index).toContain('process.env.PROVIDER_REDIS_TLS_CA_PATH')
     expect(index).not.toContain("requiredEnv('DATABASE_URL')")
     expect(index).toContain('grantKeyring.dispose()')
     expect(index.indexOf('authority.readiness()')).toBeGreaterThan(0)

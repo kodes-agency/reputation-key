@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto'
+import { readFileSync } from 'node:fs'
 import { Pool } from 'pg'
 import Redis from 'ioredis'
 import {
@@ -52,6 +53,14 @@ const { databaseTls, grantKeyring, pool, redis } = consumeGoogleAdmissionRuntime
         throw new Error(`Google admission Redis denied: ${redisUrlFailure.code}`)
       }
     }
+    // assertGoogleAdmissionRequiredEnvironment has already refused anything but
+    // exactly one CA spelling for a `rediss:` URL. A deployed cell injects the
+    // PEM; the local stack mounts the file, because an env file cannot carry a
+    // multi-line PEM and NODE_EXTRA_CA_CERTS is not on this allowlist.
+    const providerRedisCaPath = process.env.PROVIDER_REDIS_TLS_CA_PATH
+    const providerRedisCa =
+      secrets.PROVIDER_REDIS_TLS_CA_PEM ??
+      (providerRedisCaPath ? readFileSync(providerRedisCaPath, 'utf8') : undefined)
     const databaseTls = loadGoogleAdmissionDatabaseTlsConfiguration({
       connectionString: secrets.DATABASE_URL,
       caBase64: secrets.GOOGLE_ADMISSION_DATABASE_CA_B64,
@@ -77,9 +86,7 @@ const { databaseTls, grantKeyring, pool, redis } = consumeGoogleAdmissionRuntime
           connectTimeout: 5_000,
           commandTimeout: 5_000,
           disableClientInfo: true,
-          ...(secrets.PROVIDER_REDIS_TLS_CA_PEM
-            ? { tls: { ca: secrets.PROVIDER_REDIS_TLS_CA_PEM } }
-            : {}),
+          ...(providerRedisCa ? { tls: { ca: providerRedisCa } } : {}),
         }),
       }
     } catch (error) {
