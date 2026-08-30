@@ -31,6 +31,16 @@ test.describe('Critical: public Portal basics', () => {
   // Each journey is a different guest arriving fresh. See resetGuestRateLimits.
   test.beforeEach(async () => {
     await resetGuestRateLimits()
+    // Keep the Portal's secondary destination approved-and-fresh.
+    // `resolveApprovedLinks` only serves destinations validated within the last
+    // 30 minutes. Production keeps that moving with a scheduled revalidation
+    // job; the e2e stack runs no such job against fixture data, so a stack that
+    // has been up longer than the window silently loses its destinations and
+    // this file fails on a stale approval rather than on the product.
+    await dbQuery(
+      `UPDATE portal_approved_destinations SET last_validated_at = now()
+       WHERE normalized_uri = 'https://example.com/reviews'`,
+    )
   })
 
   // The gateway is rating-first ("feat(portal): make guest gateway rating
