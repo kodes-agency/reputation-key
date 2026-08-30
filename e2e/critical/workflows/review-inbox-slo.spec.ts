@@ -18,6 +18,8 @@ import { signIn } from '../../helpers/auth'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import { gbpStubControl } from '../../fixtures/gbp-stub'
 import {
+  drainFixtureQueue,
+  waitForQueuesIdle,
   e2eRunId,
   cleanupE2eData,
   seedGoogleConnection,
@@ -40,6 +42,12 @@ const INBOX_PROJECTION_SLO_MS = 10_000
 
 test.describe('Critical workflow: review arrival → inbox projection SLO', () => {
   test.beforeEach(async () => {
+    // Stale provider syncs from an earlier spec retry against a stub scope that
+    // has moved on, and burn the shared reviews quota this one needs.
+    await drainFixtureQueue()
+    // And start from a quiescent worker: the SLO is arrival-to-projection
+    // latency, not latency while another spec's events are still draining.
+    await waitForQueuesIdle()
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 

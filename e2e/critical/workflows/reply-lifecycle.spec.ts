@@ -20,6 +20,7 @@ import { signIn } from '../../helpers/auth'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import { gbpStubControl, type StubReview } from '../../fixtures/gbp-stub'
 import {
+  drainFixtureQueue,
   e2eRunId,
   cleanupE2eData,
   seedGoogleConnection,
@@ -54,6 +55,9 @@ test.describe('Critical workflow: reply lifecycle', () => {
   test.describe.configure({ mode: 'serial' })
 
   test.beforeEach(async () => {
+    // Stale provider syncs from an earlier spec retry against a stub scope that
+    // has moved on, and burn the shared reviews quota this one needs.
+    await drainFixtureQueue()
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 

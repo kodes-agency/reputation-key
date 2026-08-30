@@ -111,6 +111,59 @@ export async function softDeleteFixturePortals(slugPrefix: string): Promise<void
   )
 }
 
+/**
+ * Drop everything queued on the fixture queue.
+ *
+ * A provider sync that fails keeps retrying, and the retries outlive the spec
+ * that enqueued them. They then run against a GBP stub whose scope has moved on
+ * to the next spec's account, 404 on every attempt, and burn the shared
+ * 30-per-60s reviews quota that the next spec needs — so a suite of Google
+ * journeys fails in combination while each one passes alone.
+ *
+ * Draining before a spec starts is the queue equivalent of
+ * resetGuestRateLimits: it resets the counter, not the rule.
+ */
+export async function drainFixtureQueue(name = 'default'): Promise<void> {
+  const queue = fixtureQueue(name)
+  await queue.drain(true)
+  await queue.clean(0, 10_000, 'failed')
+  await queue.clean(0, 10_000, 'delayed')
+}
+
+/**
+ * Wait until the background queues have nothing left to do.
+ *
+ * An SLO measurement is arrival-to-projection latency, not "latency while an
+ * unrelated spec's events are still draining". Two Google journeys in one run
+ * left the worker chewing through the first one's domain events while the
+ * second started its clock, so a 10-second budget expired on contention rather
+ * than on the product. Starting from a quiescent worker measures what the SLO
+ * is actually about.
+ */
+export async function waitForQueuesIdle(timeoutMs = 10_000): Promise<void> {
+  // `background` is excluded and DELAYED is not counted: the recurring jobs
+  // (reapers, sweeps, reconcilers) always have a delayed entry scheduled, so a
+  // queue carrying them is never "empty" and waiting for that would hang.
+  // Waiting and active on the two work queues is what "the worker is busy with
+  // the previous spec" actually means.
+  const names = ['default', 'domain-events'] as const
+  const deadline = Date.now() + timeoutMs
+  while (Date.now() < deadline) {
+    const counts = await Promise.all(
+      names.map(async (name) => {
+        const queue = fixtureQueue(name)
+        const [waiting, active] = await Promise.all([
+          queue.getWaitingCount(),
+          queue.getActiveCount(),
+        ])
+        return waiting + active
+      }),
+    )
+    if (counts.every((count) => count === 0)) return
+    await new Promise((resolve) => setTimeout(resolve, 200))
+  }
+}
+
 // ── DB access ─────────────────────────────────────────────────────────
 
 let _pool: Pool | undefined
