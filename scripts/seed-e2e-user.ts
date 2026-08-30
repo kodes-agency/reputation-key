@@ -84,6 +84,7 @@ import {
 import { createGoogleContentAuthorizationAuthority } from '../src/shared/auth/google-content-authority'
 import { createGoogleContentAuthorityRepository } from '../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
 import { randomUUID } from 'node:crypto'
+import { Redis } from 'ioredis'
 
 assertLocalToolExecutionIdentity(process.env)
 
@@ -1606,9 +1607,40 @@ async function main(): Promise<void> {
     emailQueueFixtureIds: [IDS.p1EmailQueue, IDS.p2EmailQueue, IDS.p3EmailQueue],
     reviewCount: 100,
   })
+  const clearedLimits = await clearGuestRateLimitCounters()
   console.log(
-    'E2E beta-local-1 landscape ready: P1 on, P2/P3 off, 7 bounded rows, 100 reviews',
+    `E2E beta-local-1 landscape ready: P1 on, P2/P3 off, 7 bounded rows, 100 reviews, ${clearedLimits} rate-limit counters cleared`,
   )
+}
+
+/**
+ * Reset the guest rate-limit counters so a run starts from a known budget.
+ *
+ * The guest submit budget is 5 per network+Portal PER HOUR, and every spec in
+ * the suite shares one network and one Portal. The counters live in Redis, so
+ * they outlive the database reseed: a second run inside the hour started
+ * part-spent and failed with "Your rating could not be saved", which reads like
+ * a product defect rather than exhausted budget.
+ *
+ * This resets the counter, not the rule — within a run the budget still binds,
+ * which is what the abuse cases actually test.
+ */
+async function clearGuestRateLimitCounters(): Promise<number> {
+  const url = process.env.REDIS_URL
+  if (!url) return 0
+  const redis = new Redis(url, { maxRetriesPerRequest: 2 })
+  try {
+    let cleared = 0
+    let cursor = '0'
+    do {
+      const [next, keys] = await redis.scan(cursor, 'MATCH', 'ratelimit:*', 'COUNT', 500)
+      cursor = next
+      if (keys.length > 0) cleared += await redis.del(...keys)
+    } while (cursor !== '0')
+    return cleared
+  } finally {
+    redis.disconnect()
+  }
 }
 
 main()

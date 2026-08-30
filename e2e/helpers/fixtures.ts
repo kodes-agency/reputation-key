@@ -38,6 +38,41 @@ export const e2eRunId = `r${Date.now().toString(36)}${randomBytes(2).toString('h
 
 const TEST_ENV = testEnvironment()
 
+// ── Rate-limit budgets ────────────────────────────────────────────────
+
+/**
+ * Give the next guest a fresh rate-limit budget.
+ *
+ * The guest submit budget is 5 per network+Portal per hour. Every spec in the
+ * suite arrives from one network (the Playwright host) at one Portal, so the
+ * whole file shares a budget sized for one guest — four journeys exhaust it and
+ * the later ones fail with "Your rating could not be saved", which reads like a
+ * product defect rather than an exhausted counter.
+ *
+ * Resetting between tests models what the budget is actually for: a different
+ * guest, on a different network. It does not weaken the rule — within a single
+ * test the limiter still binds, which is what the abuse cases exercise.
+ *
+ * BOTH halves have to go. `rateLimit()` consults the Redis limiter and then a
+ * DURABLE network-pressure authority in Postgres with the same budget, so
+ * clearing Redis alone changes nothing: the counters vanished and every submit
+ * still returned 429.
+ */
+export async function resetGuestRateLimits(): Promise<void> {
+  const redis = new Redis(TEST_ENV.REDIS_URL, { maxRetriesPerRequest: 2 })
+  try {
+    let cursor = '0'
+    do {
+      const [next, keys] = await redis.scan(cursor, 'MATCH', 'ratelimit:*', 'COUNT', 500)
+      cursor = next
+      if (keys.length > 0) await redis.del(...keys)
+    } while (cursor !== '0')
+  } finally {
+    redis.disconnect()
+  }
+  await dbQuery('DELETE FROM guest_network_pressure_records')
+}
+
 // ── DB access ─────────────────────────────────────────────────────────
 
 let _pool: Pool | undefined
