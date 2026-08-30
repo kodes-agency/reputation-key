@@ -141,30 +141,29 @@ test.describe('Critical workflow: reply lifecycle', () => {
       timeout: 15_000,
     })
 
-    // Draft.
+    // Draft. There is no Save button: the composer AUTOSAVES, so the draft is
+    // proven by the row appearing, not by a click.
     await page.getByPlaceholder('Write a reply…').fill('First draft wording')
-    await page.getByRole('button', { name: 'Save Draft' }).click()
     await waitFor(
       async () => {
         const reply = await getReplyForReview(s.reviewId)
         return reply?.status === 'draft' ? reply : null
       },
-      { timeoutMs: 10_000, description: 'reply draft persisted' },
+      { timeoutMs: 15_000, description: 'reply draft autosaved' },
     )
 
-    // Edit the draft.
+    // Edit the draft — same autosave path.
     await page.getByPlaceholder('Write a reply…').fill('Final reply wording — thank you!')
-    await page.getByRole('button', { name: 'Save Draft' }).click()
     await waitFor(
       async () => {
         const reply = await getReplyForReview(s.reviewId)
         return reply?.text === 'Final reply wording — thank you!' ? reply : null
       },
-      { timeoutMs: 10_000, description: 'edited draft persisted' },
+      { timeoutMs: 15_000, description: 'edited draft autosaved' },
     )
 
     // Submit for approval.
-    await page.getByRole('button', { name: 'Submit for Approval' }).click()
+    await page.getByRole('button', { name: 'Submit for approval' }).click()
     await waitFor(
       async () => {
         const reply = await getReplyForReview(s.reviewId)
@@ -175,7 +174,13 @@ test.describe('Critical workflow: reply lifecycle', () => {
     await expect(page.getByText('Awaiting Approval').first()).toBeVisible()
 
     // Approve → the publish job runs (worker) → published.
-    await page.getByRole('button', { name: 'Approve', exact: true }).click()
+    // Approval is a two-step confirmation now: the trigger opens a dialog that
+    // states what publishing does, and the dialog's own action is what commits.
+    await page.getByRole('button', { name: 'Confirm & Publish', exact: true }).click()
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Confirm & Publish', exact: true })
+      .click()
     await waitFor(
       async () => {
         const reply = await getReplyForReview(s.reviewId)
