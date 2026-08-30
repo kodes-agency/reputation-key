@@ -694,6 +694,13 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByText('Profile updated successfully')).toBeVisible()
 
     await page.goto('/settings/notifications')
+    // Preferences are per property and the page defaults to the FIRST one by
+    // name. Other specs leave fixture properties in the seeded organization
+    // that sort ahead of P1 and are not allowlisted for notification email, so
+    // the switch would render disabled and the assertion would be about the
+    // wrong Property. Select P1 explicitly.
+    await page.getByRole('combobox', { name: 'Property' }).click()
+    await page.getByRole('option', { name: 'E2E Beta Hotel P1', exact: true }).click()
     const reviewEmailSwitch = page.locator('#workflow_collaboration-email')
     await expect(reviewEmailSwitch).toBeChecked()
     await reviewEmailSwitch.click()
