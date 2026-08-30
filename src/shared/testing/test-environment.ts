@@ -30,6 +30,15 @@ export const DEFAULT_TEST_DATABASE_URL = 'postgresql://test:test@localhost:5432/
 /** Default Redis for test runs (local, disposable). */
 export const DEFAULT_TEST_REDIS_URL = 'redis://localhost:6379'
 
+/**
+ * Default BullMQ Redis for test runs.
+ *
+ * Separate from the cache Redis on purpose: the local stack runs two servers,
+ * because queue keys must never be evicted while cache keys may be. A test that
+ * enqueues against the cache URL puts the job somewhere no worker looks.
+ */
+export const DEFAULT_TEST_QUEUE_REDIS_URL = 'redis://localhost:6379'
+
 /** Deterministic operator token for the /api/health/metrics gate (BQC-7.2). */
 export const DEFAULT_TEST_OPS_METRICS_TOKEN = 'e2e-ops-metrics-token-0123456789abcdef'
 
@@ -44,6 +53,7 @@ export type TestEnvironment = Readonly<{
   ENCRYPTION_KEY: string
   OAUTH_STATE_SECRET: string
   REDIS_URL: string
+  QUEUE_REDIS_URL: string
   OPS_METRICS_TOKEN: string
 }>
 
@@ -68,6 +78,8 @@ export function testEnvironment(
     ENCRYPTION_KEY: readEnv.ENCRYPTION_KEY ?? 'a'.repeat(64),
     OAUTH_STATE_SECRET: 'ab'.repeat(32),
     REDIS_URL: readEnv.REDIS_URL ?? DEFAULT_TEST_REDIS_URL,
+    QUEUE_REDIS_URL:
+      readEnv.QUEUE_REDIS_URL ?? readEnv.REDIS_URL ?? DEFAULT_TEST_QUEUE_REDIS_URL,
     OPS_METRICS_TOKEN: readEnv.OPS_METRICS_TOKEN ?? DEFAULT_TEST_OPS_METRICS_TOKEN,
   }
 }

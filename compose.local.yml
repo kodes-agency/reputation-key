@@ -161,6 +161,8 @@ services:
     # BullMQ correctness contract: queue keys must never be evicted. Web and
     # worker independently inspect this live value before creating clients.
     command: [redis-server, --appendonly, 'yes', --maxmemory-policy, noeviction]
+    ports:
+      - '127.0.0.1:${QUEUE_REDIS_HOST_PORT}:6379'
     healthcheck:
       test: [CMD, redis-cli, ping]
       interval: 2s

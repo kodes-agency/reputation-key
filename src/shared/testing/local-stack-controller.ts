@@ -22,18 +22,25 @@ export function localStackProject(mode: LocalStackMode): string {
   return `repkey-${mode}`
 }
 
+// queueRedis is mapped for the same reason postgres is: e2e fixtures enqueue
+// the jobs the app would enqueue, and BullMQ state lives in a SEPARATE Redis
+// from the cache. Without a host port the fixtures could only reach the cache
+// Redis, so `sync-property-reviews` and friends landed in a queue no worker
+// consumes and the tests waited out their budget on work that never ran.
 const HOST_PORTS = {
-  e2e: { postgres: 55432, redis: 56379, googleGateway: 58443 },
-  perf: { postgres: 55433, redis: 56380, googleGateway: 58444 },
-  beta: { postgres: 55434, redis: 56381, googleGateway: 58445 },
-} as const satisfies Record<
-  LocalStackMode,
-  Readonly<{ postgres: number; redis: number; googleGateway: number }>
->
+  e2e: { postgres: 55432, redis: 56379, queueRedis: 56389, googleGateway: 58443 },
+  perf: { postgres: 55433, redis: 56380, queueRedis: 56390, googleGateway: 58444 },
+  beta: { postgres: 55434, redis: 56381, queueRedis: 56391, googleGateway: 58445 },
+} as const satisfies Record<LocalStackMode, LocalStackHostPorts>
 
-export function localStackHostPorts(
-  mode: LocalStackMode,
-): Readonly<{ postgres: number; redis: number; googleGateway: number }> {
+export type LocalStackHostPorts = Readonly<{
+  postgres: number
+  redis: number
+  queueRedis: number
+  googleGateway: number
+}>
+
+export function localStackHostPorts(mode: LocalStackMode): LocalStackHostPorts {
   return HOST_PORTS[mode]
 }
 
@@ -157,6 +164,7 @@ export function buildLocalStackEnv(
     POSTGRES_PASSWORD: database,
     POSTGRES_HOST_PORT: String(hostPorts.postgres),
     REDIS_HOST_PORT: String(hostPorts.redis),
+    QUEUE_REDIS_HOST_PORT: String(hostPorts.queueRedis),
     GOOGLE_EGRESS_GATEWAY_HOST_PORT: String(hostPorts.googleGateway),
     BETTER_AUTH_SECRET: auth,
     RESEND_API_KEY: `re_${secret(input.revision, 'resend')}`,

@@ -29,11 +29,17 @@ describe('local stack controller', () => {
 
     expect(new Set(ports.map(({ postgres }) => postgres))).toHaveLength(3)
     expect(new Set(ports.map(({ redis }) => redis))).toHaveLength(3)
+    expect(new Set(ports.map(({ queueRedis }) => queueRedis))).toHaveLength(3)
     expect(new Set(ports.map(({ googleGateway }) => googleGateway))).toHaveLength(3)
+    // Cache and queue Redis are separate SERVERS, so they need separate host
+    // ports; sharing one would silently point e2e fixtures at the wrong server.
+    expect(
+      new Set(ports.flatMap(({ redis, queueRedis }) => [redis, queueRedis])),
+    ).toHaveLength(6)
     expect(ports).toEqual([
-      { postgres: 55432, redis: 56379, googleGateway: 58443 },
-      { postgres: 55433, redis: 56380, googleGateway: 58444 },
-      { postgres: 55434, redis: 56381, googleGateway: 58445 },
+      { postgres: 55432, redis: 56379, queueRedis: 56389, googleGateway: 58443 },
+      { postgres: 55433, redis: 56380, queueRedis: 56390, googleGateway: 58444 },
+      { postgres: 55434, redis: 56381, queueRedis: 56391, googleGateway: 58445 },
     ])
   })
 

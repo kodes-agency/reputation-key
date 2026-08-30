@@ -1465,10 +1465,21 @@ export async function cleanupE2eData(input: {
 
 const _queues = new Map<string, Queue>()
 
+/**
+ * A BullMQ queue on the QUEUE Redis, which is a different server from the cache.
+ *
+ * compose runs two: `redis` holds cache and rate-limit state, `queue-redis`
+ * holds BullMQ. Connecting to REDIS_URL put every fixture-enqueued job into a
+ * queue no worker consumes -- `sync-property-reviews`, the review purge and the
+ * publish-reply jobs all sat there while the specs waited out their budgets on
+ * work that had never been picked up.
+ */
 function fixtureQueue(name: string): Queue {
   let queue = _queues.get(name)
   if (!queue) {
-    const connection = new Redis(TEST_ENV.REDIS_URL, { maxRetriesPerRequest: null })
+    const connection = new Redis(TEST_ENV.QUEUE_REDIS_URL, {
+      maxRetriesPerRequest: null,
+    })
     queue = new Queue(name, {
       connection: connection as unknown as import('bullmq').ConnectionOptions,
     })
