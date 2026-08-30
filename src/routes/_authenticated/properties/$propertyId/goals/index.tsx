@@ -4,6 +4,7 @@ import { z } from 'zod/v4'
 import { Plus, Target } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
+import { isBetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import { listGoalPrograms } from '#/contexts/goal/server/goal-programs'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
@@ -54,7 +55,13 @@ const metricLabel = (metric: string) => {
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/goals/')({
   beforeLoad: ({ context }) => {
-    if (!can((context as AuthRouteContext).role, 'goal.read')) {
+    const { role } = context as AuthRouteContext
+    // BOTH gates, because the loader below calls a manager API that enforces
+    // both. `goal.read` alone admits Staff, whose read is then refused with
+    // "This account is not enabled for beta manager access" — after the route
+    // has already committed to rendering, so the refusal arrives as an uncaught
+    // error on a half-built page instead of a redirect.
+    if (!can(role, 'goal.read') || !isBetaInteractiveRole(role)) {
       throw redirect({ to: '/properties' })
     }
   },
