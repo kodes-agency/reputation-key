@@ -32,7 +32,10 @@ import {
   portalApprovedDestinations,
   portalPublicationSnapshots,
   portalPublicationActivations,
+  portalHealthIntervals,
+  portalResponsibleManagers,
 } from '../src/shared/db/schema/portal.schema'
+import { propertyResponsibleManagers } from '../src/shared/db/schema/property.schema'
 import { buildPortalPublicationSnapshot } from '../src/contexts/portal/application/portal-publication-snapshot'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../src/contexts/portal/domain/approved-destination'
 import { portalGroups } from '../src/shared/db/schema/portal-group.schema'
@@ -684,6 +687,86 @@ async function publishPortalSnapshot(input: {
     deactivatedAt: null,
     deactivationReason: null,
   })
+}
+
+/**
+ * A published, activated Portal is not yet a WORKING one: the setup
+ * checklist's `published_portal` milestone requires a CURRENT healthy
+ * interval. Written outside publishPortalSnapshot because that function
+ * returns early when the current configuration is already being served —
+ * the health fact has to converge on every seed, not only on a republish.
+ */
+async function ensurePortalHealthy(input: {
+  organizationId: string
+  propertyId: string
+  portalId: string
+}): Promise<void> {
+  const db = getDb()
+  const [current] = await db
+    .select({ id: portalHealthIntervals.id })
+    .from(portalHealthIntervals)
+    .where(
+      and(
+        eq(portalHealthIntervals.portalId, input.portalId),
+        isNull(portalHealthIntervals.effectiveTo),
+      ),
+    )
+    .limit(1)
+  if (current) {
+    await db
+      .update(portalHealthIntervals)
+      .set({ status: 'healthy', reason: 'operational', observedAt: FIXTURE_AT })
+      .where(eq(portalHealthIntervals.id, current.id))
+    return
+  }
+  await db.insert(portalHealthIntervals).values({
+    id: randomUUID(),
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    portalId: input.portalId,
+    status: 'healthy',
+    reason: 'operational',
+    sourceVersion: FIXTURE_AT.toISOString(),
+    effectiveFrom: FIXTURE_AT,
+    effectiveTo: null,
+    observedAt: FIXTURE_AT,
+  })
+}
+
+/** The responsible-manager facts the setup checklist reads. Both scopes are
+ * required: a Property manager alone leaves the Portal unowned. */
+async function ensureResponsibleManagers(input: {
+  organizationId: string
+  propertyId: string
+  portalId: string
+  userId: string
+}): Promise<void> {
+  const db = getDb()
+  await db
+    .insert(propertyResponsibleManagers)
+    .values({
+      id: randomUUID(),
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      userId: input.userId,
+      effectiveFrom: FIXTURE_AT,
+      effectiveTo: null,
+      createdBy: input.userId,
+    })
+    .onConflictDoNothing()
+  await db
+    .insert(portalResponsibleManagers)
+    .values({
+      id: randomUUID(),
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      portalId: input.portalId,
+      userId: input.userId,
+      effectiveFrom: FIXTURE_AT,
+      effectiveTo: null,
+      createdBy: input.userId,
+    })
+    .onConflictDoNothing()
 }
 
 async function grantAccess(
@@ -1553,6 +1636,19 @@ async function main(): Promise<void> {
     organizationId: LOCKED_ORG_ID,
     propertyId: p3Id,
     fixture: P3_PORTAL_FIXTURE,
+  })
+  // P1 is the "set up and working" Property the dashboard journeys assert
+  // against, so its setup checklist must be COMPLETE by seed, not by luck.
+  await ensurePortalHealthy({
+    organizationId: orgAId,
+    propertyId: p1Id,
+    portalId: P1_PORTAL_FIXTURE.id,
+  })
+  await ensureResponsibleManagers({
+    organizationId: orgAId,
+    propertyId: p1Id,
+    portalId: P1_PORTAL_FIXTURE.id,
+    userId: managerUserId,
   })
   await ensurePeopleFixtures({
     organizationId: orgAId,

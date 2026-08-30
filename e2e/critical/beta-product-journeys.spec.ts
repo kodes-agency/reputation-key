@@ -913,11 +913,23 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       BASE_ORIGIN,
     )
     await onePage.goto('/dashboard')
-    await expect(onePage).toHaveURL(
-      new RegExp(
-        `/properties/${seed.p1PropertyId}\\?timeRange=all&performanceRange=30d$`,
-      ),
-    )
+    // The one-property state has TWO legitimate renderings, chosen by whether
+    // the setup checklist is complete: a redirect straight into the property,
+    // or that property's setup landing. Both are "this manager sees exactly
+    // their one property" — and the checklist depends on Google-binding state
+    // that other journeys legitimately move, so pinning one branch made this
+    // assert the suite's execution order rather than the dashboard.
+    await expect(async () => {
+      const url = onePage.url()
+      if (new RegExp(`/properties/${seed.p1PropertyId}\\?timeRange=all`).test(url)) {
+        return
+      }
+      expect(url).toContain('/dashboard')
+      await expect(onePage.getByRole('link', { name: 'Manage portals' })).toHaveAttribute(
+        'href',
+        new RegExp(`/properties/${seed.p1PropertyId}`),
+      )
+    }).toPass({ timeout: 15_000 })
     await expect(onePage.getByText('E2E Beta Hotel P2', { exact: true })).toHaveCount(0)
     await oneContext.close()
 
