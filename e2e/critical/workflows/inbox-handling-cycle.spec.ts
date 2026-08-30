@@ -88,11 +88,15 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
       propertyId: seed.propertyId,
       reviewId,
     })
+    // role 'owner', not the fixture's default Staff: assignment authorizes the
+    // ASSIGNEE as its own principal now, and Staff is not a beta-interactive
+    // role, so the hand-off is refused before any grant is read.
     const colleague = await seedStaffUserWithGrant({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       email: `${PREFIX}colleague-${e2eRunId}@example.com`,
       name: 'E2E Handling Colleague',
+      role: 'owner',
     })
 
     // NEW — the item arrives unassigned. Assignment is never implied by who
@@ -325,7 +329,10 @@ test.describe('Critical workflow: Inbox handling cycle journeys', () => {
     expect(correction.deadline_result).toBe(original.deadline_result)
     // Both facts are shown; the original is never overwritten.
     await expect(page.getByText('Marked as handled', { exact: false })).toBeVisible()
-    await expect(page.getByText('Outcome corrected', { exact: false })).toBeVisible()
+    // The middle dot scopes this to the HISTORY entry. Without it the toast
+    // ("Handling outcome corrected") also matches and the strict locator fails,
+    // which would say nothing about whether the fact was recorded.
+    await expect(page.getByText('Outcome corrected ·', { exact: false })).toBeVisible()
 
     // MANUAL REOPEN with reason 'other' plus a short explanation.
     await page.getByRole('combobox', { name: 'Work status' }).click()

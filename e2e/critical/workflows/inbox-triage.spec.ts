@@ -19,6 +19,7 @@
 
 import { test, expect } from '../../helpers/error-detection'
 import { signIn } from '../../helpers/auth'
+import { dismissToasts } from '../../helpers/interaction'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import {
   e2eRunId,
@@ -58,13 +59,18 @@ test.describe('Critical workflow: inbox triage persists', () => {
       propertyId: seed.propertyId,
       reviewId,
     })
-    // Assignment target: a staff member with a grant to the property (uuid id —
+    // Assignment target: a manager with a grant to the property (uuid id —
     // assignInboxItemFn validates assignedToUserId as uuid).
+    //
+    // role 'owner', not the fixture's default Staff: assignment authorizes the
+    // ASSIGNEE as its own principal now, and Staff is not a beta-interactive
+    // role, so handing the item to one is refused before any grant is read.
     const assignee = await seedStaffUserWithGrant({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       email: `${PREFIX}assignee-${e2eRunId}@example.com`,
       name: 'E2E Triage Assignee',
+      role: 'owner',
     })
 
     await signIn(page)
@@ -153,6 +159,11 @@ test.describe('Critical workflow: inbox triage persists', () => {
     })
 
     // 5. Add a note (UI) — durable.
+    // The composer is tabbed since "feat(ui): rebuild product surfaces on
+    // context-owned reads and product-state boundaries"; Public reply is
+    // selected by default, so the note field is not in the document until the
+    // Internal note tab is opened.
+    await page.getByRole('tab', { name: 'Internal note' }).click()
     await page.getByPlaceholder('Add a note…').fill('Triage note: called the guest back.')
     await page.getByRole('button', { name: 'Add Note' }).click()
     await waitFor(
@@ -174,6 +185,8 @@ test.describe('Critical workflow: inbox triage persists', () => {
     )
 
     // 7. Resolve the escalation (UI) — durable.
+    // Steps 5 and 6 each raised a toast, and the stack now covers this button.
+    await dismissToasts(page)
     await page.getByRole('button', { name: 'Resolve', exact: true }).click()
     await waitFor(
       async () => {
@@ -195,7 +208,9 @@ test.describe('Critical workflow: inbox triage persists', () => {
     await expect(
       page.getByRole('button', { name: 'Escalate', exact: true }),
     ).toBeVisible()
-    // the note survived
+    // the note survived — behind the Internal note tab again, because a reload
+    // returns the composer to its default Public reply tab.
+    await page.getByRole('tab', { name: 'Internal note' }).click()
     await expect(page.getByText('Triage note: called the guest back.')).toBeVisible()
 
     // Final durable state.

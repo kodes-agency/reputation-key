@@ -488,12 +488,22 @@ export async function getUserByEmail(
 }
 
 /**
- * A staff member: better-auth user (credential account) + member row (role
- * 'member' → Staff permissions) + an ACTIVE property_access_grant with
- * source 'operator' (the operator-allowlist provenance). The user id is a
- * UUID so the user is a valid assignment target (assignInboxItemFn validates
- * assignedToUserId as uuid — better-auth's own nanoid ids fail it; see the
- * slice report).
+ * A staff member: better-auth user (credential account) + member row + an
+ * ACTIVE property_access_grant with source 'operator' (the operator-allowlist
+ * provenance). The user id is a UUID so the user is a valid assignment target
+ * (assignInboxItemFn validates assignedToUserId as uuid — better-auth's own
+ * nanoid ids fail it; see the slice report).
+ *
+ * `role` defaults to 'member' (→ Staff permissions), which is what
+ * property-access.spec.ts and dashboard-governance.spec.ts want: a login that
+ * is deliberately NOT beta-interactive, so they can assert property scoping.
+ *
+ * Inbox specs must pass 'owner'. Assignment now authorizes the ASSIGNEE as its
+ * own principal, and Staff is not a beta-interactive role, so handing an Inbox
+ * item to a Staff user is refused with "Inbox command authority is no longer
+ * current" before any permission or grant is read. 'admin' (PropertyManager)
+ * does not work either without more fixture work — it requires staff
+ * participation links this database does not have.
  */
 export async function seedStaffUserWithGrant(input: {
   organizationId: string
@@ -501,6 +511,7 @@ export async function seedStaffUserWithGrant(input: {
   email: string
   name?: string
   password?: string
+  role?: 'owner' | 'admin' | 'member'
 }): Promise<{ userId: string; email: string; password: string }> {
   const userId = randomUUID()
   const password = input.password ?? 'StaffPass123!'
@@ -516,7 +527,7 @@ export async function seedStaffUserWithGrant(input: {
   )
   await dbQuery(
     'INSERT INTO member (id, "organizationId", "userId", role, "createdAt") VALUES ($1, $2, $3, $4, now())',
-    [`e2e-${randomUUID()}`, input.organizationId, userId, 'member'],
+    [`e2e-${randomUUID()}`, input.organizationId, userId, input.role ?? 'member'],
   )
   // A membership alone is not enough to resolve tenant context. The tenant
   // resolver requires a user_organization_bindings row and denies with
@@ -976,13 +987,19 @@ export async function seedPrivateFeedbackInboxItem(input: {
     [input.organizationId, input.propertyId, input.propertyId, input.slug],
   )
   const portalId = portals[0].id
+  // $5 is cast at EVERY use, including the bare ones. Postgres resolves
+  // "unknown + interval" by first assuming the unknown is also an interval — an
+  // exact catalog match — which pins $5 to interval. The bare $5 uses are then
+  // coerced against the timestamptz columns and the two deductions collide:
+  // "inconsistent types deduced for parameter $5". The statement had never
+  // executed successfully.
   const responses = await dbQuery<{ id: string }>(
     `INSERT INTO guest_responses (
        organization_id, property_id, portal_id, status, rating,
        response_consent, text_consent, media_consent, submitted_at,
        retention_deadline, feedback_submitted_at, feedback_submission_revision
-     ) VALUES ($1, $2, $3, 'submitted', $4, true, true, false, $5,
-               $5 + interval '400 days', $5, 1)
+     ) VALUES ($1, $2, $3, 'submitted', $4, true, true, false, $5::timestamptz,
+               $5::timestamptz + interval '400 days', $5::timestamptz, 1)
      RETURNING id`,
     [input.organizationId, input.propertyId, portalId, input.rating ?? 2, submittedAt],
   )
@@ -991,7 +1008,7 @@ export async function seedPrivateFeedbackInboxItem(input: {
     `INSERT INTO guest_response_private_feedback (
        response_id, organization_id, property_id, portal_id, body, submitted_at,
        expires_at
-     ) VALUES ($1, $2, $3, $4, $5, $6, $6 + interval '400 days')`,
+     ) VALUES ($1, $2, $3, $4, $5, $6::timestamptz, $6::timestamptz + interval '400 days')`,
     [
       responseId,
       input.organizationId,
@@ -1149,8 +1166,18 @@ export async function withdrawPrivateFeedbackInboxItem(input: {
   await dbQuery('DELETE FROM guest_response_private_feedback WHERE response_id = $1', [
     input.responseId,
   ])
+  // Withdrawal ERASES, it does not just timestamp. `withdrawPrivateFeedback`
+  // in the domain clears the consent and the source event along with setting
+  // the instant, and guest_responses_feedback_withdrawal_valid enforces exactly
+  // that: a withdrawn row must carry no consent and no source event. Stamping
+  // only the timestamp produced a row the database refuses. (The feedback text
+  // itself lives in guest_response_private_feedback, deleted just above.)
   await dbQuery(
-    `UPDATE guest_responses SET feedback_withdrawn_at = $2, updated_at = $2
+    `UPDATE guest_responses
+     SET feedback_withdrawn_at = $2,
+         text_consent = false,
+         feedback_source_event_id = NULL,
+         updated_at = $2
      WHERE id = $1`,
     [input.responseId, withdrawnAt],
   )
