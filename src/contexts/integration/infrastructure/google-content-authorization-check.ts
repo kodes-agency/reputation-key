@@ -1,4 +1,5 @@
 import { sql } from 'drizzle-orm'
+import { isCoreCapability } from '#/shared/auth/beta-capabilities'
 import type { Database } from '#/shared/db'
 import type {
   GoogleContentAuthorizationCheck,
@@ -94,12 +95,30 @@ const OAUTH_EXCHANGE_OPERATIONS = new Set([
 ])
 const REPLY_PUBLICATION_OPERATIONS = ['reply.publish', 'provider.reviews.reply']
 
+/**
+ * Whether policy currently authorizes this Google content capability.
+ *
+ * CORE capabilities are exempt from the two ALLOWLIST clauses, and only those.
+ * `checkScopedCapability` has always treated them that way — a core capability
+ * is part of the product rather than something a cohort opts into — and nothing
+ * in the product ever writes an `organization_capability` row for one. Requiring
+ * those rows here meant `property.connect_gbp` and `property.publish_reply`
+ * could never authorize for ANY tenant, so review sync and reply publication
+ * were dead everywhere, not just in the test stack. The two gates disagreed and
+ * this one was the odd one out.
+ *
+ * Everything else still applies to core capabilities exactly as before: the
+ * global kill switch (`capability_execution_control.denied` and the emergency
+ * kill version), organization suspension, property suspension, and the property
+ * belonging to the organization and not being deleted.
+ */
 export async function policyAuthorizes(
   tx: Database,
   capability: GoogleContentCapability,
   organizationId: string,
   propertyId: string | null,
 ): Promise<Readonly<{ version: number; emergencyKillVersion: number }> | null> {
+  const allowlistExempt = isCoreCapability(capability)
   const result = await tx.execute(sql`
     SELECT pv.version, pv.emergency_kill_version
     FROM policy_version pv
@@ -113,10 +132,13 @@ export async function policyAuthorizes(
         WHERE policy.organization_id = ${organizationId}
           AND policy.suspended_at IS NOT NULL
       )
-      AND EXISTS (
-        SELECT 1 FROM organization_capability allowed
-        WHERE allowed.organization_id = ${organizationId}
-          AND allowed.capability = ${capability}
+      AND (
+        ${allowlistExempt}
+        OR EXISTS (
+          SELECT 1 FROM organization_capability allowed
+          WHERE allowed.organization_id = ${organizationId}
+            AND allowed.capability = ${capability}
+        )
       )
       AND (
         ${propertyId}::uuid IS NULL
@@ -132,10 +154,13 @@ export async function policyAuthorizes(
             WHERE policy.property_id = ${propertyId}::uuid
               AND policy.suspended_at IS NOT NULL
           )
-          AND EXISTS (
-            SELECT 1 FROM property_capability allowed
-            WHERE allowed.property_id = ${propertyId}::uuid
-              AND allowed.capability = ${capability}
+          AND (
+            ${allowlistExempt}
+            OR EXISTS (
+              SELECT 1 FROM property_capability allowed
+              WHERE allowed.property_id = ${propertyId}::uuid
+                AND allowed.capability = ${capability}
+            )
           )
         )
       )
