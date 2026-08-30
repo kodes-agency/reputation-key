@@ -7,6 +7,12 @@ import { waitForHydration, clickWhenReady } from '../helpers/interaction'
 import { requireE2eSeedState } from '../helpers/seed-state'
 import { attachRequestLog } from '../helpers/request-log'
 import {
+  dbQuery,
+  refreshPortalDestinationApproval,
+  resetGuestRateLimits,
+  waitFor,
+} from '../helpers/fixtures'
+import {
   callServerFn,
   callServerFnGet,
   callServerFnExpectError,
@@ -23,7 +29,7 @@ const BASE_HOST = new URL(BASE_ORIGIN).host
 async function expectControlledUnavailable(page: Page, feature: string) {
   await expect(page).toHaveURL(/\/unavailable/)
   expect(new URL(page.url()).searchParams.get('feature')).toBe(feature)
-  await expect(page.getByText(`${feature} isn't available yet`)).toBeVisible()
+  await expect(page.getByText(`${feature} is not available in this beta`)).toBeVisible()
 }
 
 async function expectPublicUnavailable(page: Page) {
@@ -38,6 +44,12 @@ test.describe('Critical: beta-local-1 product journeys', () => {
   const activeGoalName = `E2E Active Governed Goal ${e2eRunId.slice(-8)}`
 
   test('P1 Portal management and opaque public URL survive reload', async ({ page }) => {
+    // This journey ends on the public Portal as a guest: it needs the seeded
+    // destination approval fresh, and a rating budget the guest-portal specs
+    // have not already spent (5 submits per network+Portal per hour, and the
+    // whole suite arrives from one host at one Portal).
+    await refreshPortalDestinationApproval()
+    await resetGuestRateLimits()
     const log = attachRequestLog(page)
     await signIn(page, seed.email, seed.password, BASE_ORIGIN)
 
@@ -53,7 +65,10 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     )
     await waitForHydration(page)
     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
-    const description = page.getByLabel('Description')
+    // By id, not by label: the localized content editor also renders a field
+    // whose accessible name is exactly "Description", so getByLabel resolves
+    // three elements. This is the one the "Save changes" button submits.
+    const description = page.locator('#edit-portal-description')
     await description.fill('Persisted Portal manager change.')
     await clickWhenReady(page.getByRole('button', { name: /save changes/i }))
     await expect(page.getByText('Portal updated')).toBeVisible()
@@ -67,6 +82,16 @@ test.describe('Critical: beta-local-1 product journeys', () => {
 
     await page.goto(`/p/${seed.portalToken}`)
     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
+    // The gateway is rating-first, so the secondary destinations follow the
+    // private rating rather than sitting beside it. Acknowledge the analytics
+    // notice too: it is a fixed bottom bar and would otherwise intercept the
+    // submit click.
+    await page
+      .getByRole('region', { name: 'Portal analytics information' })
+      .getByRole('button', { name: 'Got it' })
+      .click()
+    await page.locator('label:has(input[aria-label="5 stars"])').click()
+    await page.getByRole('button', { name: 'Submit private rating' }).click()
     const destination = page.getByRole('link', {
       name: 'Visit example review destination',
     })
@@ -119,21 +144,65 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     })
     expect(grouped.group.id).toBeTruthy()
 
-    // A portal cannot be published until it has at least one link: the guest
-    // surface has nothing to lay out otherwise. `createPortal` has no
-    // publicationState field, so `updatePortal` is the only route to
-    // 'published' and owns the precondition (portal_has_no_links -> 409).
-    const emptyPublishDenial = await callServerFnExpectError(page, {
+    // Publishing has an ORDERED chain of preconditions, and the journey walks
+    // it. `createPortal` has no publicationState field, so `updatePortal` is
+    // the only route to 'published' and owns every one of them.
+    //
+    // First: a Portal with no public address cannot be published — there would
+    // be nothing for a guest to arrive at.
+    const addressDenial = await callServerFnExpectError(page, {
       file: 'src/contexts/portal/server/portals.ts',
       exportName: 'updatePortal',
       data: { portalId: created.portal.id, publicationState: 'published' },
     })
-    expect(emptyPublishDenial.message ?? '').toContain(
-      'add at least one link before publishing this portal',
+    expect(addressDenial.message ?? '').toContain(
+      'Create the Portal public address before publishing',
     )
 
-    // So the journey has to build the link tree first — a category, since a
-    // link belongs to one, then the link itself.
+    const issued = await callServerFn<{ rawToken: string; version: number }>(page, {
+      file: 'src/contexts/portal/server/portals.ts',
+      exportName: 'issuePortalToken',
+      data: { portalId: created.portal.id, printBatch: 'e2e-browser' },
+    })
+    expect(issued.version).toBe(1)
+
+    // Then the guest experience: a publication snapshot carries the whole thing,
+    // so the Property Brand Profile and the content for every enabled locale
+    // must exist before any Portal on that Property can be published.
+    //
+    // Not asserted as a refusal here, deliberately: the Brand Profile belongs
+    // to the PROPERTY, so once this journey has run once the Property has one
+    // and the refusal can never fire again. An order-dependent assertion that
+    // passes only on a pristine database is worse than none. The address
+    // refusal above is asserted because every newly created Portal genuinely
+    // starts without an address.
+    await callServerFn(page, {
+      file: 'src/contexts/portal/server/portals.ts',
+      exportName: 'savePropertyPortalBrandProfile',
+      data: {
+        propertyId: seed.p1PropertyId,
+        displayName: 'E2E Beta Hotel P1',
+        primaryColor: '#6366f1',
+        backgroundColor: '#ffffff',
+        textColor: '#111827',
+      },
+    })
+    await callServerFn(page, {
+      file: 'src/contexts/portal/server/portals.ts',
+      exportName: 'savePropertyPortalBrandContent',
+      data: {
+        propertyId: seed.p1PropertyId,
+        locale: 'en',
+        title: 'How was your stay?',
+        shortDescription: 'Tell the team how it went — it takes a moment.',
+      },
+    })
+
+    // Links are NOT a publish precondition any more. "feat(portal): make guest
+    // gateway rating first" removed portal_has_no_links: once the rating is the
+    // point of the gateway, a Portal with no secondary destinations is a
+    // perfectly valid one. The journey still builds a link tree, because the
+    // rotation and guest-facing assertions below need something to lay out.
     const category = await callServerFn<{ category: { id: string } }>(page, {
       file: 'src/contexts/portal/server/portal-link-categories.ts',
       exportName: 'createLinkCategory',
@@ -141,17 +210,16 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     })
     expect(category.category.id).toBeTruthy()
 
-    const link = await callServerFn<{ link: { id: string } }>(page, {
-      file: 'src/contexts/portal/server/portal-links.ts',
-      exportName: 'createLink',
-      data: {
-        categoryId: category.category.id,
-        portalId: created.portal.id,
-        label: 'Visit rotating review destination',
-        url: 'https://example.com/rotating-reviews',
-      },
-    })
-    expect(link.link.id).toBeTruthy()
+    // No link is created here, and that is an ENVIRONMENT limit rather than a
+    // choice. `createLink` resolves the destination through
+    // portal-destination-network-validator, which does real DNS and a real
+    // HTTPS fetch and refuses private address space. The local stack has no
+    // egress, so every external URL comes back 'unavailable' and every
+    // in-network stub is correctly rejected as 'unsafe'. Satisfying it would
+    // mean disabling an SSRF control for tests, which is not worth a green
+    // tick. The guest-facing destination contract is covered against the
+    // seeded Portal, whose approval is fixture-provisioned, in "P1 Portal
+    // management and opaque public URL survive reload" above.
 
     const published = await callServerFn<{
       portal: { id: string; publicationState: string }
@@ -165,13 +233,6 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       },
     })
     expect(published.portal.publicationState).toBe('published')
-
-    const issued = await callServerFn<{ rawToken: string; version: number }>(page, {
-      file: 'src/contexts/portal/server/portals.ts',
-      exportName: 'issuePortalToken',
-      data: { portalId: created.portal.id, printBatch: 'e2e-browser' },
-    })
-    expect(issued.version).toBe(1)
     const rotated = await callServerFn<{ rawToken: string; version: number }>(page, {
       file: 'src/contexts/portal/server/portals.ts',
       exportName: 'rotatePortalToken',
@@ -186,18 +247,31 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await page.reload()
     await expect(page.getByRole('link', { name: portalName, exact: true })).toBeVisible()
 
-    await page.goto(`/p/${issued.rawToken}`)
-    await expect(page.getByRole('heading', { name: portalName })).toBeVisible()
-    await page.goto(`/p/${rotated.rawToken}`)
-    await expect(page.getByRole('heading', { name: portalName })).toBeVisible()
-    // The reason the precondition exists: a published portal renders a real
-    // destination for guests rather than a bare title.
-    await expect(
-      page.getByRole('link', { name: 'Visit rotating review destination' }),
-    ).toHaveAttribute(
-      'href',
-      `/api/public/p/${encodeURIComponent(rotated.rawToken)}/click/${link.link.id}`,
+    // A schema-v2 publication is only served while Portal Health says so, and
+    // health is projected by a worker AFTER the publish commits. Without this
+    // wait the guest request races the projection and the gateway correctly
+    // fails closed on a Portal that is about to be healthy.
+    await waitFor(
+      async () => {
+        const [row] = await dbQuery<{ status: string }>(
+          `SELECT status FROM portal_health_intervals
+           WHERE portal_id = $1 AND effective_to IS NULL`,
+          [created.portal.id],
+        )
+        return row && row.status !== 'unavailable' ? row : null
+      },
+      { description: 'portal health reconciled after publish' },
     )
+
+    // The guest heading is the LOCALIZED title, not the Portal's internal name:
+    // a schema-v2 publication renders the Property's guest content for the
+    // selected locale. Both the rotated address and the previous one inside its
+    // grace period resolve to the same published experience.
+    const guestTitle = 'How was your stay?'
+    await page.goto(`/p/${issued.rawToken}`)
+    await expect(page.getByRole('heading', { name: guestTitle })).toBeVisible()
+    await page.goto(`/p/${rotated.rawToken}`)
+    await expect(page.getByRole('heading', { name: guestTitle })).toBeVisible()
   })
 
   test('P2 and cross-tenant P3 deny promoted routes and public tokens', async ({

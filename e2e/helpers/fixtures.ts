@@ -74,6 +74,22 @@ export async function resetGuestRateLimits(): Promise<void> {
   await dbQuery('DELETE FROM guest_network_pressure_records')
 }
 
+/**
+ * Keep the seeded Portal's secondary destination approved-and-fresh.
+ *
+ * `resolveApprovedLinks` only serves destinations validated within the last 30
+ * minutes. Production keeps that moving with a scheduled revalidation job; the
+ * e2e stack runs no such job against fixture data, so a stack that has been up
+ * longer than the window silently loses its destinations and the specs fail on
+ * a decayed precondition rather than on the product.
+ */
+export async function refreshPortalDestinationApproval(): Promise<void> {
+  await dbQuery(
+    `UPDATE portal_approved_destinations SET last_validated_at = now()
+     WHERE normalized_uri = 'https://example.com/reviews'`,
+  )
+}
+
 // ── DB access ─────────────────────────────────────────────────────────
 
 let _pool: Pool | undefined

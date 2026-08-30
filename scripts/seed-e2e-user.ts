@@ -109,6 +109,14 @@ const lockedManagerPassword = 'password123'
 const lockedManagerName = 'E2E Locked Org Manager'
 const organizationName = process.env.E2E_TEST_ORG ?? 'E2E Org A'
 
+/** The one Google review destination the seeded landscape claims, in both places. */
+const GOOGLE_REVIEW_DESTINATION = {
+  uri: 'https://search.google.com/local/writereview?placeid=e2e-seed-place',
+  retrievedAt: new Date('2026-08-01T12:00:00.000Z'),
+  sourceEpoch: 0,
+  profileVersion: 1,
+} as const
+
 const LOCKED_ORG_ID = 'e2e-locked-org-b'
 const FIXTURE_AT = new Date('2026-08-01T12:00:00.000Z')
 const GOAL_FIXTURE_AT = new Date('2026-08-08T12:00:00.000Z')
@@ -373,6 +381,18 @@ async function ensureProperty(
     processingRegionResolvedAt: FIXTURE_AT,
     lifecycleState: 'active' as const,
     sourceEpoch: 0,
+    // A verified Google review destination, matching what publishPortalSnapshot
+    // stamps onto the Portal's snapshot. Without it the landscape contradicts
+    // itself: the Portal is published with a verified destination while the
+    // Property that owns it reports none, so the public gateway degrades and
+    // publishing any new Portal is refused with "connect and refresh this
+    // property's Google review destination" -- a true refusal that hides every
+    // guard behind it.
+    googleReviewDestinationState: 'verified' as const,
+    googleReviewUri: GOOGLE_REVIEW_DESTINATION.uri,
+    googleReviewDestinationRetrievedAt: GOOGLE_REVIEW_DESTINATION.retrievedAt,
+    googleReviewDestinationSourceEpoch: GOOGLE_REVIEW_DESTINATION.sourceEpoch,
+    googleReviewDestinationProfileVersion: GOOGLE_REVIEW_DESTINATION.profileVersion,
     updatedAt: new Date(),
   }
   if (existing) {
@@ -435,6 +455,14 @@ async function ensurePortal(
       description: 'Published Portal fixture for local beta acceptance.',
       theme: { primaryColor: '#6366F1' },
       publicationState: 'published',
+      // Explicit, and therefore MILLISECOND precision. updated_at is the
+      // Portal's optimistic-concurrency token: the editor round-trips it
+      // through a JavaScript Date, which cannot represent the microseconds
+      // `DEFAULT now()` stores, so a seeded Portal could never be saved -- the
+      // first edit always failed with "Portal changed while the update was
+      // being committed". The product's own create path sets this for the same
+      // reason.
+      updatedAt: new Date(),
     })
     .onConflictDoUpdate({
       target: portals.id,
@@ -553,10 +581,10 @@ async function publishPortalSnapshot(input: {
     },
     destination: {
       state: 'verified',
-      uri: 'https://search.google.com/local/writereview?placeid=e2e-seed-place',
-      retrievedAt: FIXTURE_AT,
-      sourceEpoch: 0,
-      profileVersion: 1,
+      uri: GOOGLE_REVIEW_DESTINATION.uri,
+      retrievedAt: GOOGLE_REVIEW_DESTINATION.retrievedAt,
+      sourceEpoch: GOOGLE_REVIEW_DESTINATION.sourceEpoch,
+      profileVersion: GOOGLE_REVIEW_DESTINATION.profileVersion,
     },
   })
 
