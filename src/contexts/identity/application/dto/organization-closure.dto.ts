@@ -118,6 +118,13 @@ export type ClosureCenterView = Readonly<{
   irreversibleAt: string | null
   closedAt: string | null
   reactivationRequired: boolean
+  /**
+   * Whether this deployment can accept a closure request at all. False when no
+   * reactivation command is composed: requesting a closure would then suspend
+   * the Organization with no way back, so the command refuses. Server-computed
+   * so the UI states the refusal instead of arming a button that can only 403.
+   */
+  closureRequestAvailable: boolean
   /** Server-computed so a client clock cannot re-open a closed window. */
   cancellable: boolean
   confirmationPhrase: string

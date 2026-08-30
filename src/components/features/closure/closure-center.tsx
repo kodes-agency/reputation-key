@@ -13,7 +13,11 @@
 // re-check prove IDENTITY.
 
 import { useState } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import {
+  ClosureReadOnlyNotice,
+  ClosureRequestError,
+  ClosureUnavailableNotice,
+} from './closure-request-notices'
 import {
   Card,
   CardContent,
@@ -22,7 +26,6 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
-import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
@@ -76,23 +79,21 @@ export function ClosureCenter({
 
   const confirmationMatches = typedConfirmation === view.confirmationPhrase
   const evidenceValid = /^[A-Za-z0-9][A-Za-z0-9:_./-]{0,199}$/u.test(supportEvidenceRef)
-  const canRequestClosure = view.state === 'active' && !view.reactivationRequired
+  // Availability first, and server-computed: arming this control where closure
+  // is refused would offer a destructive action that can only 403.
+  const canRequestClosure =
+    view.closureRequestAvailable && view.state === 'active' && !view.reactivationRequired
   const awaitingReactivation = view.state === 'active' && view.reactivationRequired
 
   return (
     <div className="space-y-6" data-testid="closure-center">
       <ClosureStatusCard view={view} />
 
-      {view.state !== 'active' ? (
-        <Alert data-testid="closure-read-only-notice">
-          <AlertTriangle aria-hidden="true" />
-          <AlertTitle>This workspace is read only</AlertTitle>
-          <AlertDescription>
-            While a closure is in progress you can view your data and download an export.
-            Publishing, inviting people, replying and every other change is refused.
-          </AlertDescription>
-        </Alert>
+      {view.state === 'active' && !view.closureRequestAvailable ? (
+        <ClosureUnavailableNotice />
       ) : null}
+
+      {view.state !== 'active' ? <ClosureReadOnlyNotice /> : null}
 
       <OrganizationExportPanel
         organizationExport={view.export}
@@ -203,14 +204,17 @@ export function ClosureCenter({
                 !confirmationMatches || !evidenceValid || requestClosure.isPending
               }
               data-testid="request-closure"
-              onClick={() =>
-                void requestClosure({
+              onClick={() => {
+                // Rendered, not floated: dropping the rejection turned a
+                // deliberate refusal into an uncaught error.
+                requestClosure({
                   data: { reasonCode, supportEvidenceRef, typedConfirmation },
-                })
-              }
+                }).catch(() => undefined)
+              }}
             >
               Request closure
             </Button>
+            <ClosureRequestError error={requestClosure.error} />
           </CardFooter>
         </Card>
       ) : null}

@@ -27,6 +27,7 @@ const baseView: ClosureCenterView = {
   timezone: 'America/New_York',
   state: 'active',
   revision: 0,
+  closureRequestAvailable: true,
   closureRequestedAt: null,
   recoverableUntil: null,
   irreversibleAt: null,

@@ -59,6 +59,17 @@ function validateOperationId(value: string): string {
 
 export function createOrganizationLifecycle(deps: OrganizationLifecycleDeps) {
   return {
+    /**
+     * Whether a closure can be requested at all in this deployment.
+     *
+     * Exposed so the UI can say so instead of arming a destructive control for
+     * a command that can only refuse. `requestClosure` enforces the same rule;
+     * this is the read side of it.
+     */
+    closureRequestAvailable(): boolean {
+      return deps.reactivationConfigured()
+    },
+
     async requestClosure(
       input: RequestOrganizationClosureInput,
     ): Promise<OrganizationLifecycleStatus> {

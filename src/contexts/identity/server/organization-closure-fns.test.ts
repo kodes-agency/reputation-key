@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   resolveTenantContext: vi.fn(),
   getStatus: vi.fn(),
+  closureRequestAvailable: vi.fn(() => true),
   requestClosure: vi.fn(),
   cancelClosure: vi.fn(),
   reactivate: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('#/composition', () => ({
     identityLifecycleRuntime: {
       control: {
         getStatus: mocks.getStatus,
+        closureRequestAvailable: mocks.closureRequestAvailable,
         requestClosure: mocks.requestClosure,
         cancelClosure: mocks.cancelClosure,
         reactivation: {

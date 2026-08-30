@@ -127,6 +127,7 @@ function toClosureCenterView(
     status: OrganizationLifecycleStatus
     exportStatus: OrganizationExportStatus | null
     reactivationChecks: readonly OrganizationReactivationCheck[]
+    closureRequestAvailable: boolean
     now: Date
   }>,
 ): ClosureCenterView {
@@ -140,6 +141,7 @@ function toClosureCenterView(
     irreversibleAt: input.status.irreversibleAt?.toISOString() ?? null,
     closedAt: input.status.closedAt?.toISOString() ?? null,
     reactivationRequired: input.status.reactivationRequired,
+    closureRequestAvailable: input.closureRequestAvailable,
     // Server-computed: a client clock that runs slow must not be able to
     // present a cancel button for a window that has already closed.
     cancellable: canCancelOrganizationClosure({
@@ -200,6 +202,7 @@ export const getClosureCenterHandler = createServerOnlyFn(
         // Only meaningful once the fence is up; an active Organization has
         // nothing to reactivate, so the checklist stays empty.
         reactivationChecks: [],
+        closureRequestAvailable: lifecycle().control.closureRequestAvailable(),
         // The injected container clock, never an ambient one: the recovery
         // deadline this view reports must move with the same clock the
         // command store enforces it against.
