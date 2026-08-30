@@ -471,11 +471,28 @@ test.describe('Critical workflow: reply lifecycle', () => {
 
     // retryPublish runs reconcile-before-retry INLINE (worker-free): the
     // provider shows the reply → heal to published, no re-enqueue, no resend.
-    await callServerFn(page, {
-      file: REPLY_FILE_OPS,
-      exportName: 'retryPublishFn',
-      data: { reviewId: s.reviewId },
-    })
+    //
+    // The reads share ONE provider quota with the whole suite, so a run that
+    // follows a read-heavy spec can be admission-denied here. That is a
+    // transient the operator answers by clicking again, and the assertion
+    // below is about the reconcile outcome — not about winning the quota on
+    // the first try.
+    await waitFor(
+      async () => {
+        try {
+          await callServerFn(page, {
+            file: REPLY_FILE_OPS,
+            exportName: 'retryPublishFn',
+            data: { reviewId: s.reviewId },
+          })
+          return true
+        } catch (error) {
+          if (!/re-read provider reply state/i.test(String(error))) throw error
+          return null
+        }
+      },
+      { timeoutMs: 30_000, description: 'retryPublish admitted by the provider quota' },
+    )
     const healed = await waitFor(
       async () => {
         const reply = await getReplyForReview(s.reviewId)

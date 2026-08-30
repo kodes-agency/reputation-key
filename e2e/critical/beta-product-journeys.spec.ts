@@ -795,8 +795,11 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     const inviteEmail = `beta-invite-${e2eRunId}@example.com`
     await clickWhenReady(page.getByRole('button', { name: /invite member/i }))
     await page.getByPlaceholder('colleague@example.com').fill(inviteEmail)
-    await page.getByRole('combobox').first().click()
-    await page.getByRole('option', { name: /^staff$/i }).click()
+    // Only the two manager roles are invitable during the closed beta
+    // (isBetaInteractiveRole) — Staff logins are inactive and the selector
+    // does not offer them.
+    await page.getByRole('combobox', { name: 'Role' }).click()
+    await page.getByRole('option', { name: 'Property Manager', exact: true }).click()
     await clickWhenReady(page.getByRole('button', { name: /send invitation/i }))
     await expect(page.getByText(inviteEmail, { exact: true })).toBeVisible()
     await page.reload()
