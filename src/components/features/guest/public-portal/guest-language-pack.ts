@@ -10,8 +10,23 @@ export type {
   GuestPortalLocale,
 } from './guest-language-pack-types'
 
+/**
+ * Render a guest-facing deadline. The time zone is PINNED, not inherited.
+ *
+ * `toLocaleString()` with no `timeZone` uses whatever zone the runtime is in.
+ * The Portal is server-rendered in the container's zone (UTC) and then hydrated
+ * in the guest's, so every deadline sentence — correction, private-feedback and
+ * response withdrawal — produced two different strings and React threw a
+ * hydration mismatch (#418) for any guest outside UTC, which is nearly all of
+ * them. UTC also matches how the rest of the app renders instants
+ * (see components/inbox/utils.ts).
+ */
 const formatDate = (value: string, locale: GuestPortalLocale): string =>
-  new Date(value).toLocaleString(locale === 'bg' ? 'bg-BG' : 'en')
+  new Intl.DateTimeFormat(locale === 'bg' ? 'bg-BG' : 'en', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    timeZone: 'UTC',
+  }).format(new Date(value))
 
 const EN: GuestPortalCopy = {
   locale: 'en',
