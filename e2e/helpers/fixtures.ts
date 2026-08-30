@@ -90,6 +90,27 @@ export async function refreshPortalDestinationApproval(): Promise<void> {
   )
 }
 
+/**
+ * Soft-delete Portals a spec created but never removed.
+ *
+ * A journey that creates a Portal on every run and cleans up none of them
+ * eventually breaks itself: the Property's Portal list is paginated, so after
+ * enough runs the one the spec just created is no longer on the first page and
+ * the assertion fails for a reason that has nothing to do with the product.
+ *
+ * Soft-delete rather than DELETE: Portals are referenced by tokens, publication
+ * snapshots, activations and health intervals, all of which restrict removal by
+ * design. `deleted_at` is what the product's own soft delete sets and what
+ * every read filters on.
+ */
+export async function softDeleteFixturePortals(slugPrefix: string): Promise<void> {
+  await dbQuery(
+    `UPDATE portals SET deleted_at = now(), updated_at = now()
+     WHERE slug LIKE $1 AND deleted_at IS NULL`,
+    [`${slugPrefix}%`],
+  )
+}
+
 // ── DB access ─────────────────────────────────────────────────────────
 
 let _pool: Pool | undefined
