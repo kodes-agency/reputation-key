@@ -21,6 +21,7 @@ import { requireE2eSeedState } from '../../helpers/seed-state'
 import { gbpStubControl, type StubReview } from '../../fixtures/gbp-stub'
 import {
   drainFixtureQueue,
+  enqueueReviewSync,
   e2eRunId,
   cleanupE2eData,
   seedGoogleConnection,
@@ -189,12 +190,34 @@ test.describe('Critical workflow: reply lifecycle', () => {
       .getByRole('alertdialog')
       .getByRole('button', { name: 'Confirm & Publish', exact: true })
       .click()
+    // Publication is TWO-PHASE. The publish job writes to Google and stops at
+    // "write accepted; awaiting provider observation" -- the attempt sits at
+    // provider_outcome_pending until a later read of the review sees the reply
+    // and records the observation that confirms it. `review.reply.observed` is
+    // the sole provider-reply authority; the write alone never claims success.
+    // In production the scheduled sync does that read; here the spec asks for
+    // it, rather than waiting on a schedule.
+    await waitFor(
+      async () => {
+        const reply = await getReplyForReview(s.reviewId)
+        return reply?.status === 'approved' || reply?.status === 'published'
+          ? reply
+          : null
+      },
+      { timeoutMs: 25_000, description: 'reply write accepted by the provider' },
+    )
+    await enqueueReviewSync({
+      propertyId: s.propertyId,
+      organizationId: seed.organizationId,
+      connectionId: s.connectionId,
+      locationName: s.locationName,
+    })
     await waitFor(
       async () => {
         const reply = await getReplyForReview(s.reviewId)
         return reply?.status === 'published' ? reply : null
       },
-      { timeoutMs: 25_000, description: 'reply published by the worker' },
+      { timeoutMs: 25_000, description: 'reply confirmed published by observation' },
     )
     // The published badge, rendered from persisted state. Publishing
     // auto-closes the inbox item (inbox's reply-published handler), so the
