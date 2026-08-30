@@ -1444,6 +1444,24 @@ export async function getNotificationsForUser(userId: string) {
 // ── Cleanup (prefix-scoped, FK-safe order) ────────────────────────────
 
 /**
+ * Every review a spec's prefix reaches — by its own external id, OR through the
+ * prefixed property or Google connection that owns it.
+ *
+ * external_id alone was too narrow. Specs routinely seed a review whose id has
+ * to match a provider resource name (`dis-r1`, `happy-r1`) while the prefix
+ * lives on the property slug and the connection subject. Those reviews matched
+ * none of the review-anchored deletes below, survived into the next run, and
+ * the property sweep later tried to cascade them away — which
+ * `inbox_handling_cycle_heads_material_revision_fk` (RESTRICT) refuses, so
+ * cleanup aborted and left the database permanently poisoned for that file.
+ */
+const FIXTURE_REVIEWS = `SELECT r.id FROM reviews r
+     JOIN properties p ON p.id = r.property_id
+     LEFT JOIN google_connections gc ON gc.id = p.google_connection_id
+     WHERE r.organization_id = $1
+       AND (r.external_id LIKE $2 OR p.slug LIKE $2 OR gc.google_subject LIKE $2)`
+
+/**
  * Delete every fixture-created row matching the spec's prefix, in FK-safe
  * order. Prefixes match: reviews.external_id, google_connections.google_subject,
  * properties.slug, user.email. Call in beforeEach so reruns start clean.
@@ -1453,27 +1471,36 @@ export async function cleanupE2eData(input: {
   prefix: string
 }): Promise<void> {
   const like = `${input.prefix}%`
-  // inbox notes → inbox items (for prefix-matched reviews) → replies → reviews
+  const args = [input.organizationId, like]
+  // Inbox first: inbox_items has no FK to reviews, so it does not cascade, and
+  // its handling-cycle heads RESTRICT onto material_review_revisions — which is
+  // what a review DELETE would otherwise cascade into.
   await dbQuery(
     `DELETE FROM inbox_notes WHERE inbox_item_id IN (
-       SELECT id FROM inbox_items WHERE organization_id = $1 AND source_id IN (
-         SELECT id FROM reviews WHERE organization_id = $1 AND external_id LIKE $2))`,
-    [input.organizationId, like],
+       SELECT id FROM inbox_items WHERE organization_id = $1 AND source_id IN (${FIXTURE_REVIEWS}))`,
+    args,
   )
   await dbQuery(
-    `DELETE FROM inbox_items WHERE organization_id = $1 AND source_id IN (
-       SELECT id FROM reviews WHERE organization_id = $1 AND external_id LIKE $2)`,
-    [input.organizationId, like],
+    `DELETE FROM inbox_items WHERE organization_id = $1 AND source_id IN (${FIXTURE_REVIEWS})`,
+    args,
+  )
+  // Then the RESTRICT children of reviews that publishing creates. (The CASCADE
+  // ones — ai_review_analyses, review_source_contents, review_source_observations,
+  // material_review_revisions — need no statement of their own.)
+  await dbQuery(
+    `DELETE FROM reply_publication_attempts WHERE review_id IN (${FIXTURE_REVIEWS})`,
+    args,
   )
   await dbQuery(
-    `DELETE FROM replies WHERE organization_id = $1 AND review_id IN (
-       SELECT id FROM reviews WHERE organization_id = $1 AND external_id LIKE $2)`,
-    [input.organizationId, like],
+    `DELETE FROM reply_publication_authorizations WHERE review_id IN (${FIXTURE_REVIEWS})`,
+    args,
   )
   await dbQuery(
-    'DELETE FROM reviews WHERE organization_id = $1 AND external_id LIKE $2',
-    [input.organizationId, like],
+    `DELETE FROM google_reply_observations WHERE review_id IN (${FIXTURE_REVIEWS})`,
+    args,
   )
+  await dbQuery(`DELETE FROM replies WHERE review_id IN (${FIXTURE_REVIEWS})`, args)
+  await dbQuery(`DELETE FROM reviews WHERE id IN (${FIXTURE_REVIEWS})`, args)
   // grants for prefix-matched users and properties (RESTRICT FK), then both
   await dbQuery(
     `DELETE FROM property_access_grant WHERE organization_id = $1 AND (

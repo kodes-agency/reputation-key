@@ -142,7 +142,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
     })
 
     // Draft.
-    await page.getByPlaceholder('Write a reply...').fill('First draft wording')
+    await page.getByPlaceholder('Write a reply…').fill('First draft wording')
     await page.getByRole('button', { name: 'Save Draft' }).click()
     await waitFor(
       async () => {
@@ -153,9 +153,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
     )
 
     // Edit the draft.
-    await page
-      .getByPlaceholder('Write a reply...')
-      .fill('Final reply wording — thank you!')
+    await page.getByPlaceholder('Write a reply…').fill('Final reply wording — thank you!')
     await page.getByRole('button', { name: 'Save Draft' }).click()
     await waitFor(
       async () => {
