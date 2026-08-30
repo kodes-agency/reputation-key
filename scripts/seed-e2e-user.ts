@@ -12,7 +12,7 @@ import 'dotenv/config'
 import { writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import type { E2eSeedState } from '../e2e/helpers/seed-state'
-import { and, eq, isNull } from 'drizzle-orm'
+import { and, desc, eq, isNull, sql } from 'drizzle-orm'
 import { hashPassword } from 'better-auth/crypto'
 import { getAuth } from '../src/shared/auth/auth'
 import { getDb } from '../src/shared/db'
@@ -29,11 +29,17 @@ import {
   portalLinkCategories,
   portalLinks,
   portalGroupMembers,
+  portalApprovedDestinations,
+  portalPublicationSnapshots,
+  portalPublicationActivations,
 } from '../src/shared/db/schema/portal.schema'
+import { buildPortalPublicationSnapshot } from '../src/contexts/portal/application/portal-publication-snapshot'
+import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../src/contexts/portal/domain/approved-destination'
 import { portalGroups } from '../src/shared/db/schema/portal-group.schema'
 import { reviews } from '../src/shared/db/schema/review.schema'
 import { computeAiReviewSourceProvenance } from '../src/contexts/review/application/ai-review-source'
 import {
+  staffParticipants,
   staffParticipations,
   portalResponsibilities,
   portalGroupMemberships,
@@ -119,6 +125,7 @@ const IDS = {
   p3PortalToken: '33333333-3333-4333-a333-333333333333',
   p1Category: '11111111-1111-4111-b111-111111111111',
   p1Link: '11111111-1111-4111-8111-111111111119',
+  p1LinkDestination: '11111111-1111-4111-8111-111111111154',
   p1Group: '11111111-1111-4111-8111-111111111120',
   p1GroupMember: '11111111-1111-4111-8111-111111111121',
   effectiveGroupMember: '11111111-1111-4111-8111-111111111123',
@@ -126,6 +133,10 @@ const IDS = {
   staffParticipation: '11111111-1111-4111-8111-111111111113',
   candidateAParticipation: '11111111-1111-4111-8111-111111111126',
   candidateBParticipation: '11111111-1111-4111-8111-111111111127',
+  managerParticipant: '11111111-1111-4111-8111-111111111150',
+  staffParticipant: '11111111-1111-4111-8111-111111111151',
+  candidateAParticipant: '11111111-1111-4111-8111-111111111152',
+  candidateBParticipant: '11111111-1111-4111-8111-111111111153',
   portalResponsibility: '11111111-1111-4111-8111-111111111116',
   goal: '11111111-1111-4111-8111-111111111118',
   goalDefinitionVersion: '11111111-1111-4111-8111-111111111142',
@@ -154,6 +165,8 @@ type PropertyFixture = Readonly<{ id: string; name: string; slug: string }>
 type PortalFixture = Readonly<{
   id: string
   tokenId: string
+  snapshotId: string
+  activationId: string
   name: string
   slug: string
   tokenByte: number
@@ -369,6 +382,39 @@ async function ensureProperty(
   return id
 }
 
+// Named so that ensurePortal and publishPortalSnapshot cannot drift apart: the
+// publish step runs later, in a separate call, and would silently target the
+// wrong snapshot id if these were restated at either site.
+const P1_PORTAL_FIXTURE: PortalFixture = {
+  id: IDS.p1Portal,
+  tokenId: IDS.p1PortalToken,
+  snapshotId: '11111111-1111-4111-a111-111111111111',
+  activationId: '11111111-1111-4111-b111-111111111111',
+  name: 'E2E Guest Portal P1',
+  slug: 'e2e-guest-portal-p1',
+  tokenByte: 0x11,
+}
+
+const P2_PORTAL_FIXTURE: PortalFixture = {
+  id: IDS.p2Portal,
+  tokenId: IDS.p2PortalToken,
+  snapshotId: '22222222-2222-4222-a222-222222222222',
+  activationId: '22222222-2222-4222-b222-222222222222',
+  name: 'E2E Guest Portal P2',
+  slug: 'e2e-guest-portal-p2',
+  tokenByte: 0x22,
+}
+
+const P3_PORTAL_FIXTURE: PortalFixture = {
+  id: IDS.p3Portal,
+  tokenId: IDS.p3PortalToken,
+  snapshotId: '33333333-3333-4333-a333-333333333333',
+  activationId: '33333333-3333-4333-b333-333333333333',
+  name: 'E2E Guest Portal P3',
+  slug: 'e2e-guest-portal-p3',
+  tokenByte: 0x33,
+}
+
 async function ensurePortal(
   organizationId: string,
   propertyId: string,
@@ -423,6 +469,192 @@ async function ensurePortal(
     issuedAt: FIXTURE_AT,
   })
   return { portalId: fixture.id, portalToken: token.rawToken }
+}
+
+/**
+ * Give the seeded Portal the publication snapshot the public gateway requires.
+ *
+ * Setting `portals.publication_state = 'published'` is not what makes a Portal
+ * publicly resolvable. `resolveActiveByTokenDigest` reads an ACTIVE
+ * publication snapshot, so a Portal marked published with no snapshot row is a
+ * state the production publish path can never produce and the app cannot
+ * serve: every /p/<token> request returned portal_not_found, which is what
+ * failed the five guest-portal e2e journeys.
+ *
+ * The snapshot is built with `buildPortalPublicationSnapshot`, the same
+ * function the portal command store uses, so the configuration digest is
+ * computed by the real code rather than restated here — a hand-written digest
+ * would satisfy the insert and then fail `verifyPortalPublicationSnapshot`.
+ *
+ * A snapshot is a POINT-IN-TIME COPY, so this must run after every row it
+ * copies exists. The categories and links are read back from the database
+ * rather than restated, because a snapshot that omitted the seeded link would
+ * serve a Portal with no destinations — the page would render and the
+ * destination journeys would still fail, which is the harder bug to see.
+ */
+async function publishPortalSnapshot(input: {
+  organizationId: string
+  propertyId: string
+  fixture: PortalFixture
+}): Promise<void> {
+  const db = getDb()
+  const { organizationId, propertyId, fixture } = input
+  const categoryRows = await db
+    .select()
+    .from(portalLinkCategories)
+    .where(eq(portalLinkCategories.portalId, fixture.id))
+  const linkRows = await db
+    .select()
+    .from(portalLinks)
+    .where(eq(portalLinks.portalId, fixture.id))
+  const snapshot = buildPortalPublicationSnapshot({
+    id: fixture.snapshotId,
+    portalId: fixture.id,
+    organizationId,
+    propertyId,
+    version: 1,
+    createdBy: 'local-beta-seed',
+    createdAt: FIXTURE_AT,
+    source: {
+      portal: {
+        id: fixture.id,
+        name: fixture.name,
+        slug: fixture.slug,
+        description: 'Published Portal fixture for local beta acceptance.',
+        heroImageUrl: null,
+        theme: { primaryColor: '#6366F1' },
+        organizationName: organizationName,
+      },
+      categories: categoryRows.map((row) => ({
+        id: row.id,
+        title: row.title,
+        sortKey: row.sortKey,
+      })),
+      links: linkRows.map((row) => {
+        // portal_links.url is nullable in the schema, but a publication
+        // configuration requires an https destination. Refuse rather than drop
+        // the link: a silently shorter snapshot is exactly the failure this
+        // whole function exists to stop.
+        if (!row.url) {
+          throw new Error(`Seeded portal link ${row.id} has no url to publish`)
+        }
+        return {
+          id: row.id,
+          label: row.label,
+          url: row.url,
+          categoryId: row.categoryId,
+          sortKey: row.sortKey,
+        }
+      }),
+      privateFeedbackThreshold: 3,
+      organizationId,
+      propertyId,
+    },
+    destination: {
+      state: 'verified',
+      uri: 'https://search.google.com/local/writereview?placeid=e2e-seed-place',
+      retrievedAt: FIXTURE_AT,
+      sourceEpoch: 0,
+      profileVersion: 1,
+    },
+  })
+
+  // Snapshots are append-only in both directions: a database trigger refuses
+  // any UPDATE ("portal publication snapshots are immutable"), and guest
+  // responses hold a foreign key to the snapshot they were served under, so a
+  // DELETE fails on any stack that has been exercised. A reseed therefore
+  // PUBLISHES AGAIN rather than editing in place — which is also what the
+  // product does when a Portal's content changes.
+  const [existing] = await db
+    .select({
+      id: portalPublicationSnapshots.id,
+      version: portalPublicationSnapshots.version,
+      configurationDigest: portalPublicationSnapshots.configurationDigest,
+    })
+    .from(portalPublicationSnapshots)
+    .where(eq(portalPublicationSnapshots.portalId, fixture.id))
+    .orderBy(desc(portalPublicationSnapshots.version))
+    .limit(1)
+
+  const [liveActivation] = await db
+    .select({ snapshotId: portalPublicationActivations.snapshotId })
+    .from(portalPublicationActivations)
+    .where(
+      and(
+        eq(portalPublicationActivations.portalId, fixture.id),
+        isNull(portalPublicationActivations.deactivatedAt),
+      ),
+    )
+    .limit(1)
+
+  // Only skip when the CURRENT configuration is actually being served. Testing
+  // the snapshot alone is not enough: a seed that died between writing the
+  // snapshot and activating it leaves a portal that resolves to nothing, and a
+  // digest-only check would call that converged and never repair it.
+  const isServingCurrent =
+    existing?.configurationDigest === snapshot.configurationDigest &&
+    liveActivation?.snapshotId === existing.id
+  if (isServingCurrent) return
+
+  // Reuse the existing snapshot when only the activation is missing — writing
+  // a second identical snapshot would make the version history a lie.
+  const reuseExisting = existing?.configurationDigest === snapshot.configurationDigest
+  const snapshotId = reuseExisting ? existing.id : existing ? randomUUID() : snapshot.id
+  const activationId = existing ? randomUUID() : fixture.activationId
+  const version = reuseExisting ? existing.version : (existing?.version ?? 0) + 1
+
+  if (!reuseExisting) {
+    await db.insert(portalPublicationSnapshots).values({
+      id: snapshotId,
+      organizationId: snapshot.organizationId,
+      propertyId: snapshot.propertyId,
+      portalId: snapshot.portalId,
+      version,
+      configurationDigest: snapshot.configurationDigest,
+      configuration: snapshot.configuration,
+      guestLocale: snapshot.configuration.guestLocale,
+      languagePackVersion: snapshot.configuration.languagePackVersion,
+      localeSet: ['en'],
+      languagePackVersions: { en: 'guest-ui-en-v1' },
+      localizedContent: {},
+      brandProfileVersion: null,
+      privateFeedbackThreshold:
+        snapshot.configuration.reviewGateway.privateFeedbackThreshold,
+      destinationUri: snapshot.destinationUri,
+      destinationRetrievedAt: snapshot.destinationRetrievedAt,
+      destinationSourceEpoch: snapshot.destinationSourceEpoch,
+      destinationProfileVersion: snapshot.destinationProfileVersion,
+      createdBy: snapshot.createdBy,
+      createdAt: snapshot.createdAt,
+    })
+  }
+
+  // Retire the previous activation before adding the new one: the resolver
+  // takes the highest sequence among activations with no deactivated_at, so
+  // leaving both live would make which snapshot is served depend on ordering.
+  await db
+    .update(portalPublicationActivations)
+    .set({ deactivatedAt: new Date(), deactivationReason: 'replaced' })
+    .where(
+      and(
+        eq(portalPublicationActivations.portalId, fixture.id),
+        isNull(portalPublicationActivations.deactivatedAt),
+      ),
+    )
+
+  await db.insert(portalPublicationActivations).values({
+    id: activationId,
+    organizationId,
+    propertyId,
+    portalId: fixture.id,
+    snapshotId,
+    activationSequence: version,
+    kind: 'publish',
+    activatedBy: 'local-beta-seed',
+    activatedAt: FIXTURE_AT,
+    deactivatedAt: null,
+    deactivationReason: null,
+  })
 }
 
 async function grantAccess(
@@ -549,6 +781,42 @@ async function ensurePortalFixtures(
         sortKey: 'a0',
       },
     })
+  // A published link is not a served link. `resolveApprovedLinks` filters the
+  // snapshot's links down to destinations that are approved AND were validated
+  // within the last 30 minutes, so a seeded link with no approval row is
+  // silently dropped and the Portal renders with no destinations.
+  //
+  // lastValidatedAt is deliberately `new Date()` and not FIXTURE_AT: freshness
+  // is relative to now, and a fixture instant is always stale. In production
+  // the revalidation job keeps this moving; here the seed is the only writer,
+  // so a stack left idle for over 30 minutes needs a reseed before the
+  // destination journeys will pass.
+  await db
+    .insert(portalApprovedDestinations)
+    .values({
+      id: IDS.p1LinkDestination,
+      organizationId,
+      propertyId,
+      normalizedUri: 'https://example.com/reviews',
+      hostname: 'example.com',
+      sourceType: 'custom',
+      approvalState: 'approved',
+      validationVersion: PORTAL_DESTINATION_VALIDATION_VERSION,
+      requestedBy: managerUserId,
+      approvedBy: managerUserId,
+      approvedAt: FIXTURE_AT,
+      lastValidatedAt: new Date(),
+    })
+    .onConflictDoUpdate({
+      target: portalApprovedDestinations.id,
+      set: {
+        approvalState: 'approved',
+        disabledAt: null,
+        disabledReason: null,
+        lastValidatedAt: new Date(),
+      },
+    })
+
   await db
     .insert(portalGroups)
     .values({
@@ -597,11 +865,35 @@ async function ensurePeopleFixtures(input: {
   candidateBUserId: string
 }): Promise<void> {
   const db = getDb()
+
+  // A participation with no participant is corruption, not an empty state.
+  // `decidePrimaryStaffAttribution` fails closed when the participant join
+  // yields nothing, so seeding participations alone made every guest response
+  // submit throw PrimaryStaffAttributionCorruptionError — a 500, not a 404.
+  await db
+    .insert(staffParticipants)
+    .values(
+      [
+        { id: IDS.managerParticipant, displayName: managerName },
+        { id: IDS.staffParticipant, displayName: staffName },
+        { id: IDS.candidateAParticipant, displayName: candidateAName },
+        { id: IDS.candidateBParticipant, displayName: candidateBName },
+      ].map((participant) => ({
+        ...participant,
+        organizationId: input.organizationId,
+        status: 'active' as const,
+        createdBy: input.managerUserId,
+        createdAt: FIXTURE_AT,
+      })),
+    )
+    .onConflictDoNothing()
+
   await db
     .insert(staffParticipations)
     .values([
       {
         id: IDS.managerParticipation,
+        staffParticipantId: IDS.managerParticipant,
         organizationId: input.organizationId,
         propertyId: input.propertyId,
         userId: input.managerUserId,
@@ -612,6 +904,7 @@ async function ensurePeopleFixtures(input: {
       },
       {
         id: IDS.staffParticipation,
+        staffParticipantId: IDS.staffParticipant,
         organizationId: input.organizationId,
         propertyId: input.propertyId,
         userId: input.staffUserId,
@@ -622,6 +915,7 @@ async function ensurePeopleFixtures(input: {
       },
       {
         id: IDS.candidateAParticipation,
+        staffParticipantId: IDS.candidateAParticipant,
         organizationId: input.organizationId,
         propertyId: input.propertyId,
         userId: input.candidateAUserId,
@@ -632,6 +926,7 @@ async function ensurePeopleFixtures(input: {
       },
       {
         id: IDS.candidateBParticipation,
+        staffParticipantId: IDS.candidateBParticipant,
         organizationId: input.organizationId,
         propertyId: input.propertyId,
         userId: input.candidateBUserId,
@@ -641,7 +936,18 @@ async function ensurePeopleFixtures(input: {
         createdBy: input.managerUserId,
       },
     ])
-    .onConflictDoNothing()
+    // Converge rather than skip: a stack seeded before participants existed
+    // keeps its unlinked participation rows forever under DoNothing, and the
+    // attribution guard would go on failing closed against stale data.
+    .onConflictDoUpdate({
+      target: staffParticipations.id,
+      set: {
+        staffParticipantId: sql`excluded.staff_participant_id`,
+        status: sql`excluded.status`,
+        startedAt: sql`excluded.started_at`,
+        endedAt: null,
+      },
+    })
   await db
     .insert(portalResponsibilities)
     .values({
@@ -1196,29 +1502,29 @@ async function main(): Promise<void> {
     offPropertyIds: [p2Id, p3Id, ...boundedIds],
   })
 
-  const p1Portal = await ensurePortal(orgAId, p1Id, {
-    id: IDS.p1Portal,
-    tokenId: IDS.p1PortalToken,
-    name: 'E2E Guest Portal P1',
-    slug: 'e2e-guest-portal-p1',
-    tokenByte: 0x11,
-  })
-  const p2Portal = await ensurePortal(orgAId, p2Id, {
-    id: IDS.p2Portal,
-    tokenId: IDS.p2PortalToken,
-    name: 'E2E Guest Portal P2',
-    slug: 'e2e-guest-portal-p2',
-    tokenByte: 0x22,
-  })
-  const p3Portal = await ensurePortal(LOCKED_ORG_ID, p3Id, {
-    id: IDS.p3Portal,
-    tokenId: IDS.p3PortalToken,
-    name: 'E2E Guest Portal P3',
-    slug: 'e2e-guest-portal-p3',
-    tokenByte: 0x33,
-  })
+  const p1Portal = await ensurePortal(orgAId, p1Id, P1_PORTAL_FIXTURE)
+  const p2Portal = await ensurePortal(orgAId, p2Id, P2_PORTAL_FIXTURE)
+  const p3Portal = await ensurePortal(LOCKED_ORG_ID, p3Id, P3_PORTAL_FIXTURE)
 
   await ensurePortalFixtures(orgAId, p1Id, managerUserId)
+
+  // Publish only once the links and categories the snapshot copies are in
+  // place — see publishPortalSnapshot for why the order is load-bearing.
+  await publishPortalSnapshot({
+    organizationId: orgAId,
+    propertyId: p1Id,
+    fixture: P1_PORTAL_FIXTURE,
+  })
+  await publishPortalSnapshot({
+    organizationId: orgAId,
+    propertyId: p2Id,
+    fixture: P2_PORTAL_FIXTURE,
+  })
+  await publishPortalSnapshot({
+    organizationId: LOCKED_ORG_ID,
+    propertyId: p3Id,
+    fixture: P3_PORTAL_FIXTURE,
+  })
   await ensurePeopleFixtures({
     organizationId: orgAId,
     propertyId: p1Id,
