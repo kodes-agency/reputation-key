@@ -297,7 +297,21 @@ async function insertReadingOrDescribeDuplicate(
   }
 }
 
-/** Retract the superseded reading and describe the correction for the outbox. */
+/**
+ * Retract the superseded reading and describe the correction for the outbox.
+ *
+ * The insert is idempotent on the correction's source key, matching the reading
+ * insert above. Delivery is at-least-once, so a redelivery reaches here whenever
+ * the reading it supersedes is absent — a retry, or a reading a retention purge
+ * removed between deliveries. Without this the second insert raised
+ * `metric_corrections_source_unique`, the outbox job failed all four attempts,
+ * and the whole domain-events queue stopped making progress: every downstream
+ * projection then timed out for reasons that looked nothing like this.
+ *
+ * On conflict the EXISTING correction id is reused rather than the freshly
+ * generated one, so a replay emits the same event as the first delivery instead
+ * of describing a second correction that was never written.
+ */
 async function recordRetractionCorrection(
   tx: MetricTx,
   correctionId: string,
@@ -305,23 +319,48 @@ async function recordRetractionCorrection(
   correctedReadingId: string,
   supersedesSourceEventId: string,
 ): Promise<MetricCorrected> {
-  await tx.insert(metricCorrections).values({
-    id: correctionId,
-    readingId: correctedReadingId,
-    sourceEventId: `${command.reading.sourceEventId}:retract`,
-    kind: 'retract',
-    reason: 'source_reconciliation',
-    actorType: 'system',
-    actorId: 'portal-workflow',
-    exactDelta: null,
-    replacementValue: null,
-    eventAt: command.reading.occurredAt,
-    supersedesCorrectionId: null,
-    recordedAt: command.reading.recordedAt,
-    ...staffAttributionColumns(command.reading.staffAttribution),
-  })
+  const correctionSourceEventId = `${command.reading.sourceEventId}:retract`
+  const inserted = await tx
+    .insert(metricCorrections)
+    .values({
+      id: correctionId,
+      readingId: correctedReadingId,
+      sourceEventId: correctionSourceEventId,
+      kind: 'retract',
+      reason: 'source_reconciliation',
+      actorType: 'system',
+      actorId: 'portal-workflow',
+      exactDelta: null,
+      replacementValue: null,
+      eventAt: command.reading.occurredAt,
+      supersedesCorrectionId: null,
+      recordedAt: command.reading.recordedAt,
+      ...staffAttributionColumns(command.reading.staffAttribution),
+    })
+    .onConflictDoNothing()
+    .returning({ id: metricCorrections.id })
+
+  const effectiveCorrectionId = inserted[0]?.id ?? (await existingCorrectionId())
+
+  async function existingCorrectionId(): Promise<string> {
+    const [row] = await tx
+      .select({ id: metricCorrections.id })
+      .from(metricCorrections)
+      .where(eq(metricCorrections.sourceEventId, correctionSourceEventId))
+      .limit(1)
+    if (!row) {
+      // Nothing inserted and nothing there: the conflict was on some other
+      // constraint, and silently inventing an id would emit an event for a
+      // correction that does not exist.
+      throw new Error(
+        `Metric retraction correction ${correctionSourceEventId} was neither inserted nor found`,
+      )
+    }
+    return row.id
+  }
+
   return metricCorrected({
-    correctionId,
+    correctionId: effectiveCorrectionId,
     correctedReadingId: metricReadingId(correctedReadingId),
     replacementReadingId: command.reading.id,
     organizationId: command.reading.organizationId,
