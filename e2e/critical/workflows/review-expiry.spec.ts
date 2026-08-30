@@ -22,10 +22,8 @@ import {
   seedApprovedReply,
   getReviewById,
   getReplyById,
-  getInboxItemById,
   callServerFnGet,
   enqueuePurgeExpiredReviews,
-  waitFor,
 } from '../../helpers/fixtures'
 
 const PREFIX = 'e2e-exp-'
@@ -119,22 +117,35 @@ test.describe('Critical workflow: review expiry + purge', () => {
     expect(dashboard.recentReviews.map((r) => r.id)).not.toContain(expiredId)
 
     // Purge through the real worker path (the daily job, invoked on demand).
+    //
+    // The job is REPORT-ONLY. "fix(review): quarantine destructive lifecycle
+    // paths" replaced the review delete with denyLegacyReviewDestruction, and
+    // the job was rebuilt as an inspection over the source-content lifecycle
+    // authority; the composition root wires it with no apply authorizer, so it
+    // reports and deletes nothing. The schema was changed to match — replies,
+    // provider observations, publication authorisations and attempts all
+    // restrict deletion — so an observed Review is now structurally
+    // undeletable, on purpose (src/contexts/review/CONTEXT.md: "destructive
+    // Review purge has no active producer").
+    //
+    // What the product guarantees today is stable identity with read-side
+    // unavailability, which the assertions above already prove. This asserts
+    // the retention half: running the job leaves the rows in place rather than
+    // silently doing something destructive.
     await enqueuePurgeExpiredReviews()
-    await waitFor(async () => ((await getReviewById(expiredId)) === null ? true : null), {
-      timeoutMs: 30_000,
-      description: 'expired review row purged',
-    })
-    // Copies removed: the expired review's reply cascades away…
-    expect(await getReplyById(expiredReplyId)).toBeNull()
-    // …the fresh review survives…
+    // A deletion would land well inside this window; the point is that none
+    // does. Polling for an absence that must never occur would only ever burn
+    // the budget, so this settles once and then asserts retention.
+    await new Promise((resolve) => setTimeout(resolve, 5_000))
+    expect(await getReviewById(expiredId)).not.toBeNull()
+    expect(await getReplyById(expiredReplyId)).not.toBeNull()
     expect(await getReviewById(freshId)).not.toBeNull()
-    // …and the review.expired fact closed the inbox item (worker bus handler).
-    await waitFor(
-      async () => {
-        const item = await getInboxItemById(expiredItemId)
-        return item?.status === 'closed' ? item : null
-      },
-      { timeoutMs: 20_000, description: 'expired item closed via review.expired' },
-    )
+
+    // NOT asserted, and deliberately so: source-content erasure
+    // (source_content_state, text IS NULL, source_content_erased_at) and the
+    // review.expired inbox close. Those depend on the destructive lifecycle
+    // that REV-01 leaves unarmed by owner decision -- see
+    // docs/operations/review-source-content-cutover.md. Relaxing them into
+    // passing assertions would claim an erasure the product does not perform.
   })
 })

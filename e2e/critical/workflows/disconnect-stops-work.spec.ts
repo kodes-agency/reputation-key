@@ -162,12 +162,16 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
     // currently holds via the BQC-1.7 bounded purge instead: the reply row
     // is gone, so the delayed job dies at the claim guard.
 
-    // Bounded purge removed the source content (review + reply copies).
-    await waitFor(async () => ((await getReviewById(reviewId)) === null ? true : null), {
-      timeoutMs: 20_000,
-      description: 'review row purged after disconnect',
-    })
-    expect(await getReplyById(replyId)).toBeNull()
+    // The rows SURVIVE, and the safety property is asserted directly instead.
+    // "fix(review): quarantine destructive lifecycle paths" made the purge
+    // report-only and the schema now restricts deletion of an observed Review,
+    // so the bounded purge this step relied on no longer removes anything. What
+    // item 7 actually demands is that queued protected work STOPS, which the
+    // zero-provider-upsert assertion below is the real guard for: the
+    // connection_disconnected gate in the token provider is what enforces it
+    // now that the reply row outlives the disconnect.
+    expect(await getReviewById(reviewId)).not.toBeNull()
+    expect(await getReplyById(replyId)).not.toBeNull()
 
     // Drain window: the delayed job fires now — the claim guard must kill it
     // (reply purged / publication cancelled) with ZERO provider upserts.
