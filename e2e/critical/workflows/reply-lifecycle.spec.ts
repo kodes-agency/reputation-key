@@ -20,6 +20,7 @@ import { signIn } from '../../helpers/auth'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import { gbpStubControl, type StubReview } from '../../fixtures/gbp-stub'
 import {
+  dbQuery,
   drainFixtureQueue,
   enqueueReviewSync,
   e2eRunId,
@@ -197,15 +198,27 @@ test.describe('Critical workflow: reply lifecycle', () => {
     // the sole provider-reply authority; the write alone never claims success.
     // In production the scheduled sync does that read; here the spec asks for
     // it, rather than waiting on a schedule.
+    // Waited on the ATTEMPT, not the reply status: the reply is already
+    // 'approved' before the publish job runs, so waiting on that would race the
+    // write and the read-back below would find nothing to observe.
     await waitFor(
       async () => {
-        const reply = await getReplyForReview(s.reviewId)
-        return reply?.status === 'approved' || reply?.status === 'published'
-          ? reply
-          : null
+        const [attempt] = await dbQuery<{ outcome: string }>(
+          `SELECT outcome FROM reply_publication_attempts
+           WHERE review_id = $1 ORDER BY attempt_number DESC LIMIT 1`,
+          [s.reviewId],
+        )
+        return attempt && attempt.outcome !== 'sending' ? attempt : null
       },
-      { timeoutMs: 25_000, description: 'reply write accepted by the provider' },
+      { timeoutMs: 25_000, description: 'provider write accepted' },
     )
+    // Production confirms the write by READING the provider back on the sync
+    // schedule, so the test drives that same poll rather than waiting on a
+    // scheduler tuned for hours. ONE sync, deliberately: each additional
+    // snapshot records another observation, and a newer observation head
+    // makes the confirming one non-current — the Inbox close permit is
+    // scoped to the exact current observation, so an over-eager poll races
+    // the auto-close out of existence.
     await enqueueReviewSync({
       propertyId: s.propertyId,
       organizationId: seed.organizationId,
@@ -217,13 +230,32 @@ test.describe('Critical workflow: reply lifecycle', () => {
         const reply = await getReplyForReview(s.reviewId)
         return reply?.status === 'published' ? reply : null
       },
-      { timeoutMs: 25_000, description: 'reply confirmed published by observation' },
+      { timeoutMs: 60_000, description: 'reply confirmed published by observation' },
     )
     // The published badge, rendered from persisted state. Publishing
     // auto-closes the inbox item (inbox's reply-published handler), so the
     // detail opens from the Closed folder.
-    await page.goto(`/inbox?folder=closed&itemId=${s.inboxItemId}`)
-    await expect(page.getByText('Published').first()).toBeVisible({ timeout: 15_000 })
+    // The auto-close is a SEPARATE durable consumer of the observation fact,
+    // so it lands after the reply reports published — wait for it rather than
+    // racing the Closed folder.
+    await waitFor(
+      async () => {
+        const [item] = await dbQuery<{ status: string }>(
+          `SELECT status FROM inbox_items WHERE id = $1::uuid`,
+          [s.inboxItemId],
+        )
+        return item?.status === 'closed' ? item : null
+      },
+      { timeoutMs: 30_000, description: 'inbox item auto-closed by the observation' },
+    )
+    await page.goto(
+      `/inbox?folder=closed&propertyId=${s.propertyId}&itemId=${s.inboxItemId}`,
+    )
+    // The badge names the PROVIDER-confirmed state, not the internal status:
+    // 'published' here means Google's own read-back showed the reply.
+    await expect(page.getByText('Confirmed on Google').first()).toBeVisible({
+      timeout: 15_000,
+    })
 
     // The provider recorded exactly one reply upsert with the final wording.
     const puts = await gbpStubControl.calls({
@@ -266,6 +298,27 @@ test.describe('Critical workflow: reply lifecycle', () => {
     // markPublicationRetryQueued + BullMQ retry → attempt 2 succeeds. This is
     // the taxonomy's transient failure-recovery path; the recovered state is
     // asserted (published, not merely "a retry was attempted").
+    //
+    // 'published' is the PROVIDER-confirmed state, so the retry only reaches
+    // it once a read-back observes the reply. Wait for the accepted write,
+    // then drive that read the way the sync schedule would.
+    await waitFor(
+      async () => {
+        const [attempt] = await dbQuery<{ outcome: string }>(
+          `SELECT outcome FROM reply_publication_attempts
+           WHERE review_id = $1 ORDER BY attempt_number DESC LIMIT 1`,
+          [s.reviewId],
+        )
+        return attempt && attempt.outcome !== 'sending' ? attempt : null
+      },
+      { timeoutMs: 30_000, description: 'retried provider write accepted' },
+    )
+    await enqueueReviewSync({
+      propertyId: s.propertyId,
+      organizationId: seed.organizationId,
+      connectionId: s.connectionId,
+      locationName: s.locationName,
+    })
     const healed = await waitFor(
       async () => {
         const reply = await getReplyForReview(s.reviewId)
@@ -349,13 +402,17 @@ test.describe('Critical workflow: reply lifecycle', () => {
     expect(putsAfterTerminal).toHaveLength(1)
 
     // The UI shows the terminal state.
-    await page.goto(`/inbox?itemId=${s.inboxItemId}`)
-    await expect(page.getByText('Publish Failed').first()).toBeVisible({
+    await page.goto(`/inbox?propertyId=${s.propertyId}&itemId=${s.inboxItemId}`)
+    // The UI names the user-facing state, not the internal status value.
+    await expect(page.getByText('Needs a check').first()).toBeVisible({
       timeout: 15_000,
     })
     await expect(
-      page.getByText('Failed to publish to Google. You can retry.').first(),
+      page
+        .getByText('Google has not confirmed this reply yet.', { exact: false })
+        .first(),
     ).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Check and retry' })).toBeVisible()
 
     // Retry is offered but does NOT heal against a still-403 provider — the
     // terminal state persists (no retry-affordance success).
@@ -403,10 +460,12 @@ test.describe('Critical workflow: reply lifecycle', () => {
         },
       ],
     })
+    const admin = await getUserByEmail(seed.email)
     await seedAmbiguousReply({
       organizationId: seed.organizationId,
       reviewId: s.reviewId,
       text: 'The ambiguous send actually landed',
+      createdBy: admin!.id,
     })
     await signIn(page)
 

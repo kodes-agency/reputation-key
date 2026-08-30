@@ -147,6 +147,23 @@ async function findReplayedObservation(
   return replayed
 }
 
+/** The observation the current head points at, in full. */
+async function selectHeadObservation(
+  tx: Tx,
+  input: RecordGoogleReplyObservation,
+): Promise<ObservationRow | undefined> {
+  const rows = await tx
+    .select({ observation: googleReplyObservations })
+    .from(googleReplyObservationHeads)
+    .innerJoin(
+      googleReplyObservations,
+      eq(googleReplyObservations.id, googleReplyObservationHeads.observationId),
+    )
+    .where(eq(googleReplyObservationHeads.reviewId, input.reviewId))
+    .limit(1)
+  return rows[0]?.observation
+}
+
 function selectCurrentHead(tx: Tx, input: RecordGoogleReplyObservation) {
   return tx
     .select({
@@ -760,6 +777,31 @@ export const createGoogleReplyObservationStore = (
             candidate,
             input,
           )
+
+          // A re-read that restates the current head has nothing to say: it
+          // emits no fact (see the `!== 'unchanged'` gate below), confirms no
+          // attempt, and supersedes none. Advancing the head for it is not
+          // free — downstream permits are scoped to the EXACT current
+          // observation, so a redundant read silently revokes a close permit
+          // whose fact has not been consumed yet, and nothing re-issues it.
+          // A single snapshot run re-reads every review in its confirmation
+          // scan, so this stranded Review Inbox items on published replies.
+          if (
+            head !== undefined &&
+            decision.resolution === 'unchanged' &&
+            !supersedes &&
+            !settlesLegacyUnattributedAttempt(evidence) &&
+            head.state === decision.state &&
+            head.normalizedDigest === decision.normalizedDigest &&
+            head.sourceEpoch === input.sourceEpoch &&
+            head.materialReviewRevision === input.materialReviewRevision
+          ) {
+            const current = await selectHeadObservation(tx, input)
+            if (current) {
+              return { result: resultFromRow(current, true), facts: [] as DomainEvent[] }
+            }
+          }
+
           const observationRevision = (head?.observationRevision ?? 0) + 1
           if (!Number.isSafeInteger(observationRevision)) {
             throw reviewError('invalid_transition', 'Observation revision exhausted')

@@ -521,6 +521,7 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
       // persisted a review we had never seen marks the property live.
       syncActivity,
       clock: input.clock,
+      logger: input.logger,
     }),
     runTargetedGoogleReviewFetch: runTargetedGoogleReviewFetch({
       references: targetedReviewReferences,

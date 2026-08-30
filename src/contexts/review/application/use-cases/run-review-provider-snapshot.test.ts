@@ -18,6 +18,7 @@ import type {
   ReviewProviderSnapshotRun,
 } from '../ports/review-provider-snapshot.repository'
 import type { ReviewProviderSubjectKeyService } from '../provider-subject-keyring'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   runReviewProviderSnapshot,
   type RunReviewProviderSnapshotDeps,
@@ -179,7 +180,19 @@ function makeDeps(
       recordPushObserved: vi.fn(async () => undefined),
     },
     clock: () => NOW,
+    logger: testLogger(),
   }
+}
+
+function testLogger(): LoggerPort {
+  const logger: LoggerPort = {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    child: () => logger,
+  }
+  return logger
 }
 
 const request = {

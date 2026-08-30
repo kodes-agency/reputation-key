@@ -22,6 +22,7 @@ import type { Page } from '@playwright/test'
 import { testEnvironment } from '../../src/shared/testing/test-environment'
 import { computeAiReviewSourceProvenance } from '../../src/contexts/review/application/ai-review-source'
 import { DATA_CELL_CATALOGUE_POLICY_VERSION } from '../../src/shared/domain/data-cell-catalogue'
+import { googleReplyTextDigest } from '../../src/shared/domain/google-reply-text'
 
 /**
  * Unique-per-run marker for every fixture-created external identifier.
@@ -690,6 +691,9 @@ export async function seedGoogleConnection(input: {
   )
   if (!home) throw new Error('E2E Google credential home is unavailable')
 
+  // `google_subject` is globally unique, and a connection outlives cleanup
+  // whenever a Property still binds it — so scenarios that share an account
+  // must ADOPT the surviving connection rather than collide with it.
   const rows = await dbQuery<{ id: string }>(
     `INSERT INTO google_connections
        (organization_id, google_subject, encrypted_access_token,
@@ -699,6 +703,15 @@ export async function seedGoogleConnection(input: {
      VALUES ($1, $2, $3, $4, now() + interval '1 hour',
              ARRAY['https://www.googleapis.com/auth/business.manage'], $5, 'organization', 'active',
              $6, $7, $8)
+     ON CONFLICT (google_subject) WHERE google_subject IS NOT NULL
+       DO UPDATE SET
+         encrypted_access_token = EXCLUDED.encrypted_access_token,
+         encrypted_refresh_token = EXCLUDED.encrypted_refresh_token,
+         token_expires_at = EXCLUDED.token_expires_at,
+         status = 'active',
+         credential_home_cell_id = EXCLUDED.credential_home_cell_id,
+         credential_home_policy_version = EXCLUDED.credential_home_policy_version,
+         credential_home_authority_generation = EXCLUDED.credential_home_authority_generation
      RETURNING id`,
     [
       input.organizationId,
@@ -880,10 +893,12 @@ export async function seedReview(input: {
         reviewed_at, expires_at, content_expires_at,
         source_created_at, source_updated_at, first_fetched_at, last_fetched_at,
         source_epoch, source_revision, analysis_sequence,
-        ai_source_byte_length, ai_source_digest)
+        ai_source_byte_length, ai_source_digest,
+        material_normalization_version)
      VALUES ($1, $2, 'google', $3, $4, $5, $6, $7, $8, $9, $10,
              now() + interval '25 days', $11, $10, $10, $10, $10,
-             $12, 1, 0, $13, $14)
+             $12, 1, 0, $13, $14,
+             'legacy-unverified-v0')
      RETURNING id`,
     [
       input.organizationId,
@@ -914,6 +929,12 @@ export async function seedReview(input: {
   // 'legacy-unverified-v0' with no digests, which the check constraint permits
   // without recomputing the v1 normalization pipeline inside a fixture. The
   // first real observation adopts the baseline without incrementing.
+  //
+  // The baseline lives in TWO places and both must agree: production compares
+  // against the material columns on `reviews`, not this table. Seeding the row
+  // here while leaving `reviews.material_normalization_version` NULL made an
+  // observation read "no previous material", derive revision 1, and collide
+  // with the row below — failing the whole provider snapshot run.
   await dbQuery(
     `INSERT INTO material_review_revisions
        (review_id, revision, organization_id, property_id, source_epoch,
@@ -1402,6 +1423,10 @@ export async function seedStaffAssignment(input: {
 
 /** A reply stuck after an ambiguous publish outcome (timeout post-send on the
  * final attempt): publish_failed + publication_state 'ambiguous', reconcile due. */
+/** A reply whose send outcome is unknown — the shape a real ambiguous publish
+ * leaves behind. Reconciliation refuses a reply that names no exact provider
+ * attempt, so the AUTHORIZATION and the ATTEMPT are seeded too: the reply row
+ * alone is a state production never produces. */
 export async function seedAmbiguousReply(input: {
   organizationId: string
   reviewId: string
@@ -1411,13 +1436,62 @@ export async function seedAmbiguousReply(input: {
   const rows = await dbQuery<{ id: string }>(
     `INSERT INTO replies
        (review_id, organization_id, text, status, source, created_by, approved_at,
-        publication_state, publication_attempts, publication_last_error_class, reconcile_due_at)
+        publication_state, publication_cycle, publication_attempts,
+        publication_last_error_class, reconcile_due_at)
      VALUES ($1, $2, $3, 'publish_failed', 'internal', $4, now(),
-             'ambiguous', 3, 'ambiguous', now() - interval '1 minute')
+             'ambiguous', 1, 1, 'ambiguous', now() - interval '1 minute')
      RETURNING id`,
     [input.reviewId, input.organizationId, input.text, input.createdBy ?? null],
   )
-  return { replyId: rows[0].id }
+  const replyId = rows[0].id
+  const [review] = await dbQuery<{
+    propertyId: string
+    sourceEpoch: number
+    sourceRevision: number
+  }>(
+    `SELECT property_id AS "propertyId", source_epoch AS "sourceEpoch",
+            source_revision AS "sourceRevision"
+     FROM reviews WHERE id = $1::uuid AND organization_id = $2`,
+    [input.reviewId, input.organizationId],
+  )
+  if (!review) throw new Error('E2E ambiguous reply review is unavailable')
+  const [reply] = await dbQuery<{ stateRevision: string }>(
+    `SELECT state_revision AS "stateRevision" FROM replies WHERE id = $1::uuid`,
+    [replyId],
+  )
+  const digest = googleReplyTextDigest(input.text)
+  const binding = [
+    input.organizationId,
+    review.propertyId,
+    input.reviewId,
+    replyId,
+    1,
+    review.sourceEpoch,
+    review.sourceRevision,
+    reply.stateRevision,
+    digest,
+  ]
+  await dbQuery(
+    `INSERT INTO reply_publication_authorizations
+       (organization_id, property_id, review_id, reply_id, publication_cycle,
+        source_epoch, material_review_revision, base_observation_revision,
+        authorized_by_user_id, reply_state_revision, normalization_version,
+        expected_reply_digest, authorized_at)
+     VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, $6, $7, 0, $10, $8,
+             'google-reply-v1', $9, now())`,
+    [...binding, input.createdBy ?? null],
+  )
+  await dbQuery(
+    `INSERT INTO reply_publication_attempts
+       (organization_id, property_id, review_id, reply_id, publication_cycle,
+        attempt_number, provider_operation_key, source_epoch,
+        material_review_revision, reply_state_revision, base_observation_revision,
+        normalization_version, expected_reply_digest, outcome)
+     VALUES ($1, $2::uuid, $3::uuid, $4::uuid, $5, 1, $10, $6, $7, $8, 0,
+             'google-reply-v1', $9, 'ambiguous')`,
+    [...binding, `e2e-ambiguous-${replyId}`],
+  )
+  return { replyId }
 }
 
 // ── DB assertion helpers ──────────────────────────────────────────────

@@ -9,6 +9,7 @@ import type { GoogleReplyObservationStore } from '../ports/google-reply-observat
 import { computeAiReviewSourceProvenance } from '../ai-review-source'
 import { contentExpiresAtFromFetch } from '#/shared/domain/source-content-policy'
 import { sha256Hex } from '#/shared/domain/sha256'
+import { domainError } from '#/shared/domain/errors'
 
 export type ReviewProviderObservationWriterDeps = Readonly<{
   reviewRepo: ReviewRepository
@@ -133,7 +134,10 @@ function assertObservationScope(
     (existing.propertyId !== scope.propertyId ||
       existing.sourceEpoch !== scope.sourceEpoch)
   ) {
-    throw new Error('Review provider observation scope mismatch')
+    throw domainError(
+      'observation_scope_mismatch',
+      'Review provider observation scope mismatch',
+    )
   }
   if (
     stableIdentity != null &&
@@ -142,7 +146,10 @@ function assertObservationScope(
       stableIdentity.sourceEpoch !== scope.sourceEpoch ||
       (existing != null && existing.id !== stableIdentity.id))
   ) {
-    throw new Error('Review provider subject identity mismatch')
+    throw domainError(
+      'observation_subject_identity_mismatch',
+      'Review provider subject identity mismatch',
+    )
   }
 }
 

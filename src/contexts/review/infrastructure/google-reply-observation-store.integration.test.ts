@@ -322,6 +322,38 @@ describe.sequential('Google reply observation authority (real PostgreSQL)', () =
     })
   })
 
+  it('does not let a redundant re-read supersede the confirming observation', async () => {
+    // A snapshot run re-reads every review in its confirmation scan. That
+    // second read says nothing new — it emits no fact, confirms no attempt,
+    // supersedes nothing — but advancing the head for it revoked the Inbox
+    // close permit scoped to the confirming observation, and nothing ever
+    // re-issued it: the reply showed Published while its Inbox item stayed
+    // Open forever.
+    const { review } = await seedReviewAndReply({})
+    const store = createGoogleReplyObservationStore(getDb(), silentEvents)
+
+    const confirming = await store.record(observationInput(review))
+    expect(confirming).toMatchObject({
+      duplicate: false,
+      observationRevision: 1,
+      resolution: 'confirmed_on_google',
+    })
+
+    // Same provider truth, different idempotency key — a genuine second read.
+    const reread = await store.record(
+      observationInput(review, {
+        observationKey: sha256Hex('google-reply-observation-confirmation-scan'),
+      }),
+    )
+    expect(reread).toMatchObject({ duplicate: true, observationRevision: 1 })
+
+    const head = await pool.query(
+      'SELECT observation_revision FROM google_reply_observation_heads WHERE review_id = $1',
+      [REVIEW_A],
+    )
+    expect(head.rows[0].observation_revision).toBe('1')
+  })
+
   it('accepts a same-key/same-evidence replay but refuses changed evidence', async () => {
     const { review } = await seedReviewAndReply({ claim: false })
     const store = createGoogleReplyObservationStore(getDb(), silentEvents)

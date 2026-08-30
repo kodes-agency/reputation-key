@@ -24,6 +24,7 @@ import {
 } from '../ports/review-provider-snapshot.repository'
 import type { ReviewSyncActivityRecorder } from '../ports/review-sync-activity.port'
 import type { ReviewProviderObservationOrigin } from '../ports/response-target-authority.port'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
 export type RunReviewProviderSnapshotInput = Readonly<{
   organizationId: OrganizationId
@@ -78,6 +79,10 @@ export type RunReviewProviderSnapshotDeps = Readonly<{
    */
   syncActivity: ReviewSyncActivityRecorder
   clock: () => Date
+  /** An observation write that throws costs the whole run, and the failure
+   * code alone ('observation_failed') names no cause. The logger reduces the
+   * error to its name and code, so no provider material is logged. */
+  logger: LoggerPort
 }>
 
 const failureCodeForProviderError = (
@@ -465,7 +470,8 @@ const runListPage = async (
   let replyReadGeneration: number
   try {
     replyReadGeneration = await deps.observationWriter.allocateReplyReadGeneration()
-  } catch {
+  } catch (error) {
+    deps.logger.warn({ err: error }, 'Reply read generation could not be allocated')
     return failAndDiscard(deps, input, run.id, 'observation_failed')
   }
 
@@ -492,7 +498,8 @@ const runListPage = async (
       `${run.id}\0${position.phase}\0${position.pageIndex}`,
       replyReadGeneration,
     )
-  } catch {
+  } catch (error) {
+    deps.logger.warn({ err: error }, 'Page Review observation write failed')
     return failAndDiscard(deps, input, run.id, 'observation_failed')
   }
   if (!(await sameScope(deps, input))) {
@@ -550,7 +557,8 @@ const confirmTargetedCandidate = async (
   let replyReadGeneration: number
   try {
     replyReadGeneration = await deps.observationWriter.allocateReplyReadGeneration()
-  } catch {
+  } catch (error) {
+    deps.logger.warn({ err: error }, 'Reply read generation could not be allocated')
     return failAndDiscard(deps, input, run.id, 'observation_failed')
   }
   if (!(await sameScope(deps, input))) {
@@ -572,7 +580,8 @@ const confirmTargetedCandidate = async (
     )
     if (!persisted) throw new Error('observation missing')
     observation = persisted
-  } catch {
+  } catch (error) {
+    deps.logger.warn({ err: error }, 'Targeted Review observation write failed')
     return failAndDiscard(deps, input, run.id, 'observation_failed')
   }
   await deps.repository.recordCandidateObservation({ runId: run.id, observation })

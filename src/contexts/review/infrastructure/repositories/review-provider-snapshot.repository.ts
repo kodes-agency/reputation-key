@@ -25,6 +25,7 @@ import {
   reviewGoogleReputationSnapshotVerified,
   reviewSourceTransitioned,
 } from '../../domain/events'
+import { domainError } from '#/shared/domain/errors'
 import { eraseReviewSourceContent } from '../review-source-content-store'
 import { lockReviewSourceMutationScope } from '../review-source-mutation-serialization'
 import { createReviewSourceContentLifecycleStore } from './source-content-lifecycle-store.repository'
@@ -121,7 +122,11 @@ async function failLockedRun(
     })
     .where(eq(reviewProviderSnapshotRuns.id, row.id))
     .returning()
-  if (!terminal[0]) throw new Error('Snapshot run disappeared while failing')
+  if (!terminal[0])
+    throw domainError(
+      'snapshot_run_missing_on_fail',
+      'Snapshot run disappeared while failing',
+    )
   return terminal[0]
 }
 
@@ -256,7 +261,10 @@ async function recordVerifiedSnapshotFact(tx: Tx, run: RunRow): Promise<DomainEv
     run.expectedTotal == null ||
     !providerAggregateIsValid(run.expectedTotal, run.expectedAverageRating)
   ) {
-    throw new Error('Verified provider aggregate is unavailable at completion')
+    throw domainError(
+      'provider_aggregate_unavailable',
+      'Verified provider aggregate is unavailable at completion',
+    )
   }
   const evaluatedRows = await tx.execute(
     sql`SELECT transaction_timestamp() AS evaluated_at`,
@@ -625,7 +633,10 @@ async function recordSourceTransition(
     !('analysis_sequence' in value) ||
     !('occurred_at' in value)
   ) {
-    throw new Error('Review analysis head transition returned no value')
+    throw domainError(
+      'analysis_head_no_value',
+      'Review analysis head transition returned no value',
+    )
   }
   const analysisSequence = Number(value.analysis_sequence)
   const occurredAt =
@@ -637,7 +648,10 @@ async function recordSourceTransition(
     analysisSequence < 0 ||
     Number.isNaN(occurredAt.getTime())
   ) {
-    throw new Error('Review analysis head transition returned invalid controls')
+    throw domainError(
+      'analysis_head_invalid_controls',
+      'Review analysis head transition returned invalid controls',
+    )
   }
   const stamped = await tx
     .update(reviews)
@@ -657,7 +671,10 @@ async function recordSourceTransition(
     )
     .returning({ id: reviews.id })
   if (!stamped[0]) {
-    throw new Error('Review source transition head changed before it was stamped')
+    throw domainError(
+      'source_transition_head_changed',
+      'Review source transition head changed before it was stamped',
+    )
   }
   const event = reviewSourceTransitioned({
     reviewId: reviewId(mapping.reviewId),
@@ -707,7 +724,11 @@ export const createReviewProviderSnapshotRepository = (
           expiresAt: sql`transaction_timestamp() + interval '12 hours'`,
         })
         .returning()
-      if (!rows[0]) throw new Error('Snapshot run insert returned no row')
+      if (!rows[0])
+        throw domainError(
+          'snapshot_run_insert_empty',
+          'Snapshot run insert returned no row',
+        )
       return fromRunRow(rows[0])
     }),
 
@@ -761,7 +782,7 @@ export const createReviewProviderSnapshotRepository = (
         .where(eq(reviewProviderSnapshotRuns.id, input.runId))
         .for('update')
       const run = locked[0]
-      if (!run) throw new Error('Snapshot run not found')
+      if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
       const expectedState = input.phase === 'main' ? 'scanning' : 'confirming'
       const pageCount =
         input.phase === 'main' ? run.mainPageCount : run.confirmationPageCount
@@ -805,7 +826,11 @@ export const createReviewProviderSnapshotRepository = (
           .set(pageCommitUpdate(run, input, nextCount, nextUnique))
           .where(eq(reviewProviderSnapshotRuns.id, run.id))
           .returning()
-        if (!rows[0]) throw new Error('Snapshot page update returned no row')
+        if (!rows[0])
+          throw domainError(
+            'snapshot_page_update_empty',
+            'Snapshot page update returned no row',
+          )
         return {
           status: 'committed' as const,
           run: fromRunRow(rows[0]),
@@ -826,7 +851,7 @@ export const createReviewProviderSnapshotRepository = (
         .where(eq(reviewProviderSnapshotRuns.id, runId))
         .for('update')
       const run = rows[0]
-      if (!run) throw new Error('Snapshot run not found')
+      if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
       if (run.state !== 'scanning' || run.phase !== 'main') {
         if (run.state === 'confirming') {
           return { status: 'confirming' as const, run: fromRunRow(run) }
@@ -897,7 +922,11 @@ export const createReviewProviderSnapshotRepository = (
         })
         .where(eq(reviewProviderSnapshotRuns.id, run.id))
         .returning()
-      if (!updated[0]) throw new Error('Snapshot confirmation transition failed')
+      if (!updated[0])
+        throw domainError(
+          'snapshot_confirmation_transition_failed',
+          'Snapshot confirmation transition failed',
+        )
       return { status: 'confirming' as const, run: fromRunRow(updated[0]) }
     }),
 
@@ -1000,9 +1029,9 @@ export const createReviewProviderSnapshotRepository = (
         .where(eq(reviewProviderSnapshotRuns.id, runId))
         .for('update')
       const run = rows[0]
-      if (!run) throw new Error('Snapshot run not found')
+      if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
       if (run.state !== 'confirming' || run.phase !== 'confirmation') {
-        throw new Error('Snapshot run is not confirming')
+        throw domainError('snapshot_run_not_confirming', 'Snapshot run is not confirming')
       }
       const pending = await tx
         .select({ reviewId: reviewProviderDeletionCandidates.reviewId })
@@ -1015,7 +1044,11 @@ export const createReviewProviderSnapshotRepository = (
           ),
         )
         .limit(1)
-      if (pending.length > 0) throw new Error('Targeted confirmations remain')
+      if (pending.length > 0)
+        throw domainError(
+          'targeted_confirmations_remain',
+          'Targeted confirmations remain',
+        )
       return fromRunRow(run)
     }),
 
@@ -1027,7 +1060,7 @@ export const createReviewProviderSnapshotRepository = (
         .where(eq(reviewProviderSnapshotRuns.id, runId))
         .for('update')
       const run = rows[0]
-      if (!run) throw new Error('Snapshot run not found')
+      if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
       if (run.state === 'deleting') {
         return { status: 'deleting' as const, run: fromRunRow(run) }
       }
@@ -1095,7 +1128,11 @@ export const createReviewProviderSnapshotRepository = (
         })
         .where(eq(reviewProviderSnapshotRuns.id, run.id))
         .returning()
-      if (!updated[0]) throw new Error('Snapshot deleting transition failed')
+      if (!updated[0])
+        throw domainError(
+          'snapshot_deleting_transition_failed',
+          'Snapshot deleting transition failed',
+        )
       return { status: 'deleting' as const, run: fromRunRow(updated[0]) }
     }),
 
@@ -1106,7 +1143,7 @@ export const createReviewProviderSnapshotRepository = (
         .from(reviewProviderSnapshotRuns)
         .where(eq(reviewProviderSnapshotRuns.id, runId))
         .for('update')
-      if (!rows[0]) throw new Error('Snapshot run not found')
+      if (!rows[0]) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
       return fromRunRow(await failLockedRun(tx, rows[0], code))
     }),
 
@@ -1121,11 +1158,12 @@ export const createReviewProviderSnapshotRepository = (
         .where(eq(reviewProviderSnapshotRuns.id, runId))
         .for('update')
       const run = runRows[0]
-      if (!run) throw new Error('Snapshot run not found')
+      if (!run) throw domainError('snapshot_run_not_found', 'Snapshot run not found')
       if (run.state === 'completed') {
         return { run: fromRunRow(run), applied: 0, observed: 0, done: true }
       }
-      if (run.state !== 'deleting') throw new Error('Snapshot run is not deleting')
+      if (run.state !== 'deleting')
+        throw domainError('snapshot_run_not_deleting', 'Snapshot run is not deleting')
       const candidates = await tx
         .select()
         .from(reviewProviderDeletionCandidates)
@@ -1154,7 +1192,10 @@ export const createReviewProviderSnapshotRepository = (
           sourceEpoch: run.sourceEpoch,
         })
         if (!current) {
-          throw new Error('Provider snapshot source epoch changed before deletion')
+          throw domainError(
+            'snapshot_source_epoch_changed',
+            'Provider snapshot source epoch changed before deletion',
+          )
         }
       }
       const lockedReviews: LockedDeletionReview[] =
@@ -1221,7 +1262,11 @@ export const createReviewProviderSnapshotRepository = (
         )
         .where(eq(reviewProviderSnapshotRuns.id, run.id))
         .returning()
-      if (!updated[0]) throw new Error('Snapshot apply checkpoint failed')
+      if (!updated[0])
+        throw domainError(
+          'snapshot_apply_checkpoint_failed',
+          'Snapshot apply checkpoint failed',
+        )
       return { run: fromRunRow(updated[0]), applied, observed, done }
     })
     for (const event of emitted) await emitAfterCommit(events, event)
@@ -1242,7 +1287,10 @@ export const createReviewProviderSnapshotRepository = (
         .where(eq(reviews.id, afterReviewId))
         .limit(1)
       if (checkpointRows[0] == null) {
-        throw new Error('Raw expiry checkpoint Review no longer exists')
+        throw domainError(
+          'raw_expiry_checkpoint_missing',
+          'Raw expiry checkpoint Review no longer exists',
+        )
       }
       checkpoint = {
         contract: REVIEW_SOURCE_CONTENT_LIFECYCLE_CONTRACT,

@@ -218,12 +218,18 @@ function reviewApiError(
  * turned a rate-limited provider into a queue-speed retry loop.
  */
 function executorErrorToReviewApiError(error: unknown): Error {
-  if (
-    typeof error !== 'object' ||
-    error === null ||
-    !('kind' in error) ||
-    error.kind !== 'rate_limited'
-  ) {
+  const kind =
+    typeof error === 'object' && error !== null && 'kind' in error
+      ? error.kind
+      : undefined
+  // A refusal is an ANSWER, not an outage. Collapsing 401/403 into
+  // `provider_unavailable` told the reply publication workflow the outcome was
+  // unknown, so a permanently refused write burned every retry and never
+  // reached publish_failed.
+  if (kind === 'auth_failed' || kind === 'permission_denied') {
+    return reviewApiError('authorization_changed', false)
+  }
+  if (kind !== 'rate_limited' || typeof error !== 'object' || error === null) {
     return reviewApiError('provider_unavailable', true)
   }
   const hint =
@@ -1092,6 +1098,11 @@ export const createGoogleReviewApiAdapter = (
     }
     if (!response.ok) {
       await response.body?.cancel()
+      // 401/403 are decisions: surface them as such so the publication
+      // workflow marks the reply failed instead of retrying a refusal.
+      if (response.status === 401 || response.status === 403) {
+        throw reviewApiError('authorization_changed', false)
+      }
       throw reviewApiError(
         response.status === 429 ? 'provider_rate_limited' : 'provider_unavailable',
         response.status === 429 || response.status >= 500,

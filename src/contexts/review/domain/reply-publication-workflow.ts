@@ -285,6 +285,11 @@ const PRE_REQUEST_TERMINAL_CODES: ReadonlySet<string> = new Set([
   'connection_not_found',
   'connection_inactive',
   'connection_disconnected',
+  // A provider or admission REFUSAL (401/403, revoked grant, changed approval
+  // binding). Retrying cannot turn a refusal into an acceptance, and treating
+  // it as an unknown outcome left the reply 'sending' until every attempt was
+  // spent instead of reporting the permission problem.
+  'authorization_changed',
 ])
 
 type IntegrationErrorShape = Readonly<{
@@ -299,6 +304,20 @@ function isIntegrationErrorShape(err: unknown): err is IntegrationErrorShape {
     err !== null &&
     '_tag' in err &&
     (err as { _tag?: unknown })._tag === 'IntegrationError' &&
+    'code' in err &&
+    typeof (err as { code?: unknown }).code === 'string'
+  )
+}
+
+/** Structural check for the Review provider port's own error shape. It carries
+ * a closed code and was previously invisible to this classifier, so every
+ * refusal and every rate limit raised through the port read as ambiguous. */
+function isReviewApiErrorShape(err: unknown): err is Readonly<{ code: string }> {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    '_tag' in err &&
+    (err as { _tag?: unknown })._tag === 'GoogleReviewApiError' &&
     'code' in err &&
     typeof (err as { code?: unknown }).code === 'string'
   )
@@ -366,6 +385,11 @@ export function classifyPublicationFailure(err: unknown): PublicationFailureClas
       return 'terminal_rejection'
     }
     if (err.kind === 'rate_limited') return 'retryable'
+    return 'ambiguous'
+  }
+  if (isReviewApiErrorShape(err)) {
+    if (PRE_REQUEST_TERMINAL_CODES.has(err.code)) return 'terminal_rejection'
+    if (err.code === 'provider_rate_limited') return 'retryable'
     return 'ambiguous'
   }
   if (!isIntegrationErrorShape(err)) {

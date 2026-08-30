@@ -251,6 +251,18 @@ describe('reply-publication-workflow (B1.10)', () => {
       expect(classifyPublicationFailure(err)).toBe('ambiguous')
     })
 
+    it('direct GoogleReviewApiError authorization_changed → terminal_rejection', () => {
+      // A refusal (401/403, revoked grant, changed approval binding) is an
+      // answer. Classifying it as ambiguous kept a permanently refused reply
+      // in 'sending' until every attempt was burned.
+      const err = Object.assign(new Error('Google authorization changed'), {
+        _tag: 'GoogleReviewApiError',
+        code: 'authorization_changed',
+        recoverable: false,
+      })
+      expect(classifyPublicationFailure(err)).toBe('terminal_rejection')
+    })
+
     it('gbp_api_rate_limited (429) → retryable', () => {
       const err = Object.assign(new Error('Failed to reach Google review API'), {
         _tag: 'IntegrationError',
