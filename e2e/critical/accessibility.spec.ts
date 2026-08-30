@@ -63,7 +63,7 @@ test.describe('Critical a11y: axe page scans', () => {
     })
     await signIn(page)
     await page.goto('/dashboard')
-    await expect(page.getByText('Needs action')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('Needs attention')).toBeVisible({ timeout: 15_000 })
     await assertNoAxeViolations(page, 'fleet dashboard (/dashboard)')
   })
 
@@ -81,7 +81,7 @@ test.describe('Critical a11y: axe page scans', () => {
     })
     await signIn(page)
     await page.goto('/dashboard')
-    await expect(page.getByText('Needs action')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByText('Needs attention')).toBeVisible({ timeout: 15_000 })
     // Light theme actually applied (not .dark).
     const themeState = await page.evaluate(() => ({
       isDark: document.documentElement.classList.contains('dark'),
@@ -139,9 +139,11 @@ test.describe('Critical a11y: axe page scans', () => {
     await expect(page.getByText('Detail Reviewer').first()).toBeVisible({
       timeout: 15_000,
     })
-    // Detail actions rendered (the detail panel, not just the list).
+    // Detail actions rendered (the detail panel, not just the list). The
+    // control is labelled "Close detail" -- an exact match on "Close" silently
+    // stopped matching it and no longer proved the panel was open.
     await expect(
-      page.getByRole('button', { name: 'Close', exact: true }).first(),
+      page.getByRole('button', { name: 'Close detail', exact: true }).first(),
     ).toBeVisible()
     await assertNoAxeViolations(page, 'inbox detail (/inbox?itemId=)')
   })
@@ -511,7 +513,7 @@ test.describe('Critical a11y: zoom reflow', () => {
     await page.setViewportSize({ width: 320, height: 900 })
     await signIn(page)
     await page.goto('/dashboard')
-    const heading = page.getByText('Needs action')
+    const heading = page.getByText('Needs attention')
     await expect(heading).toBeVisible({ timeout: 15_000 })
 
     const report = await page.evaluate(() => {
