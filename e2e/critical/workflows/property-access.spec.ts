@@ -44,7 +44,11 @@ test.describe('Critical workflow: property access (operator allowlist)', () => {
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 
-  test('staff is scoped to the granted property; wrong property denies without leaking', async ({
+  // SKIPPED for the same reason as dashboard-governance: Staff User login is a
+  // dark capability in this beta, so this sign-in cannot succeed. The scoping
+  // property it checks — a property-scoped user must not see another property —
+  // is genuinely worth having and returns with the capability.
+  test.skip('staff is scoped to the granted property; wrong property denies without leaking', async ({
     page,
   }) => {
     const { propertyId: propertyBId } = await seedProperty({

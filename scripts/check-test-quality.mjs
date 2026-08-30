@@ -112,6 +112,22 @@ const RUNTIME_DRIFT = Object.entries(PINNED_RUNTIME)
  */
 const SKIP_REGISTER = [
   {
+    file: 'e2e/critical/workflows/dashboard-governance.spec.ts',
+    owner: 'engineering',
+    reason:
+      'Staff User login is a dark capability in the closed beta: 52635b32 made only owner/admin tokens beta-interactive, so a Staff member cannot resolve tenant context and the sign-in fails before any assertion. The test asserts staff-scoped dashboard governance, which is real coverage — it returns when the capability is activated, not by relaxing the fence',
+    maxHits: 1,
+    skippedTests: 1,
+  },
+  {
+    file: 'e2e/critical/workflows/property-access.spec.ts',
+    owner: 'engineering',
+    reason:
+      'same dark capability as dashboard-governance: the test signs in as a Staff user to prove a property-scoped account cannot see another property. The scoping property is worth keeping and comes back with Staff User login',
+    maxHits: 1,
+    skippedTests: 1,
+  },
+  {
     file: 'src/shared/architecture/domain-error-convention.test.ts',
     owner: 'engineering',
     reason:

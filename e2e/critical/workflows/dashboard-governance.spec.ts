@@ -88,7 +88,15 @@ test.describe('Critical workflow: dashboard governance (staff vs admin)', () => 
     return { propertyAId, freshAId, expiredAId, propertyBId }
   }
 
-  test('staff dashboard is governed, scoped, expiry-clean, and reply-redacted', async ({
+  // SKIPPED: exercises Staff User login, which this beta deliberately does not
+  // have. 52635b32 made only owner/admin tokens beta-interactive
+  // (isBetaInteractiveMemberRoleToken), so a Staff member cannot resolve tenant
+  // context at all — the sign-in fails before any dashboard assertion runs.
+  // "Staff User login" is on the program's dark-capability list, so the fence is
+  // the intended behaviour and this test is asserting a capability that is off.
+  // Re-enable with the capability, not before; the staff-scoping coverage it
+  // provides is real and should come back when Staff can log in.
+  test.skip('staff dashboard is governed, scoped, expiry-clean, and reply-redacted', async ({
     page,
   }) => {
     const { propertyAId, expiredAId, propertyBId } = await seedLandscape()
