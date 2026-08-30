@@ -29,6 +29,22 @@ const expectation = {
 } as const
 
 beforeEach(async () => {
+  // The Property id is fresh per run but the slug is fixed, so a row left by
+  // an earlier run collides on `properties_org_slug_unique` and the whole
+  // file fails in `beforeEach`. Reclaim the slug rather than conflicting on
+  // an id the previous run did not use.
+  await getPool().query(
+    `DELETE FROM reviews WHERE property_id IN (
+       SELECT id FROM properties
+       WHERE organization_id = $1 AND slug = 'source-transition-authority'
+     )`,
+    [ORG],
+  )
+  await getPool().query(
+    `DELETE FROM properties
+     WHERE organization_id = $1 AND slug = 'source-transition-authority'`,
+    [ORG],
+  )
   await getPool().query(
     `INSERT INTO properties (id, organization_id, name, slug, timezone, source_epoch)
      VALUES ($1, $2, 'Source transition authority', 'source-transition-authority', 'UTC', 0)

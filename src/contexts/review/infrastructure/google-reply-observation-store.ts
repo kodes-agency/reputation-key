@@ -788,6 +788,12 @@ export const createGoogleReplyObservationStore = (
           // scan, so this stranded Review Inbox items on published replies.
           if (
             head !== undefined &&
+            // ONLY a snapshot re-read. A targeted reconciliation read exists
+            // to move the fence a publication re-claim is measured against
+            // ('permits a sending re-claim only after a newer targeted
+            // absence observation'), so it must advance the head even when it
+            // observes exactly what the head already says.
+            input.source === 'provider_snapshot' &&
             decision.resolution === 'unchanged' &&
             !supersedes &&
             !settlesLegacyUnattributedAttempt(evidence) &&

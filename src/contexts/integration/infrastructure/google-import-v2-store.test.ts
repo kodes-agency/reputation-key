@@ -45,6 +45,8 @@ const INTENT: GoogleImportV2Intent = {
           emergencyKillVersion: 1,
           role: 'Admin',
           permissionDigest: 'a'.repeat(64),
+          principalKind: 'user',
+          permissionVersion: 1,
           connectionLifecycleVersion: 1,
           connectionAccessVersion: 1,
           credentialGeneration: 1,

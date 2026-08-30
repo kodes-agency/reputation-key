@@ -129,17 +129,39 @@ function retentionReleasedEvent(
   }
 }
 
+/** Every dimension of the frozen vector must be present and storable. A
+ * missing one used to land as the string 'undefined' or NaN and only surface
+ * later as an unexplained `authorization_changed` — the whole reason the
+ * principal dimensions went unnoticed. */
+function frozenText(vector: FrozenVector, key: string): string {
+  const value = vector[key]
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`Import authorization vector is missing ${key}`)
+  }
+  return value
+}
+
+function frozenCount(vector: FrozenVector, key: string): number {
+  const value = vector[key]
+  if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 0) {
+    throw new Error(`Import authorization vector is missing ${key}`)
+  }
+  return value
+}
+
+type FrozenVector = Readonly<Record<string, string | number | boolean | null>>
+
 function authorizationColumns(item: GoogleImportV2Intent['items'][number]) {
-  const vector = item.authorization.authorizationVector
+  const vector: FrozenVector = item.authorization.authorizationVector
   return {
     approvalBindingId: item.authorization.approvalBindingId,
-    expectedExecutionPolicyVersion: String(vector.executionPolicyVersion),
-    expectedGoogleContentPolicyVersion: Number(vector.googleContentPolicyVersion),
-    expectedEmergencyKillVersion: Number(vector.emergencyKillVersion),
-    expectedActorRole: String(vector.role),
-    expectedPermissionDigest: String(vector.permissionDigest),
-    expectedPrincipalKind: String(vector.principalKind),
-    expectedPermissionVersion: Number(vector.permissionVersion),
+    expectedExecutionPolicyVersion: frozenText(vector, 'executionPolicyVersion'),
+    expectedGoogleContentPolicyVersion: frozenCount(vector, 'googleContentPolicyVersion'),
+    expectedEmergencyKillVersion: frozenCount(vector, 'emergencyKillVersion'),
+    expectedActorRole: frozenText(vector, 'role'),
+    expectedPermissionDigest: frozenText(vector, 'permissionDigest'),
+    expectedPrincipalKind: frozenText(vector, 'principalKind'),
+    expectedPermissionVersion: frozenCount(vector, 'permissionVersion'),
   }
 }
 
