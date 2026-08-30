@@ -6,7 +6,7 @@
 
 import { useState } from 'react'
 import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
-import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
+import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -78,7 +78,6 @@ export const Route = createFileRoute('/_authenticated/settings/members')({
     const [memberResult, invitationsResult] = await Promise.all([
       context.queryClient.ensureQueryData(membersQuery),
       context.queryClient.ensureQueryData(invitationsQuery),
-      context.queryClient.ensureQueryData(outstandingResponsibilitiesQuery),
     ])
     // An inviter may only assign roles at or below their own privilege level.
     const allowedRoles: ReadonlyArray<BetaInteractiveRole> = hasRole(role, 'AccountAdmin')
@@ -126,7 +125,19 @@ function MembersSettingsRoute() {
   const cancelMutation = useActionMutation(cancelInvitation, {
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
-  const { data: outstandingResult } = useSuspenseQuery(outstandingResponsibilitiesQuery)
+  // NOT useSuspenseQuery. The identity container installs a fail-closed
+  // MemberOffboardingPort until the responsibility facts are composed, so this
+  // read THROWS by design. Suspending the route on it meant one deliberately
+  // fenced capability took down the whole members page — the directory,
+  // invitations and role management with it — which is what the accessibility
+  // and shell suites caught on /settings/members.
+  //
+  // `undefined` (still loading) and an error both surface as a null worklist,
+  // which the dialog treats as "unknown" and refuses to leave on.
+  const { data: outstandingResult, isError: outstandingUnavailable } = useQuery({
+    ...outstandingResponsibilitiesQuery,
+    retry: false,
+  })
   const leaveMutation = useActionMutation(leaveOrganizationFn, {
     successMessage: 'You have left this organization',
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
@@ -208,7 +219,9 @@ function MembersSettingsRoute() {
             Leave this organization
           </h2>
           <LeaveOrganizationDialog
-            outstanding={outstandingResult.outstanding}
+            outstanding={
+              outstandingUnavailable ? null : (outstandingResult?.outstanding ?? null)
+            }
             candidates={successorCandidates}
             isSoleAccountAdmin={isSoleAccountAdmin}
             leaveOrganization={leaveMutation}

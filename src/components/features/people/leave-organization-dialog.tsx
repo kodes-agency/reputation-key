@@ -46,7 +46,19 @@ const KIND_LABEL: Readonly<Record<OffboardingResponsibilityKind, string>> = {
 export type LeaveCandidate = Readonly<{ userId: string; name: string }>
 
 export type LeaveOrganizationDialogProps = Readonly<{
-  outstanding: readonly OutstandingResponsibility[]
+  /**
+   * The transfer worklist, or `null` when the offboarding facts cannot be
+   * read.
+   *
+   * `null` is not "nothing outstanding" — it is "we do not know". The identity
+   * container installs a fail-closed MemberOffboardingPort until the
+   * responsibility facts are composed, and refusing to answer is the correct
+   * answer there: reporting an empty worklist would let someone walk out
+   * leaving Portals and Properties with no Responsible Manager. The dialog
+   * must therefore distinguish the two and refuse the leave, rather than
+   * treating an unknown worklist as a clear one.
+   */
+  outstanding: readonly OutstandingResponsibility[] | null
   /** Eligible current managers who may receive a responsibility. */
   candidates: readonly LeaveCandidate[]
   /** True when the caller is the only AccountAdmin left. */
@@ -56,6 +68,28 @@ export type LeaveOrganizationDialogProps = Readonly<{
 
 const keyOf = (item: OutstandingResponsibility): string =>
   `${item.kind}:${item.resourceId}`
+
+/**
+ * Whether the caller may leave, given what is known.
+ *
+ * Exported because the null case is the whole point and a closed Radix dialog
+ * renders none of its content, so this decision cannot be asserted through the
+ * markup. `outstanding: null` means the worklist could not be READ — the
+ * identity container installs a fail-closed MemberOffboardingPort until the
+ * responsibility facts are composed — and treating that as an empty worklist
+ * would turn a fail-closed default into a fail-open one.
+ */
+export function canLeaveOrganization(input: {
+  outstanding: readonly OutstandingResponsibility[] | null
+  assignedKeys: ReadonlySet<string>
+  isSoleAccountAdmin: boolean
+  candidateCount: number
+}): boolean {
+  if (input.outstanding === null) return false
+  if (input.isSoleAccountAdmin) return false
+  if (input.candidateCount === 0) return false
+  return input.outstanding.every((item) => input.assignedKeys.has(keyOf(item)))
+}
 
 export function LeaveOrganizationDialog({
   outstanding,
@@ -72,8 +106,20 @@ export function LeaveOrganizationDialog({
     setAssignments(updated)
   }
 
-  const unassigned = outstanding.filter((item) => !assignments.has(keyOf(item)))
-  const canLeave = !isSoleAccountAdmin && unassigned.length === 0 && candidates.length > 0
+  // `null` means the worklist could not be read. Treating it as an empty list
+  // would invert the fail-closed default into a fail-open one, so it blocks the
+  // leave exactly like an uncleared responsibility does.
+  const worklistUnavailable = outstanding === null
+  // One narrowed list for every render site below. Safe because
+  // `worklistUnavailable` has already blocked the leave when it is null — the
+  // empty list here only ever renders alongside that block, never instead of it.
+  const worklist = outstanding ?? []
+  const canLeave = canLeaveOrganization({
+    outstanding,
+    assignedKeys: new Set(assignments.keys()),
+    isSoleAccountAdmin,
+    candidateCount: candidates.length,
+  })
 
   return (
     <Dialog>
@@ -92,6 +138,18 @@ export function LeaveOrganizationDialog({
           </DialogDescription>
         </DialogHeader>
 
+        {worklistUnavailable && (
+          <Alert variant="destructive" data-testid="leave-worklist-unavailable">
+            <TriangleAlert aria-hidden="true" />
+            <AlertTitle>Leaving is unavailable right now</AlertTitle>
+            <AlertDescription>
+              We could not read what you are currently responsible for, so we cannot
+              confirm there is nothing to hand over. Leaving is blocked until that check
+              works again.
+            </AlertDescription>
+          </Alert>
+        )}
+
         {isSoleAccountAdmin ? (
           <Alert variant="destructive" data-testid="sole-account-admin-block">
             <TriangleAlert aria-hidden="true" />
@@ -102,7 +160,7 @@ export function LeaveOrganizationDialog({
               close it.
             </AlertDescription>
           </Alert>
-        ) : outstanding.length === 0 ? (
+        ) : worklist.length === 0 ? (
           <p className="text-sm" data-testid="leave-no-outstanding">
             You hold no portal responsibilities, property responsibilities or open inbox
             assignments.
@@ -112,7 +170,7 @@ export function LeaveOrganizationDialog({
             <p className="text-muted-foreground text-sm">
               Choose who takes over each item. Nothing is released to nobody.
             </p>
-            {outstanding.map((item) => {
+            {worklist.map((item) => {
               const key = keyOf(item)
               return (
                 <div key={key} className="grid gap-1.5" data-testid={`transfer-${key}`}>
@@ -151,7 +209,7 @@ export function LeaveOrganizationDialog({
             onClick={() =>
               void leaveOrganization({
                 data: {
-                  transfers: outstanding.map((item) => ({
+                  transfers: worklist.map((item) => ({
                     kind: item.kind,
                     resourceId: item.resourceId,
                     toUserId: assignments.get(keyOf(item))!,
