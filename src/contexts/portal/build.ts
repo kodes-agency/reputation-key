@@ -517,6 +517,16 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
             { errorCode: 'portal_google_destination_unavailable' },
             'Portal Google review destination unavailable — serving degraded gateway',
           ),
+        reportApprovedDestinationFailure: (error) =>
+          deps.logger.warn(
+            { errorCode: 'portal_approved_destinations_unavailable', err: error },
+            'Portal approved destinations unreadable — serving no secondary links',
+          ),
+        reportApprovedDestinationsDropped: (counts) =>
+          deps.logger.warn(
+            { errorCode: 'portal_approved_destinations_dropped', ...counts },
+            'Portal published destinations are not approved — serving fewer links',
+          ),
         clock: deps.clock,
       })(rawToken, preference)
       return outcome.status === 'found'

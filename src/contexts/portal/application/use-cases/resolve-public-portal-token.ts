@@ -55,6 +55,16 @@ export type ResolvePublicPortalTokenDeps = Readonly<{
     request: PublicPortalDecisionRequest,
   ) => Promise<PublicPortalExecutionDecision>
   reportGoogleDestinationFailure?: (error: unknown) => void
+  /**
+   * Serving a Portal with no destinations is a visible degradation, and it is
+   * indistinguishable from a Portal that legitimately has none. Without this,
+   * the fail-closed empty list below is silent.
+   */
+  reportApprovedDestinationFailure?: (error: unknown) => void
+  /** Fired when approval filtering removes destinations the snapshot published. */
+  reportApprovedDestinationsDropped?: (
+    counts: Readonly<{ published: number; served: number }>,
+  ) => void
   clock: () => Date
 }>
 
@@ -176,8 +186,19 @@ async function resolveApprovedLinks(
         new Date(now.getTime() - SECONDARY_DESTINATION_MAX_VALIDATION_AGE_MS),
       ),
     )
-    return configuration.links.filter((link) => approvedUris.has(link.url))
-  } catch {
+    const approved = configuration.links.filter((link) => approvedUris.has(link.url))
+    if (approved.length < configuration.links.length) {
+      // Not an error — an approval can legitimately lapse — but a published
+      // destination disappearing from a live Portal is invisible to the guest
+      // and to the operator, so it is worth saying out loud.
+      deps.reportApprovedDestinationsDropped?.({
+        published: configuration.links.length,
+        served: approved.length,
+      })
+    }
+    return approved
+  } catch (error) {
+    deps.reportApprovedDestinationFailure?.(error)
     return []
   }
 }
