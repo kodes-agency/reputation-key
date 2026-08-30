@@ -117,8 +117,12 @@ afterEach(() => {
 })
 
 describe('createJobQueue', () => {
-  it('returns undefined and creates nothing when REDIS_URL is absent', () => {
+  it('returns undefined and creates nothing when no queue Redis is configured', () => {
+    // BOTH, because the queue prefers QUEUE_REDIS_URL and falls back to
+    // REDIS_URL. Deleting only the fallback leaves a configured queue, so the
+    // absent case has to remove the preferred one too.
     delete process.env.REDIS_URL
+    delete process.env.QUEUE_REDIS_URL
     resetEnv()
 
     expect(createJobQueue('default')).toBeUndefined()
