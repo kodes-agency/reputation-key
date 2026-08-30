@@ -244,6 +244,13 @@ export const gbpImportRequestItems = pgTable(
     expectedEmergencyKillVersion: integer('expected_emergency_kill_version'),
     expectedActorRole: varchar('expected_actor_role', { length: 50 }),
     expectedPermissionDigest: varchar('expected_permission_digest', { length: 64 }),
+    // The remaining two dimensions of the principal stage's authorization
+    // vector. Without them the frozen vector rebuilt for the cross-time
+    // comparison had a SMALLER key set than the recomputed one, and that
+    // comparison is strict key-set equality — so every v2 import item
+    // cancelled as `authorization_changed` and no import could ever run.
+    expectedPrincipalKind: varchar('expected_principal_kind', { length: 32 }),
+    expectedPermissionVersion: integer('expected_permission_version'),
     expectedSourceEpoch: integer('expected_source_epoch'),
     expectedProfileVersion: integer('expected_profile_version'),
     action: googleImportV2ActionEnum('action').notNull(),
@@ -355,6 +362,8 @@ export const gbpImportRequestItems = pgTable(
           AND ${t.expectedEmergencyKillVersion} IS NULL
           AND ${t.expectedActorRole} IS NULL
           AND ${t.expectedPermissionDigest} IS NULL
+          AND ${t.expectedPrincipalKind} IS NULL
+          AND ${t.expectedPermissionVersion} IS NULL
         )
         OR (
           char_length(${t.approvalBindingId}) BETWEEN 1 AND 255
@@ -363,6 +372,8 @@ export const gbpImportRequestItems = pgTable(
           AND ${t.expectedEmergencyKillVersion} >= 0
           AND char_length(${t.expectedActorRole}) BETWEEN 1 AND 50
           AND ${t.expectedPermissionDigest} ~ '^[a-f0-9]{64}$'
+          AND char_length(${t.expectedPrincipalKind}) BETWEEN 1 AND 32
+          AND ${t.expectedPermissionVersion} >= 0
         )
       )`,
     ),

@@ -138,6 +138,8 @@ function authorizationColumns(item: GoogleImportV2Intent['items'][number]) {
     expectedEmergencyKillVersion: Number(vector.emergencyKillVersion),
     expectedActorRole: String(vector.role),
     expectedPermissionDigest: String(vector.permissionDigest),
+    expectedPrincipalKind: String(vector.principalKind),
+    expectedPermissionVersion: Number(vector.permissionVersion),
   }
 }
 
@@ -154,6 +156,8 @@ function authorizationFromRow(row: {
   expectedEmergencyKillVersion: number | null
   expectedActorRole: string | null
   expectedPermissionDigest: string | null
+  expectedPrincipalKind: string | null
+  expectedPermissionVersion: number | null
 }) {
   if (
     row.connectionId === null ||
@@ -165,7 +169,9 @@ function authorizationFromRow(row: {
     row.expectedGoogleContentPolicyVersion === null ||
     row.expectedEmergencyKillVersion === null ||
     row.expectedActorRole === null ||
-    row.expectedPermissionDigest === null
+    row.expectedPermissionDigest === null ||
+    row.expectedPrincipalKind === null ||
+    row.expectedPermissionVersion === null
   ) {
     return null
   }
@@ -183,6 +189,8 @@ function authorizationFromRow(row: {
       emergencyKillVersion: row.expectedEmergencyKillVersion,
       role: row.expectedActorRole,
       permissionDigest: row.expectedPermissionDigest,
+      principalKind: row.expectedPrincipalKind,
+      permissionVersion: row.expectedPermissionVersion,
       connectionLifecycleVersion: row.expectedConnectionLifecycleVersion,
       connectionAccessVersion: row.expectedConnectionAccessVersion,
       credentialGeneration: row.expectedCredentialGeneration,
@@ -770,6 +778,8 @@ export const createGoogleImportV2Store = (
               gbpImportRequestItems.expectedEmergencyKillVersion,
             expectedActorRole: gbpImportRequestItems.expectedActorRole,
             expectedPermissionDigest: gbpImportRequestItems.expectedPermissionDigest,
+            expectedPrincipalKind: gbpImportRequestItems.expectedPrincipalKind,
+            expectedPermissionVersion: gbpImportRequestItems.expectedPermissionVersion,
             expectedSourceEpoch: gbpImportRequestItems.expectedSourceEpoch,
             expectedProfileVersion: gbpImportRequestItems.expectedProfileVersion,
             providerAccountSuffix: gbpImportRequestItems.providerAccountSuffix,
@@ -963,6 +973,8 @@ export const createGoogleImportV2Store = (
               gbpImportRequestItems.expectedEmergencyKillVersion,
             expectedActorRole: gbpImportRequestItems.expectedActorRole,
             expectedPermissionDigest: gbpImportRequestItems.expectedPermissionDigest,
+            expectedPrincipalKind: gbpImportRequestItems.expectedPrincipalKind,
+            expectedPermissionVersion: gbpImportRequestItems.expectedPermissionVersion,
             expectedSourceEpoch: gbpImportRequestItems.expectedSourceEpoch,
             expectedProfileVersion: gbpImportRequestItems.expectedProfileVersion,
             action: gbpImportRequestItems.action,
@@ -1475,6 +1487,8 @@ export const createGoogleImportV2Store = (
             gbpImportRequestItems.expectedEmergencyKillVersion,
           expectedActorRole: gbpImportRequestItems.expectedActorRole,
           expectedPermissionDigest: gbpImportRequestItems.expectedPermissionDigest,
+          expectedPrincipalKind: gbpImportRequestItems.expectedPrincipalKind,
+          expectedPermissionVersion: gbpImportRequestItems.expectedPermissionVersion,
           expectedSourceEpoch: gbpImportRequestItems.expectedSourceEpoch,
           expectedProfileVersion: gbpImportRequestItems.expectedProfileVersion,
           providerAccountSuffix: gbpImportRequestItems.providerAccountSuffix,
