@@ -558,6 +558,42 @@ async function confirmReplyOnGoogle(
 type ObservationDecision = ReturnType<typeof decideGoogleReplyObservation>
 
 /** Append the new observation and replace the Review's head with it. */
+/**
+ * A re-read that restates the current head has nothing to say: it emits no
+ * fact (see the `!== 'unchanged'` gate in `record`), confirms no attempt, and
+ * supersedes none. Advancing the head for it is not free — downstream permits
+ * are scoped to the EXACT current observation, so a redundant read silently
+ * revoked a close permit whose fact had not been consumed yet, and nothing
+ * re-issued it. A single snapshot run re-reads every review in its
+ * confirmation scan, which stranded Review Inbox items on published replies.
+ *
+ * ONLY a snapshot re-read qualifies. A targeted reconciliation read exists to
+ * move the fence a publication re-claim is measured against ("permits a
+ * sending re-claim only after a newer targeted absence observation"), so it
+ * must advance the head even when it observes exactly what the head says.
+ */
+function restatesCurrentHead(
+  args: Readonly<{
+    input: RecordGoogleReplyObservation
+    decision: ObservationDecision
+    head: ObservationHeadRow | undefined
+    supersedes: boolean
+    evidence: PublicationEvidence
+  }>,
+): boolean {
+  const { input, decision, head, supersedes, evidence } = args
+  if (head === undefined) return false
+  if (input.source !== 'provider_snapshot') return false
+  if (decision.resolution !== 'unchanged') return false
+  if (supersedes || settlesLegacyUnattributedAttempt(evidence)) return false
+  return (
+    head.state === decision.state &&
+    head.normalizedDigest === decision.normalizedDigest &&
+    head.sourceEpoch === input.sourceEpoch &&
+    head.materialReviewRevision === input.materialReviewRevision
+  )
+}
+
 async function persistObservationAndHead(
   tx: Tx,
   input: RecordGoogleReplyObservation,
@@ -778,30 +814,7 @@ export const createGoogleReplyObservationStore = (
             input,
           )
 
-          // A re-read that restates the current head has nothing to say: it
-          // emits no fact (see the `!== 'unchanged'` gate below), confirms no
-          // attempt, and supersedes none. Advancing the head for it is not
-          // free — downstream permits are scoped to the EXACT current
-          // observation, so a redundant read silently revokes a close permit
-          // whose fact has not been consumed yet, and nothing re-issues it.
-          // A single snapshot run re-reads every review in its confirmation
-          // scan, so this stranded Review Inbox items on published replies.
-          if (
-            head !== undefined &&
-            // ONLY a snapshot re-read. A targeted reconciliation read exists
-            // to move the fence a publication re-claim is measured against
-            // ('permits a sending re-claim only after a newer targeted
-            // absence observation'), so it must advance the head even when it
-            // observes exactly what the head already says.
-            input.source === 'provider_snapshot' &&
-            decision.resolution === 'unchanged' &&
-            !supersedes &&
-            !settlesLegacyUnattributedAttempt(evidence) &&
-            head.state === decision.state &&
-            head.normalizedDigest === decision.normalizedDigest &&
-            head.sourceEpoch === input.sourceEpoch &&
-            head.materialReviewRevision === input.materialReviewRevision
-          ) {
+          if (restatesCurrentHead({ input, decision, head, supersedes, evidence })) {
             const current = await selectHeadObservation(tx, input)
             if (current) {
               return { result: resultFromRow(current, true), facts: [] as DomainEvent[] }
