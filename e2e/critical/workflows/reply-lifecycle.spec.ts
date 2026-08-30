@@ -38,6 +38,10 @@ const PREFIX = 'e2e-rep-'
 const seed = requireE2eSeedState()
 const ACCOUNT = `e2e-rep-${e2eRunId}`
 const ACCOUNT_NAME = `accounts/${ACCOUNT}`
+// Run-scoped: this spec's Property survives cleanup (its Reply is named by an
+// immutable reply_publication_authorization), so a fixed location id would
+// collide with the surviving row on properties_org_gbp_location_id_unique.
+const locationId = (name: string) => `${name}-loc-${e2eRunId}`
 
 const REPLY_FILE = 'src/contexts/review/server/reply-draft.ts'
 const REPLY_FILE_OPS = 'src/contexts/review/server/reply.ts'
@@ -69,8 +73,8 @@ test.describe('Critical workflow: reply lifecycle', () => {
       replyBehavior?: Parameters<typeof gbpStubControl.putScope>[0]['replyBehavior']
     },
   ): Promise<Scenario> {
-    const locationName = `${ACCOUNT_NAME}/locations/${name}-loc`
-    const reviewName = `${locationName}/reviews/${name}-r1`
+    const locationName = `${ACCOUNT_NAME}/locations/${locationId(name)}`
+    const reviewName = `${locationName}/reviews/${name}-r1-${e2eRunId}`
     await gbpStubControl.putScope({
       account: {
         name: ACCOUNT_NAME,
@@ -100,13 +104,13 @@ test.describe('Critical workflow: reply lifecycle', () => {
       googleBinding: {
         connectionId,
         accountId: ACCOUNT,
-        locationId: `${name}-loc`,
+        locationId: locationId(name),
       },
     })
     const { reviewId } = await seedReview({
       organizationId: seed.organizationId,
       propertyId,
-      externalId: `${name}-r1`,
+      externalId: `${name}-r1-${e2eRunId}`,
       rating: 5,
       text: `Reply scenario ${name} review body`,
       reviewerName: `Reply Reviewer ${name}`,
@@ -127,7 +131,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
   }
 
   const stubReview = (name: string): StubReview => ({
-    name: `${ACCOUNT_NAME}/locations/${name}-loc/reviews/${name}-r1`,
+    name: `${ACCOUNT_NAME}/locations/${locationId(name)}/reviews/${name}-r1-${e2eRunId}`,
     starRating: 'FIVE',
     comment: `Reply scenario ${name} review body`,
     reviewer: { displayName: `Reply Reviewer ${name}` },
@@ -204,7 +208,7 @@ test.describe('Critical workflow: reply lifecycle', () => {
       pathPrefix: `/v4/${s.locationName}`,
     })
     expect(puts).toHaveLength(1)
-    expect(puts[0].path).toContain(`/reviews/happy-r1/reply`)
+    expect(puts[0].path).toContain(`/reviews/happy-r1-${e2eRunId}/reply`)
     expect(puts[0].body).toContain('Final reply wording — thank you!')
   })
 

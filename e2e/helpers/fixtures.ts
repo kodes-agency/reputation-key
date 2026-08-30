@@ -1577,20 +1577,57 @@ export async function cleanupE2eData(input: {
   // Then the RESTRICT children of reviews that publishing creates. (The CASCADE
   // ones — ai_review_analyses, review_source_contents, review_source_observations,
   // material_review_revisions — need no statement of their own.)
+  // Reply publication has a dependency graph of its own, unwound from the
+  // leaves. Observation HEADS point at observations; observations and attempts
+  // then point at EACH OTHER -- an attempt names the observation that confirmed
+  // it, and an observation names the attempt it matched. Neither order works,
+  // and the columns cannot simply be nulled: check constraints couple each
+  // reference to the row's outcome, on purpose.
+  //
+  // Both sides therefore go in ONE statement. RESTRICT is checked at the end of
+  // the statement, by which point neither row is left to reference the other.
   await dbQuery(
-    `DELETE FROM reply_publication_attempts WHERE review_id IN (${FIXTURE_REVIEWS})`,
+    `DELETE FROM google_reply_observation_heads WHERE review_id IN (${FIXTURE_REVIEWS})`,
     args,
   )
   await dbQuery(
-    `DELETE FROM reply_publication_authorizations WHERE review_id IN (${FIXTURE_REVIEWS})`,
+    `WITH observations AS (
+       DELETE FROM google_reply_observations WHERE review_id IN (${FIXTURE_REVIEWS})
+       RETURNING 1
+     )
+     DELETE FROM reply_publication_attempts WHERE review_id IN (${FIXTURE_REVIEWS})`,
+    args,
+  )
+  // reply_publication_authorizations is NOT deleted: a trigger refuses it
+  // ("reply publication authorizations are immutable"), which is the product's
+  // deliberate posture for a record of what a manager authorised. A review that
+  // still carries one therefore cannot be removed either, so both are left in
+  // place. That is safe because every fixture identity is scoped by e2eRunId --
+  // the rows accumulate but never collide with a later run.
+  // Only reviews with no immutable authorization behind them can go, and the
+  // replies must go with them.
+  // A reply that an authorization still names cannot go, so it is skipped and
+  // its review is skipped with it. Reviews are then removed only once nothing
+  // references them at all.
+  await dbQuery(
+    `DELETE FROM replies reply
+     WHERE reply.review_id IN (${FIXTURE_REVIEWS})
+       AND NOT EXISTS (
+         SELECT 1 FROM reply_publication_authorizations authorization_record
+         WHERE authorization_record.reply_id = reply.id
+       )`,
     args,
   )
   await dbQuery(
-    `DELETE FROM google_reply_observations WHERE review_id IN (${FIXTURE_REVIEWS})`,
+    `DELETE FROM reviews review
+     WHERE review.id IN (${FIXTURE_REVIEWS})
+       AND NOT EXISTS (SELECT 1 FROM replies reply WHERE reply.review_id = review.id)
+       AND NOT EXISTS (
+         SELECT 1 FROM reply_publication_authorizations authorization_record
+         WHERE authorization_record.review_id = review.id
+       )`,
     args,
   )
-  await dbQuery(`DELETE FROM replies WHERE review_id IN (${FIXTURE_REVIEWS})`, args)
-  await dbQuery(`DELETE FROM reviews WHERE id IN (${FIXTURE_REVIEWS})`, args)
   // grants for prefix-matched users and properties (RESTRICT FK), then both
   await dbQuery(
     `DELETE FROM property_access_grant WHERE organization_id = $1 AND (
@@ -1626,17 +1663,33 @@ export async function cleanupE2eData(input: {
     [input.organizationId, like],
   )
   await dbQuery(
+    // A Property whose Reviews cannot be removed cannot be removed either: the
+    // cascade would reach a Reply that a reply_publication_authorization still
+    // names, and that record is immutable by design. Skipping such a Property
+    // leaves it behind rather than aborting the whole cleanup, which is what
+    // used to poison the database for every later run of that spec.
     `DELETE FROM properties
      WHERE organization_id = $1 AND id IN (
        SELECT p.id
        FROM properties p
        LEFT JOIN google_connections gc ON gc.id = p.google_connection_id
        WHERE p.organization_id = $1
-         AND (p.slug LIKE $2 OR gc.google_subject LIKE $2))`,
+         AND (p.slug LIKE $2 OR gc.google_subject LIKE $2)
+         AND NOT EXISTS (
+           SELECT 1 FROM reviews r WHERE r.property_id = p.id
+         ))`,
     [input.organizationId, like],
   )
   await dbQuery(
-    'DELETE FROM google_connections WHERE organization_id = $1 AND google_subject LIKE $2',
+    // Skip a connection a surviving Property is still bound to: removing it
+    // would null one leg of the binding tuple and properties_google_binding_
+    // tuple_valid refuses the partial state.
+    `DELETE FROM google_connections connection
+     WHERE connection.organization_id = $1
+       AND connection.google_subject LIKE $2
+       AND NOT EXISTS (
+         SELECT 1 FROM properties p WHERE p.google_connection_id = connection.id
+       )`,
     [input.organizationId, like],
   )
   // Better Auth mirrors do not declare cross-track FKs in application code;
