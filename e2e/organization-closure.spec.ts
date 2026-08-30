@@ -132,83 +132,36 @@ test.describe('Closure Center', () => {
     await page.goto('/settings/closure')
     await waitForHydration(page)
 
-    // ── Request ─────────────────────────────────────────────────────
-    const phrase = await page
-      .getByTestId('closure-confirmation')
-      .evaluate(
-        (input) =>
-          (input as HTMLInputElement).labels?.[0]?.textContent?.match(
-            /CLOSE .+?(?= to)/u,
-          )?.[0] ?? '',
-      )
-    expect(phrase).toMatch(/^CLOSE /u)
+    // ── Closure cannot be requested in this deployment ──────────────
+    // "fix(identity): refuse closure where reactivation is unavailable"
+    // removed the ability to request a closure where it cannot be cancelled:
+    // the request would suspend the Organization with no way back. This
+    // journey used to drive request → cancel → refused re-request and repair
+    // the damage with raw SQL; that path no longer exists, and asserting it
+    // would be asserting a capability the product deliberately withdrew.
+    //
+    // What is asserted instead is that the refusal is honest at BOTH ends: the
+    // surface says so rather than arming a destructive control, and the
+    // command refuses if called directly, leaving the lifecycle untouched.
+    await expect(page.getByTestId('closure-unavailable-notice')).toBeVisible()
+    await expect(page.getByTestId('request-closure')).toHaveCount(0)
 
-    await page.getByTestId('closure-evidence').fill('e2e-closure')
-    // A near-miss must NOT arm the button: the confirmation is exact.
-    await page.getByTestId('closure-confirmation').fill(phrase.toLowerCase())
-    await expect(page.getByTestId('request-closure')).toBeDisabled()
-
-    await page.getByTestId('closure-confirmation').fill(phrase)
-    await expect(page.getByTestId('request-closure')).toBeEnabled()
-    await page.getByTestId('request-closure').click()
-
-    await waitFor(
-      async () => {
-        const row = await lifecycleState()
-        return row.state === 'closure_requested' ? row : null
-      },
-      { description: 'closure requested', diagnose: lifecycleState },
-    )
-    const requested = await lifecycleState()
-    expect(requested.reactivation_required).toBe(true)
-
-    // ── The workspace is now read only ──────────────────────────────
-    // The suspension committed with the request denies every capability, so
-    // an ordinary mutation elsewhere in the product is refused.
-    const denied = await callServerFnExpectError(page, {
-      file: 'src/contexts/identity/server/organizations.ts',
-      exportName: 'inviteMember',
-      data: {
-        email: `e2e-closed-${Date.now()}@example.test`,
-        role: 'PropertyManager',
-        propertyIds: [],
-      },
-    })
-    expect(String(denied.message ?? '')).toMatch(/suspend|forbidden|denied/iu)
-
-    // ── Cancel — and prove nothing resumed ──────────────────────────
-    await page.reload()
-    await waitForHydration(page)
-    await page.getByTestId('cancel-closure').click()
-
-    await waitFor(
-      async () => {
-        const row = await lifecycleState()
-        return row.state === 'active' ? row : null
-      },
-      { description: 'closure cancelled', diagnose: lifecycleState },
-    )
-    const cancelled = await lifecycleState()
-    expect(cancelled.reactivation_required).toBe(true)
-    const policy = await dbQuery<{ suspended_at: Date | null }>(
-      'SELECT suspended_at FROM organization_policy WHERE organization_id = $1',
-      [seed.organizationId],
-    )
-    // The suspension SURVIVES the cancellation. That is the whole point.
-    expect(policy[0]?.suspended_at).not.toBeNull()
-
-    // ── A second request is refused while reactivation is pending ───
-    const refused = await callServerFnExpectError(page, {
-      file: CLOSURE_FNS,
+    const beforeRequest = await lifecycleState()
+    const refusedRequest = await callServerFnExpectError(page, {
+      file: 'src/contexts/identity/server/organization-closure-fns.ts',
       exportName: 'requestOrganizationClosureFn',
       data: {
         reasonCode: 'account_admin_request',
-        supportEvidenceRef: 'e2e-closure-2',
-        typedConfirmation: phrase,
+        supportEvidenceRef: 'e2e-closure',
+        typedConfirmation: 'CLOSE E2E Org A',
       },
     })
-    expect(String(refused.message ?? '')).toMatch(/not fully active|reactivation/iu)
-    expect((await lifecycleState()).revision).toBe(cancelled.revision)
+    expect(String(refusedRequest.message ?? '')).toMatch(
+      /cannot reactivate|unavailable/iu,
+    )
+    const afterRequest = await lifecycleState()
+    expect(afterRequest.state).toBe(beforeRequest.state)
+    expect(afterRequest.revision).toBe(beforeRequest.revision)
 
     // ── Export request → retrieval → download ───────────────────────
     const view = await callServerFnGet<{ export: { requestId: string } | null }>(page, {
