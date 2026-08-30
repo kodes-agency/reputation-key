@@ -44,7 +44,6 @@ export const createPropertyProcessingProfileAdapter = (
         propertyCountryCode: properties.countryCode,
         propertyTimezone: properties.timezone,
         propertySourceEpoch: properties.sourceEpoch,
-        propertyRoutingPolicyVersion: properties.routingPolicyVersion,
         propertyLifecycleState: properties.lifecycleState,
         profileOrganizationId: aiPropertyProcessingProfiles.organizationId,
         profileCountryCode: aiPropertyProcessingProfiles.countryCode,
@@ -90,7 +89,7 @@ export const createPropertyProcessingProfileAdapter = (
     const drifted =
       row.profileVersion === null ||
       row.profileSourceEpoch !== row.propertySourceEpoch ||
-      row.profileRoutingPolicyVersion !== row.propertyRoutingPolicyVersion ||
+      row.profileRoutingPolicyVersion !== cell.routingPolicyVersion ||
       row.profileOrganizationId !== row.propertyOrganizationId ||
       row.profileCountryCode !== row.propertyCountryCode ||
       row.profileTimezone !== row.propertyTimezone ||
@@ -116,7 +115,11 @@ export const createPropertyProcessingProfileAdapter = (
     if (row.profileSourceEpoch !== row.propertySourceEpoch) {
       return { status: 'source_epoch_changed' }
     }
-    if (row.profileRoutingPolicyVersion !== row.propertyRoutingPolicyVersion) {
+    // Against the AI ROUTING policy the cell resolver applied, not against the
+    // Property's data-cell CATALOGUE version. They are independent sequences —
+    // the catalogue is at 3, the AI routing policy at 1 — and this column is a
+    // foreign key into ai_routing_policies.
+    if (row.profileRoutingPolicyVersion !== cell.routingPolicyVersion) {
       return { status: 'routing_policy_changed' }
     }
     if (
@@ -200,7 +203,7 @@ export const createPropertyProcessingProfileAdapter = (
         existing.countryCode === property.countryCode &&
         existing.timezone === property.timezone &&
         existing.processingRegion === cell.processingRegion &&
-        existing.routingPolicyVersion === property.routingPolicyVersion &&
+        existing.routingPolicyVersion === cell.routingPolicyVersion &&
         existing.providerDeploymentProfileVersion ===
           cell.providerDeploymentProfileVersion &&
         existing.sourceEpoch === property.sourceEpoch &&
@@ -219,7 +222,7 @@ export const createPropertyProcessingProfileAdapter = (
             countryCode: property.countryCode,
             timezone: property.timezone,
             processingRegion: cell.processingRegion,
-            routingPolicyVersion: property.routingPolicyVersion,
+            routingPolicyVersion: cell.routingPolicyVersion,
             providerDeploymentProfileVersion: cell.providerDeploymentProfileVersion,
             sourceEpoch: property.sourceEpoch,
             profileVersion,
@@ -233,7 +236,7 @@ export const createPropertyProcessingProfileAdapter = (
               countryCode: property.countryCode,
               timezone: property.timezone,
               processingRegion: cell.processingRegion,
-              routingPolicyVersion: property.routingPolicyVersion,
+              routingPolicyVersion: cell.routingPolicyVersion,
               providerDeploymentProfileVersion: cell.providerDeploymentProfileVersion,
               sourceEpoch: property.sourceEpoch,
               profileVersion,
@@ -251,7 +254,7 @@ export const createPropertyProcessingProfileAdapter = (
           countryCode: property.countryCode,
           timezone: property.timezone,
           processingRegion: 'global',
-          routingPolicyVersion: property.routingPolicyVersion,
+          routingPolicyVersion: cell.routingPolicyVersion,
           sourceEpoch: property.sourceEpoch,
           profileVersion,
           lifecycleState: 'active',
