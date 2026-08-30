@@ -210,7 +210,12 @@ describe('reconcile-missing-notifications sweep', () => {
         type: 'review.created',
         resourceType: 'inbox_item',
         resourceId: 'item-1',
-        eventId: 'reconcile:item-1',
+        // A UUID, not `reconcile:item-1`: this identity reaches
+        // event_consumer_receipts.event_id, which is a uuid column. Derived
+        // from the item, so the sweep stays idempotent.
+        eventId: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
+        ),
       }),
     )
     expect(fakes.logger.info).toHaveBeenCalledWith(
