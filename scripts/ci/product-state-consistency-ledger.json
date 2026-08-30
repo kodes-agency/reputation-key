@@ -349,12 +349,6 @@
       "policy": "defaultOpen seeds uncontrolled client UI state; controlled openProp remains the render authority when supplied."
     },
     {
-      "id": "src/routes/_authenticated/settings/notifications.tsx:useState(propertyId)",
-      "classification": "local_runtime",
-      "owner": "Notification property selector",
-      "policy": "The first accessible property seeds the selection and later choices are user-owned. NotificationSettingsPropertyScope is keyed by organizationId plus the sorted accessible-property ids, so access changes remount the selector before any capability read can retain a removed id."
-    },
-    {
       "id": "src/components/features/integration/google-import-manager/google-import-manager.tsx:useState(startError)",
       "classification": "local_runtime",
       "owner": "Google import callback recovery",
