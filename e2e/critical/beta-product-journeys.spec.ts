@@ -15,6 +15,7 @@ import {
 } from '../helpers/fixtures'
 import {
   callServerFn,
+  forceUserPassword,
   callServerFnGet,
   callServerFnExpectError,
   callServerFnGetExpectError,
@@ -732,32 +733,41 @@ test.describe('Critical: beta-local-1 product journeys', () => {
   test('security and organization mutations persist and restore their baselines', async ({
     page,
   }) => {
-    await signIn(page, seed.email, seed.password, BASE_ORIGIN, '/settings/security')
     const temporaryPassword = `${seed.password}-changed`
-    await page.getByLabel('Current password').fill(seed.password)
-    await page.getByLabel('New password', { exact: true }).fill(temporaryPassword)
-    await page.getByLabel('Confirm new password').fill(temporaryPassword)
-    await clickWhenReady(page.getByRole('button', { name: 'Update password' }))
-    await expect(page.getByText('Password changed successfully')).toBeVisible()
-    await page.getByLabel('Current password').fill(temporaryPassword)
-    await page.getByLabel('New password', { exact: true }).fill(seed.password)
-    await page.getByLabel('Confirm new password').fill(seed.password)
-    const passwordRestore = page.waitForResponse(
-      (response) =>
-        response.request().method() === 'POST' && response.url().includes('/_serverFn/'),
-    )
-    await clickWhenReady(page.getByRole('button', { name: 'Update password' }))
-    await expect((await passwordRestore).ok()).toBe(true)
+    // The password is SHARED suite state: every other spec signs in with it.
+    // The restore below is the UI path under test, but it must not be the
+    // only one — a failure anywhere in here used to leave the seeded account
+    // unreachable and take the rest of the run down with it. The `finally`
+    // covers the sign-in too, so even a run that starts with an already
+    // broken password repairs it on the way out.
+    try {
+      await signIn(page, seed.email, seed.password, BASE_ORIGIN, '/settings/security')
+      await page.getByLabel('Current password').fill(seed.password)
+      await page.getByLabel('New password', { exact: true }).fill(temporaryPassword)
+      await page.getByLabel('Confirm new password').fill(temporaryPassword)
+      await clickWhenReady(page.getByRole('button', { name: 'Update password' }))
+      await expect(page.getByText('Password changed successfully')).toBeVisible()
+      await page.getByLabel('Current password').fill(temporaryPassword)
+      await page.getByLabel('New password', { exact: true }).fill(seed.password)
+      await page.getByLabel('Confirm new password').fill(seed.password)
+      const passwordRestore = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          response.url().includes('/_serverFn/'),
+      )
+      await clickWhenReady(page.getByRole('button', { name: 'Update password' }))
+      expect((await passwordRestore).ok()).toBe(true)
+    } finally {
+      await forceUserPassword(seed.email, seed.password)
+    }
 
     await page.goto('/settings/organization')
+    // Organization settings are name/slug/contactEmail — the billing block was
+    // removed from this surface, and the update DTO is `.strict()`, so sending
+    // the old fields is rejected outright.
     const organizationFields = {
       slug: await page.locator('#org-slug').inputValue(),
       contactEmail: await page.locator('#org-contact-email').inputValue(),
-      billingCompanyName: await page.locator('#billing-company-name').inputValue(),
-      billingAddress: await page.locator('#billing-address').inputValue(),
-      billingCity: await page.locator('#billing-city').inputValue(),
-      billingPostalCode: await page.locator('#billing-postal-code').inputValue(),
-      billingCountry: await page.locator('#billing-country').inputValue(),
     }
     const changedName = `${seed.organizationName} Persisted`
     await callServerFn(page, {

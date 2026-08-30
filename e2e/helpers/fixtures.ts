@@ -954,6 +954,25 @@ export async function seedReview(input: {
   return { reviewId }
 }
 
+/**
+ * Force a credential account's password back to a known value.
+ *
+ * The security journey changes the seeded manager's password and changes it
+ * back. When it failed midway the account kept the CHANGED password, and
+ * every later spec in the suite died at sign-in — one broken test poisoned
+ * the whole run and only a reseed recovered it. This restore runs from the
+ * test's `finally`, so it cannot be skipped by a failure earlier in the body.
+ */
+export async function forceUserPassword(email: string, password: string): Promise<void> {
+  const hash = await hashPassword(password)
+  await dbQuery(
+    `UPDATE account SET password = $1, "updatedAt" = now()
+     WHERE "providerId" = 'credential'
+       AND "userId" = (SELECT id FROM "user" WHERE email = $2)`,
+    [hash, email],
+  )
+}
+
 /** The content-free inbox projection row for a review (what the worker's
  * review.created handler would write — used for triage/expiry setup).
  *
