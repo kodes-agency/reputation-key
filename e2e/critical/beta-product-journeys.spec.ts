@@ -698,19 +698,35 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // name. Other specs leave fixture properties in the seeded organization
     // that sort ahead of P1 and are not allowlisted for notification email, so
     // the switch would render disabled and the assertion would be about the
-    // wrong Property. Select P1 explicitly.
+    // wrong Property. Select P1 explicitly — and the selection is URL state,
+    // so every reload below stays on it.
     await page.getByRole('combobox', { name: 'Property' }).click()
     await page.getByRole('option', { name: 'E2E Beta Hotel P1', exact: true }).click()
     const reviewEmailSwitch = page.locator('#workflow_collaboration-email')
-    await expect(reviewEmailSwitch).toBeChecked()
-    await reviewEmailSwitch.click()
+    // Self-baselining: the assertion is that a toggle SURVIVES a reload and
+    // that restoring it survives too. Asserting a fixed starting state made
+    // this test depend on its own previous run having finished — one failed
+    // run left the preference off and every later run failed on the baseline
+    // rather than on the behaviour under test.
+    await expect(reviewEmailSwitch).toBeEnabled({ timeout: 15_000 })
+    const initiallyEnabled =
+      (await reviewEmailSwitch.getAttribute('data-state')) === 'checked'
+    const expectState = async (enabled: boolean) => {
+      if (enabled) await expect(reviewEmailSwitch).toBeChecked()
+      else await expect(reviewEmailSwitch).not.toBeChecked()
+    }
+
+    await clickWhenReady(reviewEmailSwitch)
     await expect(page.getByText('Notification preference updated')).toBeVisible()
     await page.reload()
-    await expect(reviewEmailSwitch).not.toBeChecked()
-    await reviewEmailSwitch.click()
+    await expect(reviewEmailSwitch).toBeEnabled({ timeout: 15_000 })
+    await expectState(!initiallyEnabled)
+
+    await clickWhenReady(reviewEmailSwitch)
     await expect(page.getByText('Notification preference updated')).toBeVisible()
     await page.reload()
-    await expect(reviewEmailSwitch).toBeChecked()
+    await expect(reviewEmailSwitch).toBeEnabled({ timeout: 15_000 })
+    await expectState(initiallyEnabled)
   })
 
   test('security and organization mutations persist and restore their baselines', async ({

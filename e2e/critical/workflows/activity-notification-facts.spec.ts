@@ -25,6 +25,7 @@ import {
   dbQuery,
   getInboxItemForReview,
   getInboxItemById,
+  closeInboxItemBySourceAuthority,
   getActivityRows,
   getNotificationsForUser,
   enqueueReviewSync,
@@ -124,12 +125,18 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
     )
 
     // Triage actions (each a durable activity fact): close, reopen, note.
-    // Close drops the item from the Open folder's list, so reopen from the
-    // Closed folder (drop-from-filter UX). Every click is allowed to settle
-    // before the next navigation (an in-flight mutation must never abort).
+    //
+    // Closing is an OUTCOME, not a manager toggle — there is deliberately no
+    // Close control anywhere in the detail or the bulk toolbar (asserted by
+    // inbox-handling-cycle.spec.ts). The source authority closes the cycle;
+    // reopening is the manual decision, and it IS in the UI.
     await page.goto(`/inbox?itemId=${inboxItem.id}`)
     await expect(page.getByText(SENSITIVE_NAME).first()).toBeVisible({ timeout: 15_000 })
-    await page.getByRole('button', { name: 'Close', exact: true }).click()
+    await closeInboxItemBySourceAuthority({
+      organizationId: seed.organizationId,
+      inboxItemId: inboxItem.id as string,
+      closeReason: 'external_reply_observed',
+    })
     await waitFor(
       async () => {
         const item = await getInboxItemById(inboxItem.id as string)
@@ -137,8 +144,17 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
       },
       { timeoutMs: 10_000, description: 'item closed' },
     )
+    // Reopen through the real manager path: work-status select → reason →
+    // confirm. A reopen without a stated reason is refused by the dialog.
     await page.goto(`/inbox?folder=closed&itemId=${inboxItem.id}`)
-    await page.getByRole('button', { name: 'Reopen', exact: true }).click()
+    await page.getByRole('combobox', { name: 'Work status' }).click()
+    await page.getByRole('option', { name: 'Open', exact: true }).click()
+    await page.getByRole('combobox', { name: 'Reason for reopening' }).click()
+    await page.getByRole('option', { name: 'New information', exact: true }).click()
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Reopen', exact: true })
+      .click()
     await waitFor(
       async () => {
         const item = await getInboxItemById(inboxItem.id as string)
@@ -148,8 +164,10 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
     )
     await page.goto(`/inbox?itemId=${inboxItem.id}`)
     await expect(page.getByText(SENSITIVE_NAME).first()).toBeVisible({ timeout: 15_000 })
+    // The note thread lives behind the composer's Internal note tab.
+    await page.getByRole('tab', { name: 'Internal note' }).click()
     await page.getByPlaceholder('Add a note…').fill('Fact-check note body')
-    await page.getByRole('button', { name: 'Add Note' }).click()
+    await page.getByRole('button', { name: 'Add note', exact: true }).click()
     await expect(page.getByText('Fact-check note body').first()).toBeVisible({
       timeout: 10_000,
     })
@@ -201,9 +219,17 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
     )
 
     // Rendered surfaces: the activity timeline shows the facts…
+    // The timeline is collapsed by default behind its event-count trigger.
     await page.reload()
+    await page
+      .getByRole('button', { name: /^Activity \d+ events?$/ })
+      .first()
+      .click()
+    // The manager's REOPEN is the status change the timeline records; the
+    // close was the source authority's, which is a cycle transition rather
+    // than an operator activity fact.
     await expect(
-      page.getByText(/status changed from open to closed/i).first(),
+      page.getByText(/status changed from closed to open/i).first(),
     ).toBeVisible({ timeout: 15_000 })
     // …and the notification popover shows the content-safe fact…
     await page

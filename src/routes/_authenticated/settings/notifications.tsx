@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { createFileRoute, getRouteApi } from '@tanstack/react-router'
+import { createFileRoute, getRouteApi, useNavigate } from '@tanstack/react-router'
+import { z } from 'zod/v4'
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
@@ -32,7 +32,14 @@ const userSettingsQuery = (organizationId: string) =>
     staleTime: 60_000,
   })
 
+/** Which property's preferences are being edited. In the URL, not component
+ * state: preferences are PER PROPERTY, and a reload that silently fell back to
+ * "the first property by name" pointed the whole page — including its save
+ * buttons — at a property the operator had not chosen. */
+const notificationsSearchSchema = z.object({ propertyId: z.string().optional() })
+
 export const Route = createFileRoute('/_authenticated/settings/notifications')({
+  validateSearch: (search) => notificationsSearchSchema.parse(search),
   loader: async ({ context }) => {
     const routeContext = context as AuthRouteContext & {
       queryClient: typeof context.queryClient
@@ -74,9 +81,20 @@ function NotificationSettingsPropertyScope({
   const { data: preferences } = useSuspenseQuery(preferencesQuery(organizationId))
   const { data: userSettings } = useSuspenseQuery(userSettingsQuery(organizationId))
   const { data: properties } = useSuspenseQuery(propertiesQuery)
+  const search = Route.useSearch()
+  const navigate = useNavigate({ from: Route.fullPath })
+  // A propertyId in the URL wins, but only while it still names a property
+  // this operator can see — a stale or hand-edited link falls back rather
+  // than rendering an empty scope.
+  const selected = properties.properties.find(
+    (property) => property.id === search.propertyId,
+  )
+  const propertyId: string = selected?.id ?? properties.properties[0]?.id ?? ''
   // Explicitly `string`: the id is branded, so an inferred setter would refuse
   // the plain string the Select hands back.
-  const [propertyId, setPropertyId] = useState<string>(properties.properties[0]?.id ?? '')
+  const setPropertyId = (next: string) => {
+    void navigate({ search: { propertyId: next }, replace: true })
+  }
   // `notification.send_email` is non-core and allowlisted per property, so the
   // answer changes with the selector. Owned here because routes own data in
   // this codebase; the view stays a pure function of its props.
