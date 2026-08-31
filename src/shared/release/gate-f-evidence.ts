@@ -39,6 +39,7 @@ import {
   type GateFApprovalRole,
   type GateFApprovalVerifier,
 } from './gate-f-approval-envelope'
+import { RELEASE_POSTURES, type ReleasePosture } from './release-posture'
 
 export const GATE_F_EVIDENCE_VERSION = 'repkey-gate-f-evidence-1' as const
 
@@ -77,10 +78,15 @@ export const GATE_F_REQUIRED_GATE_IDS = [
  * needs the founder alone; the moment the posture moves to `open-beta` — the
  * moment someone other than the operator's own staff can reach the product —
  * the full set is required again, with no one needing to remember to re-arm it.
+ *
+ * The vocabulary itself now lives in `release-posture.ts`, alongside the
+ * constant that says which posture the product is actually in — this module
+ * only ever described the posture a BUNDLE claims, which left the product's own
+ * posture unstated and every other gate with nothing to consult. Re-exported
+ * here because callers of this module reasonably expect the type next to the
+ * function that keys on it.
  */
-const RELEASE_POSTURES = ['closed-beta', 'open-beta', 'ga'] as const
-
-export type ReleasePosture = (typeof RELEASE_POSTURES)[number]
+export { RELEASE_POSTURES, type ReleasePosture } from './release-posture'
 
 /**
  * A closed beta is approved by the founder alone.

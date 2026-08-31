@@ -128,6 +128,7 @@
     "check:zod-conformance": "tsx scripts/review/zod-v4-conformance.ts",
     "check:legal-registry": "tsx scripts/review/legal-document-registry.ts",
     "check:runtime-environment-contract": "tsx scripts/ci/check-runtime-environment-contract.ts",
+    "gate": "tsx scripts/ci/gate.ts",
     "ops:queue": "tsx scripts/ops/queue-quarantine.ts",
     "ops:quarantine": "tsx scripts/ops/quarantine-redrive.ts",
     "ops:reconcile-grants": "tsx scripts/ops/reconcile-staff-grants.ts",
