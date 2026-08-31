@@ -5637,6 +5637,15 @@ const OPERATOR_ROWS: ReadonlyArray<EntryPointRow> = [
     },
   ),
   ops(
+    'scripts/ci/check-runtime-environment-contract.ts',
+    'scripts/ci/check-runtime-environment-contract.ts',
+    'none',
+    {
+      notes:
+        'check:runtime-environment-contract — digests the files that decide what a DEPLOYED service must supply at boot and fails when they move, so a contract change cannot pass a repository-only CI and crash-loop production (739ccbc9 sidecar port split); writes the snapshot only under --update',
+    },
+  ),
+  ops(
     'scripts/review/baseline-inventory.ts',
     'scripts/review/baseline-inventory.ts',
     'none',
