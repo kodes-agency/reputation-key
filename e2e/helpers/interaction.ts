@@ -42,17 +42,31 @@ export async function clickWhenReady(locator: Locator): Promise<void> {
  * pass if the control were genuinely obscured by a modal or a disabled overlay,
  * which is exactly the failure these specs exist to catch.
  */
+const TOAST_DRAIN_TIMEOUT_MS = 10_000
+
 export async function dismissToasts(page: Page): Promise<void> {
   const toasts = page.locator('[data-sonner-toast]')
-  for (let remaining = await toasts.count(); remaining > 0; remaining--) {
+  // DRAIN, rather than dismiss the number that happened to be present on
+  // entry: a mutation that settles mid-loop raises another toast, so a count
+  // taken once leaves the last arrival on screen and the final assertion
+  // fails. The deadline keeps a page that raises toasts continuously from
+  // spinning here instead of failing.
+  const deadline = Date.now() + TOAST_DRAIN_TIMEOUT_MS
+  while ((await toasts.count()) > 0 && Date.now() < deadline) {
     // Always the first: dismissing re-indexes the list.
     const toast = toasts.first()
-    if ((await toast.count()) === 0) return
-    await toast.hover()
+    if ((await toast.count()) === 0) break
+    await toast.hover().catch(() => undefined)
     const close = toast.getByRole('button', { name: /close|dismiss/i })
-    if ((await close.count()) > 0) await close.first().click()
-    else await page.keyboard.press('Escape')
+    if ((await close.count()) > 0) {
+      await close
+        .first()
+        .click()
+        .catch(() => undefined)
+    } else {
+      await page.keyboard.press('Escape')
+    }
     await toast.waitFor({ state: 'detached', timeout: 5_000 }).catch(() => undefined)
   }
-  await expect(toasts).toHaveCount(0, { timeout: 5_000 })
+  await expect(toasts).toHaveCount(0, { timeout: TOAST_DRAIN_TIMEOUT_MS })
 }
