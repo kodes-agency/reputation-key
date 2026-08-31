@@ -707,7 +707,7 @@ jobs:
         id: pw-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium
       - name: Install Playwright browser
         run: >-
           ${{ steps.pw-cache.outputs.cache-hit == 'true'
@@ -760,7 +760,13 @@ jobs:
         id: pw-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium-firefox-webkit
+      # The cache key names the BROWSER SET, not just the Playwright version.
+      # Three jobs share ~/.cache/ms-playwright: two need chromium alone and
+      # this one also needs firefox and webkit for the compatibility gate. On
+      # a shared key whichever job populated the cache first won, so a hit
+      # here ran `install-deps` against a chromium-only directory and every
+      # Firefox and WebKit test failed with "Executable doesn't exist".
       - name: Install Playwright release browsers
         run: >-
           ${{ steps.pw-cache.outputs.cache-hit == 'true'
@@ -908,7 +914,7 @@ jobs:
         id: pw-cache
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium
       - name: Install Playwright browser
         run: >-
           ${{ steps.pw-cache.outputs.cache-hit == 'true'
